@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Bootstrap IAM stack
+
+Resources:
+  rDevUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: aether-dev-user
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  rDevUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref rDevUser
+
+  rIACRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aether-iac-role
+      MaxSessionDuration: 3600 # 1 hour
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt rDevUser.Arn
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/IAMAccessAnalyzerFullAccess
+      Policies:
+        - PolicyName: aether-iac-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeTable
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:ExecuteChangeSet
+                Resource: "*"
+Outputs:
+  DevUserAccessKey:
+    Description: Access key for the aether-dev-user
+    Value: !Ref rDevUserAccessKey
+    Export:
+      Name: "AetherDevUserAccessKey"
+  DevUserSecretKey:
+    Description: Secret key for the aether-dev-user
+    Value: !GetAtt rDevUserAccessKey.SecretAccessKey
+    Export:
+      Name: "AetherDevUserSecretKey"
+  DevUserArn:
+    Description: ARN for the aether-dev-user
+    Value: !GetAtt rDevUser.Arn
+    Export:
+      Name: "AetherDevUserArn"
+  IACRoleArn:
+    Description: ARN for the aether-iac-role
+    Value: !GetAtt rIACRole.Arn
+    Export:
+      Name: "AetherIACRoleArn"

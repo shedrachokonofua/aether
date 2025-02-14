@@ -1,0 +1,227 @@
+version: "3"
+
+vars:
+  DOCKER_IMAGE: aether-toolbox:latest
+  CACHE_DIR: ${HOME}/.aether-toolbox
+
+tasks:
+  build-tools:
+    desc: Build the toolbox Docker image
+    cmds:
+      - docker build -t {{.DOCKER_IMAGE}} -f tools.dockerfile .
+
+  tofu:
+    desc: Run OpenTofu commands
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/tofu
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        tofu {{.CLI_ARGS}}
+
+  tofu:create-state-config:
+    desc: Create a Terraform state configuration
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        {{.DOCKER_IMAGE}}
+        sh ./scripts/create-tofu-state-config.sh
+
+  tofu:init:
+    desc: Initialize the Terraform workspace
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - task: tofu:create-state-config
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu init -backend-config=../config/tofu-state.config -upgrade
+
+  tofu:plan:
+    desc: Plan Terraform changes
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_AWS_IAC_ROLE_ARN
+        -e TF_VAR_AWS_REGION
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu plan {{.CLI_ARGS}}
+
+  tofu:apply:
+    desc: Apply Terraform changes
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_AWS_IAC_ROLE_ARN
+        -e TF_VAR_AWS_REGION
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu apply {{.CLI_ARGS}}
+
+  tofu:output:
+    desc: Get Terraform output
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu output {{.CLI_ARGS}}
+
+  tofu:destroy:
+    desc: Destroy Terraform resources
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu destroy {{.CLI_ARGS}}
+
+  tofu:fmt:
+    desc: Format Terraform files
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        tofu fmt {{.CLI_ARGS}}
+
+  ansible:
+    desc: Run Ansible commands
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/ansible
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible {{.CLI_ARGS}}
+
+  sops:
+    desc: Run SOPS commands
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/gnupg
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/gnupg:/root/.gnupg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        sops {{.CLI_ARGS}}
+
+  sops:encrypt:
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/gnupg:/root/.gnupg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        sops --encrypt --age $(cat ./config/public-age-keys.txt) --in-place {{.CLI_ARGS}}
+
+  sops:decrypt:
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/gnupg:/root/.gnupg
+        -w /workspace
+        -e SOPS_AGE_KEY_FILE=./config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        sops --decrypt --in-place {{.CLI_ARGS}}
+
+  age-keygen:
+    desc: Generate an AGE key pair
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        age-keygen {{.CLI_ARGS}}
+
+  cloud-init:
+    desc: Run cloud-init commands
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        cloud-init {{.CLI_ARGS}}
+
+  aws:
+    desc: Run AWS CLI commands
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        {{.DOCKER_IMAGE}}
+        aws --no-cli-pager {{.CLI_ARGS}}
+
+  shell:
+    desc: Start a shell in the toolbox container
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -v {{.CACHE_DIR}}/gnupg:/root/.gnupg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+
+  bootstrap:sops:
+    desc: Bootstrap SOPS
+    cmds:
+      - task: age-keygen
+        vars:
+          CLI_ARGS: -o config/age-key.txt
+
+  bootstrap:
+    desc: Bootstrap the project
+    cmds:
+      - chmod +x ./bootstrap/bootstrap.sh
+      - ./bootstrap/bootstrap.sh {{.CLI_ARGS}}
