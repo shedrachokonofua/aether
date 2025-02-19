@@ -1,0 +1,5 @@
+collections:
+  - name: community.general
+    version: 10.3.0
+  - name: vyos.vyos
+    version: 5.0.0

@@ -1,14 +1,3 @@
-resource "aws_accessanalyzer_analyzer" "unused_access_analyzer" {
-  analyzer_name = "unused-access-analyzer"
-  type          = "ACCOUNT_UNUSED_ACCESS"
-
-  configuration {
-    unused_access {
-      unused_access_age = 90
-    }
-  }
-}
-
 resource "aws_iam_user" "lute_minio_backup_user" {
   name = "lute-minio-backup-user"
   path = "/aether/"
@@ -74,3 +63,4 @@ output "aws_lute_minio_backup_user_secret_access_key" {
   value     = aws_iam_access_key.lute_minio_backup_user_access_key.secret
   sensitive = true
 }
+

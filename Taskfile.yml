@@ -64,8 +64,8 @@ tasks:
         -e AWS_SECRET_ACCESS_KEY
         -e AWS_SESSION_TOKEN
         -e AWS_REGION
-        -e TF_VAR_AWS_IAC_ROLE_ARN
-        -e TF_VAR_AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu plan {{.CLI_ARGS}}
@@ -82,8 +82,8 @@ tasks:
         -e AWS_SECRET_ACCESS_KEY
         -e AWS_SESSION_TOKEN
         -e AWS_REGION
-        -e TF_VAR_AWS_IAC_ROLE_ARN
-        -e TF_VAR_AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu apply {{.CLI_ARGS}}
@@ -132,6 +132,7 @@ tasks:
 
   ansible:
     desc: Run Ansible commands
+    dir: ./ansible
     cmds:
       - mkdir -p {{.CACHE_DIR}}/ansible
       - docker run --rm -it
@@ -140,6 +141,45 @@ tasks:
         -w /workspace
         {{.DOCKER_IMAGE}}
         ansible {{.CLI_ARGS}}
+
+  ansible:galaxy:
+    desc: Run Ansible Galaxy commands
+    dir: ./ansible
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-galaxy {{.CLI_ARGS}}
+
+  ansible:galaxy:install:
+    desc: Run Ansible Galaxy commands
+    dir: ./ansible
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-galaxy collection install -r ./requirements.yml
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-galaxy install -r ./requirements.yml
+
+  ansible:playbook:
+    desc: Run Ansible playbooks
+    dir: ./ansible
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-playbook {{.CLI_ARGS}}
 
   sops:
     desc: Run SOPS commands
@@ -180,15 +220,6 @@ tasks:
         {{.DOCKER_IMAGE}}
         age-keygen {{.CLI_ARGS}}
 
-  cloud-init:
-    desc: Run cloud-init commands
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        cloud-init {{.CLI_ARGS}}
-
   aws:
     desc: Run AWS CLI commands
     cmds:
@@ -225,3 +256,12 @@ tasks:
     cmds:
       - chmod +x ./bootstrap/bootstrap.sh
       - ./bootstrap/bootstrap.sh {{.CLI_ARGS}}
+
+  build-vyos-image:
+    desc: Build the VyOS image
+    dir: ./ansible
+    cmds:
+      - task: ansible:galaxy:install
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./playbooks/vyos.yml

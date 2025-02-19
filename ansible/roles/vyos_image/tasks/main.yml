@@ -1,0 +1,5 @@
+- name: Setup builder VM
+  include_tasks: setup-builder.yml
+
+- name: Build VyOS image
+  include_tasks: build-image.yml

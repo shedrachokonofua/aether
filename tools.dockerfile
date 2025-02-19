@@ -9,7 +9,7 @@ RUN apk update && \
   python3 \
   py3-pip \
   ansible@community \
-  cloud-init@community \
+  ansible-galaxy@community \
   sops@community \
   age \
   opentofu@community \
@@ -28,8 +28,8 @@ WORKDIR /workspaces
 
 # Verify installations
 RUN ansible --version && \
+  ansible-galaxy --version && \
   tofu version && \
-  cloud-init --version && \
   sops --version && \
   aws --version && \
   age-keygen --version

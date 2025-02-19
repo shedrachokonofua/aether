@@ -1,0 +1,23 @@
+- name: Download Debian cloud image
+  get_url:
+    url: https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2
+    dest: "{{debian_image_path}}"
+
+- name: Import Debian cloud image
+  shell: qm importdisk 9000 {{debian_image_path}} local-lvm
+
+- name: Create vyos-image-builder VM
+  community.general.proxmox_kvm:
+    name: vyos-image-builder
+    api_host: "{{gigahub_lan_ip}}"
+    api_user: "{{cluster_username}}"
+    api_password: "{{cluster_password}}"
+    node: "{{hostname}}"
+    ipconfig:
+      ipconfig0: "ip={{hostvars['vyos-image-builder'].gigahub_lan_ip}}/24,gw={{hostvars['vyos-image-builder'].gigahub_gateway}}"
+    cpu: host
+    cores: 8
+    memory: 4096
+
+  register: builder
+

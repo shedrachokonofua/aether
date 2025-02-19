@@ -69,10 +69,12 @@ cat <<EOF > ./secrets/aws-dev-user.env
 AWS_ACCESS_KEY_ID=$DEV_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY=$DEV_SECRET_ACCESS_KEY
 AWS_REGION=$AWS_REGION
-TF_VAR_AWS_REGION=$AWS_REGION
-TF_VAR_AWS_IAC_ROLE_ARN=$IAC_ROLE_ARN
+TF_VAR_aws_region=$AWS_REGION
+TF_VAR_aws_iac_role_arn=$IAC_ROLE_ARN
 EOF
 
 task tofu:create-state-config
+
+task tofu:init
 
 echo "Complete"
