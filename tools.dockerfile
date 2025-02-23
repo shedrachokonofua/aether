@@ -3,21 +3,20 @@ FROM alpine:edge
 # Add community repository
 RUN echo "@community https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
 
-# Update and install packages
+# Update and install packages including OpenSSH for SSH support
 RUN apk update && \
   apk add --no-cache \
   python3 \
   py3-pip \
   ansible@community \
-  ansible-galaxy@community \
   sops@community \
   age \
   opentofu@community \
   aws-cli \
+  openssh \
   ca-certificates \
   groff \
-  less \
-  && \
+  less && \
   update-ca-certificates && \
   # Clean up
   rm -rf /var/cache/apk/*
@@ -26,12 +25,13 @@ RUN apk update && \
 RUN mkdir -p /workspaces
 WORKDIR /workspaces
 
-# Verify installations
+# Verify installations, including SSH version
 RUN ansible --version && \
   ansible-galaxy --version && \
   tofu version && \
   sops --version && \
   aws --version && \
-  age-keygen --version
+  age-keygen --version && \
+  ssh -V
 
 CMD ["/bin/sh"]

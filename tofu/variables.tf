@@ -1,5 +1,5 @@
 data "sops_file" "secrets" {
-  source_file = "../secrets/secrets.yaml"
+  source_file = "../secrets/secrets.yml"
 }
 
 data "local_file" "authorized_keys" {

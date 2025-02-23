@@ -14,7 +14,6 @@ All CLI tools required to manage the cloud are included in a toolbox docker imag
 ### Included in toolbox docker image
 
 - Ansible
-- Ansible Galaxy
 - AWS CLI
 - OpenTofu
 - Sops
@@ -55,7 +54,7 @@ All CLI tools required to manage the cloud are included in a toolbox docker imag
 ### Requirements
 
 - Full admin access to AWS Account
-- Access to Home Network: 2 network interfaces required to connect to both the Bell Gigahub and OPNsense virtual router
+- Access to Home Network: 2 network interfaces required to connect to both the Bell Gigahub and VyOS virtual router
 - Access to Age Private Key
 - Bell PPPoE credentials
 
@@ -78,15 +77,17 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
    task bootstrap -- <aws access-key-id> <aws secret-access-key>
    ```
 
-### Deploy Home Router
+### Setup Home Network
 
-1. Build VyOS cloud image
-
-   VyOS does not have a public cloud image(qcow2) available for download. They only freely distribute ISO images. This task will build a VyOS cloud image from the ISO. This task will package the latest ISO into a qcow2 image within a builder VM on the Proxmox cluster.
+1. Provision Router ([README](ansible/playbooks/home_router/README.md))
 
    ```bash
-   task build-vyos-image
+   task provision:home:router
    ```
+
+1. Manually apply rack switch port configuration ([README](docs/home.md#rack-switch))
+
+1. Manually apply office switch port configuration ([README](docs/home.md#office-switch))
 
 ### Deploy Home Network File Server
 

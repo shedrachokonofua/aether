@@ -1,0 +1,19 @@
+- name: Load VM config
+  include_vars:
+    file: "/workspace/config/vm.yml"
+    name: vm
+
+- name: Load secrets
+  include_vars:
+    file: "/workspace/secrets/secrets.yml"
+    name: secrets
+
+- name: Load authorized_keys
+  set_fact:
+    ssh_authorized_keys: >-
+      {{
+        lookup('file', '/workspace/config/authorized_keys').splitlines()
+        | reject('equalto', '')
+        | reject('match', '^#')
+        | list
+      }}

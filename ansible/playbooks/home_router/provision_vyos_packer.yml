@@ -1,0 +1,125 @@
+---
+- name: Provision VyOS image packer
+  hosts: trinity
+  gather_facts: true
+
+  vars:
+    fedora_image_path: "/var/lib/vz/template/iso/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2.img"
+
+  roles:
+    - common
+
+  tasks:
+    - name: Check if Fedora image exists
+      stat:
+        path: "/var/lib/vz/template/iso/Fedora-Cloud-Base.qcow2.img"
+      register: fedora_image
+
+    - name: Download Fedora image
+      get_url:
+        url: https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2
+        dest: "/var/lib/vz/template/iso/Fedora-Cloud-Base.qcow2.img"
+      when: not fedora_image.stat.exists
+
+    - name: Check if VyOS packer exists
+      community.general.proxmox_vm_info:
+        vmid: "{{ vm.vyos_packer.id }}"
+        node: "{{ vm.vyos_packer.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+      register: previous_vm_info
+      ignore_errors: true
+
+    - name: Stop VyOS packer
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.vyos_packer.id }}"
+        name: "vyos-packer"
+        node: "{{ vm.vyos_packer.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: stopped
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: stop_result
+      until: not stop_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Delete existing VyOS packer
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.vyos_packer.id }}"
+        name: "vyos-packer"
+        node: "{{ vm.vyos_packer.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: absent
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: delete_result
+      until: not delete_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Write cloud-init file
+      copy:
+        content: "{{ lookup('template', 'vyos-packer-cloudinit.j2') }}"
+        dest: "/var/lib/vz/snippets/vyos-packer-cloudinit.yml"
+
+    - name: Print cloud-init file
+      debug:
+        var: lookup('template', 'vyos-packer-cloudinit.j2')
+
+    - name: Create VyOS packer
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.vyos_packer.id }}"
+        name: "vyos-packer"
+        node: "{{ vm.vyos_packer.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        cicustom: "user=local:snippets/vyos-packer-cloudinit.yml"
+        cpu: host
+        cores: "{{ vm.vyos_packer.cores }}"
+        sockets: 1
+        memory: "{{ vm.vyos_packer.memory }}"
+        ostype: "l26"
+        scsihw: "virtio-scsi-single"
+        ide:
+          ide2: "local:cloudinit,format=qcow2"
+        net:
+          net0: "virtio,bridge=vmbr0,firewall=1"
+        ipconfig:
+          ipconfig0: "ip={{vm.vyos_packer.ip}}/24,gw={{vm.vyos_packer.gateway}}"
+
+    - name: Create VyOS packer disk
+      command: "qm importdisk {{ vm.vyos_packer.id }} /var/lib/vz/template/iso/Fedora-Cloud-Base.qcow2.img local-lvm"
+
+    - name: Attach VyOS packer disk
+      command: "qm set {{ vm.vyos_packer.id }} --scsi0 local-lvm:vm-{{ vm.vyos_packer.id }}-disk-0"
+
+    - name: Set VyOS packer disk size
+      command: "qm resize {{ vm.vyos_packer.id }} scsi0 {{ vm.vyos_packer.disk_gb }}G"
+
+    - name: Set VyOS packer boot order
+      command: "qm set {{ vm.vyos_packer.id }} --boot order=scsi0"
+
+    - name: Start VyOS packer
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.vyos_packer.id }}"
+        name: "vyos-packer"
+        node: "{{ vm.vyos_packer.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: started
+
+    - name: Wait for VyOS packer to be ready
+      wait_for:
+        host: "{{ vm.vyos_packer.ip }}"
+        port: 22
+        timeout: 300
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5

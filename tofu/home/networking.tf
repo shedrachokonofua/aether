@@ -90,4 +90,5 @@ module "router_setup_bastion_vm_user" {
   node_name       = "trinity"
   authorized_keys = var.authorized_keys
   password        = var.router_password
+  file_prefix     = "router-setup-bastion"
 }

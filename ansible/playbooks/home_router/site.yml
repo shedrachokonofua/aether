@@ -1,0 +1,6 @@
+---
+- name: Provision VyOS image packer
+  import_playbook: provision_vyos_packer.yml
+
+- name: Pack VyOS image
+  import_playbook: pack_vyos.yml

@@ -137,6 +137,7 @@ tasks:
       - mkdir -p {{.CACHE_DIR}}/ansible
       - docker run --rm -it
         -v ${PWD}:/workspace
+        -v ${HOME}/.ssh:/root/.ssh
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -w /workspace
         {{.DOCKER_IMAGE}}
@@ -148,6 +149,7 @@ tasks:
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
+        -v ${HOME}/.ssh:/root/.ssh
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -w /workspace
         {{.DOCKER_IMAGE}}
@@ -159,6 +161,7 @@ tasks:
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
+        -v ${HOME}/.ssh:/root/.ssh
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -w /workspace
         {{.DOCKER_IMAGE}}
@@ -172,14 +175,39 @@ tasks:
 
   ansible:playbook:
     desc: Run Ansible playbooks
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-playbook {{.CLI_ARGS}} -i ./ansible/inventory/hosts.yml
+
+  ansible:list-hosts:
+    desc: List Ansible hosts
     dir: ./ansible
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
+        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -w /workspace
         {{.DOCKER_IMAGE}}
-        ansible-playbook {{.CLI_ARGS}}
+        ansible all --list-hosts
+
+  ansible:ping:
+    desc: Ping Ansible hosts
+    dir: ./ansible
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible all -m ping
 
   sops:
     desc: Run SOPS commands
@@ -257,11 +285,17 @@ tasks:
       - chmod +x ./bootstrap/bootstrap.sh
       - ./bootstrap/bootstrap.sh {{.CLI_ARGS}}
 
-  build-vyos-image:
-    desc: Build the VyOS image
-    dir: ./ansible
+  baseline:home:
+    desc: Run the baseline playbook
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/baseline.yml
+
+  provision:home:router:
+    desc: Deploy the home router
     cmds:
       - task: ansible:galaxy:install
       - task: ansible:playbook
         vars:
-          CLI_ARGS: ./playbooks/vyos.yml
+          CLI_ARGS: ./ansible/playbooks/home_router/site.yml

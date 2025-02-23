@@ -41,4 +41,5 @@ module "management_vm_user" {
   node_name       = "trinity"
   authorized_keys = var.authorized_keys
   password        = var.management_vm_password
+  file_prefix     = "management-vm"
 }

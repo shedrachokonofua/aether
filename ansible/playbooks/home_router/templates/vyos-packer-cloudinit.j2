@@ -1,0 +1,27 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - git
+  - make
+  - qemu
+  - dnf-plugins-core
+runcmd:
+  - dnf config-manager addrepo --from-repofile=https://rpm.releases.hashicorp.com/fedora/hashicorp.repo
+  - dnf -y install packer
+users:
+  - name: aether
+    ssh_pwauth: false
+    lock_passwd: false
+    chpasswd:
+      expire: false
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups:
+      - sudo
+    ssh_authorized_keys:
+    {% for key in ssh_authorized_keys %}
+      - "{{ key }}"
+    {% endfor %}
+

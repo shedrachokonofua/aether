@@ -2,6 +2,10 @@ variable "node_name" {
   type = string
 }
 
+variable "file_prefix" {
+  type = string
+}
+
 variable "authorized_keys" {
   type = list(string)
 }
@@ -45,7 +49,7 @@ resource "proxmox_virtual_environment_file" "cloud_config" {
   node_name    = var.node_name
 
   source_raw {
-    file_name = "cloud-config.yml"
+    file_name = "${var.file_prefix}-cloud-config.yml"
     data      = <<EOF
 #cloud-config
 ${yamlencode(local.user_data_file_yaml)}

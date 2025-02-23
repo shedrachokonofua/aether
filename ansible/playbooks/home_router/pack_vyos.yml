@@ -1,0 +1,80 @@
+---
+- name: Pack VyOS image
+  hosts: vyos-packer
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Wait for cloud-init to finish
+      command: sudo cloud-init status --wait
+      register: cloud_init_status
+      until: "'status: done' in cloud_init_status.stdout"
+      retries: 2
+      delay: 5
+      failed_when: "'status: done' not in cloud_init_status.stdout"
+
+    - name: Clone packer-vyos
+      git:
+        repo: "https://github.com/vyos-contrib/packer-vyos"
+        dest: "/home/aether/packer-vyos"
+        version: "main"
+        force: true
+
+    - name: Create packer vars file
+      copy:
+        dest: "/home/aether/packer-vyos/local-vyos-1.5.pkrvars.hcl"
+        content: |
+          vm_name             = "vyos"
+          platform            = "qemu"
+          cloud_init          = "debian"
+          vyos_release        = "current"
+          headless            = true
+          disk_size           = 2048
+
+    - name: Create iso directory
+      file:
+        path: "/home/aether/packer-vyos/iso"
+        state: directory
+        mode: "0755"
+        owner: "aether"
+        group: "aether"
+
+    - name: Download vyos iso
+      get_url:
+        url: "https://github.com/vyos/vyos-nightly-build/releases/download/1.5-rolling-202502220006/vyos-1.5-rolling-202502220006-generic-amd64.iso"
+        dest: "/home/aether/packer-vyos/iso/vyos.iso"
+        mode: "0644"
+        owner: "aether"
+        group: "aether"
+
+    - name: Create checksum file
+      shell: "sha256sum /home/aether/packer-vyos/iso/vyos.iso > /home/aether/packer-vyos/iso/SHA256SUM"
+      args:
+        chdir: "/home/aether/packer-vyos/iso"
+
+    - name: Remove iso path from checksum file
+      shell: "sed -i 's|/home/aether/packer-vyos/iso/vyos.iso||' /home/aether/packer-vyos/iso/SHA256SUM"
+      args:
+        chdir: "/home/aether/packer-vyos/iso"
+
+    - name: Initialize packer
+      command:
+        cmd: make init
+        chdir: "/home/aether/packer-vyos"
+
+    - name: Pre pack VyOS image
+      command:
+        cmd: make build1-1.5
+        chdir: "/home/aether/packer-vyos"
+
+    - name: Pack VyOS image
+      command:
+        cmd: make build2-1.5
+        chdir: "/home/aether/packer-vyos"
+
+    - name: Copy VyOS image to Proxmox
+      synchronize:
+        mode: "pull"
+        src: "/home/aether/packer-vyos/iso/vyos-build2.qcow2"
+        dest: "/var/lib/vz/template/iso/vyos-1.5.qcow2.img"
+      delegate_to: trinity

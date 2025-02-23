@@ -1,0 +1,14 @@
+---
+- name: Install necessary packages on Proxmox hosts
+  hosts: machines
+  become: true
+  become_method: su
+
+  tasks:
+    - name: Install proxmoxer
+      apt:
+        name:
+          - python3-proxmoxer
+
+    - name: Enable Proxmox Snippets
+      command: pvesm set local --content images,rootdir,vztmpl,backup,iso,snippets
