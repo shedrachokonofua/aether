@@ -183,7 +183,7 @@ tasks:
         -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
         -w /workspace
         {{.DOCKER_IMAGE}}
-        ansible-playbook {{.CLI_ARGS}} -i ./ansible/inventory/hosts.yml
+        ansible-playbook {{.CLI_ARGS}}
 
   ansible:list-hosts:
     desc: List Ansible hosts
@@ -193,6 +193,7 @@ tasks:
         -v ${PWD}:/workspace
         -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
         -w /workspace
         {{.DOCKER_IMAGE}}
         ansible all --list-hosts
@@ -205,6 +206,7 @@ tasks:
         -v ${PWD}:/workspace
         -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
         -w /workspace
         {{.DOCKER_IMAGE}}
         ansible all -m ping

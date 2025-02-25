@@ -2,13 +2,10 @@
 - name: Provision VyOS image packer
   hosts: trinity
   gather_facts: true
-
   vars:
     fedora_image_path: "/var/lib/vz/template/iso/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2.img"
-
   roles:
     - common
-
   tasks:
     - name: Check if Fedora image exists
       stat:
@@ -66,10 +63,6 @@
         content: "{{ lookup('template', 'vyos-packer-cloudinit.j2') }}"
         dest: "/var/lib/vz/snippets/vyos-packer-cloudinit.yml"
 
-    - name: Print cloud-init file
-      debug:
-        var: lookup('template', 'vyos-packer-cloudinit.j2')
-
     - name: Create VyOS packer
       community.general.proxmox_kvm:
         vmid: "{{ vm.vyos_packer.id }}"
@@ -118,7 +111,7 @@
       wait_for:
         host: "{{ vm.vyos_packer.ip }}"
         port: 22
-        timeout: 300
+        timeout: 120
       register: wait_result
       until: not wait_result.failed
       retries: 5

@@ -1,0 +1,9 @@
+#cloud-config
+vyos_config_commands:
+  - set system host-name 'aether-home-router'
+  - delete interfaces ethernet eth0 address
+  - delete interfaces ethernet eth0 hw-id
+  - set interfaces ethernet eth0 address {{ vm.router.ip.gigahub }}/24
+  - set interfaces ethernet eth0 description 'WAN'
+  - set interfaces ethernet eth1 address {{ vm.router.ip.vyos }}/24
+  - set interfaces ethernet eth1 description 'LAN'

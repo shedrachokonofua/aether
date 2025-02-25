@@ -1,0 +1,145 @@
+---
+- name: Provision VyOS router
+  hosts: trinity
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Check if VyOS image exists
+      stat:
+        path: "/var/lib/vz/template/iso/vyos-1.5.qcow2.img"
+      register: vyos_image
+
+    - name: Fail if VyOS image does not exist
+      fail:
+        msg: "VyOS image does not exist"
+      when: not vyos_image.stat.exists
+
+    - name: Check if Router VM exists
+      community.general.proxmox_vm_info:
+        vmid: "{{ vm.router.id }}"
+        node: "{{ vm.router.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+      register: previous_vm_info
+      ignore_errors: true
+
+    - name: Stop Router
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.router.id }}"
+        name: "router"
+        node: "{{ vm.router.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: stopped
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: stop_result
+      until: not stop_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Delete existing Router
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.router.id }}"
+        name: "router"
+        node: "{{ vm.router.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: absent
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: delete_result
+      until: not delete_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Write user data cloud-init file
+      copy:
+        content: |
+          #cloud-config
+          vyos_config_commands:
+            - set system host-name 'aether-home-router'
+            - delete interfaces ethernet eth0 address
+            - delete interfaces ethernet eth0 hw-id
+            - set interfaces ethernet eth0 address {{ vm.router.ip.gigahub }}/24
+            - set interfaces ethernet eth0 description 'WAN'
+            - set interfaces ethernet eth1 address {{ vm.router.ip.vyos }}/24
+            - set interfaces ethernet eth1 description 'LAN'
+        dest: "/var/lib/vz/snippets/router-user-cloudinit.yml"
+
+    - name: Write network config cloud-init file
+      copy:
+        content: |
+          #cloud-config
+          network:
+            version: 2
+            ethernets:
+              eth0:
+                dhcp4: false
+                dhcp6: false
+              eth1:
+                dhcp4: false
+                dhcp6: false
+        dest: "/var/lib/vz/snippets/router-network-cloudinit.yml"
+
+    - name: Write meta data cloud-init file
+      copy:
+        content: ""
+        dest: "/var/lib/vz/snippets/router-meta-cloudinit.yml"
+
+    - name: Create Router VM
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.router.id }}"
+        name: "router"
+        node: "{{ vm.router.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        cores: "{{ vm.router.cores }}"
+        sockets: 1
+        memory: "{{ vm.router.memory }}"
+        ostype: "l26"
+        scsihw: "virtio-scsi-single"
+        cicustom: "user=local:snippets/router-user-cloudinit.yml,network=local:snippets/router-network-cloudinit.yml,meta=local:snippets/router-meta-cloudinit.yml"
+        ide:
+          ide2: "local:cloudinit,format=qcow2"
+        net:
+          net0: "virtio,bridge=vmbr0,firewall=1"
+          net1: "virtio,bridge=vmbr0,firewall=1"
+        ipconfig:
+          ipconfig0: "ip={{vm.router.ip.gigahub}}/24,gw={{vm.router.gateway.gigahub}}"
+          ipconfig1: "ip={{vm.router.ip.vyos}}/24,gw={{vm.router.gateway.vyos}}"
+
+    - name: Create Router disk
+      command: "qm importdisk {{ vm.router.id }} /var/lib/vz/template/iso/vyos-1.5.qcow2.img local-lvm"
+
+    - name: Attach Router disk
+      command: "qm set {{ vm.router.id }} --scsi0 local-lvm:vm-{{ vm.router.id }}-disk-0"
+
+    - name: Set Router disk size
+      command: "qm resize {{ vm.router.id }} scsi0 {{ vm.router.disk_gb }}G"
+
+    - name: Set Router boot order
+      command: "qm set {{ vm.router.id }} --boot order=scsi0"
+
+    - name: Start Router
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.router.id }}"
+        name: "router"
+        node: "{{ vm.router.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: started
+
+    - name: Wait for Router to be ready
+      wait_for:
+        host: "{{ vm.router.ip.gigahub }}"
+        port: 22
+        timeout: 300
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5

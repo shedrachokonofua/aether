@@ -40,13 +40,13 @@ All CLI tools required to manage the cloud are included in a toolbox docker imag
 1. Encrypt secrets
 
    ```bash
-   task sops encrypt secrets/<file>.yaml
+   task sops:encrypt secrets/<file>.yaml
    ```
 
 1. Decrypt secrets
 
    ```bash
-   task sops decrypt secrets/<file>.yaml
+   task sops:decrypt secrets/<file>.yaml
    ```
 
 ## Deployment
@@ -113,6 +113,8 @@ task tofu:apply
 
 ## Docs
 
-- Realms:
-  - [Home](docs/home.md)
-  - AWS
+### Realms
+
+- [Home](docs/home.md)
+- [AWS](docs/aws.md)
+- [GCP](docs/gcp.md)

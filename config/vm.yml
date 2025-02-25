@@ -2,8 +2,22 @@ vyos_packer:
   id: 1000
   name: "vyos-packer"
   node: "trinity"
-  cores: 8
-  memory: 8192
-  disk_gb: 20
+  cores: 4
+  memory: 4096
+  disk_gb: 10
   ip: "192.168.2.230"
   gateway: "192.168.2.1"
+
+router:
+  id: 1001
+  name: "vyos-router"
+  node: "trinity"
+  cores: 8
+  memory: 4096
+  disk_gb: 10
+  ip:
+    gigahub: "192.168.2.231"
+    vyos: "10.0.0.1"
+  gateway:
+    gigahub: "192.168.2.1"
+    vyos: "10.0.0.0"

@@ -1,6 +1,6 @@
-# Home Network
+# Home Router
 
-This playbook is for setting up the [VyOS](https://vyos.io/) router/firewall virtual machine that powers the home network. VyOS does not have a public cloud image(qcow2) available for download. They only freely distribute ISO images on a rolling release basis. This playbook automates the process of building a VyOS cloud image and deploying it to the Proxmox cluster.
+This playbook is for setting up and deploying the [VyOS](https://vyos.io/) router/firewall virtual machine that powers the home network. Although VyOS freely distributes ISO images on a rolling release basis, their QCOW2 cloud image is only available through a subscription. To work around this, I use a custom packer template to package the ISO into a cloud image along with some basic configuration. The cloud image is then deployed to the Proxmox cluster and fully configured.
 
 ## Usage
 
@@ -26,18 +26,18 @@ This clones the VyOS iso image and packer-vyos repository into the VyOS packer V
 task ansible:playbook -- ./ansible/playbooks/home_router/pack_vyos.yml
 ```
 
-### Provision VyOS Router
+### Provision Router
 
 This provisions the VyOS router VM on the Proxmox cluster.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/provision_vyos_router.yml
+task ansible:playbook -- ./ansible/playbooks/home_router/provision_router.yml
 ```
 
-### Apply VyOS configuration
+### Apply network configuration
 
 This applies the network configuration to the router.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/configure_vyos.yml
+task ansible:playbook -- ./ansible/playbooks/home_router/configure_router.yml
 ```

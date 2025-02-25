@@ -4,3 +4,6 @@
 
 - name: Pack VyOS image
   import_playbook: pack_vyos.yml
+
+- name: Provision Router
+  import_playbook: provision_router.yml

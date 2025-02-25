@@ -26,10 +26,18 @@
         content: |
           vm_name             = "vyos"
           platform            = "qemu"
-          cloud_init          = "debian"
+          cloud_init          = "vyos"
           vyos_release        = "current"
           headless            = true
-          disk_size           = 2048
+          disk_size           = 131072 # 128GB
+
+    - name: Overwrite configure script
+      copy:
+        content: "{{ lookup('template', 'packer-vyos-configure.sh.j2') }}"
+        dest: "/home/aether/packer-vyos/scripts/vyos/configure.sh"
+        mode: "0700"
+        owner: "aether"
+        group: "aether"
 
     - name: Create iso directory
       file:
@@ -66,11 +74,17 @@
       command:
         cmd: make build1-1.5
         chdir: "/home/aether/packer-vyos"
+      environment:
+        PACKER_LOG: 1
+        PACKER_LOG_PATH: "/home/aether/packer-vyos/packer.log"
 
     - name: Pack VyOS image
       command:
         cmd: make build2-1.5
         chdir: "/home/aether/packer-vyos"
+      environment:
+        PACKER_LOG: 1
+        PACKER_LOG_PATH: "/home/aether/packer-vyos/packer.log"
 
     - name: Copy VyOS image to Proxmox
       synchronize:
