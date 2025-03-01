@@ -55,40 +55,6 @@
       retries: 5
       delay: 5
 
-    - name: Write user data cloud-init file
-      copy:
-        content: |
-          #cloud-config
-          vyos_config_commands:
-            - set system host-name 'aether-home-router'
-            - delete interfaces ethernet eth0 address
-            - delete interfaces ethernet eth0 hw-id
-            - set interfaces ethernet eth0 address {{ vm.router.ip.gigahub }}/24
-            - set interfaces ethernet eth0 description 'WAN'
-            - set interfaces ethernet eth1 address {{ vm.router.ip.vyos }}/24
-            - set interfaces ethernet eth1 description 'LAN'
-        dest: "/var/lib/vz/snippets/router-user-cloudinit.yml"
-
-    - name: Write network config cloud-init file
-      copy:
-        content: |
-          #cloud-config
-          network:
-            version: 2
-            ethernets:
-              eth0:
-                dhcp4: false
-                dhcp6: false
-              eth1:
-                dhcp4: false
-                dhcp6: false
-        dest: "/var/lib/vz/snippets/router-network-cloudinit.yml"
-
-    - name: Write meta data cloud-init file
-      copy:
-        content: ""
-        dest: "/var/lib/vz/snippets/router-meta-cloudinit.yml"
-
     - name: Create Router VM
       community.general.proxmox_kvm:
         vmid: "{{ vm.router.id }}"
@@ -102,9 +68,6 @@
         memory: "{{ vm.router.memory }}"
         ostype: "l26"
         scsihw: "virtio-scsi-single"
-        cicustom: "user=local:snippets/router-user-cloudinit.yml,network=local:snippets/router-network-cloudinit.yml,meta=local:snippets/router-meta-cloudinit.yml"
-        ide:
-          ide2: "local:cloudinit,format=qcow2"
         net:
           net0: "virtio,bridge=vmbr0,firewall=1"
           net1: "virtio,bridge=vmbr0,firewall=1"

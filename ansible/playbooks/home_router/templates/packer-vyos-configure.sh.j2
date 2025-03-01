@@ -13,7 +13,6 @@ cat <<EOF > /home/vyos/configure-vyos.sh
 #!/bin/vbash
 source /opt/vyatta/etc/functions/script-template
 configure
-set system host-name 'aether-home-router'
 set system login user aether authentication plaintext-password '{{ secrets.router_password }}'
 {% for key in ssh_authorized_keys %}
 set system login user aether authentication public-keys 'User-{{ loop.index }}' key '{{ key.split(' ')[1] }}'
@@ -28,3 +27,15 @@ chmod 0700 /home/vyos/configure-vyos.sh
 chown vyos:users /home/vyos/configure-vyos.sh
 su - vyos -c "/home/vyos/configure-vyos.sh"
 rm -rf /home/vyos/configure-vyos.sh
+
+cat <<EOF > /opt/vyatta/etc/config/scripts/vyos-postconfig-bootup.script
+#!/bin/vbash
+source /opt/vyatta/etc/functions/script-template
+configure
+set system host-name 'aether-home-router'
+set interfaces ethernet eth0 address {{ vm.router.ip.gigahub }}/24
+set interfaces ethernet eth1 address {{ vm.router.ip.vyos }}/24
+commit
+save
+exit
+EOF

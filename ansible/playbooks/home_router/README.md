@@ -1,6 +1,6 @@
 # Home Router
 
-This playbook is for setting up and deploying the [VyOS](https://vyos.io/) router/firewall virtual machine that powers the home network. Although VyOS freely distributes ISO images on a rolling release basis, their QCOW2 cloud image is only available through a subscription. To work around this, I use a custom packer template to package the ISO into a cloud image along with some basic configuration. The cloud image is then deployed to the Proxmox cluster and fully configured.
+This playbook is for setting up and deploying the [VyOS](https://vyos.io/) router/firewall virtual machine that powers the home network. Although VyOS freely distributes ISO images on a rolling release basis, their QCOW2 cloud image is only available through a subscription. To work around this, I use a custom packer template to package the ISO into a cloud image along with some basic configuration. The cloud image is then used to provision the router VM on the Proxmox cluster.
 
 ## Usage
 
