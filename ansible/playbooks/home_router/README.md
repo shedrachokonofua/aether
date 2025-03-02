@@ -41,3 +41,11 @@ This applies the network configuration to the router.
 ```bash
 task ansible:playbook -- ./ansible/playbooks/home_router/configure_router.yml
 ```
+
+### Destroy VyOS Packer
+
+This tears down the VyOS packer VM and deletes the disk.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/home_router/destroy_vyos_packer.yml
+```

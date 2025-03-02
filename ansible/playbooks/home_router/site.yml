@@ -7,3 +7,9 @@
 
 - name: Provision Router
   import_playbook: provision_router.yml
+
+- name: Apply configuration
+  import_playbook: configure_router.yml
+
+- name: Destroy VyOS Packer
+  import_playbook: destroy_vyos_packer.yml

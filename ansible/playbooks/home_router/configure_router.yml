@@ -1,0 +1,102 @@
+---
+- name: Configure Router
+  hosts: router
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    ansible_persistent_connect_timeout: 0
+  tasks:
+    - name: Disable IPv6
+      vyos.vyos.vyos_config:
+        lines:
+          - set system ipv6 disable
+          - set interfaces ethernet eth0 ipv6 address no-default-link-local
+          - set interfaces ethernet eth1 ipv6 address no-default-link-local
+        save: true
+    - name: Configure WAN
+      vyos.vyos.vyos_config:
+        lines:
+          - set interfaces pppoe pppoe0 authentication username {{ secrets.pppoe_username }}
+          - set interfaces pppoe pppoe0 authentication password {{ secrets.pppoe_password }}
+          - set interfaces pppoe pppoe0 source-interface eth0
+          - set interfaces pppoe pppoe0 ip adjust-mss 1452
+        save: true
+    - name: Configure NAT
+      vyos.vyos.vyos_config:
+        lines:
+          - set nat source rule 100 outbound-interface name pppoe0
+          - set nat source rule 100 source address 10.0.0.0/16
+          - set nat source rule 100 translation address masquerade
+        save: true
+    - name: Configure DNS Forwarding
+      vyos.vyos.vyos_config:
+        lines:
+          - set service dns forwarding listen-address 10.0.0.1
+          - set service dns forwarding listen-address 10.0.2.1
+          - set service dns forwarding listen-address 10.0.3.1
+          - set service dns forwarding listen-address 10.0.4.1
+          - set service dns forwarding listen-address 10.0.5.1
+          - set service dns forwarding listen-address 10.0.6.1
+          - set service dns forwarding listen-address 10.0.7.1
+          - set service dns forwarding allow-from 10.0.0.0/16
+          - set service dns forwarding cache-size 50000
+          - set service dns forwarding name-server 8.8.8.8
+          - set service dns forwarding name-server 8.8.4.4
+        save: true
+    - name: Configure VLAN interfaces
+      vyos.vyos.vyos_config:
+        lines:
+          - set interfaces ethernet eth1 vif 2 description "WAN"
+          - set interfaces ethernet eth1 vif 2 address 192.168.2.232/24
+          - set interfaces ethernet eth1 vif 3 description "Rack"
+          - set interfaces ethernet eth1 vif 3 address 10.0.3.1/24
+          - set interfaces ethernet eth1 vif 4 description "Personal"
+          - set interfaces ethernet eth1 vif 4 address 10.0.4.1/24
+          - set interfaces ethernet eth1 vif 5 description "Media"
+          - set interfaces ethernet eth1 vif 5 address 10.0.5.1/24
+          - set interfaces ethernet eth1 vif 6 description "IoT"
+          - set interfaces ethernet eth1 vif 6 address 10.0.6.1/24
+          - set interfaces ethernet eth1 vif 7 description "Guest"
+          - set interfaces ethernet eth1 vif 7 address 10.0.7.1/24
+        save: true
+    - name: Configure DHCP Server
+      vyos.vyos.vyos_config:
+        lines:
+          # Personal
+          - set service dhcp-server shared-network-name PERSONAL authoritative
+          - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 subnet-id 4
+          - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 option default-router "10.0.4.1"
+          - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 option name-server "10.0.4.1"
+          - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 option domain-name "home.shdr.ch"
+          - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 lease "86400"
+          - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 range 0 start "10.0.4.2"
+          - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 range 0 stop "10.0.4.254"
+          # Media
+          - set service dhcp-server shared-network-name MEDIA authoritative
+          - set service dhcp-server shared-network-name MEDIA subnet 10.0.5.0/24 subnet-id 5
+          - set service dhcp-server shared-network-name MEDIA subnet 10.0.5.0/24 option default-router "10.0.5.1"
+          - set service dhcp-server shared-network-name MEDIA subnet 10.0.5.0/24 option name-server "10.0.5.1"
+          - set service dhcp-server shared-network-name MEDIA subnet 10.0.5.0/24 option domain-name "home.shdr.ch"
+          - set service dhcp-server shared-network-name MEDIA subnet 10.0.5.0/24 lease "86400"
+          - set service dhcp-server shared-network-name MEDIA subnet 10.0.5.0/24 range 0 start "10.0.5.2"
+          - set service dhcp-server shared-network-name MEDIA subnet 10.0.5.0/24 range 0 stop "10.0.5.254"
+          # IoT
+          - set service dhcp-server shared-network-name IOT authoritative
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 subnet-id 6
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 option default-router "10.0.6.1"
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 option name-server "10.0.6.1"
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 option domain-name "home.shdr.ch"
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 lease "86400"
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 range 0 start "10.0.6.2"
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 range 0 stop "10.0.6.254"
+          # Guest
+          - set service dhcp-server shared-network-name GUEST authoritative
+          - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 subnet-id 7
+          - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 option default-router "10.0.7.1"
+          - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 option name-server "10.0.7.1"
+          - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 option domain-name "home.shdr.ch"
+          - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 lease "86400"
+          - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 range 0 start "10.0.7.2"
+          - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 range 0 stop "10.0.7.254"
+        save: true

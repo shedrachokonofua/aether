@@ -34,16 +34,12 @@
 
 ## AWS
 
-[TODO]
-
 - Home S3 backup bucket
 - Bedrock: Claude, Llama
 
 ## GCP
 
-[TODO]
-
 - Assistant API for homeassistant
-- Drive API for backup
+- Drive API for "hot" backups
 - Generative Language API: Gemini
 - Document OCR Processor

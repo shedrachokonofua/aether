@@ -106,3 +106,27 @@
       until: not wait_result.failed
       retries: 5
       delay: 5
+
+    # Router needs another reboot to base interface configuration to kick in
+    - name: Reboot Router
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.router.id }}"
+        name: "router"
+        node: "{{ vm.router.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: restarted
+      until: not wait_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Wait for Router to be ready
+      wait_for:
+        host: "{{ vm.router.ip.gigahub }}"
+        port: 22
+        timeout: 300
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5

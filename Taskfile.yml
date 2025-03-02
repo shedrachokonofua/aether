@@ -198,6 +198,12 @@ tasks:
         {{.DOCKER_IMAGE}}
         ansible all --list-hosts
 
+  ansible:clear-pc:
+    desc: Clear Ansible persistent connection cache
+    dir: "{{.CACHE_DIR}}/ansible"
+    cmds:
+      - rm -rf pc
+
   ansible:ping:
     desc: Ping Ansible hosts
     dir: ./ansible
@@ -297,6 +303,7 @@ tasks:
   provision:home:router:
     desc: Deploy the home router
     cmds:
+      - task: ansible:clear-pc
       - task: ansible:galaxy:install
       - task: ansible:playbook
         vars:
