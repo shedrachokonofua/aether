@@ -308,3 +308,10 @@ tasks:
       - task: ansible:playbook
         vars:
           CLI_ARGS: ./ansible/playbooks/home_router/site.yml
+
+  secrets:decrypt:
+    desc: Decrypt secrets
+    cmds:
+      - task: sops:decrypt
+        vars:
+          CLI_ARGS: ./secrets/secrets.yml

@@ -1,7 +1,7 @@
 vyos_packer:
   id: 1000
   name: "vyos-packer"
-  node: "trinity"
+  node: "oracle"
   cores: 4
   memory: 4096
   disk_gb: 10
@@ -11,7 +11,7 @@ vyos_packer:
 router:
   id: 1001
   name: "vyos-router"
-  node: "trinity"
+  node: "oracle"
   cores: 8
   memory: 4096
   disk_gb: 10

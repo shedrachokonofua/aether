@@ -1,6 +1,6 @@
 ---
 - name: Provision VyOS image packer
-  hosts: trinity
+  hosts: oracle
   gather_facts: true
   vars:
     fedora_image_path: "/var/lib/vz/template/iso/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2.img"
@@ -21,7 +21,6 @@
     - name: Check if VyOS packer exists
       community.general.proxmox_vm_info:
         vmid: "{{ vm.vyos_packer.id }}"
-        node: "{{ vm.vyos_packer.node }}"
         api_host: "{{secrets.proxmox.cluster_host}}"
         api_user: "{{secrets.proxmox.cluster_username}}"
         api_password: "{{secrets.proxmox.cluster_password}}"
@@ -32,7 +31,6 @@
       community.general.proxmox_kvm:
         vmid: "{{ vm.vyos_packer.id }}"
         name: "vyos-packer"
-        node: "{{ vm.vyos_packer.node }}"
         api_host: "{{secrets.proxmox.cluster_host}}"
         api_user: "{{secrets.proxmox.cluster_username}}"
         api_password: "{{secrets.proxmox.cluster_password}}"
@@ -47,7 +45,6 @@
       community.general.proxmox_kvm:
         vmid: "{{ vm.vyos_packer.id }}"
         name: "vyos-packer"
-        node: "{{ vm.vyos_packer.node }}"
         api_host: "{{secrets.proxmox.cluster_host}}"
         api_user: "{{secrets.proxmox.cluster_username}}"
         api_password: "{{secrets.proxmox.cluster_password}}"

@@ -91,4 +91,4 @@
         mode: "pull"
         src: "/home/aether/packer-vyos/iso/vyos-build2.qcow2"
         dest: "/var/lib/vz/template/iso/vyos-1.5.qcow2.img"
-      delegate_to: trinity
+      delegate_to: oracle

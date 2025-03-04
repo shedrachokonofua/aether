@@ -78,8 +78,9 @@ VyOS LAN Base: 10.0.0.0/16
 
 ### Hosts
 
-| Host    | RAM   | Storage                             | CPU                  | GPU                   | Cores | Threads | vCPUs | Network | Model            | Gigahub IP    |
-| ------- | ----- | ----------------------------------- | -------------------- | --------------------- | ----- | ------- | ----- | ------- | ---------------- | ------------- |
-| Niobe   | 64GB  | 1TB NVME, 512GB MVME                | AMD Ryzen 9 6900HX   | AMD Radeon 680M       | 8     | 16      | 16    | 2.5Gbps | Beelink Ser6 Max | 192.168.2.201 |
-| Trinity | 64GB  | 1TB NVME                            | Intel Core i9-13900H | Intel Iris Xe         | 14    | 20      | 20    | 10Gbps  | Minisforum MS-01 | 192.168.2.202 |
-| Smith   | 128GB | 8TB NVME(4TB x2), 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super | 8     | 16      | 16    | 10Gbps  | Custom           | 192.168.2.203 |
+| Host    | RAM   | Storage                             | CPU                  | GPU                   | Cores | Threads | vCPUs | Network | Model             | Gigahub IP    |
+| ------- | ----- | ----------------------------------- | -------------------- | --------------------- | ----- | ------- | ----- | ------- | ----------------- | ------------- |
+| Niobe   | 64GB  | 1TB NVME, 512GB MVME                | AMD Ryzen 9 6900HX   | AMD Radeon 680M       | 8     | 16      | 16    | 2.5Gbps | Beelink Ser6 Max  | 192.168.2.201 |
+| Trinity | 64GB  | 1TB NVME                            | Intel Core i9-13900H | Intel Iris Xe         | 14    | 20      | 20    | 10Gbps  | Minisforum MS-01  | 192.168.2.202 |
+| Oracle  | 16GB  | 1TB NVME                            | Intel Core i5-12600H | Intel Iris Xe         | 12    | 16      | 16    | 10Gbps  | Minisforum MS-01  | 192.168.2.203 |
+| Smith   | 128GB | 8TB NVME(4TB x2), 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super | 8     | 16      | 16    | 10Gbps  | Custom            | 192.168.2.204 |

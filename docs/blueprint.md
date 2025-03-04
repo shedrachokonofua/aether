@@ -6,7 +6,7 @@
 
 | Host    | RAM   | Storage                              | CPU                  | GPU                   | Cores | Threads | vCPUs | Ethernet | Status      |
 | ------- | ----- | ------------------------------------ | -------------------- | --------------------- | ----- | ------- | ----- | -------- | ----------- |
-| Oracle  | 16GB  | 512GB                                | Intel Core i5-12600H | Intel Iris Xe         | 12    | 16      | 16    | 10G      | TODO        |
+| Oracle  | 16GB  | 1TB                                  | Intel Core i5-12600H | Intel Iris Xe         | 12    | 16      | 16    | 10G      | TODO        |
 | Smith   | 128GB | 8TB NVME(4TB x2) + 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super | 8     | 16      | 16    | 10G      | IN PROGRESS |
 | Niobe   | 64GB  | 1.5TB                                | AMD Ryzen 9 6900HX   | AMD Radeon 680M       | 8     | 16      | 16    | 2.5G     | LIVE        |
 | Neo     | 96GB  | 4TB                                  | AMD Rzyen 9 9950     | Nvidia RTX A6000      | 16    | 16      | 32    | 10G      | TODO        |

@@ -8,7 +8,9 @@
     - name: Install proxmoxer
       apt:
         name:
+          - python3-pip
           - python3-proxmoxer
+        state: present
 
     - name: Enable Proxmox Snippets
       command: pvesm set local --content images,rootdir,vztmpl,backup,iso,snippets

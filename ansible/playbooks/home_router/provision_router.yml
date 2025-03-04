@@ -1,6 +1,6 @@
 ---
 - name: Provision VyOS router
-  hosts: trinity
+  hosts: oracle
   gather_facts: true
   roles:
     - common
@@ -18,7 +18,6 @@
     - name: Check if Router VM exists
       community.general.proxmox_vm_info:
         vmid: "{{ vm.router.id }}"
-        node: "{{ vm.router.node }}"
         api_host: "{{secrets.proxmox.cluster_host}}"
         api_user: "{{secrets.proxmox.cluster_username}}"
         api_password: "{{secrets.proxmox.cluster_password}}"
@@ -29,7 +28,6 @@
       community.general.proxmox_kvm:
         vmid: "{{ vm.router.id }}"
         name: "router"
-        node: "{{ vm.router.node }}"
         api_host: "{{secrets.proxmox.cluster_host}}"
         api_user: "{{secrets.proxmox.cluster_username}}"
         api_password: "{{secrets.proxmox.cluster_password}}"
@@ -44,7 +42,6 @@
       community.general.proxmox_kvm:
         vmid: "{{ vm.router.id }}"
         name: "router"
-        node: "{{ vm.router.node }}"
         api_host: "{{secrets.proxmox.cluster_host}}"
         api_user: "{{secrets.proxmox.cluster_username}}"
         api_password: "{{secrets.proxmox.cluster_password}}"
