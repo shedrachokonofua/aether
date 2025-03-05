@@ -79,17 +79,17 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
 
 ### Setup Home Network
 
-1. Provision Router ([README](ansible/playbooks/home_router/README.md))
+1. Manually apply rack switch configuration ([README](docs/home.md#rack-switch))
+
+1. Provision router ([README](ansible/playbooks/home_router/README.md))
 
    ```bash
    task provision:home:router
    ```
 
-1. Manually apply rack switch port configuration ([README](docs/home.md#rack-switch))
+1. Manually apply office switch configuration ([README](docs/home.md#office-switch))
 
-1. Manually apply office switch port configuration ([README](docs/home.md#office-switch))
-
-### Deploy Home Network File Server
+### Deploy Home Network File System
 
 [TODO]
 

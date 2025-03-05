@@ -22,6 +22,10 @@ variable "authorized_keys" {
   type = list(string)
 }
 
+locals {
+  vm = yamldecode(file("${path.module}/../../config/vm.yml"))
+}
+
 terraform {
   required_providers {
     proxmox = {

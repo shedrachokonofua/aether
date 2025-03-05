@@ -63,6 +63,16 @@
     - name: Configure DHCP Server
       vyos.vyos.vyos_config:
         lines:
+          # Rack - Small dhcp range for hardware that requires dhcp for setup
+          - set service dhcp-server shared-network-name RACK authoritative
+          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 subnet-id 3
+          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 option default-router "10.0.3.1"
+          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 option name-server "10.0.3.1"
+          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 option domain-name "home.shdr.ch"
+          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 lease "86400"
+          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 range 0 start "10.0.3.240"
+          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 range 0 stop "10.0.3.254"
+
           # Personal
           - set service dhcp-server shared-network-name PERSONAL authoritative
           - set service dhcp-server shared-network-name PERSONAL subnet 10.0.4.0/24 subnet-id 4

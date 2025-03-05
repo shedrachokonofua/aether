@@ -14,10 +14,22 @@ router:
   node: "oracle"
   cores: 8
   memory: 4096
-  disk_gb: 10
+  disk_gb: 128
   ip:
     gigahub: "192.168.2.231"
     vyos: "10.0.0.1"
   gateway:
     gigahub: "192.168.2.1"
     vyos: "10.0.0.0"
+
+gateway_stack:
+  id: 1002
+  name: "gateway-stack"
+  node: "trinity"
+  cores: 8
+  memory: 4096
+  disk_gb: 128
+  ip:
+    vyos: "10.0.3.3"
+  gateway:
+    vyos: "10.0.3.1"

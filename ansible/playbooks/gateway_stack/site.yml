@@ -1,0 +1,3 @@
+---
+- name: Deploy unifi pod
+  import_playbook: unifi.yml

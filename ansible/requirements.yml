@@ -3,3 +3,5 @@ collections:
     version: 10.3.0
   - name: vyos.vyos
     version: 5.0.0
+  - name: containers.podman
+    version: 1.16.2

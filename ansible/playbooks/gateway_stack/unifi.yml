@@ -1,0 +1,75 @@
+---
+- name: Deploy unifi pod
+  hosts: gateway-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./unifi-db/data
+        - ./unifi-network-application/data
+
+    - name: Create pod
+      containers.podman.podman_pod:
+        name: unifi
+        state: started
+        ports:
+          - 8443:8443
+          - 3478:3478/udp
+          - 10001:10001/udp
+          - 8080:8080
+          - 1900:1900/udp
+          - 8843:8843
+          - 8880:8880
+          - 6789:6789
+          - 5514:5514/udp
+
+    - name: Copy init-mongo.sh to machine
+      copy:
+        src: ./templates/init-mongo.sh
+        dest: ./unifi-db/init-mongo.sh
+        mode: "0755"
+
+    - name: Create unifi-db container
+      containers.podman.podman_container:
+        name: unifi-db
+        image: docker.io/mongo:8.0.5
+        state: started
+        pod: unifi
+        env:
+          MONGO_INITDB_ROOT_USERNAME: unifi
+          MONGO_INITDB_ROOT_PASSWORD: unifi
+          MONGO_USER: unifi
+          MONGO_PASS: unifi
+          MONGO_DBNAME: unifi
+          MONGO_AUTHSOURCE: admin
+        volumes:
+          - ./unifi-db/data:/data/db:Z
+          - ./unifi-db/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:Z
+
+    - name: Create unifi-network-application container
+      containers.podman.podman_container:
+        name: unifi-network-application
+        image: lscr.io/linuxserver/unifi-network-application:latest
+        state: started
+        pod: unifi
+        env:
+          PUID: 1000
+          PGID: 1000
+          TZ: Etc/UTC
+          MONGO_USER: unifi
+          MONGO_PASS: unifi
+          MONGO_HOST: localhost
+          MONGO_PORT: 27017
+          MONGO_DBNAME: unifi
+          MONGO_AUTHSOURCE: admin
+          MONGO_TLS: false
+          MEM_LIMIT: 1024 #optional
+          MEM_STARTUP: 1024 #optional
+        volumes:
+          - ./unifi-network-application/data:/config:Z

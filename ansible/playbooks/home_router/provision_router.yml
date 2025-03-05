@@ -104,7 +104,7 @@
       retries: 5
       delay: 5
 
-    # Router needs another reboot to base interface configuration to kick in
+    # Router needs a reboot for effects of post-boot scripts to kick in
     - name: Reboot Router
       community.general.proxmox_kvm:
         vmid: "{{ vm.router.id }}"
