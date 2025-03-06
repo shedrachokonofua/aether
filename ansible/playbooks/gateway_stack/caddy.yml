@@ -1,0 +1,42 @@
+---
+- name: Deploy caddy pod
+  hosts: gateway-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./caddy/conf
+        - ./caddy/data
+        - ./caddy/config
+
+    - name: Copy Caddyfile
+      template:
+        src: ./templates/Caddyfile.j2
+        dest: ./caddy/conf/Caddyfile
+        mode: "0755"
+
+    - name: Create caddy pod
+      containers.podman.podman_pod:
+        name: caddy
+        state: started
+        network: host
+
+    - name: Create caddy container
+      containers.podman.podman_container:
+        name: caddy
+        image: docker.io/library/caddy:latest
+        recreate: true
+        state: started
+        pod: caddy
+        cap_add:
+          - NET_ADMIN
+        volumes:
+          - ./caddy/conf:/etc/caddy:Z
+          - ./caddy/data:/data:Z
+          - ./caddy/config:/config:Z

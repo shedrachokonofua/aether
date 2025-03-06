@@ -4,3 +4,6 @@
 
 - name: Deploy adguard pod
   import_playbook: adguard.yml
+
+- name: Deploy caddy pod
+  import_playbook: caddy.yml

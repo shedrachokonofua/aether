@@ -25,3 +25,9 @@ task ansible:playbook -- ./ansible/playbooks/gateway_stack/unifi.yml
 ```bash
 task ansible:playbook -- ./ansible/playbooks/gateway_stack/adguard.yml
 ```
+
+### Deploy Caddy
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/gateway_stack/caddy.yml
+```

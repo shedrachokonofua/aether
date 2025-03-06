@@ -1,0 +1,30 @@
+{
+	log {
+		level DEBUG
+	}
+}
+
+home.shdr.ch {
+	tls internal
+	respond "Welcome home"
+}
+
+dns.home.shdr.ch {
+	tls internal
+	reverse_proxy {{ vm.gateway_stack.ip.vyos }}:4000
+}
+
+ap.home.shdr.ch {
+	tls internal
+	reverse_proxy https://{{ vm.gateway_stack.ip.vyos }}:8443 {
+		transport http {
+			tls
+			tls_insecure_skip_verify
+		}
+		header_up Host {http.request.host}
+		header_up X-Real-IP {http.request.remote}
+		header_up X-Forwarded-For {http.request.remote}
+		header_up Upgrade {http.request.header.Upgrade}
+		header_up Connection {http.request.header.Connection}
+	}
+}

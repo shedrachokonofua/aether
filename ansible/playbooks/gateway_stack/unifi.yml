@@ -31,7 +31,7 @@
 
     - name: Copy init-mongo.sh to machine
       copy:
-        src: ./templates/init-mongo.sh
+        src: ./files/init-mongo.sh
         dest: ./unifi-db/init-mongo.sh
         mode: "0755"
 
