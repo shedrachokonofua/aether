@@ -1,0 +1,78 @@
+---
+- name: Deploy adguardhome pod
+  hosts: gateway-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Make port 53 unprivileged
+      sysctl:
+        name: net.ipv4.ip_unprivileged_port_start
+        value: 0
+        state: present
+        reload: yes
+      become: true
+
+    - name: Pull AdGuard Home image
+      containers.podman.podman_image:
+        name: docker.io/adguard/adguardhome:latest
+        state: present
+
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0700"
+      loop:
+        - ./adguardhome/work
+        - ./adguardhome/conf
+
+    - name: Stop and disable systemd-resolved
+      systemd:
+        name: systemd-resolved
+        state: stopped
+        enabled: false
+      become: true
+
+    - name: Remove existing resolv.conf
+      file:
+        path: /etc/resolv.conf
+        state: absent
+      become: true
+
+    - name: Create pod
+      containers.podman.podman_pod:
+        name: adguard
+        state: started
+        ports:
+          - 53:53/tcp
+          - 53:53/udp
+          - 3000:3000/tcp
+          - 4000:4000/tcp
+          - 48443:443/tcp
+          - 48443:443/udp
+
+    - name: Create adguardhome container
+      containers.podman.podman_container:
+        name: adguard
+        image: docker.io/adguard/adguardhome:latest
+        state: started
+        pod: adguard
+        volumes:
+          - ./adguardhome/work:/opt/adguardhome/work:Z
+          - ./adguardhome/conf:/opt/adguardhome/conf:Z
+        cap_add:
+          - NET_BIND_SERVICE
+
+    - name: Wait for AdGuard to start
+      wait_for:
+        port: 53
+        host: 127.0.0.1
+        timeout: 30
+
+    - name: Update resolv.conf to use AdGuard
+      copy:
+        dest: /etc/resolv.conf
+        content: "nameserver 127.0.0.1\n"
+        mode: "0644"
+      become: true

@@ -1,6 +1,6 @@
 # Gateway Stack
 
-This playbook is for configuring the gateway stack virtual machine. The gateway stack is a fedora vm that hosts the following docker containers:
+This playbook is for configuring the gateway stack virtual machine. The gateway stack is a fedora vm that hosts the following applications:
 
 - Caddy[[Link](https://hub.docker.com/_/caddy)]: Reverse proxy for home network
 - Unifi Network Application + MongoDB[[Link](https://hub.docker.com/r/linuxserver/unifi-network-application)]: Network controller for managing home wifi access point

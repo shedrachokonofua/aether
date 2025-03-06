@@ -1,3 +1,6 @@
 ---
 - name: Deploy unifi pod
   import_playbook: unifi.yml
+
+- name: Deploy adguard pod
+  import_playbook: adguard.yml

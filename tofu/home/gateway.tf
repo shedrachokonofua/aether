@@ -25,7 +25,7 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
   disk {
     datastore_id = "local-lvm"
     file_id      = proxmox_virtual_environment_download_file.oracle_fedora_image.id
-    size         = 128
+    size         = local.vm.gateway_stack.disk_gb
     interface    = "virtio0"
   }
 
