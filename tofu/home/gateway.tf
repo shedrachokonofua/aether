@@ -24,7 +24,7 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
 
   disk {
     datastore_id = "local-lvm"
-    file_id      = proxmox_virtual_environment_download_file.fedora_image.id
+    file_id      = proxmox_virtual_environment_download_file.oracle_fedora_image.id
     size         = 128
     interface    = "virtio0"
   }
@@ -47,7 +47,7 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
 
 module "gateway_stack_user" {
   source          = "./modules/vm_user_cloudinit"
-  node_name       = "trinity"
+  node_name       = "oracle"
   authorized_keys = var.authorized_keys
   password        = "aether"
   file_prefix     = "gateway-stack"

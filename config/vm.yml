@@ -25,7 +25,7 @@ router:
 gateway_stack:
   id: 1002
   name: "gateway-stack"
-  node: "trinity"
+  node: "oracle"
   cores: 8
   memory: 4096
   disk_gb: 128
