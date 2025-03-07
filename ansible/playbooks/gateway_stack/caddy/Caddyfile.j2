@@ -3,7 +3,7 @@
 		level DEBUG
 	}
 
-	acme_dns godaddy {{ secrets.godaddy_api_key }}:{{ secrets.godaddy_api_secret }}
+	acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
 }
 
 home.shdr.ch {

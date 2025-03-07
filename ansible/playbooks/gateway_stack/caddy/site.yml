@@ -36,7 +36,7 @@
     - name: Create caddy image
       containers.podman.podman_image:
         name: aether-caddy
-        path: .
+        path: ./caddy
         state: present
 
     - name: Create caddy container

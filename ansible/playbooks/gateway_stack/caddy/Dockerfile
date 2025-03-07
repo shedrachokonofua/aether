@@ -1,6 +1,6 @@
 FROM docker.io/library/caddy:builder AS builder
 
-RUN xcaddy build --with github.com/caddy-dns/godaddy
+RUN xcaddy build --with github.com/caddy-dns/cloudflare
 
 FROM docker.io/library/caddy:latest
 
