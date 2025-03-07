@@ -4,7 +4,6 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
   node_name   = local.vm.gateway_stack.node
   description = "Gateway Stack"
 
-  # should be true if qemu agent is not installed / enabled on the VM
   stop_on_destroy = true
 
   cpu {
