@@ -2,20 +2,19 @@
 	log {
 		level DEBUG
 	}
+
+	acme_dns godaddy {{ secrets.godaddy_api_key }}:{{ secrets.godaddy_api_secret }}
 }
 
 home.shdr.ch {
-	tls internal
 	respond "Welcome home"
 }
 
 dns.home.shdr.ch {
-	tls internal
 	reverse_proxy {{ vm.gateway_stack.ip.vyos }}:4000
 }
 
 ap.home.shdr.ch {
-	tls internal
 	reverse_proxy https://{{ vm.gateway_stack.ip.vyos }}:8443 {
 		transport http {
 			tls

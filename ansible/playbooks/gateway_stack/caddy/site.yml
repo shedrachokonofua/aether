@@ -21,16 +21,28 @@
         dest: ./caddy/conf/Caddyfile
         mode: "0755"
 
+    - name: Copy dockerfile
+      copy:
+        src: Dockerfile
+        dest: ./caddy/Dockerfile
+        mode: "0755"
+
     - name: Create caddy pod
       containers.podman.podman_pod:
         name: caddy
         state: started
         network: host
 
+    - name: Create caddy image
+      containers.podman.podman_image:
+        name: aether-caddy
+        path: .
+        state: present
+
     - name: Create caddy container
       containers.podman.podman_container:
         name: caddy
-        image: docker.io/library/caddy:latest
+        image: aether-caddy
         recreate: true
         state: started
         pod: caddy
