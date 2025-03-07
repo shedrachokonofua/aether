@@ -10,6 +10,10 @@ home.shdr.ch {
 	respond "Welcome home"
 }
 
+rack-switch.home.shdr.ch {
+	reverse_proxy 10.0.3.2
+}
+
 dns.home.shdr.ch {
 	reverse_proxy {{ vm.gateway_stack.ip.vyos }}:4000
 }
