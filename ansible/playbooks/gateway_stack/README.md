@@ -17,7 +17,7 @@ task configure:home:gateway
 ### Deploy Unifi Network Controller
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gateway_stack/unifi.yml
+task ansible:playbook -- ./ansible/playbooks/gateway_stack/unifi/site.yml
 ```
 
 ### Deploy Adguard Home
@@ -29,5 +29,5 @@ task ansible:playbook -- ./ansible/playbooks/gateway_stack/adguard.yml
 ### Deploy Caddy
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gateway_stack/caddy.yml
+task ansible:playbook -- ./ansible/playbooks/gateway_stack/caddy/site.yml
 ```

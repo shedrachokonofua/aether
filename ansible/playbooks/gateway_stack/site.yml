@@ -1,9 +1,9 @@
 ---
 - name: Deploy unifi pod
-  import_playbook: unifi.yml
+  import_playbook: unifi/site.yml
 
 - name: Deploy adguard pod
   import_playbook: adguard.yml
 
 - name: Deploy caddy pod
-  import_playbook: caddy.yml
+  import_playbook: caddy/site.yml

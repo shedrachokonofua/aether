@@ -17,7 +17,7 @@
 
     - name: Copy Caddyfile
       template:
-        src: ./templates/Caddyfile.j2
+        src: ./Caddyfile.j2
         dest: ./caddy/conf/Caddyfile
         mode: "0755"
 
