@@ -31,3 +31,7 @@ ap.home.shdr.ch {
 		header_up Connection {http.request.header.Connection}
 	}
 }
+
+grafana.home.shdr.ch {
+	reverse_proxy {{ vm.monitoring_stack.ip.vyos }}:3000
+}

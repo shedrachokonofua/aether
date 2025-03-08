@@ -33,3 +33,15 @@ gateway_stack:
     vyos: "10.0.3.3"
   gateway:
     vyos: "10.0.3.1"
+
+monitoring_stack:
+  id: 1003
+  name: "monitoring-stack"
+  node: "niobe"
+  cores: 4
+  memory: 4096
+  disk_gb: 128
+  ip:
+    vyos: "10.0.3.5"
+  gateway:
+    vyos: "10.0.3.1"

@@ -1,0 +1,116 @@
+---
+- name: Deploy monitoring stack
+  hosts: monitoring-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./prometheus/data
+        - ./loki/data
+        - ./otel
+        - ./grafana/provisioning
+
+    - name: Copy prometheus config
+      copy:
+        src: ./prometheus.yml
+        dest: ./prometheus/prometheus.yml
+        mode: "0755"
+
+    - name: Create loki config
+      copy:
+        src: ./loki_config.yml
+        dest: ./loki/loki_config.yml
+        mode: "0755"
+
+    - name: Create otel config
+      copy:
+        src: ./otel_config.yml
+        dest: ./otel/otel_config.yml
+        mode: "0755"
+
+    - name: Create grafana config
+      copy:
+        src: ./grafana/grafana.ini
+        dest: ./grafana/grafana.ini
+        mode: "0755"
+
+    - name: Create grafana provisioning
+      copy:
+        src: ./grafana/provisioning/
+        dest: ./grafana/provisioning/
+        mode: "0755"
+
+    - name: Create a pod
+      containers.podman.podman_pod:
+        name: monitoring-stack
+        ports:
+          - "3000:3000" # Grafana
+          - "9090:9090" # Prometheus
+          - "3100:3100" # Loki
+          - "4317:4317" # Otel Collector
+          - "4318:4318" # Otel Collector
+          - "8888:8888" # Otel Metrics
+          - "8889:8889" # Otel Metrics
+        state: started
+
+    - name: Create prometheus storage volume
+      containers.podman.podman_volume:
+        name: prometheus_storage
+        state: present
+
+    - name: Start prometheus
+      containers.podman.podman_container:
+        name: prometheus
+        image: docker.io/prom/prometheus:latest
+        pod: monitoring-stack
+        volumes:
+          - prometheus_storage:/prometheus
+          - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+        command:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+          - "--web.console.libraries=/etc/prometheus/console_libraries"
+          - "--web.console.templates=/etc/prometheus/consoles"
+          - "--web.enable-lifecycle"
+        state: started
+
+    - name: Start Loki
+      containers.podman.podman_container:
+        name: loki
+        image: docker.io/grafana/loki:latest
+        pod: monitoring-stack
+        volumes:
+          - ./loki/loki_config.yml:/etc/loki/config.yml
+          - ./loki/data:/var/lib/loki
+        state: started
+
+    - name: Start otel collector
+      containers.podman.podman_container:
+        name: otel_collector
+        image: docker.io/otel/opentelemetry-collector:latest
+        pod: monitoring-stack
+        volumes:
+          - ./otel/otel_config.yml:/etc/otel/config.yml
+        state: started
+
+    - name: Create grafana storage volume
+      containers.podman.podman_volume:
+        name: grafana_storage
+        state: present
+
+    - name: Start grafana
+      containers.podman.podman_container:
+        name: grafana
+        pod: monitoring-stack
+        image: docker.io/grafana/grafana:latest
+        state: started
+        volumes:
+          - ./grafana/grafana.ini:/etc/grafana/grafana.ini:Z
+          - ./grafana/provisioning:/etc/grafana/provisioning:Z
+          - grafana_storage:/var/lib/grafana:Z
