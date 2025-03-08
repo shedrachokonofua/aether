@@ -27,6 +27,12 @@
         - ./adguardhome/work
         - ./adguardhome/conf
 
+    - name: Copy AdGuard Home config
+      copy:
+        src: ./AdGuardHome.yml
+        dest: ./adguardhome/conf/AdGuardHome.yaml
+        mode: "0700"
+
     - name: Stop and disable systemd-resolved
       systemd:
         name: systemd-resolved

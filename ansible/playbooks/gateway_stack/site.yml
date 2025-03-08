@@ -2,8 +2,9 @@
 - name: Deploy unifi pod
   import_playbook: unifi/site.yml
 
-- name: Deploy adguard pod
-  import_playbook: adguard.yml
-
 - name: Deploy caddy pod
   import_playbook: caddy/site.yml
+
+# Adguard should go last, as it requires human input to complete the installation, and it breaks the DNS setup of this VM until it's completed
+- name: Deploy adguard pod
+  import_playbook: adguard/site.yml

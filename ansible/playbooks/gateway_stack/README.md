@@ -23,7 +23,7 @@ task ansible:playbook -- ./ansible/playbooks/gateway_stack/unifi/site.yml
 ### Deploy Adguard Home
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gateway_stack/adguard.yml
+task ansible:playbook -- ./ansible/playbooks/gateway_stack/adguard/site.yml
 ```
 
 ### Deploy Caddy
