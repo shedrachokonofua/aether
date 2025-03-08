@@ -54,12 +54,12 @@ resource "aws_s3_bucket_policy" "lute_backup_policy" {
   policy = data.aws_iam_policy_document.lute_backup_policy_document.json
 }
 
-output "aws_lute_minio_backup_user_access_key" {
+output "lute_minio_backup_user_access_key" {
   value     = aws_iam_access_key.lute_minio_backup_user_access_key.id
   sensitive = true
 }
 
-output "aws_lute_minio_backup_user_secret_access_key" {
+output "lute_minio_backup_user_secret_access_key" {
   value     = aws_iam_access_key.lute_minio_backup_user_access_key.secret
   sensitive = true
 }

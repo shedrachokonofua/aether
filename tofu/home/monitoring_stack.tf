@@ -42,10 +42,14 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
   }
 }
 
+resource "random_password" "monitoring_stack_console_password" {
+  length = 8
+}
+
 module "monitoring_stack_user" {
   source          = "./modules/vm_user_cloudinit"
   node_name       = local.vm.monitoring_stack.node
   authorized_keys = var.authorized_keys
   file_prefix     = local.vm.monitoring_stack.name
-  password =  "aether"
+  console_password = random_password.monitoring_stack_console_password.result
 }

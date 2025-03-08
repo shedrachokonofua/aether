@@ -44,10 +44,14 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
   }
 }
 
+resource "random_password" "gateway_stack_console_password" {
+  length = 8
+}
+
 module "gateway_stack_user" {
   source          = "./modules/vm_user_cloudinit"
-  node_name       = "oracle"
+  node_name       = local.vm.gateway_stack.node
   authorized_keys = var.authorized_keys
-  password        = "aether"
-  file_prefix     = "gateway-stack"
+  file_prefix     = local.vm.gateway_stack.name
+  console_password = random_password.gateway_stack_console_password.result
 }

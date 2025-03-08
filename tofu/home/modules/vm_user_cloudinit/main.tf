@@ -10,8 +10,9 @@ variable "authorized_keys" {
   type = list(string)
 }
 
-variable "password" {
+variable "console_password" {
   type = string
+  sensitive = true
 }
 
 terraform {
@@ -28,7 +29,7 @@ locals {
     users = [
       {
         name              = "aether"
-        plain_text_passwd = var.password
+        plain_text_passwd = var.console_password
         lock_passwd       = false
         chpasswd = {
           expire = false
