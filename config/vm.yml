@@ -29,10 +29,13 @@ gateway_stack:
   cores: 8
   memory: 4096
   disk_gb: 128
-  ip:
-    vyos: "10.0.3.3"
-  gateway:
-    vyos: "10.0.3.1"
+  ip: "10.0.3.3"
+  gateway: "10.0.3.1"
+  ports:
+    caddy: 80
+    caddy_https: 443
+    unifi_admin: 8443
+    adguard_admin: 4000
 
 monitoring_stack:
   id: 1003
@@ -41,7 +44,13 @@ monitoring_stack:
   cores: 4
   memory: 4096
   disk_gb: 128
-  ip:
-    vyos: "10.0.3.5"
-  gateway:
-    vyos: "10.0.3.1"
+  ip: "10.0.3.5"
+  gateway: "10.0.3.1"
+  ports:
+    otel_grpc: 4317
+    otel_http: 4318
+    grafana: 3000
+    loki: 3100
+    otel_metrics: 8888
+    otel_prometheus: 8889
+    prometheus: 9090

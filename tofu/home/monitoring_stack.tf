@@ -29,13 +29,13 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
   initialization {
     ip_config {
       ipv4 {
-        address = "${local.vm.monitoring_stack.ip.vyos}/24"
-        gateway = local.vm.monitoring_stack.gateway.vyos
+        address = "${local.vm.monitoring_stack.ip}/24"
+        gateway = local.vm.monitoring_stack.gateway
       }
     }
 
     dns {
-      servers = [local.vm.monitoring_stack.gateway.vyos]
+      servers = [local.vm.monitoring_stack.gateway]
     }
 
     user_data_file_id = module.monitoring_stack_user.cloud_config_id

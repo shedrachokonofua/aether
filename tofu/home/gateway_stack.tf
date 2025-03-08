@@ -31,13 +31,13 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
   initialization {
     ip_config {
       ipv4 {
-        address = "${local.vm.gateway_stack.ip.vyos}/24"
-        gateway = local.vm.gateway_stack.gateway.vyos
+        address = "${local.vm.gateway_stack.ip}/24"
+        gateway = local.vm.gateway_stack.gateway
       }
     }
 
     dns {
-      servers = [local.vm.gateway_stack.gateway.vyos]
+      servers = [local.vm.gateway_stack.gateway]
     }
 
     user_data_file_id = module.gateway_stack_user.cloud_config_id

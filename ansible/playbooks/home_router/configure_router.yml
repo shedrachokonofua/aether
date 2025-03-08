@@ -41,7 +41,7 @@
           - set service dns forwarding listen-address 10.0.7.1
           - set service dns forwarding allow-from 10.0.0.0/16
           - set service dns forwarding cache-size 50000
-          - set service dns forwarding name-server {{ vm.gateway_stack.ip.vyos }}
+          - set service dns forwarding name-server {{ vm.gateway_stack.ip }}
           - set service dns forwarding name-server 8.8.8.8
           - set service dns forwarding name-server 8.8.4.4
         save: true

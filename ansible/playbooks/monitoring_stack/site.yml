@@ -50,13 +50,13 @@
       containers.podman.podman_pod:
         name: monitoring-stack
         ports:
-          - "3000:3000" # Grafana
-          - "9090:9090" # Prometheus
-          - "3100:3100" # Loki
-          - "4317:4317" # Otel Collector
-          - "4318:4318" # Otel Collector
-          - "8888:8888" # Otel Metrics
-          - "8889:8889" # Otel Metrics
+          - "{{ vm.monitoring_stack.ports.grafana }}:3000"
+          - "{{ vm.monitoring_stack.ports.prometheus }}:9090"
+          - "{{ vm.monitoring_stack.ports.loki }}:3100"
+          - "{{ vm.monitoring_stack.ports.otel_grpc }}:4317"
+          - "{{ vm.monitoring_stack.ports.otel_http }}:4318"
+          - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"
+          - "{{ vm.monitoring_stack.ports.otel_prometheus }}:8889"
         state: started
 
     - name: Create prometheus storage volume
