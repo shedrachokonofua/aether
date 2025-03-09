@@ -50,6 +50,7 @@
       containers.podman.podman_pod:
         name: adguard
         state: started
+        restart_policy: always
         ports:
           - 53:53/tcp
           - 53:53/udp

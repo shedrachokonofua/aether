@@ -41,6 +41,7 @@
         image: docker.io/mongo:8.0.5
         state: started
         pod: unifi
+        restart_policy: always
         env:
           MONGO_INITDB_ROOT_USERNAME: unifi
           MONGO_INITDB_ROOT_PASSWORD: unifi

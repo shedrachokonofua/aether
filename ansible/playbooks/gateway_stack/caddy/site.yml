@@ -32,6 +32,7 @@
         name: caddy
         state: started
         network: host
+        restart_policy: always
 
     - name: Create caddy image
       containers.podman.podman_image:
