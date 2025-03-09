@@ -21,7 +21,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
 
   disk {
     datastore_id = "local-lvm"
-    file_id      = proxmox_virtual_environment_download_file.niobe_fedora_image.id
+    file_id      = proxmox_virtual_environment_download_file.niobe_ubuntu_image.id
     size         = local.vm.monitoring_stack.disk_gb
     interface    = "virtio0"
   }
@@ -52,4 +52,19 @@ module "monitoring_stack_user" {
   authorized_keys = var.authorized_keys
   file_prefix     = local.vm.monitoring_stack.name
   console_password = random_password.monitoring_stack_console_password.result
+  packages = [
+    "apt-transport-https",
+    "ca-certificates",
+    "curl",
+    "gnupg",
+    "lsb-release",
+    "wget",
+    "git"
+  ]
+  runcmd = [
+    "cd /home/aether",
+    "git clone -b main https://github.com/SigNoz/signoz.git",
+    "cd signoz/deploy/",
+    "./install.sh"
+  ]
 }

@@ -20,3 +20,11 @@ resource "proxmox_virtual_environment_download_file" "niobe_fedora_image" {
   url          = "https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
   file_name    = "fedora-41.qcow2.img"
 }
+
+resource "proxmox_virtual_environment_download_file" "niobe_ubuntu_image" {
+  content_type = "iso"
+  datastore_id = "local"
+  node_name    = "niobe"
+  url          = "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-amd64.img"
+  file_name    = "ubuntu-24.04.img"
+}

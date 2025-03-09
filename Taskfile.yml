@@ -350,6 +350,13 @@ tasks:
       - task: tofu:plan
       - task: tofu:apply
 
+  configure:home:router:
+    desc: Configure the home router
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/home_router/configure_router.yml
+
   configure:home:gateway:
     desc: Configure the home gateway stack
     cmds:
