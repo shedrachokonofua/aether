@@ -1,0 +1,54 @@
+---
+- name: Create etc directory
+  file:
+    path: /etc/aether-monitoring-agent
+    state: directory
+  become: true
+
+- name: Create OTEL config file
+  template:
+    src: otel-collector-config.yml.j2
+    dest: /etc/aether-monitoring-agent/otel-collector-config.yml
+    mode: "0644"
+  become: true
+
+- name: Create pod
+  containers.podman.podman_pod:
+    name: aether-monitoring-agent
+    network: host
+    restart_policy: always
+  become: true
+
+- name: Start node exporter container
+  containers.podman.podman_container:
+    name: aether-monitoring-agent-node-exporter
+    image: docker.io/prom/node-exporter:latest
+    pod: aether-monitoring-agent
+    user: "0:0"
+    command:
+      - "--path.rootfs=/hostfs"
+    volumes:
+      - /:/hostfs:ro,rslave
+    restart_policy: always
+    pid: host
+    state: started
+  become: true
+
+- name: Start otel collector container
+  containers.podman.podman_container:
+    name: aether-monitoring-agent-otel-collector
+    image: docker.io/otel/opentelemetry-collector-contrib:latest
+    pod: aether-monitoring-agent
+    user: "0:0"
+    pid: host
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - label=disable
+      - seccomp=unconfined
+      - apparmor=unconfined
+    volumes:
+      - /:/hostfs:ro,rslave
+      - /etc/aether-monitoring-agent/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+  become: true

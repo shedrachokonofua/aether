@@ -47,10 +47,10 @@ resource "random_password" "monitoring_stack_console_password" {
 }
 
 module "monitoring_stack_user" {
-  source          = "./modules/vm_user_cloudinit"
-  node_name       = local.vm.monitoring_stack.node
-  authorized_keys = var.authorized_keys
-  file_prefix     = local.vm.monitoring_stack.name
+  source           = "./modules/vm_user_cloudinit"
+  node_name        = local.vm.monitoring_stack.node
+  authorized_keys  = var.authorized_keys
+  file_prefix      = local.vm.monitoring_stack.name
   console_password = random_password.monitoring_stack_console_password.result
   packages = [
     "apt-transport-https",
@@ -59,11 +59,12 @@ module "monitoring_stack_user" {
     "gnupg",
     "lsb-release",
     "wget",
-    "git"
+    "git",
+    "podman"
   ]
   runcmd = [
     "cd /home/aether",
-    "git clone -b main https://github.com/SigNoz/signoz.git",
+    "git clone -b v0.76.0 https://github.com/SigNoz/signoz.git",
     "cd signoz/deploy/",
     "./install.sh"
   ]

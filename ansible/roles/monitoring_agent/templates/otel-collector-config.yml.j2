@@ -1,0 +1,41 @@
+receivers:
+  filelog:
+    include:
+      - /hostfs/var/log/*.log
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'node'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['localhost:9100']
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+  resource:
+    attributes:
+      - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: os.type
+        value: "{{ ansible_distribution }}"
+        action: insert
+exporters:
+  otlp:
+    endpoint: 10.0.3.5:4317
+    tls:
+      insecure: true
+  debug:
+    # verbosity of the logging export: detailed, normal, basic
+    verbosity: detailed
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      processors: [batch, resource]
+      exporters: [otlp]
+    logs:
+      receivers: [filelog]
+      processors: [batch, resource]
+      exporters: [otlp]
