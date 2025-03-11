@@ -32,9 +32,10 @@ ap.home.shdr.ch {
 	}
 }
 
-signoz.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.signoz_admin }}
+grafana.home.shdr.ch {
+	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}
 }
+
 
 otel.home.shdr.ch {
 	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_http }}
@@ -42,4 +43,20 @@ otel.home.shdr.ch {
 
 otel-grpc.home.shdr.ch {
 	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_grpc }}
+}
+
+otel-metrics.home.shdr.ch {
+	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_metrics }}
+}
+
+otel-prometheus.home.shdr.ch {
+	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_prometheus }}
+}
+
+prometheus.home.shdr.ch {
+	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.prometheus }}
+}
+
+loki.home.shdr.ch {
+	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}
 }

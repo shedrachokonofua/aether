@@ -15,17 +15,6 @@ variable "console_password" {
   sensitive = true
 }
 
-variable "packages" {
-  type    = list(string)
-  default = []
-}
-
-variable "runcmd" {
-  type    = list(string)
-  default = []
-}
-
-
 terraform {
   required_providers {
     proxmox = {
@@ -52,10 +41,6 @@ locals {
         sudo                = "ALL=(ALL) NOPASSWD:ALL"
       }
     ]
-    package_update  = true
-    package_upgrade = true
-    packages        = var.packages
-    runcmd          = var.runcmd
   }
 }
 
