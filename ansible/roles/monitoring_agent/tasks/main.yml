@@ -12,43 +12,46 @@
     mode: "0644"
   become: true
 
-- name: Create pod
+- name: Create pod quadlet
   containers.podman.podman_pod:
     name: aether-monitoring-agent
+    state: quadlet
     network: host
-    restart_policy: always
+    restart_policy: on-failure
+    recreate: true
   become: true
 
-- name: Start node exporter container
+- name: Create node exporter container quadlet
   containers.podman.podman_container:
     name: aether-monitoring-agent-node-exporter
     image: docker.io/prom/node-exporter:latest
-    pod: aether-monitoring-agent
+    pod: aether-monitoring-agent.pod
     user: "0:0"
     command:
       - "--path.rootfs=/hostfs"
     volumes:
       - /:/hostfs:ro,rslave
-    restart_policy: always
     pid: host
-    state: started
+    state: quadlet
   become: true
 
-- name: Start otel collector container
+- name: Cretae otel collector container quadlet
   containers.podman.podman_container:
     name: aether-monitoring-agent-otel-collector
     image: docker.io/otel/opentelemetry-collector-contrib:latest
-    pod: aether-monitoring-agent
-    user: "0:0"
-    pid: host
-    cap_add:
-      - SYS_PTRACE
-      - SYS_ADMIN
-    security_opt:
-      - label=disable
-      - seccomp=unconfined
-      - apparmor=unconfined
+    state: quadlet
+    pod: aether-monitoring-agent.pod
     volumes:
-      - /:/hostfs:ro,rslave
       - /etc/aether-monitoring-agent/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+  become: true
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+  become: true
+
+- name: Start monitoring agent quadlet
+  systemd:
+    name: aether-monitoring-agent-pod
+    state: restarted
   become: true

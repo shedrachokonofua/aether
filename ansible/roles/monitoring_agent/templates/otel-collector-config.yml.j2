@@ -22,8 +22,8 @@ processors:
         value: "{{ ansible_distribution }}"
         action: insert
 exporters:
-  otlp:
-    endpoint: 10.0.3.5:4317
+  otlphttp:
+    endpoint: http://10.0.3.5:4318
     tls:
       insecure: true
   debug:
@@ -34,8 +34,8 @@ service:
     metrics:
       receivers: [prometheus]
       processors: [batch, resource]
-      exporters: [otlp]
+      exporters: [otlphttp]
     logs:
       receivers: [filelog]
       processors: [batch, resource]
-      exporters: [otlp]
+      exporters: [otlphttp]
