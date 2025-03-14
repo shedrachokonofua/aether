@@ -17,7 +17,9 @@
     - name: Create pod
       containers.podman.podman_pod:
         name: unifi
-        state: started
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
         ports:
           - "{{ vm.gateway_stack.ports.unifi_admin }}:8443"
           - 3478:3478/udp
@@ -39,9 +41,8 @@
       containers.podman.podman_container:
         name: unifi-db
         image: docker.io/mongo:8.0.5
-        state: started
-        pod: unifi
-        restart_policy: always
+        state: quadlet
+        pod: unifi.pod
         env:
           MONGO_INITDB_ROOT_USERNAME: unifi
           MONGO_INITDB_ROOT_PASSWORD: unifi
@@ -50,15 +51,15 @@
           MONGO_DBNAME: unifi
           MONGO_AUTHSOURCE: admin
         volumes:
-          - ./unifi-db/data:/data/db:Z
-          - ./unifi-db/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:Z
+          - /home/aether/unifi-db/data:/data/db:Z
+          - /home/aether/unifi-db/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:Z
 
     - name: Create unifi-network-application container
       containers.podman.podman_container:
         name: unifi-network-application
         image: lscr.io/linuxserver/unifi-network-application:latest
-        state: started
-        pod: unifi
+        state: quadlet
+        pod: unifi.pod
         env:
           PUID: 1000
           PGID: 1000
@@ -73,4 +74,17 @@
           MEM_LIMIT: 1024 #optional
           MEM_STARTUP: 1024 #optional
         volumes:
-          - ./unifi-network-application/data:/config:Z
+          - /home/aether/unifi-network-application/data:/config:Z
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start unifi quadlet
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        scope: user
+      loop:
+        - unifi-pod

@@ -30,9 +30,10 @@
     - name: Create caddy pod
       containers.podman.podman_pod:
         name: caddy
-        state: started
+        state: quadlet
         network: host
-        restart_policy: always
+        restart_policy: on-failure
+        recreate: true
 
     - name: Create caddy image
       containers.podman.podman_image:
@@ -44,12 +45,24 @@
       containers.podman.podman_container:
         name: caddy
         image: aether-caddy
-        recreate: true
-        state: started
-        pod: caddy
+        state: quadlet
+        pod: caddy.pod
         cap_add:
           - NET_ADMIN
         volumes:
-          - ./caddy/conf:/etc/caddy:Z
-          - ./caddy/data:/data:Z
-          - ./caddy/config:/config:Z
+          - /home/aether/caddy/conf:/etc/caddy:Z
+          - /home/aether/caddy/data:/data:Z
+          - /home/aether/caddy/config:/config:Z
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start caddy quadlets
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        scope: user
+      loop:
+        - caddy-pod

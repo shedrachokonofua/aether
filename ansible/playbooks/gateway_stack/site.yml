@@ -6,11 +6,11 @@
     - common
     - monitoring_agent
 
+- name: Deploy adguard pod
+  import_playbook: adguard/site.yml
+
 - name: Deploy unifi pod
   import_playbook: unifi/site.yml
 
 - name: Deploy caddy pod
   import_playbook: caddy/site.yml
-
-- name: Deploy adguard pod
-  import_playbook: adguard/site.yml
