@@ -36,7 +36,7 @@ VyOS LAN Base: 10.0.0.0/16
 | 1    | Ethernet | Bell Gigahub                                          | 2                | 10Gbps (3Gbps Uplink) |
 | 2    | Ethernet | Access Point                                          | 4, 5, 6, 7       | 2.5Gbps               |
 | 3    | Ethernet | Niobe                                                 | 2, 3, 4, 5, 6, 7 | 2.5Gbps               |
-| 4    | Ethernet | UPS                                                   | 3                | 100Mbps               |
+| 4    | Ethernet | UPS                                                   | 2                | 100Mbps               |
 | 5    | Ethernet | Office Switch                                         | 2, 3, 4, 5       | 2.5Gbps               |
 | 6    | Ethernet | PiKVM                                                 | 2                | 1Gbps                 |
 | 7    | Ethernet | MoCA Adapter (Uplink to unmanaged living room switch) | 5                | 2.5Gbps               |
