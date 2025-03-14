@@ -1,9 +1,8 @@
----
-- name: Deploy monitoring agent
-  hosts: gateway-stack
+- hosts: gateway-stack
   gather_facts: true
   roles:
     - common
+    - linger
     - monitoring_agent
 
 - name: Deploy adguard pod
