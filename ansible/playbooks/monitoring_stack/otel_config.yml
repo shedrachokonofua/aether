@@ -2,7 +2,9 @@ receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: "0.0.0.0:4317"
       http:
+        endpoint: "0.0.0.0:4318"
 
 processors:
   batch:
@@ -11,30 +13,27 @@ processors:
 
 exporters:
   prometheus:
-    endpoint: "0.0.0.0:8889"
+    endpoint: "otel_collector:8889"
     namespace: "otel"
     send_timestamps: true
     metric_expiration: 180m
     resource_to_telemetry_conversion:
       enabled: true
 
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
-    labels:
-      resource:
-        service.name: "service_name"
-        service.instance.id: "service_instance_id"
-      attributes:
-        level: "severity"
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+
+  debug:
+    verbosity: detailed
 
 service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [prometheus]
 
     logs:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [loki]
+      processors: []
+      exporters: [otlphttp/loki]

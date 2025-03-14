@@ -78,7 +78,9 @@
           - "--web.console.libraries=/etc/prometheus/console_libraries"
           - "--web.console.templates=/etc/prometheus/consoles"
           - "--web.enable-lifecycle"
+        restart_policy: always
         state: started
+        recreate: true
 
     - name: Start Loki
       containers.podman.podman_container:
@@ -88,16 +90,20 @@
         volumes:
           - ./loki/loki_config.yml:/etc/loki/config.yml
           - ./loki/data:/var/lib/loki
+        restart_policy: always
         state: started
+        recreate: true
 
     - name: Start otel collector
       containers.podman.podman_container:
         name: otel_collector
-        image: docker.io/otel/opentelemetry-collector:latest
+        image: docker.io/otel/opentelemetry-collector-contrib:latest
         pod: monitoring-stack
         volumes:
-          - ./otel/otel_config.yml:/etc/otel/config.yml
+          - ./otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
+        restart_policy: always
         state: started
+        recreate: true
 
     - name: Create grafana storage volume
       containers.podman.podman_volume:
@@ -109,8 +115,10 @@
         name: grafana
         pod: monitoring-stack
         image: docker.io/grafana/grafana:latest
+        restart_policy: always
         state: started
         volumes:
           - ./grafana/grafana.ini:/etc/grafana/grafana.ini:Z
           - ./grafana/provisioning:/etc/grafana/provisioning:Z
           - grafana_storage:/var/lib/grafana:Z
+        recreate: true
