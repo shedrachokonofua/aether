@@ -61,8 +61,6 @@
 
     - name: Start caddy quadlets
       systemd:
-        name: "{{ item }}"
+        name: caddy-pod
         state: restarted
         scope: user
-      loop:
-        - caddy-pod

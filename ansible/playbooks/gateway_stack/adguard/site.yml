@@ -80,11 +80,9 @@
 
     - name: Start adguardhome quadlet
       systemd:
-        name: "{{ item }}"
+        name: adguard-pod
         state: restarted
         scope: user
-      loop:
-        - adguard-pod
 
     - name: Wait for AdGuard to start
       wait_for:

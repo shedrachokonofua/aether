@@ -83,8 +83,6 @@
 
     - name: Start unifi quadlet
       systemd:
-        name: "{{ item }}"
+        name: unifi-pod
         state: restarted
         scope: user
-      loop:
-        - unifi-pod
