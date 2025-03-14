@@ -4,6 +4,7 @@
   gather_facts: true
   roles:
     - common
+    - linger
   tasks:
     - name: Create required directories
       file:
@@ -57,68 +58,73 @@
           - "{{ vm.monitoring_stack.ports.otel_http }}:4318"
           - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"
           - "{{ vm.monitoring_stack.ports.otel_prometheus }}:8889"
-        state: started
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
 
     - name: Create prometheus storage volume
       containers.podman.podman_volume:
         name: prometheus_storage
-        state: present
+        state: quadlet
 
     - name: Start prometheus
       containers.podman.podman_container:
         name: prometheus
         image: docker.io/prom/prometheus:latest
-        pod: monitoring-stack
+        pod: monitoring-stack.pod
         volumes:
-          - prometheus_storage:/prometheus
-          - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+          - prometheus_storage.volume:/prometheus
+          - /home/aether/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
         command:
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
           - "--web.console.libraries=/etc/prometheus/console_libraries"
           - "--web.console.templates=/etc/prometheus/consoles"
           - "--web.enable-lifecycle"
-        restart_policy: always
-        state: started
-        recreate: true
+        state: quadlet
 
     - name: Start Loki
       containers.podman.podman_container:
         name: loki
         image: docker.io/grafana/loki:latest
-        pod: monitoring-stack
+        pod: monitoring-stack.pod
         volumes:
-          - ./loki/loki_config.yml:/etc/loki/config.yml
-          - ./loki/data:/var/lib/loki
-        restart_policy: always
-        state: started
-        recreate: true
+          - /home/aether/loki/loki_config.yml:/etc/loki/config.yml
+          - /home/aether/loki/data:/var/lib/loki
+        state: quadlet
 
     - name: Start otel collector
       containers.podman.podman_container:
         name: otel_collector
         image: docker.io/otel/opentelemetry-collector-contrib:latest
-        pod: monitoring-stack
+        pod: monitoring-stack.pod
         volumes:
-          - ./otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
-        restart_policy: always
-        state: started
-        recreate: true
+          - /home/aether/otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
+        state: quadlet
 
     - name: Create grafana storage volume
       containers.podman.podman_volume:
         name: grafana_storage
-        state: present
+        state: quadlet
 
     - name: Start grafana
       containers.podman.podman_container:
         name: grafana
-        pod: monitoring-stack
+        pod: monitoring-stack.pod
         image: docker.io/grafana/grafana:latest
-        restart_policy: always
-        state: started
+        state: quadlet
         volumes:
-          - ./grafana/grafana.ini:/etc/grafana/grafana.ini:Z
-          - ./grafana/provisioning:/etc/grafana/provisioning:Z
-          - grafana_storage:/var/lib/grafana:Z
-        recreate: true
+          - /home/aether/grafana/grafana.ini:/etc/grafana/grafana.ini:Z
+          - /home/aether/grafana/provisioning:/etc/grafana/provisioning:Z
+          - grafana_storage.volume:/var/lib/grafana:Z
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start monitoring stack quadlet
+      systemd:
+        name: monitoring-stack-pod
+        state: restarted
+        scope: user
