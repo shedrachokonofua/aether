@@ -1,15 +1,35 @@
 ---
 - name: Create etc directory
   file:
-    path: /etc/aether-monitoring-agent
+    path: /etc/aether-monitoring-agent/otel
+    state: directory
+  become: true
+
+- name: Create OTEL storage directory
+  file:
+    path: /var/lib/otelcol/storage
     state: directory
   become: true
 
 - name: Create OTEL config file
   template:
     src: otel-collector-config.yml.j2
-    dest: /etc/aether-monitoring-agent/otel-collector-config.yml
+    dest: /etc/aether-monitoring-agent/otel/config.yml
     mode: "0644"
+  become: true
+
+- name: Copy Dockerfile
+  copy:
+    src: otel-collector.dockerfile
+    dest: /etc/aether-monitoring-agent/otel/Dockerfile
+    mode: "0644"
+  become: true
+
+- name: Create otel collector image
+  containers.podman.podman_image:
+    name: aether-monitoring-agent-otel-collector
+    path: /etc/aether-monitoring-agent/otel
+    state: present
   become: true
 
 - name: Create pod quadlet
@@ -19,6 +39,10 @@
     network: host
     restart_policy: on-failure
     recreate: true
+    quadlet_options:
+      - |
+        [Install]
+        WantedBy=default.target
   become: true
 
 - name: Create node exporter container quadlet
@@ -26,23 +50,26 @@
     name: aether-monitoring-agent-node-exporter
     image: docker.io/prom/node-exporter:latest
     pod: aether-monitoring-agent.pod
-    user: "0:0"
     command:
       - "--path.rootfs=/hostfs"
     volumes:
       - /:/hostfs:ro,rslave
-    pid: host
     state: quadlet
   become: true
 
 - name: Cretae otel collector container quadlet
   containers.podman.podman_container:
     name: aether-monitoring-agent-otel-collector
-    image: docker.io/otel/opentelemetry-collector-contrib:latest
+    image: aether-monitoring-agent-otel-collector
     state: quadlet
+    user: "0:0"
+    pid: host
     pod: aether-monitoring-agent.pod
+    memory: 512M
     volumes:
-      - /etc/aether-monitoring-agent/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+      - /etc/aether-monitoring-agent/otel/config.yml:/etc/otel-collector-config.yaml
+      - /var/lib/otelcol/storage:/var/lib/otelcol/storage:Z
+      - /:/hostfs:ro,rslave
   become: true
 
 - name: Reload systemd

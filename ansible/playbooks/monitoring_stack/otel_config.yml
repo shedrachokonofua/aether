@@ -14,7 +14,6 @@ processors:
 exporters:
   prometheus:
     endpoint: "otel_collector:8889"
-    namespace: "otel"
     send_timestamps: true
     metric_expiration: 180m
     resource_to_telemetry_conversion:
@@ -36,4 +35,4 @@ service:
     logs:
       receivers: [otlp]
       processors: []
-      exporters: [otlphttp/loki]
+      exporters: [otlphttp/loki, debug]

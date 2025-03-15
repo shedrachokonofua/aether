@@ -6,7 +6,8 @@ A simple VM monitoring agent deployed as a podman pod quadlet. It collects VM me
 
 - Otel Collector: Collects and transforms telemetry data and forwards it to the monitoring stack.
 - Node Exporter: Exports VM metrics (CPU, memory, disk, and network) for collection.
-- System Log Receiver: Collects system logs for collection.
+- File Log Receiver: Collects logs in `/var/log` and `/var/log/journal`.
+- Journald Receiver: Collects logs from journald.
 
 ## Usage
 
