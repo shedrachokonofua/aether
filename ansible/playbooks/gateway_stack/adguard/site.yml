@@ -50,7 +50,8 @@
       containers.podman.podman_pod:
         name: adguard
         state: quadlet
-        restart_policy: always
+        restart_policy: on-failure
+        recreate: true
         ports:
           - 53:53/tcp
           - 53:53/udp
@@ -58,6 +59,10 @@
           - 4000:4000/tcp
           - 48443:443/tcp
           - 48443:443/udp
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
 
     - name: Create adguardhome quadlet
       containers.podman.podman_container:
@@ -65,8 +70,6 @@
         image: docker.io/adguard/adguardhome:latest
         state: quadlet
         pod: adguard.pod
-        restart_policy: on-failure
-        recreate: true
         volumes:
           - /home/aether/adguardhome/work:/opt/adguardhome/work:Z
           - /home/aether/adguardhome/conf:/opt/adguardhome/conf:Z

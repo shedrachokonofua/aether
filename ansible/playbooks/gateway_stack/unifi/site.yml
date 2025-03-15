@@ -30,6 +30,10 @@
           - 8880:8880
           - 6789:6789
           - 5514:5514/udp
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
 
     - name: Copy init-mongo.sh to machine
       copy:

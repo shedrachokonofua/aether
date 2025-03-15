@@ -34,6 +34,10 @@
         network: host
         restart_policy: on-failure
         recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
 
     - name: Create caddy image
       containers.podman.podman_image:
