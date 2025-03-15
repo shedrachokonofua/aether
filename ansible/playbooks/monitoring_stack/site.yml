@@ -61,6 +61,10 @@
         state: quadlet
         restart_policy: on-failure
         recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
 
     - name: Create prometheus storage volume
       containers.podman.podman_volume:
