@@ -1,62 +1,72 @@
 {
-	log {
-		level DEBUG
-	}
+  log {
+    level DEBUG
+  }
 
-	acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
+  acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
 }
 
 home.shdr.ch {
-	respond "Welcome home"
+  respond "Welcome home"
 }
 
 rack-switch.home.shdr.ch {
-	reverse_proxy 10.0.3.2
+  reverse_proxy 10.0.3.2
 }
 
 dns.home.shdr.ch {
-	reverse_proxy {{ vm.gateway_stack.ip }}:{{ vm.gateway_stack.ports.adguard_admin }}
+  reverse_proxy {{ vm.gateway_stack.ip }}:{{ vm.gateway_stack.ports.adguard_admin }}
 }
 
 ap.home.shdr.ch {
-	reverse_proxy https://{{ vm.gateway_stack.ip }}:{{ vm.gateway_stack.ports.unifi_admin }} {
-		transport http {
-			tls
-			tls_insecure_skip_verify
-		}
-		header_up Host {http.request.host}
-		header_up X-Real-IP {http.request.remote}
-		header_up X-Forwarded-For {http.request.remote}
-		header_up Upgrade {http.request.header.Upgrade}
-		header_up Connection {http.request.header.Connection}
-	}
+  reverse_proxy https://{{ vm.gateway_stack.ip }}:{{ vm.gateway_stack.ports.unifi_admin }} {
+    transport http {
+      tls
+      tls_insecure_skip_verify
+    }
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up Upgrade {http.request.header.Upgrade}
+    header_up Connection {http.request.header.Connection}
+  }
 }
 
 grafana.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}
 }
 
 
 otel.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_http }}
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_http }}
 }
 
 otel-grpc.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_grpc }}
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_grpc }}
 }
 
 otel-metrics.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_metrics }}
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_metrics }}
 }
 
 otel-prometheus.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_prometheus }}
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_prometheus }}
 }
 
 prometheus.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.prometheus }}
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.prometheus }}
 }
 
 loki.home.shdr.ch {
-	reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}
+}
+
+kvm.home.shdr.ch {
+  reverse_proxy https://192.168.2.220 {
+    transport http {
+      tls
+      tls_insecure_skip_verify
+    }
+    header_up Host {http.request.host}
+  }
 }
