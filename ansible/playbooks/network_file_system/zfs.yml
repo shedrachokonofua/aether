@@ -1,0 +1,89 @@
+---
+- name: Setup ZFS Pools and Datasets for Homelab
+  hosts: smith
+  vars:
+    nvme_pool_name: nvme
+    hdd_pool_name: hdd
+    datasets:
+      - name: "nvme/vm"
+        mountpoint: "/mnt/nvme/vm"
+        compress: "lz4" # enable LZ4 compression for improved I/O and space savings
+        recordsize: "16K" # smaller record size is beneficial for VM disk images
+        atime: "on"
+      - name: "nvme/data"
+        mountpoint: "/mnt/nvme/data"
+        compress: "lz4"
+        recordsize: "default"
+        atime: "off" # disabling atime reduces write overhead
+      - name: "hdd/vm"
+        mountpoint: "/mnt/hdd/vm"
+        compress: "default"
+        recordsize: "default"
+        atime: "on"
+      - name: "hdd/data"
+        mountpoint: "/mnt/hdd/data"
+        compress: "lz4"
+        recordsize: "default"
+        atime: "off"
+      - name: "hdd/backups-vm"
+        mountpoint: "/mnt/hdd/backups-vm"
+        compress: "default"
+        recordsize: "default"
+        atime: "on"
+      - name: "hdd/backups-data"
+        mountpoint: "/mnt/hdd/backups-data"
+        compress: "default"
+        recordsize: "default"
+        atime: "off"
+
+  tasks:
+    # --- Pool Creation Tasks ---
+    - name: Check if NVMe pool "{{ nvme_pool_name }}" exists
+      shell: "zpool list -H -o name | grep -w {{ nvme_pool_name }}"
+      register: nvme_pool_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Create NVMe pool "{{ nvme_pool_name }}" as striped pool if not exists
+      command: "zpool create {{ nvme_pool_name }} /dev/nvme0n1p1 /dev/nvme1n1p4"
+      when: nvme_pool_check.rc != 0
+
+    - name: Check if HDD pool "{{ hdd_pool_name }}" exists
+      shell: "zpool list -H -o name | grep -w {{ hdd_pool_name }}"
+      register: hdd_pool_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Create HDD pool "{{ hdd_pool_name }}" as RAID10 (2 mirrored vdevs) if not exists
+      command: "zpool create {{ hdd_pool_name }} mirror /dev/sda /dev/sdb mirror /dev/sdc /dev/sdd"
+      when: hdd_pool_check.rc != 0
+
+    # --- Dataset Creation Tasks ---
+    - name: Ensure ZFS datasets exist
+      shell: |
+        if ! zfs list {{ item.name }} > /dev/null 2>&1; then
+          zfs create {{ item.name }}
+        fi
+      args:
+        executable: /bin/bash
+      loop: "{{ datasets }}"
+      loop_control:
+        loop_var: item
+
+    # --- Recommended ZFS Configuration ---
+    - name: Apply recommended ZFS properties on datasets
+      shell: |
+        {% if item.compress != 'default' %}
+        zfs set compress={{ item.compress }} {{ item.name }};
+        {% endif %}
+        {% if item.recordsize != 'default' %}
+        zfs set recordsize={{ item.recordsize }} {{ item.name }};
+        {% endif %}
+        {% if item.atime != 'default' %}
+        zfs set atime={{ item.atime }} {{ item.name }};
+        {% endif %}
+      args:
+        executable: /bin/bash
+      loop: "{{ datasets }}"
+      loop_control:
+        loop_var: item
