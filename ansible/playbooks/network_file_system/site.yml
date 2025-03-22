@@ -1,5 +1,7 @@
 ---
-- name: ZFS Setup
-  import_playbook: zfs.yml
-# - name: NFS Setup
-#   import_playbook: nfs.yml
+- name: Configure ZFS
+  import_playbook: configure_zfs.yml
+# - name: Provision NFS LXC
+#   import_playbook: provision_nfs.yml
+# - name: Configure NFS
+#   import_playbook: configure_nfs.yml

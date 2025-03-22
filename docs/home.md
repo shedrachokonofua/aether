@@ -13,14 +13,14 @@ VyOS LAN Base: 10.0.0.0/16
 
 #### VLANs
 
-| VLAN | Name          | Subnet         | Gateway     | DHCP Range | Description                                                                             |
-| ---- | ------------- | -------------- | ----------- | ---------- | --------------------------------------------------------------------------------------- |
-| 2    | Control Plane | 192.168.2.0/24 | 192.168.2.1 | Static     | Isolated network between ISP modem, Proxmox cluster hosts and PiKVM                     |
-| 3    | Rack          | 10.0.3.0/24    | 10.0.3.1    | Static     | Infrastructure network for rack-mounted hardware(2 - 49) and virtual machines(50 - 254) |
-| 4    | Personal      | 10.0.4.0/24    | 10.0.4.1    | 2 - 254    | Primary network for trusted devices with full management access                         |
-| 5    | Media         | 10.0.5.0/24    | 10.0.5.1    | 2 - 254    | Home entertainment devices with access to internet and local media servers              |
-| 6    | IoT           | 10.0.6.0/24    | 10.0.6.1    | 2 - 254    | Home IoT devices with access to internet and local home automation servers              |
-| 7    | Guest         | 10.0.7.0/24    | 10.0.7.1    | 2 - 254    | Guest network with internet access                                                      |
+| VLAN | Name          | Subnet         | Gateway     | DHCP Range | Description                                                                |
+| ---- | ------------- | -------------- | ----------- | ---------- | -------------------------------------------------------------------------- |
+| 2    | Control Plane | 192.168.2.0/24 | 192.168.2.1 | Static     | Isolated network between ISP modem and rack mounted hardware               |
+| 3    | Rack          | 10.0.3.0/24    | 10.0.3.1    | 240 - 254  | Infrastructure network for virtual machines                                |
+| 4    | Personal      | 10.0.4.0/24    | 10.0.4.1    | 2 - 254    | Primary network for trusted devices with full management access            |
+| 5    | Media         | 10.0.5.0/24    | 10.0.5.1    | 2 - 254    | Home entertainment devices with access to internet and local media servers |
+| 6    | IoT           | 10.0.6.0/24    | 10.0.6.1    | 2 - 254    | Home IoT devices with access to internet and local home automation servers |
+| 7    | Guest         | 10.0.7.0/24    | 10.0.7.1    | 2 - 254    | Guest network with internet access                                         |
 
 #### Rack Switch
 

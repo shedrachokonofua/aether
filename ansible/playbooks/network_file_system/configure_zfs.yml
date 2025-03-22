@@ -1,41 +1,49 @@
 ---
-- name: Setup ZFS Pools and Datasets for Homelab
+- name: Setup ZFS Pools and Datasets
   hosts: smith
   vars:
     nvme_pool_name: nvme
     hdd_pool_name: hdd
+    # --- Datasets ---
+    # - Use LZ4 compression on all datasets to balance space savings with minimal CPU overhead.
+    # - Use smaller record size (16K) for VM disk images to reduce metadata overhead and improve random I/O performance.
+    # - Disable atime to reduce write overhead and improve sequential I/O performance.
     datasets:
-      - name: "nvme/vm"
+      - name: "nvme/personal" # Personal data storage, backed up to google drive
+        mountpoint: "/mnt/nvme/personal"
+        compress: "lz4"
+        recordsize: "default"
+        atime: "off"
+      - name: "nvme/vm" # VM disk images
         mountpoint: "/mnt/nvme/vm"
-        compress: "lz4" # enable LZ4 compression for improved I/O and space savings
-        recordsize: "16K" # smaller record size is beneficial for VM disk images
-        atime: "on"
-      - name: "nvme/data"
+        compress: "lz4"
+        recordsize: "16K"
+        atime: "off"
+      - name: "nvme/data" # Generic data storage
         mountpoint: "/mnt/nvme/data"
         compress: "lz4"
         recordsize: "default"
-        atime: "off" # disabling atime reduces write overhead
-      - name: "hdd/vm"
+        atime: "off"
+      - name: "hdd/vm" # VM disk images
         mountpoint: "/mnt/hdd/vm"
-        compress: "default"
+        compress: "lz4"
         recordsize: "default"
-        atime: "on"
-      - name: "hdd/data"
+        atime: "off"
+      - name: "hdd/data" # Generic data storage
         mountpoint: "/mnt/hdd/data"
         compress: "lz4"
         recordsize: "default"
         atime: "off"
-      - name: "hdd/backups-vm"
+      - name: "hdd/backups-vm" # VM backups
         mountpoint: "/mnt/hdd/backups-vm"
-        compress: "default"
-        recordsize: "default"
-        atime: "on"
-      - name: "hdd/backups-data"
-        mountpoint: "/mnt/hdd/backups-data"
-        compress: "default"
+        compress: "lz4"
         recordsize: "default"
         atime: "off"
-
+      - name: "hdd/backups-data" # Generic data backups
+        mountpoint: "/mnt/hdd/backups-data"
+        compress: "lz4"
+        recordsize: "default"
+        atime: "off"
   tasks:
     # --- Pool Creation Tasks ---
     - name: Check if NVMe pool "{{ nvme_pool_name }}" exists
@@ -82,6 +90,14 @@
         {% if item.atime != 'default' %}
         zfs set atime={{ item.atime }} {{ item.name }};
         {% endif %}
+      args:
+        executable: /bin/bash
+      loop: "{{ datasets }}"
+      loop_control:
+        loop_var: item
+
+    - name: Set mount points
+      shell: zfs set mountpoint={{ item.mountpoint }} {{ item.name }}
       args:
         executable: /bin/bash
       loop: "{{ datasets }}"
