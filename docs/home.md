@@ -1,10 +1,20 @@
 # Home
 
+## Hosts
+
+| Host    | RAM   | Storage                             | CPU                  | GPU                      | Cores | Threads | vCPUs | Network | Model             | Gigahub IP    |
+| ------- | ----- | ----------------------------------- | -------------------- | ------------------------ | ----- | ------- | ----- | ------- | ----------------- | ------------- |
+| Niobe   | 64GB  | 1TB NVME, 512GB MVME                | AMD Ryzen 9 6900HX   | AMD Radeon 680M          | 8     | 16      | 16    | 2.5Gbps | Beelink Ser6 Max  | 192.168.2.201 |
+| Trinity | 64GB  | 1TB NVME                            | Intel Core i9-13900H | Intel Iris Xe            | 14    | 20      | 20    | 10Gbps  | Minisforum MS-01  | 192.168.2.202 |
+| Oracle  | 16GB  | 1TB NVME                            | Intel Core i5-12600H | Intel Iris Xe            | 12    | 16      | 16    | 10Gbps  | Minisforum MS-01  | 192.168.2.203 |
+| Smith   | 128GB | 8TB NVME(4TB x2), 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super    | 8     | 16      | 16    | 10Gbps  | Custom            | 192.168.2.204 |
+| Neo     | 128GB | 2TB NVME                            | AMD Ryzen 9 9950X3D  | Nvidia RTX Pro 6000 MaxQ | 16    | 16      | 32    | 10Gbps  | Custom            | 192.168.2.205 |
+
 ## Network
 
 ### WAN
 
-Assigned by Bell Gigahub via PPPoE
+Assigned by Bell Gigahub via PPPoE. 3Gbps up/down.
 
 ### LAN
 
@@ -31,17 +41,17 @@ VyOS LAN Base: 10.0.0.0/16
 - 8x 10Gbps Ethernet ports
 - 8x 10Gbps SFP+ ports
 
-| Port | Type     | Device                                                | VLAN tags        | Speed                 |
-| ---- | -------- | ----------------------------------------------------- | ---------------- | --------------------- |
-| 1    | Ethernet | Bell Gigahub                                          | 2                | 10Gbps (3Gbps Uplink) |
-| 2    | Ethernet | Access Point                                          | 4, 5, 6, 7       | 2.5Gbps               |
-| 3    | Ethernet | Niobe                                                 | 2, 3, 4, 5, 6, 7 | 2.5Gbps               |
-| 4    | Ethernet | UPS                                                   | 2                | 100Mbps               |
-| 5    | Ethernet | Office Switch                                         | 2, 3, 4, 5       | 2.5Gbps               |
-| 6    | Ethernet | PiKVM                                                 | 2                | 1Gbps                 |
-| 7    | Ethernet | MoCA Adapter (Uplink to unmanaged living room switch) | 5                | 2.5Gbps               |
-| 10   | SFP+     | Trinity                                               | 2, 3, 4, 5, 6, 7 | 10Gbps                |
-| 11   | SFP+     | Smith                                                 | 2, 3, 4, 5, 6, 7 | 10Gbps                |
+| Port | Type     | Device                                                | VLAN tags        | Speed   |
+| ---- | -------- | ----------------------------------------------------- | ---------------- | ------- |
+| 1    | Ethernet | Bell Gigahub                                          | 2                | 10Gbps  |
+| 2    | Ethernet | Access Point                                          | 4, 5, 6, 7       | 2.5Gbps |
+| 3    | Ethernet | Niobe                                                 | 2, 3, 4, 5, 6, 7 | 2.5Gbps |
+| 4    | Ethernet | UPS                                                   | 2                | 100Mbps |
+| 5    | Ethernet | Office Switch                                         | 2, 3, 4, 5       | 2.5Gbps |
+| 6    | Ethernet | PiKVM                                                 | 2                | 1Gbps   |
+| 7    | Ethernet | MoCA Adapter (Uplink to unmanaged living room switch) | 5                | 2.5Gbps |
+| 10   | SFP+     | Trinity                                               | 2, 3, 4, 5, 6, 7 | 10Gbps  |
+| 11   | SFP+     | Smith                                                 | 2, 3, 4, 5, 6, 7 | 10Gbps  |
 
 #### Office Switch
 
@@ -58,7 +68,6 @@ VyOS LAN Base: 10.0.0.0/16
 | 2    | Ethernet | Raspberry Pi 5     | 4          | 1Gbps   |
 | 3    | Ethernet | Laptop Dock        | 4          | 2.5Gbps |
 | 4    | Ethernet | Raspberry Pi 5     | 4          | 1Gbps   |
-| 8    | Ethernet | Management Port    | 1          | 2.5Gbps |
 | 9    | SFP+     | Rack Switch        | 2, 3, 4, 5 | 10Gbps  |
 
 #### Access Point
@@ -76,11 +85,61 @@ VyOS LAN Base: 10.0.0.0/16
 | Indigo Tide  | 6    |
 | Moss Cove    | 7    |
 
-### Hosts
+## Storage
 
-| Host    | RAM   | Storage                             | CPU                  | GPU                   | Cores | Threads | vCPUs | Network | Model             | Gigahub IP    |
-| ------- | ----- | ----------------------------------- | -------------------- | --------------------- | ----- | ------- | ----- | ------- | ----------------- | ------------- |
-| Niobe   | 64GB  | 1TB NVME, 512GB MVME                | AMD Ryzen 9 6900HX   | AMD Radeon 680M       | 8     | 16      | 16    | 2.5Gbps | Beelink Ser6 Max  | 192.168.2.201 |
-| Trinity | 64GB  | 1TB NVME                            | Intel Core i9-13900H | Intel Iris Xe         | 14    | 20      | 20    | 10Gbps  | Minisforum MS-01  | 192.168.2.202 |
-| Oracle  | 16GB  | 1TB NVME                            | Intel Core i5-12600H | Intel Iris Xe         | 12    | 16      | 16    | 10Gbps  | Minisforum MS-01  | 192.168.2.203 |
-| Smith   | 128GB | 8TB NVME(4TB x2), 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super | 8     | 16      | 16    | 10Gbps  | Custom            | 192.168.2.204 |
+Smith is the designated shared storage node in the home cluster. It's running ZFS with an array consisting of:
+
+| Count | Type | Size | RAID   | Total(Raw) | Total(Usable) |
+| ----- | ---- | ---- | ------ | ---------- | ------------- |
+| 2     | NVME | 4TB  | RAID0  | 8TB        | 8TB           |
+| 4     | HDD  | 14TB | RAID10 | 56TB       | 28TB          |
+
+### Pools
+
+| Pool | Description |
+| ---- | ----------- |
+| nvme | NVMe drives |
+| hdd  | HDD drives  |
+
+### Datasets
+
+| Name             | Mountpoint            | Compression | Record Size | Description                                      |
+| ---------------- | --------------------- | ----------- | ----------- | ------------------------------------------------ |
+| nvme/personal    | /mnt/nvme/personal    | lz4         | default     | Personal data storage, backed up to google drive |
+| nvme/vm          | /mnt/nvme/vm          | lz4         | 16K         | Performance-optimized storage for VMs            |
+| nvme/data        | /mnt/nvme/data        | lz4         | default     | Performance-optimized storage for generic data   |
+| hdd/vm           | /mnt/hdd/vm           | lz4         | default     | Capacity-optimized storage for VMs               |
+| hdd/data         | /mnt/hdd/data         | lz4         | default     | Capacity-optimized storage for generic data      |
+| hdd/backups-vm   | /mnt/hdd/backups-vm   | lz4         | default     | VM backups                                       |
+| hdd/backups-data | /mnt/hdd/backups-data | lz4         | default     | Generic data backups                             |
+
+### Network File System
+
+Smith hosts an NFS server that serves as a storage backend for the home proxmox cluster, and as a general purpose storage backend for the home network.
+
+#### NFS Exports
+
+- /mnt/nvme/personal
+- /mnt/nvme/vm
+- /mnt/nvme/data
+- /mnt/hdd/vm
+- /mnt/hdd/data
+
+<!-- ### Backups
+
+#### ZFS Snapshots
+
+Hourly ZFS snapshots of all datasets.
+
+#### Proxmox Backup Server
+
+Proxmox Backup Server is used to backup VMs and containers to the hdd/backups-vm dataset hourly.
+
+#### Data Backup Jobs
+
+Hourly data backup jobs from nvme/personal and nvme/data datasets to hdd/backups-data.
+
+#### Remote Backups
+
+- Daily remote backups from the hdd datasets to an S3 Glacier bucket.
+- Live sync of nvme/personal to google drive. -->

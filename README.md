@@ -77,7 +77,7 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
    task bootstrap -- <aws access-key-id> <aws secret-access-key>
    ```
 
-### Setup Home Network
+### Provision Home Network
 
 1. Manually apply rack switch configuration ([README](docs/home.md#rack-switch))
 
@@ -89,9 +89,13 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
 
 1. Manually apply office switch configuration ([README](docs/home.md#office-switch))
 
-### Deploy Home Network File System
+### Provision Home Network File System
 
-[TODO]
+1. Provision NFS ([README](ansible/playbooks/network_file_system/README.md))
+
+   ```bash
+   task provision:home:nfs
+   ```
 
 ### Provision Infrastructure
 
