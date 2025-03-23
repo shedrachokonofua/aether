@@ -7,6 +7,11 @@
         options: "rw,sync,no_subtree_check,no_root_squash"
       - path: /mnt/hdd/vm
         options: "rw,sync,no_subtree_check,no_root_squash"
+    allowed_ips:
+      - "{{ hostvars['trinity'].ansible_host }}"
+      - "{{ hostvars['oracle'].ansible_host }}"
+      - "{{ hostvars['smith'].ansible_host }}"
+      - "{{ hostvars['niobe'].ansible_host }}"
   roles:
     - common
   tasks:
@@ -53,7 +58,8 @@
       copy:
         content: |
           {% for export in nfs_exports %}
-          {{ export.path }} *({{ export.options }})
+          {{ export.path }} {% for ip in allowed_ips %}{{ ip }}({{ export.options }}) {% endfor %}
+
           {% endfor %}
         dest: /etc/exports
 
