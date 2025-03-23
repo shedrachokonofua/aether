@@ -1,0 +1,46 @@
+---
+- name: Provision NFS LXC
+  hosts: smith
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Pull fedora template
+      community.general.proxmox_template:
+        node: "{{vm.nfs.node}}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        url: "http://download.proxmox.com/images/system/fedora-41-default_20241118_amd64.tar.xz"
+
+    - name: Create NFS LXC
+      community.general.proxmox:
+        node: "{{vm.nfs.node}}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        vmid: "{{vm.nfs.id}}"
+        password: "{{secrets.nfs_password}}"
+        hostname: "{{vm.nfs.name}}"
+        ostemplate: "local:vztmpl/fedora-41-default_20241118_amd64.tar.xz"
+        ostype: "fedora"
+        cores: "{{vm.nfs.cores}}"
+        memory: "{{vm.nfs.memory}}"
+        disk: "zfs-nvme-vm-dataset:{{vm.nfs.disk_gb}}"
+        mounts:
+          mp0: "/mnt/nvme,mp=/mnt/nvme"
+          mp1: "/mnt/hdd,mp=/mnt/hdd"
+        netif:
+          net0: "name=eth0,bridge=vmbr0,gw={{vm.nfs.gateway}},ip={{vm.nfs.ip}}/24"
+        features:
+          - nesting=1
+          - mount=nfs
+
+    - name: Start NFS LXC
+      community.general.proxmox:
+        vmid: "{{vm.nfs.id}}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: started
+      ignore_errors: true
