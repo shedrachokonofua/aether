@@ -13,6 +13,12 @@
         api_password: "{{secrets.proxmox.cluster_password}}"
         url: "http://download.proxmox.com/images/system/fedora-41-default_20241118_amd64.tar.xz"
 
+    - name: Write hookscript
+      copy:
+        content: "{{ lookup('template', 'hookscript.sh.j2') }}"
+        dest: "/var/lib/vz/snippets/nfs-hookscript.sh"
+        mode: "0755"
+
     - name: Create NFS LXC
       community.general.proxmox:
         node: "{{vm.nfs.node}}"
@@ -27,6 +33,7 @@
         cores: "{{vm.nfs.cores}}"
         memory: "{{vm.nfs.memory}}"
         disk: "zfs-nvme-vm-dataset:{{vm.nfs.disk_gb}}"
+        hookscript: "local:snippets/nfs-hookscript.sh"
         mounts:
           mp0: "/mnt/nvme,mp=/mnt/nvme"
           mp1: "/mnt/hdd,mp=/mnt/hdd"

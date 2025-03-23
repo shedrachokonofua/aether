@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Get the container ID and event type from arguments
+VMID="$1"
+PHASE="$2"
+
+# Only execute during post-start
+if [ "$PHASE" != "post-start" ]; then
+    exit 0
+fi
+
+# Add authorized_keys to container
+pct exec $VMID -- bash -c "
+  # Install SSH server if not already installed
+  if ! command -v sshd &> /dev/null; then
+    dnf -y install openssh-server
+  fi
+
+  # Enable and start SSH service
+  systemctl enable sshd.service
+  systemctl start sshd.service
+
+  # Ensure .ssh directory exists
+  mkdir -p /root/.ssh
+  chmod 700 /root/.ssh
+
+  # Create or truncate authorized_keys file
+  touch /root/.ssh/authorized_keys
+  chmod 600 /root/.ssh/authorized_keys
+
+  # Add the SSH keys
+  {% for key in ssh_authorized_keys %}
+  echo '{{ key }}' >> /root/.ssh/authorized_keys
+  {% endfor %}
+  echo 'SSH keys added successfully'
+"
+
+exit 0
+
