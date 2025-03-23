@@ -3,15 +3,9 @@
   hosts: nfs
   vars:
     nfs_exports:
-      - path: /mnt/nvme/personal
-        options: "rw,sync,no_subtree_check,no_root_squash"
       - path: /mnt/nvme/vm
         options: "rw,sync,no_subtree_check,no_root_squash"
-      - path: /mnt/nvme/data
-        options: "rw,sync,no_subtree_check,no_root_squash"
       - path: /mnt/hdd/vm
-        options: "rw,sync,no_subtree_check,no_root_squash"
-      - path: /mnt/hdd/data
         options: "rw,sync,no_subtree_check,no_root_squash"
   roles:
     - common

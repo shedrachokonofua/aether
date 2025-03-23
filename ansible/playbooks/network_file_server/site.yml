@@ -2,8 +2,8 @@
 - name: Configure ZFS
   import_playbook: configure_zfs.yml
 
-- name: Provision NFS LXC
-  import_playbook: provision_nfs.yml
+- name: Provision LXC
+  import_playbook: provision.yml
 
 - name: Configure NFS
   import_playbook: configure_nfs.yml

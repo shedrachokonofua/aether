@@ -7,7 +7,7 @@
   tasks:
     - name: Confirm NFS server is reachable
       wait_for:
-        host: "{{vm.nfs.ip}}"
+        host: "{{vm.nfs.ip.gigahub}}"
         port: 2049
         timeout: 300
       register: wait_result
@@ -22,7 +22,7 @@
       changed_when: false
 
     - name: Add nfs-nvme-vm-dataset storage to proxmox if not exists
-      command: pvesm add nfs nfs-nvme-vm-dataset --server {{vm.nfs.ip}} --export /mnt/nvme/vm  --content images,rootdir,vztmpl,iso,backup,snippets
+      command: pvesm add nfs nfs-nvme-vm-dataset --server {{vm.nfs.ip.gigahub}} --export /mnt/nvme/vm  --content images,rootdir,vztmpl,iso,backup,snippets
       when: nvme_pool_status.rc != 0
 
     - name: Check if nfs-hdd-vm-dataset storage is added to proxmox
@@ -32,5 +32,5 @@
       changed_when: false
 
     - name: Add nfs-hdd-vm-dataset storage to proxmox if not exists
-      command: pvesm add nfs nfs-hdd-vm-dataset --server {{vm.nfs.ip}} --export /mnt/hdd/vm  --content images,rootdir,vztmpl,iso,backup,snippets
+      command: pvesm add nfs nfs-hdd-vm-dataset --server {{vm.nfs.ip.gigahub}} --export /mnt/hdd/vm  --content images,rootdir,vztmpl,iso,backup,snippets
       when: hdd_pool_status.rc != 0

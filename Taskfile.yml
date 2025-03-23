@@ -330,11 +330,11 @@ tasks:
           CLI_ARGS: ./ansible/playbooks/home_router/site.yml
 
   provision:home:nfs:
-    desc: Deploy the home network file system
+    desc: Deploy the home network file server
     cmds:
       - task: ansible:playbook
         vars:
-          CLI_ARGS: ./ansible/playbooks/network_file_system/site.yml
+          CLI_ARGS: ./ansible/playbooks/network_file_server/site.yml
 
   secrets:encrypt:
     desc: Encrypt secrets

@@ -62,5 +62,9 @@ nfs:
   cores: 4
   memory: 4096
   disk_gb: 10
-  gateway: "192.168.2.1"
-  ip: "192.168.2.232"
+  gateway:
+    gigahub: "192.168.2.1"
+    vyos: "10.0.3.1"
+  ip:
+    gigahub: "192.168.2.232"
+    vyos: "10.0.3.4"
