@@ -104,22 +104,22 @@
       loop_control:
         loop_var: item
 
-    - name: Check if nvme/vm storage is added to proxmox
+    - name: Check if zfs-nvme-vm-dataset storage is added to proxmox
       command: pvesm status --storage zfs-nvme-vm-dataset
       register: nvme_pool_status
       ignore_errors: yes
       changed_when: false
 
-    - name: Add nvme/pool storage to proxmox if not exists
-      command: pvesm add zfspool zfs-nvme-vm-dataset --pool nvme/vm --sparse 1 --content images,rootdir
+    - name: Add zfs-nvme-vm-dataset storage to proxmox if not exists
+      command: pvesm add zfspool zfs-nvme-vm-dataset --pool nvme/vm --sparse 1 --content images,rootdir --nodes smith
       when: nvme_pool_status.rc != 0
 
-    - name: Check if hdd/vm storage is added to proxmox
+    - name: Check if zfs-hdd-vm-dataset storage is added to proxmox
       command: pvesm status --storage zfs-hdd-vm-dataset
       register: hdd_pool_status
       ignore_errors: yes
       changed_when: false
 
-    - name: Add hdd/vm storage to proxmox if not exists
-      command: pvesm add zfspool zfs-hdd-vm-dataset --pool hdd/vm --sparse 1 --content images,rootdir
+    - name: Add zfs-hdd-vm-dataset storage to proxmox if not exists
+      command: pvesm add zfspool zfs-hdd-vm-dataset --pool hdd/vm --sparse 1 --content images,rootdir --nodes smith
       when: hdd_pool_status.rc != 0

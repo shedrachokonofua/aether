@@ -33,3 +33,11 @@ This configures the NFS server on the LXC container and integrates it with the p
 ```bash
 task ansible:playbook -- ./ansible/playbooks/network_file_system/configure_nfs.yml
 ```
+
+### Configure Proxmox NFS
+
+This adds the NFS storage backend to the proxmox cluster.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/network_file_system/configure_proxmox_nfs.yml
+```

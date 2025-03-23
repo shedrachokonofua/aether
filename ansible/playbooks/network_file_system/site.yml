@@ -7,3 +7,6 @@
 
 - name: Configure NFS
   import_playbook: configure_nfs.yml
+
+- name: Configure Proxmox NFS
+  import_playbook: configure_proxmox_nfs.yml

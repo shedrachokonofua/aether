@@ -1,0 +1,67 @@
+---
+- name: Configure NFS server
+  hosts: nfs
+  vars:
+    nfs_exports:
+      - path: /mnt/nvme/personal
+        options: "rw,sync,no_subtree_check,no_root_squash"
+      - path: /mnt/nvme/vm
+        options: "rw,sync,no_subtree_check,no_root_squash"
+      - path: /mnt/nvme/data
+        options: "rw,sync,no_subtree_check,no_root_squash"
+      - path: /mnt/hdd/vm
+        options: "rw,sync,no_subtree_check,no_root_squash"
+      - path: /mnt/hdd/data
+        options: "rw,sync,no_subtree_check,no_root_squash"
+  roles:
+    - common
+  tasks:
+    - name: Install required packages
+      dnf:
+        name:
+          - nfs-utils
+          - kernel-modules-extra
+          - python3-firewall
+        state: present
+
+    - name: Ensure /var/lib/nfs directory exists with correct permissions
+      file:
+        path: /var/lib/nfs
+        state: directory
+        mode: "0755"
+        owner: root
+        group: root
+
+    - name: Ensure required NFS state files exist
+      file:
+        path: "{{ item }}"
+        state: touch
+        mode: "0644"
+        owner: root
+        group: root
+      with_items:
+        - /var/lib/nfs/etab
+        - /var/lib/nfs/rmtab
+
+    - name: Ensure rpcbind service is enabled and started
+      systemd:
+        name: rpcbind
+        enabled: yes
+        state: started
+
+    - name: Ensure nfs-server service is enabled and started
+      systemd:
+        name: nfs-server
+        enabled: yes
+        state: started
+
+    - name: Write exports file
+      copy:
+        content: |
+          {% for export in nfs_exports %}
+          {{ export.path }} *({{ export.options }})
+          {% endfor %}
+        dest: /etc/exports
+
+    - name: Refresh NFS exports
+      command: exportfs -r

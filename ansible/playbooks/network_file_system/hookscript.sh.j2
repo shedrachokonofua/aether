@@ -9,8 +9,12 @@ if [ "$PHASE" != "post-start" ]; then
     exit 0
 fi
 
-# Add authorized_keys to container
+# Base configuration for ansible access
 pct exec $VMID -- bash -c "
+  # Install Python3
+  dnf -y install Python3
+  dnf -y install python3-libdnf5
+
   # Install SSH server if not already installed
   if ! command -v sshd &> /dev/null; then
     dnf -y install openssh-server

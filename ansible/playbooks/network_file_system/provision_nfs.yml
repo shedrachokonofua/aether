@@ -19,6 +19,43 @@
         dest: "/var/lib/vz/snippets/nfs-hookscript.sh"
         mode: "0755"
 
+    - name: Check if NFS LXC exists
+      community.general.proxmox_vm_info:
+        vmid: "{{vm.nfs.id}}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+      register: previous_vm_info
+      ignore_errors: true
+
+    - name: Stop NFS LXC
+      community.general.proxmox:
+        vmid: "{{vm.nfs.id}}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: stopped
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: stop_result
+      until: not stop_result.failed
+      retries: 5
+      delay: 5
+      ignore_errors: true
+
+    - name: Delete NFS LXC
+      community.general.proxmox:
+        vmid: "{{vm.nfs.id}}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: absent
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: delete_result
+      until: not delete_result.failed
+      retries: 5
+      delay: 5
+      ignore_errors: true
+
     - name: Create NFS LXC
       community.general.proxmox:
         node: "{{vm.nfs.node}}"
@@ -35,13 +72,17 @@
         disk: "zfs-nvme-vm-dataset:{{vm.nfs.disk_gb}}"
         hookscript: "local:snippets/nfs-hookscript.sh"
         mounts:
-          mp0: "/mnt/nvme,mp=/mnt/nvme"
-          mp1: "/mnt/hdd,mp=/mnt/hdd"
+          mp0: "/mnt/nvme/personal,mp=/mnt/nvme/personal"
+          mp1: "/mnt/nvme/vm,mp=/mnt/nvme/vm"
+          mp2: "/mnt/nvme/data,mp=/mnt/nvme/data"
+          mp3: "/mnt/hdd/vm,mp=/mnt/hdd/vm"
+          mp4: "/mnt/hdd/data,mp=/mnt/hdd/data"
         netif:
           net0: "name=eth0,bridge=vmbr0,gw={{vm.nfs.gateway}},ip={{vm.nfs.ip}}/24"
         features:
           - nesting=1
           - mount=nfs
+        unprivileged: false
 
     - name: Start NFS LXC
       community.general.proxmox:
@@ -50,4 +91,5 @@
         api_user: "{{secrets.proxmox.cluster_username}}"
         api_password: "{{secrets.proxmox.cluster_password}}"
         state: started
+        timeout: 300
       ignore_errors: true
