@@ -91,7 +91,7 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
 
 ### Provision Home Network File System
 
-1. Provision NFS ([README](ansible/playbooks/network_file_system/README.md))
+1. Provision NFS ([README](ansible/playbooks/network_file_server/README.md))
 
    ```bash
    task provision:home:nfs
