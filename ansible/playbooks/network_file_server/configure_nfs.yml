@@ -20,7 +20,6 @@
         name:
           - nfs-utils
           - kernel-modules-extra
-          - python3-firewall
         state: present
 
     - name: Ensure /var/lib/nfs directory exists with correct permissions

@@ -10,3 +10,6 @@
 
 - name: Configure Proxmox NFS
   import_playbook: configure_proxmox_nfs.yml
+
+- name: Configure SMB
+  import_playbook: configure_smb.yml

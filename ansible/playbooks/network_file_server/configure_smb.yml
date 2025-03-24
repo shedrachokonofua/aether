@@ -1,0 +1,87 @@
+---
+- name: Configure SMB Server
+  hosts: nfs
+  become: yes
+  vars:
+    smb_shares:
+      - name: personal
+        path: /mnt/nvme/personal
+        browseable: "yes"
+        writable: "yes"
+        guest_ok: "no"
+        create_mask: "0644"
+        directory_mask: "0755"
+        valid_users: "aether"
+        comment: "Personal data storage"
+      - name: data
+        path: /mnt/nvme/data
+        browseable: "yes"
+        writable: "yes"
+        guest_ok: "no"
+        create_mask: "0644"
+        directory_mask: "0755"
+        comment: "Generic data storage"
+        valid_users: "@smbusers"
+      - name: hdd_data
+        path: /mnt/hdd/data
+        browseable: "yes"
+        writable: "yes"
+        guest_ok: "no"
+        create_mask: "0644"
+        directory_mask: "0755"
+        comment: "HDD data storage"
+        valid_users: "@smbusers"
+    smb_users:
+      - username: aether
+        password: "{{ secrets.smb_passwords.aether }}"
+  roles:
+    - common
+  tasks:
+    - name: Install required packages
+      dnf:
+        name:
+          - samba
+          - samba-common
+          - samba-client
+        state: present
+
+    - name: Ensure Samba user exists
+      user:
+        name: "{{ item.username }}"
+        shell: /sbin/nologin
+        createhome: no
+        system: yes
+      loop: "{{ smb_users }}"
+
+    - name: Create Samba user passwords
+      shell: |
+        (echo "{{ item.password }}"; echo "{{ item.password }}") | smbpasswd -s -a "{{ item.username }}"
+      loop: "{{ smb_users }}"
+      no_log: true
+
+    - name: Write smb.conf configuration file
+      template:
+        src: smb.conf.j2
+        dest: /etc/samba/smb.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Samba
+
+    - name: Ensure Samba services are enabled and started
+      systemd:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+      loop:
+        - smb
+        - nmb
+
+  handlers:
+    - name: Restart Samba
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - smb
+        - nmb

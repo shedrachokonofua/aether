@@ -1,0 +1,20 @@
+[global]
+  workgroup = WORKGROUP
+  server string = Aether Samba Server %v
+  netbios name = {{ ansible_hostname }}
+  security = user
+  map to guest = Bad User
+  dns proxy = no
+  hosts allow = 10.0.3.0/24, 10.0.4.0/24, 10.0.5.0/24
+
+{% for share in smb_shares %}
+[{{ share.name }}]
+  comment = {{ share.comment }}
+  path = {{ share.path }}
+  browseable = {{ share.browseable }}
+  writable = {{ share.writable }}
+  guest ok = {{ share.guest_ok }}
+  create mask = {{ share.create_mask }}
+  directory mask = {{ share.directory_mask }}
+  valid users = {{ share.valid_users }}
+{% endfor %}

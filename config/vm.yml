@@ -57,7 +57,7 @@ monitoring_stack:
 
 nfs:
   id: 1004
-  name: "nfs"
+  name: "network-file-server"
   node: "smith"
   cores: 4
   memory: 4096

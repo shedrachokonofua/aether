@@ -46,3 +46,11 @@ This adds the NFS storage backend to the proxmox cluster.
 ```bash
 task ansible:playbook -- ./ansible/playbooks/network_file_server/configure_proxmox_nfs.yml
 ```
+
+### Configure SMB
+
+This configures the SMB server on the LXC.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/network_file_server/configure_smb.yml
+```
