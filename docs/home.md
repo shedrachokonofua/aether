@@ -115,14 +115,21 @@ Smith is the designated shared storage node in the home cluster. It's running ZF
 
 ### Network File System
 
-Smith hosts an NFS server that serves as a storage backend for the home proxmox cluster, and as a general purpose storage backend for the home network.
+Smith hosts an NFS server that serves as a storage backend for the home proxmox cluster.
 
 #### NFS Exports
 
-- /mnt/nvme/personal
 - /mnt/nvme/vm
-- /mnt/nvme/data
 - /mnt/hdd/vm
+
+### SMB/CIFS
+
+Smith also hosts a Samba server for sharing files within the home network.
+
+#### SMB/CIFS Exports
+
+- /mnt/nvme/personal
+- /mnt/nvme/data
 - /mnt/hdd/data
 
 <!-- ### Backups

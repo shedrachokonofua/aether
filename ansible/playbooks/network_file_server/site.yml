@@ -5,6 +5,9 @@
 - name: Provision LXC
   import_playbook: provision.yml
 
+- name: Configure IP routing
+  import_playbook: configure_ip_routing.yml
+
 - name: Configure NFS
   import_playbook: configure_nfs.yml
 

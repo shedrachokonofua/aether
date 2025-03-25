@@ -1,0 +1,17 @@
+---
+- name: Remove extra default ip route if necessary
+  hosts: nfs
+  roles:
+    - common
+  tasks:
+    - name: Get default routes
+      command: ip route show default
+      register: default_routes
+
+    - name: Print default routes
+      debug:
+        var: default_routes.stdout_lines
+
+    - name: Remove default route via gigahub router on eth0 if more than one default route exists
+      command: ip route del default via 192.168.2.1 dev eth0
+      when: default_routes.stdout_lines | length > 1
