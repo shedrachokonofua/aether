@@ -11,7 +11,7 @@ variable "authorized_keys" {
 }
 
 variable "console_password" {
-  type = string
+  type      = string
   sensitive = true
 }
 

@@ -70,3 +70,11 @@ kvm.home.shdr.ch {
     header_up Host {http.request.host}
   }
 }
+
+d.home.shdr.ch {
+  reverse_proxy {{ vm.dokploy.ip }}
+}
+
+*.d.home.shdr.ch {
+  reverse_proxy {{ vm.dokploy.ip }}
+}

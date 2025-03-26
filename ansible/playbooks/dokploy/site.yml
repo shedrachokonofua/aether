@@ -1,0 +1,28 @@
+---
+- name: Install Dokploy
+  hosts: dokploy
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Install docker
+      shell: curl -sSL https://get.docker.com | sh
+
+    - name: Add user to docker group
+      command: sudo usermod -aG docker $USER
+
+    - name: Make docker group change take effect
+      meta: reset_connection
+
+    - name: Start docker service
+      become: true
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Install Dokploy
+      become: true
+      shell: curl -sSL https://dokploy.com/install.sh | sh
+      environment:
+        ADVERTISE_ADDR: "{{ vm.dokploy.ip }}"

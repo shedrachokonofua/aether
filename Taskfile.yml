@@ -364,9 +364,23 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/gateway_stack/site.yml
 
+  configure:home:caddy:
+    desc: Configure the home Caddy server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/gateway_stack/caddy/site.yml
+
   configure:home:monitoring:
     desc: Configure the home monitoring stack
     cmds:
       - task: ansible:playbook
         vars:
           CLI_ARGS: ./ansible/playbooks/monitoring_stack/site.yml
+
+  configure:home:dokploy:
+    desc: Configure the home Dokploy server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/dokploy/site.yml
