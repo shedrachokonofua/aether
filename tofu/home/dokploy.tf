@@ -8,6 +8,7 @@ resource "proxmox_virtual_environment_vm" "dokploy" {
 
   cpu {
     cores = local.vm.dokploy.cores
+    type  = "host"
   }
 
   memory {

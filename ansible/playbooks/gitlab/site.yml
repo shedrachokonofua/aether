@@ -1,0 +1,72 @@
+---
+- name: Deploy GitLab
+  hosts: gitlab
+  gather_facts: true
+  roles:
+    - common
+    - linger
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./gitlab/data
+        - ./gitlab/logs
+        - ./gitlab/config
+
+    - name: Copy gitlab.rb
+      template:
+        src: gitlab.rb.j2
+        dest: ./gitlab/config/gitlab.rb
+        mode: "0755"
+
+    - name: Make ports unprivileged
+      sysctl:
+        name: net.ipv4.ip_unprivileged_port_start
+        value: 0
+        state: present
+        reload: yes
+      become: true
+
+    - name: Create a pod
+      containers.podman.podman_pod:
+        name: gitlab
+        state: quadlet
+        ports:
+          - "80:80"
+          - "2424:22"
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Start GitLab
+      containers.podman.podman_container:
+        name: gitlab
+        state: quadlet
+        image: docker.io/gitlab/gitlab-ce:latest
+        pod: gitlab.pod
+        cap_add:
+          - NET_ADMIN
+          - NET_BIND_SERVICE
+        volumes:
+          - /home/aether/gitlab/data:/var/opt/gitlab:Z
+          - /home/aether/gitlab/logs:/var/log/gitlab:Z
+          - /home/aether/gitlab/config:/etc/gitlab:Z
+        env:
+          GITLAB_ROOT_EMAIL: "shedrachokonofua@gmail.com"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start GitLab quadlet
+      systemd:
+        name: gitlab-pod
+        state: restarted
+        scope: user

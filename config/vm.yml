@@ -81,3 +81,13 @@ dokploy:
   ports:
     dokploy: 3000
     traefik: 8080
+
+gitlab:
+  id: 1006
+  name: "gitlab"
+  node: "trinity"
+  cores: 8
+  memory: 8192
+  disk_gb: 128
+  ip: "10.0.3.7"
+  gateway: "10.0.3.1"

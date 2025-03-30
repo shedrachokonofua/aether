@@ -384,3 +384,10 @@ tasks:
       - task: ansible:playbook
         vars:
           CLI_ARGS: ./ansible/playbooks/dokploy/site.yml
+
+  configure:home:gitlab:
+    desc: Configure the home GitLab server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/gitlab/site.yml
