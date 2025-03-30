@@ -74,9 +74,10 @@ dokploy:
   name: "dokploy"
   node: "trinity"
   cores: 8
-  memory: 8192
-  disk_gb: 128
+  memory: 16384
+  disk_gb: 256
   ip: "10.0.3.6"
   gateway: "10.0.3.1"
   ports:
     dokploy: 3000
+    traefik: 8080
