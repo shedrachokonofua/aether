@@ -5,6 +5,7 @@ This playbook is for configuring the gateway stack virtual machine. The gateway 
 - Adguard Home: DNS server, ad blocker, and web filter
 - Unifi Network Application: Network controller for managing home wifi access point. Has a mongodb instance.
 - Caddy: Reverse proxy for home network
+- Tailscale Subnet Router: Gateway between the home network and the tailscale network.
 
 ## Usage
 
@@ -31,3 +32,17 @@ task ansible:playbook -- ./ansible/playbooks/gateway_stack/adguard/site.yml
 ```bash
 task ansible:playbook -- ./ansible/playbooks/gateway_stack/caddy/site.yml
 ```
+
+### Deploy Tailscale
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/gateway_stack/tailscale/site.yml
+```
+
+#### Tailscale Auth Key
+
+The tailscale auth key is stored in the `tailscale_auth_key` secret variable. It is single-use, so it needs to be regenerated before each time the pod is recreated. [Details here](https://tailscale.com/kb/1085/auth-keys)
+
+#### Tailscale Subnet Routes
+
+The routes needs to be approved in the tailscale web console for subnet routing to work. [Details here](https://tailscale.com/kb/1019subnets#enable-subnet-routes-from-the-admin-console)

@@ -1,0 +1,67 @@
+---
+- name: Deploy tailscale subnet router pod
+  hosts: gateway-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Ensure ip forwarding is enabled
+      ansible.builtin.sysctl:
+        name: "{{ item }}"
+        value: 1
+        state: present
+      become: true
+      loop:
+        - net.ipv4.ip_forward
+        - net.ipv6.conf.all.forwarding
+
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./tailscale/data
+
+    - name: Create tailscale pod
+      containers.podman.podman_pod:
+        name: tailscale
+        state: quadlet
+        network: host
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create tailscale container
+      containers.podman.podman_container:
+        name: tailscale
+        image: docker.io/tailscale/tailscale:latest
+        state: quadlet
+        pod: tailscale.pod
+        cap_add:
+          - NET_ADMIN
+          - NET_RAW
+        env:
+          TS_AUTHKEY: "{{ secrets.tailscale_auth_key }}"
+          TS_ROUTES: "10.0.0.0/8,192.168.0.0/16"
+          TS_ACCEPT_DNS: "false"
+          TS_HOSTNAME: "aether-home-gateway"
+        volumes:
+          - /home/aether/tailscale/data:/var/lib/tailscale:Z
+          - /dev/net/tun:/dev/net/tun
+        security_opt:
+          - label=disable
+
+    - name: Reload systemd daemon for user
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start tailscale quadlet
+      ansible.builtin.systemd:
+        name: tailscale-pod
+        state: restarted
+        scope: user

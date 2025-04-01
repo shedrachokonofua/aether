@@ -13,3 +13,6 @@
 
 - name: Deploy caddy pod
   import_playbook: caddy/site.yml
+
+- name: Deploy tailscale pod
+  import_playbook: tailscale/site.yml
