@@ -49,7 +49,7 @@
 
     - name: Download vyos iso
       get_url:
-        url: "https://github.com/vyos/vyos-nightly-build/releases/download/1.5-rolling-202502220006/vyos-1.5-rolling-202502220006-generic-amd64.iso"
+        url: "https://github.com/vyos/vyos-nightly-build/releases/download/2025.03.30-0020-rolling/vyos-2025.03.30-0020-rolling-generic-amd64.iso"
         dest: "/home/aether/packer-vyos/iso/vyos.iso"
         mode: "0644"
         owner: "aether"

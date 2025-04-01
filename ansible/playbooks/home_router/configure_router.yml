@@ -57,7 +57,6 @@
           - set service dns forwarding negative-ttl 0
           - set service dns forwarding name-server {{ vm.gateway_stack.ip }}
           - set service dns forwarding name-server 8.8.8.8
-          - set service dns forwarding name-server 8.8.4.4
         save: true
     - name: Configure VLAN interfaces
       vyos.vyos.vyos_config:
