@@ -7,3 +7,6 @@
 
 - name: Configure ZFS snapshots
   import_playbook: configure_zfs_snapshots.yml
+
+- name: Configure ZFS Replication
+  import_playbook: configure_zfs_replication.yml

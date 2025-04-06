@@ -158,10 +158,10 @@ Handles local, deduplicated backups for VMs and LXCs on the proxmox cluster.
 
 #### Local Replication
 
-| Source Dataset | Target Dataset   | Frequency      |
-| -------------- | ---------------- | -------------- |
-| nvme/personal  | hdd/backups-data | Daily @ 2:30AM |
-| nvme/data      | hdd/backups-data | Daily @ 2:30AM |
+| Source Dataset | Target Dataset            | Frequency      |
+| -------------- | ------------------------- | -------------- |
+| nvme/personal  | hdd/backups-data/personal | Daily @ 2:30AM |
+| nvme/data      | hdd/backups-data/data     | Daily @ 2:30AM |
 
 #### Offsite Backups
 
