@@ -48,3 +48,11 @@ Configures syncoid to replicate non-VM ZFS datasets from nvme to hdd.
 ```bash
 task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_zfs_replication.yml
 ```
+
+### Configure offsite backups
+
+Configures rclone for offsite backups to s3 and google drive.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_offsite_backups/site.yml
+```

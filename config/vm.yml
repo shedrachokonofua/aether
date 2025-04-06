@@ -97,7 +97,7 @@ backup_stack:
   name: "backup-stack"
   node: "smith"
   cores: 4
-  memory: 16384
+  memory: 2048
   disk_gb: 20
   ip: "192.168.2.233"
   gateway: "192.168.2.1"

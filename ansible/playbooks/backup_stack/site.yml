@@ -10,3 +10,6 @@
 
 - name: Configure ZFS Replication
   import_playbook: configure_zfs_replication.yml
+
+- name: Configure Offsite backups
+  import_playbook: configure_offsite_backups/site.yml

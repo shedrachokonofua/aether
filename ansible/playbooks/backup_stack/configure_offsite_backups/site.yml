@@ -1,0 +1,114 @@
+---
+- name: Configure rclone and daily S3 sync on Debian LXC
+  hosts: backup-stack
+  become: true
+  roles:
+    - common
+  vars:
+    # --- User Configuration ---
+    rclone_user: root
+    rclone_config_dir: "/{{ rclone_user }}/.config/rclone"
+    rclone_config_file: "{{ rclone_config_dir }}/rclone.conf"
+    rclone_sync_script_path: "/usr/local/bin/s3-sync.sh"
+    rclone_s3_log_file: "/var/log/s3-sync.log"
+
+    # --- rclone Configuration ---
+    rclone_s3_remote_name: "S3Offsite"
+    rclone_s3_storage_class: "GLACIER"
+
+    # --- Sync Job Configuration ---
+    rclone_local_sync_path: "/mnt/hdd"
+    rclone_s3_bucket_path: "{{ tf_outputs.aws_offsite_backup_bucket_name.value }}/"
+    rclone_s3_sync_time: "03:00" # Time for daily sync (HH:MM) - systemd OnCalendar format
+
+    # --- Systemd Configuration ---
+    s3_sync_service_name: "rclone-s3-sync"
+    s3_sync_timer_name: "{{ s3_sync_service_name }}.timer"
+
+  tasks:
+    - name: Update apt cache and install prerequisites
+      ansible.builtin.apt:
+        name:
+          - curl
+          - unzip
+        state: present
+
+    - name: Check if rclone is already installed
+      ansible.builtin.stat:
+        path: /usr/bin/rclone
+      register: rclone_binary_stat
+
+    - name: Download and install rclone install script
+      ansible.builtin.get_url:
+        url: https://rclone.org/install.sh
+        dest: /tmp/rclone-install.sh
+        mode: "0755"
+      when: not rclone_binary_stat.stat.exists
+
+    - name: Execute rclone install script
+      ansible.builtin.command:
+        cmd: /tmp/rclone-install.sh
+        creates: /usr/bin/rclone
+      when: not rclone_binary_stat.stat.exists
+
+    - name: Ensure rclone config directory exists
+      ansible.builtin.file:
+        path: "{{ rclone_config_dir }}"
+        state: directory
+        owner: "{{ rclone_user }}"
+        group: "{{ rclone_user }}"
+        mode: "0700"
+
+    - name: Create rclone configuration file from template
+      ansible.builtin.template:
+        src: rclone.conf.j2
+        dest: "{{ rclone_config_file }}"
+        owner: "{{ rclone_user }}"
+        group: "{{ rclone_user }}"
+        mode: "0600" # Restrict permissions as it contains secrets
+      notify: Reload systemd daemon
+
+    - name: Create rclone sync script from template
+      ansible.builtin.template:
+        src: s3-sync.sh.j2
+        dest: "{{ rclone_sync_script_path }}"
+        owner: root
+        group: root
+        mode: "0750" # Executable by owner and group
+
+    - name: Ensure log file exists and has correct permissions
+      ansible.builtin.file:
+        path: "{{ rclone_s3_log_file }}"
+        state: touch
+        owner: "{{ rclone_user }}" # User running the script needs write access
+        mode: "0640"
+
+    - name: Create systemd service unit file for s3 sync
+      ansible.builtin.template:
+        src: s3-sync.service.j2
+        dest: "/etc/systemd/system/{{ s3_sync_service_name }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd daemon
+
+    - name: Create systemd timer unit file for s3 sync
+      ansible.builtin.template:
+        src: s3-sync.timer.j2
+        dest: "/etc/systemd/system/{{ s3_sync_timer_name }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd daemon
+
+    - name: Enable and start the systemd timer
+      ansible.builtin.systemd:
+        name: "{{ s3_sync_timer_name }}"
+        enabled: yes
+        state: started
+        daemon_reload: yes # Ensure systemd reads new/changed units
+
+  handlers:
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes

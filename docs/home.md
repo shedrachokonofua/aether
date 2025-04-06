@@ -165,9 +165,7 @@ Handles local, deduplicated backups for VMs and LXCs on the proxmox cluster.
 
 #### Offsite Backups
 
-| Source Dataset   | Target       | Frequency   |
-| ---------------- | ------------ | ----------- |
-| hdd/data         | S3           | Daily @ 3AM |
-| hdd/backups-vm   | S3           | Daily @ 3AM |
-| hdd/backups-data | S3           | Daily @ 3AM |
-| nvme/personal    | Google Drive | Live        |
+| Source Dataset | Target                           | Frequency   |
+| -------------- | -------------------------------- | ----------- |
+| hdd            | S3: Glacier + Flexible Retrieval | Daily @ 3AM |
+| nvme/personal  | Google Drive                     | Live        |

@@ -1,0 +1,39 @@
+#!/bin/bash
+set -e # Exit immediately if a command exits with a non-zero status.
+
+# Basic Locking: Prevent multiple instances from running simultaneously
+LOCKFILE="/tmp/s3-sync.lock"
+if [ -e "$LOCKFILE" ] && kill -0 "$(cat "$LOCKFILE")" 2>/dev/null; then
+  echo "$(date): Sync already in progress." | tee -a {{ rclone_s3_log_file }}
+  exit 1
+fi
+trap 'rm -f "$LOCKFILE"; exit $?' INT TERM EXIT HUP
+echo $$ > "$LOCKFILE" # Record PID
+
+# Timestamp for logging
+echo "------------------------------------------------------------" | tee -a {{ rclone_s3_log_file }}
+echo "$(date): Starting rclone sync job." | tee -a {{ rclone_s3_log_file }}
+echo "Source: {{ rclone_local_sync_path }}" | tee -a {{ rclone_s3_log_file }}
+echo "Destination: {{ rclone_s3_remote_name }}:{{ rclone_s3_bucket_path }}" | tee -a {{ rclone_s3_log_file }}
+echo "Storage Class Flag: {{ rclone_s3_storage_class }}" | tee -a {{ rclone_s3_log_file }}
+
+# Execute rclone sync command - redirect stdout and stderr to log file
+/usr/bin/rclone sync \
+  "{{ rclone_local_sync_path }}" \
+  "{{ rclone_s3_remote_name }}:{{ rclone_s3_bucket_path }}" \
+  --config "{{ rclone_config_file }}" \
+  --s3-storage-class "{{ rclone_s3_storage_class }}" \
+  --fast-list --log-level INFO --retries 3 --low-level-retries 5 >> "{{ rclone_s3_log_file }}" 2>&1
+
+RCLONE_EXIT_CODE=$?
+
+if [ $RCLONE_EXIT_CODE -eq 0 ]; then
+  echo "$(date): rclone sync completed successfully." | tee -a {{ rclone_s3_log_file }}
+else
+  echo "$(date): rclone sync FAILED with exit code $RCLONE_EXIT_CODE." | tee -a {{ rclone_s3_log_file }}
+fi
+
+# Remove lock file
+rm -f "$LOCKFILE"
+
+exit $RCLONE_EXIT_CODE
