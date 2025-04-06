@@ -31,6 +31,16 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
   }
 
   mount_point {
+    volume = "/mnt/nvme/vm"
+    path   = "/mnt/nvme/vm"
+  }
+
+  mount_point {
+    volume = "/mnt/hdd/data"
+    path   = "/mnt/hdd/data"
+  }
+
+  mount_point {
     volume = "/mnt/hdd/backups-data"
     path   = "/mnt/hdd/backups-data"
   }

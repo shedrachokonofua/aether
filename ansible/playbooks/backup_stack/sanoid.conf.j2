@@ -1,0 +1,53 @@
+# Example https://github.com/jimsalterjrs/sanoid/blob/master/sanoid.conf.example
+
+[template_hourly_retention]
+  hourly = 12
+  daily = 7
+  weekly = 4
+  monthly = 1
+  yearly = 0
+  autosnap = yes
+  autoprune = yes
+  recursive = yes
+
+[template_daily_retention_long]
+  hourly = 0
+  daily = 14
+  weekly = 8
+  monthly = 6
+  yearly = 0
+  autosnap = yes
+  autoprune = yes
+  recursive = yes
+
+[template_daily_retention_short]
+  hourly = 0
+  daily = 7
+  weekly = 0
+  monthly = 0
+  yearly = 0
+  autosnap = yes
+  autoprune = yes
+  recursive = yes
+
+[nvme/personal]
+  use_template = template_hourly_retention
+  # Override specific settings here if needed
+
+[nvme/vm]
+  use_template = template_hourly_retention
+
+[nvme/data]
+  use_template = template_hourly_retention
+
+[hdd/vm]
+  use_template = template_daily_retention_long
+
+[hdd/data]
+  use_template = template_daily_retention_long
+
+[hdd/backups-vm]
+  use_template = template_daily_retention_short
+
+[hdd/backups-data]
+  use_template = template_daily_retention_short

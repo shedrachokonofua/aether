@@ -138,14 +138,15 @@ Layered approach (snapshots, local backups/replicas, offsite S3) following the 3
 
 #### ZFS Snapshots
 
-| Dataset        | Frequency      | Retention                        |
-| -------------- | -------------- | -------------------------------- |
-| nvme/personal  | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
-| nvme/vm        | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
-| nvme/data      | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
-| hdd/vm         | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
-| hdd/data       | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
-| hdd/backups-vm | Daily @ 1:30AM | Daily: 7                         |
+| Dataset          | Frequency      | Retention                        |
+| ---------------- | -------------- | -------------------------------- |
+| nvme/personal    | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
+| nvme/vm          | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
+| nvme/data        | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
+| hdd/vm           | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
+| hdd/data         | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
+| hdd/backups-vm   | Daily @ 2:00AM | Daily: 7                         |
+| hdd/backups-data | Daily @ 2:00AM | Daily: 7                         |
 
 #### Proxmox Backup Server
 
