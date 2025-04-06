@@ -1,0 +1,6 @@
+---
+- name: Configure Proxmox Backup Server
+  import_playbook: configure_pbs.yml
+
+- name: Configure Proxmox backups
+  import_playbook: configure_proxmox_backups.yml

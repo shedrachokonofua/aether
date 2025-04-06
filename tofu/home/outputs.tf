@@ -12,3 +12,8 @@ output "dokploy_console_password" {
   value     = random_password.dokploy_console_password.result
   sensitive = true
 }
+
+output "backup_stack_password" {
+  value     = random_password.backup_stack_password.result
+  sensitive = true
+}

@@ -13,6 +13,11 @@ output "home_dokploy_console_password" {
   sensitive = true
 }
 
+output "home_backup_stack_password" {
+  value     = module.home.backup_stack_password
+  sensitive = true
+}
+
 output "aws_lute_minio_backup_user_access_key" {
   value     = module.aws.lute_minio_backup_user_access_key
   sensitive = true

@@ -8,7 +8,7 @@
 | Trinity | 64GB  | 1TB NVME                            | Intel Core i9-13900H | Intel Iris Xe            | 14    | 20      | 20    | 10Gbps  | Minisforum MS-01  | 192.168.2.202 |
 | Oracle  | 16GB  | 1TB NVME                            | Intel Core i5-12600H | Intel Iris Xe            | 12    | 16      | 16    | 10Gbps  | Minisforum MS-01  | 192.168.2.203 |
 | Smith   | 128GB | 8TB NVME(4TB x2), 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super    | 8     | 16      | 16    | 10Gbps  | Custom            | 192.168.2.204 |
-| Neo     | 128GB | 2TB NVME                            | AMD Ryzen 9 9950X3D  | Nvidia RTX Pro 6000 MaxQ | 16    | 16      | 32    | 10Gbps  | Custom            | 192.168.2.205 |
+| Neo     | 128GB | 2TB NVME                            | AMD Ryzen 9 9950X3D  | Nvidia RTX Pro 6000 MaxQ | 16    | 32      | 32    | 10Gbps  | Custom            | 192.168.2.205 |
 
 ## Network
 
@@ -132,11 +132,7 @@ Smith also hosts a Samba server for sharing files within the home network.
 - /mnt/nvme/data
 - /mnt/hdd/data
 
-<!-- ### Backups
-
-#### ZFS Snapshots
-
-Hourly ZFS snapshots of all datasets.
+### Backups
 
 #### Proxmox Backup Server
 
@@ -149,4 +145,4 @@ Hourly data backup jobs from nvme/personal and nvme/data datasets to hdd/backups
 #### Remote Backups
 
 - Daily remote backups from the hdd datasets to an S3 Glacier bucket.
-- Live sync of nvme/personal to google drive. -->
+- Live sync of nvme/personal to google drive.

@@ -8,6 +8,11 @@
     file: "/workspace/secrets/secrets.yml"
     name: secrets
 
+- name: Load tf outputs
+  include_vars:
+    file: "/workspace/secrets/tf-outputs.json"
+    name: tf_outputs
+
 - name: Load authorized_keys
   set_fact:
     ssh_authorized_keys: >-

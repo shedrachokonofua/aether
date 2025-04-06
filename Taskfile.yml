@@ -74,6 +74,40 @@ tasks:
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu plan {{.CLI_ARGS}}
 
+  tofu:output:
+    desc: Get Terraform output
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu output {{.CLI_ARGS}}
+
+  tofu:write-outputs:
+    desc: Write secrets/tf-outputs.json file
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        sh -c "tofu -chdir=tofu output -json > /workspace/secrets/tf-outputs.json"
+
   tofu:apply:
     desc: Apply Terraform changes
     dotenv: ["./secrets/aws-dev-user.env"]
@@ -91,6 +125,7 @@ tasks:
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu apply {{.CLI_ARGS}}
+      - task: tofu:write-outputs
 
   tofu:force-unlock:
     desc: Force unlock the Terraform state
@@ -107,22 +142,6 @@ tasks:
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu force-unlock {{.CLI_ARGS}}
-
-  tofu:output:
-    desc: Get Terraform output
-    dotenv: ["./secrets/aws-dev-user.env"]
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu output {{.CLI_ARGS}}
 
   tofu:destroy:
     desc: Destroy Terraform resources
@@ -228,7 +247,6 @@ tasks:
 
   ansible:ping:
     desc: Ping Ansible hosts
-    dir: ./ansible
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
@@ -391,3 +409,19 @@ tasks:
       - task: ansible:playbook
         vars:
           CLI_ARGS: ./ansible/playbooks/gitlab/site.yml
+
+  configure:home:backup-stack:
+    desc: Configure the home backup stack
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/backup_stack/site.yml
+
+  configure:
+    desc: Configure all infrastructure
+    cmds:
+      - task: configure:home:gateway
+      - task: configure:home:monitoring
+      - task: configure:home:dokploy
+      - task: configure:home:gitlab
+      - task: configure:home:backups

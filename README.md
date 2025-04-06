@@ -113,7 +113,9 @@ task tofu:apply
 
 ### Configure Infrastructure
 
-[TODO]
+```bash
+task configure
+```
 
 ## Docs
 

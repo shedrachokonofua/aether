@@ -1,0 +1,58 @@
+---
+- name: Configure proxmox backups
+  hosts: smith
+  roles:
+    - common
+  vars:
+    backup_storage_id: "pbs-backups-vm"
+    backup_job_id: "pbs-backup"
+  tasks:
+    - name: Get certificate information
+      delegate_to: backup-stack
+      command: proxmox-backup-manager cert info
+      register: pbs_cert_info
+      changed_when: false # This command doesn't change state
+      check_mode: false # Always run this command even in check mode
+
+    - name: Extract SHA256 fingerprint line
+      set_fact:
+        fingerprint_line: "{{ pbs_cert_info.stdout_lines | select('match', '^Fingerprint \\(sha256\\):') | first }}"
+      failed_when: fingerprint_line is not defined or fingerprint_line == "" # Ensure the line was found
+
+    - name: Extract fingerprint value
+      set_fact:
+        pbs_fingerprint: "{{ fingerprint_line | regex_replace('^Fingerprint \\(sha256\\):\\s*(.*)$', '\\1') }}"
+
+    - name: Check if {{backup_storage_id}} storage is added to proxmox
+      command: pvesm status --storage {{backup_storage_id}}
+      register: storage_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Add {{backup_storage_id}} storage to proxmox if not exists
+      command: >
+        pvesm add pbs {{backup_storage_id}}
+        --datastore backups-vm
+        --server {{vm.backup_stack.ip}}
+        --content backup
+        --username root@pam
+        --password {{tf_outputs.home_backup_stack_password.value}}
+        --fingerprint {{pbs_fingerprint}}
+      when: storage_status.rc != 0
+
+    - name: Check if vm backup job exists
+      command: pvesh get /cluster/backup/{{backup_job_id}}
+      register: check_backup_job
+      changed_when: false
+      failed_when: false
+
+    - name: Create backup job
+      command: >
+        pvesh create /cluster/backup/
+        --id {{backup_job_id}}
+        --storage {{backup_storage_id}}
+        --schedule "02:00"
+        --all 1
+      when: check_backup_job.rc != 0
+      register: create_backup_result
+      changed_when: create_backup_result.rc == 0

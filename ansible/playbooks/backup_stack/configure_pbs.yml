@@ -1,0 +1,75 @@
+---
+- name: Install Proxmox Backup Server on Bookworm LXC
+  hosts: backup-stack
+  become: true
+  roles:
+    - common
+    - linger
+  tasks:
+    - name: Install prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - wget
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Download Proxmox GPG Key
+      get_url:
+        url: https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg
+        dest: /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg
+        mode: "0644"
+        force: false
+      notify: Update apt cache
+
+    - name: Remove Proxmox Enterprise repository if present
+      apt_repository:
+        repo: "deb https://enterprise.proxmox.com/debian/pbs bookworm pve-enterprise"
+        state: absent
+        filename: pve-enterprise
+
+    - name: Add Proxmox Backup Server No-Subscription repository
+      apt_repository:
+        repo: "deb http://download.proxmox.com/debian/pbs bookworm pbs-no-subscription"
+        state: present
+        filename: "pbs-no-subscription"
+      notify: Update apt cache
+
+    - name: Flush handlers
+      meta: flush_handlers
+
+    - name: Install Proxmox Backup Server
+      apt:
+        name: proxmox-backup-server
+        state: present
+
+    - name: Ensure Proxmox Backup services are started and enabled
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - proxmox-backup-proxy.service
+        - proxmox-backup.service
+
+    - name: Create PBS Datastore
+      command: >
+        proxmox-backup-manager datastore create backups-vm /mnt/hdd/backups-vm
+        --keep-daily 7
+        --keep-weekly 4
+        --keep-monthly 6
+        --keep-yearly 2
+        --prune-schedule "02:00"
+        --gc-schedule "sun 03:00"
+        --verify-new true
+      args:
+        creates: "/mnt/hdd/backups-vm/.chunks"
+
+  handlers:
+    - name: Update apt cache
+      apt:
+        update_cache: true
+      listen: Update apt cache

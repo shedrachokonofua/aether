@@ -36,7 +36,7 @@
         state: quadlet
         ports:
           - "80:80"
-          - "2424:22"
+          - "2222:2222"
         restart_policy: on-failure
         recreate: true
         quadlet_options:
