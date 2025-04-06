@@ -134,15 +134,39 @@ Smith also hosts a Samba server for sharing files within the home network.
 
 ### Backups
 
+Layered approach (snapshots, local backups/replicas, offsite S3) following the 3-2-1 rule.
+
+#### ZFS Snapshots
+
+| Dataset        | Frequency      | Retention                        |
+| -------------- | -------------- | -------------------------------- |
+| nvme/personal  | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
+| nvme/vm        | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
+| nvme/data      | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
+| hdd/vm         | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
+| hdd/data       | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
+| hdd/backups-vm | Daily @ 1:30AM | Daily: 7                         |
+
 #### Proxmox Backup Server
 
-Proxmox Backup Server is used to backup VMs and containers to the hdd/backups-vm dataset hourly.
+Handles local, deduplicated backups for VMs and LXCs on the proxmox cluster.
 
-#### Data Backup Jobs
+| Frequency   | Retention                                  |
+| ----------- | ------------------------------------------ |
+| Daily @ 2AM | Daily: 7, Weekly: 4, Monthly: 6, Yearly: 2 |
 
-Hourly data backup jobs from nvme/personal and nvme/data datasets to hdd/backups-data.
+#### Local Replication
 
-#### Remote Backups
+| Source Dataset | Target Dataset   | Frequency      |
+| -------------- | ---------------- | -------------- |
+| nvme/personal  | hdd/backups-data | Daily @ 2:30AM |
+| nvme/data      | hdd/backups-data | Daily @ 2:30AM |
 
-- Daily remote backups from the hdd datasets to an S3 Glacier bucket.
-- Live sync of nvme/personal to google drive.
+#### Offsite Backups
+
+| Source Dataset   | Target       | Frequency   |
+| ---------------- | ------------ | ----------- |
+| hdd/data         | S3           | Daily @ 3AM |
+| hdd/backups-vm   | S3           | Daily @ 3AM |
+| hdd/backups-data | S3           | Daily @ 3AM |
+| nvme/personal    | Google Drive | Live        |
