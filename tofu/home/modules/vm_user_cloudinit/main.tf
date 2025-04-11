@@ -1,3 +1,8 @@
+variable "username" {
+  type    = string
+  default = "aether"
+}
+
 variable "node_name" {
   type = string
 }
@@ -28,7 +33,7 @@ locals {
   user_data_file_yaml = {
     users = [
       {
-        name              = "aether"
+        name              = var.username
         plain_text_passwd = var.console_password
         lock_passwd       = false
         chpasswd = {

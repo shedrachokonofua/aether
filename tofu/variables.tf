@@ -19,8 +19,8 @@ locals {
       username = data.sops_file.secrets.data["proxmox.cluster_username"]
       password = data.sops_file.secrets.data["proxmox.cluster_password"]
     }
-    router_password        = data.sops_file.secrets.data["router_password"]
-    management_vm_password = data.sops_file.secrets.data["management_vm_password"]
+    router_password  = data.sops_file.secrets.data["router_password"]
+    desktop_password = data.sops_file.secrets.data["desktop_password"]
   }
 }
 

@@ -14,7 +14,7 @@ variable "router_password" {
   type = string
 }
 
-variable "management_vm_password" {
+variable "desktop_password" {
   type = string
 }
 

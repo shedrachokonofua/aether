@@ -18,11 +18,11 @@ module "aws" {
 }
 
 module "home" {
-  source                 = "./home"
-  authorized_keys        = local.authorized_keys
-  proxmox_endpoint       = local.home.proxmox.endpoint
-  proxmox_username       = local.home.proxmox.username
-  proxmox_password       = local.home.proxmox.password
-  router_password        = local.home.router_password
-  management_vm_password = local.home.management_vm_password
+  source           = "./home"
+  authorized_keys  = local.authorized_keys
+  proxmox_endpoint = local.home.proxmox.endpoint
+  proxmox_username = local.home.proxmox.username
+  proxmox_password = local.home.proxmox.password
+  router_password  = local.home.router_password
+  desktop_password = local.home.desktop_password
 }
