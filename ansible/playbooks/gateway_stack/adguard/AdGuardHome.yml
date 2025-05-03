@@ -224,10 +224,12 @@ filtering:
   parental_block_host: family-block.dns.adguard.com
   safebrowsing_block_host: standard-block.dns.adguard.com
   rewrites:
-    - domain: '*.home.shdr.ch'
+    - domain: "*.home.shdr.ch"
       answer: 10.0.3.3
     - domain: home.shdr.ch
       answer: 10.0.3.3
+    - domain: gitlab-ssh.home.shdr.ch
+      answer: 10.0.3.7
   safe_fs_patterns:
     - /opt/adguardhome/work/userfilters/*
   safebrowsing_cache_size: 1048576
