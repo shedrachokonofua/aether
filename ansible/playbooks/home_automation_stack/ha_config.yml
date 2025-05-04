@@ -1,0 +1,7 @@
+default_config:
+
+http:
+  base_url: https://ha.home.shdr.ch
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 10.0.0.0/8

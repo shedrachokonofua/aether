@@ -120,3 +120,16 @@ desktop:
   disk_gb: 256
   ip: "10.0.3.8"
   gateway: "10.0.3.1"
+
+home_automation_stack:
+  id: 1009
+  name: "home-automation-stack"
+  node: "niobe"
+  admin: "aether"
+  cores: 4
+  memory: 2048
+  disk_gb: 32
+  ip: "10.0.3.9"
+  gateway: "10.0.3.1"
+  ports:
+    home_assistant: 8123

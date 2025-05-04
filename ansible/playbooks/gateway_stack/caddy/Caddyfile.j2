@@ -100,3 +100,7 @@ traefik.d.home.shdr.ch {
 gitlab.home.shdr.ch {
   reverse_proxy {{ vm.gitlab.ip }}
 }
+
+ha.home.shdr.ch {
+  reverse_proxy {{ vm.home_automation_stack.ip }}:{{ vm.home_automation_stack.ports.home_assistant }}
+}

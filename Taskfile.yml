@@ -417,6 +417,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/backup_stack/site.yml
 
+  configure:home:home-automation-stack:
+    desc: Configure the home automation stack
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/home_automation_stack/site.yml
+
   configure:home:monitoring-agents:
     desc: Configure the monitoring agents
     cmds:

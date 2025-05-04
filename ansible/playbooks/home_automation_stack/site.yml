@@ -1,0 +1,60 @@
+---
+- name: Deploy Home Assistant Stack
+  hosts: home-automation-stack
+  gather_facts: true
+  vars:
+    config_base_dir: "/home/aether/home-automation-stack"
+    ha_config_dir: "{{ config_base_dir }}/homeassistant/config"
+    home_assistant_timezone: "America/Toronto"
+  roles:
+    - common
+    - linger
+    - monitoring_agent
+  tasks:
+    - name: Create required directory for Home Assistant config
+      ansible.builtin.file:
+        path: "{{ ha_config_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy Home Assistant config
+      copy:
+        src: "./ha_config.yml"
+        dest: "{{ ha_config_dir }}/configuration.yaml"
+        mode: "0644"
+
+    - name: Create the Home Assistant pod using quadlet
+      containers.podman.podman_pod:
+        name: home-automation-stack
+        network: host
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Start Home Assistant container using quadlet
+      containers.podman.podman_container:
+        name: homeassistant
+        image: ghcr.io/home-assistant/home-assistant:stable
+        pod: home-automation-stack.pod
+        volumes:
+          - "{{ ha_config_dir }}:/config:Z"
+          - /run/dbus:/run/dbus:ro
+        env:
+          TZ: "{{ home_assistant_timezone }}"
+        state: quadlet
+
+    - name: Reload systemd user configuration
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Ensure home-automation-stack pod service is started and enabled
+      ansible.builtin.systemd:
+        name: home-automation-stack-pod.service
+        state: restarted
+        enabled: yes
+        scope: user
