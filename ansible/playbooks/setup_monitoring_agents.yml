@@ -1,0 +1,8 @@
+---
+- name: Setup monitoring agents
+  hosts:
+    - gitlab
+    - dokploy
+    - gateway-stack
+  roles:
+    - monitoring_agent

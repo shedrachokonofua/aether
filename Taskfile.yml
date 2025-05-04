@@ -417,6 +417,20 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/backup_stack/site.yml
 
+  configure:home:monitoring-agents:
+    desc: Configure the monitoring agents
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/setup_monitoring_agents.yml
+
+  update:authorized-keys:
+    desc: Update authorized keys
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/update_authorized_keys.yml
+
   configure:
     desc: Configure all infrastructure
     cmds:
@@ -424,4 +438,5 @@ tasks:
       - task: configure:home:monitoring
       - task: configure:home:dokploy
       - task: configure:home:gitlab
-      - task: configure:home:backups
+      - task: configure:home:backup-stack
+      - task: configure:home:monitoring-agents
