@@ -30,6 +30,8 @@
     name: aether-monitoring-agent-otel-collector
     path: /etc/aether-monitoring-agent/otel
     state: present
+    build:
+      extra_args: "--network=host"
   become: true
 
 - name: Create pod quadlet

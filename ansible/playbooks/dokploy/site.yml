@@ -4,6 +4,8 @@
   gather_facts: true
   roles:
     - common
+    - linger
+    - monitoring_agent
   tasks:
     - name: Install docker
       shell: curl -sSL https://get.docker.com | sh
