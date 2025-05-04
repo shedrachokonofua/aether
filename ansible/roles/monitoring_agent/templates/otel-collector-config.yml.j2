@@ -16,6 +16,7 @@ receivers:
     storage: file_storage/filelog_cursor_storage
     include:
       - /hostfs/var/log/*.log
+      - /hostfs/var/lib/docker/containers/*/*-json.log
   prometheus:
     config:
       scrape_configs:
@@ -31,6 +32,9 @@ processors:
   resource:
     attributes:
       - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: service.name
         value: "{{ inventory_hostname }}"
         action: insert
       - key: os.type
