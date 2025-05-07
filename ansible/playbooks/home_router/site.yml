@@ -1,4 +1,7 @@
 ---
+- name: Destroy VyOS Packer
+  import_playbook: destroy_vyos_packer.yml
+
 - name: Provision VyOS image packer
   import_playbook: provision_vyos_packer.yml
 

@@ -7,6 +7,14 @@
   vars:
     ansible_persistent_connect_timeout: 0
   tasks:
+    - name: Delete default vyos user
+      user:
+        name: vyos
+        state: absent
+        remove: yes
+        force: yes
+      become: true
+
     - name: Disable IPv6
       vyos.vyos.vyos_config:
         lines:
