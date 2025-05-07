@@ -59,6 +59,27 @@
       loop: "{{ smb_users }}"
       no_log: true
 
+    - name: Ensure the smbusers group exists
+      group:
+        name: smbusers
+        system: yes
+
+    - name: Add Samba users to smbusers group
+      user:
+        name: "{{ item.username }}"
+        groups: smbusers
+        append: yes
+      loop: "{{ smb_users }}"
+
+    - name: Ensure share directories exist and have correct ownership / mode
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: root
+        group: smbusers
+        mode: "2775" # drwxrwsr-x  (set-gid keeps group on new files)
+      loop: "{{ smb_shares }}"
+
     - name: Write smb.conf configuration file
       template:
         src: smb.conf.j2
