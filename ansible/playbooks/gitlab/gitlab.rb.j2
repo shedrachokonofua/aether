@@ -4,3 +4,4 @@ gitlab_rails['initial_root_password'] = "{{ secrets.gitlab_root_password }}"
 nginx['listen_port'] = 80
 nginx['listen_https'] = false
 letsencrypt['enable'] = false
+gitlab_rails['import_sources'] = ['github']
