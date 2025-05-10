@@ -93,6 +93,10 @@ traefik.d.home.shdr.ch {
   reverse_proxy {{ vm.dokploy.ip }}:{{ vm.dokploy.ports.traefik }}
 }
 
+watchtower.d.home.shdr.ch {
+  reverse_proxy {{ vm.dokploy.ip }}:{{ vm.dokploy.ports.watchtower }}
+}
+
 *.d.home.shdr.ch {
   reverse_proxy {{ vm.dokploy.ip }}
 }

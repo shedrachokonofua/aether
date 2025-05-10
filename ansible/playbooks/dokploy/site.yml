@@ -7,8 +7,15 @@
     - linger
     - monitoring_agent
   tasks:
+    - name: Check if Docker is already installed
+      stat:
+        path: /usr/bin/docker
+      register: docker_binary_stat
+
     - name: Install docker
       shell: curl -sSL https://get.docker.com | sh
+      when: not docker_binary_stat.stat.exists
+      register: docker_install_result
 
     - name: Add user to docker group
       command: sudo usermod -aG docker $USER
@@ -23,8 +30,35 @@
         enabled: yes
         state: started
 
+    - name: Check if Dokploy etc directory exists
+      stat:
+        path: /etc/dokploy
+      register: dokploy_etc_stat
+
     - name: Install Dokploy
       become: true
       shell: curl -sSL https://dokploy.com/install.sh | sh
       environment:
         ADVERTISE_ADDR: "{{ vm.dokploy.ip }}"
+      when: not dokploy_etc_stat.stat.exists
+
+    - name: Start Watchtower container
+      become: true
+      community.docker.docker_container:
+        name: watchtower
+        image: containrrr/watchtower
+        restart_policy: unless-stopped
+        detach: true
+        state: started
+        pull: always
+        env:
+          WATCHTOWER_LOG_LEVEL: debug
+          WATCHTOWER_HTTP_API_UPDATE: "true"
+          WATCHTOWER_HTTP_API_TOKEN: "{{ secrets.watchtower_api_token }}"
+          WATCHTOWER_HTTP_API_METRICS: "true"
+          WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"
+          WATCHTOWER_SCHEDULE: "0 0 0 * * *" # Every day at midnight
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+        ports:
+          - "{{ vm.dokploy.ports.watchtower }}:8080"
