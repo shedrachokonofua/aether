@@ -59,7 +59,7 @@
           - /home/aether/gitlab/logs:/var/log/gitlab:Z
           - /home/aether/gitlab/config:/etc/gitlab:Z
         env:
-          GITLAB_ROOT_EMAIL: "shedrachokonofua@gmail.com"
+          GITLAB_ROOT_EMAIL: "{{ secrets.gitlab_root_email }}"
 
     - name: Reload systemd
       systemd:
