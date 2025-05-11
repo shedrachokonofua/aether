@@ -22,10 +22,14 @@ locals {
     local.base_authorized_keys
   )
 
-  aws_notification_email = data.sops_file.secrets.data["aws_notification_email"]
+  aws = {
+    notification_email = data.sops_file.secrets.data["aws_notification_email"]
+  }
 
-  cloudflare_account_id = data.sops_file.secrets.data["cloudflare_account_id"]
-  cloudflare_api_token = data.sops_file.secrets.data["cloudflare_dns_api_key"]
+  cloudflare = {
+    account_id = data.sops_file.secrets.data["cloudflare_account_id"]
+    api_token  = data.sops_file.secrets.data["cloudflare_dns_api_key"]
+  }
 
   home = {
     proxmox = {
@@ -39,6 +43,13 @@ locals {
       private_key = tls_private_key.home_dev_workstation_ssh_key.private_key_openssh
       public_key  = tls_private_key.home_dev_workstation_ssh_key.public_key_openssh
     }
+  }
+
+  tailscale = {
+    tailnet_name = data.sops_file.secrets.data["tailscale_tailnet_name"]
+    user = data.sops_file.secrets.data["tailscale_user"]
+    oauth_client_id = data.sops_file.secrets.data["tailscale_oauth_client_id"]
+    oauth_client_secret = data.sops_file.secrets.data["tailscale_oauth_client_secret"]
   }
 }
 

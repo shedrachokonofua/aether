@@ -123,4 +123,6 @@ task configure
 
 - [Home](docs/home.md)
 - [AWS](docs/aws.md)
+- [Cloudflare](docs/cloudflare.md)
+- [Tailscale](docs/tailscale.md)
 - [GCP](docs/gcp.md)

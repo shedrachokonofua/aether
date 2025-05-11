@@ -13,18 +13,23 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 5.4"
     }
-  }
-}
 
-provider "cloudflare" {
-  api_token = local.cloudflare_api_token
+    tailscale = {
+      source  = "tailscale/tailscale"
+      version = "~> 0.20"
+    }
+  }
 }
 
 module "aws" {
   source           = "./aws"
   aws_region       = var.aws_region
   aws_iac_role_arn = var.aws_iac_role_arn
-  aws_notification_email = local.aws_notification_email
+  aws_notification_email = local.aws.notification_email
+}
+
+provider "cloudflare" {
+  api_token = local.cloudflare.api_token
 }
 
 module "home" {
@@ -35,4 +40,10 @@ module "home" {
   proxmox_password = local.home.proxmox.password
   router_password  = local.home.router_password
   desktop_password = local.home.desktop_password
+}
+
+provider "tailscale" {
+  tailnet = local.tailscale.tailnet_name
+  oauth_client_id = local.tailscale.oauth_client_id
+  oauth_client_secret = local.tailscale.oauth_client_secret
 }

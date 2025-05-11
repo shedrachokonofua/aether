@@ -38,11 +38,3 @@ task ansible:playbook -- ./ansible/playbooks/gateway_stack/caddy/site.yml
 ```bash
 task ansible:playbook -- ./ansible/playbooks/gateway_stack/tailscale/site.yml
 ```
-
-#### Tailscale Auth Key
-
-The tailscale auth key is stored in the `tailscale_auth_key` secret variable. It is single-use, so it needs to be regenerated before each time the pod is recreated. [Details here](https://tailscale.com/kb/1085/auth-keys)
-
-#### Tailscale Subnet Routes
-
-The routes needs to be approved in the tailscale web console for subnet routing to work. [Details here](https://tailscale.com/kb/1019subnets#enable-subnet-routes-from-the-admin-console)

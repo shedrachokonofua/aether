@@ -1,6 +1,6 @@
 resource "cloudflare_zone" "shdrch_domain" {
   account = {
-    id = local.cloudflare_account_id
+    id = local.cloudflare.account_id
   }
   name = "shdr.ch"
   type = "full"

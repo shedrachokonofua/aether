@@ -256,6 +256,7 @@ tasks:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
         -w /workspace
@@ -269,6 +270,7 @@ tasks:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
         -w /workspace
@@ -287,6 +289,7 @@ tasks:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
         -w /workspace
@@ -397,12 +400,22 @@ tasks:
         vars:
           CLI_ARGS: ./secrets/secrets.yml
 
+  se:
+    desc: secrets:encrypt
+    cmds:
+      - task: secrets:encrypt
+
   secrets:decrypt:
     desc: Decrypt secrets
     cmds:
       - task: sops:decrypt
         vars:
           CLI_ARGS: ./secrets/secrets.yml
+
+  sd:
+    desc: secrets:decrypt
+    cmds:
+      - task: secrets:decrypt
 
   provision:infrastructure:
     desc: Provision the infrastructure
