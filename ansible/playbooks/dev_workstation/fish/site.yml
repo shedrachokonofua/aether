@@ -1,0 +1,35 @@
+---
+- name: Configure fish
+  hosts: dev-workstation
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Install fish
+      become: true
+      dnf:
+        name: fish
+        state: present
+
+    - name: Add fish to shells
+      command: echo /usr/bin/fish | sudo tee -a /etc/shells
+
+    - name: Set fish as default shell
+      command: chsh -s /usr/bin/fish
+      become: true
+
+    - name: Setup fish configuration directory
+      ansible.builtin.file:
+        path: "/home/{{ vm.dev_workstation.admin }}/.config/fish"
+        state: directory
+        owner: "{{ vm.dev_workstation.admin }}"
+        group: "{{ vm.dev_workstation.admin }}"
+        mode: "0755"
+
+    - name: Write fish configuration
+      ansible.builtin.template:
+        src: config.fish.j2
+        dest: "/home/{{ vm.dev_workstation.admin }}/.config/fish/config.fish"
+        owner: "{{ vm.dev_workstation.admin }}"
+        group: "{{ vm.dev_workstation.admin }}"
+        mode: "0644"

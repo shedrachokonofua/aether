@@ -1,51 +1,6 @@
 ---
-- name: Deploy Dev Workstation
-  hosts: dev-workstation
-  gather_facts: true
-  roles:
-    - common
-    - linger
-    - monitoring_agent
-    - docker
-  tasks:
-    - name: Write private key to file
-      copy:
-        content: "{{ tf_outputs.home_dev_workstation_private_key.value }}"
-        dest: "/home/{{ vm.dev_workstation.admin }}/.ssh/id_ed25519"
-        mode: "0600"
-        owner: "{{ vm.dev_workstation.admin }}"
-        group: "{{ vm.dev_workstation.admin }}"
+- name: Base setup
+  import_playbook: base.yml
 
-    - name: Write public key to file
-      copy:
-        content: "{{ tf_outputs.home_dev_workstation_public_key.value }}"
-        dest: "/home/{{ vm.dev_workstation.admin }}/.ssh/id_ed25519.pub"
-        mode: "0644"
-        owner: "{{ vm.dev_workstation.admin }}"
-        group: "{{ vm.dev_workstation.admin }}"
-
-    - name: Ensure ssh service is running
-      systemd:
-        name: sshd
-        state: started
-        enabled: true
-
-    - name: Install libdnf5
-      become: true
-      command: dnf -y install python3-libdnf5
-
-    - name: Install required packages
-      become: true
-      dnf:
-        name:
-          - git
-          - go-task
-          - fish
-        state: present
-
-    - name: Add fish to shell config
-      command: echo /usr/bin/fish | sudo tee -a /etc/shells
-
-    - name: Set fish as default shell
-      command: chsh -s /usr/bin/fish
-      become: true
+- name: Configure Fish
+  import_playbook: fish/site.yml
