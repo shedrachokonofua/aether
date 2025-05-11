@@ -8,7 +8,16 @@ terraform {
       source  = "carlpett/sops"
       version = "~> 1.0"
     }
+
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.4"
+    }
   }
+}
+
+provider "cloudflare" {
+  api_token = local.cloudflare_api_token
 }
 
 module "aws" {

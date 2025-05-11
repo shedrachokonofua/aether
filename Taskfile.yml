@@ -171,13 +171,39 @@ tasks:
 
   tofu:import:
     desc: Import Terraform resources
+    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
-        tofu import {{.CLI_ARGS}}
+        tofu -chdir=tofu import {{.CLI_ARGS}}
+
+  tofu:show:
+    desc: Show Terraform resources
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu show {{.CLI_ARGS}}
 
   ansible:
     desc: Run Ansible commands

@@ -24,6 +24,9 @@ locals {
 
   aws_notification_email = data.sops_file.secrets.data["aws_notification_email"]
 
+  cloudflare_account_id = data.sops_file.secrets.data["cloudflare_account_id"]
+  cloudflare_api_token = data.sops_file.secrets.data["cloudflare_dns_api_key"]
+
   home = {
     proxmox = {
       endpoint = data.sops_file.secrets.data["proxmox.cluster_endpoint"]
