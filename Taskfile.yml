@@ -169,6 +169,16 @@ tasks:
         {{.DOCKER_IMAGE}}
         tofu fmt {{.CLI_ARGS}}
 
+  tofu:import:
+    desc: Import Terraform resources
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        tofu import {{.CLI_ARGS}}
+
   ansible:
     desc: Run Ansible commands
     dir: ./ansible

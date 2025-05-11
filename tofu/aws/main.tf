@@ -15,6 +15,10 @@ variable "aws_iac_role_arn" {
   type = string
 }
 
+variable "aws_notification_email" {
+  type = string
+}
+
 provider "aws" {
   region = var.aws_region
 

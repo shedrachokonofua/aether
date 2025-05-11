@@ -30,6 +30,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/IAMFullAccess
         - arn:aws:iam::aws:policy/IAMAccessAnalyzerFullAccess
+        - arn:aws:iam::aws:policy/AWSBudgetsActionsWithAWSResourceControlAccess
       Policies:
         - PolicyName: aether-iac-policy
           PolicyDocument:

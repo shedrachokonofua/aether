@@ -15,6 +15,7 @@ module "aws" {
   source           = "./aws"
   aws_region       = var.aws_region
   aws_iac_role_arn = var.aws_iac_role_arn
+  aws_notification_email = local.aws_notification_email
 }
 
 module "home" {

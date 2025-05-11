@@ -22,6 +22,8 @@ locals {
     local.base_authorized_keys
   )
 
+  aws_notification_email = data.sops_file.secrets.data["aws_notification_email"]
+
   home = {
     proxmox = {
       endpoint = data.sops_file.secrets.data["proxmox.cluster_endpoint"]
