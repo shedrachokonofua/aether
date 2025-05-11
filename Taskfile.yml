@@ -8,7 +8,7 @@ tasks:
   build-tools:
     desc: Build the toolbox Docker image
     cmds:
-      - docker build -t {{.DOCKER_IMAGE}} -f tools.dockerfile .
+      - docker build --no-cache -t {{.DOCKER_IMAGE}} -f tools.dockerfile .
 
   tofu:
     desc: Run OpenTofu commands

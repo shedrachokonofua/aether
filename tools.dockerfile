@@ -1,7 +1,7 @@
-FROM alpine:edge
+FROM alpine:3.21
 
 # Add community repository
-RUN echo "@community https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+RUN echo "@community https://dl-cdn.alpinelinux.org/alpine/v3.21/community" >> /etc/apk/repositories
 
 # Update and install packages including OpenSSH for SSH support
 RUN apk update && \
