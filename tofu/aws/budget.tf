@@ -36,4 +36,8 @@ resource "aws_budgets_budget" "aether_monthly_budget" {
     notification_type = "FORECASTED"
     subscriber_email_addresses = [var.aws_notification_email]
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

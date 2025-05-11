@@ -1,14 +1,26 @@
 resource "aws_iam_user" "lute_minio_backup_user" {
   name = "lute-minio-backup-user"
   path = "/aether/"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_iam_access_key" "lute_minio_backup_user_access_key" {
   user = aws_iam_user.lute_minio_backup_user.name
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket" "lute_backup" {
   bucket = "lute-backup"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_account_public_access_block" "lute_backup_public_access_block" {
@@ -16,12 +28,20 @@ resource "aws_s3_account_public_access_block" "lute_backup_public_access_block" 
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_ownership_controls" "lute_backup_ownership_controls" {
   bucket = aws_s3_bucket.lute_backup.id
   rule {
     object_ownership = "BucketOwnerPreferred"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -52,6 +72,10 @@ data "aws_iam_policy_document" "lute_backup_policy_document" {
 resource "aws_s3_bucket_policy" "lute_backup_policy" {
   bucket = aws_s3_bucket.lute_backup.id
   policy = data.aws_iam_policy_document.lute_backup_policy_document.json
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 output "lute_minio_backup_user_access_key" {

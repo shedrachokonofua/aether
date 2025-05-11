@@ -17,6 +17,10 @@ resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail2" {
@@ -26,6 +30,10 @@ resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail2" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 
@@ -36,6 +44,10 @@ resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail3" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "cloudflare_dns_record" "shdr_ch_mx_protonmail_primary" {
@@ -46,6 +58,10 @@ resource "cloudflare_dns_record" "shdr_ch_mx_protonmail_primary" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "cloudflare_dns_record" "shdr_ch_mx_protonmail_secondary" {
@@ -56,6 +72,10 @@ resource "cloudflare_dns_record" "shdr_ch_mx_protonmail_secondary" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "cloudflare_dns_record" "shdr_ch_dmarc" {
@@ -65,6 +85,10 @@ resource "cloudflare_dns_record" "shdr_ch_dmarc" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "cloudflare_dns_record" "shdr_ch_spf" {
@@ -74,6 +98,10 @@ resource "cloudflare_dns_record" "shdr_ch_spf" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "cloudflare_dns_record" "shdr_ch_protonmail_verification" {
@@ -83,4 +111,8 @@ resource "cloudflare_dns_record" "shdr_ch_protonmail_verification" {
   zone_id     = cloudflare_zone.shdrch_domain.id
   proxied     = false
   ttl         = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
