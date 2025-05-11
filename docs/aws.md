@@ -2,7 +2,7 @@
 
 ## Budget
 
-Monthly budget of $20 USD with notifications at 50%, 80%, and 100% of actual costs, plus 100% of forecasted costs.
+Monthly budget of $15 USD with notifications at 50%, 80%, and 100% of actual costs, plus 100% of forecasted costs.
 
 ## Security
 
