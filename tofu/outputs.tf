@@ -18,6 +18,11 @@ output "home_backup_stack_password" {
   sensitive = true
 }
 
+output "home_dev_workstation_password" {
+  value     = module.home.dev_workstation_password
+  sensitive = true
+}
+
 output "home_dev_workstation_public_key" {
   value = local.home.dev_workstation.public_key
 }

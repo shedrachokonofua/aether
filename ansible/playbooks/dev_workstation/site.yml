@@ -29,3 +29,23 @@
         name: sshd
         state: started
         enabled: true
+
+    - name: Install libdnf5
+      become: true
+      command: dnf -y install python3-libdnf5
+
+    - name: Install required packages
+      become: true
+      dnf:
+        name:
+          - git
+          - go-task
+          - fish
+        state: present
+
+    - name: Add fish to shell config
+      command: echo /usr/bin/fish | sudo tee -a /etc/shells
+
+    - name: Set fish as default shell
+      command: chsh -s /usr/bin/fish
+      become: true

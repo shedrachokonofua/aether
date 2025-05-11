@@ -17,3 +17,8 @@ output "backup_stack_password" {
   value     = random_password.backup_stack_password.result
   sensitive = true
 }
+
+output "dev_workstation_password" {
+  value     = random_password.dev_workstation_password.result
+  sensitive = true
+}
