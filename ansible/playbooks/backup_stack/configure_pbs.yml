@@ -55,18 +55,26 @@
         - proxmox-backup-proxy.service
         - proxmox-backup.service
 
-    - name: Create PBS Datastore
-      command: >
-        proxmox-backup-manager datastore create backups-vm /mnt/hdd/backups-vm
-        --keep-daily 7
-        --keep-weekly 4
-        --keep-monthly 6
-        --keep-yearly 2
-        --prune-schedule "02:00"
-        --gc-schedule "sun 03:00"
-        --verify-new true
-      args:
-        creates: "/mnt/hdd/backups-vm/.chunks"
+    - name: Write PBS Datastore Configuration
+      copy:
+        dest: /etc/proxmox-backup/datastore.cfg
+        content: |
+          datastore: backups-vm
+            path /mnt/hdd/backups-vm
+            gc-schedule sun 03:00
+            verify-new true
+
+    - name: Write PBS Prune Configuration
+      copy:
+        dest: /etc/proxmox-backup/prune.cfg
+        content: |
+          prune: backups-vm-prune
+            keep-daily 7
+            keep-weekly 4
+            keep-monthly 6
+            keep-yearly 2
+            schedule 02:00
+            store backups-vm
 
   handlers:
     - name: Update apt cache
