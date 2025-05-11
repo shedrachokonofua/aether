@@ -74,6 +74,10 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
   features {
     nesting = true
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "random_password" "backup_stack_password" {

@@ -43,6 +43,10 @@ resource "proxmox_virtual_environment_vm" "desktop" {
     id     = "0000:e5:00.0"
     pcie   = true
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 module "desktop_user" {

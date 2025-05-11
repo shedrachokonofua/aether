@@ -431,6 +431,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/setup_monitoring_agents.yml
 
+  configure:home:dev-workstation:
+    desc: Configure the dev workstation
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/dev_workstation/site.yml
+
   update:authorized-keys:
     desc: Update authorized keys
     cmds:

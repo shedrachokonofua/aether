@@ -1,0 +1,30 @@
+---
+- name: Deploy Dev Workstation
+  hosts: dev-workstation
+  gather_facts: true
+  roles:
+    - common
+    - linger
+    - monitoring_agent
+  tasks:
+    - name: Write private key to file
+      copy:
+        content: "{{ tf_outputs.home_dev_workstation_private_key.value }}"
+        dest: "/home/{{ vm.dev_workstation.admin }}/.ssh/id_ed25519"
+        mode: "0600"
+        owner: "{{ vm.dev_workstation.admin }}"
+        group: "{{ vm.dev_workstation.admin }}"
+
+    - name: Write public key to file
+      copy:
+        content: "{{ tf_outputs.home_dev_workstation_public_key.value }}"
+        dest: "/home/{{ vm.dev_workstation.admin }}/.ssh/id_ed25519.pub"
+        mode: "0644"
+        owner: "{{ vm.dev_workstation.admin }}"
+        group: "{{ vm.dev_workstation.admin }}"
+
+    - name: Ensure ssh service is running
+      systemd:
+        name: sshd
+        state: started
+        enabled: true

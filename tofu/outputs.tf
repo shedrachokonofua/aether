@@ -18,6 +18,19 @@ output "home_backup_stack_password" {
   sensitive = true
 }
 
+output "home_dev_workstation_public_key" {
+  value = local.home.dev_workstation.public_key
+}
+
+output "home_dev_workstation_private_key" {
+  value     = local.home.dev_workstation.private_key
+  sensitive = true
+}
+
+output "ssh_authorized_keys" {
+  value = local.authorized_keys
+}
+
 output "aws_lute_minio_backup_user_access_key" {
   value     = module.aws.lute_minio_backup_user_access_key
   sensitive = true

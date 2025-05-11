@@ -42,6 +42,10 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
 
     user_data_file_id = module.gateway_stack_user.cloud_config_id
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "random_password" "gateway_stack_console_password" {
@@ -49,9 +53,9 @@ resource "random_password" "gateway_stack_console_password" {
 }
 
 module "gateway_stack_user" {
-  source          = "./modules/vm_user_cloudinit"
-  node_name       = local.vm.gateway_stack.node
-  authorized_keys = var.authorized_keys
-  file_prefix     = local.vm.gateway_stack.name
+  source           = "./modules/vm_user_cloudinit"
+  node_name        = local.vm.gateway_stack.node
+  authorized_keys  = var.authorized_keys
+  file_prefix      = local.vm.gateway_stack.name
   console_password = random_password.gateway_stack_console_password.result
 }

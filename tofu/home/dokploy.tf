@@ -37,6 +37,10 @@ resource "proxmox_virtual_environment_vm" "dokploy" {
 
     user_data_file_id = module.dokploy_user.cloud_config_id
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "random_password" "dokploy_console_password" {

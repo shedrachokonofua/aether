@@ -36,6 +36,10 @@ resource "proxmox_virtual_environment_vm" "gitlab" {
 
     user_data_file_id = module.gitlab_user.cloud_config_id
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "random_password" "gitlab_console_password" {

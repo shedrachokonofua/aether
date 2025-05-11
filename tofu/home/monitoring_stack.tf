@@ -40,6 +40,10 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
 
     user_data_file_id = module.monitoring_stack_user.cloud_config_id
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "random_password" "monitoring_stack_console_password" {

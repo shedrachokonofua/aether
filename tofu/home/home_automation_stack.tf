@@ -17,6 +17,7 @@ resource "proxmox_virtual_environment_vm" "home_automation_stack" {
   network_device {
     bridge  = "vmbr0"
     vlan_id = 3
+    trunks  = "3;4;5;6;7"
   }
 
   disk {
@@ -35,6 +36,10 @@ resource "proxmox_virtual_environment_vm" "home_automation_stack" {
     }
 
     user_data_file_id = module.home_automation_stack_user.cloud_config_id
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 

@@ -6,12 +6,21 @@ data "local_file" "authorized_keys" {
   filename = "../config/authorized_keys"
 }
 
+resource "tls_private_key" "home_dev_workstation_ssh_key" {
+  algorithm = "ED25519"
+}
+
 locals {
-  authorized_keys = [
+  base_authorized_keys = [
     for key in split("\n", trimspace(data.local_file.authorized_keys.content))
     : key
     if key != "" && !startswith(key, "#")
   ]
+
+  authorized_keys = concat(
+    [tls_private_key.home_dev_workstation_ssh_key.public_key_openssh],
+    local.base_authorized_keys
+  )
 
   home = {
     proxmox = {
@@ -21,6 +30,10 @@ locals {
     }
     router_password  = data.sops_file.secrets.data["router_password"]
     desktop_password = data.sops_file.secrets.data["desktop_password"]
+    dev_workstation = {
+      private_key = tls_private_key.home_dev_workstation_ssh_key.private_key_openssh
+      public_key  = tls_private_key.home_dev_workstation_ssh_key.public_key_openssh
+    }
   }
 }
 
