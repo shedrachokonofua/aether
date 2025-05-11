@@ -43,6 +43,12 @@
           - jq
         state: present
 
+    - name: Configure git user
+      command: git config --global user.name "{{ secrets.dev_workstation_git_user }}"
+
+    - name: Configure git email
+      command: git config --global user.email "{{ secrets.dev_workstation_git_email }}"
+
     - name: Create symlink from task to go-task
       become: true
       ansible.builtin.file:
