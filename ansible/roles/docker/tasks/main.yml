@@ -1,0 +1,22 @@
+- name: Check if Docker is already installed
+  stat:
+    path: /usr/bin/docker
+  register: docker_binary_stat
+
+- name: Install docker
+  shell: curl -sSL https://get.docker.com | sh
+  when: not docker_binary_stat.stat.exists
+  register: docker_install_result
+
+- name: Add user to docker group
+  command: sudo usermod -aG docker $USER
+
+- name: Make docker group change take effect
+  meta: reset_connection
+
+- name: Start docker service
+  become: true
+  systemd:
+    name: docker
+    enabled: yes
+    state: started

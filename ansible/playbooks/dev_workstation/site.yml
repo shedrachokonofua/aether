@@ -6,6 +6,7 @@
     - common
     - linger
     - monitoring_agent
+    - docker
   tasks:
     - name: Write private key to file
       copy:
