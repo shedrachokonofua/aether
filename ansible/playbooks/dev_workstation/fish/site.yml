@@ -19,7 +19,7 @@
       become: true
 
     - name: Setup fish configuration directory
-      ansible.builtin.file:
+      file:
         path: "/home/{{ vm.dev_workstation.admin }}/.config/fish"
         state: directory
         owner: "{{ vm.dev_workstation.admin }}"
@@ -27,9 +27,30 @@
         mode: "0755"
 
     - name: Write fish configuration
-      ansible.builtin.template:
+      template:
         src: config.fish.j2
         dest: "/home/{{ vm.dev_workstation.admin }}/.config/fish/config.fish"
         owner: "{{ vm.dev_workstation.admin }}"
         group: "{{ vm.dev_workstation.admin }}"
         mode: "0644"
+
+    - name: Install Fisher package manager
+      shell: |
+        curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher
+      args:
+        executable: /usr/bin/fish
+
+    - name: Install fisher packages
+      shell: |
+        fisher install jorgebucaran/nvm.fish
+        fisher install jethrokuan/z
+      args:
+        executable: /usr/bin/fish
+
+    - name: Setup node
+      shell: |
+        nvm install latest
+        nvm use latest
+        set --universal nvm_default_version latest
+      args:
+        executable: /usr/bin/fish
