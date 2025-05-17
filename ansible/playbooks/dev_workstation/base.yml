@@ -38,6 +38,9 @@
       become: true
       dnf:
         name:
+          - gcc
+          - openssl-devel
+          - protobuf-compiler
           - git
           - go-task
           - jq
@@ -56,3 +59,6 @@
         dest: "/usr/bin/task"
         state: link
         mode: "0755"
+
+    - name: Install rust
+      shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default"
