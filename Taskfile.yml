@@ -127,6 +127,43 @@ tasks:
         tofu -chdir=tofu apply {{.CLI_ARGS}}
       - task: tofu:write-outputs
 
+  tofu:refresh:
+    desc: Refresh Terraform resources
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu refresh-only {{.CLI_ARGS}}
+      - task: tofu:write-outputs
+
+  tofu:remove:
+    desc: Remove Terraform resources
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu state rm {{.CLI_ARGS}}
+
   tofu:force-unlock:
     desc: Force unlock the Terraform state
     dotenv: ["./secrets/aws-dev-user.env"]

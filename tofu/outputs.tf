@@ -32,6 +32,15 @@ output "home_dev_workstation_private_key" {
   sensitive = true
 }
 
+output "home_lute_public_key" {
+  value = module.home.lute_public_key
+}
+
+output "home_lute_private_key" {
+  value     = module.home.lute_private_key
+  sensitive = true
+}
+
 output "ssh_authorized_keys" {
   value = local.authorized_keys
 }

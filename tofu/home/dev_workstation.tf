@@ -26,13 +26,6 @@ resource "proxmox_virtual_environment_vm" "dev_workstation" {
     interface    = "virtio0"
   }
 
-  disk {
-    datastore_id = "nfs-nvme-vm-dataset"
-    file_id      = proxmox_virtual_environment_download_file.fedora_image.id
-    size         = local.vm.dev_workstation.disk_gb
-    interface    = "virtio0"
-  }
-
   initialization {
     ip_config {
       ipv4 {

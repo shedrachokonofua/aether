@@ -145,3 +145,14 @@ dev_workstation:
   disk_gb: 256
   ip: "10.0.3.10"
   gateway: "10.0.3.1"
+
+lute:
+  id: 1011
+  name: "lute"
+  node: "smith"
+  admin: "root"
+  cores: 8
+  memory: 24576
+  disk_gb: 256
+  ip: "10.0.3.11"
+  gateway: "10.0.3.1"
