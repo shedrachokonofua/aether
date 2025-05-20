@@ -14,6 +14,7 @@
       loop:
         - ./prometheus/data
         - ./loki/data
+        - ./tempo
         - ./otel
         - ./grafana/provisioning
 
@@ -27,6 +28,12 @@
       copy:
         src: ./loki_config.yml
         dest: ./loki/loki_config.yml
+        mode: "0755"
+
+    - name: Create tempo config
+      copy:
+        src: ./tempo.yml
+        dest: ./tempo/tempo.yml
         mode: "0755"
 
     - name: Create otel config
@@ -92,9 +99,24 @@
         name: loki
         image: docker.io/grafana/loki:latest
         pod: monitoring-stack.pod
+        command:
+          - "-config.file=/etc/loki/config.yml"
+          - "-log.level=debug"
         volumes:
-          - /home/aether/loki/loki_config.yml:/etc/loki/config.yml
+          - /home/aether/loki/loki_config.yml:/etc/loki/config.yml:Z
           - /home/aether/loki/data:/var/lib/loki
+        state: quadlet
+
+    - name: Start tempo
+      containers.podman.podman_container:
+        name: tempo
+        image: docker.io/grafana/tempo:latest
+        pod: monitoring-stack.pod
+        command:
+          - "-config.file=/etc/tempo.yaml"
+          - "-log.level=debug"
+        volumes:
+          - /home/aether/tempo/tempo.yml:/etc/tempo.yaml:Z
         state: quadlet
 
     - name: Start otel collector

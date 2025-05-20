@@ -5,6 +5,7 @@ This playbook will configure the monitoring stack virtual machine. The monitorin
 - Otel Collector
 - Prometheus
 - Loki
+- Tempo
 - Grafana
 
 ## Usage

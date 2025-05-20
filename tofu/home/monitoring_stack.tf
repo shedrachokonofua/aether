@@ -8,6 +8,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
 
   cpu {
     cores = local.vm.monitoring_stack.cores
+    type  = "host"
   }
 
   memory {
