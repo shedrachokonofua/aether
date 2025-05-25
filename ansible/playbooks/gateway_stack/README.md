@@ -33,7 +33,7 @@ task ansible:playbook -- ./ansible/playbooks/gateway_stack/adguard/site.yml
 task ansible:playbook -- ./ansible/playbooks/gateway_stack/caddy/site.yml
 ```
 
-### Deploy Tailscale
+### Deploy Tailscale Subnet Router
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/gateway_stack/tailscale/site.yml
