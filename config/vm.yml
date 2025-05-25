@@ -156,3 +156,6 @@ lute:
   disk_gb: 256
   ip: "10.0.3.11"
   gateway: "10.0.3.1"
+  ports:
+    traefik: 8080
+    core: 22000
