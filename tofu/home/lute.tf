@@ -8,6 +8,7 @@ resource "proxmox_virtual_environment_vm" "lute" {
 
   cpu {
     cores = local.vm.lute.cores
+    type  = "host"
   }
 
   memory {
@@ -51,10 +52,10 @@ resource "tls_private_key" "lute_ssh_key" {
 }
 
 module "lute_user" {
-  username         = local.vm.lute.admin
-  source           = "./modules/vm_user_cloudinit"
-  node_name        = local.vm.lute.node
-  authorized_keys  = concat(
+  username  = local.vm.lute.admin
+  source    = "./modules/vm_user_cloudinit"
+  node_name = local.vm.lute.node
+  authorized_keys = concat(
     [tls_private_key.lute_ssh_key.public_key_openssh],
     var.authorized_keys
   )
