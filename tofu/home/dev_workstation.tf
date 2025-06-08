@@ -8,6 +8,7 @@ resource "proxmox_virtual_environment_vm" "dev_workstation" {
 
   cpu {
     cores = local.vm.dev_workstation.cores
+    type  = "host"
   }
 
   memory {
