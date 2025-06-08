@@ -45,16 +45,6 @@ output "ssh_authorized_keys" {
   value = local.authorized_keys
 }
 
-output "aws_lute_minio_backup_user_access_key" {
-  value     = module.aws.lute_minio_backup_user_access_key
-  sensitive = true
-}
-
-output "aws_lute_minio_backup_user_secret_access_key" {
-  value     = module.aws.lute_minio_backup_user_secret_access_key
-  sensitive = true
-}
-
 output "aws_offsite_backup_user_access_key" {
   value     = module.aws.offsite_backup_user_access_key
   sensitive = true
