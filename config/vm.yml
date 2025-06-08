@@ -152,7 +152,7 @@ lute:
   node: "smith"
   admin: "root"
   cores: 8
-  memory: 32768
+  memory: 40960
   disk_gb: 256
   ip: "10.0.3.11"
   gateway: "10.0.3.1"
