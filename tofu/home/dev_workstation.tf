@@ -32,7 +32,12 @@ resource "proxmox_virtual_environment_vm" "dev_workstation" {
       ipv4 {
         address = "${local.vm.dev_workstation.ip}/24"
         gateway = local.vm.dev_workstation.gateway
+
       }
+    }
+
+    dns {
+      servers = ["10.0.3.1"]
     }
 
     user_data_file_id = module.dev_workstation_user.cloud_config_id
