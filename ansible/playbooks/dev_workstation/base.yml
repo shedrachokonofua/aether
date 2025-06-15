@@ -44,6 +44,8 @@
           - git
           - go-task
           - jq
+          - lsof
+          - dig
         state: present
 
     - name: Configure git user
