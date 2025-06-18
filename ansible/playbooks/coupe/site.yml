@@ -1,0 +1,78 @@
+---
+- name: Deploy coupe
+  hosts: coupe
+  gather_facts: true
+  roles:
+    - common
+    - linger
+    - docker
+    - monitoring_agent
+  tasks:
+    - name: Create coupe directory
+      file:
+        path: /home/aether/coupe
+        state: directory
+        mode: "0755"
+
+    - name: Install libdnf5
+      become: true
+      command: dnf -y install python3-libdnf5
+
+    - name: Install dependencies
+      become: true
+      dnf:
+        name:
+          - git
+          - go-task
+          - unzip
+        state: present
+
+    - name: Alias go-task to task
+      lineinfile:
+        path: /home/aether/.bashrc
+        line: "alias task='go-task'"
+        create: true
+
+    - name: Install deno
+      shell: curl -fsSL https://deno.land/install.sh | sh
+
+    - name: Clone coupe repo
+      git:
+        repo: https://github.com/shedrachokonofua/coupe.git
+        dest: /home/aether/coupe
+        version: main
+        force: true
+
+    - name: Install coupe
+      shell: "cd /home/aether/coupe && go-task install"
+
+    - name: Copy updater.sh
+      copy:
+        src: updater.sh
+        dest: /home/aether/coupe-updater.sh
+
+    - name: Copy updater.service
+      copy:
+        src: updater.service
+        dest: /etc/systemd/system/coupe-updater.service
+      notify:
+        - reload systemd
+
+    - name: Copy updater.timer
+      copy:
+        src: updater.timer
+        dest: /etc/systemd/system/coupe-updater.timer
+      notify:
+        - reload systemd
+
+    - name: Enable and start coupe-updater.timer
+      systemd:
+        name: coupe-updater.timer
+        enabled: true
+        state: started
+
+  handlers:
+    - name: reload systemd
+      become: true
+      systemd:
+        daemon_reload: true

@@ -524,6 +524,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/dev_workstation/site.yml
 
+  configure:home:coupe:
+    desc: Configure the coupe server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/coupe/site.yml
+
   update:authorized-keys:
     desc: Update authorized keys
     cmds:

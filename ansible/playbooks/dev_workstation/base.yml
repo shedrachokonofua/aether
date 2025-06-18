@@ -45,7 +45,7 @@
           - go-task
           - jq
           - lsof
-          - dig
+          - unzip
         state: present
 
     - name: Configure git user
@@ -64,3 +64,6 @@
 
     - name: Install rust
       shell: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default"
+
+    - name: Install deno
+      shell: "curl -fsSL https://deno.land/install.sh | sh"

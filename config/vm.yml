@@ -159,3 +159,14 @@ lute:
   ports:
     traefik: 8080
     core: 22000
+
+coupe:
+  id: 1012
+  name: "coupe"
+  node: "niobe"
+  admin: "aether"
+  cores: 4
+  memory: 4096
+  disk_gb: 64
+  ip: "10.0.3.12"
+  gateway: "10.0.3.1"

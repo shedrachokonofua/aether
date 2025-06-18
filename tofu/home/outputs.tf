@@ -36,3 +36,9 @@ output "lute_private_key" {
   value     = tls_private_key.lute_ssh_key.private_key_openssh
   sensitive = true
 }
+
+output "coupe_password" {
+  value     = random_password.coupe_password.result
+  sensitive = true
+}
+

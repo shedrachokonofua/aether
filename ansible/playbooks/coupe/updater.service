@@ -1,0 +1,16 @@
+[Unit]
+Description=Coupe Updater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=aether
+Group=aether
+WorkingDirectory=/home/aether/coupe
+ExecStart=/home/aether/coupe-updater.sh
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=coupe-updater
