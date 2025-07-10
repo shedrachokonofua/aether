@@ -67,3 +67,6 @@
 
     - name: Install deno
       shell: "curl -fsSL https://deno.land/install.sh | sh"
+
+    - name: Install babashka
+      shell: "curl -fsSL https://github.com/babashka/babashka/raw/master/install | sh"
