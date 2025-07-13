@@ -318,7 +318,7 @@ tasks:
     desc: Clear Ansible persistent connection cache
     dir: "{{.CACHE_DIR}}/ansible"
     cmds:
-      - rm -rf pc
+      - sudo rm -rf pc
 
   ansible:ping:
     desc: Ping Ansible hosts

@@ -130,3 +130,10 @@
           - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 range 0 start "10.0.7.2"
           - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 range 0 stop "10.0.7.254"
         save: true
+    - name: Configure mDNS repeater
+      vyos.vyos.vyos_config:
+        lines:
+          - set service mdns repeater interface eth1.3
+          - set service mdns repeater interface eth1.4
+          - set service mdns repeater interface eth1.5
+        save: true
