@@ -8,6 +8,36 @@
     - monitoring_agent
     - docker
   tasks:
+    - name: Write docker daemon config
+      become: true
+      copy:
+        content: |
+          {
+            "dns": ["10.0.0.1"],
+            "default-address-pools": [
+              { "base": "10.10.0.0/16", "size": 24 },
+              { "base": "10.11.0.0/16", "size": 24 },
+              { "base": "10.12.0.0/16", "size": 24 },
+              { "base": "10.13.0.0/16", "size": 24 },
+              { "base": "10.14.0.0/16", "size": 24 },
+              { "base": "10.15.0.0/16", "size": 24 },
+              { "base": "10.16.0.0/16", "size": 24 },
+              { "base": "10.17.0.0/16", "size": 24 },
+              { "base": "10.18.0.0/16", "size": 24 },
+              { "base": "10.19.0.0/16", "size": 24 }
+            ]
+          }
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+        owner: root
+        group: root
+
+    - name: Restart docker
+      become: true
+      systemd:
+        name: docker
+        state: restarted
+
     - name: Check if Dokploy etc directory exists
       stat:
         path: /etc/dokploy
