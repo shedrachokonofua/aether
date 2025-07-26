@@ -27,9 +27,9 @@
         - ./adguardhome/work
         - ./adguardhome/conf
 
-    - name: Copy AdGuard Home config
-      copy:
-        src: ./AdGuardHome.yml
+    - name: Write AdGuard Home config
+      template:
+        src: ./AdGuardHome.yml.j2
         dest: ./adguardhome/conf/AdGuardHome.yaml
         mode: "0700"
 

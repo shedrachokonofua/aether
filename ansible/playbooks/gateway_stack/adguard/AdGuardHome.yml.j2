@@ -6,7 +6,7 @@ http:
   session_ttl: 720h
 users:
   - name: aether
-    password: $2a$10$sG4gfCXOEcxV1jhggw/RQeaPbuvIEThZKvD6zbadD6l8.SZyP/1H2
+    password: {{ secrets.adguard_password_bcrypt }}
 auth_attempts: 5
 block_auth_min: 15
 http_proxy: ""
@@ -185,7 +185,14 @@ filters:
     name: Phishing Army
     id: 1741404526
 whitelist_filters: []
-user_rules: []
+user_rules:
+  - 'www.langflow.store^$important'
+  - '@@||langflow.store^$important'
+  - '@@||api.langflow.store^$important'
+  - '@@||app.lemonade.finance^$important'
+  - '@@||media.brightdata.com^$important'
+  - '@@||brightdata.com^$important'
+  - '@@||smallweb.club^$important'
 dhcp:
   enabled: false
   interface_name: ""
@@ -225,11 +232,11 @@ filtering:
   safebrowsing_block_host: standard-block.dns.adguard.com
   rewrites:
     - domain: "*.home.shdr.ch"
-      answer: 10.0.3.3
+      answer: {{ vm.gateway_stack.ip }}
     - domain: home.shdr.ch
-      answer: 10.0.3.3
+      answer: {{ vm.gateway_stack.ip }}
     - domain: gitlab-ssh.home.shdr.ch
-      answer: 10.0.3.7
+      answer: {{ vm.gitlab.ip }}
   safe_fs_patterns:
     - /opt/adguardhome/work/userfilters/*
   safebrowsing_cache_size: 1048576
@@ -237,7 +244,7 @@ filtering:
   parental_cache_size: 1048576
   cache_time: 30
   filters_update_interval: 24
-  blocked_response_ttl: 10
+  blocked_response_ttl: 0
   filtering_enabled: true
   parental_enabled: false
   safebrowsing_enabled: false
