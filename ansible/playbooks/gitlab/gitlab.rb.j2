@@ -5,3 +5,14 @@ nginx['listen_port'] = 80
 nginx['listen_https'] = false
 letsencrypt['enable'] = false
 gitlab_rails['import_sources'] = ['github']
+registry_external_url 'https://registry.gitlab.home.shdr.ch'
+gitlab_rails['registry_enabled'] = true
+registry['enable'] = true
+registry_nginx['listen_port'] = 5050
+registry_nginx['listen_https'] = false
+gitlab_rails['registry_issuer'] = "gitlab-issuer"
+gitlab_rails['registry_key_path'] = "/var/opt/gitlab/gitlab-rails/certificate.key"
+pages_external_url 'https://pages.gitlab.home.shdr.ch'
+gitlab_pages['enable'] = true
+pages_nginx['listen_port'] = 3210
+pages_nginx['listen_https'] = false

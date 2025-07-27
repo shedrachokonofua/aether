@@ -99,6 +99,11 @@ gitlab:
   disk_gb: 128
   ip: "10.0.3.7"
   gateway: "10.0.3.1"
+  ports:
+    gitlab: 80
+    gitlab_ssh: 2222
+    gitlab_pages: 3210
+    gitlab_registry: 5050
 
 backup_stack:
   id: 1007

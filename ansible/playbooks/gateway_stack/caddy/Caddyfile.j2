@@ -117,6 +117,14 @@ gitlab.home.shdr.ch {
   reverse_proxy {{ vm.gitlab.ip }}
 }
 
+registry.gitlab.home.shdr.ch {
+  reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_registry }}
+}
+
+pages.gitlab.home.shdr.ch {
+  reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_pages }}
+}
+
 ha.home.shdr.ch {
   reverse_proxy {{ vm.home_automation_stack.ip }}:{{ vm.home_automation_stack.ports.home_assistant }}
 }

@@ -1,0 +1,165 @@
+---
+- name: Deploy GitLab Runners
+  hosts: gitlab
+  gather_facts: true
+  tasks:
+    - name: Wait for GitLab to be accessible
+      uri:
+        url: https://gitlab.home.shdr.ch/
+        method: GET
+        validate_certs: no
+        status_code:
+          - 200
+          - 302
+      register: gitlab_health
+      until: gitlab_health.status in [200, 302]
+      retries: 60
+      delay: 10
+
+    - name: Wait for GitLab API to be ready
+      uri:
+        url: https://gitlab.home.shdr.ch/api/v4/version
+        method: GET
+        validate_certs: no
+        status_code:
+          - 200
+          - 401
+      register: gitlab_api_health
+      until: gitlab_api_health.status in [200, 401]
+      retries: 30
+      delay: 10
+
+    - name: Wait for GitLab SSH service to be ready
+      wait_for:
+        host: ssh.gitlab.home.shdr.ch
+        port: 2222
+        timeout: 300
+        delay: 10
+        state: started
+
+    - name: Generate runner setup personal access token
+      shell: openssl rand -hex 16
+      register: gitlab_runner_setup_pat
+
+    - name: Link personal access token to root gitlab user
+      containers.podman.podman_container_exec:
+        name: gitlab
+        command: |
+          gitlab-rails runner "token = User.find_by_username('shdrch').personal_access_tokens.create(scopes: ['create_runner'], name: 'create_runner_pat', expires_at: 1.days.from_now); token.set_token('{{ gitlab_runner_setup_pat.stdout }}'); token.save!"
+      register: gitlab_runner_setup_pat_response
+
+    - name: Create runner authentication token
+      uri:
+        url: https://gitlab.home.shdr.ch/api/v4/user/runners
+        method: POST
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab_runner_setup_pat.stdout }}"
+        body:
+          runner_type: instance_type
+        body_format: json
+        status_code: 201
+        return_content: true
+      register: gitlab_runner_registration_token_response
+
+    - name: Create runner directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./gitlab-runner
+        - ./gitlab-runner/config
+
+    - name: Create runner pod
+      containers.podman.podman_pod:
+        name: gitlab-runner
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start podman socket service
+      systemd:
+        name: podman.socket
+        state: restarted
+        scope: user
+        enabled: true
+
+    - name: Wait for podman socket to be created
+      wait_for:
+        path: /run/user/1000/podman/podman.sock
+        state: present
+        timeout: 30
+
+    - name: Set podman socket permissions
+      file:
+        path: /run/user/1000/podman/podman.sock
+        mode: "0666"
+
+    - name: Deploy GitLab Runner
+      containers.podman.podman_container:
+        name: gitlab-runner
+        image: docker.io/gitlab/gitlab-runner:alpine
+        state: quadlet
+        pod: gitlab-runner.pod
+        user: "0:0"
+        privileged: true
+        env:
+          CI_SERVER_URL: https://gitlab.home.shdr.ch/
+        volumes:
+          - /home/aether/gitlab-runner/config:/etc/gitlab-runner:Z
+          - gitlab-runner-docker-certs:/certs/client:ro
+          - /run/user/1000/podman/podman.sock:/var/run/docker.sock:Z
+
+    - name: Create runner configuration
+      copy:
+        dest: ./gitlab-runner/config/config.toml
+        content: |
+          concurrent = 8
+          log_level = "info"
+          log_format = "json"
+          [[runners]]
+            id = 100
+            name = "podman-runner"
+            url = "https://gitlab.home.shdr.ch/"
+            token = "{{ gitlab_runner_registration_token_response.json.token }}"
+            environment = ["FF_NETWORK_PER_BUILD=1", "DOCKER_TLS_CERTDIR="]  # Removed DOCKER_HOST from here
+            executor = "docker"
+            [runners.docker]
+              tls_verify = false
+              image = "alpine:latest"
+              privileged = true
+              disable_entrypoint_overwrite = false
+              oom_kill_disable = false
+              disable_cache = false
+              shm_size = 0
+              pull_policy = ["always"]
+              volumes = ["/cache"]
+            [runners.cache]
+              Type = "local"
+              Path = "/cache"
+              Shared = true
+
+    - name: Create docker-certs volume
+      containers.podman.podman_volume:
+        name: gitlab-runner-docker-certs
+        state: quadlet
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start GitLab Runner quadlet
+      systemd:
+        name: gitlab-runner-pod
+        state: restarted
+        scope: user
