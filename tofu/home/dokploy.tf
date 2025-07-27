@@ -35,6 +35,10 @@ resource "proxmox_virtual_environment_vm" "dokploy" {
       }
     }
 
+    dns {
+      servers = ["10.0.3.1"]
+    }
+
     user_data_file_id = module.dokploy_user.cloud_config_id
   }
 
