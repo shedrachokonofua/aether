@@ -7,13 +7,21 @@
   vars:
     ansible_persistent_connect_timeout: 0
   tasks:
-    - name: Delete default vyos user
-      user:
-        name: vyos
-        state: absent
-        remove: yes
-        force: yes
-      become: true
+    - name: Configure SSH
+      vyos.vyos.vyos_config:
+        lines:
+          - set service ssh disable-password-authentication
+          - set service ssh port 22
+          - set service ssh listen-address 10.0.4.1
+          - set service ssh listen-address 10.0.3.1
+          - set service ssh listen-address 192.168.2.231
+        save: true
+
+    - name: Remove default vyos user
+      vyos.vyos.vyos_config:
+        lines:
+          - delete system login user vyos
+        save: true
 
     - name: Disable IPv6
       vyos.vyos.vyos_config:
@@ -22,6 +30,7 @@
           - set interfaces ethernet eth0 ipv6 address no-default-link-local
           - set interfaces ethernet eth1 ipv6 address no-default-link-local
         save: true
+
     - name: Configure WAN
       vyos.vyos.vyos_config:
         lines:
@@ -30,6 +39,7 @@
           - set interfaces pppoe pppoe0 source-interface eth0
           - set interfaces pppoe pppoe0 ip adjust-mss 1452
         save: true
+
     - name: Configure NAT
       vyos.vyos.vyos_config:
         lines:
@@ -50,6 +60,7 @@
           - set nat source rule 102 destination address 192.168.2.0/24
           - set nat source rule 102 translation address masquerade
         save: true
+
     - name: Configure DNS Forwarding
       vyos.vyos.vyos_config:
         lines:
@@ -66,6 +77,7 @@
           - set service dns forwarding name-server {{ vm.gateway_stack.ip }}
           - set service dns forwarding name-server 8.8.8.8
         save: true
+
     - name: Configure VLAN interfaces
       vyos.vyos.vyos_config:
         lines:
@@ -80,6 +92,7 @@
           - set interfaces ethernet eth1 vif 7 description "Guest"
           - set interfaces ethernet eth1 vif 7 address 10.0.7.1/24
         save: true
+
     - name: Configure DHCP Server
       vyos.vyos.vyos_config:
         lines:
@@ -130,6 +143,7 @@
           - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 range 0 start "10.0.7.2"
           - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 range 0 stop "10.0.7.254"
         save: true
+
     - name: Configure mDNS repeater
       vyos.vyos.vyos_config:
         lines:
@@ -137,3 +151,167 @@
           - set service mdns repeater interface eth1.4
           - set service mdns repeater interface eth1.5
         save: true
+
+    - name: Configure firewall
+      vyos.vyos.vyos_config:
+        save: true
+        lines:
+          # Define WAN zone
+          - set firewall zone WAN description 'Internet facing interface'
+          - set firewall zone WAN member interface pppoe0
+          - set firewall zone WAN default-action drop
+
+          # Define MGMT zone for Gigahub network
+          - set firewall zone MGMT description 'Gigahub management network'
+          - set firewall zone MGMT member interface eth0
+          - set firewall zone MGMT default-action drop
+
+          # Define TRUSTED zone - full access networks
+          - set firewall zone TRUSTED description 'Trusted internal networks'
+          - set firewall zone TRUSTED member interface eth1.3
+          - set firewall zone TRUSTED member interface eth1.4
+          - set firewall zone TRUSTED default-action drop
+
+          # Define MEDIA zone - limited access
+          - set firewall zone MEDIA description 'Media devices network'
+          - set firewall zone MEDIA member interface eth1.5
+          - set firewall zone MEDIA default-action drop
+
+          # Define UNTRUSTED zone - minimal access
+          - set firewall zone UNTRUSTED description 'IoT and Guest networks'
+          - set firewall zone UNTRUSTED member interface eth1.6
+          - set firewall zone UNTRUSTED member interface eth1.7
+          - set firewall zone UNTRUSTED default-action drop
+
+          # Define LOCAL zone for router itself
+          - set firewall zone LOCAL local-zone
+          - set firewall zone LOCAL description 'Router local zone'
+          - set firewall zone LOCAL default-action drop
+
+          # Configure outbound internet access for all zones
+          - set firewall ipv4 name ZONES-to-WAN default-action accept
+          - set firewall ipv4 name ZONES-to-WAN description 'Allow all zones to access internet'
+
+          # Configure inbound WAN protection
+          - set firewall ipv4 name WAN-to-ZONES default-action drop
+          - set firewall ipv4 name WAN-to-ZONES rule 10 action accept
+          - set firewall ipv4 name WAN-to-ZONES rule 10 state established
+          - set firewall ipv4 name WAN-to-ZONES rule 10 state related
+
+          # Create TRUSTED to LOCAL firewall rules
+          - set firewall ipv4 name TRUSTED-to-LOCAL default-action accept
+          - set firewall ipv4 name TRUSTED-to-LOCAL description 'Full access from trusted networks'
+
+          # Create MEDIA to LOCAL firewall rules
+          - set firewall ipv4 name MEDIA-to-LOCAL default-action drop
+          - set firewall ipv4 name MEDIA-to-LOCAL description 'Limited access from media network'
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 10 action accept
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 10 state established
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 10 state related
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 20 action accept
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 20 protocol tcp_udp
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 20 destination port 53,67-68,5353
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 20 description 'Allow DNS, DHCP, mDNS'
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 30 action accept
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 30 protocol icmp
+          - set firewall ipv4 name MEDIA-to-LOCAL rule 30 description 'Allow ping'
+
+          # Create UNTRUSTED to LOCAL firewall rules
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL default-action drop
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL description 'Minimal access from untrusted networks'
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 10 action accept
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 10 state established
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 10 state related
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 action accept
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 protocol tcp_udp
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 destination port 53,67-68
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 description 'Allow DNS and DHCP only'
+
+          # Create MGMT to LOCAL firewall rules
+          - set firewall ipv4 name MGMT-to-LOCAL default-action drop
+          - set firewall ipv4 name MGMT-to-LOCAL rule 10 action accept
+          - set firewall ipv4 name MGMT-to-LOCAL rule 10 state established
+          - set firewall ipv4 name MGMT-to-LOCAL rule 10 state related
+          - set firewall ipv4 name MGMT-to-LOCAL rule 20 action accept
+          - set firewall ipv4 name MGMT-to-LOCAL rule 20 protocol tcp
+          - set firewall ipv4 name MGMT-to-LOCAL rule 20 destination port 22
+          - set firewall ipv4 name MGMT-to-LOCAL rule 20 source address 192.168.2.0/24
+          - set firewall ipv4 name MGMT-to-LOCAL rule 20 description 'Allow SSH from Gigahub network'
+
+          # Create WAN to LOCAL firewall rules
+          - set firewall ipv4 name WAN-to-LOCAL default-action drop
+          - set firewall ipv4 name WAN-to-LOCAL rule 10 action accept
+          - set firewall ipv4 name WAN-to-LOCAL rule 10 state established
+          - set firewall ipv4 name WAN-to-LOCAL rule 10 state related
+
+          # Configure router outbound internet access
+          - set firewall ipv4 name LOCAL-to-WAN default-action accept
+          - set firewall ipv4 name LOCAL-to-WAN description 'Allow router to access internet'
+
+          # Configure router access to internal zones
+          - set firewall ipv4 name LOCAL-to-ZONES default-action accept
+          - set firewall ipv4 name LOCAL-to-ZONES description 'Allow router to access all zones'
+
+          # Configure trusted zones full access
+          - set firewall ipv4 name TRUSTED-to-MGMT default-action accept
+          - set firewall ipv4 name TRUSTED-to-MEDIA default-action accept
+          - set firewall ipv4 name TRUSTED-to-UNTRUSTED default-action accept
+          - set firewall ipv4 name MGMT-to-TRUSTED default-action accept
+          - set firewall ipv4 name MGMT-to-MEDIA default-action accept
+          - set firewall ipv4 name MGMT-to-UNTRUSTED default-action accept
+
+          # Configure media zone restrictions
+          - set firewall ipv4 name MEDIA-to-TRUSTED default-action drop
+          - set firewall ipv4 name MEDIA-to-TRUSTED rule 10 action accept
+          - set firewall ipv4 name MEDIA-to-TRUSTED rule 10 state established
+          - set firewall ipv4 name MEDIA-to-TRUSTED rule 10 state related
+          - set firewall ipv4 name MEDIA-to-MGMT default-action drop
+          - set firewall ipv4 name MEDIA-to-MGMT rule 10 action accept
+          - set firewall ipv4 name MEDIA-to-MGMT rule 10 state established
+          - set firewall ipv4 name MEDIA-to-MGMT rule 10 state related
+          - set firewall ipv4 name MEDIA-to-UNTRUSTED default-action drop
+          - set firewall ipv4 name UNTRUSTED-to-MEDIA default-action drop
+
+          # Configure untrusted zone isolation
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED default-action drop
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 action accept
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 state established
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 state related
+          - set firewall ipv4 name UNTRUSTED-to-MGMT default-action drop
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 action accept
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state established
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state related
+
+          # Apply WAN zone firewall policies
+          - set firewall zone WAN from TRUSTED firewall name ZONES-to-WAN
+          - set firewall zone WAN from MEDIA firewall name ZONES-to-WAN
+          - set firewall zone WAN from UNTRUSTED firewall name ZONES-to-WAN
+          - set firewall zone WAN from LOCAL firewall name LOCAL-to-WAN
+          - set firewall zone TRUSTED from WAN firewall name WAN-to-ZONES
+          - set firewall zone MEDIA from WAN firewall name WAN-to-ZONES
+          - set firewall zone UNTRUSTED from WAN firewall name WAN-to-ZONES
+          - set firewall zone LOCAL from WAN firewall name WAN-to-LOCAL
+
+          # Apply LOCAL zone firewall policies
+          - set firewall zone LOCAL from TRUSTED firewall name TRUSTED-to-LOCAL
+          - set firewall zone LOCAL from MEDIA firewall name MEDIA-to-LOCAL
+          - set firewall zone LOCAL from UNTRUSTED firewall name UNTRUSTED-to-LOCAL
+          - set firewall zone LOCAL from MGMT firewall name MGMT-to-LOCAL
+          - set firewall zone TRUSTED from LOCAL firewall name LOCAL-to-ZONES
+          - set firewall zone MEDIA from LOCAL firewall name LOCAL-to-ZONES
+          - set firewall zone UNTRUSTED from LOCAL firewall name LOCAL-to-ZONES
+          - set firewall zone MGMT from LOCAL firewall name LOCAL-to-ZONES
+
+          # Apply inter-zone firewall policies
+          - set firewall zone MGMT from TRUSTED firewall name TRUSTED-to-MGMT
+          - set firewall zone MEDIA from TRUSTED firewall name TRUSTED-to-MEDIA
+          - set firewall zone UNTRUSTED from TRUSTED firewall name TRUSTED-to-UNTRUSTED
+          - set firewall zone TRUSTED from MGMT firewall name MGMT-to-TRUSTED
+          - set firewall zone MEDIA from MGMT firewall name MGMT-to-MEDIA
+          - set firewall zone UNTRUSTED from MGMT firewall name MGMT-to-UNTRUSTED
+          - set firewall zone TRUSTED from MEDIA firewall name MEDIA-to-TRUSTED
+          - set firewall zone MGMT from MEDIA firewall name MEDIA-to-MGMT
+          - set firewall zone UNTRUSTED from MEDIA firewall name MEDIA-to-UNTRUSTED
+          - set firewall zone MEDIA from UNTRUSTED firewall name UNTRUSTED-to-MEDIA
+          - set firewall zone TRUSTED from UNTRUSTED firewall name UNTRUSTED-to-TRUSTED
+          - set firewall zone MGMT from UNTRUSTED firewall name UNTRUSTED-to-MGMT

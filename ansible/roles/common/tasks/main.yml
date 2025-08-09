@@ -35,3 +35,7 @@
     - tf_outputs.ssh_authorized_keys is defined
     - tf_outputs.ssh_authorized_keys.value is defined
     - tf_outputs.ssh_authorized_keys.value is not none
+
+- name: Strip newlines from ssh_authorized_keys
+  set_fact:
+    ssh_authorized_keys: "{{ ssh_authorized_keys | map('regex_replace', '\n', '') }}"
