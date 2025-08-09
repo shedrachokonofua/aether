@@ -7,16 +7,6 @@
   vars:
     ansible_persistent_connect_timeout: 0
   tasks:
-    - name: Configure SSH
-      vyos.vyos.vyos_config:
-        lines:
-          - set service ssh disable-password-authentication
-          - set service ssh port 22
-          - set service ssh listen-address 10.0.4.1
-          - set service ssh listen-address 10.0.3.1
-          - set service ssh listen-address 192.168.2.231
-        save: true
-
     - name: Remove default vyos user
       vyos.vyos.vyos_config:
         lines:
@@ -91,6 +81,16 @@
           - set interfaces ethernet eth1 vif 6 address 10.0.6.1/24
           - set interfaces ethernet eth1 vif 7 description "Guest"
           - set interfaces ethernet eth1 vif 7 address 10.0.7.1/24
+        save: true
+
+    - name: Configure SSH
+      vyos.vyos.vyos_config:
+        lines:
+          - set service ssh disable-password-authentication
+          - set service ssh port 22
+          - set service ssh listen-address 10.0.4.1
+          - set service ssh listen-address 10.0.3.1
+          - set service ssh listen-address 192.168.2.231
         save: true
 
     - name: Configure DHCP Server
