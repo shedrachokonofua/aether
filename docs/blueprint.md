@@ -4,13 +4,13 @@
 
 ### Available Resources
 
-| Host    | RAM   | Storage                              | CPU                  | GPU                       | Cores | Threads | vCPUs | Ethernet | Status |
-| ------- | ----- | ------------------------------------ | -------------------- | ------------------------- | ----- | ------- | ----- | -------- | ------ |
-| Oracle  | 16GB  | 1TB                                  | Intel Core i5-12600H | Intel Iris Xe             | 12    | 16      | 16    | 10G      | LIVE   |
-| Smith   | 128GB | 8TB NVME(4TB x2) + 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super     | 8     | 16      | 16    | 10G      | LIVE   |
-| Niobe   | 64GB  | 512GB                                | AMD Ryzen 9 6900HX   | AMD Radeon 680M           | 8     | 16      | 16    | 2.5G     | LIVE   |
-| Neo     | 128GB | 2TB                                  | AMD Rzyen 9 9950X3D  | Nvidia RTX Pro 6000 Max-Q | 16    | 16      | 32    | 10G      | TODO   |
-| Trinity | 64GB  | 1TB                                  | Intel Core i9-13900H | Intel Iris Xe             | 14    | 20      | 20    | 10G      | LIVE   |
+| Host    | RAM   | Storage                              | CPU                  | GPU                       | Cores | Threads | vCPUs | Ethernet | Status      |
+| ------- | ----- | ------------------------------------ | -------------------- | ------------------------- | ----- | ------- | ----- | -------- | ----------- |
+| Oracle  | 16GB  | 1TB                                  | Intel Core i5-12600H | Intel Iris Xe             | 12    | 16      | 16    | 10G      | LIVE        |
+| Smith   | 128GB | 8TB NVME(4TB x2) + 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super     | 8     | 16      | 16    | 10G      | LIVE        |
+| Niobe   | 64GB  | 512GB                                | AMD Ryzen 9 6900HX   | AMD Radeon 680M           | 8     | 16      | 16    | 2.5G     | LIVE        |
+| Neo     | 128GB | 2TB                                  | AMD Rzyen 9 9950X    | Nvidia RTX Pro 6000 Max-Q | 16    | 16      | 32    | 10G      | IN PROGRESS |
+| Trinity | 64GB  | 1TB                                  | Intel Core i9-13900H | Intel Iris Xe             | 14    | 20      | 20    | 10G      | LIVE        |
 
 ### Resource Allocation
 
@@ -21,17 +21,19 @@
 | Desktop Environment     | Niobe   | VM   | 16GB | 256GB              | NFS - NVME       | 8    | Passthrough | No            | Linux DE: Browser, IDEs, Writing, Admin                                                                               | IN PROGRESS |
 | Development Workstation | Neo     | VM   | 32GB | 512GB              | Node             | 24   | vGPU        | Yes           | VS Code Server                                                                                                        | IN PROGRESS |
 | Gaming Server           | Smith   | VM   | 16GB | 512GB              | Node - NVME      | 8    | Passthrough | No            | Bazzite VM: Steam, PS, PS2, PS3 simulation                                                                            | IN PROGRESS |
-| AI Stack                | Neo     | LXC  | 48GB | 512GB              | Node             | 24   | vGPU        | Yes           | LiteLLM, vLLM: Qwen 3 32b, Gemma 3 27b, QwQ 32b, mxbai-embed-large, snowflake-arctic-embed2, Whisper, XTTS            | TODO        |
+| GPU Workstation         | Neo     | VM   | 96GB | 1TB                | Node             | 32   | Passthrough | Yes           | vLLM + Models                                                                                                         | TODO        |
+| AI Tool Stack           | Neo     | VM   | 16GB | 128GB              | NFS - NVME       | 4    | None        | Yes           | LiteLLM, SearXNG, Firecrawl, OpenWebUI, LibreChat, MetaMCP                                                            | TODO        |
 | Monitoring Stack        | Niobe   | VM   | 4GB  | 128GB              | Node             | 4    | None        | Yes           | Otel Collector, Prometheus, Grafana, Tempo, Loki, Promtail, Pyroscope                                                 | LIVE        |
 | Gitlab                  | Trinity | VM   | 8GB  | 128GB              | NFS - NVME       | 8    | None        | Yes           | VCS, CI/CD, Package Registry                                                                                          | LIVE        |
 | Lute Stack              | Smith   | VM   | 40GB | 256GB              | NFS - NVME       | 8    | None        | Yes           | Lute, Redis, Minio, Neo4j                                                                                             | LIVE        |
 | Coupe Sandbox           | Niobe   | VM   | 4GB  | 64GB               | NFS - NVME       | 4    | None        | Yes           | Deployment server for coupe projects                                                                                  | LIVE        |
 | Home Automation Stack   | Niobe   | VM   | 2GB  | 32GB               | NFS - NVME       | 4    | None        | Yes           | Home Assistant, Zwave2mqtt                                                                                            | IN PROGRESS |
 | Dokploy                 | Trinity | VM   | 16GB | 256GB              | NFS - NVME       | 8    | None        | Yes           | Dokploy platform and projects: sandbox, tools(Matrix, OpenWebUI, N8N, Owntracks, Windmill, Gitea, Vaultwarden, etc..) | LIVE        |
-| Media Stack             | Trinity | VM   | 8GB  | 64GB NVME, 8TB HDD | NFS - NVME, HDD  | 8    | Passthrough | Yes           | Jellyfin, Caliber-Web, qBittorrent, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, SABnzbd                        | TODO        |
+| Media Stack             | Trinity | VM   | 8GB  | 64GB NVME, 8TB HDD | NFS - NVME, HDD  | 8    | Passthrough | Yes           | Immich, Jellyfin, Caliber-Web, qBittorrent, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr, SABnzbd                | TODO        |
 | Network File Server     | Smith   | LXC  | 1GB  | 8TB NVME, 28TB HDD | Node - NVME, HDD | 2    | None        | Yes           | NFS Server, SMB Server                                                                                                | LIVE        |
 | Backup Server           | Smith   | LXC  | 2GB  | 8TB NVME, 28TB HDD | Node - NVME, HDD | 4    | None        | Yes           | Rclone, Proxmox Backup Server                                                                                         | LIVE        |
 | Power Management Stack  | Niobe   | VM   | 2GB  | 32GB               | NFS - NVME       | 2    | None        | Yes           | Network UPS Tools, PeaNUT                                                                                             | TODO        |
+| Messaging Stack         | Niobe   | VM   | 2GB  | 64GB               | NFS - NVME       | 2    | None        | Yes           | Postfix, Apprise, Synapse, Ntfy, Element                                                                              | TODO        |
 
 ## AWS
 
