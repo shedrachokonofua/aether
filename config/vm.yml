@@ -175,3 +175,25 @@ coupe:
   disk_gb: 64
   ip: "10.0.3.12"
   gateway: "10.0.3.1"
+
+bazzite_builder:
+  id: 1013
+  name: "bazzite-builder"
+  node: "smith"
+  admin: "aether"
+  cores: 8
+  memory: 4096
+  disk_gb: 64
+  ip: "192.168.2.234"
+  gateway: "192.168.2.1"
+
+game_server:
+  id: 1014
+  name: "game-server"
+  node: "smith"
+  admin: "shdrch"
+  cores: 8
+  memory: 16384
+  disk_gb: 256
+  ip: "10.0.3.13"
+  gateway: "10.0.3.1"

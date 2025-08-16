@@ -1,0 +1,22 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - libguestfs-tools-c
+runcmd:
+  - systemctl enable --now libvirtd
+users:
+  - name: aether
+    ssh_pwauth: false
+    lock_passwd: false
+    chpasswd:
+      expire: false
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups:
+      - sudo
+      - libvirt
+    ssh_authorized_keys:
+    {% for key in ssh_authorized_keys %}
+      - "{{ key }}"
+    {% endfor %}

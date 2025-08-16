@@ -1,0 +1,95 @@
+---
+- name: Build Bazzite image using bootc-image-builder
+  hosts: bazzite-builder
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Install libdnf5
+      command: dnf -y install python3-libdnf5
+      become: true
+
+    - name: Install required tools
+      dnf:
+        name:
+          - osbuild
+          - osbuild-tools
+        state: present
+      become: true
+
+    - name: Create build directory
+      file:
+        path: /home/aether/bazzite-build
+        state: directory
+        mode: "0755"
+
+    - name: Create output directory with correct permissions
+      file:
+        path: /home/aether/bazzite-build/output
+        state: directory
+        mode: "0777"
+      become: true
+
+    - name: Create config.toml
+      template:
+        src: bazzite-builder-config.toml.j2
+        dest: /home/aether/bazzite-build/config.toml
+      become: true
+
+    - name: Pull bootc-image-builder image
+      containers.podman.podman_image:
+        name: quay.io/centos-bootc/bootc-image-builder:latest
+        state: present
+      become: true
+
+    - name: Pull bazzite image
+      containers.podman.podman_image:
+        name: ghcr.io/ublue-os/bazzite-gnome:stable
+        state: present
+      become: true
+
+    - name: Build Bazzite qcow2 using bootc-image-builder
+      containers.podman.podman_container:
+        name: bazzite-builder
+        image: quay.io/centos-bootc/bootc-image-builder:latest
+        state: started
+        rm: true
+        privileged: true
+        security_opt:
+          - label=type:unconfined_t
+        volumes:
+          - /home/aether/bazzite-build/config.toml:/config.toml
+          - /home/aether/bazzite-build/output:/output
+          - /var/lib/containers/storage:/var/lib/containers/storage
+        command:
+          - "--type"
+          - "qcow2"
+          - "--rootfs"
+          - "btrfs"
+          - "ghcr.io/ublue-os/bazzite-gnome:stable"
+      become: true
+
+    - name: Wait for build to complete
+      wait_for:
+        path: /home/aether/bazzite-build/output/qcow2/disk.qcow2
+        state: present
+        timeout: 1800
+
+    - name: Change disk ownership
+      file:
+        path: /home/aether/bazzite-build/output/qcow2/disk.qcow2
+        owner: aether
+        group: aether
+        mode: "0644"
+      become: true
+
+    - name: Move image to proper location
+      command: mv /home/aether/bazzite-build/output/qcow2/disk.qcow2 /home/aether/bazzite-build/bazzite.qcow2
+      become: true
+
+    - name: Copy bazzite image to Proxmox
+      ansible.posix.synchronize:
+        mode: "pull"
+        src: "/home/aether/bazzite-build/bazzite.qcow2"
+        dest: "/var/lib/vz/template/iso/bazzite.qcow2"
+      delegate_to: smith

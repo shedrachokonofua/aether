@@ -1,0 +1,45 @@
+---
+- name: Destroy bazzite builder VM
+  hosts: smith
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Check if bazzite builder exists
+      community.general.proxmox_vm_info:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+      register: previous_vm_info
+      ignore_errors: true
+
+    - name: Stop bazzite builder
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        name: "bazzite-builder"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: stopped
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: stop_result
+      until: not stop_result.failed
+      retries: 5
+      delay: 5
+      ignore_errors: true
+
+    - name: Delete bazzite builder
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        name: "bazzite-builder"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: absent
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: delete_result
+      until: not delete_result.failed
+      retries: 5
+      delay: 5
+      ignore_errors: true

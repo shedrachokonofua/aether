@@ -1,0 +1,115 @@
+---
+- name: Provision bazzite builder
+  hosts: smith
+  gather_facts: true
+  vars:
+    fedora_image_path: "/var/lib/vz/template/iso/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2.img"
+  roles:
+    - common
+  tasks:
+    - name: Check if Fedora image exists
+      stat:
+        path: "{{ fedora_image_path }}"
+      register: fedora_image
+
+    - name: Download Fedora image
+      get_url:
+        url: https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2
+        dest: "{{ fedora_image_path }}"
+      when: not fedora_image.stat.exists
+
+    - name: Check if bazzite builder exists
+      community.general.proxmox_vm_info:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+      register: previous_vm_info
+      ignore_errors: true
+
+    - name: Stop bazzite builder
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        name: "bazzite-builder"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: stopped
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: stop_result
+      until: not stop_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Delete existing bazzite builder
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        name: "bazzite-builder"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: absent
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: delete_result
+      until: not delete_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Write cloud-init file
+      copy:
+        content: "{{ lookup('template', 'templates/bazzite-builder-cloudinit.j2') }}"
+        dest: "/var/lib/vz/snippets/bazzite-builder-cloudinit.yml"
+
+    - name: Create bazzite builder VM
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        name: "bazzite-builder"
+        node: "{{ vm.bazzite_builder.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        cicustom: "user=local:snippets/bazzite-builder-cloudinit.yml"
+        cpu: host
+        cores: "{{ vm.bazzite_builder.cores }}"
+        sockets: 1
+        memory: "{{ vm.bazzite_builder.memory }}"
+        ostype: "l26"
+        scsihw: "virtio-scsi-single"
+        ide:
+          ide2: "local:cloudinit,format=qcow2"
+        net:
+          net0: "virtio,bridge=vmbr0,firewall=1"
+        ipconfig:
+          ipconfig0: "ip={{vm.bazzite_builder.ip}}/24,gw={{vm.bazzite_builder.gateway}}"
+
+    - name: Create bazzite builder disk
+      command: "qm importdisk {{ vm.bazzite_builder.id }} {{ fedora_image_path }} zfs-nvme-vm-dataset"
+
+    - name: Attach bazzite builder disk
+      command: "qm set {{ vm.bazzite_builder.id }} --scsi0 zfs-nvme-vm-dataset:vm-{{ vm.bazzite_builder.id }}-disk-0"
+
+    - name: Set bazzite builder disk size
+      command: "qm resize {{ vm.bazzite_builder.id }} scsi0 {{ vm.bazzite_builder.disk_gb }}G"
+
+    - name: Set bazzite builder boot order
+      command: "qm set {{ vm.bazzite_builder.id }} --boot order=scsi0"
+
+    - name: Start bazzite builder VM
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.bazzite_builder.id }}"
+        name: "bazzite-builder"
+        node: "{{ vm.bazzite_builder.node }}"
+        api_host: "{{secrets.proxmox.cluster_host}}"
+        api_user: "{{secrets.proxmox.cluster_username}}"
+        api_password: "{{secrets.proxmox.cluster_password}}"
+        state: started
+
+    - name: Wait for bazzite builder to be ready
+      wait_for:
+        host: "{{ vm.bazzite_builder.ip }}"
+        port: 22
+        timeout: 120
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5

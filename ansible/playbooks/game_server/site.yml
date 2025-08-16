@@ -1,0 +1,12 @@
+---
+- name: Destroy bazzite builder
+  import_playbook: destroy_bazzite_builder.yml
+
+- name: Provision bazzite builder
+  import_playbook: provision_bazzite_builder.yml
+
+- name: Build bazzite
+  import_playbook: build_bazzite_image.yml
+
+- name: Destroy bazzite builder
+  import_playbook: destroy_bazzite_builder.yml

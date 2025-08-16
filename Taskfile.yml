@@ -531,6 +531,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/coupe/site.yml
 
+  provision:home:game-server:
+    desc: Provision the game server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/game_server/site.yml
+
   update:authorized-keys:
     desc: Update authorized keys
     cmds:
