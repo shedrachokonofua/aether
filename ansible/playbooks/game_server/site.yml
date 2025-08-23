@@ -8,5 +8,8 @@
 - name: Build bazzite
   import_playbook: build_bazzite_image.yml
 
+- name: Provision game server
+  import_playbook: provision_game_server.yml
+
 - name: Destroy bazzite builder
   import_playbook: destroy_bazzite_builder.yml

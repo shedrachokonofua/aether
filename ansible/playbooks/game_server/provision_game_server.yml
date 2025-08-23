@@ -1,0 +1,110 @@
+---
+- name: Provision game server
+  hosts: smith
+  gather_facts: true
+  vars:
+    bazzite_image_path: "/var/lib/vz/template/iso/bazzite.qcow2"
+  roles:
+    - common
+  tasks:
+    - name: Check if Bazzite image exists
+      stat:
+        path: "{{ bazzite_image_path }}"
+      register: bazzite_image
+
+    - name: Fail if Bazzite image doesn't exist
+      fail:
+        msg: "Bazzite image not found at {{ bazzite_image_path }}. Please run build_bazzite_image.yml first."
+      when: not bazzite_image.stat.exists
+
+    - name: Check if game server exists
+      community.general.proxmox_vm_info:
+        vmid: "{{ vm.game_server.id }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+      register: previous_vm_info
+      ignore_errors: true
+
+    - name: Stop game server
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.game_server.id }}"
+        name: "game-server"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        state: stopped
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: stop_result
+      until: not stop_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Delete existing game server
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.game_server.id }}"
+        name: "game-server"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        state: absent
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: delete_result
+      until: not delete_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Write cloud-init file
+      template:
+        src: cloudinit.j2
+        dest: "/var/lib/vz/snippets/game-server-cloudinit.yml"
+
+    - name: Create game server VM
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.game_server.id }}"
+        name: "game-server"
+        node: "{{ vm.game_server.node }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        cicustom: "user=local:snippets/game-server-cloudinit.yml"
+        cpu: host
+        cores: "{{ vm.game_server.cores }}"
+        sockets: 1
+        memory: "{{ vm.game_server.memory }}"
+        ostype: "l26"
+        scsihw: "virtio-scsi-single"
+        ide:
+          ide2: "local:cloudinit,format=qcow2"
+        net:
+          net0: "virtio,bridge=vmbr0,firewall=1,tag=3"
+        ipconfig:
+          ipconfig0: "ip={{vm.game_server.ip}}/24,gw={{vm.game_server.gateway}}"
+
+    - name: Create game server disk
+      command: "qm importdisk {{ vm.game_server.id }} {{ bazzite_image_path }} zfs-nvme-vm-dataset"
+
+    - name: Attach game server disk
+      command: "qm set {{ vm.game_server.id }} --scsi0 zfs-nvme-vm-dataset:vm-{{ vm.game_server.id }}-disk-0,discard=on"
+
+    - name: Set game server disk size
+      command: "qm resize {{ vm.game_server.id }} scsi0 {{ vm.game_server.disk_gb }}G"
+
+    - name: Set game server boot order
+      command: "qm set {{ vm.game_server.id }} --boot order=scsi0"
+
+    # - name: Enable audio device for gaming
+    #   command: "qm set {{ vm.game_server.id }} --audio0 device=ich9-intel-hda,driver=none"
+
+    # - name: Configure display for potential GPU passthrough
+    #   command: "qm set {{ vm.game_server.id }} --vga std"
+
+    - name: Start game server VM
+      community.general.proxmox_kvm:
+        vmid: "{{ vm.game_server.id }}"
+        name: "game-server"
+        node: "{{ vm.game_server.node }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        state: started

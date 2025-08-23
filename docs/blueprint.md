@@ -18,8 +18,7 @@
 | ----------------------- | ------- | ---- | ---- | ------------------ | ---------------- | ---- | ----------- | ------------- | --------------------------------------------------------------------------------------------------------------------- | ----------- |
 | Router                  | Oracle  | VM   | 4GB  | 128GB              | Node             | 8    | None        | Yes           | VyOs                                                                                                                  | LIVE        |
 | Gateway Stack           | Oracle  | VM   | 4GB  | 128GB              | Node             | 8    | None        | Yes           | UniFi Network Server, Caddy, Ory Stack, AdGuard, Tailscale subnet router                                              | LIVE        |
-| Desktop Environment     | Niobe   | VM   | 16GB | 256GB              | NFS - NVME       | 8    | Passthrough | No            | Linux DE: Browser, IDEs, Writing, Admin                                                                               | IN PROGRESS |
-| Development Workstation | Neo     | VM   | 32GB | 512GB              | Node             | 24   | vGPU        | Yes           | VS Code Server                                                                                                        | IN PROGRESS |
+| Development Workstation | Trinity | VM   | 16GB | 256GB              | Node             | 8    | None        | Yes           | Coder Server                                                                                                          | LIVE |
 | Gaming Server           | Smith   | VM   | 16GB | 512GB              | Node - NVME      | 8    | Passthrough | No            | Bazzite VM: Steam, PS, PS2, PS3 simulation                                                                            | IN PROGRESS |
 | GPU Workstation         | Neo     | VM   | 96GB | 1TB                | Node             | 32   | Passthrough | Yes           | vLLM + Models                                                                                                         | TODO        |
 | AI Tool Stack           | Neo     | VM   | 16GB | 128GB              | NFS - NVME       | 4    | None        | Yes           | LiteLLM, SearXNG, Firecrawl, OpenWebUI, LibreChat, MetaMCP                                                            | TODO        |
@@ -34,6 +33,7 @@
 | Backup Server           | Smith   | LXC  | 2GB  | 8TB NVME, 28TB HDD | Node - NVME, HDD | 4    | None        | Yes           | Rclone, Proxmox Backup Server                                                                                         | LIVE        |
 | Power Management Stack  | Niobe   | VM   | 2GB  | 32GB               | NFS - NVME       | 2    | None        | Yes           | Network UPS Tools, PeaNUT                                                                                             | TODO        |
 | Messaging Stack         | Niobe   | VM   | 2GB  | 64GB               | NFS - NVME       | 2    | None        | Yes           | Postfix, Apprise, Synapse, Ntfy, Element                                                                              | TODO        |
+| Cockpit                 | Niobe   | LXC  | 1GB  | 8GB                | Node - NVME      | 2    | None        | Yes           | Cockpit                                                                                                               | TODO        |
 
 ## AWS
 

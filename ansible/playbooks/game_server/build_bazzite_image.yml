@@ -32,7 +32,7 @@
 
     - name: Create config.toml
       template:
-        src: bazzite-builder-config.toml.j2
+        src: builder_bootc_config.toml.j2
         dest: /home/aether/bazzite-build/config.toml
       become: true
 
@@ -42,9 +42,16 @@
         state: present
       become: true
 
-    - name: Pull bazzite image
+    - name: Write Containerfile
+      template:
+        src: Containerfile.j2
+        dest: /home/aether/bazzite-build/Containerfile
+      become: true
+
+    - name: Build Bazzite container image
       containers.podman.podman_image:
-        name: ghcr.io/ublue-os/bazzite-gnome:stable
+        name: bazzite-deck-cloudinit
+        path: /home/aether/bazzite-build
         state: present
       become: true
 
@@ -66,7 +73,7 @@
           - "qcow2"
           - "--rootfs"
           - "btrfs"
-          - "ghcr.io/ublue-os/bazzite-gnome:stable"
+          - "localhost/bazzite-deck-cloudinit:latest"
       become: true
 
     - name: Wait for build to complete
@@ -88,7 +95,7 @@
       become: true
 
     - name: Copy bazzite image to Proxmox
-      ansible.posix.synchronize:
+      synchronize:
         mode: "pull"
         src: "/home/aether/bazzite-build/bazzite.qcow2"
         dest: "/var/lib/vz/template/iso/bazzite.qcow2"

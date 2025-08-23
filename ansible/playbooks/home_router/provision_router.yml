@@ -63,6 +63,7 @@
         cores: "{{ vm.router.cores }}"
         sockets: 1
         memory: "{{ vm.router.memory }}"
+        cpu: host
         ostype: "l26"
         scsihw: "virtio-scsi-single"
         net:

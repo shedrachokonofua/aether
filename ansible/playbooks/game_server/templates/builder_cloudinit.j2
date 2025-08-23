@@ -1,8 +1,6 @@
 #cloud-config
 package_update: true
 package_upgrade: true
-packages:
-  - libguestfs-tools-c
 runcmd:
   - systemctl enable --now libvirtd
 users:
