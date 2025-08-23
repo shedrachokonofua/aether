@@ -1,4 +1,4 @@
-FROM ghcr.io/ublue-os/bazzite-deck:stable
+FROM ghcr.io/ublue-os/bazzite-deck-nvidia:stable
 
 RUN rpm-ostree install cloud-init && \
     systemctl enable cloud-init cloud-init-local cloud-final cloud-config && \

@@ -90,13 +90,9 @@
         mode: "0644"
       become: true
 
-    - name: Move image to proper location
-      command: mv /home/aether/bazzite-build/output/qcow2/disk.qcow2 /home/aether/bazzite-build/bazzite.qcow2
-      become: true
-
     - name: Copy bazzite image to Proxmox
       synchronize:
         mode: "pull"
-        src: "/home/aether/bazzite-build/bazzite.qcow2"
+        src: "/home/aether/bazzite-build/output/qcow2/disk.qcow2"
         dest: "/var/lib/vz/template/iso/bazzite.qcow2"
       delegate_to: smith
