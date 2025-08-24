@@ -36,7 +36,7 @@ resource "proxmox_virtual_environment_vm" "coupe" {
     }
 
     dns {
-      servers = ["10.0.3.1"]
+      servers = [local.vm.coupe.gateway]
     }
 
     user_data_file_id = module.coupe_user.cloud_config_id

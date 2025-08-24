@@ -37,7 +37,7 @@ resource "proxmox_virtual_environment_vm" "dev_workstation" {
     }
 
     dns {
-      servers = ["10.0.3.1"]
+      servers = [local.vm.dev_workstation.gateway]
     }
 
     user_data_file_id = module.dev_workstation_user.cloud_config_id

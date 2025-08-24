@@ -65,6 +65,10 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
       }
     }
 
+    dns {
+      servers = [local.vm.backup_stack.gateway]
+    }
+
     user_account {
       keys     = var.authorized_keys
       password = random_password.backup_stack_password.result

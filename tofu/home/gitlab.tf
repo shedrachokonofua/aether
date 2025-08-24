@@ -35,7 +35,7 @@ resource "proxmox_virtual_environment_vm" "gitlab" {
     }
 
     dns {
-      servers = ["10.0.3.1"]
+      servers = [local.vm.gitlab.gateway]
     }
 
     user_data_file_id = module.gitlab_user.cloud_config_id

@@ -35,6 +35,10 @@ resource "proxmox_virtual_environment_vm" "lute" {
       }
     }
 
+    dns {
+      servers = [local.vm.lute.gateway]
+    }
+
     user_data_file_id = module.lute_user.cloud_config_id
   }
 

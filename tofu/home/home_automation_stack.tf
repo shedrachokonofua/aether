@@ -35,6 +35,10 @@ resource "proxmox_virtual_environment_vm" "home_automation_stack" {
       }
     }
 
+    dns {
+      servers = [local.vm.home_automation_stack.gateway]
+    }
+
     user_data_file_id = module.home_automation_stack_user.cloud_config_id
   }
 
