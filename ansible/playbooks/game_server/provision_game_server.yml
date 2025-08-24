@@ -80,24 +80,21 @@
           net0: "virtio,bridge=vmbr0,firewall=1,tag=3"
         ipconfig:
           ipconfig0: "ip={{vm.game_server.ip}}/24,gw={{vm.game_server.gateway}}"
+        vga: none
+        hostpci:
+          hostpci0: "host=0000:0a:00.0"
 
     - name: Create game server disk
       command: "qm importdisk {{ vm.game_server.id }} {{ bazzite_image_path }} zfs-nvme-vm-dataset"
 
     - name: Attach game server disk
-      command: "qm set {{ vm.game_server.id }} --scsi0 zfs-nvme-vm-dataset:vm-{{ vm.game_server.id }}-disk-0,discard=on"
+      command: "qm set {{ vm.game_server.id }} --scsi0 zfs-nvme-vm-dataset:vm-{{ vm.game_server.id }}-disk-0"
 
     - name: Set game server disk size
       command: "qm resize {{ vm.game_server.id }} scsi0 {{ vm.game_server.disk_gb }}G"
 
     - name: Set game server boot order
       command: "qm set {{ vm.game_server.id }} --boot order=scsi0"
-
-    # - name: Enable audio device for gaming
-    #   command: "qm set {{ vm.game_server.id }} --audio0 device=ich9-intel-hda,driver=none"
-
-    # - name: Configure display for potential GPU passthrough
-    #   command: "qm set {{ vm.game_server.id }} --vga std"
 
     - name: Start game server VM
       community.general.proxmox_kvm:
@@ -108,3 +105,13 @@
         api_user: "{{ secrets.proxmox.cluster_username }}"
         api_password: "{{ secrets.proxmox.cluster_password }}"
         state: started
+
+    - name: Wait for game server to be ready
+      wait_for:
+        host: "{{ vm.game_server.ip }}"
+        port: 22
+        timeout: 300
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5
