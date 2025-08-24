@@ -128,3 +128,11 @@ pages.gitlab.home.shdr.ch {
 ha.home.shdr.ch {
   reverse_proxy {{ vm.home_automation_stack.ip }}:{{ vm.home_automation_stack.ports.home_assistant }}
 }
+
+sunshine.game.home.shdr.ch {
+  reverse_proxy {{ vm.game_server.ip }}:{{ vm.game_server.ports.sunshine }} {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}

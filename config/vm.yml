@@ -197,3 +197,5 @@ game_server:
   disk_gb: 256
   ip: "10.0.3.13"
   gateway: "10.0.3.1"
+  ports:
+    sunshine: 47990
