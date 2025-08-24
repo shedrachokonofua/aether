@@ -1,8 +1,6 @@
 #cloud-config
 package_update: true
 package_upgrade: true
-runcmd:
-  - systemctl enable --now libvirtd
 users:
   - name: aether
     ssh_pwauth: false
@@ -13,7 +11,6 @@ users:
     shell: /bin/bash
     groups:
       - sudo
-      - libvirt
     ssh_authorized_keys:
     {% for key in ssh_authorized_keys %}
       - "{{ key }}"

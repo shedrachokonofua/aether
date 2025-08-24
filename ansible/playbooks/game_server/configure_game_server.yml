@@ -1,0 +1,104 @@
+---
+- name: Configure game server
+  hosts: game-server
+  gather_facts: true
+  roles:
+    - common
+    - linger
+    - monitoring_agent
+  tasks:
+    - name: Resize partition to maximum size
+      command: parted -s /dev/sda resizepart 4 100%
+      become: true
+      ignore_errors: true
+
+    - name: Remount /sysroot as read-write
+      command: mount -o remount,rw /sysroot
+      become: true
+
+    - name: Resize Btrfs filesystem to maximum
+      command: btrfs filesystem resize max /sysroot
+      become: true
+
+    - name: Setup sunshine
+      command: ujust setup-sunshine install
+
+    - name: Start sunshine service on boot
+      command: ujust setup-sunshine autostart
+
+    - name: Copy sunshine config
+      copy:
+        src: sunshine.conf
+        dest: "{{ ansible_env.HOME }}/.config/sunshine/sunshine.conf"
+
+    - name: Restart sunshine service
+      systemd:
+        name: sunshine
+        state: restarted
+        scope: user
+
+    - name: Copy powerdevilrc
+      copy:
+        src: powerdevilrc
+        dest: "{{ ansible_env.HOME }}/.config/powerdevilrc"
+
+    - name: Copy kscreenlockerrc
+      copy:
+        src: kscreenlockerrc
+        dest: "{{ ansible_env.HOME }}/.config/kscreenlockerrc"
+
+    - name: Restart PowerDevil service
+      systemd:
+        name: plasma-powerdevil
+        state: restarted
+        scope: user
+      ignore_errors: yes
+
+    - name: Install packages
+      flatpak:
+        name:
+          - org.chromium.Chromium
+          - net.pcsx2.PCSX2
+          - net.rpcs3.RPCS3
+        state: present
+      become: true
+
+    - name: Create gaming mount point
+      file:
+        path: /mnt/gaming
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Add gaming NFS mount point to fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "10.0.3.4:/mnt/nvme/data/gaming /mnt/gaming nfs4 defaults,_netdev,noatime 0 0"
+        create: yes
+      become: true
+
+    - name: Mount NFS share
+      mount:
+        path: /mnt/gaming
+        src: "10.0.3.4:/mnt/nvme/data/gaming"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted
+      become: true
+
+    - name: Set ownership on entire gaming directory (recursive)
+      file:
+        path: /mnt/gaming
+        owner: "{{ vm.game_server.admin }}"
+        group: "{{ vm.game_server.admin }}"
+        recurse: yes
+        state: directory
+      become: true
+
+    - name: Create user gaming directory symlink
+      file:
+        src: /mnt/gaming
+        dest: "/home/{{ vm.game_server.admin }}/gaming"
+        state: link
+        owner: "{{ vm.game_server.admin }}"
+        group: "{{ vm.game_server.admin }}"

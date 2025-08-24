@@ -11,5 +11,8 @@
 - name: Provision game server
   import_playbook: provision_game_server.yml
 
+- name: Configure game server
+  import_playbook: configure_game_server.yml
+
 - name: Destroy bazzite builder
   import_playbook: destroy_bazzite_builder.yml
