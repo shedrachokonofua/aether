@@ -1,8 +1,12 @@
 ---
 - name: Setup monitoring agents
   hosts:
-    - gitlab
+    - coupe
+    - dev-workstation
     - dokploy
+    - game-server
     - gateway-stack
+    - gitlab
+    - home-automation-stack
   roles:
     - monitoring_agent

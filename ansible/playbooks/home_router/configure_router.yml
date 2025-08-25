@@ -71,7 +71,9 @@
     - name: Configure VLAN interfaces
       vyos.vyos.vyos_config:
         lines:
-          - set interfaces ethernet eth1 vif 3 description "Rack"
+          - set interfaces ethernet eth1 vif 2 description "Infrastructure"
+          - set interfaces ethernet eth1 vif 2 address 10.0.2.1/24
+          - set interfaces ethernet eth1 vif 3 description "Services"
           - set interfaces ethernet eth1 vif 3 address 10.0.3.1/24
           - set interfaces ethernet eth1 vif 4 description "Personal"
           - set interfaces ethernet eth1 vif 4 address 10.0.4.1/24
@@ -88,23 +90,33 @@
         lines:
           - set service ssh disable-password-authentication
           - set service ssh port 22
+          - set service ssh listen-address 10.0.2.1
           - set service ssh listen-address 10.0.4.1
-          - set service ssh listen-address 10.0.3.1
           - set service ssh listen-address 192.168.2.231
         save: true
 
     - name: Configure DHCP Server
       vyos.vyos.vyos_config:
         lines:
-          # Rack - Small dhcp range for hardware that requires dhcp for setup
-          - set service dhcp-server shared-network-name RACK authoritative
-          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 subnet-id 3
-          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 option default-router "10.0.3.1"
-          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 option name-server "10.0.3.1"
-          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 option domain-name "home.shdr.ch"
-          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 lease "86400"
-          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 range 0 start "10.0.3.240"
-          - set service dhcp-server shared-network-name RACK subnet 10.0.3.0/24 range 0 stop "10.0.3.254"
+          # Infrastructure
+          - set service dhcp-server shared-network-name INFRA authoritative
+          - set service dhcp-server shared-network-name INFRA subnet 10.0.2.0/24 subnet-id 2
+          - set service dhcp-server shared-network-name INFRA subnet 10.0.2.0/24 option default-router "10.0.2.1"
+          - set service dhcp-server shared-network-name INFRA subnet 10.0.2.0/24 option name-server "10.0.2.1"
+          - set service dhcp-server shared-network-name INFRA subnet 10.0.2.0/24 option domain-name "home.shdr.ch"
+          - set service dhcp-server shared-network-name INFRA subnet 10.0.2.0/24 lease "86400"
+          - set service dhcp-server shared-network-name INFRA subnet 10.0.2.0/24 range 0 start "10.0.2.240"
+          - set service dhcp-server shared-network-name INFRA subnet 10.0.2.0/24 range 0 stop "10.0.2.254"
+
+          # Services
+          - set service dhcp-server shared-network-name SERVICES authoritative
+          - set service dhcp-server shared-network-name SERVICES subnet 10.0.3.0/24 subnet-id 3
+          - set service dhcp-server shared-network-name SERVICES subnet 10.0.3.0/24 option default-router "10.0.3.1"
+          - set service dhcp-server shared-network-name SERVICES subnet 10.0.3.0/24 option name-server "10.0.3.1"
+          - set service dhcp-server shared-network-name SERVICES subnet 10.0.3.0/24 option domain-name "home.shdr.ch"
+          - set service dhcp-server shared-network-name SERVICES subnet 10.0.3.0/24 lease "86400"
+          - set service dhcp-server shared-network-name SERVICES subnet 10.0.3.0/24 range 0 start "10.0.3.240"
+          - set service dhcp-server shared-network-name SERVICES subnet 10.0.3.0/24 range 0 stop "10.0.3.254"
 
           # Personal
           - set service dhcp-server shared-network-name PERSONAL authoritative
@@ -168,9 +180,14 @@
 
           # Define TRUSTED zone - full access networks
           - set firewall zone TRUSTED description 'Trusted internal networks'
-          - set firewall zone TRUSTED member interface eth1.3
+          - set firewall zone TRUSTED member interface eth1.2
           - set firewall zone TRUSTED member interface eth1.4
           - set firewall zone TRUSTED default-action drop
+
+          # Define SERVICES zone - application services
+          - set firewall zone SERVICES description 'Application services network'
+          - set firewall zone SERVICES member interface eth1.3
+          - set firewall zone SERVICES default-action drop
 
           # Define MEDIA zone - limited access
           - set firewall zone MEDIA description 'Media devices network'
@@ -227,6 +244,17 @@
           - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 destination port 53,67-68
           - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 description 'Allow DNS and DHCP only'
 
+          # Create SERVICES to LOCAL firewall rules
+          - set firewall ipv4 name SERVICES-to-LOCAL default-action drop
+          - set firewall ipv4 name SERVICES-to-LOCAL description 'Limited access from services network'
+          - set firewall ipv4 name SERVICES-to-LOCAL rule 10 action accept
+          - set firewall ipv4 name SERVICES-to-LOCAL rule 10 state established
+          - set firewall ipv4 name SERVICES-to-LOCAL rule 10 state related
+          - set firewall ipv4 name SERVICES-to-LOCAL rule 20 action accept
+          - set firewall ipv4 name SERVICES-to-LOCAL rule 20 protocol tcp_udp
+          - set firewall ipv4 name SERVICES-to-LOCAL rule 20 destination port 53,67-68
+          - set firewall ipv4 name SERVICES-to-LOCAL rule 20 description 'Allow DNS and DHCP only'
+
           # Create MGMT to LOCAL firewall rules
           - set firewall ipv4 name MGMT-to-LOCAL default-action drop
           - set firewall ipv4 name MGMT-to-LOCAL rule 10 action accept
@@ -256,9 +284,15 @@
           - set firewall ipv4 name TRUSTED-to-MGMT default-action accept
           - set firewall ipv4 name TRUSTED-to-MEDIA default-action accept
           - set firewall ipv4 name TRUSTED-to-UNTRUSTED default-action accept
+          - set firewall ipv4 name TRUSTED-to-SERVICES default-action accept
           - set firewall ipv4 name MGMT-to-TRUSTED default-action accept
           - set firewall ipv4 name MGMT-to-MEDIA default-action accept
           - set firewall ipv4 name MGMT-to-UNTRUSTED default-action accept
+          - set firewall ipv4 name MGMT-to-SERVICES default-action accept
+          - set firewall ipv4 name SERVICES-to-MGMT default-action drop
+          - set firewall ipv4 name SERVICES-to-MGMT rule 10 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 10 state established
+          - set firewall ipv4 name SERVICES-to-MGMT rule 10 state related
 
           # Configure media zone restrictions
           - set firewall ipv4 name MEDIA-to-TRUSTED default-action drop
@@ -272,6 +306,26 @@
           - set firewall ipv4 name MEDIA-to-UNTRUSTED default-action drop
           - set firewall ipv4 name UNTRUSTED-to-MEDIA default-action drop
 
+          # Configure services zone policies
+          - set firewall ipv4 name SERVICES-to-TRUSTED default-action drop
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 10 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 10 state established
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 10 state related
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 protocol tcp_udp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination port 53,111,443,2049,4317,4318
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination address 10.0.2.0/24
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 description 'Allow DNS, NFS, monitoring to Infrastructure (VLAN 2)'
+          - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 state established
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 state related
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 20 action accept
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 20 destination address 10.0.6.0/24
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 20 description 'Allow access to IoT (VLAN 6) only'
+          - set firewall ipv4 name MEDIA-to-SERVICES default-action accept
+
           # Configure untrusted zone isolation
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED default-action drop
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 action accept
@@ -284,20 +338,24 @@
 
           # Apply WAN zone firewall policies
           - set firewall zone WAN from TRUSTED firewall name ZONES-to-WAN
+          - set firewall zone WAN from SERVICES firewall name ZONES-to-WAN
           - set firewall zone WAN from MEDIA firewall name ZONES-to-WAN
           - set firewall zone WAN from UNTRUSTED firewall name ZONES-to-WAN
           - set firewall zone WAN from LOCAL firewall name LOCAL-to-WAN
           - set firewall zone TRUSTED from WAN firewall name WAN-to-ZONES
+          - set firewall zone SERVICES from WAN firewall name WAN-to-ZONES
           - set firewall zone MEDIA from WAN firewall name WAN-to-ZONES
           - set firewall zone UNTRUSTED from WAN firewall name WAN-to-ZONES
           - set firewall zone LOCAL from WAN firewall name WAN-to-LOCAL
 
           # Apply LOCAL zone firewall policies
           - set firewall zone LOCAL from TRUSTED firewall name TRUSTED-to-LOCAL
+          - set firewall zone LOCAL from SERVICES firewall name SERVICES-to-LOCAL
           - set firewall zone LOCAL from MEDIA firewall name MEDIA-to-LOCAL
           - set firewall zone LOCAL from UNTRUSTED firewall name UNTRUSTED-to-LOCAL
           - set firewall zone LOCAL from MGMT firewall name MGMT-to-LOCAL
           - set firewall zone TRUSTED from LOCAL firewall name LOCAL-to-ZONES
+          - set firewall zone SERVICES from LOCAL firewall name LOCAL-to-ZONES
           - set firewall zone MEDIA from LOCAL firewall name LOCAL-to-ZONES
           - set firewall zone UNTRUSTED from LOCAL firewall name LOCAL-to-ZONES
           - set firewall zone MGMT from LOCAL firewall name LOCAL-to-ZONES
@@ -306,9 +364,16 @@
           - set firewall zone MGMT from TRUSTED firewall name TRUSTED-to-MGMT
           - set firewall zone MEDIA from TRUSTED firewall name TRUSTED-to-MEDIA
           - set firewall zone UNTRUSTED from TRUSTED firewall name TRUSTED-to-UNTRUSTED
+          - set firewall zone SERVICES from TRUSTED firewall name TRUSTED-to-SERVICES
           - set firewall zone TRUSTED from MGMT firewall name MGMT-to-TRUSTED
           - set firewall zone MEDIA from MGMT firewall name MGMT-to-MEDIA
           - set firewall zone UNTRUSTED from MGMT firewall name MGMT-to-UNTRUSTED
+          - set firewall zone SERVICES from MGMT firewall name MGMT-to-SERVICES
+          - set firewall zone MGMT from SERVICES firewall name SERVICES-to-MGMT
+          - set firewall zone TRUSTED from SERVICES firewall name SERVICES-to-TRUSTED
+          - set firewall zone MEDIA from SERVICES firewall name SERVICES-to-MEDIA
+          - set firewall zone UNTRUSTED from SERVICES firewall name SERVICES-to-UNTRUSTED
+          - set firewall zone SERVICES from MEDIA firewall name MEDIA-to-SERVICES
           - set firewall zone TRUSTED from MEDIA firewall name MEDIA-to-TRUSTED
           - set firewall zone MGMT from MEDIA firewall name MEDIA-to-MGMT
           - set firewall zone UNTRUSTED from MEDIA firewall name MEDIA-to-UNTRUSTED

@@ -73,14 +73,14 @@
     - name: Add gaming NFS mount point to fstab
       lineinfile:
         path: /etc/fstab
-        line: "10.0.3.4:/mnt/nvme/data/gaming /mnt/gaming nfs4 defaults,_netdev,noatime 0 0"
+        line: "{{ vm.nfs.ip.vyos }}:/mnt/nvme/data/gaming /mnt/gaming nfs4 defaults,_netdev,noatime 0 0"
         create: yes
       become: true
 
     - name: Mount NFS share
       mount:
         path: /mnt/gaming
-        src: "10.0.3.4:/mnt/nvme/data/gaming"
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/nvme/data/gaming"
         fstype: nfs4
         opts: defaults,_netdev,noatime
         state: mounted

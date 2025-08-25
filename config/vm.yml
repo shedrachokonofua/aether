@@ -32,8 +32,8 @@ gateway_stack:
   cores: 8
   memory: 4096
   disk_gb: 128
-  ip: "10.0.3.3"
-  gateway: "10.0.3.1"
+  ip: "10.0.2.2"
+  gateway: "10.0.2.1"
   ports:
     caddy: 80
     caddy_https: 443
@@ -48,8 +48,8 @@ monitoring_stack:
   cores: 4
   memory: 4096
   disk_gb: 128
-  ip: "10.0.3.5"
-  gateway: "10.0.3.1"
+  ip: "10.0.2.3"
+  gateway: "10.0.2.1"
   ports:
     otel_grpc: 4317
     otel_http: 4318
@@ -69,10 +69,10 @@ nfs:
   disk_gb: 10
   gateway:
     gigahub: "192.168.2.1"
-    vyos: "10.0.3.1"
+    vyos: "10.0.2.1"
   ip:
     gigahub: "192.168.2.232"
-    vyos: "10.0.3.4"
+    vyos: "10.0.2.4"
 
 dokploy:
   id: 1005
@@ -115,17 +115,6 @@ backup_stack:
   disk_gb: 20
   ip: "192.168.2.233"
   gateway: "192.168.2.1"
-
-desktop:
-  id: 1008
-  name: "desktop"
-  node: "niobe"
-  admin: "shdrch"
-  cores: 8
-  memory: 16384
-  disk_gb: 256
-  ip: "10.0.3.8"
-  gateway: "10.0.3.1"
 
 home_automation_stack:
   id: 1009

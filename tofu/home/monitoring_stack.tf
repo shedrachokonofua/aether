@@ -17,7 +17,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
 
   network_device {
     bridge  = "vmbr0"
-    vlan_id = 3
+    vlan_id = 2
   }
 
   disk {

@@ -17,8 +17,8 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
 
   network_device {
     bridge  = "vmbr0"
-    vlan_id = 3
-    trunks  = "3;4;5;6;7"
+    vlan_id = 2
+    trunks  = "2;3;4;5;6;7"
   }
 
   disk {

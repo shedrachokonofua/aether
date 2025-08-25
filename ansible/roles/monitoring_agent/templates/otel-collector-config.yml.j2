@@ -49,9 +49,7 @@ extensions:
 
 exporters:
   otlphttp:
-    endpoint: http://10.0.3.5:4318
-    tls:
-      insecure: true
+    endpoint: https://otel.home.shdr.ch
 
 service:
   extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage]

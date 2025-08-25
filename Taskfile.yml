@@ -553,4 +553,3 @@ tasks:
       - task: configure:home:dokploy
       - task: configure:home:gitlab
       - task: configure:home:backup-stack
-      - task: configure:home:monitoring-agents

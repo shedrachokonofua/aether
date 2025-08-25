@@ -2,7 +2,7 @@
 - name: Update authorized keys
   hosts:
     - vms
-  become: yes
+  become: true
   roles:
     - common
   tasks:

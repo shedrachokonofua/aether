@@ -79,7 +79,7 @@
           mp4: "/mnt/hdd/data,mp=/mnt/hdd/data"
         netif:
           net0: "name=eth0,bridge=vmbr0,gw={{vm.nfs.gateway.gigahub}},ip={{vm.nfs.ip.gigahub}}/24"
-          net1: "name=eth1,bridge=vmbr0,gw={{vm.nfs.gateway.vyos}},ip={{vm.nfs.ip.vyos}}/24,tag=3"
+          net1: "name=eth1,bridge=vmbr0,gw={{vm.nfs.gateway.vyos}},ip={{vm.nfs.ip.vyos}}/24,tag=2"
         features:
           - nesting=1
           - mount=nfs
