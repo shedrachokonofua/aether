@@ -4,6 +4,7 @@
   gather_facts: true
   roles:
     - common
+    - dnf
     - linger
     - monitoring_agent
     - docker
@@ -29,10 +30,6 @@
         name: sshd
         state: started
         enabled: true
-
-    - name: Install libdnf5
-      become: true
-      command: dnf -y install python3-libdnf5
 
     - name: Install required packages
       become: true

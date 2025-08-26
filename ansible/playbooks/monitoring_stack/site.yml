@@ -4,6 +4,7 @@
   gather_facts: true
   roles:
     - common
+    - dnf
     - linger
   tasks:
     - name: Create required directories

@@ -1,17 +1,18 @@
 ---
-# - name: Destroy VyOS Packer
-#   import_playbook: destroy_vyos_packer.yml
+- name: Destroy VyOS Packer
+  import_playbook: destroy_vyos_packer.yml
 
-# - name: Provision VyOS image packer
-#   import_playbook: provision_vyos_packer.yml
+- name: Provision VyOS image packer
+  import_playbook: provision_vyos_packer.yml
 
-# - name: Pack VyOS image
-#   import_playbook: pack_vyos.yml
+- name: Pack VyOS image
+  import_playbook: pack_vyos.yml
 
 - name: Provision Router
   import_playbook: provision_router.yml
 
 - name: Apply configuration
   import_playbook: configure_router.yml
-# - name: Destroy VyOS Packer
-#   import_playbook: destroy_vyos_packer.yml
+
+- name: Destroy VyOS Packer
+  import_playbook: destroy_vyos_packer.yml

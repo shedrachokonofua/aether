@@ -1,0 +1,10 @@
+[Timer]
+# Clear the default timer settings
+OnCalendar=
+# Run daily at specified time
+OnCalendar={{ dnf_automatic_timer_oncalendar }}
+# Make the timer persistent (run missed jobs)
+Persistent=true
+
+[Install]
+WantedBy=timers.target

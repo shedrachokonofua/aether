@@ -4,11 +4,8 @@
   gather_facts: true
   roles:
     - common
+    - dnf # Handles libdnf5 and automatic updates
   tasks:
-    - name: Install libdnf5
-      command: dnf -y install python3-libdnf5
-      become: true
-
     - name: Install required tools
       dnf:
         name:

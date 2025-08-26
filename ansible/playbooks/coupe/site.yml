@@ -4,6 +4,7 @@
   gather_facts: true
   roles:
     - common
+    - dnf
     - linger
     - docker
     - monitoring_agent
@@ -13,10 +14,6 @@
         path: /home/aether/coupe
         state: directory
         mode: "0755"
-
-    - name: Install libdnf5
-      become: true
-      command: dnf -y install python3-libdnf5
 
     - name: Install dependencies
       become: true

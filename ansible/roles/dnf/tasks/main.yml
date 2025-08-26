@@ -1,0 +1,41 @@
+---
+- name: Install libdnf5
+  become: true
+  command: dnf -y install python3-libdnf5
+  args:
+    creates: /usr/lib64/python*/site-packages/libdnf5
+
+# Configure automatic updates when enabled
+- when: dnf_enable_automatic_updates | bool
+  block:
+    - name: Install dnf-automatic
+      become: true
+      dnf:
+        name: dnf-automatic
+        state: present
+
+    - name: Configure dnf-automatic
+      become: true
+      template:
+        src: automatic.conf.j2
+        dest: /etc/dnf/automatic.conf
+        backup: yes
+        mode: "0644"
+      notify: restart dnf-automatic timer
+
+    - name: Create systemd timer override directory
+      become: true
+      file:
+        path: /etc/systemd/system/dnf-automatic.timer.d
+        state: directory
+        mode: "0755"
+
+    - name: Configure dnf-automatic timer
+      become: true
+      template:
+        src: dnf-automatic-timer-override.conf.j2
+        dest: /etc/systemd/system/dnf-automatic.timer.d/override.conf
+        mode: "0644"
+      notify:
+        - reload systemd
+        - restart dnf-automatic timer

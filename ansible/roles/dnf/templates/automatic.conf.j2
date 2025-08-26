@@ -1,0 +1,11 @@
+[commands]
+upgrade_type = {{ dnf_automatic_update_type }}
+download_updates = yes
+apply_updates = yes
+reboot = {{ dnf_automatic_reboot }}
+
+[emitters]
+emit_via = stdio
+
+[base]
+debuglevel = 1

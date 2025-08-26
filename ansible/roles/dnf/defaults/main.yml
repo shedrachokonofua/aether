@@ -1,0 +1,10 @@
+---
+# DNF role configuration
+dnf_enable_automatic_updates: true # Set to false to disable automatic updates
+
+# DNF Automatic update configuration (when enabled)
+dnf_automatic_update_type: "default" # Options: default, security
+dnf_automatic_reboot: "when-needed" # Options: never, when-needed, when-changed
+
+# Timer configuration
+dnf_automatic_timer_oncalendar: "05:00" # Run at 5am daily

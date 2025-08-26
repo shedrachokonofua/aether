@@ -2,6 +2,7 @@
   gather_facts: true
   roles:
     - common
+    - dnf
     - linger
     - monitoring_agent
 

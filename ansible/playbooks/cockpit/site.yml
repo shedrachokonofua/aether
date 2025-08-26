@@ -3,6 +3,7 @@
   hosts: cockpit
   roles:
     - common
+    - dnf
   tasks:
     - name: Write ssh private key
       copy:
@@ -15,10 +16,6 @@
         content: "{{ tf_outputs.home_cockpit_public_key.value }}"
         dest: /root/.ssh/id_ed25519.pub
         mode: "0644"
-
-    - name: Install libdnf5
-      become: true
-      command: dnf -y install python3-libdnf5
 
     - name: Install cockpit
       dnf:

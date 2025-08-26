@@ -1,0 +1,11 @@
+---
+- name: reload systemd
+  become: true
+  systemd:
+    daemon_reload: true
+
+- name: restart dnf-automatic timer
+  become: true
+  systemd:
+    name: dnf-automatic.timer
+    state: restarted
