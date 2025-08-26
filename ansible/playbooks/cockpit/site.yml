@@ -1,0 +1,69 @@
+---
+- name: Set up cockpit
+  hosts: cockpit
+  roles:
+    - common
+  tasks:
+    - name: Write ssh private key
+      copy:
+        content: "{{ tf_outputs.home_cockpit_private_key.value }}"
+        dest: /root/.ssh/id_ed25519
+        mode: "0600"
+
+    - name: Write ssh public key
+      copy:
+        content: "{{ tf_outputs.home_cockpit_public_key.value }}"
+        dest: /root/.ssh/id_ed25519.pub
+        mode: "0644"
+
+    - name: Install libdnf5
+      become: true
+      command: dnf -y install python3-libdnf5
+
+    - name: Install cockpit
+      dnf:
+        name: cockpit
+        state: present
+
+    - name: Write cockpit configuration
+      copy:
+        src: cockpit.conf
+        dest: /etc/cockpit/cockpit.conf
+        mode: "0644"
+
+    - name: Remove root from disallowed users
+      lineinfile:
+        path: /etc/cockpit/disallowed-users
+        regexp: "^root$"
+        line: ""
+        state: present
+
+    - name: Ensure Cockpit machines.d directory exists
+      file:
+        path: /etc/cockpit/machines.d
+        state: directory
+        mode: "0755"
+
+    - name: Create machine file for each inventory host
+      copy:
+        content: |
+          {
+            "{{ item }}": {
+              "address": "{{ hostvars[item].ansible_host | default(item) }}",
+              "visible": true,
+              "user": "{{ hostvars[item].ansible_user }}"
+            }
+          }
+        dest: "/etc/cockpit/machines.d/05-{{ item }}.json"
+        mode: "0644"
+      loop: "{{ groups['all'] | default([]) }}"
+      when:
+        - hostvars[item] is defined
+        - hostvars[item].ansible_host is defined
+        - item != 'cockpit'
+
+    - name: Enable cockpit
+      systemd:
+        name: cockpit.socket
+        state: restarted
+        enabled: true

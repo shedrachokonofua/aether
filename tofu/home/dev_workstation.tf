@@ -45,6 +45,7 @@ resource "proxmox_virtual_environment_vm" "dev_workstation" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [initialization[0].user_data_file_id]
   }
 }
 

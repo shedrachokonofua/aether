@@ -1,8 +1,6 @@
 ---
 - name: Update authorized keys
-  hosts:
-    - vms
-  become: true
+  hosts: all
   roles:
     - common
   tasks:

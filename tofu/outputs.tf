@@ -41,6 +41,20 @@ output "home_lute_private_key" {
   sensitive = true
 }
 
+output "home_cockpit_public_key" {
+  value = local.home.cockpit.public_key
+}
+
+output "home_cockpit_private_key" {
+  value     = local.home.cockpit.private_key
+  sensitive = true
+}
+
+output "home_cockpit_password" {
+  value     = module.home.cockpit_password
+  sensitive = true
+}
+
 output "ssh_authorized_keys" {
   value = local.authorized_keys
 }

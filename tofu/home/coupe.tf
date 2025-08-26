@@ -44,6 +44,7 @@ resource "proxmox_virtual_environment_vm" "coupe" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [initialization[0].user_data_file_id]
   }
 }
 

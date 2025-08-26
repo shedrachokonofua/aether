@@ -136,3 +136,11 @@ sunshine.game.home.shdr.ch {
     }
   }
 }
+
+cockpit.home.shdr.ch {
+  reverse_proxy {{ vm.cockpit.ip }}:{{ vm.cockpit.ports.cockpit }} {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}

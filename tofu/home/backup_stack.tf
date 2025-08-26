@@ -81,6 +81,7 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [initialization[0].user_account[0].keys]
   }
 }
 

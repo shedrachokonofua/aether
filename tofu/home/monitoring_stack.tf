@@ -44,6 +44,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [initialization[0].user_data_file_id]
   }
 }
 

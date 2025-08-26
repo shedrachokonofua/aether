@@ -10,6 +10,10 @@ resource "tls_private_key" "home_dev_workstation_ssh_key" {
   algorithm = "ED25519"
 }
 
+resource "tls_private_key" "home_cockpit_ssh_key" {
+  algorithm = "ED25519"
+}
+
 locals {
   base_authorized_keys = [
     for key in split("\n", trimspace(data.local_file.authorized_keys.content))
@@ -18,7 +22,10 @@ locals {
   ]
 
   authorized_keys = concat(
-    [tls_private_key.home_dev_workstation_ssh_key.public_key_openssh],
+    [
+      tls_private_key.home_dev_workstation_ssh_key.public_key_openssh,
+      tls_private_key.home_cockpit_ssh_key.public_key_openssh,
+    ],
     local.base_authorized_keys
   )
 
@@ -43,12 +50,16 @@ locals {
       private_key = tls_private_key.home_dev_workstation_ssh_key.private_key_openssh
       public_key  = tls_private_key.home_dev_workstation_ssh_key.public_key_openssh
     }
+    cockpit = {
+      private_key = tls_private_key.home_cockpit_ssh_key.private_key_openssh
+      public_key  = tls_private_key.home_cockpit_ssh_key.public_key_openssh
+    }
   }
 
   tailscale = {
-    tailnet_name = data.sops_file.secrets.data["tailscale_tailnet_name"]
-    user = data.sops_file.secrets.data["tailscale_user"]
-    oauth_client_id = data.sops_file.secrets.data["tailscale_oauth_client_id"]
+    tailnet_name        = data.sops_file.secrets.data["tailscale_tailnet_name"]
+    user                = data.sops_file.secrets.data["tailscale_user"]
+    oauth_client_id     = data.sops_file.secrets.data["tailscale_oauth_client_id"]
     oauth_client_secret = data.sops_file.secrets.data["tailscale_oauth_client_secret"]
   }
 }

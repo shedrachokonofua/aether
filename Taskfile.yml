@@ -531,6 +531,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/coupe/site.yml
 
+  configure:home:cockpit:
+    desc: Configure the cockpit server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/cockpit/site.yml
+
   provision:home:game-server:
     desc: Provision the game server
     cmds:

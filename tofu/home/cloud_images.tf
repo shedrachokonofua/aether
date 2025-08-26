@@ -30,3 +30,11 @@ resource "proxmox_virtual_environment_download_file" "debian_lxc_template" {
   url          = "http://download.proxmox.com/images/system/debian-12-standard_12.7-1_amd64.tar.zst"
   file_name    = "debian-12.tar.zst"
 }
+
+resource "proxmox_virtual_environment_download_file" "fedora_lxc_template" {
+  content_type = "vztmpl"
+  datastore_id = "nfs-nvme-vm-dataset"
+  node_name    = "smith"
+  url          = "http://download.proxmox.com/images/system/fedora-41-default_20241118_amd64.tar.xz"
+  file_name    = "fedora-41.tar.xz"
+}

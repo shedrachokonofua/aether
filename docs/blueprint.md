@@ -33,7 +33,7 @@
 | Backup Server           | Smith   | LXC  | 2GB  | 8TB NVME, 28TB HDD | Node - NVME, HDD | 4    | None        | Yes           | Rclone, Proxmox Backup Server                                                                                         | LIVE        |
 | Power Management Stack  | Niobe   | VM   | 2GB  | 32GB               | NFS - NVME       | 2    | None        | Yes           | Network UPS Tools, PeaNUT                                                                                             | TODO        |
 | Messaging Stack         | Niobe   | VM   | 2GB  | 64GB               | NFS - NVME       | 2    | None        | Yes           | Postfix, Apprise, Synapse, Ntfy, Element                                                                              | TODO        |
-| Cockpit                 | Niobe   | LXC  | 1GB  | 8GB                | Node - NVME      | 2    | None        | Yes           | Cockpit                                                                                                               | TODO        |
+| Cockpit                 | Niobe   | VM   | 2GB  | 32GB               | NFS - NVME       | 2    | None        | Yes           | Cockpit                                                                                                               | IN PROGRESS |
 
 ## AWS
 
