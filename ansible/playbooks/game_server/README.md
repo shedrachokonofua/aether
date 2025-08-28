@@ -23,7 +23,7 @@ task provision:home:game-server
 
 ### Provision Bazzite Builder
 
-This sets up a Fedora VM with the necessary tools to build the Bazzite image.
+This sets up a Fedora VM on the Proxmox cluster with the necessary tools to build the Bazzite image.
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/game_server/provision_bazzite_builder.yml

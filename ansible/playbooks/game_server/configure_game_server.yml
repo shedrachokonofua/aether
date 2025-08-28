@@ -37,6 +37,9 @@
         state: restarted
         scope: user
 
+    - name: Set sunshine credentials
+      command: sunshine --creds {{ vm.game_server.admin }} {{ secrets.game_server_password }}
+
     - name: Copy powerdevilrc
       copy:
         src: powerdevilrc
@@ -60,14 +63,8 @@
           - org.chromium.Chromium
           - net.pcsx2.PCSX2
           - net.rpcs3.RPCS3
+          - com.steamgriddb.steam-rom-manager
         state: present
-      become: true
-
-    - name: Create gaming mount point
-      file:
-        path: /mnt/gaming
-        state: directory
-        mode: "0755"
       become: true
 
     - name: Add gaming NFS mount point to fstab
@@ -102,3 +99,10 @@
         state: link
         owner: "{{ vm.game_server.admin }}"
         group: "{{ vm.game_server.admin }}"
+
+    - name: Grant emulators user access to game mount point
+      command: flatpak override --user {{ item }} --filesystem=/mnt/gaming
+      loop:
+        - net.pcsx2.PCSX2
+        - net.rpcs3.RPCS3
+      ignore_errors: true
