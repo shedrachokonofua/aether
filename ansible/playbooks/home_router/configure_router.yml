@@ -4,7 +4,6 @@
   gather_facts: false
   roles:
     - common
-    - dnf
   vars:
     ansible_persistent_connect_timeout: 0
   tasks:
@@ -38,9 +37,9 @@
           - set nat source rule 100 outbound-interface name pppoe0
           - set nat source rule 100 source address 10.0.0.0/16
           - set nat source rule 100 translation address masquerade
-          # VLAN 3 to Gigahub network
-          - set nat source rule 101 description "VLAN 3 to Gigahub network"
-          - set nat source rule 101 source address 10.0.3.0/24
+          # VLAN 2 to Gigahub network
+          - set nat source rule 101 description "VLAN 2 to Gigahub network"
+          - set nat source rule 101 source address 10.0.2.0/24
           - set nat source rule 101 outbound-interface name eth0
           - set nat source rule 101 destination address 192.168.2.0/24
           - set nat source rule 101 translation address masquerade
