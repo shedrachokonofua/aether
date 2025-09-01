@@ -1,0 +1,15 @@
+{
+  "default_server_config": {
+    "m.homeserver": {
+      "base_url": "https://matrix.home.shdr.ch"
+    }
+  },
+  "brand": "Element",
+  "default_theme": "light",
+  "roomDirectory": {
+    "servers": ["matrix.home.shdr.ch"]
+  },
+  "disable_custom_urls": false,
+  "disable_guests": false,
+  "disable_3pid_login": true
+}

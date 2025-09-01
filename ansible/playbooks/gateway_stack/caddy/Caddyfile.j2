@@ -144,3 +144,12 @@ cockpit.home.shdr.ch {
     }
   }
 }
+
+element.home.shdr.ch {
+  reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.element }}
+}
+
+matrix.home.shdr.ch {
+  reverse_proxy /_matrix/* {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.synapse }}
+  reverse_proxy /_synapse/client/* {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.synapse }}
+}

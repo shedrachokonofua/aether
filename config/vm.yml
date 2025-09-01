@@ -201,3 +201,22 @@ cockpit:
   gateway: "10.0.2.1"
   ports:
     cockpit: 9090
+
+messaging_stack:
+  id: 1016
+  name: "messaging-stack"
+  node: "niobe"
+  admin: "aether"
+  cores: 2
+  memory: 2048
+  disk_gb: 64
+  ip: "10.0.3.4"
+  gateway: "10.0.3.1"
+  ports:
+    synapse: 8008
+    element: 8080
+# Planned IP Allocations:
+# - Power Management Stack: 192.168.2.235
+# - GPU Workstation: 10.0.3.2
+# - AI Tool Stack: 10.0.3.3
+# - Media Stack: 10.0.3.5

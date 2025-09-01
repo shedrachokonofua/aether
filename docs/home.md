@@ -39,6 +39,7 @@ VyOS LAN Base: 10.0.0.0/16
 - ✅ Can access all VLANs
 - ✅ Full router access (SSH, configuration)
 - ✅ Internet access
+- ✅ Gigahub access
 
 **VLAN 3 - Services** (SERVICES zone):
 
@@ -49,12 +50,14 @@ VyOS LAN Base: 10.0.0.0/16
 - ✅ Can access IoT (VLAN 6) for automation and management
 - ❌ No Guest access
 - 🔒 Router access: DNS and DHCP only
+- ❌ No Gigahub access
 
 **VLAN 4 - Personal** (TRUSTED zone):
 
 - ✅ Can access all VLANs
 - ✅ Full router access (SSH, configuration)
 - ✅ Internet access
+- ✅ Gigahub access
 
 **VLAN 5 - Media** (MEDIA zone):
 

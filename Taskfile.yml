@@ -538,6 +538,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/cockpit/site.yml
 
+  configure:home:messaging-stack:
+    desc: Configure the messaging stack
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/messaging_stack/site.yml
+
   provision:home:game-server:
     desc: Provision the game server
     cmds:

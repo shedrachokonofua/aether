@@ -1,0 +1,12 @@
+---
+- name: Deploy messaging stack
+  hosts: messaging-stack
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+    - linger
+    - monitoring_agent
+
+- name: Deploy matrix pod
+  import_playbook: matrix.yml

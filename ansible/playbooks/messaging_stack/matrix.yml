@@ -1,0 +1,140 @@
+---
+- name: Deploy matrix pod
+  hosts: messaging-stack
+  gather_facts: true
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./synapse/data
+        - ./element/config
+      become: true
+
+    - name: Create matrix pod
+      containers.podman.podman_pod:
+        name: matrix
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.messaging_stack.ports.synapse }}:8008"
+          - "{{ vm.messaging_stack.ports.element }}:{{ vm.messaging_stack.ports.element }}"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create synapse postgres storage volume
+      containers.podman.podman_volume:
+        name: synapse_postgres_storage
+        state: quadlet
+
+    - name: Create postgres container
+      containers.podman.podman_container:
+        name: postgres
+        image: docker.io/postgres:alpine
+        state: quadlet
+        pod: matrix.pod
+        volumes:
+          - synapse_postgres_storage.volume:/var/lib/postgresql/data:Z
+        env:
+          POSTGRES_USER: "{{ secrets.matrix.database_user }}"
+          POSTGRES_PASSWORD: "{{ secrets.matrix.database_password }}"
+          POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+          LC_COLLATE: C
+          LC_CTYPE: C
+        user: "0:0"
+
+    - name: Ensure synapse data is owned by ansible user (for rootless podman)
+      file:
+        path: /home/aether/synapse/data
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: yes
+        mode: "0755"
+      become: true
+
+    - name: Write homeserver.yaml
+      template:
+        src: homeserver.yaml.j2
+        dest: /home/aether/synapse/data/homeserver.yaml
+        mode: "0755"
+
+    - name: Write log config
+      copy:
+        src: synapse-log.config
+        dest: /home/aether/synapse/data/matrix.home.shdr.ch.log.config
+        mode: "0755"
+
+    - name: Write signing key
+      copy:
+        content: "{{ secrets.matrix.signing_key }}"
+        dest: /home/aether/synapse/data/matrix.home.shdr.ch.signing.key
+        mode: "0755"
+
+    - name: Create synapse container
+      containers.podman.podman_container:
+        name: synapse
+        image: docker.io/matrixdotorg/synapse:latest
+        state: quadlet
+        pod: matrix.pod
+        volumes:
+          - /home/aether/synapse/data:/data:Z
+        env:
+          UID: "0"
+          GID: "0"
+
+    - name: Write element config
+      copy:
+        src: element-config.json
+        dest: ./element/config/config.json
+        mode: "0755"
+
+    - name: Create element container
+      containers.podman.podman_container:
+        name: element
+        image: docker.io/vectorim/element-web:latest
+        state: quadlet
+        pod: matrix.pod
+        volumes:
+          - /home/aether/element/config:/app/config
+        env:
+          ELEMENT_WEB_PORT: "{{ vm.messaging_stack.ports.element }}"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start matrix quadlet
+      systemd:
+        name: matrix-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for matrix to be ready
+      wait_for:
+        host: localhost
+        port: "{{ vm.messaging_stack.ports.synapse }}"
+        timeout: 30
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5
+
+    - name: Create matrix admin user
+      command: >
+        podman exec synapse
+        register_new_matrix_user
+        -c /data/homeserver.yaml
+        -u "{{ secrets.matrix.admin_user }}"
+        -p "{{ secrets.matrix.admin_password }}"
+        -a
+        --exists-ok
+      register: register_new_matrix_user_result
+      until: not register_new_matrix_user_result.failed
+      retries: 5
+      delay: 5
