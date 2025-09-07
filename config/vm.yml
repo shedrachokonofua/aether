@@ -215,6 +215,8 @@ messaging_stack:
   ports:
     synapse: 8008
     element: 8080
+    whatsapp: 29318 
+    matrix_pg: 5432
 # Planned IP Allocations:
 # - Power Management Stack: 192.168.2.235
 # - GPU Workstation: 10.0.3.2

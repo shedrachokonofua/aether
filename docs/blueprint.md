@@ -32,7 +32,7 @@
 | Network File Server     | Smith   | LXC  | 1GB  | 8TB NVME, 28TB HDD | Node - NVME, HDD | 2    | None        | Yes           | NFS Server, SMB Server                                                                                                | LIVE        |
 | Backup Server           | Smith   | LXC  | 2GB  | 8TB NVME, 28TB HDD | Node - NVME, HDD | 4    | None        | Yes           | Rclone, Proxmox Backup Server                                                                                         | LIVE        |
 | Power Management Stack  | Niobe   | VM   | 2GB  | 32GB               | NFS - NVME       | 2    | None        | Yes           | Network UPS Tools, PeaNUT                                                                                             | TODO        |
-| Messaging Stack         | Niobe   | VM   | 2GB  | 64GB               | NFS - NVME       | 2    | None        | Yes           | Postfix, Apprise, Synapse, Ntfy, Element                                                                              | IN PROGRESS |
+| Messaging Stack         | Niobe   | VM   | 2GB  | 64GB               | NFS - NVME       | 2    | None        | Yes           | Postfix, Element, Synapse, Matrix Bridges(WhatsApp, Discord, Signal, Telegram, Google Messages)                       | IN PROGRESS |
 | Cockpit                 | Niobe   | VM   | 2GB  | 32GB               | NFS - NVME       | 2    | None        | Yes           | Cockpit                                                                                                               | IN PROGRESS |
 
 ## AWS
