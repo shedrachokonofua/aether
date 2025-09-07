@@ -19,7 +19,7 @@ network:
   # {{.BusinessName}} - validated WhatsApp business name
   # {{.Phone}}        - phone number (international format)
   # {{.FullName}}     - Name you set in the contacts list
-  displayname_template: "{{or .BusinessName .PushName .Phone .FullName}} (WA)"
+  displayname_template: "{{or .FullName .PushName .BusinessName .Phone }} (WA)"
 
   # Should incoming calls send a message to the Matrix room?
   call_start_notices: true
