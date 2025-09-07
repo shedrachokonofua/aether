@@ -89,7 +89,7 @@ network:
     max_initial_conversations: -1
     # Should the bridge request a full sync from the phone when logging in?
     # This bumps the size of history syncs from 3 months to 1 year.
-    request_full_sync: false
+    request_full_sync: true
     # Time to wait for history sync payloads before starting backfill. Each new payload resets the timer.
     # If this is too low, the backfill may happen with incomplete history
     # and backfill less messages than what is configured in the backfill section.
@@ -421,18 +421,18 @@ direct_media:
 # See https://docs.mau.fi/bridges/general/backfill.html for more details.
 backfill:
   # Whether to do backfilling at all.
-  enabled: false
+  enabled: true
   # Maximum number of messages to backfill in empty rooms.
-  max_initial_messages: 50
+  max_initial_messages: 50000
   # Maximum number of missed messages to backfill after bridge restarts.
-  max_catchup_messages: 500
+  max_catchup_messages: 50000
   # If a backfilled chat is older than this number of hours,
   # mark it as read even if it's unread on the remote network.
   unread_hours_threshold: 720
   # Settings for backfilling threads within other backfills.
   threads:
     # Maximum number of messages to backfill in a new thread.
-    max_initial_messages: 50
+    max_initial_messages: 50000
   # Settings for the backwards backfill queue. This only applies when connecting to
   # Beeper as standard Matrix servers don't support inserting messages into history.
   queue:
