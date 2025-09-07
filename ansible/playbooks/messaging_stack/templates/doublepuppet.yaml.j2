@@ -1,0 +1,10 @@
+id: doublepuppet
+url:
+as_token: {{ secrets.matrix.doublepuppet_as_token }}
+hs_token: {{ secrets.matrix.doublepuppet_hs_token }}
+sender_localpart: {{ secrets.matrix.doublepuppet_sender_localpart }}
+rate_limited: false
+namespaces:
+  users:
+    - regex: '@.*:matrix\.home\.shdr\.ch'
+      exclusive: false

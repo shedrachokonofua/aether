@@ -71,6 +71,12 @@
         dest: /home/aether/synapse/data/homeserver.yaml
         mode: "0755"
 
+    - name: Write doublepuppet.yaml
+      template:
+        src: doublepuppet.yaml.j2
+        dest: /home/aether/synapse/data/doublepuppet.yaml
+        mode: "0755"
+
     - name: Check if mautrix-whatsapp config exists
       stat:
         path: /home/aether/mautrix-whatsapp/data/config.yaml
