@@ -13,6 +13,7 @@
         - /home/aether/element/config
         - /home/aether/postgres-init
         - /home/aether/mautrix-whatsapp/data
+        - /home/aether/mautrix-gmessages/data
 
     - name: Write postgres initialization script for bridge databases
       template:
@@ -29,7 +30,7 @@
         ports:
           - "{{ vm.messaging_stack.ports.synapse }}:8008"
           - "{{ vm.messaging_stack.ports.element }}:{{ vm.messaging_stack.ports.element }}"
-          - "{{ vm.messaging_stack.ports.whatsapp }}:{{ vm.messaging_stack.ports.whatsapp }}"
+          - "{{ vm.messaging_stack.ports.matrix_pg }}:{{ vm.messaging_stack.ports.matrix_pg }}"
         quadlet_options:
           - |
             [Install]
@@ -90,6 +91,19 @@
         variable_end_string: "]]"
       when: not whatsapp_config_file.stat.exists
 
+    - name: Check if mautrix-gmessages config exists
+      stat:
+        path: /home/aether/mautrix-gmessages/data/config.yaml
+      register: gmessages_config_file
+
+    - name: Write initial mautrix-gmessages configuration
+      template:
+        src: mautrix-gmessages-config.yaml.j2
+        dest: /home/aether/mautrix-gmessages/data/config.yaml
+        variable_start_string: "[["
+        variable_end_string: "]]"
+      when: not gmessages_config_file.stat.exists
+
     - name: Write log config
       copy:
         src: synapse-log.config
@@ -131,7 +145,7 @@
         env:
           ELEMENT_WEB_PORT: "{{ vm.messaging_stack.ports.element }}"
 
-    - name: Check if registration file exists
+    - name: Check if whatsapp registration file exists
       stat:
         path: /home/aether/mautrix-whatsapp/data/registration.yaml
       register: registration_file
@@ -145,7 +159,7 @@
       register: registration_result
       ignore_errors: yes
 
-    - name: Copy registration file to Synapse data directory
+    - name: Copy whatsapp registration file to Synapse data directory
       copy:
         src: /home/aether/mautrix-whatsapp/data/registration.yaml
         dest: /home/aether/synapse/data/whatsapp-registration.yaml
@@ -164,6 +178,40 @@
         pod: matrix.pod
         volumes:
           - /home/aether/mautrix-whatsapp/data:/data:Z
+
+    - name: Check if gmessages registration file exists
+      stat:
+        path: /home/aether/mautrix-gmessages/data/registration.yaml
+      register: gmessages_registration_file
+
+    - name: Generate mautrix-gmessages registration file
+      command: >
+        podman run --rm
+        -v /home/aether/mautrix-gmessages/data:/data:z
+        dock.mau.dev/mautrix/gmessages:latest
+      when: not gmessages_registration_file.stat.exists
+      register: gmessages_registration_result
+      ignore_errors: yes
+
+    - name: Copy gmessages registration file to Synapse data directory
+      copy:
+        src: /home/aether/mautrix-gmessages/data/registration.yaml
+        dest: /home/aether/synapse/data/gmessages-registration.yaml
+        mode: "0755"
+        remote_src: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      become: true
+      when: gmessages_registration_file.stat.exists or gmessages_registration_result is succeeded
+
+    - name: Create gmessages bridge container
+      containers.podman.podman_container:
+        name: mautrix-gmessages
+        image: dock.mau.dev/mautrix/gmessages:latest
+        state: quadlet
+        pod: matrix.pod
+        volumes:
+          - /home/aether/mautrix-gmessages/data:/data:Z
 
     - name: Reload systemd
       systemd:

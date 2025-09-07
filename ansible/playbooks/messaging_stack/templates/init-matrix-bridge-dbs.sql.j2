@@ -1,2 +1,5 @@
 CREATE DATABASE mautrix_whatsapp;
 GRANT ALL PRIVILEGES ON DATABASE mautrix_whatsapp TO {{ secrets.matrix.database_user }};
+
+CREATE DATABASE mautrix_gmessages;
+GRANT ALL PRIVILEGES ON DATABASE mautrix_gmessages TO {{ secrets.matrix.database_user }};
