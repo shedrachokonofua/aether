@@ -28,6 +28,22 @@ rack-switch.home.shdr.ch {
   reverse_proxy 192.168.2.221
 }
 
+office-switch.home.shdr.ch {
+  reverse_proxy 192.168.2.222 {
+    transport http {
+      versions 1.1
+      keepalive off
+    }
+    # Remove all headers and add back only what's needed
+    header_up -*
+    header_up Host 192.168.2.222
+    header_up Authorization {http.request.header.Authorization}
+    header_up Connection "close"
+    # No buffering for CGI
+    flush_interval -1
+  }
+}
+
 dns.home.shdr.ch {
   reverse_proxy {{ vm.gateway_stack.ip }}:{{ vm.gateway_stack.ports.adguard_admin }}
 }
