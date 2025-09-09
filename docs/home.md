@@ -23,56 +23,57 @@ VyOS LAN Base: 10.0.0.0/16
 
 #### VLANs
 
-| VLAN | Name           | Subnet      | Gateway  | DHCP Range | Description                                                           |
-| ---- | -------------- | ----------- | -------- | ---------- | --------------------------------------------------------------------- |
-| 2    | Infrastructure | 10.0.2.0/24 | 10.0.2.1 | 240 - 254  | Core infrastructure services (NFS, DNS, monitoring, backups)          |
-| 3    | Services       | 10.0.3.0/24 | 10.0.3.1 | 2 - 254    | Application services and workloads (GitLab, game servers, etc.)       |
-| 4    | Personal       | 10.0.4.0/24 | 10.0.4.1 | 2 - 254    | Primary network for trusted devices with full management access       |
-| 5    | Media          | 10.0.5.0/24 | 10.0.5.1 | 2 - 254    | Home entertainment devices with access to internet and service VMs    |
-| 6    | IoT            | 10.0.6.0/24 | 10.0.6.1 | 2 - 254    | Home IoT devices with access to internet and home automation services |
-| 7    | Guest          | 10.0.7.0/24 | 10.0.7.1 | 2 - 254    | Guest network with internet access only                               |
+| VLAN | Name           | Subnet         | Gateway     | DHCP Range | Description                                                           |
+| ---- | -------------- | -------------- | ----------- | ---------- | --------------------------------------------------------------------- |
+| 1    | Gigahub        | 192.168.2.0/24 | 192.168.2.1 | 2 - 200    | Gigahub LAN (Direct access, rack hardware)                            |
+| 2    | Infrastructure | 10.0.2.0/24    | 10.0.2.1    | 240 - 254  | Core infrastructure services (NFS, DNS, monitoring, backups)          |
+| 3    | Services       | 10.0.3.0/24    | 10.0.3.1    | 2 - 254    | Application services and workloads (GitLab, game servers, etc.)       |
+| 4    | Personal       | 10.0.4.0/24    | 10.0.4.1    | 2 - 254    | Primary network for trusted devices with full management access       |
+| 5    | Media          | 10.0.5.0/24    | 10.0.5.1    | 2 - 254    | Home entertainment devices with access to internet and service VMs    |
+| 6    | IoT            | 10.0.6.0/24    | 10.0.6.1    | 2 - 254    | Home IoT devices with access to internet and home automation services |
+| 7    | Guest          | 10.0.7.0/24    | 10.0.7.1    | 2 - 254    | Guest network with internet access only                               |
 
 #### Firewall
 
 **VLAN 2 - Infrastructure** (TRUSTED zone):
 
-- ✅ Can access all VLANs
-- ✅ Full router access (SSH, configuration)
-- ✅ Internet access
-- ✅ Gigahub access
+- Can access all VLANs
+- Full router access (SSH, configuration)
+- Internet access
+- Gigahub access
 
 **VLAN 3 - Services** (SERVICES zone):
 
-- ✅ Internet access
-- 🔒 Infrastructure access: Only specific ports (DNS, NFS, monitoring)
-- ❌ Cannot initiate to Personal (VLAN 4)
-- ✅ Can access Media (VLAN 5) to serve content
-- ✅ Can access IoT (VLAN 6) for automation and management
-- ❌ No Guest access
-- 🔒 Router access: DNS and DHCP only
-- ❌ No Gigahub access
+- Internet access
+- Infrastructure access: Only specific ports (DNS, NFS, monitoring)
+- Cannot initiate to Personal (VLAN 4)
+- Can access Media (VLAN 5) to serve content
+- Can access IoT (VLAN 6) for automation and management
+- No Guest access
+- Router access: DNS and DHCP only
+- No Gigahub access
 
 **VLAN 4 - Personal** (TRUSTED zone):
 
-- ✅ Can access all VLANs
-- ✅ Full router access (SSH, configuration)
-- ✅ Internet access
-- ✅ Gigahub access
+- Can access all VLANs
+- Full router access (SSH, configuration)
+- Internet access
+- Gigahub access
 
 **VLAN 5 - Media** (MEDIA zone):
 
-- ✅ Internet access
-- ❌ Cannot access Infrastructure
-- ✅ Can access Services (for media servers)
-- ❌ Cannot access Personal, IoT, or Guest
-- 🔒 Router access: DNS, DHCP, mDNS, ping
+- Internet access
+- Cannot access Infrastructure
+- Can access Services (for media servers)
+- Cannot access Personal, IoT, or Guest
+- Router access: DNS, DHCP, mDNS, ping
 
 **VLAN 6 - IoT** & **VLAN 7 - Guest** (UNTRUSTED zone):
 
-- ✅ Internet access only
-- ❌ Cannot initiate connections to any other VLAN
-- 🔒 Router access: DNS and DHCP only
-- ✅ Can receive connections from trusted zone
+- Internet access only
+- Cannot initiate connections to any other VLAN
+- Router access: DNS and DHCP only
+- Can receive connections from trusted zone
 
 #### Rack Switch
 
@@ -83,18 +84,20 @@ VyOS LAN Base: 10.0.0.0/16
 - 8x 10Gbps Ethernet ports
 - 8x 10Gbps SFP+ ports
 
-| Port | Type     | Device                                                | VLAN tags        | Speed   |
-| ---- | -------- | ----------------------------------------------------- | ---------------- | ------- |
-| 1    | Ethernet | Bell Gigahub                                          | Untagged         | 10Gbps  |
-| 2    | Ethernet | Access Point                                          | 4, 5, 6, 7       | 2.5Gbps |
-| 3    | Ethernet | Niobe                                                 | 2, 3, 4, 5, 6, 7 | 2.5Gbps |
-| 4    | Ethernet | UPS                                                   | 3                | 100Mbps |
-| 5    | Ethernet | Office Switch                                         | 3, 4, 5          | 2.5Gbps |
-| 6    | Ethernet | PiKVM                                                 | 3                | 1Gbps   |
-| 7    | Ethernet | MoCA Adapter (Uplink to unmanaged living room switch) | 5                | 2.5Gbps |
-| 9    | SFP+     | Oracle                                                | 2, 3, 4, 5, 6, 7 | 10Gbps  |
-| 10   | SFP+     | Trinity                                               | 2, 3, 4, 5, 6, 7 | 10Gbps  |
-| 11   | SFP+     | Smith                                                 | 2, 3, 4, 5, 6, 7 | 10Gbps  |
+| Port | Type     | Device                                                | VLAN Untagged | VLAN Tagged      | Speed   |
+| ---- | -------- | ----------------------------------------------------- | ------------- | ---------------- | ------- |
+| 1    | Ethernet | Bell Gigahub                                          | 1             | -                | 10Gbps  |
+| 2    | Ethernet | Access Point                                          | 2             | -                | 2.5Gbps |
+| 3    | Ethernet | Niobe                                                 | 1             | 2, 3, 4, 5, 6, 7 | 2.5Gbps |
+| 4    | Ethernet | UPS                                                   | 1             | -                | 100Mbps |
+| 5    | Ethernet | Office Switch                                         | 1             | 4, 5             | 2.5Gbps |
+| 6    | Ethernet | PiKVM                                                 | 1             | -                | 1Gbps   |
+| 7    | Ethernet | MoCA Adapter (Uplink to unmanaged living room switch) | 5             | -                | 2.5Gbps |
+| 9    | SFP+     | Oracle                                                | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
+| 10   | SFP+     | Trinity                                               | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
+| 11   | SFP+     | Smith                                                 | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
+
+- VLAN 1: Bell Gigahub LAN (192.168.2.0/24) - Direct access, bypasses VyOS firewall
 
 #### Office Switch
 
@@ -105,13 +108,13 @@ VyOS LAN Base: 10.0.0.0/16
 - 1x 10Gbps SFP+ port
 - 8x 2.5Gbps Ethernet ports
 
-| Port | Type     | Device             | VLAN tags | Speed   |
-| ---- | -------- | ------------------ | --------- | ------- |
-| 1    | Ethernet | Google TV Streamer | 5         | 1Gbps   |
-| 2    | Ethernet | Raspberry Pi 5     | 4         | 1Gbps   |
-| 3    | Ethernet | Laptop Dock        | 4         | 2.5Gbps |
-| 4    | Ethernet | Raspberry Pi 5     | 4         | 1Gbps   |
-| 9    | SFP+     | Rack Switch        | 3, 4, 5   | 10Gbps  |
+| Port | Type     | Device             | VLAN Untagged | VLAN Tagged | Speed   |
+| ---- | -------- | ------------------ | ------------- | ----------- | ------- |
+| 1    | Ethernet | Google TV Streamer | 5             | -           | 1Gbps   |
+| 2    | Ethernet | Raspberry Pi 5     | 4             | -           | 1Gbps   |
+| 3    | Ethernet | Laptop Dock        | 4             | -           | 2.5Gbps |
+| 4    | Ethernet | Raspberry Pi 5     | 4             | -           | 1Gbps   |
+| 9    | SFP+     | Rack Switch        | 1             | 4, 5        | 10Gbps  |
 
 #### Access Point
 
