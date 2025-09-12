@@ -3,12 +3,12 @@
   hosts: home-automation-stack
   gather_facts: true
   vars:
-    config_base_dir: "/home/aether/home-automation-stack"
-    ha_config_dir: "{{ config_base_dir }}/homeassistant/config"
+    ha_config_dir: "/home/aether/homeassistant/config"
     home_assistant_timezone: "America/Toronto"
   roles:
     - common
     - linger
+    - dnf
     - monitoring_agent
   tasks:
     - name: Create required directory for Home Assistant config
@@ -58,3 +58,13 @@
         state: restarted
         enabled: yes
         scope: user
+
+    - name: Check if HACS is already installed
+      ansible.builtin.stat:
+        path: "{{ ha_config_dir }}/custom_components/hacs"
+      register: hacs_installed
+
+    - name: Install Home Assistant Community Store
+      shell: |
+        podman exec homeassistant bash -c "wget -O - https://get.hacs.xyz | bash -"
+      when: not hacs_installed.stat.exists
