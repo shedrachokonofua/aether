@@ -1,0 +1,63 @@
+{
+  "gateway": {
+    "type": "ws",
+    "plugins": [],
+    "authEnabled": false,
+    "payloadType": 0,
+    "nodeNames": true,
+    "hassDiscovery": true,
+    "discoveryPrefix": "homeassistant",
+    "logEnabled": true,
+    "logLevel": "info",
+    "logToFile": false,
+    "values": [],
+    "jobs": [],
+    "disableChangelog": false,
+    "notifyNewVersions": false,
+    "port": 3000,
+    "host": "0.0.0.0",
+    "versions": { "app": "11.2.1", "driver": "15.12.0", "server": "3.2.1" }
+  },
+  "zwave": {
+    "enabled": true,
+    "port": "/dev/zwave",
+    "allowBootloaderOnly": false,
+    "commandsTimeout": 30,
+    "logLevel": "debug",
+    "rf": {
+      "maxLongRangePowerlevel": "auto",
+      "autoPowerlevels": true,
+      "txPower": { "powerlevel": "auto" },
+      "region": 1
+    },
+    "securityKeys": {
+      "S2_Unauthenticated": "{{ secrets.zwave.s2_unauthenticated_key }}",
+      "S2_Authenticated": "{{ secrets.zwave.s2_authenticated_key }}",
+      "S2_AccessControl": "{{ secrets.zwave.s2_access_control_key }}",
+      "S0_Legacy": "{{ secrets.zwave.s0_legacy_key }}"
+    },
+    "securityKeysLongRange": {
+      "S2_Authenticated": "{{ secrets.zwave.s2_authenticated_long_range_key }}"
+    },
+    "deviceConfigPriorityDir": "/usr/src/app/store/config",
+    "logEnabled": true,
+    "logToFile": false,
+    "maxFiles": 7,
+    "serverEnabled": true,
+    "serverServiceDiscoveryDisabled": false,
+    "enableSoftReset": true,
+    "disableOptimisticValueUpdate": false,
+    "enableStatistics": false,
+    "serverPort": 3000,
+    "maxNodeEventsQueueSize": 100,
+    "higherReportsTimeout": false,
+    "disableControllerRecovery": false,
+    "disableWatchdog": false
+  },
+  "ui": {
+    "colorScheme": "system",
+    "navTabs": false,
+    "compactMode": false,
+    "streamerMode": false
+  }
+}

@@ -87,13 +87,11 @@
           TZ: "{{ home_assistant_timezone }}"
         state: quadlet
 
-    - name: Create Z-Wave JS UI settings file
-      copy:
-        src: ./zwave_settings.json
+    - name: Write Z-Wave settings file
+      template:
+        src: ./zwave_settings.json.j2
         dest: /home/aether/zwavejs/settings.json
         mode: "0644"
-        force: true
-      register: zwavejs_config
 
     - name: Start Z-Wave JS container
       containers.podman.podman_container:
