@@ -11,17 +11,57 @@
     - dnf
     - monitoring_agent
   tasks:
-    - name: Create required directory for Home Assistant config
-      ansible.builtin.file:
-        path: "{{ ha_config_dir }}"
+    - name: Install dependencies
+      become: true
+      dnf:
+        name:
+          - usbutils
+        state: present
+
+    - name: Ensure Z-Wave device is initialized
+      block:
+        - name: Check if Z-Wave device exists
+          stat:
+            path: /dev/ttyUSB0
+          register: zwave_device
+
+        - name: Initialize Z-Wave device if needed
+          shell: echo "10c4 ea60" > /sys/bus/usb-serial/drivers/generic/new_id
+          become: true
+          when: not zwave_device.stat.exists
+
+    - name: Ensure proper permissions on Z-Wave device
+      become: true
+      file:
+        path: /dev/ttyUSB0
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0666"
+      when: zwave_device.stat.exists
+
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
         state: directory
         mode: "0755"
+      loop:
+        - "{{ ha_config_dir }}"
+        - /home/aether/zwavejs
 
-    - name: Copy Home Assistant config
+    - name: Write main home assistant configuration file
       copy:
         src: "./ha_config.yml"
         dest: "{{ ha_config_dir }}/configuration.yaml"
         mode: "0644"
+
+    - name: Touch other home assistant config files
+      file:
+        path: "{{ item }}"
+        state: touch
+      loop:
+        - "{{ ha_config_dir }}/automations.yaml"
+        - "{{ ha_config_dir }}/scripts.yaml"
+        - "{{ ha_config_dir }}/scenes.yaml"
 
     - name: Create the Home Assistant pod using quadlet
       containers.podman.podman_pod:
@@ -35,7 +75,7 @@
             [Install]
             WantedBy=default.target
 
-    - name: Start Home Assistant container using quadlet
+    - name: Start Home Assistant container
       containers.podman.podman_container:
         name: homeassistant
         image: ghcr.io/home-assistant/home-assistant:stable
@@ -45,6 +85,29 @@
           - /run/dbus:/run/dbus:ro
         env:
           TZ: "{{ home_assistant_timezone }}"
+        state: quadlet
+
+    - name: Create Z-Wave JS UI settings file
+      copy:
+        src: ./zwave_settings.json
+        dest: /home/aether/zwavejs/settings.json
+        mode: "0644"
+        force: true
+      register: zwavejs_config
+
+    - name: Start Z-Wave JS container
+      containers.podman.podman_container:
+        name: zwavejs-ui
+        image: docker.io/zwavejs/zwave-js-ui:latest
+        pod: home-automation-stack.pod
+        privileged: true
+        volumes:
+          - /home/aether/zwavejs:/usr/src/app/store:Z
+        tty: true
+        device:
+          - /dev/ttyUSB0:/dev/zwave
+        env:
+          SESSION_SECRET: "{{ secrets.zwave_session_secret }}"
         state: quadlet
 
     - name: Reload systemd user configuration

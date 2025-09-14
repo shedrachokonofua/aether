@@ -27,6 +27,10 @@ resource "proxmox_virtual_environment_vm" "home_automation_stack" {
     interface    = "virtio0"
   }
 
+  usb {
+    host = "10c4:ea60"
+  }
+
   initialization {
     ip_config {
       ipv4 {

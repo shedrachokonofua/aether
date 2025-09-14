@@ -145,6 +145,10 @@ ha.home.shdr.ch {
   reverse_proxy {{ vm.home_automation_stack.ip }}:{{ vm.home_automation_stack.ports.home_assistant }}
 }
 
+z.ha.home.shdr.ch {
+  reverse_proxy {{ vm.home_automation_stack.ip }}:{{ vm.home_automation_stack.ports.zwavejs }}
+}
+
 sunshine.game.home.shdr.ch {
   reverse_proxy {{ vm.game_server.ip }}:{{ vm.game_server.ports.sunshine }} {
     transport http {

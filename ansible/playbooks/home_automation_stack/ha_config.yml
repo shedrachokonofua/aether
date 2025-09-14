@@ -1,7 +1,32 @@
-default_config:
+assist_pipeline:
+backup:
+# bluetooth
+cloud:
+config:
+conversation:
+dhcp:
+energy:
+go2rtc:
+history:
+homeassistant_alerts:
+image_upload:
+logbook:
+media_source:
+mobile_app:
+my:
+ssdp:
+stream:
+sun:
+usb:
+webhook:
+zeroconf:
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
 
 http:
-  base_url: https://ha.home.shdr.ch
+  external_url: https://ha.home.shdr.ch
   use_x_forwarded_for: true
   trusted_proxies:
     - 10.0.0.0/8
