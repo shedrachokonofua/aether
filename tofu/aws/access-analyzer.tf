@@ -8,3 +8,8 @@ resource "aws_accessanalyzer_analyzer" "unused_access_analyzer" {
     }
   }
 }
+
+resource "aws_accessanalyzer_analyzer" "account_external_access_analyzer" {
+  analyzer_name = "account-external-access-analyzer"
+  type          = "ACCOUNT"
+}
