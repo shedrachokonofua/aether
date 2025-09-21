@@ -101,11 +101,10 @@
         privileged: true
         volumes:
           - /home/aether/zwavejs:/usr/src/app/store:Z
+          - /dev/ttyUSB0:/dev/zwave:Z
         tty: true
-        device:
-          - /dev/ttyUSB0:/dev/zwave
         env:
-          SESSION_SECRET: "{{ secrets.zwave_session_secret }}"
+          SESSION_SECRET: "{{ secrets.zwave.session_secret }}"
         state: quadlet
 
     - name: Reload systemd user configuration
