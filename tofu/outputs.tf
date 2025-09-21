@@ -76,3 +76,16 @@ output "aws_offsite_backup_bucket_name" {
 output "aws_offsite_backup_bucket_arn" {
   value = module.aws.offsite_backup_bucket_arn
 }
+
+output "aws_public_gateway_ip" {
+  value = module.aws.public_gateway_ip
+}
+
+output "aws_public_gateway_public_key" {
+  value = module.aws.public_gateway_public_key
+}
+
+output "aws_public_gateway_private_key" {
+  value     = module.aws.public_gateway_private_key
+  sensitive = true
+}

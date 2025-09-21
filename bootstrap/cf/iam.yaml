@@ -27,10 +27,8 @@ Resources:
               AWS: !GetAtt rDevUser.Arn
             Action: "sts:AssumeRole"
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-        - arn:aws:iam::aws:policy/IAMFullAccess
-        - arn:aws:iam::aws:policy/IAMAccessAnalyzerFullAccess
-        - arn:aws:iam::aws:policy/AWSBudgetsActionsWithAWSResourceControlAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
       Policies:
         - PolicyName: aether-iac-policy
           PolicyDocument:
