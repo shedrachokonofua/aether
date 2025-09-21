@@ -12,12 +12,12 @@ A simple role to manage systemd linger for users. Enabling linger allows user se
 ```yaml
 # playbook.yml
 - name: Enable linger for ansible user
-  hosts: gateway-stack
+  hosts: home-gateway-stack
   roles:
     - linger
 
 - name: Disable linger for user
-  hosts: gateway-stack
+  hosts: home-gateway-stack
   roles:
     - role: linger
       vars:

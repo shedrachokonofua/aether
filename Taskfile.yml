@@ -423,6 +423,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/home_router/site.yml
 
+  configure:home:router:
+    desc: Configure the home router
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/home_router/configure_router.yml
+
   provision:home:nfs:
     desc: Deploy the home network file server
     cmds:
@@ -466,14 +473,14 @@ tasks:
     cmds:
       - task: ansible:playbook
         vars:
-          CLI_ARGS: ./ansible/playbooks/gateway_stack/site.yml
+          CLI_ARGS: ./ansible/playbooks/home_gateway_stack/site.yml
 
   configure:home:caddy:
     desc: Configure the home Caddy server
     cmds:
       - task: ansible:playbook
         vars:
-          CLI_ARGS: ./ansible/playbooks/gateway_stack/caddy/site.yml
+          CLI_ARGS: ./ansible/playbooks/home_gateway_stack/caddy/site.yml
 
   configure:home:monitoring:
     desc: Configure the home monitoring stack

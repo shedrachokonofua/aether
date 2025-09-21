@@ -45,11 +45,11 @@ office-switch.home.shdr.ch {
 }
 
 dns.home.shdr.ch {
-  reverse_proxy {{ vm.gateway_stack.ip }}:{{ vm.gateway_stack.ports.adguard_admin }}
+  reverse_proxy {{ vm.home_gateway_stack.ip }}:{{ vm.home_gateway_stack.ports.adguard_admin }}
 }
 
 ap.home.shdr.ch {
-  reverse_proxy https://{{ vm.gateway_stack.ip }}:{{ vm.gateway_stack.ports.unifi_admin }} {
+  reverse_proxy https://{{ vm.home_gateway_stack.ip }}:{{ vm.home_gateway_stack.ports.unifi_admin }} {
     transport http {
       tls
       tls_insecure_skip_verify

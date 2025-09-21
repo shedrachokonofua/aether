@@ -232,9 +232,9 @@ filtering:
   safebrowsing_block_host: standard-block.dns.adguard.com
   rewrites:
     - domain: "*.home.shdr.ch"
-      answer: {{ vm.gateway_stack.ip }}
+      answer: {{ vm.home_gateway_stack.ip }}
     - domain: home.shdr.ch
-      answer: {{ vm.gateway_stack.ip }}
+      answer: {{ vm.home_gateway_stack.ip }}
     - domain: ssh.gitlab.home.shdr.ch
       answer: {{ vm.gitlab.ip }}
   safe_fs_patterns:

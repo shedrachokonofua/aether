@@ -1,18 +1,18 @@
 resource "proxmox_virtual_environment_vm" "gateway_stack" {
-  vm_id       = local.vm.gateway_stack.id
-  name        = local.vm.gateway_stack.name
-  node_name   = local.vm.gateway_stack.node
+  vm_id       = local.vm.home_gateway_stack.id
+  name        = local.vm.home_gateway_stack.name
+  node_name   = local.vm.home_gateway_stack.node
   description = "Gateway Stack"
 
   stop_on_destroy = true
 
   cpu {
-    cores = local.vm.gateway_stack.cores
+    cores = local.vm.home_gateway_stack.cores
     type  = "host" # Needed for avx support for mongodb
   }
 
   memory {
-    dedicated = local.vm.gateway_stack.memory
+    dedicated = local.vm.home_gateway_stack.memory
   }
 
   network_device {
@@ -24,20 +24,20 @@ resource "proxmox_virtual_environment_vm" "gateway_stack" {
   disk {
     datastore_id = "local-lvm"
     file_id      = proxmox_virtual_environment_download_file.oracle_fedora_image.id
-    size         = local.vm.gateway_stack.disk_gb
+    size         = local.vm.home_gateway_stack.disk_gb
     interface    = "virtio0"
   }
 
   initialization {
     ip_config {
       ipv4 {
-        address = "${local.vm.gateway_stack.ip}/24"
-        gateway = local.vm.gateway_stack.gateway
+        address = "${local.vm.home_gateway_stack.ip}/24"
+        gateway = local.vm.home_gateway_stack.gateway
       }
     }
 
     dns {
-      servers = [local.vm.gateway_stack.gateway]
+      servers = [local.vm.home_gateway_stack.gateway]
     }
 
     user_data_file_id = module.gateway_stack_user.cloud_config_id
@@ -55,8 +55,8 @@ resource "random_password" "gateway_stack_console_password" {
 
 module "gateway_stack_user" {
   source           = "./modules/vm_user_cloudinit"
-  node_name        = local.vm.gateway_stack.node
+  node_name        = local.vm.home_gateway_stack.node
   authorized_keys  = var.authorized_keys
-  file_prefix      = local.vm.gateway_stack.name
+  file_prefix      = local.vm.home_gateway_stack.name
   console_password = random_password.gateway_stack_console_password.result
 }

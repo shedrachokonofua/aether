@@ -27,11 +27,13 @@ VyOS LAN Base: 10.0.0.0/16
 | ---- | -------------- | -------------- | ----------- | ---------- | --------------------------------------------------------------------- |
 | 1    | Gigahub        | 192.168.2.0/24 | 192.168.2.1 | 2 - 200    | Gigahub LAN (Direct access, rack hardware)                            |
 | 2    | Infrastructure | 10.0.2.0/24    | 10.0.2.1    | 240 - 254  | Core infrastructure services (NFS, DNS, monitoring, backups)          |
-| 3    | Services       | 10.0.3.0/24    | 10.0.3.1    | 2 - 254    | Application services and workloads (GitLab, game servers, etc.)       |
+| 3    | Services       | 10.0.3.0/24    | 10.0.3.1    | 240 - 254  | Application services and workloads (GitLab, game servers, etc.)       |
 | 4    | Personal       | 10.0.4.0/24    | 10.0.4.1    | 2 - 254    | Primary network for trusted devices with full management access       |
 | 5    | Media          | 10.0.5.0/24    | 10.0.5.1    | 2 - 254    | Home entertainment devices with access to internet and service VMs    |
 | 6    | IoT            | 10.0.6.0/24    | 10.0.6.1    | 2 - 254    | Home IoT devices with access to internet and home automation services |
 | 7    | Guest          | 10.0.7.0/24    | 10.0.7.1    | 2 - 254    | Guest network with internet access only                               |
+
+-
 
 #### Firewall
 

@@ -13,7 +13,7 @@ A simple VM monitoring agent deployed as a podman pod quadlet. It collects VM me
 
 ```yaml
 # playbook.yml
-- hosts: gateway-stack
+- hosts: home-gateway-stack
   roles:
     - monitoring_agent
 ```

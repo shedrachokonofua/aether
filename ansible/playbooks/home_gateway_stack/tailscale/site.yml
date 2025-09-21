@@ -1,6 +1,6 @@
 ---
 - name: Deploy tailscale subnet router pod
-  hosts: gateway-stack
+  hosts: home-gateway-stack
   gather_facts: true
   roles:
     - common

@@ -1,6 +1,6 @@
 ---
 - name: Deploy unifi pod
-  hosts: gateway-stack
+  hosts: home-gateway-stack
   gather_facts: true
   roles:
     - common
@@ -21,7 +21,7 @@
         restart_policy: on-failure
         recreate: true
         ports:
-          - "{{ vm.gateway_stack.ports.unifi_admin }}:8443"
+          - "{{ vm.home_gateway_stack.ports.unifi_admin }}:8443"
           - 3478:3478/udp
           - 10001:10001/udp
           - 8080:8080

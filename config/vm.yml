@@ -24,9 +24,9 @@ router:
     gigahub: "192.168.2.1"
     vyos: "10.0.0.0"
 
-gateway_stack:
+home_gateway_stack:
   id: 1002
-  name: "gateway-stack"
+  name: "home-gateway-stack"
   node: "oracle"
   admin: "aether"
   cores: 8
