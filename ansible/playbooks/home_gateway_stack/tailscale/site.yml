@@ -35,45 +35,6 @@
             [Install]
             WantedBy=default.target
 
-    - name: Create Tailscale access token
-      uri:
-        url: https://api.tailscale.com/api/v2/oauth/token
-        method: POST
-        body_format: form-urlencoded
-        body:
-          client_id: "{{ secrets.tailscale_oauth_client_id }}"
-          client_secret: "{{ secrets.tailscale_oauth_client_secret }}"
-      register: tailscale_oauth_response
-
-    - name: Extract Tailscale access token
-      ansible.builtin.set_fact:
-        tailscale_access_token: "{{ (tailscale_oauth_response.json | default({})).access_token | mandatory('Access token not found') }}"
-
-    - name: Create Tailscale auth key
-      uri:
-        url: https://api.tailscale.com/api/v2/tailnet/{{ secrets.tailscale_tailnet_name }}/keys?all=true
-        method: POST
-        headers:
-          Authorization: "Bearer {{ tailscale_access_token }}"
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          description: "Tailscale auth key for gateway stack"
-          capabilities:
-            devices:
-              create:
-                ephemeral: false
-                reusable: false
-                preauthorized: true
-                tags:
-                  - tag:aether
-          expirySeconds: 900
-      register: tailscale_keys_response
-
-    - name: Extract Tailscale auth key
-      ansible.builtin.set_fact:
-        tailscale_auth_key: "{{ (tailscale_keys_response.json | default({})).key | mandatory('Auth key not found') }}"
-
     - name: Create tailscale container
       containers.podman.podman_container:
         name: tailscale
@@ -84,10 +45,12 @@
           - NET_ADMIN
           - NET_RAW
         env:
-          TS_AUTHKEY: "{{ tailscale_auth_key }}"
+          TS_AUTHKEY: "{{ secrets.tailscale_oauth_client_secret }}?ephemeral=false"
           TS_ROUTES: "10.0.0.0/8,192.168.0.0/16"
           TS_ACCEPT_DNS: "false"
           TS_HOSTNAME: "aether-home-gateway"
+          TS_EXTRA_ARGS: "--advertise-tags=tag:aether"
+          TS_STATE_DIR: "/var/lib/tailscale"
         volumes:
           - /home/aether/tailscale/data:/var/lib/tailscale:Z
           - /dev/net/tun:/dev/net/tun
