@@ -49,7 +49,7 @@
           TS_ROUTES: "10.0.0.0/8,192.168.0.0/16"
           TS_ACCEPT_DNS: "false"
           TS_HOSTNAME: "aether-home-gateway"
-          TS_EXTRA_ARGS: "--advertise-tags=tag:aether"
+          TS_EXTRA_ARGS: "--advertise-tags=tag:home-gateway"
           TS_STATE_DIR: "/var/lib/tailscale"
         volumes:
           - /home/aether/tailscale/data:/var/lib/tailscale:Z

@@ -89,3 +89,12 @@ output "aws_public_gateway_private_key" {
   value     = module.aws.public_gateway_private_key
   sensitive = true
 }
+
+output "tailscale_public_gateway_oauth_client_id" {
+  value = tailscale_oauth_client.public_gateway_oauth_client.id
+}
+
+output "tailscale_public_gateway_oauth_client_secret" {
+  value     = tailscale_oauth_client.public_gateway_oauth_client.key
+  sensitive = true
+}
