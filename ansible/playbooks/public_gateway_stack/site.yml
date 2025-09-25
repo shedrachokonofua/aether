@@ -1,0 +1,10 @@
+---
+- name: Configure public gateway stack
+  hosts: public-gateway
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+
+- name: Deploy caddy
+  import_playbook: caddy/site.yml

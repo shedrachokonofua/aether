@@ -4,6 +4,7 @@
   command: dnf -y install python3-libdnf5
   args:
     creates: /usr/lib64/python*/site-packages/libdnf5
+  when: ansible_distribution != "Amazon"
 
 # Configure automatic updates when enabled
 - when: dnf_enable_automatic_updates | bool

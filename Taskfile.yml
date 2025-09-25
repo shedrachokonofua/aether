@@ -552,6 +552,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/messaging_stack/site.yml
 
+  configure:aws:public-gateway:
+    desc: Configure the public gateway stack
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/public_gateway_stack/site.yml
+
   provision:home:game-server:
     desc: Provision the game server
     cmds:
