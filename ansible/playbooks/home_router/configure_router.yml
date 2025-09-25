@@ -64,7 +64,7 @@
           - set service dns forwarding allow-from 10.0.0.0/16
           - set service dns forwarding cache-size 50000
           - set service dns forwarding negative-ttl 0
-          - set service dns forwarding name-server {{ vm.gateway_stack.ip }}
+          - set service dns forwarding name-server {{ vm.home_gateway_stack.ip }}
           - set service dns forwarding name-server 8.8.8.8
         save: true
 
@@ -162,6 +162,7 @@
           - set service mdns repeater interface eth1.3
           - set service mdns repeater interface eth1.4
           - set service mdns repeater interface eth1.5
+          - set service mdns repeater interface eth1.6
         save: true
 
     - name: Configure firewall
@@ -241,8 +242,8 @@
           - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 10 state related
           - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 action accept
           - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 protocol tcp_udp
-          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 destination port 53,67-68
-          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 description 'Allow DNS and DHCP only'
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 destination port 53,67-68,5353
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL rule 20 description 'Allow DNS, DHCP, mDNS'
 
           # Create SERVICES to LOCAL firewall rules
           - set firewall ipv4 name SERVICES-to-LOCAL default-action drop
@@ -335,6 +336,10 @@
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 action accept
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state established
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state related
+          - set firewall ipv4 name UNTRUSTED-to-SERVICES default-action drop
+          - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 action accept
+          - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 state established
+          - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 state related
 
           # Apply WAN zone firewall policies
           - set firewall zone WAN from TRUSTED firewall name ZONES-to-WAN
@@ -380,3 +385,4 @@
           - set firewall zone MEDIA from UNTRUSTED firewall name UNTRUSTED-to-MEDIA
           - set firewall zone TRUSTED from UNTRUSTED firewall name UNTRUSTED-to-TRUSTED
           - set firewall zone MGMT from UNTRUSTED firewall name UNTRUSTED-to-MGMT
+          - set firewall zone SERVICES from UNTRUSTED firewall name UNTRUSTED-to-SERVICES
