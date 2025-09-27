@@ -6,10 +6,9 @@
   acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
 }
 
-shdr.ch {
-  respond "Hello, world."
-}
-
-*.shdr.ch {
-  respond "Hello, world."
+shdr.ch, *.shdr.ch {
+  reverse_proxy 10.0.2.2:9443 {
+    header_up Host {host}
+    header_up X-Real-IP {remote}
+  }
 }

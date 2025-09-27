@@ -23,11 +23,11 @@ resource "tailscale_acl" "tailnet_acl" {
           "192.168.0.0/16:*",
         ],
       },
-      // Public gateway can ONLY access home gateway public port
+      // Public gateway can ONLY access home gateway caddy public port
       {
         action : "accept",
         src : ["tag:public-gateway"],
-        dst : ["tag:home-gateway:8443"],
+        dst : ["10.0.2.2:9443"],
       },
     ],
     autoApprovers : {

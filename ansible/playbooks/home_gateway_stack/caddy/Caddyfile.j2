@@ -173,3 +173,11 @@ matrix.home.shdr.ch {
   reverse_proxy /_matrix/* {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.synapse }}
   reverse_proxy /_synapse/client/* {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.synapse }}
 }
+
+:9443 {
+  @shdrch host shdr.ch *.shdr.ch
+
+  handle @shdrch {
+    respond "Welcome home."
+  }
+}
