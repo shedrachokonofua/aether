@@ -6,5 +6,8 @@
     - common
     - dnf
 
+- name: Deploy tailscale
+  import_playbook: tailscale/site.yml
+
 - name: Deploy caddy
   import_playbook: caddy/site.yml

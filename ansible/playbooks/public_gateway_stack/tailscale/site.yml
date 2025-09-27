@@ -1,0 +1,53 @@
+---
+- name: Deploy tailscale
+  hosts: public-gateway
+  gather_facts: true
+  become: true
+  roles:
+    - common
+  vars:
+    tailscale_authkey: "{{ tf_outputs.tailscale_public_gateway_oauth_client_secret.value }}?ephemeral=false"
+  tasks:
+    - name: Import Tailscale GPG key
+      rpm_key:
+        state: present
+        key: https://pkgs.tailscale.com/stable/fedora/repo.gpg
+
+    - name: Add Tailscale repository
+      yum_repository:
+        name: tailscale-stable
+        description: Tailscale stable repository
+        baseurl: https://pkgs.tailscale.com/stable/fedora/$basearch
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://pkgs.tailscale.com/stable/fedora/repo.gpg
+        repo_gpgcheck: yes
+
+    - name: Install Tailscale
+      dnf:
+        name: tailscale
+        state: present
+        update_cache: yes
+
+    - name: Enable and start tailscaled service
+      systemd:
+        name: tailscaled
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Wait for tailscaled to be ready
+      wait_for:
+        path: /var/run/tailscale/tailscaled.sock
+        state: present
+        timeout: 30
+
+    - name: Check if Tailscale is already authenticated
+      command: tailscale status
+      register: tailscale_status
+      changed_when: false
+      failed_when: false
+
+    - name: Authenticate Tailscale with auth key
+      command: tailscale up --authkey="{{ tailscale_authkey }}" --hostname="aether-public-gateway" --advertise-tags="tag:public-gateway" --accept-routes --accept-dns=false
+      when: tailscale_status.rc != 0
