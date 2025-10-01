@@ -10,6 +10,7 @@
           - "{{ hostvars['oracle'].ansible_host }}"
           - "{{ hostvars['smith'].ansible_host }}"
           - "{{ hostvars['niobe'].ansible_host }}"
+          - "{{ hostvars['neo'].ansible_host }}"
       - path: /mnt/hdd/vm
         options: "rw,sync,no_subtree_check,no_root_squash"
         allowed_ips:
@@ -17,6 +18,7 @@
           - "{{ hostvars['oracle'].ansible_host }}"
           - "{{ hostvars['smith'].ansible_host }}"
           - "{{ hostvars['niobe'].ansible_host }}"
+          - "{{ hostvars['neo'].ansible_host }}"
       - path: /mnt/nvme/data/gaming
         options: "rw,sync,no_subtree_check,no_root_squash"
         allowed_ips:

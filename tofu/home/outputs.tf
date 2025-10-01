@@ -47,3 +47,12 @@ output "coupe_password" {
   sensitive = true
 }
 
+output "gpu_workstation_password" {
+  value     = random_password.gpu_workstation_console_password.result
+  sensitive = true
+}
+
+output "ai_tool_stack_password" {
+  value     = random_password.ai_tool_stack_console_password.result
+  sensitive = true
+}

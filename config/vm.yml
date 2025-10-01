@@ -219,8 +219,28 @@ messaging_stack:
     whatsapp: 29318
     gmessages: 29336
     matrix_pg: 5432
+
+gpu_workstation:
+  id: 1017
+  name: "gpu-workstation"
+  node: "neo"
+  admin: "aether"
+  cores: 32
+  memory: 65536
+  disk_gb: 1024
+  ip: "10.0.3.2"
+  gateway: "10.0.3.1"
+
+ai_tool_stack:
+  id: 1018
+  name: "ai-tool-stack"
+  node: "neo"
+  admin: "aether"
+  cores: 4
+  memory: 8192
+  disk_gb: 128
+  ip: "10.0.3.3"
+  gateway: "10.0.3.1"
 # Planned IP Allocations:
 # - Power Management Stack: 192.168.2.235
-# - GPU Workstation: 10.0.3.2
-# - AI Tool Stack: 10.0.3.3
 # - Media Stack: 10.0.3.5
