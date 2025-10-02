@@ -1,0 +1,82 @@
+---
+- name: Deploy ollama with GPU support
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./ollama
+        - ./ollama/models
+
+    - name: Create ollama container
+      containers.podman.podman_container:
+        name: ollama
+        image: docker.io/ollama/ollama:latest
+        pull: always
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - 11434:11434/tcp
+        volumes:
+          - /home/aether/ollama/models:/root/.ollama:Z
+        device:
+          - nvidia.com/gpu=all
+        env:
+          OLLAMA_HOST: "0.0.0.0:11434"
+          OLLAMA_KEEP_ALIVE: "5m"
+          OLLAMA_NUM_CTX: "131072"
+          OLLAMA_FLASH_ATTENTION: "true"
+          OLLAMA_DEBUG: "true"
+        security_opt:
+          - label=disable
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd daemon for user
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start ollama service
+      systemd:
+        name: ollama
+        state: restarted
+        scope: user
+
+    - name: Wait for ollama to start
+      wait_for:
+        port: 11434
+        host: 127.0.0.1
+        timeout: 60
+
+    - name: Check ollama version
+      uri:
+        url: http://localhost:11434/api/version
+        method: GET
+      register: ollama_version
+      retries: 3
+      delay: 5
+
+    - name: Display ollama version
+      debug:
+        msg: "Ollama is running version: {{ ollama_version.json.version }}"
+
+    - name: Pull default models
+      command: podman exec ollama ollama pull {{ item }}
+      loop:
+        - mistral-small3.2
+        - qwen3:30b
+        - gpt-oss:120b
+        - MichelRosselli/GLM-4.5-Air:Q5_K_M
+      register: model_pull
+      changed_when: "'pulling' in model_pull.stdout"
+      ignore_errors: yes

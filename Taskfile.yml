@@ -545,6 +545,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/cockpit/site.yml
 
+  configure:home:gpu-workstation:
+    desc: Configure the gpu workstation
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/gpu_workstation/site.yml
+
   configure:home:messaging-stack:
     desc: Configure the messaging stack
     cmds:

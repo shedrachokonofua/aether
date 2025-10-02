@@ -1,0 +1,13 @@
+- hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+    - linger
+    - monitoring_agent
+
+- name: Setup Nvidia Drivers and Devices
+  import_playbook: nvidia.yml
+
+- name: Deploy Ollama and LLMs
+  import_playbook: ollama.yml
