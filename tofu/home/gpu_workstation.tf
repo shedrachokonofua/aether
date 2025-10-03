@@ -1,14 +1,17 @@
 resource "proxmox_virtual_environment_vm" "gpu_workstation" {
-  vm_id       = local.vm.gpu_workstation.id
-  name        = local.vm.gpu_workstation.name
-  node_name   = local.vm.gpu_workstation.node
-  description = "GPU Workstation"
-
+  vm_id           = local.vm.gpu_workstation.id
+  name            = local.vm.gpu_workstation.name
+  node_name       = local.vm.gpu_workstation.node
+  description     = "GPU Workstation"
   stop_on_destroy = true
+
+  machine = "q35"
+  bios    = "ovmf"
 
   cpu {
     cores = local.vm.gpu_workstation.cores
     type  = "host"
+    flags = ["+pcid"]
   }
 
   memory {
@@ -28,9 +31,11 @@ resource "proxmox_virtual_environment_vm" "gpu_workstation" {
   }
 
   hostpci {
-    device = "hostpci0"
-    id     = "0000:01:00.0"
-    xvga   = true
+    device   = "hostpci0"
+    id       = "0000:01:00.0"
+    xvga     = true
+    pcie     = true
+    rom_file = "rtx6000.rom"
   }
 
   initialization {
