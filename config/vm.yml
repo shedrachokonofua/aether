@@ -230,6 +230,8 @@ gpu_workstation:
   disk_gb: 1024
   ip: "10.0.3.2"
   gateway: "10.0.3.1"
+  ports:
+    ollama: 11434
 
 ai_tool_stack:
   id: 1018
