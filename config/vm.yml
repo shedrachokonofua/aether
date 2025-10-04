@@ -232,6 +232,8 @@ gpu_workstation:
   gateway: "10.0.3.1"
   ports:
     ollama: 11434
+    comfyui: 8188
+    docling: 5001
 
 ai_tool_stack:
   id: 1018

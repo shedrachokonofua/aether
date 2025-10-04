@@ -178,6 +178,15 @@ ollama.home.shdr.ch {
   reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.ollama }}
 }
 
+comfyui.home.shdr.ch {
+  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.comfyui }}
+}
+
+docling.home.shdr.ch {
+  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.docling }}
+}
+
+
 :9443 {
   @shdrch host shdr.ch *.shdr.ch
 

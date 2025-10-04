@@ -1,0 +1,52 @@
+---
+- name: Deploy ComfyUI with GPU support
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create storage directory
+      file:
+        path: ./comfyui/storage
+        state: directory
+        mode: "0755"
+
+    - name: Create comfyui container
+      containers.podman.podman_container:
+        name: comfyui
+        image: docker.io/yanwk/comfyui-boot:cu129-slim
+        pull: always
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.gpu_workstation.ports.comfyui }}:8188/tcp"
+        volumes:
+          - /home/aether/comfyui/storage:/root:Z
+        device:
+          - nvidia.com/gpu=all
+        env:
+          CLI_ARGS: "--fast --use-pytorch-cross-attention"
+        security_opt:
+          - label=disable
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd daemon for user
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start comfyui service
+      systemd:
+        name: comfyui
+        state: restarted
+        scope: user
+
+    - name: Wait for comfyui to start
+      wait_for:
+        port: 8188
+        host: 127.0.0.1
+        timeout: 120

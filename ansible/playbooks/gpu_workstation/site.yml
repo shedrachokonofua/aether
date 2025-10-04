@@ -11,3 +11,9 @@
 
 - name: Deploy Ollama and LLMs
   import_playbook: ollama.yml
+
+- name: Deploy ComfyUI
+  import_playbook: comfyui.yml
+
+- name: Deploy Docling
+  import_playbook: docling.yml

@@ -1,0 +1,45 @@
+---
+- name: Deploy Docling with GPU support
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create docling container
+      containers.podman.podman_container:
+        name: docling-serve
+        image: ghcr.io/docling-project/docling-serve-cu128:main
+        pull: always
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.gpu_workstation.ports.docling }}:5001/tcp"
+        device:
+          - nvidia.com/gpu=all
+        env:
+          DOCLING_SERVE_ENABLE_UI: "true"
+          NVIDIA_VISIBLE_DEVICES: "all"
+        security_opt:
+          - label=disable
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd daemon for user
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start docling-serve service
+      systemd:
+        name: docling-serve
+        state: restarted
+        scope: user
+
+    - name: Wait for docling to start
+      wait_for:
+        port: "{{ vm.gpu_workstation.ports.docling }}"
+        host: 127.0.0.1
+        timeout: 60
