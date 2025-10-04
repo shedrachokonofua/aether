@@ -188,9 +188,16 @@ docling.home.shdr.ch {
 
 
 :9443 {
-  @shdrch host shdr.ch *.shdr.ch
+  @shdrch host shdr.ch
+  @ai host ai.shdr.ch
 
   handle @shdrch {
     respond "Welcome home."
+  }
+
+  handle @ai {
+    reverse_proxy {{ vm.dokploy.ip }} {
+      header_up Host "open-webui.d.home.shdr.ch"
+    }
   }
 }
