@@ -1,0 +1,10 @@
+- hosts: ai-tool-stack
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+    - linger
+    - monitoring_agent
+
+- name: Deploy LiteLLM
+  import_playbook: litellm/site.yml

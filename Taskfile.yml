@@ -552,6 +552,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/gpu_workstation/site.yml
 
+  configure:home:ai-tool-stack:
+    desc: Configure the ai tool stack
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/ai_tool_stack/site.yml
+
   configure:home:messaging-stack:
     desc: Configure the messaging stack
     cmds:

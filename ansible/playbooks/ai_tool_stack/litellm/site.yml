@@ -1,0 +1,92 @@
+---
+- name: Deploy LiteLLM pod
+  hosts: ai-tool-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: ./litellm/config
+        state: directory
+        mode: "0755"
+
+    - name: Copy LiteLLM config file
+      copy:
+        src: ./config.yaml
+        dest: ./litellm/config/config.yaml
+        mode: "0644"
+
+    - name: Create LiteLLM pod
+      containers.podman.podman_pod:
+        name: litellm
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.ai_tool_stack.ports.litellm }}:4000"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create litellm-postgres storage volume
+      containers.podman.podman_volume:
+        name: litellm_postgres_storage
+        state: quadlet
+
+    - name: Create litellm-postgres container
+      containers.podman.podman_container:
+        name: litellm-postgres
+        image: docker.io/postgres:latest
+        state: quadlet
+        pod: litellm.pod
+        env:
+          POSTGRES_DB: litellm
+          POSTGRES_USER: "{{ secrets.litellm.database_user }}"
+          POSTGRES_PASSWORD: "{{ secrets.litellm.database_password }}"
+        volumes:
+          - litellm_postgres_storage.volume:/var/lib/postgresql/data:Z
+
+    - name: Create litellm container
+      containers.podman.podman_container:
+        name: litellm
+        image: ghcr.io/berriai/litellm:main-stable
+        pull: always
+        state: quadlet
+        pod: litellm.pod
+        env:
+          LITELLM_MASTER_KEY: "{{ secrets.litellm.master_key }}"
+          DATABASE_URL: "postgres://{{ secrets.litellm.database_user }}:{{ secrets.litellm.database_password }}@localhost/litellm?sslmode=disable"
+          OPENAI_API_KEY: "{{ secrets.litellm.openai_api_key }}"
+          ANTHROPIC_API_KEY: "{{ secrets.litellm.anthropic_api_key }}"
+        volumes:
+          - /home/aether/litellm/config/config.yaml:/app/config.yaml:Z
+        command: ["--config", "/app/config.yaml", "--detailed_debug"]
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start litellm quadlet
+      systemd:
+        name: litellm-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for litellm to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.litellm }}"
+        host: 127.0.0.1
+        timeout: 60
+
+    - name: Check litellm health
+      uri:
+        url: http://localhost:{{ vm.ai_tool_stack.ports.litellm }}/health/liveliness
+        method: GET
+      register: litellm_health
+      retries: 5
+      delay: 5
+      until: litellm_health.status == 200
+      ignore_errors: true
