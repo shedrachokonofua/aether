@@ -98,6 +98,7 @@ VyOS LAN Base: 10.0.0.0/16
 | 9    | SFP+     | Oracle                                                | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
 | 10   | SFP+     | Trinity                                               | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
 | 11   | SFP+     | Smith                                                 | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
+| 12   | SFP+     | Neo                                                   | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
 
 - VLAN 1: Bell Gigahub LAN (192.168.2.0/24) - Direct access, bypasses VyOS firewall
 
@@ -151,15 +152,15 @@ Smith is the designated shared storage node in the home cluster. It's running ZF
 
 ### Datasets
 
-| Name             | Mountpoint            | Compression | Record Size | Description                                      |
-| ---------------- | --------------------- | ----------- | ----------- | ------------------------------------------------ |
-| nvme/personal    | /mnt/nvme/personal    | lz4         | default     | Personal data storage, backed up to google drive |
-| nvme/vm          | /mnt/nvme/vm          | lz4         | 16K         | Performance-optimized storage for VMs            |
-| nvme/data        | /mnt/nvme/data        | lz4         | default     | Performance-optimized storage for generic data   |
-| hdd/vm           | /mnt/hdd/vm           | lz4         | default     | Capacity-optimized storage for VMs               |
-| hdd/data         | /mnt/hdd/data         | lz4         | default     | Capacity-optimized storage for generic data      |
-| hdd/backups-vm   | /mnt/hdd/backups-vm   | lz4         | default     | VM backups                                       |
-| hdd/backups-data | /mnt/hdd/backups-data | lz4         | default     | Generic data backups                             |
+| Name             | Mountpoint            | Compression | Record Size | Description                                    |
+| ---------------- | --------------------- | ----------- | ----------- | ---------------------------------------------- |
+| nvme/personal    | /mnt/nvme/personal    | lz4         | default     | Personal data storage                          |
+| nvme/vm          | /mnt/nvme/vm          | lz4         | 16K         | Performance-optimized storage for VMs          |
+| nvme/data        | /mnt/nvme/data        | lz4         | default     | Performance-optimized storage for generic data |
+| hdd/vm           | /mnt/hdd/vm           | lz4         | default     | Capacity-optimized storage for VMs             |
+| hdd/data         | /mnt/hdd/data         | lz4         | default     | Capacity-optimized storage for generic data    |
+| hdd/backups-vm   | /mnt/hdd/backups-vm   | lz4         | default     | VM backups                                     |
+| hdd/backups-data | /mnt/hdd/backups-data | lz4         | default     | Generic data backups                           |
 
 ### Network File System
 
@@ -216,4 +217,3 @@ Handles local, deduplicated backups for VMs and LXCs on the proxmox cluster.
 | Source Dataset | Target                           | Frequency   |
 | -------------- | -------------------------------- | ----------- |
 | hdd            | S3: Glacier + Flexible Retrieval | Daily @ 3AM |
-| nvme/personal  | Google Drive                     | Live        |

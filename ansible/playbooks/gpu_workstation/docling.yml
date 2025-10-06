@@ -1,5 +1,5 @@
 ---
-- name: Deploy Docling with GPU support
+- name: Deploy Docling
   hosts: gpu-workstation
   gather_facts: true
   roles:

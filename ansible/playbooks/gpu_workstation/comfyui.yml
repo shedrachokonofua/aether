@@ -1,5 +1,5 @@
 ---
-- name: Deploy ComfyUI with GPU support
+- name: Deploy ComfyUI
   hosts: gpu-workstation
   gather_facts: true
   roles:

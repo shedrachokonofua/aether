@@ -125,4 +125,3 @@ task configure
 - [AWS](docs/aws.md)
 - [Cloudflare](docs/cloudflare.md)
 - [Tailscale](docs/tailscale.md)
-- [GCP](docs/gcp.md)
