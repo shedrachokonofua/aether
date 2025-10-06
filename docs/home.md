@@ -33,49 +33,16 @@ VyOS LAN Base: 10.0.0.0/16
 | 6    | IoT            | 10.0.6.0/24    | 10.0.6.1    | 2 - 254    | Home IoT devices with access to internet and home automation services |
 | 7    | Guest          | 10.0.7.0/24    | 10.0.7.1    | 2 - 254    | Guest network with internet access only                               |
 
--
-
 #### Firewall
 
-**VLAN 2 - Infrastructure** (TRUSTED zone):
-
-- Can access all VLANs
-- Full router access (SSH, configuration)
-- Internet access
-- Gigahub access
-
-**VLAN 3 - Services** (SERVICES zone):
-
-- Internet access
-- Infrastructure access: Only specific ports (DNS, NFS, monitoring)
-- Cannot initiate to Personal (VLAN 4)
-- Can access Media (VLAN 5) to serve content
-- Can access IoT (VLAN 6) for automation and management
-- No Guest access
-- Router access: DNS and DHCP only
-- No Gigahub access
-
-**VLAN 4 - Personal** (TRUSTED zone):
-
-- Can access all VLANs
-- Full router access (SSH, configuration)
-- Internet access
-- Gigahub access
-
-**VLAN 5 - Media** (MEDIA zone):
-
-- Internet access
-- Cannot access Infrastructure
-- Can access Services (for media servers)
-- Cannot access Personal, IoT, or Guest
-- Router access: DNS, DHCP, mDNS, ping
-
-**VLAN 6 - IoT** & **VLAN 7 - Guest** (UNTRUSTED zone):
-
-- Internet access only
-- Cannot initiate connections to any other VLAN
-- Router access: DNS and DHCP only
-- Can receive connections from trusted zone
+| VLAN | Name           | Zone      | Internet | Infrastructure (V2)            | Services (V3)                 | Personal (V4)                 | Media (V5)            | IoT (V6)                 | Guest (V7) | Router Access              | Gigahub |
+| ---- | -------------- | --------- | -------- | ------------------------------ | ----------------------------- | ----------------------------- | --------------------- | ------------------------ | ---------- | -------------------------- | ------- |
+| 2    | Infrastructure | TRUSTED   | ✅       | ✅ (Full)                      | ✅ (Full)                     | ✅ (Full)                     | ✅ (Full)             | ✅ (Full)                | ✅ (Full)  | ✅ (Full)                  | ✅      |
+| 3    | Services       | SERVICES  | ✅       | ✅ (DNS, NFS, monitoring only) | ✅ (Full)                     | ❌ (Cannot initiate)          | ✅ (To serve content) | ✅ (For automation/mgmt) | ❌         | ✅ (DNS, DHCP only)        | ❌      |
+| 4    | Personal       | TRUSTED   | ✅       | ✅ (Full)                      | ✅ (Full)                     | ✅ (Full)                     | ✅ (Full)             | ✅ (Full)                | ✅ (Full)  | ✅ (Full)                  | ✅      |
+| 5    | Media          | MEDIA     | ✅       | ❌ (Can receive from trusted)  | ✅ (For media servers)        | ❌ (Can receive from trusted) | ✅ (Full)             | ❌                       | ❌         | ✅ (DNS, DHCP, mDNS, ping) | ❌      |
+| 6    | IoT            | UNTRUSTED | ✅       | ❌ (Can receive from trusted)  | ❌ (Can receive from trusted) | ❌ (Can receive from trusted) | ❌                    | ✅ (Full)                | ❌         | ✅ (DNS, DHCP only)        | ❌      |
+| 7    | Guest          | UNTRUSTED | ✅       | ❌ (Can receive from trusted)  | ❌ (Can receive from trusted) | ❌ (Can receive from trusted) | ❌                    | ❌                       | ✅ (Full)  | ✅ (DNS, DHCP only)        | ❌      |
 
 #### Rack Switch
 
