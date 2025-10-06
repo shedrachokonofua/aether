@@ -26,7 +26,7 @@
         device:
           - nvidia.com/gpu=all
         env:
-          CLI_ARGS: "--fast --use-pytorch-cross-attention"
+          CLI_ARGS: "--use-pytorch-cross-attention --fast fp16_accumulation --normalvram --reserve-vram 1 --fp16-vae --cuda-malloc"
         security_opt:
           - label=disable
         quadlet_options:
@@ -50,3 +50,26 @@
         port: 8188
         host: 127.0.0.1
         timeout: 120
+    - name: Wait for ComfyUI to create directory structure
+      wait_for:
+        path: "/home/aether/comfyui/storage/ComfyUI/models/checkpoints"
+        state: present
+        timeout: 30
+
+    - name: Download CyberRealistic Pony model
+      get_url:
+        url: "https://huggingface.co/cyberdelia/CyberRealisticPony/resolve/main/CyberRealisticPony_V13.0_FP16.safetensors"
+        dest: "/home/aether/comfyui/storage/ComfyUI/models/checkpoints/CyberRealisticPony_V13.0_FP16.safetensors"
+        mode: "0644"
+        timeout: 300
+      register: model_download
+      retries: 3
+      delay: 10
+      until: model_download is not failed
+
+    - name: Download SDXL VAE (recommended for Pony models)
+      get_url:
+        url: "https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl_vae.safetensors"
+        dest: "/home/aether/comfyui/storage/ComfyUI/models/vae/sdxl_vae.safetensors"
+        mode: "0644"
+        timeout: 300
