@@ -2,9 +2,25 @@
 
 ## Domain
 
-The root domain `shdr.ch` (derived from "Shedrach" without vowels) is managed through Cloudflare.
+The root domain `shdr.ch` (derived from "Shedrach" without vowels) is managed through Cloudflare with full DNS management.
+
+## Zone Configuration
+
+The zone is configured with the following settings:
+
+- **SSL Mode**: Strict - Requires valid SSL certificates on origin servers
+- **Zone Type**: Full - Complete DNS management through Cloudflare
 
 ## DNS Management
+
+### Public Gateway
+
+The domain routes public traffic through the AWS-hosted public gateway with Cloudflare's CDN and DDoS protection enabled.
+
+| Record Type | Name | Target                | Proxied | Purpose                    |
+| ----------- | ---- | --------------------- | ------- | -------------------------- |
+| A           | @    | AWS Public Gateway IP | Yes     | Root domain routing        |
+| A           | \*   | AWS Public Gateway IP | Yes     | Wildcard subdomain routing |
 
 ### Email (ProtonMail)
 
