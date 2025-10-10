@@ -1,0 +1,95 @@
+---
+- name: Deploy JupyterLab with custom image
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    # Build custom image
+    - name: Create build directory
+      file:
+        path: /home/aether/jupyter-build
+        state: directory
+        mode: "0755"
+
+    - name: Copy Dockerfile
+      copy:
+        src: Dockerfile
+        dest: /home/aether/jupyter-build/Dockerfile
+        mode: "0644"
+
+    - name: Build Jupyter image with Podman
+      containers.podman.podman_image:
+        name: localhost/jupyter-aether
+        tag: latest
+        path: /home/aether/jupyter-build
+        build:
+          file: Dockerfile
+          format: docker
+        state: build
+        force: true
+
+    - name: Clean up build directory
+      file:
+        path: /home/aether/jupyter-build
+        state: absent
+
+    # Deploy JupyterLab container
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./jupyter
+        - ./jupyter/notebooks
+        - ./jupyter/data
+
+    - name: Create JupyterLab container
+      containers.podman.podman_container:
+        name: jupyter
+        image: localhost/jupyter-aether:latest
+        pull: never
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.gpu_workstation.ports.jupyter }}:8888/tcp"
+        volumes:
+          - /home/aether/jupyter/notebooks:/home/jovyan/work:Z
+          - /home/aether/jupyter/data:/home/jovyan/data:Z
+        device:
+          - nvidia.com/gpu=all
+        env:
+          NVIDIA_VISIBLE_DEVICES: "all"
+          NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+        security_opt:
+          - label=disable
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd daemon for user
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start jupyter service
+      systemd:
+        name: jupyter
+        state: restarted
+        scope: user
+
+    - name: Wait for JupyterLab to start
+      wait_for:
+        port: "{{ vm.gpu_workstation.ports.jupyter | default(8890) }}"
+        host: 127.0.0.1
+        timeout: 120
+
+    - name: Display Jupyter access information
+      debug:
+        msg: |
+          JupyterLab is running at:
+          http://{{ ansible_default_ipv4.address }}:{{ vm.gpu_workstation.ports.jupyter | default(8890) }}
+          No authentication required (local only)

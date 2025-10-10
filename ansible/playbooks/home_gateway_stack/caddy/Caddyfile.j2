@@ -186,6 +186,10 @@ docling.home.shdr.ch {
   reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.docling }}
 }
 
+jupyter.home.shdr.ch {
+  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.jupyter }}
+}
+
 litellm.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.litellm }}
 }

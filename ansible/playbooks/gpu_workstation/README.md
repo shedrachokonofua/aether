@@ -5,6 +5,7 @@ This playbook is for configuring the GPU workstation virtual machine. The GPU wo
 - Ollama: Local LLM inference with GPU acceleration
 - ComfyUI: Stable Diffusion UI for AI image generation
 - Docling: Document parsing and conversion service
+- JupyterLab: Interactive notebook environment with GPU support for ML/AI development
 
 This playbook also installs and configures NVIDIA GPU drivers, container runtime support, and CDI configuration for GPU passthrough to containers.
 
@@ -46,4 +47,12 @@ Deploys Docling service for document parsing and conversion with GPU acceleratio
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/gpu_workstation/docling.yml
+```
+
+### Deploy JupyterLab
+
+Deploys JupyterLab with PyTorch, CUDA support, and GPU acceleration for interactive ML/AI development.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/gpu_workstation/jupyter/site.yml
 ```

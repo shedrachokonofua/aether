@@ -23,3 +23,6 @@
 
 - name: Deploy Docling
   import_playbook: docling.yml
+
+- name: Deploy JupyterLab
+  import_playbook: jupyter/site.yml
