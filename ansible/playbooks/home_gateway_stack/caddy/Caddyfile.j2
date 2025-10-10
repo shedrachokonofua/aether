@@ -190,6 +190,10 @@ litellm.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.litellm }}
 }
 
+openwebui.home.shdr.ch {
+  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.openwebui }}
+}
+
 
 :9443 {
   @shdrch host shdr.ch

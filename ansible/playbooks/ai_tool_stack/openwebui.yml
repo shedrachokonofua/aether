@@ -1,0 +1,69 @@
+---
+- name: Deploy OpenWebUI pod
+  hosts: ai-tool-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: ./openwebui/data
+        state: directory
+        mode: "0755"
+
+    - name: Create OpenWebUI pod
+      containers.podman.podman_pod:
+        name: openwebui
+        state: quadlet
+        restart_policy: unless-stopped
+        recreate: true
+        ports:
+          - "{{ vm.ai_tool_stack.ports.openwebui }}:8080"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create openwebui container
+      containers.podman.podman_container:
+        name: openwebui
+        image: ghcr.io/open-webui/open-webui:latest
+        pull: always
+        state: quadlet
+        pod: openwebui.pod
+        env:
+          ENABLE_PERSISTENT_CONFIG: "false"
+          WEBUI_SECRET_KEY: "{{ secrets.openwebui.secret_key }}"
+          OPENAI_API_BASE_URL: "https://litellm.home.shdr.ch/v1"
+          OPENAI_API_KEY: "{{ secrets.litellm.virtual_keys.openwebui }}"
+          ENABLE_OLLAMA_API: "false"
+          ENABLE_WEB_SEARCH: "true"
+          WEB_SEARCH_RESULT_COUNT: 5
+          WEB_SEARCH_ENGINE: searxng
+          SEARXNG_QUERY_URL: "https://searxng.d.home.shdr.ch/search?format=json&q=<query>"
+          CONTENT_EXTRACTION_ENGINE: "docling"
+          DOCLING_SERVER_URL: "https://docling.home.shdr.ch"
+          RAG_EMBEDDING_ENGINE: "openai"
+          RAG_OPENAI_API_BASE_URL: "https://litellm.home.shdr.ch/v1"
+          RAG_OPENAI_API_KEY: "{{ secrets.litellm.virtual_keys.openwebui }}"
+          RAG_EMBEDDING_MODEL: "aether/qwen3-embedding:4b"
+          RAG_ALLOWED_FILE_EXTENSIONS: "pdf,docx,txt,pptx,csv,xlsx,xls"
+        volumes:
+          - /home/aether/openwebui/data:/app/backend/data:Z
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start openwebui quadlet
+      systemd:
+        name: openwebui-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for openwebui to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.openwebui }}"
+        host: 127.0.0.1
+        timeout: 60

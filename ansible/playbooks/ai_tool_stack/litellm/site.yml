@@ -90,3 +90,36 @@
       delay: 5
       until: litellm_health.status == 200
       ignore_errors: true
+
+    - name: Check if virtual keys exist by alias
+      uri:
+        url: "http://localhost:{{ vm.ai_tool_stack.ports.litellm }}/key/list?key_alias={{ item.key }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+        status_code: [200]
+      register: key_check
+      loop: "{{ secrets.litellm.virtual_keys | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      ignore_errors: true
+
+    - name: Create missing virtual keys
+      uri:
+        url: http://localhost:{{ vm.ai_tool_stack.ports.litellm }}/key/generate
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          key: "{{ item.item.value }}"
+          key_alias: "{{ item.item.key }}"
+          models: ["all-team-models"]
+          user_id: "default_user_id"
+        status_code: [200]
+      loop: "{{ key_check.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: item.json.total_count | default(0) == 0
+      ignore_errors: true
