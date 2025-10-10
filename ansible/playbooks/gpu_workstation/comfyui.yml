@@ -56,20 +56,39 @@
         state: present
         timeout: 30
 
-    - name: Download CyberRealistic Pony model
+    - name: Download QwenEditUtils custom nodes
+      git:
+        repo: "https://github.com/lrzjason/Comfyui-QwenEditUtils.git"
+        dest: "/home/aether/comfyui/storage/ComfyUI/custom_nodes/Comfyui-QwenEditUtils"
+        version: master
+        update: yes
+
+    - name: Download ComfyUI models
       get_url:
-        url: "https://huggingface.co/cyberdelia/CyberRealisticPony/resolve/main/CyberRealisticPony_V13.0_FP16.safetensors"
-        dest: "/home/aether/comfyui/storage/ComfyUI/models/checkpoints/CyberRealisticPony_V13.0_FP16.safetensors"
+        url: "{{ item.url }}"
+        dest: "/home/aether/comfyui/storage/ComfyUI/models/{{ item.type }}/{{ item.filename }}"
         mode: "0644"
         timeout: 300
+      loop:
+        - url: "https://huggingface.co/cyberdelia/CyberRealisticPony/resolve/main/CyberRealisticPony_V13.0_FP16.safetensors"
+          type: checkpoints
+          filename: "CyberRealisticPony_V13.0_FP16.safetensors"
+        - url: "https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl_vae.safetensors"
+          type: vae
+          filename: "sdxl_vae.safetensors"
+        - url: "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors"
+          type: diffusion_models
+          filename: "qwen_image_edit_fp8_e4m3fn.safetensors"
+        - url: "https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-4steps-V1.0.safetensors"
+          type: loras
+          filename: "Qwen-Image-Lightning-4steps-V1.0.safetensors"
+        - url: "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"
+          type: text_encoders
+          filename: "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+        - url: "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors"
+          type: vae
+          filename: "qwen_image_vae.safetensors"
       register: model_download
       retries: 3
       delay: 10
       until: model_download is not failed
-
-    - name: Download SDXL VAE (recommended for Pony models)
-      get_url:
-        url: "https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl_vae.safetensors"
-        dest: "/home/aether/comfyui/storage/ComfyUI/models/vae/sdxl_vae.safetensors"
-        mode: "0644"
-        timeout: 300

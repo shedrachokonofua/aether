@@ -5,6 +5,12 @@
     - dnf
     - linger
     - monitoring_agent
+  tasks:
+    - name: Install git
+      become: true
+      dnf:
+        name: git
+        state: present
 
 - name: Setup Nvidia Drivers and Devices
   import_playbook: nvidia.yml
