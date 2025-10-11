@@ -249,6 +249,7 @@ ai_tool_stack:
   ports:
     litellm: 4000
     openwebui: 8080
+    searxng: 8081
 # Planned IP Allocations:
 # - Power Management Stack: 192.168.2.235
 # - Media Stack: 10.0.3.5

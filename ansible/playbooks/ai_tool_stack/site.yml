@@ -9,5 +9,8 @@
 - name: Deploy LiteLLM
   import_playbook: litellm/site.yml
 
+- name: Deploy SearXNG
+  import_playbook: searxng/site.yml
+
 - name: Deploy OpenWebUI
   import_playbook: openwebui.yml

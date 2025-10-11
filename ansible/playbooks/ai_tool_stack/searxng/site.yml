@@ -1,0 +1,77 @@
+---
+- name: Deploy SearXNG pod
+  hosts: ai-tool-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: /home/aether/searxng
+        state: directory
+        mode: "0755"
+
+    - name: Copy SearXNG settings file
+      template:
+        src: ./settings.yml.j2
+        dest: /home/aether/searxng/settings.yml
+        mode: "0755"
+        variable_start_string: "[["
+        variable_end_string: "]]"
+      become: true
+
+    - name: Create SearXNG pod
+      containers.podman.podman_pod:
+        name: searxng
+        state: quadlet
+        restart_policy: unless-stopped
+        recreate: true
+        ports:
+          - "{{ vm.ai_tool_stack.ports.searxng }}:8080"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create searxng container
+      containers.podman.podman_container:
+        name: searxng
+        image: docker.io/searxng/searxng:latest
+        pull: always
+        state: quadlet
+        pod: searxng.pod
+        volumes:
+          - /home/aether/searxng:/etc/searxng:Z
+        cap_drop:
+          - ALL
+        cap_add:
+          - CHOWN
+          - SETGID
+          - SETUID
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start searxng quadlet
+      systemd:
+        name: searxng-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for searxng to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.searxng }}"
+        host: 127.0.0.1
+        timeout: 60
+
+    - name: Check searxng health
+      uri:
+        url: "http://localhost:{{ vm.ai_tool_stack.ports.searxng }}/healthz"
+        method: GET
+      register: searxng_health
+      retries: 5
+      delay: 5
+      until: searxng_health.status == 200
+      ignore_errors: true

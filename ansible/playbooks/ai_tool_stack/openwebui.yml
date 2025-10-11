@@ -40,7 +40,7 @@
           ENABLE_WEB_SEARCH: "true"
           WEB_SEARCH_RESULT_COUNT: 5
           WEB_SEARCH_ENGINE: searxng
-          SEARXNG_QUERY_URL: "https://searxng.d.home.shdr.ch/search?format=json&q=<query>"
+          SEARXNG_QUERY_URL: "https://searxng.home.shdr.ch/search?format=json&q=<query>"
           CONTENT_EXTRACTION_ENGINE: "docling"
           DOCLING_SERVER_URL: "https://docling.home.shdr.ch"
           RAG_EMBEDDING_ENGINE: "openai"
