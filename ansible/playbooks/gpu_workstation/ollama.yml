@@ -34,6 +34,7 @@
           OLLAMA_NUM_CTX: "131072"
           OLLAMA_FLASH_ATTENTION: "true"
           OLLAMA_DEBUG: "true"
+          OLLAMA_NUM_PARALLEL: 5
           OLLAMA_NUM_GPU: 1
           OLLAMA_GPU_LAYERS: -1
         security_opt:
