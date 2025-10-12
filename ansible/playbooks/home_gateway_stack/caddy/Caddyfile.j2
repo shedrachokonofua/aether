@@ -198,6 +198,10 @@ openwebui.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.openwebui }}
 }
 
+mcpo.home.shdr.ch {
+  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.mcpo }}
+}
+
 searxng.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.searxng }}
 }

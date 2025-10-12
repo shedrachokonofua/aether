@@ -16,4 +16,4 @@
   import_playbook: firecrawl.yml
 
 - name: Deploy OpenWebUI
-  import_playbook: openwebui.yml
+  import_playbook: openwebui/site.yml

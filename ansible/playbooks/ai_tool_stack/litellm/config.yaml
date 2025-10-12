@@ -2,31 +2,31 @@ model_list:
   # Ollama models
   - model_name: "aether/mistral-small3.2"
     litellm_params:
-      model: "ollama/mistral-small3.2"
+      model: "openai/mistral-small3.2"
       litellm_credential_name: ollama_credential
   - model_name: "aether/qwen3:30b"
     litellm_params:
-      model: "ollama/qwen3:30b"
+      model: "openai/qwen3:30b"
       litellm_credential_name: ollama_credential
   - model_name: "aether/gpt-oss:120b"
     litellm_params:
-      model: "ollama/gpt-oss:120b"
+      model: "openai/gpt-oss:120b"
       litellm_credential_name: ollama_credential
   - model_name: "aether/MichelRosselli/GLM-4.5-Air:Q5_K_M"
     litellm_params:
-      model: "ollama/MichelRosselli/GLM-4.5-Air:Q5_K_M"
+      model: "openai/MichelRosselli/GLM-4.5-Air:Q5_K_M"
       litellm_credential_name: ollama_credential
   - model_name: "aether/qwen3-embedding:4b"
     litellm_params:
-      model: "ollama/qwen3-embedding:4b"
+      model: "openai/qwen3-embedding:4b"
       litellm_credential_name: ollama_credential
   - model_name: "aether/gemma3:27b"
     litellm_params:
-      model: "ollama/gemma3:27b"
+      model: "openai/gemma3:27b"
       litellm_credential_name: ollama_credential
   - model_name: "aether/qwen3:8b"
     litellm_params:
-      model: "ollama/qwen3:8b"
+      model: "openai/qwen3:8b"
       litellm_credential_name: ollama_credential
 
   # OpenAI models
@@ -52,7 +52,7 @@ model_list:
 credential_list:
   - credential_name: ollama_credential
     credential_values:
-      api_base: https://ollama.home.shdr.ch
+      api_base: https://ollama.home.shdr.ch/v1
       api_key: none
     credential_info:
       description: "Ollama"
@@ -75,3 +75,9 @@ litellm_settings:
 
 general_settings:
   store_prompts_in_spend_logs: true
+
+mcp_servers:
+  server_time:
+    transport: "stdio"
+    command: "uvx"
+    args: [" mcp-server-time", "--local-timezone=America/Toronto"]

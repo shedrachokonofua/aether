@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "litellm": {
+      "type": "streamable-http",
+      "url": "https://litellm.home.shdr.ch/mcp",
+      "headers": {
+        "x-litellm-api-key": "Bearer {{ secrets.litellm.virtual_keys.openwebui }}"
+      }
+    }
+  }
+}

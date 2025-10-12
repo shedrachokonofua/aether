@@ -249,6 +249,7 @@ ai_tool_stack:
   ports:
     litellm: 4000
     openwebui: 8080
+    mcpo: 8001
     searxng: 8081
     firecrawl: 3002
 # Planned IP Allocations:

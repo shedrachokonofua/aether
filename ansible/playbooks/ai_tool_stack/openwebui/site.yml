@@ -11,6 +11,12 @@
         state: directory
         mode: "0755"
 
+    - name: Write MCPO configuration
+      template:
+        src: mcpo.json.j2
+        dest: /home/aether/openwebui/mcpo.json
+        mode: "0755"
+
     - name: Create OpenWebUI pod
       containers.podman.podman_pod:
         name: openwebui
@@ -19,6 +25,7 @@
         recreate: true
         ports:
           - "{{ vm.ai_tool_stack.ports.openwebui }}:8080"
+          - "{{ vm.ai_tool_stack.ports.mcpo }}:8001"
         quadlet_options:
           - |
             [Install]
@@ -52,8 +59,27 @@
           CODE_EXECUTION_JUPYTER_URL: "https://jupyter.home.shdr.ch"
           CODE_INTERPRETER_ENGINE: "jupyter"
           CODE_INTERPRETER_JUPYTER_URL: "https://jupyter.home.shdr.ch"
+          TOOL_SERVER_CONNECTIONS: '[{"name": "litellm", "url": "https://mcpo.home.shdr.ch", "api_key": "{{ secrets.openwebui.mcpo_api_key }}"}]'
         volumes:
           - /home/aether/openwebui/data:/app/backend/data:Z
+
+    - name: Create mcpo container
+      containers.podman.podman_container:
+        name: mcpo
+        image: ghcr.io/open-webui/mcpo:main
+        pull: always
+        state: quadlet
+        pod: openwebui.pod
+        volumes:
+          - /home/aether/openwebui/mcpo.json:/config/config.json:ro,Z
+        command:
+          - "mcpo"
+          - "--config"
+          - "/config/config.json"
+          - "--port"
+          - "8001"
+          - "--api-key"
+          - "{{ secrets.openwebui.mcpo_api_key }}"
 
     - name: Reload systemd
       systemd:

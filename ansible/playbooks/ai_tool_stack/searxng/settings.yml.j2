@@ -340,6 +340,27 @@ categories_as_tabs:
   social media:
 
 engines:
+  - name: kagi
+    engine: json_engine
+    shortcut: kag
+    categories: general
+    paging: true
+    search_url: https://kagi.com/api/v0/search?q={query}
+    headers:
+      Authorization: "Bot [[ secrets.searxng.kagi_api_key ]]"
+    results_query: data
+    url_query: url
+    title_query: title
+    content_query: snippet
+    timeout: 5
+    disabled: false
+    about:
+      website: https://www.kagi.com/
+      official_api_documentation: https://help.kagi.com/kagi/api/search.html
+      use_official_api: true
+      require_api_key: true
+      results: JSON
+
   - name: bandcamp
     engine: bandcamp
     shortcut: bc
