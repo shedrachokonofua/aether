@@ -11,9 +11,9 @@
         state: directory
         mode: "0755"
 
-    - name: Copy LiteLLM config file
-      copy:
-        src: ./config.yaml
+    - name: Write LiteLLM config file
+      template:
+        src: ./config.yaml.j2
         dest: ./litellm/config/config.yaml
         mode: "0644"
 

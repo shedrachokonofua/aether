@@ -210,6 +210,10 @@ firecrawl.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.firecrawl }}
 }
 
+mcp.firecrawl.home.shdr.ch {
+  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.firecrawl_mcp }}
+}
+
 
 :9443 {
   @shdrch host shdr.ch

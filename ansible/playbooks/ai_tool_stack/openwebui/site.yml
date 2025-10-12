@@ -59,7 +59,8 @@
           CODE_EXECUTION_JUPYTER_URL: "https://jupyter.home.shdr.ch"
           CODE_INTERPRETER_ENGINE: "jupyter"
           CODE_INTERPRETER_JUPYTER_URL: "https://jupyter.home.shdr.ch"
-          TOOL_SERVER_CONNECTIONS: '[{"name": "litellm", "url": "https://mcpo.home.shdr.ch", "api_key": "{{ secrets.openwebui.mcpo_api_key }}"}]'
+          TOOL_SERVER_CONNECTIONS: '[{"name": "litellm", "url": "
+          ", "api_key": "{{ secrets.openwebui.mcpo_api_key }}"}]'
         volumes:
           - /home/aether/openwebui/data:/app/backend/data:Z
 

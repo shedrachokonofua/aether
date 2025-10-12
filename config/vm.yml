@@ -252,6 +252,7 @@ ai_tool_stack:
     mcpo: 8001
     searxng: 8081
     firecrawl: 3002
+    firecrawl_mcp: 3007
 # Planned IP Allocations:
 # - Power Management Stack: 192.168.2.235
 # - Media Stack: 10.0.3.5

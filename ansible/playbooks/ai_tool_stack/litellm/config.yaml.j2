@@ -77,7 +77,9 @@ general_settings:
   store_prompts_in_spend_logs: true
 
 mcp_servers:
-  server_time:
+  time:
     transport: "stdio"
     command: "uvx"
-    args: [" mcp-server-time", "--local-timezone=America/Toronto"]
+    args: ["mcp-server-time", "--local-timezone=America/Toronto"]
+  firecrawl:
+    url: "https://mcp.firecrawl.home.shdr.ch/mcp"

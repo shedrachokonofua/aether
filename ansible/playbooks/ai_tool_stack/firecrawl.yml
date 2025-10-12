@@ -35,6 +35,7 @@
         recreate: true
         ports:
           - "{{ vm.ai_tool_stack.ports.firecrawl }}:3002"
+          - "{{ vm.ai_tool_stack.ports.firecrawl_mcp }}:3007"
         quadlet_options:
           - |
             [Install]
@@ -162,6 +163,20 @@
             "dist/src/services/extract-worker.js",
           ]
 
+    - name: Create firecrawl-mcp container
+      containers.podman.podman_container:
+        name: firecrawl-mcp
+        image: docker.io/node:22-alpine
+        state: quadlet
+        pod: firecrawl.pod
+        env:
+          PORT: "3007"
+          HOST: "0.0.0.0"
+          HTTP_STREAMABLE_SERVER: "true"
+          FIRECRAWL_API_KEY: "{{ secrets.firecrawl.api_key }}"
+          FIRECRAWL_API_URL: "https://firecrawl.home.shdr.ch"
+        command: ["npx", "-y", "firecrawl-mcp"]
+
     - name: Reload systemd
       systemd:
         daemon_reload: yes
@@ -176,5 +191,11 @@
     - name: Wait for firecrawl API to start
       wait_for:
         port: "{{ vm.ai_tool_stack.ports.firecrawl }}"
+        host: 127.0.0.1
+        timeout: 120
+
+    - name: Wait for firecrawl MCP to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.firecrawl_mcp }}"
         host: 127.0.0.1
         timeout: 120
