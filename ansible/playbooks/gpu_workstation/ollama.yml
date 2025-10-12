@@ -34,7 +34,8 @@
           OLLAMA_NUM_CTX: "131072"
           OLLAMA_FLASH_ATTENTION: "true"
           OLLAMA_DEBUG: "true"
-          OLLAMA_NUM_PARALLEL: 5
+          OLLAMA_NUM_GPU: 1
+          OLLAMA_GPU_LAYERS: -1
         security_opt:
           - label=disable
         quadlet_options:
@@ -80,6 +81,7 @@
         - MichelRosselli/GLM-4.5-Air:Q5_K_M
         - qwen3-embedding:4b
         - gemma3:27b
+        - qwen3:8b
       register: model_pull
       changed_when: "'pulling' in model_pull.stdout"
       ignore_errors: yes

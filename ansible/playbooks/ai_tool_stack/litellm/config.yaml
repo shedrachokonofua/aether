@@ -24,6 +24,10 @@ model_list:
     litellm_params:
       model: "ollama/gemma3:27b"
       litellm_credential_name: ollama_credential
+  - model_name: "aether/qwen3:8b"
+    litellm_params:
+      model: "ollama/qwen3:8b"
+      litellm_credential_name: ollama_credential
 
   # OpenAI models
   - model_name: "openai/gpt-5"

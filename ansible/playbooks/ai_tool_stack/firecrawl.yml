@@ -1,0 +1,180 @@
+---
+- name: Deploy Firecrawl pod
+  hosts: ai-tool-stack
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    firecrawl_common_env: &firecrawl_env
+      HOST: "0.0.0.0"
+      ENV: "local"
+      NUM_WORKERS_PER_QUEUE: 8
+      REDIS_URL: "redis://localhost:6379"
+      REDIS_RATE_LIMIT_URL: "redis://localhost:6379"
+      PLAYWRIGHT_MICROSERVICE_URL: "http://localhost:3000/scrape"
+      NUQ_DATABASE_URL: "postgres://postgres:{{ secrets.firecrawl.database_password }}@localhost:5432/postgres"
+      USE_DB_AUTHENTICATION: "false"
+      OPENAI_BASE_URL: "https://litellm.home.shdr.ch/v1"
+      OPENAI_API_KEY: "{{ secrets.litellm.virtual_keys.firecrawl }}"
+      MODEL_NAME: "aether/qwen3:8b"
+      MODEL_EMBEDDING_NAME: "aether/qwen3-embedding:4b"
+      BULL_AUTH_KEY: "{{ secrets.firecrawl.bull_auth_key }}"
+      TEST_API_KEY: "{{ secrets.firecrawl.api_key }}"
+      LOGGING_LEVEL: "debug"
+      PROXY_SERVER: "{{ secrets.firecrawl.proxy_server }}"
+      PROXY_USERNAME: "{{ secrets.firecrawl.proxy_username }}"
+      PROXY_PASSWORD: "{{ secrets.firecrawl.proxy_password }}"
+      SEARXNG_ENDPOINT: "https://searxng.home.shdr.ch"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.home.shdr.ch"
+  tasks:
+    - name: Create Firecrawl pod
+      containers.podman.podman_pod:
+        name: firecrawl
+        state: quadlet
+        restart_policy: unless-stopped
+        recreate: true
+        ports:
+          - "{{ vm.ai_tool_stack.ports.firecrawl }}:3002"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create redis volume
+      containers.podman.podman_volume:
+        name: firecrawl_redis_data
+        state: quadlet
+
+    - name: Create postgres volume
+      containers.podman.podman_volume:
+        name: firecrawl_pg_data
+        state: quadlet
+
+    - name: Create redis container
+      containers.podman.podman_container:
+        name: firecrawl-redis
+        image: docker.io/redis:alpine
+        state: quadlet
+        pod: firecrawl.pod
+        command: ["redis-server", "--bind", "0.0.0.0"]
+        volumes:
+          - firecrawl_redis_data.volume:/data:Z
+
+    - name: Create postgres container
+      containers.podman.podman_container:
+        name: firecrawl-postgres
+        image: ghcr.io/firecrawl/nuq-postgres:latest
+        state: quadlet
+        pod: firecrawl.pod
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: "{{ secrets.firecrawl.database_password }}"
+          POSTGRES_DB: postgres
+        volumes:
+          - firecrawl_pg_data.volume:/var/lib/postgresql/data:Z
+
+    - name: Create playwright-service container
+      containers.podman.podman_container:
+        name: firecrawl-playwright
+        image: ghcr.io/firecrawl/playwright-service:latest
+        state: quadlet
+        pod: firecrawl.pod
+        env:
+          PORT: "3000"
+          PROXY_SERVER: "{{ secrets.firecrawl.proxy_server }}"
+          PROXY_USERNAME: "{{ secrets.firecrawl.proxy_username }}"
+          PROXY_PASSWORD: "{{ secrets.firecrawl.proxy_password }}"
+
+    - name: Create api container
+      containers.podman.podman_container:
+        name: firecrawl-api
+        image: ghcr.io/firecrawl/firecrawl:latest
+        pull: always
+        state: quadlet
+        pod: firecrawl.pod
+        ulimits:
+          - nofile=65535:65535
+        env:
+          <<: *firecrawl_env
+          PORT: "3002"
+          WORKER_PORT: "3005"
+          EXTRACT_WORKER_PORT: "3004"
+          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-api"
+        command: ["node", "--import", "./dist/src/otel.js", "dist/src/index.js"]
+
+    - name: Create nuq worker container
+      containers.podman.podman_container:
+        name: firecrawl-nuq-worker
+        image: ghcr.io/firecrawl/firecrawl:latest
+        state: quadlet
+        pod: firecrawl.pod
+        ulimits:
+          - nofile=65535:65535
+        env:
+          <<: *firecrawl_env
+          PORT: "3006"
+          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-nuq-worker"
+        command:
+          [
+            "node",
+            "--import",
+            "./dist/src/otel.js",
+            "dist/src/services/worker/nuq-worker.js",
+          ]
+
+    - name: Create queue worker container
+      containers.podman.podman_container:
+        name: firecrawl-queue-worker
+        image: ghcr.io/firecrawl/firecrawl:latest
+        state: quadlet
+        pod: firecrawl.pod
+        ulimits:
+          - nofile=65535:65535
+        env:
+          <<: *firecrawl_env
+          PORT: "3005"
+          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-worker"
+        command:
+          [
+            "node",
+            "--import",
+            "./dist/src/otel.js",
+            "dist/src/services/queue-worker.js",
+          ]
+
+    - name: Create extract-worker container
+      containers.podman.podman_container:
+        name: firecrawl-extract-worker
+        image: ghcr.io/firecrawl/firecrawl:latest
+        state: quadlet
+        pod: firecrawl.pod
+        ulimits:
+          - nofile=65535:65535
+        env:
+          <<: *firecrawl_env
+          PORT: "3004"
+          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-extract-worker"
+        command:
+          [
+            "node",
+            "--import",
+            "./dist/src/otel.js",
+            "dist/src/services/extract-worker.js",
+          ]
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start firecrawl quadlet
+      systemd:
+        name: firecrawl-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for firecrawl API to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.firecrawl }}"
+        host: 127.0.0.1
+        timeout: 120

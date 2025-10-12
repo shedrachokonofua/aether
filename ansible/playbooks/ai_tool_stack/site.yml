@@ -12,5 +12,8 @@
 - name: Deploy SearXNG
   import_playbook: searxng/site.yml
 
+- name: Deploy Firecrawl
+  import_playbook: firecrawl.yml
+
 - name: Deploy OpenWebUI
   import_playbook: openwebui.yml
