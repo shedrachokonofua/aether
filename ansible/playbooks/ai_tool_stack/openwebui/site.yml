@@ -4,6 +4,28 @@
   gather_facts: true
   roles:
     - common
+  vars:
+    tool_server_connections:
+      - type: "openapi"
+        url: "https://mcpo.home.shdr.ch/litellm"
+        spec_type: "url"
+        spec: ""
+        path: "openapi.json"
+        auth_type: "bearer"
+        key: "{{ secrets.openwebui.mcpo_api_key }}"
+        config:
+          enable: true
+          access_control:
+            read:
+              group_ids: []
+              user_ids: []
+            write:
+              group_ids: []
+              user_ids: []
+        info:
+          id: "litellm"
+          name: "LiteLLM"
+          description: "LiteLLM"
   tasks:
     - name: Create required directories
       file:
@@ -31,6 +53,10 @@
             [Install]
             WantedBy=default.target
 
+    - name: Debug JSON output
+      debug:
+        msg: "JSON will be: {{ tool_server_connections | to_json }}"
+
     - name: Create openwebui container
       containers.podman.podman_container:
         name: openwebui
@@ -45,8 +71,8 @@
           OPENAI_API_KEY: "{{ secrets.litellm.virtual_keys.openwebui }}"
           ENABLE_OLLAMA_API: "false"
           ENABLE_WEB_SEARCH: "true"
-          WEB_SEARCH_RESULT_COUNT: 5
-          WEB_SEARCH_ENGINE: searxng
+          WEB_SEARCH_RESULT_COUNT: "5"
+          WEB_SEARCH_ENGINE: "searxng"
           SEARXNG_QUERY_URL: "https://searxng.home.shdr.ch/search?format=json&q=<query>"
           CONTENT_EXTRACTION_ENGINE: "docling"
           DOCLING_SERVER_URL: "https://docling.home.shdr.ch"
@@ -59,8 +85,7 @@
           CODE_EXECUTION_JUPYTER_URL: "https://jupyter.home.shdr.ch"
           CODE_INTERPRETER_ENGINE: "jupyter"
           CODE_INTERPRETER_JUPYTER_URL: "https://jupyter.home.shdr.ch"
-          TOOL_SERVER_CONNECTIONS: '[{"name": "litellm", "url": "
-          ", "api_key": "{{ secrets.openwebui.mcpo_api_key }}"}]'
+          TOOL_SERVER_CONNECTIONS: "'{{ tool_server_connections | to_json }}'"
         volumes:
           - /home/aether/openwebui/data:/app/backend/data:Z
 
