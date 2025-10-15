@@ -17,3 +17,6 @@
 
 - name: Deploy OpenWebUI
   import_playbook: openwebui/site.yml
+
+- name: Deploy Bytebot
+  import_playbook: bytebot.yml

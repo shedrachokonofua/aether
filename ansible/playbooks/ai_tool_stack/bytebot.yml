@@ -1,0 +1,109 @@
+---
+- name: Deploy Bytebot pod
+  hosts: ai-tool-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create Bytebot pod
+      containers.podman.podman_pod:
+        name: bytebot
+        state: quadlet
+        restart_policy: unless-stopped
+        recreate: true
+        ports:
+          - "{{ vm.ai_tool_stack.ports.bytebot_desktop }}:9990"
+          - "{{ vm.ai_tool_stack.ports.bytebot_agent }}:9991"
+          - "{{ vm.ai_tool_stack.ports.bytebot_ui }}:9992"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create postgres volume
+      containers.podman.podman_volume:
+        name: bytebot_postgres_data
+        state: quadlet
+
+    - name: Create postgres container
+      containers.podman.podman_container:
+        name: bytebot-postgres
+        image: docker.io/postgres:16-alpine
+        state: quadlet
+        pod: bytebot.pod
+        env:
+          POSTGRES_PASSWORD: "{{ secrets.bytebot.database_password }}"
+          POSTGRES_USER: postgres
+          POSTGRES_DB: bytebotdb
+        volumes:
+          - bytebot_postgres_data.volume:/var/lib/postgresql/data:Z
+
+    - name: Create bytebot-desktop container
+      containers.podman.podman_container:
+        name: bytebot-desktop
+        image: ghcr.io/bytebot-ai/bytebot-desktop:edge
+        pull: always
+        state: quadlet
+        pod: bytebot.pod
+        privileged: true
+        shm_size: 4g
+        env:
+          DISPLAY: ":0"
+
+    - name: Login to gitlab registry
+      shell: |
+        podman login registry.gitlab.home.shdr.ch -u {{ secrets.gitlab_root_email }} -p "{{ secrets.gitlab_root_password }}"
+
+    - name: Create bytebot-agent container
+      containers.podman.podman_container:
+        name: bytebot-agent
+        image: registry.gitlab.home.shdr.ch/aether/bytebot-agent:latest # Use local image temporarily until https://github.com/bytebot-ai/bytebot/pull/152 is merged
+        pull: always
+        state: quadlet
+        pod: bytebot.pod
+        env:
+          DATABASE_URL: "postgresql://postgres:{{ secrets.bytebot.database_password }}@localhost:5432/bytebotdb"
+          BYTEBOT_DESKTOP_BASE_URL: "https://desktop.bytebot.home.shdr.ch"
+          BYTEBOT_LLM_PROXY_URL: "https://litellm.home.shdr.ch/v1"
+          BYTEBOT_LLM_PROXY_API_KEY: "{{ secrets.litellm.virtual_keys.bytebot }}"
+
+    - name: Create bytebot-ui container
+      containers.podman.podman_container:
+        name: bytebot-ui
+        image: ghcr.io/bytebot-ai/bytebot-ui:edge
+        pull: always
+        state: quadlet
+        pod: bytebot.pod
+        env:
+          NODE_ENV: production
+          BYTEBOT_AGENT_BASE_URL: "https://agent.bytebot.home.shdr.ch"
+          BYTEBOT_DESKTOP_VNC_URL: "https://desktop.bytebot.home.shdr.ch/websockify"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start bytebot quadlet
+      systemd:
+        name: bytebot-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for bytebot desktop to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.bytebot_desktop }}"
+        host: 127.0.0.1
+        timeout: 120
+
+    - name: Wait for bytebot agent to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.bytebot_agent }}"
+        host: 127.0.0.1
+        timeout: 120
+
+    - name: Wait for bytebot UI to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.bytebot_ui }}"
+        host: 127.0.0.1
+        timeout: 120

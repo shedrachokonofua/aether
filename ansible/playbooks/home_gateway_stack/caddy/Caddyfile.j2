@@ -214,6 +214,18 @@ mcp.firecrawl.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.firecrawl_mcp }}
 }
 
+bytebot.home.shdr.ch {
+  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.bytebot_ui }}
+}
+
+desktop.bytebot.home.shdr.ch {
+  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.bytebot_desktop }}
+}
+
+agent.bytebot.home.shdr.ch {
+  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.bytebot_agent }}
+}
+
 
 :9443 {
   @shdrch host shdr.ch
