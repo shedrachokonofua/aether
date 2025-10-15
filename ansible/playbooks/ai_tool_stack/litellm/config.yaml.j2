@@ -12,7 +12,7 @@ model_list:
     litellm_params:
       model: "openai/gpt-oss:120b"
       litellm_credential_name: ollama_credential
-  - model_name: "aether/GLM-4.5-Air:Q4_K_M"
+  - model_name: "aether/GLM-4.5-Air"
     litellm_params:
       model: "openai/MichelRosselli/GLM-4.5-Air:Q4_K_M"
       litellm_credential_name: ollama_credential
@@ -49,6 +49,20 @@ model_list:
       model: "anthropic/claude-sonnet-4-5"
       litellm_credential_name: anthropic_credential
 
+  # OpenRouter models
+  - model_name: "openrouter/qwen3-next:80b"
+    litellm_params:
+      model: "openai/qwen/qwen3-next-80b-a3b-thinking"
+      litellm_credential_name: openrouter_credential
+  - model_name: "openrouter/glm-4.6"
+    litellm_params:
+      model: "openai/z-ai/glm-4.6"
+      litellm_credential_name: openrouter_credential
+  - model_name: "openrouter/grok-4"
+    litellm_params:
+      model: "openai/x-ai/grok-4"
+      litellm_credential_name: openrouter_credential
+
 credential_list:
   - credential_name: ollama_credential
     credential_values:
@@ -66,6 +80,12 @@ credential_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     credential_info:
       description: "Anthropic"
+  - credential_name: openrouter_credential
+    credential_values:
+      api_base: https://openrouter.ai/api/v1
+      api_key: os.environ/OPENROUTER_API_KEY
+    credential_info:
+      description: "OpenRouter"
 
 litellm_settings:
   drop_params: true
