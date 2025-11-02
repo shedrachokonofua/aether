@@ -56,8 +56,8 @@
         ports:
           - "{{ vm.gpu_workstation.ports.jupyter }}:8888/tcp"
         volumes:
-          - /home/aether/jupyter/notebooks:/home/jovyan/work:Z
-          - /home/aether/jupyter/data:/home/jovyan/data:Z
+          - /home/aether/jupyter/notebooks:/home/jovyan/work:Z,U
+          - /home/aether/jupyter/data:/home/jovyan/data:Z,U
         device:
           - nvidia.com/gpu=all
         env:
