@@ -11,7 +11,6 @@ resource "proxmox_virtual_environment_vm" "gpu_workstation" {
   cpu {
     cores = local.vm.gpu_workstation.cores
     type  = "host"
-    flags = ["+pcid"]
   }
 
   memory {
@@ -42,8 +41,9 @@ resource "proxmox_virtual_environment_vm" "gpu_workstation" {
     datastore_id      = "local-lvm"
     file_format       = "raw"
     type              = "4m"
-    pre_enrolled_keys = true
+    pre_enrolled_keys = false
   }
+
   initialization {
     ip_config {
       ipv4 {
