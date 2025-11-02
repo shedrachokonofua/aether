@@ -4,6 +4,7 @@ This playbook is for configuring the GPU workstation virtual machine. The GPU wo
 
 - Ollama: Local LLM inference with GPU acceleration
 - ComfyUI: Stable Diffusion UI for AI image generation
+- SwarmUI: Simplified Stable Diffusion WebUI with ComfyUI backend API integration
 - Docling: Document parsing and conversion service
 - JupyterLab: Interactive notebook environment with GPU support for ML/AI development
 
@@ -56,3 +57,13 @@ Deploys JupyterLab with PyTorch, CUDA support, and GPU acceleration for interact
 ```bash
 task ansible:playbook -- ./ansible/playbooks/gpu_workstation/jupyter/site.yml
 ```
+
+### Deploy SwarmUI
+
+Deploys SwarmUI, a simplified Stable Diffusion WebUI with ComfyUI backend API integration.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/gpu_workstation/swarmui.yml
+```
+
+To update SwarmUI, simply rerun the playbook - it will pull the latest changes and rebuild the container.

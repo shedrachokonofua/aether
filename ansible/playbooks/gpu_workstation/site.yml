@@ -26,3 +26,6 @@
 
 - name: Deploy JupyterLab
   import_playbook: jupyter/site.yml
+
+- name: Deploy SwarmUI
+  import_playbook: swarmui.yml

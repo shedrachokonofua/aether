@@ -1,0 +1,135 @@
+---
+- name: Deploy SwarmUI with GPU support
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Install git for cloning repository
+      become: true
+      dnf:
+        name: git
+        state: present
+
+    - name: Create SwarmUI directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+        owner: aether
+        group: aether
+      loop:
+        - /home/aether/swarmui
+        - /home/aether/swarmui/data
+        - /home/aether/swarmui/models
+
+    - name: Clone SwarmUI repository
+      git:
+        repo: "https://github.com/mcmonkeyprojects/SwarmUI.git"
+        dest: "/home/aether/swarmui/SwarmUI"
+        version: master
+        update: yes
+        force: yes
+
+    - name: Ensure SwarmUI directory has correct permissions for container
+      file:
+        path: /home/aether/swarmui/SwarmUI
+        state: directory
+        recurse: yes
+        owner: aether
+        group: aether
+        mode: "0777" # More permissive for container access
+
+    - name: Configure git safe directory in SwarmUI repo
+      command: git config --global --add safe.directory /home/aether/swarmui/SwarmUI
+      args:
+        chdir: /home/aether/swarmui/SwarmUI
+      become: false
+
+    - name: Pre-create SwarmUI build directories with proper permissions
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: aether
+        group: aether
+        mode: "0777"
+      loop:
+        - /home/aether/swarmui/SwarmUI/dlbackend
+        - /home/aether/swarmui/SwarmUI/src
+        - /home/aether/swarmui/SwarmUI/src/bin
+        - /home/aether/swarmui/SwarmUI/launchtools
+
+    - name: Get UID for build
+      command: id -u aether
+      register: user_uid
+
+    - name: Get GID for build
+      command: id -g aether
+      register: user_gid
+
+    - name: Build SwarmUI container image using their Dockerfile
+      containers.podman.podman_image:
+        name: localhost/swarmui
+        path: /home/aether/swarmui/SwarmUI
+        build:
+          file: launchtools/OpenDockerfile.docker
+          format: docker
+          extra_args: "--build-arg UID={{ user_uid.stdout }}"
+        state: present
+        force: true
+
+    - name: Create swarmui container
+      containers.podman.podman_container:
+        name: swarmui
+        image: localhost/swarmui:latest
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.gpu_workstation.ports.swarmui }}:7801/tcp"
+        volumes:
+          - /home/aether/swarmui/SwarmUI:/SwarmUI:z
+          - /home/aether/comfyui/storage/ComfyUI/models:/SwarmUI/Models:z
+        device:
+          - nvidia.com/gpu=all
+        security_opt:
+          - label=disable
+        env:
+          DOTNET_RUNNING_IN_CONTAINER: "true"
+          HOME: "/SwarmUI"
+        command: "--forward_restart"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd daemon for user
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start swarmui service
+      systemd:
+        name: swarmui
+        state: restarted
+        enabled: yes
+        scope: user
+
+    - name: Wait for SwarmUI to start
+      wait_for:
+        port: "{{ vm.gpu_workstation.ports.swarmui }}"
+        host: 127.0.0.1
+        timeout: 180
+        delay: 10
+
+    - name: Check SwarmUI status
+      uri:
+        url: "http://localhost:{{ vm.gpu_workstation.ports.swarmui }}/"
+        method: GET
+        follow_redirects: all
+        status_code: [200, 302]
+      register: swarmui_status
+      retries: 5
+      delay: 10
+      until: swarmui_status.status in [200, 302]
+      ignore_errors: yes
