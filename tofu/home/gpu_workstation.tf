@@ -38,6 +38,12 @@ resource "proxmox_virtual_environment_vm" "gpu_workstation" {
     rom_file = "rtx6000.rom"
   }
 
+  efi_disk {
+    datastore_id      = "local-lvm"
+    file_format       = "raw"
+    type              = "4m"
+    pre_enrolled_keys = true
+  }
   initialization {
     ip_config {
       ipv4 {
