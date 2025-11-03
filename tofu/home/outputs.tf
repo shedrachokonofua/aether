@@ -56,3 +56,8 @@ output "ai_tool_stack_password" {
   value     = random_password.ai_tool_stack_console_password.result
   sensitive = true
 }
+
+output "iot_management_stack_password" {
+  value     = random_password.iot_management_stack_console_password.result
+  sensitive = true
+}

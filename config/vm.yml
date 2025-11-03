@@ -116,9 +116,9 @@ backup_stack:
   ip: "192.168.2.233"
   gateway: "192.168.2.1"
 
-home_automation_stack:
+iot_management_stack:
   id: 1009
-  name: "home-automation-stack"
+  name: "iot-management-stack"
   node: "niobe"
   admin: "aether"
   cores: 4

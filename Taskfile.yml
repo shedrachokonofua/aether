@@ -224,6 +224,42 @@ tasks:
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu import {{.CLI_ARGS}}
 
+  tofu:state-mv:
+    desc: Move Terraform state resources
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu state mv {{.CLI_ARGS}}
+
+  tofu:state-list:
+    desc: List Terraform state resources
+    dotenv: ["./secrets/aws-dev-user.env"]
+    cmds:
+      - docker run --rm
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
+        -w /workspace
+        -e AWS_ACCESS_KEY_ID
+        -e AWS_SECRET_ACCESS_KEY
+        -e AWS_SESSION_TOKEN
+        -e AWS_REGION
+        -e TF_VAR_aws_iac_role_arn
+        -e TF_VAR_aws_region
+        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        tofu -chdir=tofu state list {{.CLI_ARGS}}
+
   tofu:show:
     desc: Show Terraform resources
     dotenv: ["./secrets/aws-dev-user.env"]
@@ -510,12 +546,12 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/backup_stack/site.yml
 
-  configure:home:home-automation-stack:
-    desc: Configure the home automation stack
+  configure:home:iot-management-stack:
+    desc: Configure the IoT management stack
     cmds:
       - task: ansible:playbook
         vars:
-          CLI_ARGS: ./ansible/playbooks/home_automation_stack/site.yml
+          CLI_ARGS: ./ansible/playbooks/iot_management_stack/site.yml
 
   configure:home:monitoring-agents:
     desc: Configure the monitoring agents

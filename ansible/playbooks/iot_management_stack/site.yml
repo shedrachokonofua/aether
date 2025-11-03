@@ -1,6 +1,6 @@
 ---
-- name: Deploy Home Assistant Stack
-  hosts: home-automation-stack
+- name: Deploy IoT Management Stack
+  hosts: iot-management-stack
   gather_facts: true
   vars:
     ha_config_dir: "/home/aether/homeassistant/config"
@@ -65,7 +65,7 @@
 
     - name: Create the Home Assistant pod using quadlet
       containers.podman.podman_pod:
-        name: home-automation-stack
+        name: iot-management-stack
         network: host
         state: quadlet
         restart_policy: on-failure
@@ -79,7 +79,7 @@
       containers.podman.podman_container:
         name: homeassistant
         image: ghcr.io/home-assistant/home-assistant:stable
-        pod: home-automation-stack.pod
+        pod: iot-management-stack.pod
         volumes:
           - "{{ ha_config_dir }}:/config:Z"
           - /run/dbus:/run/dbus:ro
@@ -97,7 +97,7 @@
       containers.podman.podman_container:
         name: zwavejs-ui
         image: docker.io/zwavejs/zwave-js-ui:latest
-        pod: home-automation-stack.pod
+        pod: iot-management-stack.pod
         privileged: true
         volumes:
           - /home/aether/zwavejs:/usr/src/app/store:Z
@@ -112,9 +112,9 @@
         daemon_reload: yes
         scope: user
 
-    - name: Ensure home-automation-stack pod service is started and enabled
+    - name: Ensure iot-management-stack pod service is started and enabled
       ansible.builtin.systemd:
-        name: home-automation-stack-pod.service
+        name: iot-management-stack-pod.service
         state: restarted
         enabled: yes
         scope: user

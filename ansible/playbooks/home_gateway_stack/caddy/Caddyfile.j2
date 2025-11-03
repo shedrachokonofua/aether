@@ -142,11 +142,11 @@ pages.gitlab.home.shdr.ch {
 }
 
 ha.home.shdr.ch {
-  reverse_proxy {{ vm.home_automation_stack.ip }}:{{ vm.home_automation_stack.ports.home_assistant }}
+  reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.home_assistant }}
 }
 
 z.ha.home.shdr.ch {
-  reverse_proxy {{ vm.home_automation_stack.ip }}:{{ vm.home_automation_stack.ports.zwavejs }}
+  reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.zwavejs }}
 }
 
 sunshine.game.home.shdr.ch {

@@ -7,6 +7,6 @@
     - game-server
     - gateway-stack
     - gitlab
-    - home-automation-stack
+    - iot-management-stack
   roles:
     - monitoring_agent
