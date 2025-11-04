@@ -230,6 +230,25 @@ agent.bytebot.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.bytebot_agent }}
 }
 
+ups.home.shdr.ch {
+  reverse_proxy 192.168.2.223 {
+    transport http {
+      versions 1.1
+      keepalive off
+    }
+    # Keep the original host header
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto {http.request.scheme}
+    header_up X-Forwarded-Host {http.request.host}
+    # Preserve cookies and auth
+    header_up Cookie {http.request.header.Cookie}
+    header_up Authorization {http.request.header.Authorization}
+    # No buffering for real-time updates
+    flush_interval -1
+  }
+}
 
 :9443 {
   @shdrch host shdr.ch
