@@ -602,6 +602,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/messaging_stack/site.yml
 
+  configure:home:ups-management-stack:
+    desc: Configure the UPS management stack
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/ups_management_stack/site.yml
+
   configure:aws:public-gateway:
     desc: Configure the public gateway stack
     cmds:

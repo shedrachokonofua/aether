@@ -1,0 +1,10 @@
+# UPS Configuration - SNMPv3
+[ups]
+    driver = snmp-ups
+    port = 192.168.2.223
+    desc = "Aether UPS"
+    snmp_version = v3
+    secLevel = authNoPriv
+    secName = {{ secrets.ups.snmp_username }}
+    authPassword = {{ secrets.ups.snmp_auth_password }}
+    authProtocol = SHA

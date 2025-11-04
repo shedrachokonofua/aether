@@ -257,6 +257,19 @@ ai_tool_stack:
     bytebot_desktop: 9990
     bytebot_agent: 9991
     bytebot_ui: 9992
+
+ups_management_stack:
+  id: 1019
+  name: "ups-management-stack"
+  node: "niobe"
+  admin: "aether"
+  cores: 1
+  memory: 2048
+  disk_gb: 32
+  ip: "10.0.2.6"
+  gateway: "10.0.2.1"
+  ports:
+    nutify: 5050
+    nut_server: 3493
 # Planned IP Allocations:
-# - Power Management Stack: 192.168.2.235
 # - Media Stack: 10.0.3.5

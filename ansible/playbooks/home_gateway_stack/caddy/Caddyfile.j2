@@ -250,6 +250,10 @@ ups.home.shdr.ch {
   }
 }
 
+nutify.home.shdr.ch {
+  reverse_proxy {{ vm.ups_management_stack.ip }}:{{ vm.ups_management_stack.ports.nutify }}
+}
+
 :9443 {
   @shdrch host shdr.ch
   @ai host ai.shdr.ch

@@ -1,0 +1,108 @@
+---
+- name: Deploy UPS Management Stack
+  hosts: ups-management-stack
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+    - linger
+    - monitoring_agent
+  tasks:
+    - name: Ensure NUT directory exists with correct permissions
+      file:
+        path: /home/aether/nut
+        state: directory
+        mode: "0755"
+        owner: aether
+        group: aether
+      become: true
+
+    - name: Create subdirectories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /home/aether/nut/run
+        - /home/aether/nutify/etc/nut
+        - /home/aether/nutify/logs
+        - /home/aether/nutify/instance
+
+    - name: Configure NUT for SNMPv3
+      template:
+        src: ./ups.conf.j2
+        dest: /home/aether/nut/ups.conf
+        mode: "0644"
+
+    - name: Configure NUT server
+      template:
+        src: ./upsd.conf.j2
+        dest: /home/aether/nut/upsd.conf
+        mode: "0644"
+
+    - name: Configure NUT users
+      template:
+        src: ./upsd.users.j2
+        dest: /home/aether/nut/upsd.users
+        mode: "0644"
+
+    - name: Configure NUT mode
+      copy:
+        content: "MODE=netserver\n"
+        dest: /home/aether/nut/nut.conf
+        mode: "0644"
+
+    - name: Create the UPS Management pod using quadlet
+      containers.podman.podman_pod:
+        name: ups-management-stack
+        ports:
+          - "{{ vm.ups_management_stack.ports.nutify }}:5050"
+          - "{{ vm.ups_management_stack.ports.nut_server }}:3493"
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Start NUT server container
+      containers.podman.podman_container:
+        name: nut-server
+        image: ghcr.io/tigattack/nut-upsd:latest
+        pod: ups-management-stack.pod
+        volumes:
+          - /home/aether/nut:/etc/nut:Z,U
+          - /home/aether/nut/run:/var/run/nut:Z,U
+        user: "100:100"
+        state: quadlet
+
+    - name: Start Nutify container
+      containers.podman.podman_container:
+        name: nutify
+        image: docker.io/dartsteven/nutify:amd64-latest
+        pod: ups-management-stack.pod
+        volumes:
+          - /home/aether/nutify/logs:/app/nutify/logs:Z,U
+          - /home/aether/nutify/instance:/app/nutify/instance:Z,U
+          - /home/aether/nutify/etc/nut:/etc/nut:Z
+        state: quadlet
+        working_dir: /app/nutify
+        env:
+          SECRET_KEY: "{{ secrets.ups.nutify_secret_key }}"
+          LOG: true
+          LOG_LEVEL: debug
+          LOG_WERKZEUG: true
+          ENABLE_LOG_STARTUP: Y
+
+    - name: Reload systemd user configuration
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Ensure ups-management-stack pod service is started
+      systemd:
+        name: ups-management-stack-pod.service
+        state: restarted
+        enabled: yes
+        scope: user
