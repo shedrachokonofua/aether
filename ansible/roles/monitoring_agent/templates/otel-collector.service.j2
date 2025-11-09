@@ -1,0 +1,23 @@
+[Unit]
+Description=Aether OpenTelemetry Collector
+After=network-online.target aether-node-exporter.service
+Wants=network-online.target aether-node-exporter.service
+
+[Service]
+Type=simple
+User={{ monitoring_agent_service_user }}
+ExecStart={{ otel_collector_binary_path }} --config={{ otel_collector_config_path }}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aether-otel-collector
+# Grant access to system logs and metrics
+PrivateDevices=no
+ProtectSystem=no
+ProtectHome=no
+ReadWritePaths={{ otel_collector_storage_path }}
+ReadOnlyPaths=/var/log
+
+[Install]
+WantedBy=multi-user.target

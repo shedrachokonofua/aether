@@ -1,33 +1,36 @@
 receivers:
   journald:
-    directory: /hostfs/var/log/journal/
+    directory: /var/log/journal/
     storage: file_storage/journald_cursor_storage
     matches:
       - _UID: "1000"
-      - _SYSTEMD_UNIT: sshd
-      - _SYSTEMD_UNIT: auditd
-      - _SYSTEMD_UNIT: systemd-journald
-      - _SYSTEMD_UNIT: systemd-logind
-      - _SYSTEMD_UNIT: systemd-oomd
-      - _SYSTEMD_UNIT: NetworkManager
-      - _SYSTEMD_UNIT: aether-monitoring-agent-pod
-      - _SYSTEMD_UNIT: aether-monitoring-agent-otel-collector
+{% for unit in monitored_systemd_units %}
+      - _SYSTEMD_UNIT: {{ unit }}
+{% endfor %}
   filelog:
     storage: file_storage/filelog_cursor_storage
     include:
-      - /hostfs/var/log/*.log
-      - /hostfs/var/lib/docker/containers/*/*-json.log
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: 'node'
-          scrape_interval: 15s
-          static_configs:
-            - targets: ['localhost:9100']
+{% for pattern in file_log_patterns %}
+      - {{ pattern }}
+{% endfor %}
+  hostmetrics:
+    collection_interval: {{ host_metrics_collection_interval | default('30s') }}
+    initial_delay: {{ host_metrics_initial_delay | default('1s') }}
+    scrapers:
+      cpu:
+      disk:
+      filesystem:
+      load:
+      memory:
+      network:
+      paging:
+      processes:
+      process:
+      system:
 
 processors:
   batch:
-    send_batch_size: 100
+    send_batch_size: 1000
     timeout: 10s
   resource:
     attributes:
@@ -40,22 +43,25 @@ processors:
       - key: os.type
         value: "{{ ansible_distribution }}"
         action: insert
+      - key: os.version
+        value: "{{ ansible_distribution_version }}"
+        action: insert
 
 extensions:
   file_storage/journald_cursor_storage:
-    directory: /var/lib/otelcol/storage
+    directory: {{ otel_collector_storage_path }}
   file_storage/filelog_cursor_storage:
-    directory: /var/lib/otelcol/storage
+    directory: {{ otel_collector_storage_path }}
 
 exporters:
   otlphttp:
-    endpoint: https://otel.home.shdr.ch
+    endpoint: {{ otlp_endpoint }}
 
 service:
   extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage]
   pipelines:
     metrics:
-      receivers: [prometheus]
+      receivers: [hostmetrics]
       processors: [batch, resource]
       exporters: [otlphttp]
     logs:

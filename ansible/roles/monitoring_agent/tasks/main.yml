@@ -1,86 +1,162 @@
 ---
-- name: Create etc directory
-  file:
-    path: /etc/aether-monitoring-agent/otel
-    state: directory
-  become: true
+# For VyOS systems using network_cli, we need to use SSH for system operations
+- name: Setup monitoring agent tasks
+  block:
+    # Gather facts if not already gathered (needed for VyOS with network_cli)
+    - name: Gather facts for system
+      setup:
+      when: ansible_os_family is not defined
 
-- name: Create OTEL storage directory
-  file:
-    path: /var/lib/otelcol/storage
-    state: directory
-  become: true
+    # Clean up old Podman-based monitoring setup if present
+    - name: Include cleanup tasks for old Podman setup
+      include_tasks: cleanup_podman.yml
+      tags:
+        - cleanup
+        - cleanup-podman
 
-- name: Create OTEL config file
-  template:
-    src: otel-collector-config.yml.j2
-    dest: /etc/aether-monitoring-agent/otel/config.yml
-    mode: "0644"
-  become: true
+    # Detect distribution family for package management
+    - name: Check if system uses rpm-ostree
+      stat:
+        path: /usr/bin/rpm-ostree
+      register: rpm_ostree_check
 
-- name: Copy Dockerfile
-  copy:
-    src: otel-collector.dockerfile
-    dest: /etc/aether-monitoring-agent/otel/Dockerfile
-    mode: "0644"
-  become: true
+    - name: Set distribution facts
+      set_fact:
+        is_debian_based: "{{ ansible_os_family == 'Debian' or ansible_distribution in ['Debian', 'VyOS'] }}"
+        is_fedora_based: "{{ ansible_os_family == 'RedHat' or ansible_distribution in ['Fedora'] }}"
+        is_rpm_ostree_based: "{{ rpm_ostree_check.stat.exists or ansible_distribution in ['Bazzite'] }}"
 
-- name: Create otel collector image
-  containers.podman.podman_image:
-    name: aether-monitoring-agent-otel-collector
-    path: /etc/aether-monitoring-agent/otel
-    state: present
-    build:
-      extra_args: "--network=host"
-  become: true
+    # Install dependencies based on distribution
+    - name: Install dependencies (Debian-based)
+      apt:
+        name:
+          - curl
+          - ca-certificates
+          - gnupg
+          - lsb-release
+          - systemd
+        state: present
+        update_cache: yes
+      become: true
+      when: is_debian_based
 
-- name: Create pod quadlet
-  containers.podman.podman_pod:
-    name: aether-monitoring-agent
-    state: quadlet
-    network: host
-    restart_policy: on-failure
-    recreate: true
-    quadlet_options:
-      - |
-        [Install]
-        WantedBy=default.target
-  become: true
+    - name: Install dependencies (Fedora-based)
+      dnf:
+        name:
+          - curl
+          - ca-certificates
+          - systemd
+        state: present
+      become: true
+      when: is_fedora_based and not is_rpm_ostree_based
 
-- name: Create node exporter container quadlet
-  containers.podman.podman_container:
-    name: aether-monitoring-agent-node-exporter
-    image: docker.io/prom/node-exporter:latest
-    pod: aether-monitoring-agent.pod
-    command:
-      - "--path.rootfs=/hostfs"
-    volumes:
-      - /:/hostfs:ro,rslave
-    state: quadlet
-  become: true
+    - name: Check if required packages are installed (rpm-ostree systems)
+      command: rpm -q {{ item }}
+      register: rpm_check
+      with_items:
+        - curl
+        - ca-certificates
+      changed_when: false
+      failed_when: false
+      when: is_rpm_ostree_based
 
-- name: Cretae otel collector container quadlet
-  containers.podman.podman_container:
-    name: aether-monitoring-agent-otel-collector
-    image: aether-monitoring-agent-otel-collector
-    state: quadlet
-    user: "0:0"
-    pid: host
-    pod: aether-monitoring-agent.pod
-    memory: 512M
-    volumes:
-      - /etc/aether-monitoring-agent/otel/config.yml:/etc/otel-collector-config.yaml
-      - /var/lib/otelcol/storage:/var/lib/otelcol/storage:Z
-      - /:/hostfs:ro,rslave
-  become: true
+    - name: Install missing dependencies (rpm-ostree based systems like Bazzite)
+      command: rpm-ostree install --apply-live --allow-inactive {{ item.item }}
+      with_items: "{{ rpm_check.results }}"
+      when:
+        - is_rpm_ostree_based
+        - item.rc != 0
+      become: true
+      register: rpm_ostree_install
+      changed_when: "'No change' not in rpm_ostree_install.stdout"
 
-- name: Reload systemd
-  systemd:
-    daemon_reload: yes
-  become: true
+    # Install OTEL Collector
+    - name: Check if otelcol-contrib is installed
+      stat:
+        path: "{{ otel_collector_binary_path }}"
+      register: otel_collector_installed
 
-- name: Start monitoring agent quadlet
-  systemd:
-    name: aether-monitoring-agent-pod
-    state: restarted
-  become: true
+    - name: Download OTEL Collector Contrib
+      get_url:
+        url: "{{ otel_collector_download_url }}"
+        dest: /tmp/otelcol-contrib.tar.gz
+      when: not otel_collector_installed.stat.exists
+
+    - name: Extract OTEL Collector
+      unarchive:
+        src: /tmp/otelcol-contrib.tar.gz
+        dest: /tmp
+        remote_src: yes
+        creates: /tmp/otelcol-contrib
+      when: not otel_collector_installed.stat.exists
+
+    - name: Install OTEL Collector binary
+      copy:
+        src: /tmp/otelcol-contrib
+        dest: "{{ otel_collector_binary_path }}"
+        mode: "0755"
+        remote_src: yes
+      become: true
+      when: not otel_collector_installed.stat.exists
+
+    # Create directories
+    - name: Create monitoring agent configuration directory
+      file:
+        path: "{{ monitoring_agent_config_dir }}"
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Create OTEL storage directory
+      file:
+        path: "{{ otel_collector_storage_path }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ monitoring_agent_service_user }}"
+        group: "{{ monitoring_agent_service_user }}"
+      become: true
+
+    # Deploy configuration
+    - name: Create OTEL config file
+      template:
+        src: otel-collector-config.yml.j2
+        dest: "{{ otel_collector_config_path }}"
+        mode: "0644"
+      become: true
+      notify: restart otel collector
+
+    # Create systemd service for OTEL Collector
+    - name: Create OTEL Collector systemd service
+      template:
+        src: otel-collector.service.j2
+        dest: /etc/systemd/system/aether-otel-collector.service
+        mode: "0644"
+      become: true
+      notify: restart otel collector
+
+    # Reload systemd and start services
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+      become: true
+
+    - name: Enable and start OTEL Collector
+      systemd:
+        name: aether-otel-collector
+        enabled: yes
+        state: started
+      become: true
+
+    # Cleanup temporary files
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "/tmp/otelcol-contrib.tar.gz"
+        - "/tmp/otelcol-contrib"
+      become: true
+      ignore_errors: true
+  vars:
+    # Use SSH connection for VyOS instead of network_cli
+    ansible_connection: "{{ 'ssh' if (ansible_network_os | default('') == 'vyos') else ansible_connection | default('ssh') }}"

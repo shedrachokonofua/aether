@@ -1,0 +1,33 @@
+---
+# OTEL Collector configuration
+otel_collector_version: "0.139.0"
+otel_collector_download_url: "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otel_collector_version }}/otelcol-contrib_{{ otel_collector_version }}_linux_amd64.tar.gz"
+otel_collector_binary_path: "/usr/local/bin/otelcol-contrib"
+otel_collector_config_path: "/etc/aether-monitoring-agent/otel-config.yml"
+otel_collector_storage_path: "/var/lib/otelcol/storage"
+
+# OTLP Exporter endpoint
+otlp_endpoint: "https://otel.home.shdr.ch"
+
+# Service configuration
+monitoring_agent_config_dir: "/etc/aether-monitoring-agent"
+monitoring_agent_service_user: "root"
+
+# Host Metrics Configuration
+host_metrics_collection_interval: "15s"
+host_metrics_initial_delay: "1s"
+
+# Journald units to monitor (can be overridden in inventory/group_vars)
+monitored_systemd_units:
+  - sshd
+  - auditd
+  - systemd-journald
+  - systemd-logind
+  - systemd-oomd
+  - NetworkManager
+  - aether-otel-collector
+
+# File log patterns
+file_log_patterns:
+  - "/var/log/*.log"
+  - "/var/lib/docker/containers/*/*-json.log"
