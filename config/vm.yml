@@ -264,7 +264,7 @@ ups_management_stack:
   node: "niobe"
   admin: "aether"
   cores: 1
-  memory: 2048
+  memory: 1024
   disk_gb: 32
   ip: "10.0.2.6"
   gateway: "10.0.2.1"
