@@ -20,11 +20,33 @@
         path: /usr/bin/rpm-ostree
       register: rpm_ostree_check
 
+    - name: Check if Podman is installed
+      stat:
+        path: /usr/bin/podman
+      register: podman_check
+
     - name: Set distribution facts
       set_fact:
         is_debian_based: "{{ ansible_os_family == 'Debian' or ansible_distribution in ['Debian', 'VyOS'] }}"
         is_fedora_based: "{{ ansible_os_family == 'RedHat' or ansible_distribution in ['Fedora'] }}"
         is_rpm_ostree_based: "{{ rpm_ostree_check.stat.exists or ansible_distribution in ['Bazzite'] }}"
+        has_podman: "{{ podman_check.stat.exists | default(false) }}"
+
+    # Enable system Podman socket if Podman is installed
+    - name: Enable and start system Podman socket
+      systemd:
+        name: podman.socket
+        enabled: yes
+        state: started
+        daemon_reload: yes
+      become: true
+      when: has_podman
+      ignore_errors: true
+
+    - name: Set Podman socket facts
+      set_fact:
+        has_podman_socket: "{{ has_podman }}"
+        podman_socket_path: "/run/podman/podman.sock"
 
     # Install dependencies based on distribution
     - name: Install dependencies (Debian-based)
@@ -157,6 +179,3 @@
         - "/tmp/otelcol-contrib"
       become: true
       ignore_errors: true
-  vars:
-    # Use SSH connection for VyOS instead of network_cli
-    ansible_connection: "{{ 'ssh' if (ansible_network_os | default('') == 'vyos') else ansible_connection | default('ssh') }}"

@@ -17,6 +17,10 @@ monitoring_agent_service_user: "root"
 host_metrics_collection_interval: "15s"
 host_metrics_initial_delay: "1s"
 
+# Podman Metrics Configuration (when Podman is installed)
+podman_metrics_collection_interval: "15s"
+podman_metrics_initial_delay: "1s"
+
 # Journald units to monitor (can be overridden in inventory/group_vars)
 monitored_systemd_units:
   - sshd
@@ -31,3 +35,4 @@ monitored_systemd_units:
 file_log_patterns:
   - "/var/log/*.log"
   - "/var/lib/docker/containers/*/*-json.log"
+  - "/run/containers/storage/overlay-containers/*/userdata/ctr.log"

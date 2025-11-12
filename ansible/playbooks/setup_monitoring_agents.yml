@@ -1,12 +1,23 @@
 ---
 - name: Setup monitoring agents
   hosts:
-    - coupe
     - dev-workstation
+    - coupe
     - dokploy
     - game-server
     - gateway-stack
     - gitlab
     - iot-management-stack
+    - lute
+    - messaging-stack
+    - gpu-workstation
+    - ai-tool-stack
+    - ups-management-stack
+    - home-gateway-stack
+    # - monitoring-stack
+    # - router
+    # - nfs
+    # - backup-stack
   roles:
+    # - dnf
     - monitoring_agent

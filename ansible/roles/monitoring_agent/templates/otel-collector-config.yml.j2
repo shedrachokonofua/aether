@@ -27,6 +27,13 @@ receivers:
       processes:
       process:
       system:
+{% if has_podman_socket | default(false) %}
+  podman_stats:
+    endpoint: unix:///run/user/1000/podman/podman.sock
+    collection_interval: {{ podman_metrics_collection_interval | default('15s') }}
+    initial_delay: {{ podman_metrics_initial_delay | default('1s') }}
+    timeout: 5s
+{% endif %}
 
 processors:
   batch:
@@ -61,7 +68,7 @@ service:
   extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage]
   pipelines:
     metrics:
-      receivers: [hostmetrics]
+      receivers: [hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}]
       processors: [batch, resource]
       exporters: [otlphttp]
     logs:
