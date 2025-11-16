@@ -11,7 +11,9 @@
       file:
         path: "{{ item }}"
         state: directory
-        mode: "0755"
+        mode: "0777"
+        owner: aether
+        group: aether
       loop:
         - ./prometheus/data
         - ./loki/data
@@ -100,12 +102,13 @@
         name: loki
         image: docker.io/grafana/loki:latest
         pod: monitoring-stack.pod
+        pull: always
         command:
           - "-config.file=/etc/loki/config.yml"
           - "-log.level=debug"
         volumes:
           - /home/aether/loki/loki_config.yml:/etc/loki/config.yml:Z
-          - /home/aether/loki/data:/var/lib/loki
+          - /home/aether/loki/data:/var/lib/loki:Z
         state: quadlet
 
     - name: Start tempo
@@ -113,6 +116,7 @@
         name: tempo
         image: docker.io/grafana/tempo:latest
         pod: monitoring-stack.pod
+        pull: always
         command:
           - "-config.file=/etc/tempo.yaml"
           - "-log.level=debug"
@@ -125,6 +129,7 @@
         name: otel_collector
         image: docker.io/otel/opentelemetry-collector-contrib:latest
         pod: monitoring-stack.pod
+        pull: always
         volumes:
           - /home/aether/otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
         state: quadlet
@@ -139,6 +144,7 @@
         name: grafana
         pod: monitoring-stack.pod
         image: docker.io/grafana/grafana:latest
+        pull: always
         state: quadlet
         volumes:
           - /home/aether/grafana/grafana.ini:/etc/grafana/grafana.ini:Z
