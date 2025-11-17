@@ -7,7 +7,7 @@
     home_assistant_timezone: "America/Toronto"
   roles:
     - common
-    - linger
+    - vm_baseline
     - dnf
     - monitoring_agent
   tasks:

@@ -1,4 +1,10 @@
 ---
+- hosts: backup-stack
+  gather_facts: true
+  roles:
+    - common
+    - vm_baseline
+
 - name: Configure Proxmox Backup Server
   import_playbook: configure_pbs.yml
 

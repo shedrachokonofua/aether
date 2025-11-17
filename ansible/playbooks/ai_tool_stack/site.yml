@@ -2,8 +2,8 @@
   gather_facts: true
   roles:
     - common
+    - vm_baseline
     - dnf
-    - linger
     - monitoring_agent
 
 - name: Deploy LiteLLM

@@ -1,2 +1,0 @@
-linger_user: "{{ ansible_user_id }}"
-linger_state: "enabled" # Options: enabled, disabled

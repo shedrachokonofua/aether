@@ -445,12 +445,19 @@ tasks:
       - chmod +x ./bootstrap/bootstrap.sh
       - ./bootstrap/bootstrap.sh {{.CLI_ARGS}}
 
-  baseline:home:
+  baseline:home:machines:
     desc: Run the baseline playbook
     cmds:
       - task: ansible:playbook
         vars:
-          CLI_ARGS: ./ansible/playbooks/baseline.yml
+          CLI_ARGS: ./ansible/playbooks/baseline_machines.yml
+
+  baseline:home:vms:
+    desc: Run the baseline playbook
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/baseline_vms.yml
 
   provision:home:router:
     desc: Deploy the home router

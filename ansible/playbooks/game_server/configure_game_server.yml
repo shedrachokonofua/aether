@@ -4,7 +4,7 @@
   gather_facts: true
   roles:
     - common
-    - linger
+    - vm_baseline
     - monitoring_agent
   tasks:
     - name: Resize partition to maximum size

@@ -1,0 +1,8 @@
+---
+- name: Apply baseline configuration to all VMs
+  hosts: vms
+  gather_facts: true
+  become: true
+  roles:
+    - common
+    - vm_baseline

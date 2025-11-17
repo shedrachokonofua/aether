@@ -27,6 +27,7 @@
           - "10.0.4.0/24"
   roles:
     - common
+    - vm_baseline
     - dnf
   tasks:
     - name: Install required packages

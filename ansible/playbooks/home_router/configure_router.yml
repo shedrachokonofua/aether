@@ -4,6 +4,7 @@
   gather_facts: false
   roles:
     - common
+    - vm_baseline
   vars:
     ansible_persistent_connect_timeout: 0
   tasks:

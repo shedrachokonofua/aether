@@ -1,0 +1,5 @@
+---
+vm_baseline_hostname: "{{ inventory_hostname }}"
+vm_baseline_timezone: "America/Toronto"
+vm_baseline_enable_linger: true
+vm_baseline_linger_user: "{{ ansible_user_id }}"
