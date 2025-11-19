@@ -6,6 +6,7 @@ This role manages DNF package manager on RHEL-based systems (Fedora, CentOS, RHE
 
 - Always installs `python3-libdnf5` (required for Ansible dnf module)
 - Configures automatic system updates via `dnf-automatic` (enabled by default)
+- Fedora system-upgrade workflow (download + reboot) enabled by default
 - Automatic updates include:
   - Automatic reboots when needed
   - Daily updates at 5am
@@ -26,6 +27,8 @@ All variables have sensible defaults defined in `defaults/main.yml`:
 | `dnf_automatic_update_type`      | `default`     | Type of updates to apply (`default` for all, `security` for security only) |
 | `dnf_automatic_reboot`           | `when-needed` | Reboot policy: `never`, `when-needed`, or `when-changed`                   |
 | `dnf_automatic_timer_oncalendar` | `05:00`       | Time to run updates (systemd calendar format)                              |
+| `dnf_system_upgrade_enabled`     | `true`        | Whether to run `dnf system-upgrade` workflow on Fedora hosts               |
+| `dnf_system_upgrade_releasever`  | `43`          | Target Fedora release version for the upgrade                              |
 
 ## Example Playbook
 

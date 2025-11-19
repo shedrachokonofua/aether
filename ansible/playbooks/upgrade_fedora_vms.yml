@@ -1,0 +1,19 @@
+---
+- name: Upgrade Fedora VMs
+  hosts:
+    - coupe
+    - cockpit
+    - ups-management-stack
+    - dev-workstation
+    - gpu-workstation
+    - messaging-stack
+    - gitlab
+    - ai-tool-stack
+    - iot-management-stack
+    - dokploy
+    - home-gateway-stack
+    - monitoring-stack
+  gather_facts: true
+  roles:
+    - dnf
+

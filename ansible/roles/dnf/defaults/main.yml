@@ -8,3 +8,7 @@ dnf_automatic_reboot: "when-needed" # Options: never, when-needed, when-changed
 
 # Timer configuration
 dnf_automatic_timer_oncalendar: "05:00" # Run at 5am daily
+
+# System upgrade configuration
+dnf_system_upgrade_enabled: true
+dnf_system_upgrade_releasever: 43

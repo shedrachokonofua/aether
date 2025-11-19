@@ -40,3 +40,34 @@
       notify:
         - reload systemd
         - restart dnf-automatic timer
+
+- name: Perform Fedora system upgrade
+  when:
+    - ansible_distribution == "Fedora"
+    - dnf_system_upgrade_enabled | bool
+  block:
+    - name: Download Fedora system upgrade packages
+      become: true
+      command:
+        cmd: >
+          dnf system-upgrade download
+          --releasever={{ dnf_system_upgrade_releasever }}
+          -y
+      register: dnf_system_upgrade_download
+      changed_when: dnf_system_upgrade_download.rc == 0
+      ignore_errors: true
+
+    - name: Trigger Fedora system upgrade reboot
+      become: true
+      command:
+        cmd: dnf5 offline-upgrade reboot -y
+      when: dnf_system_upgrade_download.rc == 0
+      ignore_errors: true
+
+    - name: Wait for system to reboot and complete upgrade
+      wait_for_connection:
+        connect_timeout: 20
+        sleep: 10
+        delay: 60
+        timeout: 3600
+      when: dnf_system_upgrade_download.rc == 0
