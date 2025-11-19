@@ -62,6 +62,10 @@ model_list:
     litellm_params:
       model: "openai/x-ai/grok-4"
       litellm_credential_name: openrouter_credential
+  - model_name: "openrouter/google/gemini-3-pro-preview"
+    litellm_params:
+      model: "openai/google/gemini-3-pro-preview"
+      litellm_credential_name: openrouter_credential
 
 credential_list:
   - credential_name: ollama_credential
