@@ -8,8 +8,8 @@ receivers:
 
 processors:
   batch:
-    timeout: 1s
-    send_batch_size: 1024
+    timeout: 5s
+    send_batch_size: 2048
 
 exporters:
   prometheus:
@@ -36,7 +36,7 @@ service:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [prometheus, debug]
+      exporters: [prometheus]
 
     logs:
       receivers: [otlp]
