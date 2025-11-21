@@ -1,13 +1,20 @@
 {
-  log {
-    level DEBUG
-  }
-
+  debug
+  metrics
   acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
+  admin :2019 {
+    origins caddy.home.shdr.ch
+  }
 }
 
 home.shdr.ch {
   respond "Welcome home"
+}
+
+caddy.home.shdr.ch {
+  reverse_proxy localhost:2019 {
+    header_up Host localhost
+  }
 }
 
 niobe.home.shdr.ch {
