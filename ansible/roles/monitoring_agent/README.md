@@ -5,9 +5,9 @@ This role installs and configures the OpenTelemetry Collector on Linux systems t
 ## Features
 
 - Collects host metrics (CPU, memory, disk, network, etc.) directly via OTEL Collector
+- Collects Podman container metrics (automatically enabled when Podman is detected)
 - Collects journald logs from specified systemd units
 - Collects file logs from configurable patterns
-- Automatic cleanup of legacy Podman-based monitoring setups
 - Persistent cursor storage for reliable log collection
 - Support for immutable operating systems (rpm-ostree)
 
@@ -29,18 +29,21 @@ This role installs and configures the OpenTelemetry Collector on Linux systems t
 
 All variables have sensible defaults defined in `defaults/main.yml`:
 
-| Variable                           | Default                                        | Description                                   |
-| ---------------------------------- | ---------------------------------------------- | --------------------------------------------- |
-| `otel_collector_version`           | `0.139.0`                                      | OpenTelemetry Collector Contrib version       |
-| `otlp_endpoint`                    | `https://otel.home.shdr.ch`                    | OTLP HTTP exporter endpoint                   |
-| `host_metrics_collection_interval` | `15s`                                          | Interval for collecting host metrics          |
-| `host_metrics_initial_delay`       | `1s`                                           | Initial delay before collecting metrics       |
-| `monitoring_agent_service_user`    | `root`                                         | User for running the OTEL Collector service   |
-| `monitored_systemd_units`          | See defaults                                   | List of systemd units to monitor via journald |
-| `file_log_patterns`                | See defaults                                   | List of file patterns to collect logs from    |
-| `otel_collector_binary_path`       | `/usr/local/bin/otelcol-contrib`               | Path to OTEL Collector binary                 |
-| `otel_collector_config_path`       | `/etc/aether-monitoring-agent/otel-config.yml` | Path to OTEL Collector configuration          |
-| `otel_collector_storage_path`      | `/var/lib/otelcol/storage`                     | Path for persistent cursor storage            |
+| Variable                             | Default                                        | Description                                    |
+| ------------------------------------ | ---------------------------------------------- | ---------------------------------------------- |
+| `otel_collector_version`             | `0.139.0`                                      | OpenTelemetry Collector Contrib version        |
+| `otlp_endpoint`                      | `https://otel.home.shdr.ch`                    | OTLP HTTP exporter endpoint                    |
+| `host_metrics_collection_interval`   | `15s`                                          | Interval for collecting host metrics           |
+| `host_metrics_initial_delay`         | `1s`                                           | Initial delay before collecting metrics        |
+| `podman_metrics_collection_interval` | `30s`                                          | Interval for collecting Podman metrics         |
+| `podman_metrics_initial_delay`       | `1s`                                           | Initial delay before collecting Podman metrics |
+| `monitoring_agent_service_user`      | `root`                                         | User for running the OTEL Collector service    |
+| `monitored_systemd_units`            | See defaults                                   | List of systemd units to monitor via journald  |
+| `file_log_patterns`                  | See defaults                                   | List of file patterns to collect logs from     |
+| `otel_collector_binary_path`         | `/usr/local/bin/otelcol-contrib`               | Path to OTEL Collector binary                  |
+| `otel_collector_config_path`         | `/etc/aether-monitoring-agent/otel-config.yml` | Path to OTEL Collector configuration           |
+| `otel_collector_storage_path`        | `/var/lib/otelcol/storage`                     | Path for persistent cursor storage             |
+| `prometheus_scrape_configs`          | `[]`                                           | List of Prometheus scrape configs (optional)   |
 
 ## Example Playbook
 
@@ -72,6 +75,27 @@ Custom configuration:
     - monitoring_agent
 ```
 
+With Prometheus scrape configs:
+
+```yaml
+- hosts: monitoring_agents
+  become: yes
+  vars:
+    prometheus_scrape_configs:
+      - job_name: "caddy"
+        scrape_interval: 30s
+        static_configs:
+          - targets: ["localhost:2019"]
+      - job_name: "node-exporter"
+        scrape_interval: 15s
+        static_configs:
+          - targets: ["localhost:9100"]
+            labels:
+              env: "production"
+  roles:
+    - monitoring_agent
+```
+
 Skip cleanup of old Podman setup:
 
 ```yaml
@@ -96,8 +120,17 @@ Skip cleanup of old Podman setup:
 #### Receivers
 
 - **hostmetrics**: Collects system metrics (CPU, memory, disk, filesystem, load, network, paging, processes, system)
+- **podman**: Collects container metrics from Podman (automatically enabled when Podman is installed and socket is available)
+  - Container CPU, memory, network, and disk I/O statistics
+  - Container lifecycle and health check metrics
+  - Excludes podman-pause containers by default
+  - Requires `podman.socket` to be enabled (automatically handled by the role)
+- **prometheus**: Scrapes Prometheus-format metrics from configured targets (optional)
+  - Enabled when `prometheus_scrape_configs` is defined
+  - Supports standard Prometheus scrape config options (job_name, scrape_interval, static_configs, etc.)
+  - Useful for collecting metrics from services that expose Prometheus endpoints (e.g., Caddy, node_exporter)
 - **journald**: Collects logs from systemd journal for specified units
-- **filelog**: Collects logs from files matching specified patterns
+- **filelog**: Collects logs from files matching specified patterns (including Podman container logs)
 
 #### Processors
 
@@ -110,7 +143,7 @@ Skip cleanup of old Podman setup:
 
 ## Directory Structure
 
-```
+```text
 /etc/aether-monitoring-agent/
 └── otel-config.yml           # OTEL Collector configuration
 
@@ -186,6 +219,17 @@ ls -la /var/log/journal/
 - Review OTEL Collector logs for export errors
 - Ensure time synchronization (NTP/chrony)
 - Check that monitored systemd units exist on the system
+
+### Podman metrics not appearing
+
+- Verify Podman is installed: `which podman`
+- Check Podman socket exists: `ls -la /run/podman/podman.sock`
+- Ensure Podman socket is enabled: `systemctl status podman.socket`
+- Start Podman socket if needed: `sudo systemctl start podman.socket`
+- Ensure service has permissions to access Podman socket
+- Verify containers are running: `podman ps`
+
+Note: The role automatically enables the Podman socket with systemd overrides to keep it always available when Podman is installed.
 
 ### High memory usage
 

@@ -34,6 +34,12 @@ receivers:
     initial_delay: {{ podman_metrics_initial_delay | default('1s') }}
     timeout: 5s
 {% endif %}
+{% if prometheus_scrape_configs | default([]) | length > 0 %}
+  prometheus:
+    config:
+      scrape_configs:
+{{ prometheus_scrape_configs | to_nice_yaml(indent=2) | indent(8, first=True) }}
+{% endif %}
 
 processors:
   batch:
@@ -76,7 +82,7 @@ service:
   extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage]
   pipelines:
     metrics:
-      receivers: [hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}]
+      receivers: [hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}{% if prometheus_scrape_configs | default([]) | length > 0 %}, prometheus{% endif %}]
       processors: [batch, resource]
       exporters: [otlphttp]
     logs:

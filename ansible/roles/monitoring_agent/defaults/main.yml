@@ -36,3 +36,17 @@ file_log_patterns:
   - "/var/log/*.log"
   - "/var/lib/docker/containers/*/*-json.log"
   - "/run/containers/storage/overlay-containers/*/userdata/ctr.log"
+
+# Prometheus scrape configs (optional)
+# Define Prometheus scrape configs to collect metrics from services
+# Example:
+# prometheus_scrape_configs:
+#   - job_name: 'caddy'
+#     scrape_interval: 30s
+#     static_configs:
+#       - targets: ['localhost:2019']
+#   - job_name: 'node-exporter'
+#     scrape_interval: 15s
+#     static_configs:
+#       - targets: ['localhost:9100']
+prometheus_scrape_configs: []
