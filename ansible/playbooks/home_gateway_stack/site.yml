@@ -4,7 +4,12 @@
     - common
     - vm_baseline
     - dnf
-    - monitoring_agent
+    - role: monitoring_agent
+      prometheus_scrape_configs:
+        - job_name: "caddy"
+          scrape_interval: 15s
+          static_configs:
+            - targets: ["localhost:2019"]
 
 - name: Deploy adguard pod
   import_playbook: adguard/site.yml

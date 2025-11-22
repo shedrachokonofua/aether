@@ -1,6 +1,8 @@
 {
   debug
-  metrics
+  metrics {
+    per_host
+  }
   acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
   admin :2019 {
     origins caddy.home.shdr.ch
