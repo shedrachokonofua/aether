@@ -3,14 +3,43 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'prometheus'
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]
 
-  - job_name: 'otel-collector'
+  - job_name: "otel-collector"
     static_configs:
-      - targets: ['otel_collector:8888']
+      - targets: ["otel_collector:8888"]
 
-  - job_name: 'otel-metrics'
+  - job_name: "otel-metrics"
     static_configs:
-      - targets: ['otel_collector:8889']
+      - targets: ["otel_collector:8889"]
+
+  # Proxmox cluster via API - scrape each host for complete cluster view
+  - job_name: "proxmox-cluster"
+    static_configs:
+      - targets:
+          - 192.168.2.201 # Niobe
+          - 192.168.2.202 # Trinity
+          - 192.168.2.203 # Oracle
+          - 192.168.2.204 # Smith
+          - 192.168.2.205 # Neo
+    metrics_path: /pve
+    params:
+      module: [default]
+      cluster: ["1"]
+      node: ["1"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: localhost:9221 # PVE exporter in monitoring stack
+
+  # Proxmox Backup Server
+  - job_name: "proxmox-backup"
+    static_configs:
+      - targets: ["localhost:10019"]
+        labels:
+          instance_type: "pbs"
