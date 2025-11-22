@@ -120,7 +120,6 @@
         pull: always
         command:
           - "-config.file=/etc/loki/config.yml"
-          - "-log.level=debug"
         volumes:
           - /home/aether/loki/loki_config.yml:/etc/loki/config.yml:Z
           - /home/aether/loki/data:/var/lib/loki:Z
@@ -134,7 +133,6 @@
         pull: always
         command:
           - "-config.file=/etc/tempo.yaml"
-          - "-log.level=debug"
         volumes:
           - /home/aether/tempo/tempo.yml:/etc/tempo.yaml:Z
         state: quadlet
