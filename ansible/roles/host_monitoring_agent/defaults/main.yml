@@ -1,0 +1,19 @@
+---
+# Node Exporter configuration
+node_exporter_version: "1.8.2"
+node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+node_exporter_binary_path: "/usr/local/bin/node_exporter"
+node_exporter_port: 9100
+node_exporter_listen_address: "0.0.0.0"
+
+# SMART Monitoring configuration
+smartctl_exporter_enabled: true
+smartctl_exporter_version: "0.12.0"
+smartctl_exporter_download_url: "https://github.com/prometheus-community/smartctl_exporter/releases/download/v{{ smartctl_exporter_version }}/smartctl_exporter-{{ smartctl_exporter_version }}.linux-amd64.tar.gz"
+smartctl_exporter_binary_path: "/usr/local/bin/smartctl_exporter"
+smartctl_exporter_port: 9633
+smartctl_exporter_listen_address: "0.0.0.0"
+
+# Service configuration
+host_monitoring_agent_service_user: "root"
+host_monitoring_agent_service_group: "root"

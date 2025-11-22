@@ -1,0 +1,19 @@
+[Unit]
+Description=Prometheus SMART Exporter
+Documentation=https://github.com/prometheus-community/smartctl_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ host_monitoring_agent_service_user }}
+Group={{ host_monitoring_agent_service_group }}
+ExecStart={{ smartctl_exporter_binary_path }} \
+    --web.listen-address={{ smartctl_exporter_listen_address }}:{{ smartctl_exporter_port }}
+SyslogIdentifier=smartctl_exporter
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+

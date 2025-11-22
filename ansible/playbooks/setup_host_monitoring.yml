@@ -1,0 +1,12 @@
+---
+- name: Setup host monitoring agents on Proxmox nodes
+  hosts:
+    - niobe
+    - trinity
+    - oracle
+    - smith
+    - neo
+  become: true
+  gather_facts: true
+  roles:
+    - host_monitoring_agent

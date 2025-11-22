@@ -1,0 +1,141 @@
+---
+- name: Setup host monitoring agent tasks
+  block:
+    # Gather facts if not already gathered
+    - name: Gather facts for system
+      setup:
+      when: ansible_os_family is not defined
+
+    # Install dependencies (Proxmox is Debian-based)
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - ca-certificates
+          - smartmontools
+        state: present
+      become: true
+
+    # Install Node Exporter
+    - name: Check if node_exporter is installed
+      stat:
+        path: "{{ node_exporter_binary_path }}"
+      register: node_exporter_installed
+
+    - name: Download Node Exporter
+      get_url:
+        url: "{{ node_exporter_download_url }}"
+        dest: /tmp/node_exporter.tar.gz
+      when: not node_exporter_installed.stat.exists
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: yes
+        creates: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64
+      when: not node_exporter_installed.stat.exists
+
+    - name: Install Node Exporter binary
+      copy:
+        src: /tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter
+        dest: "{{ node_exporter_binary_path }}"
+        mode: "0755"
+        remote_src: yes
+      become: true
+      when: not node_exporter_installed.stat.exists
+      notify: restart node exporter
+
+    # Create Node Exporter systemd service
+    - name: Create Node Exporter systemd service
+      template:
+        src: node-exporter.service.j2
+        dest: /etc/systemd/system/aether-node-exporter.service
+        mode: "0644"
+      become: true
+      notify: restart node exporter
+
+    # Install SMART Monitoring Exporter
+    - name: Check if smartctl_exporter should be installed
+      set_fact:
+        install_smartctl: "{{ smartctl_exporter_enabled }}"
+
+    - name: Check if smartctl_exporter is installed
+      stat:
+        path: "{{ smartctl_exporter_binary_path }}"
+      register: smartctl_exporter_installed
+      when: install_smartctl
+
+    - name: Download smartctl_exporter
+      get_url:
+        url: "{{ smartctl_exporter_download_url }}"
+        dest: /tmp/smartctl_exporter.tar.gz
+      when:
+        - install_smartctl
+        - not smartctl_exporter_installed.stat.exists
+
+    - name: Extract smartctl_exporter
+      unarchive:
+        src: /tmp/smartctl_exporter.tar.gz
+        dest: /tmp
+        remote_src: yes
+        creates: /tmp/smartctl_exporter-{{ smartctl_exporter_version }}.linux-amd64
+      when:
+        - install_smartctl
+        - not smartctl_exporter_installed.stat.exists
+
+    - name: Install smartctl_exporter binary
+      copy:
+        src: /tmp/smartctl_exporter-{{ smartctl_exporter_version }}.linux-amd64/smartctl_exporter
+        dest: "{{ smartctl_exporter_binary_path }}"
+        mode: "0755"
+        remote_src: yes
+      become: true
+      when:
+        - install_smartctl
+        - not smartctl_exporter_installed.stat.exists
+      notify: restart smartctl exporter
+
+    # Create smartctl_exporter systemd service
+    - name: Create smartctl_exporter systemd service
+      template:
+        src: smartctl-exporter.service.j2
+        dest: /etc/systemd/system/aether-smartctl-exporter.service
+        mode: "0644"
+      become: true
+      when: install_smartctl
+      notify: restart smartctl exporter
+
+    # Reload systemd and start services
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+      become: true
+
+    - name: Enable and start Node Exporter
+      systemd:
+        name: aether-node-exporter
+        enabled: yes
+        state: started
+      become: true
+
+    - name: Enable and start smartctl_exporter
+      systemd:
+        name: aether-smartctl-exporter
+        enabled: yes
+        state: started
+      become: true
+      when: install_smartctl
+
+    # Cleanup temporary files
+    - name: Clean up temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - "/tmp/node_exporter.tar.gz"
+        - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+        - "/tmp/smartctl_exporter.tar.gz"
+        - "/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.linux-amd64"
+      become: true
+      ignore_errors: true

@@ -15,6 +15,31 @@ scrape_configs:
     static_configs:
       - targets: ["otel_collector:8889"]
 
+  # Physical Proxmox hosts - Node Exporter
+  - job_name: "proxmox-hosts-node"
+    static_configs:
+      - targets:
+          - "192.168.2.201:9100" # Niobe
+          - "192.168.2.202:9100" # Trinity
+          - "192.168.2.203:9100" # Oracle
+          - "192.168.2.204:9100" # Smith
+          - "192.168.2.205:9100" # Neo
+        labels:
+          instance_type: "proxmox_host"
+
+  # Physical Proxmox hosts - SMART Exporter
+  - job_name: "proxmox-hosts-smart"
+    scrape_interval: 60s # Less frequent for disk health
+    static_configs:
+      - targets:
+          - "192.168.2.201:9633" # Niobe
+          - "192.168.2.202:9633" # Trinity
+          - "192.168.2.203:9633" # Oracle
+          - "192.168.2.204:9633" # Smith
+          - "192.168.2.205:9633" # Neo
+        labels:
+          instance_type: "proxmox_host"
+
   # Proxmox cluster via API - scrape each host for complete cluster view
   - job_name: "proxmox-cluster"
     static_configs:

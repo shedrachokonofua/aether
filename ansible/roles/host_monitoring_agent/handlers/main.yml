@@ -1,0 +1,15 @@
+---
+- name: restart node exporter
+  systemd:
+    name: aether-node-exporter
+    state: restarted
+    daemon_reload: yes
+  become: true
+
+- name: restart smartctl exporter
+  systemd:
+    name: aether-smartctl-exporter
+    state: restarted
+    daemon_reload: yes
+  become: true
+
