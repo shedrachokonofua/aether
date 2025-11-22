@@ -1,0 +1,36 @@
+---
+- name: Install Cockpit packages
+  become: true
+  loop: "{{ cockpit_agent_packages }}"
+  package:
+    name: "{{ item }}"
+    state: present
+  ignore_errors: true
+
+- name: Create Cockpit socket override directory
+  become: true
+  file:
+    path: /etc/systemd/system/cockpit.socket.d
+    state: directory
+    mode: "0755"
+
+- name: Configure Cockpit port
+  become: true
+  copy:
+    content: |
+      [Socket]
+      ListenStream=
+      ListenStream={{ cockpit_agent_port }}
+    dest: /etc/systemd/system/cockpit.socket.d/listen.conf
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart cockpit
+
+- name: Enable Cockpit socket
+  become: true
+  systemd:
+    name: cockpit.socket
+    state: started
+    enabled: "{{ cockpit_agent_enabled }}"
+  when: cockpit_agent_enabled | bool

@@ -1,0 +1,6 @@
+---
+- name: Install Cockpit Agent
+  hosts: all:not:cockpit
+  gather_facts: true
+  roles:
+    - cockpit_agent

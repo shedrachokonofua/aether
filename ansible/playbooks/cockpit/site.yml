@@ -42,23 +42,30 @@
         state: directory
         mode: "0755"
 
-    - name: Create machine file for each inventory host
-      copy:
-        content: |
-          {
-            "{{ item }}": {
-              "address": "{{ hostvars[item].ansible_host | default(item) }}",
-              "visible": true,
-              "user": "{{ hostvars[item].ansible_user }}"
-            }
-          }
-        dest: "/etc/cockpit/machines.d/05-{{ item }}.json"
-        mode: "0644"
+    - name: Build machines dictionary
+      set_fact:
+        cockpit_machines: >-
+          {{
+            cockpit_machines | default({}) | combine({
+              hostvars[item].ansible_host: {
+                'address': hostvars[item].ansible_host,
+                'user': hostvars[item].ansible_user,
+                'visible': true
+              }
+            })
+          }}
       loop: "{{ groups['all'] | default([]) }}"
       when:
         - hostvars[item] is defined
         - hostvars[item].ansible_host is defined
         - item != 'cockpit'
+
+    - name: Create single machines configuration file
+      copy:
+        content: "{{ cockpit_machines | to_nice_json }}\n"
+        dest: "/etc/cockpit/machines.d/99-webui.json"
+        mode: "0644"
+      when: cockpit_machines is defined
 
     - name: Enable cockpit
       systemd:
