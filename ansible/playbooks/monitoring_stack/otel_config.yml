@@ -8,8 +8,9 @@ receivers:
 
 processors:
   batch:
-    timeout: 5s
+    timeout: 10s
     send_batch_size: 2048
+    send_batch_max_size: 4096
 
 exporters:
   prometheus:
@@ -27,9 +28,6 @@ exporters:
     endpoint: "tempo:24317"
     tls:
       insecure: true
-
-  debug:
-    verbosity: detailed
 
 service:
   pipelines:
