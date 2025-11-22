@@ -9,7 +9,16 @@
     - common
     - vm_baseline
     - dnf
-    - monitoring_agent
+    - role: monitoring_agent
+      prometheus_scrape_configs:
+        - job_name: "homeassistant"
+          scrape_interval: 30s
+          metrics_path: /api/prometheus
+          static_configs:
+            - targets: ["localhost:8123"]
+          authorization:
+            credentials: "{{ secrets.homeassistant.telemetry_token }}"
+
   tasks:
     - name: Install dependencies
       become: true
