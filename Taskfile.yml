@@ -560,12 +560,19 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/iot_management_stack/site.yml
 
-  configure:home:monitoring-agents:
-    desc: Configure the monitoring agents
+  configure:home:vm-monitoring-agents:
+    desc: Configure the VM monitoring agents
     cmds:
       - task: ansible:playbook
         vars:
-          CLI_ARGS: ./ansible/playbooks/setup_monitoring_agents.yml
+          CLI_ARGS: ./ansible/playbooks/setup_vm_monitoring_agents.yml
+
+  configure:home:host-monitoring-agents:
+    desc: Configure monitoring on Proxmox hosts
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/setup_host_monitoring_agents.yml
 
   configure:home:cockpit-agents:
     desc: Configure the cockpit agents
