@@ -30,6 +30,7 @@
           - 8880:8880
           - 6789:6789
           - 5514:5514/udp
+          - 9130:9130
         quadlet_options:
           - |
             [Install]
@@ -79,6 +80,23 @@
           MEM_STARTUP: 1024 #optional
         volumes:
           - /home/aether/unifi-network-application/data:/config:Z
+
+    - name: Create unpoller container
+      containers.podman.podman_container:
+        name: unpoller
+        image: ghcr.io/unpoller/unpoller:latest
+        state: quadlet
+        pod: unifi.pod
+        env:
+          UP_INFLUXDB_DISABLE: "true"
+          UP_PROMETHEUS_HTTP_LISTEN: "0.0.0.0:9130"
+          UP_PROMETHEUS_REPORT_ERRORS: "false"
+          UP_UNIFI_DEFAULT_URL: "https://localhost:8443"
+          UP_UNIFI_DEFAULT_SAVE_DPI: "true"
+          UP_POLLER_DEBUG: "false"
+          UP_POLLER_QUIET: "false"
+          UP_UNIFI_DEFAULT_USER: "{{ secrets.unifi.telemetry_user }}"
+          UP_UNIFI_DEFAULT_PASS: "{{ secrets.unifi.telemetry_password }}"
 
     - name: Reload systemd
       systemd:
