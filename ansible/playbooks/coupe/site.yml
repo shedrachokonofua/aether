@@ -7,7 +7,7 @@
     - vm_baseline
     - dnf
     - docker
-    - monitoring_agent
+    - vm_monitoring_agent
   tasks:
     - name: Create coupe directory
       file:

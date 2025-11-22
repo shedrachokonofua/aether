@@ -4,7 +4,7 @@
     - common
     - vm_baseline
     - dnf
-    - monitoring_agent
+    - vm_monitoring_agent
   tasks:
     - name: Install git
       become: true

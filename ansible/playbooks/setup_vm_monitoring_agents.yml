@@ -1,5 +1,5 @@
 ---
-- name: Setup monitoring agents
+- name: Setup VM monitoring agents
   hosts:
     - dev-workstation
     - coupe
@@ -14,10 +14,10 @@
     - ai-tool-stack
     - ups-management-stack
     - home-gateway-stack
-    # - monitoring-stack
-    # - router
-    # - nfs
-    # - backup-stack
+    - monitoring-stack
+    - router
+    - nfs
+    - backup-stack
+    - cockpit
   roles:
-    # - dnf
-    - monitoring_agent
+    - vm_monitoring_agent

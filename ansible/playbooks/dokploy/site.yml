@@ -6,7 +6,7 @@
     - common
     - vm_baseline
     - dnf
-    - monitoring_agent
+    - vm_monitoring_agent
     - docker
   tasks:
     - name: Write docker daemon config

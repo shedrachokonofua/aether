@@ -9,7 +9,7 @@
     - common
     - vm_baseline
     - dnf
-    - role: monitoring_agent
+    - role: vm_monitoring_agent
       prometheus_scrape_configs:
         - job_name: "homeassistant"
           scrape_interval: 30s
