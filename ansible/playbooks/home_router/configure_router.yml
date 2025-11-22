@@ -169,7 +169,7 @@
     - name: Configure NetFlow
       vyos.vyos.vyos_config:
         lines:
-          - set system flow-accounting interface eth0
+          - set system flow-accounting interface pppoe0
           - set system flow-accounting interface eth1.2
           - set system flow-accounting interface eth1.3
           - set system flow-accounting interface eth1.4
