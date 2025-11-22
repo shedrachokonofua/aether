@@ -1,0 +1,59 @@
+---
+- name: Check if nvidia_gpu_exporter is installed
+  stat:
+    path: "{{ nvidia_gpu_exporter_binary_path }}"
+  register: nvidia_gpu_exporter_installed
+
+- name: Download NVIDIA GPU Exporter
+  get_url:
+    url: "{{ nvidia_gpu_exporter_download_url }}"
+    dest: /tmp/nvidia_gpu_exporter.tar.gz
+    mode: "0644"
+  when: not nvidia_gpu_exporter_installed.stat.exists
+
+- name: Extract NVIDIA GPU Exporter
+  unarchive:
+    src: /tmp/nvidia_gpu_exporter.tar.gz
+    dest: /tmp
+    remote_src: yes
+    creates: /tmp/nvidia_gpu_exporter
+  when: not nvidia_gpu_exporter_installed.stat.exists
+
+- name: Install NVIDIA GPU Exporter binary
+  copy:
+    src: /tmp/nvidia_gpu_exporter
+    dest: "{{ nvidia_gpu_exporter_binary_path }}"
+    mode: "0755"
+    remote_src: yes
+  become: true
+  when: not nvidia_gpu_exporter_installed.stat.exists
+
+- name: Create NVIDIA GPU Exporter systemd service
+  template:
+    src: nvidia-gpu-exporter.service.j2
+    dest: /etc/systemd/system/aether-nvidia-gpu-exporter.service
+    mode: "0644"
+  become: true
+  notify: restart nvidia gpu exporter
+
+- name: Reload systemd daemon for GPU exporter
+  systemd:
+    daemon_reload: yes
+  become: true
+
+- name: Enable and start NVIDIA GPU Exporter
+  systemd:
+    name: aether-nvidia-gpu-exporter
+    enabled: yes
+    state: started
+  become: true
+
+- name: Clean up GPU exporter temporary files
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/tmp/nvidia_gpu_exporter.tar.gz"
+    - "/tmp/nvidia_gpu_exporter"
+  become: true
+  ignore_errors: true

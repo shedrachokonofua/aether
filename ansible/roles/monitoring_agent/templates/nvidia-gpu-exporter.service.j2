@@ -1,0 +1,27 @@
+[Unit]
+Description=NVIDIA GPU Exporter
+Documentation=https://github.com/utkuozdemir/nvidia_gpu_exporter
+After=network.target
+
+[Service]
+Type=simple
+User={{ monitoring_agent_service_user }}
+Group={{ monitoring_agent_service_user }}
+ExecStart={{ nvidia_gpu_exporter_binary_path }} \
+  --web.listen-address=:{{ nvidia_gpu_exporter_port }} \
+  --web.telemetry-path=/metrics \
+  --nvidia-smi-command=nvidia-smi \
+  --log.level=info \
+  --query-field-names=AUTO \
+  --log.format=logfmt
+
+Restart=on-failure
+RestartSec=5s
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+

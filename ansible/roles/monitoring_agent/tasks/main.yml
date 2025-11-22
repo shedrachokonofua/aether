@@ -7,13 +7,6 @@
       setup:
       when: ansible_os_family is not defined
 
-    # Clean up old Podman-based monitoring setup if present
-    - name: Include cleanup tasks for old Podman setup
-      include_tasks: cleanup_podman.yml
-      tags:
-        - cleanup
-        - cleanup-podman
-
     # Detect distribution family for package management
     - name: Check if system uses rpm-ostree
       stat:
@@ -47,6 +40,42 @@
       set_fact:
         has_podman_socket: "{{ has_podman }}"
         podman_socket_path: "/run/podman/podman.sock"
+
+    # Detect NVIDIA GPU early (before config rendering)
+    - name: Check if nvidia-smi is available
+      command: which nvidia-smi
+      register: nvidia_smi_check
+      changed_when: false
+      failed_when: false
+
+    - name: Verify NVIDIA GPU presence
+      command: nvidia-smi --query-gpu=name --format=csv,noheader
+      register: nvidia_gpu_query
+      changed_when: false
+      failed_when: false
+      when: nvidia_smi_check.rc == 0
+
+    - name: Set GPU facts and add to scrape configs
+      set_fact:
+        has_nvidia_gpu: "{{ nvidia_smi_check.rc == 0 and nvidia_gpu_query.rc == 0 }}"
+        prometheus_scrape_configs: "{{ prometheus_scrape_configs | default([]) + [gpu_scrape_config] }}"
+      vars:
+        gpu_scrape_config:
+          job_name: "nvidia_gpu"
+          scrape_interval: "{{ nvidia_gpu_exporter_scrape_interval }}"
+          static_configs:
+            - targets: ["localhost:{{ nvidia_gpu_exporter_port }}"]
+      when:
+        - nvidia_smi_check.rc == 0
+        - nvidia_gpu_query.rc == 0
+
+    - name: Display GPU information
+      debug:
+        msg: "Detected NVIDIA GPU(s): {{ nvidia_gpu_query.stdout_lines }}"
+      when:
+        - nvidia_smi_check.rc == 0
+        - nvidia_gpu_query.rc == 0
+        - nvidia_gpu_query.stdout_lines | length > 0
 
     # Install dependencies based on distribution
     - name: Install dependencies (Debian-based)
@@ -168,6 +197,11 @@
         enabled: yes
         state: started
       become: true
+
+    # Install NVIDIA GPU Exporter (if detected earlier)
+    - name: Install NVIDIA GPU Exporter
+      include_tasks: nvidia_gpu_exporter.yml
+      when: has_nvidia_gpu | default(false)
 
     # Cleanup temporary files
     - name: Clean up temporary files

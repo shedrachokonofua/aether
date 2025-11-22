@@ -6,6 +6,7 @@ This role installs and configures the OpenTelemetry Collector on Linux systems t
 
 - Collects host metrics (CPU, memory, disk, network, etc.) directly via OTEL Collector
 - Collects Podman container metrics (automatically enabled when Podman is detected)
+- Collects NVIDIA GPU metrics (automatically detected and installed on systems with NVIDIA GPUs)
 - Collects journald logs from specified systemd units
 - Collects file logs from configurable patterns
 - Persistent cursor storage for reliable log collection
@@ -44,6 +45,9 @@ All variables have sensible defaults defined in `defaults/main.yml`:
 | `otel_collector_config_path`         | `/etc/aether-monitoring-agent/otel-config.yml` | Path to OTEL Collector configuration           |
 | `otel_collector_storage_path`        | `/var/lib/otelcol/storage`                     | Path for persistent cursor storage             |
 | `prometheus_scrape_configs`          | `[]`                                           | List of Prometheus scrape configs (optional)   |
+| `nvidia_gpu_exporter_version`        | `1.3.1`                                        | NVIDIA GPU Exporter version (auto-detected)    |
+| `nvidia_gpu_exporter_port`           | `9835`                                         | Port for GPU exporter metrics endpoint         |
+| `nvidia_gpu_exporter_scrape_interval`| `15s`                                          | Interval for scraping GPU metrics              |
 
 ## Example Playbook
 
@@ -96,17 +100,19 @@ With Prometheus scrape configs:
     - monitoring_agent
 ```
 
-Skip cleanup of old Podman setup:
+NVIDIA GPU monitoring is automatically detected - no configuration needed:
 
 ```yaml
-- hosts: monitoring_agents
+- hosts: all_servers
   become: yes
   roles:
     - monitoring_agent
-  tags:
-    - never
-    - cleanup # Will skip cleanup tasks unless explicitly called
 ```
+
+The role will automatically:
+- Install GPU exporter on hosts with NVIDIA GPUs and nvidia-smi
+- Skip GPU exporter on hosts without NVIDIA GPUs
+- No manual configuration required!
 
 ## Components
 
@@ -116,6 +122,16 @@ Skip cleanup of old Podman setup:
 - Service: `aether-otel-collector`
 - Config: `/etc/aether-monitoring-agent/otel-config.yml`
 - Storage: `/var/lib/otelcol/storage/`
+
+### NVIDIA GPU Exporter (Auto-detected)
+
+- Binary: `/usr/local/bin/nvidia_gpu_exporter`
+- Service: `aether-nvidia-gpu-exporter`
+- Metrics endpoint: `http://localhost:9835/metrics`
+- User: Same as OTEL Collector (`{{ monitoring_agent_service_user }}`, default: `root`)
+- Automatically installs on hosts with NVIDIA GPUs and nvidia-smi
+- Skips installation gracefully if no GPU detected
+- No configuration required
 
 #### Receivers
 
@@ -129,6 +145,7 @@ Skip cleanup of old Podman setup:
   - Enabled when `prometheus_scrape_configs` is defined
   - Supports standard Prometheus scrape config options (job_name, scrape_interval, static_configs, etc.)
   - Useful for collecting metrics from services that expose Prometheus endpoints (e.g., Caddy, node_exporter)
+  - Automatically includes NVIDIA GPU exporter when installed
 - **journald**: Collects logs from systemd journal for specified units
 - **filelog**: Collects logs from files matching specified patterns (including Podman container logs)
 
@@ -159,12 +176,14 @@ Check service status:
 
 ```bash
 systemctl status aether-otel-collector
+systemctl status aether-nvidia-gpu-exporter  # On GPU hosts
 ```
 
 View logs:
 
 ```bash
 journalctl -u aether-otel-collector -f
+journalctl -u aether-nvidia-gpu-exporter -f  # On GPU hosts
 ```
 
 Validate configuration:
@@ -190,84 +209,5 @@ For Bazzite, Silverblue, and other rpm-ostree based systems:
 ## Handlers
 
 - `restart otel collector`: Restarts the OTEL Collector service
+- `restart nvidia gpu exporter`: Restarts the NVIDIA GPU Exporter service
 
-## Tags
-
-- `cleanup`: Runs cleanup tasks for old Podman-based monitoring setup
-- `cleanup-podman`: Exclusively runs Podman cleanup without installing new components
-
-## Troubleshooting
-
-### Service won't start
-
-```bash
-# Check logs
-journalctl -u aether-otel-collector -n 50
-
-# Verify configuration
-/usr/local/bin/otelcol-contrib validate --config=/etc/aether-monitoring-agent/otel-config.yml
-
-# Check for permission issues
-ls -la /var/lib/otelcol/storage/
-ls -la /var/log/journal/
-```
-
-### No data in backend
-
-- Verify network connectivity to OTLP endpoint
-- Check for TLS certificate issues if using HTTPS
-- Review OTEL Collector logs for export errors
-- Ensure time synchronization (NTP/chrony)
-- Check that monitored systemd units exist on the system
-
-### Podman metrics not appearing
-
-- Verify Podman is installed: `which podman`
-- Check Podman socket exists: `ls -la /run/podman/podman.sock`
-- Ensure Podman socket is enabled: `systemctl status podman.socket`
-- Start Podman socket if needed: `sudo systemctl start podman.socket`
-- Ensure service has permissions to access Podman socket
-- Verify containers are running: `podman ps`
-
-Note: The role automatically enables the Podman socket with systemd overrides to keep it always available when Podman is installed.
-
-### High memory usage
-
-Adjust batch processor settings in the OTEL configuration:
-
-```yaml
-processors:
-  batch:
-    send_batch_size: 500 # Reduced from 1000
-    timeout: 5s # Reduced from 10s
-```
-
-### Missing logs
-
-- Verify journald is running and accessible
-- Check file log patterns match actual files on the system
-- Ensure the service user has read permissions for log files
-- Check cursor storage directory for persistence issues
-
-## Manual Removal
-
-To completely remove the monitoring agent:
-
-```bash
-# Stop and disable service
-systemctl stop aether-otel-collector
-systemctl disable aether-otel-collector
-
-# Remove binary
-rm -f /usr/local/bin/otelcol-contrib
-
-# Remove configuration and storage
-rm -rf /etc/aether-monitoring-agent
-rm -rf /var/lib/otelcol
-
-# Remove service file
-rm -f /etc/systemd/system/aether-otel-collector.service
-
-# Reload systemd
-systemctl daemon-reload
-```
