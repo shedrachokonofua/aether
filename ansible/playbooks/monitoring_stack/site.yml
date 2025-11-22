@@ -8,6 +8,7 @@
     - dnf
   tasks:
     - name: Create required directories
+      become: true
       file:
         path: "{{ item }}"
         state: directory
@@ -20,6 +21,8 @@
         - ./tempo
         - ./otel
         - ./grafana/provisioning
+        - ./ntopng/data
+        - ./ntopng/redis
 
     - name: Copy prometheus config
       copy:
@@ -57,7 +60,7 @@
         dest: ./grafana/provisioning/
         mode: "0755"
 
-    - name: Create a pod
+    - name: Create monitoring stack pod
       containers.podman.podman_pod:
         name: monitoring-stack
         ports:
@@ -68,6 +71,18 @@
           - "{{ vm.monitoring_stack.ports.otel_http }}:4318"
           - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"
           - "{{ vm.monitoring_stack.ports.otel_prometheus }}:8889"
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create ntopng pod
+      containers.podman.podman_pod:
+        name: ntopng
+        network: host
         state: quadlet
         restart_policy: on-failure
         recreate: true
@@ -151,6 +166,38 @@
           - /home/aether/grafana/provisioning:/etc/grafana/provisioning:Z
           - grafana_storage.volume:/var/lib/grafana:Z
 
+    - name: Start netflow2ng
+      containers.podman.podman_container:
+        name: netflow2ng
+        image: docker.io/synfinatic/netflow2ng:latest
+        pull: always
+        state: quadlet
+        pod: ntopng.pod
+        command:
+          - "--tlv"
+
+    - name: Start ntopng
+      containers.podman.podman_container:
+        name: ntopng
+        pod: ntopng.pod
+        image: docker.io/ntop/ntopng:latest
+        pull: always
+        state: quadlet
+        command:
+          - "--community"
+          - "--http-port"
+          - "0.0.0.0:{{ vm.monitoring_stack.ports.ntopng }}"
+          - "--interface"
+          - "tcp://localhost:5556"
+          - "--local-networks"
+          - "10.0.0.0/8,192.168.0.0/16"
+        volumes:
+          - /home/aether/ntopng/data:/var/lib/ntopng:Z
+          - /home/aether/ntopng/redis:/var/lib/redis:Z
+        cap_add:
+          - NET_ADMIN
+          - NET_RAW
+
     - name: Reload systemd
       systemd:
         daemon_reload: yes
@@ -159,5 +206,11 @@
     - name: Start monitoring stack quadlet
       systemd:
         name: monitoring-stack-pod
+        state: restarted
+        scope: user
+
+    - name: Start ntopng pod quadlet
+      systemd:
+        name: ntopng-pod
         state: restarted
         scope: user

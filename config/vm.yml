@@ -58,6 +58,7 @@ monitoring_stack:
     otel_metrics: 8888
     otel_prometheus: 8889
     prometheus: 9090
+    ntopng: 3001
 
 nfs:
   id: 1004
