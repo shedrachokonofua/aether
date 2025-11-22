@@ -4,7 +4,6 @@
   become: true
   roles:
     - common
-    - linger
   tasks:
     - name: Install prerequisites
       apt:
