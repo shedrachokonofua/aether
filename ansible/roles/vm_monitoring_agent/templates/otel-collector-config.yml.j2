@@ -34,6 +34,13 @@ receivers:
     initial_delay: {{ podman_metrics_initial_delay | default('1s') }}
     timeout: 5s
 {% endif %}
+{% if has_docker_socket | default(false) %}
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: {{ docker_metrics_collection_interval | default('15s') }}
+    initial_delay: {{ docker_metrics_initial_delay | default('1s') }}
+    timeout: 5s
+{% endif %}
 {% if prometheus_scrape_configs | default([]) | length > 0 %}
   prometheus:
     config:
@@ -82,7 +89,7 @@ service:
   extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage]
   pipelines:
     metrics:
-      receivers: [hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}{% if prometheus_scrape_configs | default([]) | length > 0 %}, prometheus{% endif %}]
+      receivers: [hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}{% if has_docker_socket | default(false) %}, docker_stats{% endif %}{% if prometheus_scrape_configs | default([]) | length > 0 %}, prometheus{% endif %}]
       processors: [batch, resource]
       exporters: [otlphttp]
     logs:

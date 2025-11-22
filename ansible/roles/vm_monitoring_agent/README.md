@@ -6,6 +6,7 @@ This role installs and configures the OpenTelemetry Collector on Linux systems t
 
 - Collects host metrics (CPU, memory, disk, network, etc.) directly via OTEL Collector
 - Collects Podman container metrics (automatically enabled when Podman is detected)
+- Collects Docker container metrics (automatically enabled when Docker is detected)
 - Collects NVIDIA GPU metrics (automatically detected and installed on systems with NVIDIA GPUs)
 - Collects journald logs from specified systemd units
 - Collects file logs from configurable patterns
@@ -30,24 +31,26 @@ This role installs and configures the OpenTelemetry Collector on Linux systems t
 
 All variables have sensible defaults defined in `defaults/main.yml`:
 
-| Variable                             | Default                                        | Description                                    |
-| ------------------------------------ | ---------------------------------------------- | ---------------------------------------------- |
-| `otel_collector_version`             | `0.139.0`                                      | OpenTelemetry Collector Contrib version        |
-| `otlp_endpoint`                      | `https://otel.home.shdr.ch`                    | OTLP HTTP exporter endpoint                    |
-| `host_metrics_collection_interval`   | `15s`                                          | Interval for collecting host metrics           |
-| `host_metrics_initial_delay`         | `1s`                                           | Initial delay before collecting metrics        |
-| `podman_metrics_collection_interval` | `30s`                                          | Interval for collecting Podman metrics         |
-| `podman_metrics_initial_delay`       | `1s`                                           | Initial delay before collecting Podman metrics |
-| `monitoring_agent_service_user`      | `root`                                         | User for running the OTEL Collector service    |
-| `monitored_systemd_units`            | See defaults                                   | List of systemd units to monitor via journald  |
-| `file_log_patterns`                  | See defaults                                   | List of file patterns to collect logs from     |
-| `otel_collector_binary_path`         | `/usr/local/bin/otelcol-contrib`               | Path to OTEL Collector binary                  |
-| `otel_collector_config_path`         | `/etc/aether-monitoring-agent/otel-config.yml` | Path to OTEL Collector configuration           |
-| `otel_collector_storage_path`        | `/var/lib/otelcol/storage`                     | Path for persistent cursor storage             |
-| `prometheus_scrape_configs`          | `[]`                                           | List of Prometheus scrape configs (optional)   |
-| `nvidia_gpu_exporter_version`        | `1.3.1`                                        | NVIDIA GPU Exporter version (auto-detected)    |
-| `nvidia_gpu_exporter_port`           | `9835`                                         | Port for GPU exporter metrics endpoint         |
-| `nvidia_gpu_exporter_scrape_interval`| `15s`                                          | Interval for scraping GPU metrics              |
+| Variable                              | Default                                        | Description                                    |
+| ------------------------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| `otel_collector_version`              | `0.139.0`                                      | OpenTelemetry Collector Contrib version        |
+| `otlp_endpoint`                       | `https://otel.home.shdr.ch`                    | OTLP HTTP exporter endpoint                    |
+| `host_metrics_collection_interval`    | `15s`                                          | Interval for collecting host metrics           |
+| `host_metrics_initial_delay`          | `1s`                                           | Initial delay before collecting metrics        |
+| `podman_metrics_collection_interval`  | `15s`                                          | Interval for collecting Podman metrics         |
+| `podman_metrics_initial_delay`        | `1s`                                           | Initial delay before collecting Podman metrics |
+| `docker_metrics_collection_interval`  | `15s`                                          | Interval for collecting Docker metrics         |
+| `docker_metrics_initial_delay`        | `1s`                                           | Initial delay before collecting Docker metrics |
+| `monitoring_agent_service_user`       | `root`                                         | User for running the OTEL Collector service    |
+| `monitored_systemd_units`             | See defaults                                   | List of systemd units to monitor via journald  |
+| `file_log_patterns`                   | See defaults                                   | List of file patterns to collect logs from     |
+| `otel_collector_binary_path`          | `/usr/local/bin/otelcol-contrib`               | Path to OTEL Collector binary                  |
+| `otel_collector_config_path`          | `/etc/aether-monitoring-agent/otel-config.yml` | Path to OTEL Collector configuration           |
+| `otel_collector_storage_path`         | `/var/lib/otelcol/storage`                     | Path for persistent cursor storage             |
+| `prometheus_scrape_configs`           | `[]`                                           | List of Prometheus scrape configs (optional)   |
+| `nvidia_gpu_exporter_version`         | `1.3.1`                                        | NVIDIA GPU Exporter version (auto-detected)    |
+| `nvidia_gpu_exporter_port`            | `9835`                                         | Port for GPU exporter metrics endpoint         |
+| `nvidia_gpu_exporter_scrape_interval` | `15s`                                          | Interval for scraping GPU metrics              |
 
 ## Example Playbook
 
@@ -110,6 +113,7 @@ NVIDIA GPU monitoring is automatically detected - no configuration needed:
 ```
 
 The role will automatically:
+
 - Install GPU exporter on hosts with NVIDIA GPUs and nvidia-smi
 - Skip GPU exporter on hosts without NVIDIA GPUs
 - No manual configuration required!
@@ -141,6 +145,9 @@ The role will automatically:
   - Container lifecycle and health check metrics
   - Excludes podman-pause containers by default
   - Requires `podman.socket` to be enabled (automatically handled by the role)
+- **docker_stats**: Collects container metrics from Docker (automatically enabled when Docker is installed and socket is available)
+  - Container CPU, memory, network, and disk I/O statistics
+  - Requires Docker daemon to be running with accessible socket at `/var/run/docker.sock`
 - **prometheus**: Scrapes Prometheus-format metrics from configured targets (optional)
   - Enabled when `prometheus_scrape_configs` is defined
   - Supports standard Prometheus scrape config options (job_name, scrape_interval, static_configs, etc.)
@@ -210,4 +217,3 @@ For Bazzite, Silverblue, and other rpm-ostree based systems:
 
 - `restart otel collector`: Restarts the OTEL Collector service
 - `restart nvidia gpu exporter`: Restarts the NVIDIA GPU Exporter service
-

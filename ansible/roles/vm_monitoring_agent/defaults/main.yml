@@ -21,6 +21,10 @@ host_metrics_initial_delay: "1s"
 podman_metrics_collection_interval: "15s"
 podman_metrics_initial_delay: "1s"
 
+# Docker Metrics Configuration (when Docker is installed)
+docker_metrics_collection_interval: "15s"
+docker_metrics_initial_delay: "1s"
+
 # Journald units to monitor (can be overridden in inventory/group_vars)
 monitored_systemd_units:
   - sshd
