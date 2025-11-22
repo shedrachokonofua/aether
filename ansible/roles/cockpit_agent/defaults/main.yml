@@ -4,7 +4,7 @@ cockpit_agent_packages:
   - cockpit-files
   - cockpit-podman
   - cockpit-networkmanager
-  - cockpit-storage
+  - cockpit-storaged
 
 cockpit_agent_enabled: true
 cockpit_agent_port: 39090
