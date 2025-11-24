@@ -1,0 +1,71 @@
+---
+- name: Deploy ntfy pod
+  hosts: messaging-stack
+  gather_facts: true
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /home/aether/ntfy/data
+        - /home/aether/ntfy/config
+
+    - name: Write ntfy server configuration
+      template:
+        src: ntfy-server.yml.j2
+        dest: /home/aether/ntfy/config/server.yml
+        mode: "0644"
+
+    - name: Create ntfy pod
+      containers.podman.podman_pod:
+        name: ntfy
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.messaging_stack.ports.ntfy }}:80"
+          - "{{ vm.messaging_stack.ports.ntfy_metrics }}:29090"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create ntfy cache volume
+      containers.podman.podman_volume:
+        name: ntfy_cache
+        state: quadlet
+
+    - name: Create ntfy container
+      containers.podman.podman_container:
+        name: ntfy
+        image: docker.io/binwiederhier/ntfy:latest
+        state: quadlet
+        pod: ntfy.pod
+        command: serve
+        volumes:
+          - ntfy_cache.volume:/var/cache/ntfy:Z
+          - /home/aether/ntfy/config:/etc/ntfy:Z
+        user: "0:0"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start ntfy quadlet
+      systemd:
+        name: ntfy-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for ntfy to be ready
+      wait_for:
+        host: localhost
+        port: "{{ vm.messaging_stack.ports.ntfy }}"
+        timeout: 30
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5

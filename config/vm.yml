@@ -220,6 +220,8 @@ messaging_stack:
     whatsapp: 29318
     gmessages: 29336
     matrix_pg: 5432
+    ntfy: 8082
+    ntfy_metrics: 9090
 
 gpu_workstation:
   id: 1017

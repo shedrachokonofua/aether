@@ -1,0 +1,16 @@
+# ntfy server config file
+# https://ntfy.sh/docs/config/
+
+base-url: "http://{{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.ntfy }}"
+
+cache-file: "/var/cache/ntfy/cache.db"
+cache-duration: "12h"
+
+attachment-cache-dir: "/var/cache/ntfy/attachments"
+attachment-total-size-limit: "5G"
+attachment-file-size-limit: "100M"
+attachment-expiry-duration: "168h"
+
+behind-proxy: true
+
+metrics-listen-http: ":{{ vm.messaging_stack.ports.ntfy_metrics }}"

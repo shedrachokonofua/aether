@@ -187,6 +187,10 @@ matrix.home.shdr.ch {
   reverse_proxy /_synapse/client/* {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.synapse }}
 }
 
+ntfy.home.shdr.ch {
+  reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.ntfy }}
+}
+
 ollama.home.shdr.ch {
   reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.ollama }}
 }

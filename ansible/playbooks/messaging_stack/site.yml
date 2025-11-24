@@ -6,7 +6,15 @@
     - common
     - vm_baseline
     - dnf
-    - vm_monitoring_agent
+    - role: vm_monitoring_agent
+      prometheus_scrape_configs:
+        - job_name: "ntfy"
+          scrape_interval: 15s
+          static_configs:
+            - targets: ["localhost:{{ vm.messaging_stack.ports.ntfy_metrics }}"]
 
 - name: Deploy matrix pod
   import_playbook: matrix.yml
+
+- name: Deploy ntfy pod
+  import_playbook: ntfy.yml
