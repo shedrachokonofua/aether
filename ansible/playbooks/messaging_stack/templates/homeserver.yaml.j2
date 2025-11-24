@@ -11,6 +11,7 @@
 # https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
 server_name: "matrix.home.shdr.ch"
 pid_file: /data/homeserver.pid
+enable_metrics: true
 listeners:
   - port: {{ vm.messaging_stack.ports.synapse }}
     tls: false
@@ -19,6 +20,9 @@ listeners:
     resources:
       - names: [client, federation]
         compress: false
+  - port: {{ vm.messaging_stack.ports.synapse_metrics }}
+    type: metrics
+    bind_addresses: ['0.0.0.0']
 database:
   name: psycopg2
   args:

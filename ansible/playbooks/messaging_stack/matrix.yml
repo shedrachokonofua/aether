@@ -29,6 +29,7 @@
         recreate: true
         ports:
           - "{{ vm.messaging_stack.ports.synapse }}:8008"
+          - "{{ vm.messaging_stack.ports.synapse_metrics }}:{{ vm.messaging_stack.ports.synapse_metrics }}"
           - "{{ vm.messaging_stack.ports.element }}:{{ vm.messaging_stack.ports.element }}"
           - "{{ vm.messaging_stack.ports.matrix_pg }}:{{ vm.messaging_stack.ports.matrix_pg }}"
         quadlet_options:

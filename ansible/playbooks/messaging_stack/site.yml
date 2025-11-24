@@ -12,6 +12,12 @@
           scrape_interval: 15s
           static_configs:
             - targets: ["localhost:{{ vm.messaging_stack.ports.ntfy_metrics }}"]
+        - job_name: "synapse"
+          scrape_interval: 15s
+          metrics_path: "/_synapse/metrics"
+          static_configs:
+            - targets:
+                ["localhost:{{ vm.messaging_stack.ports.synapse_metrics }}"]
 
 - name: Deploy matrix pod
   import_playbook: matrix.yml

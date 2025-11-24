@@ -216,6 +216,7 @@ messaging_stack:
   gateway: "10.0.3.1"
   ports:
     synapse: 8008
+    synapse_metrics: 9091
     element: 8080
     whatsapp: 29318
     gmessages: 29336
