@@ -222,7 +222,7 @@ messaging_stack:
     gmessages: 29336
     matrix_pg: 5432
     ntfy: 8082
-    ntfy_metrics: 9090
+    ntfy_metrics: 9092
 
 gpu_workstation:
   id: 1017

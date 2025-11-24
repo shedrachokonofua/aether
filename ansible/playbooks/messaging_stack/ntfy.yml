@@ -26,7 +26,7 @@
         recreate: true
         ports:
           - "{{ vm.messaging_stack.ports.ntfy }}:80"
-          - "{{ vm.messaging_stack.ports.ntfy_metrics }}:29090"
+          - "{{ vm.messaging_stack.ports.ntfy_metrics }}:9090"
         quadlet_options:
           - |
             [Install]
