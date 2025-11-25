@@ -37,6 +37,19 @@ The domain is configured for ProtonMail email service, providing end-to-end encr
 | TXT         | shdr.ch                 | -        | SPF record            |
 | TXT         | shdr.ch                 | -        | Domain verification   |
 
+### Email (AWS SES)
+
+DNS records for AWS SES domain verification and DKIM authentication, enabling outbound email from the home network.
+
+| Record Type | Name                  | Purpose                 |
+| ----------- | --------------------- | ----------------------- |
+| CNAME       | \<token\>.\_domainkey | DKIM verification 1     |
+| CNAME       | \<token\>.\_domainkey | DKIM verification 2     |
+| CNAME       | \<token\>.\_domainkey | DKIM verification 3     |
+| TXT         | \_amazonses           | SES domain verification |
+
+The SPF record includes `amazonses.com` to authorize SES as a sender.
+
 ### ACME DNS Validation
 
 Caddy uses Cloudflare's DNS API to perform ACME DNS validation for `*.home.shdr.ch` subdomains. This allows automatic SSL certificate provisioning without requiring explicit DNS records in Cloudflare for each internal service.

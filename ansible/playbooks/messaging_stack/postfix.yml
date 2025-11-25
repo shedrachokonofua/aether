@@ -1,0 +1,83 @@
+---
+- name: Deploy Postfix relay for AWS SES
+  hosts: messaging-stack
+  gather_facts: true
+  tasks:
+    - name: Allow binding to privileged ports
+      become: true
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_unprivileged_port_start
+        value: "0"
+        state: present
+        sysctl_set: true
+        reload: true
+
+    - name: Create postfix pod
+      containers.podman.podman_pod:
+        name: postfix
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.messaging_stack.ports.smtp }}:25"
+          - "{{ vm.messaging_stack.ports.postfix_metrics }}:9154"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create Postfix relay container
+      containers.podman.podman_container:
+        name: postfix_relay
+        image: docker.io/boky/postfix:latest
+        pod: postfix.pod
+        pull: always
+        state: quadlet
+        env:
+          ALLOWED_SENDER_DOMAINS: "shdr.ch home.shdr.ch"
+          RELAYHOST: "[email-smtp.us-east-1.amazonaws.com]:587"
+          RELAYHOST_USERNAME: "{{ tf_outputs.aws_ses_smtp_username.value }}"
+          RELAYHOST_PASSWORD: "{{ tf_outputs.aws_ses_smtp_password.value }}"
+          POSTFIX_myhostname: "mail.home.shdr.ch"
+          POSTFIX_mynetworks: "127.0.0.0/8, 10.0.0.0/8, 192.168.2.0/24, 172.16.0.0/12"
+        volumes:
+          - postfix_queue.volume:/var/spool/postfix:Z
+
+    - name: Create postfix queue volume
+      containers.podman.podman_volume:
+        name: postfix_queue
+        state: quadlet
+
+    - name: Create Postfix exporter container
+      containers.podman.podman_container:
+        name: postfix_exporter
+        image: docker.io/unikum/postfix_exporter:latest
+        pod: postfix.pod
+        pull: always
+        state: quadlet
+        command:
+          - "--postfix.showq_path=/var/spool/postfix/public/showq"
+          - "--postfix.logfile_path=/dev/stdin"
+        volumes:
+          - postfix_queue.volume:/var/spool/postfix:ro
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start postfix quadlet
+      systemd:
+        name: postfix-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for postfix to be ready
+      wait_for:
+        host: localhost
+        port: "{{ vm.messaging_stack.ports.smtp }}"
+        timeout: 30
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5

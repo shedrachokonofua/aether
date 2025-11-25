@@ -237,6 +237,8 @@ filtering:
       answer: {{ vm.home_gateway_stack.ip }}
     - domain: ssh.gitlab.home.shdr.ch
       answer: {{ vm.gitlab.ip }}
+    - domain: smtp.home.shdr.ch
+      answer: {{ vm.messaging_stack.ip }}
   safe_fs_patterns:
     - /opt/adguardhome/work/userfilters/*
   safebrowsing_cache_size: 1048576

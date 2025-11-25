@@ -18,9 +18,17 @@
           static_configs:
             - targets:
                 ["localhost:{{ vm.messaging_stack.ports.synapse_metrics }}"]
+        - job_name: "postfix"
+          scrape_interval: 15s
+          static_configs:
+            - targets:
+                ["localhost:{{ vm.messaging_stack.ports.postfix_metrics }}"]
 
 - name: Deploy matrix pod
   import_playbook: matrix.yml
 
 - name: Deploy ntfy pod
   import_playbook: ntfy.yml
+
+- name: Deploy postfix relay
+  import_playbook: postfix.yml

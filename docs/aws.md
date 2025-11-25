@@ -31,3 +31,13 @@ S3 bucket for offsite backups of home storage layer and virtual machines with:
 - Immediate transition to Glacier Flexible Retrieval
 - Dedicated IAM user with minimal required permissions
 - Public access blocked
+
+## Email
+
+### SES (Simple Email Service)
+
+Domain identity for `shdr.ch` providing outbound email capability for the home network. Postfix on the messaging stack acts as an SMTP relay, allowing any internal service to send emails through SES.
+
+- Domain identity with DKIM authentication
+- Dedicated SMTP user with send-only permissions
+- DNS records managed in Cloudflare (DKIM CNAMEs, verification TXT)

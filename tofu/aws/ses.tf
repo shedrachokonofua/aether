@@ -1,6 +1,3 @@
-# AWS SES Configuration for email relay
-# Domain identity for sending emails
-
 resource "aws_ses_domain_identity" "shdrch" {
   domain = "shdr.ch"
 
@@ -19,7 +16,7 @@ resource "aws_iam_user" "ses_smtp_user" {
   path = "/ses/"
 
   tags = {
-    Purpose = "SES SMTP relay for monitoring alerts"
+    Purpose = "SES SMTP relay for home network"
   }
 }
 

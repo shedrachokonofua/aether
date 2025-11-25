@@ -223,6 +223,8 @@ messaging_stack:
     matrix_pg: 5432
     ntfy: 8082
     ntfy_metrics: 9092
+    smtp: 25
+    postfix_metrics: 9154
 
 gpu_workstation:
   id: 1017
