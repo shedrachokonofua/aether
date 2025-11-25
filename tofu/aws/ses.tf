@@ -12,12 +12,8 @@ resource "aws_ses_domain_dkim" "shdrch" {
 
 # SMTP credentials for Postfix relay
 resource "aws_iam_user" "ses_smtp_user" {
-  name = "ses-smtp-user"
-  path = "/ses/"
-
-  tags = {
-    Purpose = "SES SMTP relay for home network"
-  }
+  name = "aether-smtp-user"
+  path = "/aether/"
 }
 
 resource "aws_iam_user_policy" "ses_smtp_policy" {
