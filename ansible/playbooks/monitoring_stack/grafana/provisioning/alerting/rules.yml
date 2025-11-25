@@ -1,0 +1,431 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Infrastructure
+    folder: Alerts
+    interval: 1m
+    rules:
+      # Host Alerts
+      - uid: host-high-cpu
+        title: Host High CPU
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: 100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle",job="proxmox-hosts-node"}[5m])) * 100)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: 'CPU usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: host-high-memory
+        title: Host High Memory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (1 - node_memory_MemAvailable_bytes{job="proxmox-hosts-node"} / node_memory_MemTotal_bytes{job="proxmox-hosts-node"}) * 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: 'Memory usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      # VM Alerts
+      - uid: vm-high-cpu
+        title: VM High CPU
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: max by(id, name) (pve_cpu_usage_ratio{id=~"qemu/.*"} * on(id) group_left(name) max by(id, name) (pve_guest_info)) * 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on VM {{ $labels.name }}"
+          description: 'VM CPU usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: vm-high-memory
+        title: VM High Memory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (sum by(exported_job) (system_memory_usage{state="used"}) / sum by(exported_job) (system_memory_usage)) * 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on VM {{ $labels.exported_job }}"
+          description: 'VM real memory usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      # Disk Alerts
+      - uid: disk-space-low
+        title: Disk Space Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (node_filesystem_avail_bytes{job="proxmox-hosts-node",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job="proxmox-hosts-node",fstype!~"tmpfs|overlay"}) * 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [10]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }} {{ $labels.mountpoint }}"
+          description: 'Disk space is {{ $values.B.Value | printf "%.1f" }}% free'
+
+      - uid: disk-smart-unhealthy
+        title: Disk SMART Unhealthy
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: smartctl_device_smart_status{job="proxmox-hosts-smart"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "SMART failure on {{ $labels.instance }} {{ $labels.device }}"
+          description: "Disk SMART status indicates failure - replace disk immediately"
+
+      # Host Down Alert
+      - uid: host-down
+        title: Host Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: min by(id) (pve_up{id=~"node/.*"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Proxmox host {{ $labels.id }} is down"
+          description: "Proxmox node is not responding"
+
+      # Backup Alert
+      - uid: backup-stale
+        title: Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (time() - max by(vm_id) (pbs_snapshot_vm_last_timestamp)) / 3600
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [24]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stale backup for VM {{ $labels.vm_id }}"
+          description: 'Last backup was {{ $values.B.Value | printf "%.0f" }} hours ago'
+
+      # GPU Alerts
+      - uid: gpu-high-temp
+        title: GPU High Temperature
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: nvidia_smi_temperature_gpu
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [85]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU temperature on {{ $labels.host_name }}"
+          description: 'GPU temperature is {{ $values.B.Value | printf "%.0f" }}°C'
+
+      - uid: gpu-high-memory
+        title: GPU High Memory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes) * 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [95]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU memory usage on {{ $labels.host_name }}"
+          description: 'GPU memory usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: gpu-thermal-throttling
+        title: GPU Thermal Throttling
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: nvidia_smi_clocks_event_reasons_hw_thermal_slowdown
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU thermal throttling on {{ $labels.host_name }}"
+          description: "GPU is throttling due to high temperature"

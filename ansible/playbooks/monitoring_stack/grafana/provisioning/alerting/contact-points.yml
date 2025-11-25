@@ -1,0 +1,22 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: apprise-standard
+    receivers:
+      - uid: apprise-standard
+        type: webhook
+        settings:
+          url: https://apprise.home.shdr.ch/notify/aether?tags=standard&:message=body
+          httpMethod: POST
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: apprise-critical
+    receivers:
+      - uid: apprise-critical
+        type: webhook
+        settings:
+          url: https://apprise.home.shdr.ch/notify/aether?tags=critical&:message=body
+          httpMethod: POST
+        disableResolveMessage: false
