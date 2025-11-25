@@ -17,18 +17,7 @@ urls:
       tag: email
 
 groups:
-  critical:
-    - tag: alerts
-    - tag: system
-    - tag: chat
-    - tag: email
-
-  standard:
-    - tag: alerts
-    - tag: chat
-
-  quiet:
-    - tag: chat
-
-  push:
-    - tag: alerts
+  - critical: alerts, system, chat, email
+  - standard: alerts, chat
+  - quiet: chat
+  - push: alerts
