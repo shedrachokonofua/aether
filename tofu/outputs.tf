@@ -98,3 +98,20 @@ output "tailscale_public_gateway_oauth_client_secret" {
   value     = tailscale_oauth_client.public_gateway_oauth_client.key
   sensitive = true
 }
+
+output "aws_ses_smtp_username" {
+  value = module.aws.ses_smtp_username
+}
+
+output "aws_ses_smtp_password" {
+  value     = module.aws.ses_smtp_password
+  sensitive = true
+}
+
+output "aws_ses_domain_dkim_tokens" {
+  value = module.aws.ses_domain_dkim_tokens
+}
+
+output "aws_ses_domain_verification_token" {
+  value = module.aws.ses_domain_verification_token
+}

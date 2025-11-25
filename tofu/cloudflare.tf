@@ -125,7 +125,7 @@ resource "cloudflare_dns_record" "shdr_ch_dmarc" {
 
 resource "cloudflare_dns_record" "shdr_ch_spf" {
   name    = "shdr.ch"
-  content = "\"v=spf1 include:_spf.protonmail.ch ~all\""
+  content = "\"v=spf1 include:_spf.protonmail.ch include:amazonses.com ~all\""
   type    = "TXT"
   zone_id = cloudflare_zone.shdrch_domain.id
   proxied = false
@@ -134,6 +134,27 @@ resource "cloudflare_dns_record" "shdr_ch_spf" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# AWS SES DKIM records for email authentication
+resource "cloudflare_dns_record" "shdr_ch_ses_dkim" {
+  count   = 3
+  name    = "${module.aws.ses_domain_dkim_tokens[count.index]}._domainkey.shdr.ch"
+  content = "${module.aws.ses_domain_dkim_tokens[count.index]}.dkim.amazonses.com"
+  type    = "CNAME"
+  zone_id = cloudflare_zone.shdrch_domain.id
+  proxied = false
+  ttl     = 1
+}
+
+# AWS SES domain verification TXT record
+resource "cloudflare_dns_record" "shdr_ch_ses_verification" {
+  name    = "_amazonses.shdr.ch"
+  content = "\"${module.aws.ses_domain_verification_token}\""
+  type    = "TXT"
+  zone_id = cloudflare_zone.shdrch_domain.id
+  proxied = false
+  ttl     = 1
 }
 
 resource "cloudflare_dns_record" "shdr_ch_protonmail_verification" {
