@@ -1,5 +1,5 @@
 ---
-- name: Deploy Postfix relay for AWS SES
+- name: Deploy Postfix relay
   hosts: messaging-stack
   gather_facts: true
   tasks:
@@ -39,7 +39,7 @@
           RELAYHOST_USERNAME: "{{ tf_outputs.aws_ses_smtp_username.value }}"
           RELAYHOST_PASSWORD: "{{ tf_outputs.aws_ses_smtp_password.value }}"
           POSTFIX_myhostname: "mail.home.shdr.ch"
-          POSTFIX_mynetworks: "127.0.0.0/8, 10.0.0.0/8, 192.168.2.0/24, 172.16.0.0/12"
+          MYNETWORKS: "127.0.0.0/8,10.0.0.0/8,192.168.2.0/24,172.16.0.0/12,169.254.0.0/16"
         volumes:
           - postfix_queue.volume:/var/spool/postfix:Z
 

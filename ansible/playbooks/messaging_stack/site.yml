@@ -24,6 +24,9 @@
             - targets:
                 ["localhost:{{ vm.messaging_stack.ports.postfix_metrics }}"]
 
+- name: Deploy apprise gateway
+  import_playbook: apprise.yml
+
 - name: Deploy matrix pod
   import_playbook: matrix.yml
 

@@ -225,6 +225,7 @@ messaging_stack:
     ntfy_metrics: 9092
     smtp: 25
     postfix_metrics: 9154
+    apprise: 8000
 
 gpu_workstation:
   id: 1017

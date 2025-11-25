@@ -191,6 +191,10 @@ ntfy.home.shdr.ch {
   reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.ntfy }}
 }
 
+apprise.home.shdr.ch {
+  reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.apprise }}
+}
+
 ollama.home.shdr.ch {
   reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.ollama }}
 }

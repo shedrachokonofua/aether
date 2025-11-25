@@ -1,0 +1,67 @@
+---
+- name: Deploy Apprise API gateway
+  hosts: messaging-stack
+  gather_facts: true
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /home/aether/apprise/config
+
+    - name: Write apprise configuration
+      template:
+        src: apprise-config.yml.j2
+        dest: /home/aether/apprise/config/apprise.yml
+        mode: "0644"
+
+    - name: Create apprise pod
+      containers.podman.podman_pod:
+        name: apprise
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        network: host
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create apprise container
+      containers.podman.podman_container:
+        name: apprise
+        image: docker.io/caronc/apprise:latest
+        state: quadlet
+        pod: apprise.pod
+        pull: always
+        env:
+          APPRISE_STATEFUL_MODE: "simple"
+          APPRISE_CONFIG_LOCK: "no"
+          APPRISE_RECURSION_DEPTH: "1"
+          APPRISE_ATTACH_SIZE: "10485760"
+          APPRISE_BODY_SIZE: "65536"
+        volumes:
+          - /home/aether/apprise/config/apprise.yml:/config/aether.yml:Z
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start apprise quadlet
+      systemd:
+        name: apprise-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for apprise to be ready
+      wait_for:
+        host: localhost
+        port: "{{ vm.messaging_stack.ports.apprise }}"
+        timeout: 30
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 5

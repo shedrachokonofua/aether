@@ -248,3 +248,17 @@
       until: not register_new_matrix_user_result.failed
       retries: 5
       delay: 5
+
+    - name: Create aether bot user
+      command: >
+        podman exec synapse
+        register_new_matrix_user
+        -c /data/homeserver.yaml
+        -u "{{ secrets.matrix.aether_bot_user }}"
+        -p "{{ secrets.matrix.aether_bot_password }}"
+        --no-admin
+        --exists-ok
+      register: register_aether_bot_result
+      until: not register_aether_bot_result.failed
+      retries: 5
+      delay: 5
