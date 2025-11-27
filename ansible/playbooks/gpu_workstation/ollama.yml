@@ -83,6 +83,7 @@
         - qwen3-embedding:4b
         - gemma3:27b
         - qwen3:8b
+        - hf.co/Trilogix1/Hugston-microsoft-Fara-7B:F16
       register: model_pull
       changed_when: "'pulling' in model_pull.stdout"
       ignore_errors: yes
