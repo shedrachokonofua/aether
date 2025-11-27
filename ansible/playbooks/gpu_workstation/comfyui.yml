@@ -85,6 +85,15 @@
         - url: "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors"
           type: vae
           filename: "qwen_image_vae.safetensors"
+        - url: "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors"
+          type: text_encoders
+          filename: "qwen_3_4b.safetensors"
+        - url: "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors"
+          type: diffusion_models
+          filename: "z_image_turbo_bf16.safetensors"
+        - url: "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors"
+          type: vae
+          filename: "ae.safetensors"
       register: model_files
 
     - name: Download ComfyUI models
