@@ -276,7 +276,8 @@ ups_management_stack:
   ip: "10.0.2.6"
   gateway: "10.0.2.1"
   ports:
-    nutify: 5050
+    peanut: 8080
     nut_server: 3493
+    nut_exporter: 9199
 # Planned IP Allocations:
 # - Media Stack: 10.0.3.5

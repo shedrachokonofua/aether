@@ -271,8 +271,8 @@ ups.home.shdr.ch {
   }
 }
 
-nutify.home.shdr.ch {
-  reverse_proxy {{ vm.ups_management_stack.ip }}:{{ vm.ups_management_stack.ports.nutify }}
+peanut.home.shdr.ch {
+  reverse_proxy {{ vm.ups_management_stack.ip }}:{{ vm.ups_management_stack.ports.peanut }}
 }
 
 :9443 {
@@ -287,5 +287,9 @@ nutify.home.shdr.ch {
     reverse_proxy {{ vm.dokploy.ip }} {
       header_up Host "open-webui.d.home.shdr.ch"
     }
+  }
+
+  handle {
+    respond "Not Found" 404
   }
 }

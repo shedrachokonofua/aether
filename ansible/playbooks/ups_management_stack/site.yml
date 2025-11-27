@@ -6,7 +6,16 @@
     - common
     - vm_baseline
     - dnf
-    - vm_monitoring_agent
+    - role: vm_monitoring_agent
+      prometheus_scrape_configs:
+        - job_name: "nut_exporter"
+          scrape_interval: "30s"
+          metrics_path: "/ups_metrics"
+          params:
+            ups: ["ups"]
+          static_configs:
+            - targets:
+                ["localhost:{{ vm.ups_management_stack.ports.nut_exporter }}"]
   tasks:
     - name: Ensure NUT directory exists with correct permissions
       file:
@@ -24,9 +33,13 @@
         mode: "0755"
       loop:
         - /home/aether/nut/run
-        - /home/aether/nutify/etc/nut
-        - /home/aether/nutify/logs
-        - /home/aether/nutify/instance
+        - /home/aether/peanut/config
+
+    - name: Configure PeaNUT settings
+      template:
+        src: ./settings.yml.j2
+        dest: /home/aether/peanut/config/settings.yml
+        mode: "0644"
 
     - name: Configure NUT for SNMPv3
       template:
@@ -56,8 +69,9 @@
       containers.podman.podman_pod:
         name: ups-management-stack
         ports:
-          - "{{ vm.ups_management_stack.ports.nutify }}:5050"
+          - "{{ vm.ups_management_stack.ports.peanut }}:8080"
           - "{{ vm.ups_management_stack.ports.nut_server }}:3493"
+          - "{{ vm.ups_management_stack.ports.nut_exporter }}:9199"
         state: quadlet
         restart_policy: on-failure
         recreate: true
@@ -77,23 +91,29 @@
         user: "100:100"
         state: quadlet
 
-    - name: Start Nutify container
+    - name: Start PeaNUT container
       containers.podman.podman_container:
-        name: nutify
-        image: docker.io/dartsteven/nutify:amd64-latest
+        name: peanut
+        image: docker.io/brandawg93/peanut:latest
         pod: ups-management-stack.pod
         volumes:
-          - /home/aether/nutify/logs:/app/nutify/logs:Z,U
-          - /home/aether/nutify/instance:/app/nutify/instance:Z,U
-          - /home/aether/nutify/etc/nut:/etc/nut:Z
+          - /home/aether/peanut/config:/config:Z,U
         state: quadlet
-        working_dir: /app/nutify
         env:
-          SECRET_KEY: "{{ secrets.ups.nutify_secret_key }}"
-          LOG: true
-          LOG_LEVEL: debug
-          LOG_WERKZEUG: true
-          ENABLE_LOG_STARTUP: Y
+          WEB_PORT: "8080"
+
+    - name: Start NUT Exporter container
+      containers.podman.podman_container:
+        name: nut-exporter
+        image: ghcr.io/druggeri/nut_exporter:latest
+        pod: ups-management-stack.pod
+        state: quadlet
+        env:
+          NUT_EXPORTER_SERVER: "localhost"
+          NUT_EXPORTER_SERVERPORT: "3493"
+          NUT_EXPORTER_USERNAME: "{{ secrets.ups.nut_username }}"
+          NUT_EXPORTER_PASSWORD: "{{ secrets.ups.nut_password }}"
+          NUT_EXPORTER_VARIABLES: ""
 
     - name: Reload systemd user configuration
       systemd:
