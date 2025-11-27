@@ -63,12 +63,9 @@
         version: master
         update: yes
 
-    - name: Download ComfyUI models
-      get_url:
-        url: "{{ item.url }}"
-        dest: "/home/aether/comfyui/storage/ComfyUI/models/{{ item.type }}/{{ item.filename }}"
-        mode: "0644"
-        timeout: 300
+    - name: Check existing ComfyUI models
+      stat:
+        path: "/home/aether/comfyui/storage/ComfyUI/models/{{ item.type }}/{{ item.filename }}"
       loop:
         - url: "https://huggingface.co/cyberdelia/CyberRealisticPony/resolve/main/CyberRealisticPony_V13.0_FP16.safetensors"
           type: checkpoints
@@ -88,6 +85,16 @@
         - url: "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors"
           type: vae
           filename: "qwen_image_vae.safetensors"
+      register: model_files
+
+    - name: Download ComfyUI models
+      get_url:
+        url: "{{ item.item.url }}"
+        dest: "/home/aether/comfyui/storage/ComfyUI/models/{{ item.item.type }}/{{ item.item.filename }}"
+        mode: "0644"
+        timeout: 300
+      loop: "{{ model_files.results }}"
+      when: not item.stat.exists
       register: model_download
       retries: 3
       delay: 10
