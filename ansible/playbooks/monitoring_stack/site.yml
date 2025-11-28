@@ -6,6 +6,7 @@
     - common
     - vm_baseline
     - dnf
+    - vm_monitoring_agent
   tasks:
     - name: Create required directories
       become: true

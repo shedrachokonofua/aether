@@ -4,6 +4,7 @@
   roles:
     - common
     - vm_baseline
+    - vm_monitoring_agent
 
 - name: Configure Proxmox Backup Server
   import_playbook: configure_pbs.yml
