@@ -115,3 +115,17 @@ output "aws_ses_domain_dkim_tokens" {
 output "aws_ses_domain_verification_token" {
   value = module.aws.ses_domain_verification_token
 }
+
+output "home_dokku_password" {
+  value     = module.home.dokku_password
+  sensitive = true
+}
+
+output "home_dokku_gitlab_public_key" {
+  value = module.home.dokku_gitlab_public_key
+}
+
+output "home_dokku_gitlab_private_key" {
+  value     = module.home.dokku_gitlab_private_key
+  sensitive = true
+}

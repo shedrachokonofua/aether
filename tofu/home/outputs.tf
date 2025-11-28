@@ -66,3 +66,12 @@ output "dokku_password" {
   value     = random_password.dokku_console_password.result
   sensitive = true
 }
+
+output "dokku_gitlab_public_key" {
+  value = tls_private_key.dokku_gitlab_ssh_key.public_key_openssh
+}
+
+output "dokku_gitlab_private_key" {
+  value     = tls_private_key.dokku_gitlab_ssh_key.private_key_openssh
+  sensitive = true
+}

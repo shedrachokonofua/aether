@@ -1,0 +1,106 @@
+---
+- name: Install Dokku
+  hosts: dokku
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+    - vm_baseline
+    - docker
+    - vm_monitoring_agent
+  tasks:
+    - name: Write docker daemon config
+      become: true
+      copy:
+        content: |
+          {
+            "dns": ["10.0.0.1"],
+            "default-address-pools": [
+              { "base": "10.20.0.0/16", "size": 24 },
+              { "base": "10.21.0.0/16", "size": 24 },
+              { "base": "10.22.0.0/16", "size": 24 },
+              { "base": "10.23.0.0/16", "size": 24 },
+              { "base": "10.24.0.0/16", "size": 24 },
+              { "base": "10.25.0.0/16", "size": 24 },
+              { "base": "10.26.0.0/16", "size": 24 },
+              { "base": "10.27.0.0/16", "size": 24 },
+              { "base": "10.28.0.0/16", "size": 24 },
+              { "base": "10.29.0.0/16", "size": 24 }
+            ]
+          }
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+        owner: root
+        group: root
+      notify: Restart docker
+
+    - name: Create Dokku data directory
+      become: true
+      file:
+        path: /var/lib/dokku
+        state: directory
+        mode: "0755"
+
+    - name: Create Dokku wrapper script
+      become: true
+      copy:
+        content: |
+          #!/bin/bash
+          exec docker exec -i dokku dokku "$@"
+        dest: /usr/local/bin/dokku
+        mode: "0755"
+
+    - name: Start Dokku container
+      become: true
+      community.docker.docker_container:
+        name: dokku
+        image: dokku/dokku:latest
+        restart_policy: unless-stopped
+        state: started
+        pull: always
+        env:
+          DOKKU_HOSTNAME: kk.home.shdr.ch
+          DOKKU_HOST_ROOT: /var/lib/dokku/home/dokku
+          DOKKU_LIB_HOST_ROOT: /var/lib/dokku/var/lib/dokku
+        volumes:
+          - /var/lib/dokku:/mnt/dokku
+          - /var/run/docker.sock:/var/run/docker.sock
+        ports:
+          - "{{ vm.dokku.ports.ssh }}:22"
+          - "{{ vm.dokku.ports.http }}:80"
+
+    - name: Wait for Dokku to be ready
+      become: true
+      command: docker exec dokku dokku version
+      register: dokku_version
+      until: dokku_version.rc == 0
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: Add admin SSH key to Dokku
+      become: true
+      shell: |
+        echo "{{ lookup('file', '/workspace/config/authorized_keys') }}" | docker exec -i dokku dokku ssh-keys:add admin || true
+      register: dokku_ssh_result
+      changed_when: "'Fingerprint' in dokku_ssh_result.stdout"
+      failed_when: false
+
+    - name: Add GitLab CI SSH key to Dokku
+      become: true
+      shell: |
+        echo "{{ tf_outputs.home_dokku_gitlab_public_key.value }}" | docker exec -i dokku dokku ssh-keys:add gitlab-ci || true
+      register: dokku_gitlab_ssh_result
+      changed_when: "'Fingerprint' in dokku_gitlab_ssh_result.stdout"
+      failed_when: false
+      when:
+        - tf_outputs.home_dokku_gitlab_public_key is defined
+        - tf_outputs.home_dokku_gitlab_public_key.value is defined
+
+  handlers:
+    - name: Restart docker
+      become: true
+      systemd:
+        name: docker
+        state: restarted
+

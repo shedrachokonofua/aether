@@ -52,6 +52,11 @@ resource "random_password" "dokku_console_password" {
   length = 8
 }
 
+# SSH key for Dokku -> GitLab CI/CD
+resource "tls_private_key" "dokku_gitlab_ssh_key" {
+  algorithm = "ED25519"
+}
+
 module "dokku_user" {
   source           = "./modules/vm_user_cloudinit"
   node_name        = local.vm.dokku.node
