@@ -35,20 +35,3 @@ Deploys qBittorrent with Gluetun VPN client. All qBittorrent traffic is routed t
 ```bash
 task ansible:playbook -- ./ansible/playbooks/media_stack/qbittorrent.yml
 ```
-
-## VPN Configuration
-
-Add ProtonVPN credentials to `secrets/secrets.yml`:
-
-```yaml
-qbittorrent_vpn_provider: "protonvpn"
-qbittorrent_vpn_type: "openvpn"
-qbittorrent_vpn_user: "your-openvpn-username+pmp" # Add +pmp suffix for port forwarding
-qbittorrent_vpn_password: "your-openvpn-password"
-qbittorrent_vpn_server_countries: "US" # Optional
-qbittorrent_vpn_port_forwarding: "on"
-```
-
-Get your credentials from https://account.proton.me/u/0/vpn/OpenVpnIKEv2
-
-After deployment, check Gluetun logs for the forwarded port and configure it in qBittorrent settings → Connection → Listening Port.
