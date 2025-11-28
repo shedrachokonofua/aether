@@ -78,10 +78,13 @@
       delay: 5
       changed_when: false
 
-    - name: Add SSH key to Dokku
+    - name: Add SSH keys to Dokku
       become: true
       shell: |
-        echo "{{ lookup('file', '/workspace/config/authorized_keys') }}" | docker exec -i dokku dokku ssh-keys:add admin || true
+        echo "{{ item }}" | docker exec -i dokku dokku ssh-keys:add admin-{{ idx }} || true
+      loop: "{{ ssh_authorized_keys }}"
+      loop_control:
+        index_var: idx
       register: dokku_ssh_result
       changed_when: "'Fingerprint' in dokku_ssh_result.stdout"
       failed_when: false
