@@ -25,6 +25,10 @@
           - "10.0.2.0/24"
           - "10.0.3.0/24"
           - "10.0.4.0/24"
+      - path: /mnt/nvme/data/media
+        options: "rw,sync,no_subtree_check,no_root_squash"
+        allowed_ips:
+          - "10.0.3.0/24"
   roles:
     - common
     - vm_baseline
@@ -37,13 +41,17 @@
           - kernel-modules-extra
         state: present
 
-    - name: Ensure gaming directory exists
+    - name: Ensure data directories exist
       file:
-        path: /mnt/nvme/data/gaming
+        path: "{{ item.path }}"
         state: directory
-        mode: "0755"
+        mode: "{{ item.mode }}"
         owner: root
         group: root
+      loop:
+        - { path: /mnt/nvme/data/gaming, mode: "0755" }
+        - { path: /mnt/nvme/data/media, mode: "0755" }
+        - { path: /mnt/nvme/data/media/downloads, mode: "0777" }
 
     - name: Ensure /var/lib/nfs directory exists with correct permissions
       file:

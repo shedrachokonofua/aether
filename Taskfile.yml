@@ -616,6 +616,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/ai_tool_stack/site.yml
 
+  configure:home:media-stack:
+    desc: Configure the media stack
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/media_stack/site.yml
+
   configure:home:messaging-stack:
     desc: Configure the messaging stack
     cmds:

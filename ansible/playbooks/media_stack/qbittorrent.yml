@@ -1,0 +1,102 @@
+---
+- name: Deploy qBittorrent with VPN
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    qbittorrent_config_dir: /home/{{ vm.media_stack.admin }}/qbittorrent/config
+    qbittorrent_downloads_dir: /mnt/media/downloads
+    qbittorrent_port: "{{ vm.media_stack.ports.qbittorrent }}"
+    qbittorrent_exporter_port: "{{ vm.media_stack.ports.qbittorrent_exporter }}"
+    gluetun_config_dir: /home/{{ vm.media_stack.admin }}/qbittorrent/gluetun
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Create qBittorrent directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ qbittorrent_config_dir }}"
+        - "{{ gluetun_config_dir }}"
+
+    - name: Create qBittorrent pod
+      containers.podman.podman_pod:
+        name: qbittorrent
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ qbittorrent_port }}:8080"
+          - "{{ qbittorrent_exporter_port }}:8090"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Deploy Gluetun VPN container
+      containers.podman.podman_container:
+        name: gluetun
+        image: ghcr.io/qdm12/gluetun:latest
+        state: quadlet
+        pod: qbittorrent.pod
+        device:
+          - /dev/net/tun
+        cap_add:
+          - NET_ADMIN
+          - NET_RAW
+        security_opt:
+          - label=disable
+        env:
+          VPN_SERVICE_PROVIDER: "{{ secrets.qbittorrent.vpn_provider }}"
+          VPN_TYPE: "wireguard"
+          WIREGUARD_PRIVATE_KEY: "{{ secrets.qbittorrent.vpn_wireguard_private_key }}"
+          TZ: "America/Toronto"
+        volume:
+          - "{{ gluetun_config_dir }}:/gluetun:Z"
+
+    - name: Deploy qBittorrent container
+      containers.podman.podman_container:
+        name: qbittorrent
+        image: lscr.io/linuxserver/qbittorrent:latest
+        state: quadlet
+        pod: qbittorrent.pod
+        env:
+          PUID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }}"
+          PGID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}"
+          TZ: "America/Toronto"
+          WEBUI_PORT: "8080"
+        volume:
+          - "{{ qbittorrent_config_dir }}:/config:Z"
+          - "{{ qbittorrent_downloads_dir }}:/downloads"
+
+    - name: Deploy qBittorrent Prometheus Exporter
+      containers.podman.podman_container:
+        name: qbittorrent-exporter
+        image: ghcr.io/martabal/qbittorrent-exporter:latest
+        state: quadlet
+        pod: qbittorrent.pod
+        env:
+          QBITTORRENT_BASE_URL: "http://localhost:8080"
+          QBITTORRENT_USERNAME: "{{ secrets.qbittorrent.username }}"
+          QBITTORRENT_PASSWORD: "{{ secrets.qbittorrent.password }}"
+          EXPORTER_PORT: "8090"
+          LOG_LEVEL: "INFO"
+          ENABLE_HIGH_CARDINALITY: "false"
+          ENABLE_INCREASED_CARDINALITY: "false"
+          ENABLE_TRACKER: "true"
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start qBittorrent quadlet
+      ansible.builtin.systemd:
+        name: qbittorrent-pod
+        state: restarted
+        scope: user

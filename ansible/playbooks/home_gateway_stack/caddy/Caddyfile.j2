@@ -275,6 +275,10 @@ peanut.home.shdr.ch {
   reverse_proxy {{ vm.ups_management_stack.ip }}:{{ vm.ups_management_stack.ports.peanut }}
 }
 
+qbittorrent.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.qbittorrent }}
+}
+
 :9443 {
   @shdrch host shdr.ch
   @ai host ai.shdr.ch

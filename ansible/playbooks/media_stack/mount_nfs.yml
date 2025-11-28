@@ -1,0 +1,26 @@
+---
+- name: Mount NFS share for media storage
+  hosts: media-stack
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install NFS client utilities
+      ansible.builtin.dnf:
+        name:
+          - nfs-utils
+        state: present
+
+    - name: Create media mount point
+      ansible.builtin.file:
+        path: /mnt/media
+        state: directory
+        mode: "0755"
+
+    - name: Mount NFS share for media
+      ansible.posix.mount:
+        path: /mnt/media
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/nvme/data/media"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted
