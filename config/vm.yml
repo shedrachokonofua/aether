@@ -202,7 +202,7 @@ cockpit:
   ip: "10.0.2.5"
   gateway: "10.0.2.1"
   ports:
-    cockpit: 9090
+    cockpit: 39090
 
 messaging_stack:
   id: 1016
