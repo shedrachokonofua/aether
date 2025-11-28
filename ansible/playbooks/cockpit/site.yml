@@ -3,8 +3,8 @@
   hosts: cockpit
   roles:
     - common
-    - vm_baseline
     - dnf
+    - vm_baseline
   tasks:
     - name: Write ssh private key
       copy:

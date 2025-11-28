@@ -279,6 +279,10 @@ qbittorrent.home.shdr.ch {
   reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.qbittorrent }}
 }
 
+kk.home.shdr.ch, *.kk.home.shdr.ch {
+  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.http }}
+}
+
 :9443 {
   @shdrch host shdr.ch
   @ai host ai.shdr.ch

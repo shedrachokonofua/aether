@@ -37,6 +37,7 @@ receivers:
 {% if has_docker_socket | default(false) %}
   docker_stats:
     endpoint: unix:///var/run/docker.sock
+    api_version: "1.44"
     collection_interval: {{ docker_metrics_collection_interval | default('15s') }}
     initial_delay: {{ docker_metrics_initial_delay | default('1s') }}
     timeout: 5s

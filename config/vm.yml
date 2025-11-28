@@ -293,3 +293,17 @@ media_stack:
   ports:
     qbittorrent: 8080
     qbittorrent_exporter: 8090
+
+dokku:
+  id: 1021
+  name: "dokku"
+  node: "neo"
+  admin: "aether"
+  cores: 8
+  memory: 8192
+  disk_gb: 256
+  ip: "10.0.3.14"
+  gateway: "10.0.3.1"
+  ports:
+    ssh: 2222
+    http: 80

@@ -65,9 +65,10 @@
       ignore_errors: true
 
     - name: Wait for system to reboot and complete upgrade
-      ping:
-      register: ping_result
-      until: ping_result is success
-      retries: 360
-      delay: 10
+      wait_for_connection:
+        timeout: 30
+      register: wait_result
+      until: wait_result is success
+      retries: 20
+      delay: 5
       when: dnf_system_upgrade_download.rc == 0

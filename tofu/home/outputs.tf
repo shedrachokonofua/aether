@@ -61,3 +61,8 @@ output "iot_management_stack_password" {
   value     = random_password.iot_management_stack_console_password.result
   sensitive = true
 }
+
+output "dokku_password" {
+  value     = random_password.dokku_console_password.result
+  sensitive = true
+}

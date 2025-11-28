@@ -637,6 +637,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/ups_management_stack/site.yml
 
+  configure:home:dokku:
+    desc: Configure the Dokku PaaS server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/dokku/site.yml
+
   configure:aws:public-gateway:
     desc: Configure the public gateway stack
     cmds:

@@ -1,5 +1,11 @@
 ---
+- name: Reload systemd
+  become: true
+  systemd:
+    daemon_reload: true
+
 - name: Restart cockpit
+  become: true
   systemd:
     name: cockpit.socket
     state: restarted
