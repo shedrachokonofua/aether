@@ -52,9 +52,9 @@ resource "random_password" "dokku_console_password" {
   length = 8
 }
 
-# SSH key for Dokku -> GitLab CI/CD
 resource "tls_private_key" "dokku_gitlab_ssh_key" {
-  algorithm = "ED25519"
+  algorithm = "RSA"
+  rsa_bits  = 4096
 }
 
 module "dokku_user" {

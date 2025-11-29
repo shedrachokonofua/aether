@@ -72,6 +72,6 @@ output "dokku_gitlab_public_key" {
 }
 
 output "dokku_gitlab_private_key" {
-  value     = tls_private_key.dokku_gitlab_ssh_key.private_key_openssh
+  value     = tls_private_key.dokku_gitlab_ssh_key.private_key_pem
   sensitive = true
 }
