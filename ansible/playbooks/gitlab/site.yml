@@ -2,8 +2,8 @@
   gather_facts: true
   roles:
     - common
-    - vm_baseline
     - dnf
+    - vm_baseline
     - vm_monitoring_agent
 
 - name: Deploy GitLab

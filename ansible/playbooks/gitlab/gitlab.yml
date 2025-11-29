@@ -43,18 +43,12 @@
             [Install]
             WantedBy=default.target
 
-    - name: Pull latest gitlab image
-      containers.podman.podman_image:
-        name: docker.io/gitlab/gitlab-ce:latest
-        state: present
-        pull: true
-        force: true
-
     - name: Start GitLab
       containers.podman.podman_container:
         name: gitlab
         state: quadlet
         image: docker.io/gitlab/gitlab-ce:latest
+        pull: always
         pod: gitlab.pod
         cap_add:
           - NET_ADMIN
