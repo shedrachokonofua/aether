@@ -58,11 +58,22 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "offsite_backup_en
   }
 }
 
+resource "aws_s3_bucket_versioning" "offsite_backup_versioning" {
+  bucket = aws_s3_bucket.offsite_backup.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "offsite_backup_lifecycle" {
   bucket = aws_s3_bucket.offsite_backup.id
 
   rule {
-    id     = "TransitionToGlacierFlexibleRetrieval"
+    id     = "IntelligentTieringWithVersionCleanup"
     status = "Enabled"
 
     filter {
@@ -71,7 +82,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "offsite_backup_lifecycle" {
 
     transition {
       days          = 0
-      storage_class = "GLACIER"
+      storage_class = "INTELLIGENT_TIERING"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 7
     }
   }
 

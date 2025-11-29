@@ -14,7 +14,7 @@
 
     # --- rclone Configuration ---
     rclone_s3_remote_name: "S3Offsite"
-    rclone_s3_storage_class: "GLACIER"
+    rclone_s3_storage_class: "INTELLIGENT_TIERING"
 
     # --- Sync Job Configuration ---
     rclone_local_sync_path: "/mnt/hdd"

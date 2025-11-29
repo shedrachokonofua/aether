@@ -168,9 +168,9 @@ Layered approach (snapshots, local backups/replicas, offsite S3) following the 3
 
 Handles local, deduplicated backups for VMs and LXCs on the proxmox cluster.
 
-| Frequency   | Retention                                  |
-| ----------- | ------------------------------------------ |
-| Daily @ 2AM | Daily: 7, Weekly: 4, Monthly: 6, Yearly: 2 |
+| Frequency   | Retention                       |
+| ----------- | ------------------------------- |
+| Daily @ 2AM | Daily: 3, Weekly: 2, Monthly: 3 |
 
 #### Local Replication
 
@@ -181,6 +181,6 @@ Handles local, deduplicated backups for VMs and LXCs on the proxmox cluster.
 
 #### Offsite Backups
 
-| Source Dataset | Target                           | Frequency   |
-| -------------- | -------------------------------- | ----------- |
-| hdd            | S3: Glacier + Flexible Retrieval | Daily @ 3AM |
+| Source Dataset | Target                                     | Frequency   |
+| -------------- | ------------------------------------------ | ----------- |
+| hdd            | S3: Intelligent-Tiering (7-day versioning) | Daily @ 3AM |
