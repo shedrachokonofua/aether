@@ -25,3 +25,11 @@ Configures the GitLab CI/CD integration for Dokku deployments.
 ```bash
 task ansible:playbook -- ./ansible/playbooks/dokku/gitlab_integration.yml
 ```
+
+### Deploy Infisical
+
+Deploys [Infisical](https://infisical.com) - an open-source secret management platform. Runs as a podman pod with PostgreSQL, Redis, and the Infisical backend.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/dokku/infisical.yml
+```

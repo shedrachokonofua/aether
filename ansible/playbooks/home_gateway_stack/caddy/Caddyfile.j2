@@ -283,6 +283,10 @@ kk.home.shdr.ch, *.kk.home.shdr.ch {
   reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.http }}
 }
 
+infisical.home.shdr.ch {
+  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.infisical }}
+}
+
 :9443 {
   @shdrch host shdr.ch
   @ai host ai.shdr.ch

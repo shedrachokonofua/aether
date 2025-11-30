@@ -4,3 +4,6 @@
 
 - name: Deploy Dokku Platform
   import_playbook: dokku.yml
+
+- name: Deploy Infisical
+  import_playbook: infisical.yml

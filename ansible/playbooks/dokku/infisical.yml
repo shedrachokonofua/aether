@@ -1,0 +1,113 @@
+---
+- name: Deploy Infisical pod
+  hosts: dokku
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create required directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ./infisical
+
+    - name: Create Infisical pod
+      containers.podman.podman_pod:
+        name: infisical
+        state: quadlet
+        restart_policy: unless-stopped
+        recreate: true
+        ports:
+          - "{{ vm.dokku.ports.infisical }}:8080"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create postgres volume
+      containers.podman.podman_volume:
+        name: infisical_pg_data
+        state: quadlet
+
+    - name: Create redis volume
+      containers.podman.podman_volume:
+        name: infisical_redis_data
+        state: quadlet
+
+    - name: Create postgres container
+      containers.podman.podman_container:
+        name: infisical-db
+        image: docker.io/postgres:14-alpine
+        state: quadlet
+        pod: infisical.pod
+        env:
+          POSTGRES_USER: infisical
+          POSTGRES_PASSWORD: "{{ secrets.infisical.database_password }}"
+          POSTGRES_DB: infisical
+        volumes:
+          - infisical_pg_data.volume:/var/lib/postgresql/data:Z
+        healthcheck: "pg_isready -U infisical"
+        healthcheck_interval: 5s
+        healthcheck_timeout: 10s
+        healthcheck_retries: 10
+
+    - name: Create redis container
+      containers.podman.podman_container:
+        name: infisical-redis
+        image: docker.io/redis:alpine
+        state: quadlet
+        pod: infisical.pod
+        command: ["redis-server", "--bind", "0.0.0.0"]
+        volumes:
+          - infisical_redis_data.volume:/data:Z
+
+    - name: Create Infisical backend container
+      containers.podman.podman_container:
+        name: infisical-backend
+        image: docker.io/infisical/infisical:latest-postgres
+        pull: always
+        state: quadlet
+        pod: infisical.pod
+        env:
+          NODE_ENV: "production"
+          # Required secrets
+          ENCRYPTION_KEY: "{{ secrets.infisical.encryption_key }}"
+          AUTH_SECRET: "{{ secrets.infisical.auth_secret }}"
+          # Database configuration
+          DB_CONNECTION_URI: "postgresql://infisical:{{ secrets.infisical.database_password }}@localhost:5432/infisical"
+          # Redis configuration
+          REDIS_URL: "redis://localhost:6379"
+          # Site configuration
+          SITE_URL: "https://infisical.home.shdr.ch"
+          HOST: "0.0.0.0"
+          PORT: "8080"
+          # Telemetry (OTEL export to monitoring-stack)
+          TELEMETRY_ENABLED: "true"
+          OTEL_TELEMETRY_COLLECTION_ENABLED: "true"
+          OTEL_EXPORT_TYPE: "otlp"
+          OTEL_EXPORT_OTLP_ENDPOINT: "http://otel.home.shdr.ch"
+          # SMTP configuration (using internal Postfix relay)
+          SMTP_HOST: "{{ vm.messaging_stack.ip }}"
+          SMTP_PORT: "{{ vm.messaging_stack.ports.smtp }}"
+          SMTP_FROM_ADDRESS: "infisical@shdr.ch"
+          SMTP_FROM_NAME: "Infisical"
+          SMTP_IGNORE_TLS: "true"
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start infisical quadlet
+      systemd:
+        name: infisical-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for infisical API to start
+      wait_for:
+        port: "{{ vm.dokku.ports.infisical }}"
+        host: 127.0.0.1
+        timeout: 120

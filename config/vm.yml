@@ -307,3 +307,4 @@ dokku:
   ports:
     ssh: 2222
     http: 80
+    infisical: 8081
