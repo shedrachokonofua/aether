@@ -33,3 +33,11 @@ Deploys [Infisical](https://infisical.com) - an open-source secret management pl
 ```bash
 task ansible:playbook -- ./ansible/playbooks/dokku/infisical.yml
 ```
+
+### Deploy Temporal
+
+Deploys [Temporal](https://temporal.io) - a durable execution platform for running reliable workflows and activities.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/dokku/temporal.yml
+```

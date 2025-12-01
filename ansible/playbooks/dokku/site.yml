@@ -7,3 +7,6 @@
 
 - name: Deploy Infisical
   import_playbook: infisical.yml
+
+- name: Deploy Temporal
+  import_playbook: temporal.yml

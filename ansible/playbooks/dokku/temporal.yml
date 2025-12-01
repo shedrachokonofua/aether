@@ -1,0 +1,100 @@
+---
+- name: Deploy Temporal pod
+  hosts: dokku
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create config directory
+      file:
+        path: ./temporal/dynamicconfig
+        state: directory
+        mode: "0755"
+
+    - name: Create dynamic config file
+      template:
+        src: temporal-dynamicconfig.yaml.j2
+        dest: ./temporal/dynamicconfig/development-sql.yaml
+        mode: "0644"
+
+    - name: Create Temporal pod
+      containers.podman.podman_pod:
+        name: temporal
+        state: quadlet
+        restart_policy: unless-stopped
+        recreate: true
+        ports:
+          - "{{ vm.dokku.ports.temporal_grpc }}:7233"
+          - "{{ vm.dokku.ports.temporal_ui }}:8080"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create postgres volume
+      containers.podman.podman_volume:
+        name: temporal_pg_data
+        state: quadlet
+
+    - name: Create postgres container
+      containers.podman.podman_container:
+        name: temporal-db
+        image: docker.io/postgres:17-alpine
+        state: quadlet
+        pod: temporal.pod
+        env:
+          POSTGRES_USER: temporal
+          POSTGRES_PASSWORD: "{{ secrets.temporal.database_password }}"
+        volumes:
+          - temporal_pg_data.volume:/var/lib/postgresql/data:Z
+
+    - name: Create Temporal server container
+      containers.podman.podman_container:
+        name: temporal-server
+        image: docker.io/temporalio/auto-setup:latest
+        pull: always
+        state: quadlet
+        pod: temporal.pod
+        env:
+          DB: postgres12
+          DB_PORT: "5432"
+          POSTGRES_USER: temporal
+          POSTGRES_PWD: "{{ secrets.temporal.database_password }}"
+          POSTGRES_SEEDS: 127.0.0.1
+          DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+          BIND_ON_IP: 0.0.0.0
+        volumes:
+          - "{{ ansible_user_dir }}/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:Z"
+
+    - name: Create Temporal UI container
+      containers.podman.podman_container:
+        name: temporal-ui
+        image: docker.io/temporalio/ui:latest
+        pull: always
+        state: quadlet
+        pod: temporal.pod
+        env:
+          TEMPORAL_ADDRESS: 127.0.0.1:7233
+          TEMPORAL_CORS_ORIGINS: "https://temporal.home.shdr.ch"
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=10
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start temporal quadlet
+      systemd:
+        name: temporal-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for Temporal gRPC to start
+      wait_for:
+        port: "{{ vm.dokku.ports.temporal_grpc }}"
+        host: 127.0.0.1
+        timeout: 180
