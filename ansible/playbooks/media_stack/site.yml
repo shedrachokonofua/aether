@@ -4,15 +4,15 @@
   gather_facts: true
   roles:
     - common
-    - dnf
-    - vm_baseline
-    - role: vm_monitoring_agent
-      prometheus_scrape_configs:
-        - job_name: "qbittorrent"
-          scrape_interval: 15s
-          static_configs:
-            - targets:
-                ["localhost:{{ vm.media_stack.ports.qbittorrent_exporter }}"]
+    # - dnf
+    # - vm_baseline
+    # - role: vm_monitoring_agent
+    #   prometheus_scrape_configs:
+    #     - job_name: "qbittorrent"
+    #       scrape_interval: 15s
+    #       static_configs:
+    #         - targets:
+    #             ["localhost:{{ vm.media_stack.ports.qbittorrent_exporter }}"]
 
 - name: Mount NFS share
   import_playbook: mount_nfs.yml
@@ -25,3 +25,6 @@
 
 - name: Deploy SABnzbd
   import_playbook: sabnzbd.yml
+
+- name: Deploy Filestash
+  import_playbook: filestash.yml

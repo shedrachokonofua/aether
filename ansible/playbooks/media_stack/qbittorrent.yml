@@ -4,7 +4,7 @@
   gather_facts: true
   vars:
     qbittorrent_config_dir: /home/{{ vm.media_stack.admin }}/qbittorrent/config
-    qbittorrent_downloads_dir: /mnt/media/downloads
+    qbittorrent_downloads_dir: /nvme/data/media/downloads
     qbittorrent_port: "{{ vm.media_stack.ports.qbittorrent }}"
     qbittorrent_exporter_port: "{{ vm.media_stack.ports.qbittorrent_exporter }}"
     gluetun_config_dir: /home/{{ vm.media_stack.admin }}/qbittorrent/gluetun

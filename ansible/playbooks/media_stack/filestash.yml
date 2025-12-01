@@ -1,0 +1,47 @@
+---
+- name: Deploy Filestash
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    filestash_config_dir: /home/{{ vm.media_stack.admin }}/filestash
+    filestash_port: "{{ vm.media_stack.ports.filestash }}"
+
+  tasks:
+    - name: Create Filestash directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0777"
+      loop:
+        - "{{ filestash_config_dir }}"
+        - "{{ filestash_config_dir }}/data"
+        - "{{ filestash_config_dir }}/data/log"
+
+    - name: Deploy Filestash container
+      containers.podman.podman_container:
+        name: filestash
+        image: docker.io/machines/filestash:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ filestash_port }}:8334"
+        volume:
+          - "{{ filestash_config_dir }}/data:/app/data/state:Z"
+          - /nvme/data:/nvme/data
+          - /nvme/personal:/nvme/personal
+          - /hdd/data:/hdd/data
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Filestash quadlet
+      ansible.builtin.systemd:
+        name: filestash
+        state: restarted
+        scope: user

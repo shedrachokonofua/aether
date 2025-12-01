@@ -7,6 +7,7 @@ This playbook is for configuring the media stack virtual machine. The media stac
 - Prometheus qBittorrent Exporter: Lightweight Go-based exporter (~20x less RAM) that exports qBittorrent metrics including categories, tags, and trackers to Prometheus
 - Prowlarr: Indexer manager/proxy
 - SABnzbd: Usenet download client
+- Filestash: Web-based file browser with video transcoding support
 
 ## Planned Additions
 
@@ -52,4 +53,12 @@ Deploys SABnzbd Usenet download client.
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/media_stack/sabnzbd.yml
+```
+
+### Deploy Filestash
+
+Deploys Filestash web-based file browser with video transcoding. Access at https://files.home.shdr.ch
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/filestash.yml
 ```

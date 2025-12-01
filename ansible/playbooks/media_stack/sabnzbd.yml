@@ -4,7 +4,7 @@
   gather_facts: true
   vars:
     sabnzbd_config_dir: /home/{{ vm.media_stack.admin }}/sabnzbd/config
-    sabnzbd_downloads_dir: /mnt/media/downloads
+    sabnzbd_downloads_dir: /nvme/data/media/downloads
     sabnzbd_port: "{{ vm.media_stack.ports.sabnzbd }}"
 
   tasks:

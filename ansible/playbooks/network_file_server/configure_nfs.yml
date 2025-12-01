@@ -25,14 +25,28 @@
           - "10.0.2.0/24"
           - "10.0.3.0/24"
           - "10.0.4.0/24"
-      - path: /mnt/nvme/data/media
+      - path: /mnt/nvme/data
         options: "rw,sync,no_subtree_check,no_root_squash"
         allowed_ips:
+          - "10.0.2.0/24"
           - "10.0.3.0/24"
+          - "10.0.4.0/24"
+      - path: /mnt/hdd/data
+        options: "rw,sync,no_subtree_check,no_root_squash"
+        allowed_ips:
+          - "10.0.2.0/24"
+          - "10.0.3.0/24"
+          - "10.0.4.0/24"
+      - path: /mnt/nvme/personal
+        options: "rw,sync,no_subtree_check,no_root_squash"
+        allowed_ips:
+          - "10.0.2.0/24"
+          - "10.0.3.0/24"
+          - "10.0.4.0/24"
   roles:
     - common
-    - vm_baseline
     - dnf
+    - vm_baseline
   tasks:
     - name: Install required packages
       dnf:

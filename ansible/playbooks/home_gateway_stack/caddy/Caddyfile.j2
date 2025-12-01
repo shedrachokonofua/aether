@@ -309,6 +309,10 @@ sabnzbd.home.shdr.ch {
   reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.sabnzbd }}
 }
 
+files.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.filestash }}
+}
+
 stats.proxy.home.shdr.ch {
   reverse_proxy localhost:{{ vm.home_gateway_stack.ports.rotating_proxy_metrics }}
 }
