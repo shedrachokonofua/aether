@@ -5,12 +5,14 @@ This playbook is for configuring the media stack virtual machine. The media stac
 - qBittorrent: BitTorrent client with web interface
 - Gluetun: VPN client that routes all qBittorrent traffic through a VPN tunnel
 - Prometheus qBittorrent Exporter: Lightweight Go-based exporter (~20x less RAM) that exports qBittorrent metrics including categories, tags, and trackers to Prometheus
+- Prowlarr: Indexer manager/proxy
 
 ## Planned Additions
 
 - Jellyfin: Media server for streaming movies, TV shows, music
 - Calibre-Web: E-book library management
 - SABnzbd: Usenet client
+- Sonarr: TV series management
 
 ## Usage
 
@@ -34,4 +36,12 @@ Deploys qBittorrent with Gluetun VPN client. All qBittorrent traffic is routed t
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/media_stack/qbittorrent.yml
+```
+
+### Deploy Prowlarr
+
+Deploys Prowlarr indexer manager. Access the web UI at `<ip>:9696`.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/prowlarr.yml
 ```

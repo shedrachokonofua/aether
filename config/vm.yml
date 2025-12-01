@@ -297,6 +297,7 @@ media_stack:
   ports:
     qbittorrent: 8080
     qbittorrent_exporter: 8090
+    prowlarr: 9696
 
 dokku:
   id: 1021

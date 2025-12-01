@@ -301,6 +301,10 @@ qbittorrent.home.shdr.ch {
   reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.qbittorrent }}
 }
 
+prowlarr.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.prowlarr }}
+}
+
 kk.home.shdr.ch, *.kk.home.shdr.ch {
   reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.http }}
 }

@@ -19,3 +19,6 @@
 
 - name: Deploy qBittorrent
   import_playbook: qbittorrent.yml
+
+- name: Deploy Prowlarr
+  import_playbook: prowlarr.yml

@@ -1,0 +1,50 @@
+---
+- name: Deploy Prowlarr
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    prowlarr_config_dir: /home/{{ vm.media_stack.admin }}/prowlarr/config
+    prowlarr_port: "{{ vm.media_stack.ports.prowlarr }}"
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Create Prowlarr config directory
+      ansible.builtin.file:
+        path: "{{ prowlarr_config_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Deploy Prowlarr container
+      containers.podman.podman_container:
+        name: prowlarr
+        image: lscr.io/linuxserver/prowlarr:latest
+        state: quadlet
+        recreate: true
+        ports:
+          - "{{ prowlarr_port }}:9696"
+        env:
+          PUID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }}"
+          PGID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}"
+          TZ: "America/Toronto"
+          PROWLARR__AUTH__APIKEY: "{{ secrets.prowlarr.api_key }}"
+        volume:
+          - "{{ prowlarr_config_dir }}:/config:Z"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Prowlarr quadlet
+      ansible.builtin.systemd:
+        name: prowlarr
+        state: restarted
+        scope: user
