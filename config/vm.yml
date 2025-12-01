@@ -243,6 +243,10 @@ gpu_workstation:
     docling: 5001
     jupyter: 8890
     swarmui: 7801
+    clearml_web: 8085
+    clearml_api: 8008
+    clearml_files: 8081
+    clearml_serving: 8086
 
 ai_tool_stack:
   id: 1018
@@ -308,3 +312,5 @@ dokku:
     ssh: 2222
     http: 80
     infisical: 8081
+    temporal_grpc: 7233
+    temporal_ui: 8082

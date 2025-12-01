@@ -29,3 +29,6 @@
 
 - name: Deploy SwarmUI
   import_playbook: swarmui.yml
+
+- name: Deploy ClearML MLOps Platform
+  import_playbook: clearml.yml

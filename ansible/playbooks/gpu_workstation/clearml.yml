@@ -1,0 +1,440 @@
+---
+- name: Deploy ClearML MLOps Platform
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+    - docker
+  tasks:
+    - name: Create ClearML directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /home/aether/clearml
+        - /home/aether/clearml/logs
+        - /home/aether/clearml/config
+        - /home/aether/clearml/agent-services
+        - /home/aether/clearml/agent-gpu
+        - /home/aether/clearml/agent-gpu-build
+        - /home/aether/clearml/serving
+
+    # Remove old cache directories that may have SELinux labels from containers
+    - name: Remove old GPU agent cache directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /home/aether/clearml/agent-gpu/pip-cache
+        - /home/aether/clearml/agent-gpu/pip-download-cache
+        - /home/aether/clearml/agent-gpu/apt-cache
+        - /home/aether/clearml/agent-gpu/vcs-cache
+        - /home/aether/clearml/agent-gpu/venvs-cache
+        - /home/aether/clearml/agent-gpu/cache
+        - /home/aether/clearml/agent-gpu/.ssh
+      become: true
+
+    # Create cache directories for GPU agent with open permissions
+    # These are accessed by spawned containers via Podman socket
+    - name: Create GPU agent cache directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      loop:
+        - /home/aether/clearml/agent-gpu/pip-cache
+        - /home/aether/clearml/agent-gpu/pip-download-cache
+        - /home/aether/clearml/agent-gpu/apt-cache
+        - /home/aether/clearml/agent-gpu/vcs-cache
+        - /home/aether/clearml/agent-gpu/venvs-cache
+        - /home/aether/clearml/agent-gpu/cache
+        - /home/aether/clearml/agent-gpu/.ssh
+      become: true
+
+    - name: Create ClearML pod
+      containers.podman.podman_pod:
+        name: clearml
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.gpu_workstation.ports.clearml_web }}:80"
+          - "{{ vm.gpu_workstation.ports.clearml_api }}:8008"
+          - "{{ vm.gpu_workstation.ports.clearml_files }}:8081"
+          - "{{ vm.gpu_workstation.ports.clearml_serving }}:8080"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    # Volumes
+    - name: Create mongo db volume
+      containers.podman.podman_volume:
+        name: clearml_mongo_db
+        state: quadlet
+
+    - name: Create mongo configdb volume
+      containers.podman.podman_volume:
+        name: clearml_mongo_configdb
+        state: quadlet
+
+    - name: Create elastic volume
+      containers.podman.podman_volume:
+        name: clearml_elastic
+        state: quadlet
+
+    - name: Create redis volume
+      containers.podman.podman_volume:
+        name: clearml_redis
+        state: quadlet
+
+    - name: Create fileserver volume
+      containers.podman.podman_volume:
+        name: clearml_fileserver
+        state: quadlet
+
+    # Database containers (using official versions)
+    - name: Create MongoDB container
+      containers.podman.podman_container:
+        name: clearml-mongo
+        image: docker.io/mongo:7.0
+        state: quadlet
+        pod: clearml.pod
+        command:
+          - --setParameter
+          - internalQueryMaxBlockingSortMemoryUsageBytes=196100200
+        volumes:
+          - clearml_mongo_db.volume:/data/db:Z
+          - clearml_mongo_configdb.volume:/data/configdb:Z
+
+    - name: Create Elasticsearch container
+      containers.podman.podman_container:
+        name: clearml-elastic
+        image: docker.io/elasticsearch:8.17.0
+        state: quadlet
+        pod: clearml.pod
+        env:
+          ES_JAVA_OPTS: "-Xms2g -Xmx2g -Dlog4j2.formatMsgNoLookups=true"
+          bootstrap.memory_lock: "true"
+          cluster.name: clearml
+          cluster.routing.allocation.node_initial_primaries_recoveries: "500"
+          cluster.routing.allocation.disk.watermark.low: 500mb
+          cluster.routing.allocation.disk.watermark.high: 500mb
+          cluster.routing.allocation.disk.watermark.flood_stage: 500mb
+          discovery.type: single-node
+          http.compression_level: "7"
+          node.name: clearml
+          xpack.security.enabled: "false"
+        volumes:
+          - clearml_elastic.volume:/usr/share/elasticsearch/data:Z
+        ulimits:
+          - memlock=-1:-1
+          - nofile=65536:65536
+
+    - name: Create Redis container
+      containers.podman.podman_container:
+        name: clearml-redis
+        image: docker.io/redis:7.4
+        state: quadlet
+        pod: clearml.pod
+        volumes:
+          - clearml_redis.volume:/data:Z
+
+    # ClearML Server containers
+    - name: Create ClearML File Server container
+      containers.podman.podman_container:
+        name: clearml-fileserver
+        image: docker.io/clearml/server:latest
+        state: quadlet
+        pod: clearml.pod
+        command: fileserver
+        env:
+          CLEARML__fileserver__delete__allow_batch: "true"
+        volumes:
+          - /home/aether/clearml/logs:/var/log/clearml:Z
+          - clearml_fileserver.volume:/mnt/fileserver:Z
+          - /home/aether/clearml/config:/opt/clearml/config:Z
+
+    - name: Create ClearML API Server container
+      containers.podman.podman_container:
+        name: clearml-apiserver
+        image: docker.io/clearml/server:latest
+        state: quadlet
+        pod: clearml.pod
+        command: apiserver
+        env:
+          CLEARML_ELASTIC_SERVICE_HOST: "127.0.0.1"
+          CLEARML_ELASTIC_SERVICE_PORT: "9200"
+          CLEARML_MONGODB_SERVICE_HOST: "127.0.0.1"
+          CLEARML_MONGODB_SERVICE_PORT: "27017"
+          CLEARML_REDIS_SERVICE_HOST: "127.0.0.1"
+          CLEARML_REDIS_SERVICE_PORT: "6379"
+          CLEARML__apiserver__pre_populate__enabled: "true"
+          CLEARML__apiserver__pre_populate__zip_files: "/opt/clearml/db-pre-populate"
+          CLEARML__apiserver__pre_populate__artifacts_path: "/mnt/fileserver"
+          CLEARML__apiserver__pre_populate__external_web_url: "https://clearml.home.shdr.ch"
+          CLEARML__apiserver__pre_populate__external_api_url: "https://api.clearml.home.shdr.ch"
+          CLEARML__apiserver__pre_populate__external_files_url: "https://files.clearml.home.shdr.ch"
+          CLEARML__services__async_urls_delete__enabled: "true"
+          CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[http://127.0.0.1:8081]"
+          CLEARML__secure__credentials__services_agent__user_key: "{{ secrets.clearml.api_access_key }}"
+          CLEARML__secure__credentials__services_agent__user_secret: "{{ secrets.clearml.api_secret_key }}"
+        volumes:
+          - /home/aether/clearml/logs:/var/log/clearml:Z
+          - /home/aether/clearml/config:/opt/clearml/config:Z
+          - clearml_fileserver.volume:/mnt/fileserver:Z
+
+    - name: Create ClearML Web Server container
+      containers.podman.podman_container:
+        name: clearml-webserver
+        image: docker.io/clearml/server:latest
+        state: quadlet
+        pod: clearml.pod
+        command: webserver
+
+    - name: Create ClearML async delete container
+      containers.podman.podman_container:
+        name: clearml-async-delete
+        image: docker.io/clearml/server:latest
+        state: quadlet
+        pod: clearml.pod
+        env:
+          CLEARML_ELASTIC_SERVICE_HOST: "127.0.0.1"
+          CLEARML_ELASTIC_SERVICE_PORT: "9200"
+          CLEARML_MONGODB_SERVICE_HOST: "127.0.0.1"
+          CLEARML_MONGODB_SERVICE_PORT: "27017"
+          CLEARML_REDIS_SERVICE_HOST: "127.0.0.1"
+          CLEARML_REDIS_SERVICE_PORT: "6379"
+          PYTHONPATH: "/opt/clearml/apiserver"
+          CLEARML__services__async_urls_delete__fileserver__url_prefixes: "[http://127.0.0.1:8081]"
+        command:
+          - python3
+          - -m
+          - jobs.async_urls_delete
+          - --fileserver-host
+          - http://127.0.0.1:8081
+        volumes:
+          - /home/aether/clearml/logs:/var/log/clearml:Z
+          - /home/aether/clearml/config:/opt/clearml/config:Z
+
+    # Agent configs
+    - name: Create services agent config
+      copy:
+        dest: /home/aether/clearml/agent-services/clearml.conf
+        mode: "0644"
+        content: |
+          api {
+              web_server: http://127.0.0.1:80
+              api_server: http://127.0.0.1:8008
+              files_server: http://127.0.0.1:8081
+              credentials {
+                  "access_key" = "{{ secrets.clearml.api_access_key }}"
+                  "secret_key" = "{{ secrets.clearml.api_secret_key }}"
+              }
+          }
+          agent {
+              worker_id: "gpu-workstation-services"
+              worker_name: "GPU Workstation Services"
+          }
+
+    - name: Create GPU agent config
+      copy:
+        dest: /home/aether/clearml/agent-gpu/clearml.conf
+        mode: "0644"
+        content: |
+          api {
+              web_server: http://127.0.0.1:80
+              api_server: http://127.0.0.1:8008
+              files_server: http://127.0.0.1:8081
+              credentials {
+                  "access_key" = "{{ secrets.clearml.api_access_key }}"
+                  "secret_key" = "{{ secrets.clearml.api_secret_key }}"
+              }
+          }
+          agent {
+              worker_id: "gpu-workstation-tasks"
+              worker_name: "GPU Workstation Tasks"
+              # Disable Docker's --gpus flag (not compatible with Podman CDI)
+              enable_gpu_device_flag: false
+              # Use Podman CDI device syntax instead
+              extra_docker_arguments: ["--device", "nvidia.com/gpu=all", "--security-opt=label=disable"]
+              default_docker {
+                  image: "nvidia/cuda:12.9.0-runtime-ubuntu22.04"
+                  arguments: ""
+              }
+          }
+
+    - name: Start podman socket service
+      systemd:
+        name: podman.socket
+        state: started
+        scope: user
+        enabled: true
+
+    - name: Wait for podman socket
+      wait_for:
+        path: /run/user/1000/podman/podman.sock
+        state: present
+        timeout: 30
+
+    - name: Set podman socket permissions
+      file:
+        path: /run/user/1000/podman/podman.sock
+        mode: "0666"
+
+    # Remove old agent container (renamed to clearml-agent-services)
+    - name: Remove old ClearML Agent container
+      containers.podman.podman_container:
+        name: clearml-agent
+        state: absent
+      ignore_errors: true
+
+    - name: Remove old ClearML Agent quadlet
+      file:
+        path: ~/.config/containers/systemd/clearml-agent.container
+        state: absent
+
+    - name: Remove old shared agent directory
+      file:
+        path: /home/aether/clearml/agent
+        state: absent
+
+    # Services agent - handles internal ClearML automation (pipelines, HPO, etc.)
+    - name: Create ClearML Services Agent container
+      containers.podman.podman_container:
+        name: clearml-agent-services
+        image: docker.io/clearml/clearml-agent-services:latest
+        pull: always
+        state: quadlet
+        pod: clearml.pod
+        env:
+          CLEARML_WEB_HOST: "http://127.0.0.1:80"
+          CLEARML_API_HOST: "http://127.0.0.1:8008"
+          CLEARML_FILES_HOST: "http://127.0.0.1:8081"
+          CLEARML_API_ACCESS_KEY: "{{ secrets.clearml.api_access_key }}"
+          CLEARML_API_SECRET_KEY: "{{ secrets.clearml.api_secret_key }}"
+          CLEARML_WORKER_ID: "gpu-workstation-services"
+          CLEARML_AGENT_DOCKER_HOST_MOUNT: "/home/aether/clearml/agent-services:/root/.clearml"
+        volumes:
+          - /home/aether/clearml/agent-services:/root/.clearml:Z
+          - /run/user/1000/podman/podman.sock:/var/run/docker.sock:Z
+        security_opt:
+          - label=disable
+
+    - name: Create ClearML GPU Agent Dockerfile
+      copy:
+        dest: /home/aether/clearml/agent-gpu-build/Dockerfile
+        mode: "0644"
+        content: |
+          FROM docker.io/nvidia/cuda:12.9.0-runtime-ubuntu24.04
+          WORKDIR /usr/agent
+          RUN apt-get update && apt-get install -y curl python3-pip python3-venv git && rm -rf /var/lib/apt/lists/*
+          RUN curl -fsSL https://get.docker.com | sh
+          RUN python3 -m pip install --break-system-packages clearml-agent
+          COPY entrypoint.sh /usr/agent/entrypoint.sh
+          RUN chmod +x /usr/agent/entrypoint.sh
+          ENTRYPOINT ["/usr/agent/entrypoint.sh"]
+
+    - name: Create ClearML GPU Agent entrypoint
+      copy:
+        dest: /home/aether/clearml/agent-gpu-build/entrypoint.sh
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          # Note: GPU access is configured via CDI in clearml.conf (extra_docker_arguments)
+          # The --gpus flag is not used as Podman requires --device nvidia.com/gpu=all instead
+          exec python3 -m clearml_agent daemon \
+            --docker "${CLEARML_AGENT_DEFAULT_BASE_DOCKER}" \
+            --force-current-version \
+            --queue "${CLEARML_AGENT_QUEUES:-default}"
+
+    - name: Build ClearML GPU Agent image
+      containers.podman.podman_image:
+        name: clearml-agent-gpu
+        path: /home/aether/clearml/agent-gpu-build
+        build:
+          rm: true
+        state: build
+        force: true
+
+    - name: Create ClearML GPU Agent container
+      containers.podman.podman_container:
+        name: clearml-agent-gpu
+        image: localhost/clearml-agent-gpu:latest
+        state: quadlet
+        pod: clearml.pod
+        privileged: true
+        device:
+          - nvidia.com/gpu=all
+        env:
+          CLEARML_WEB_HOST: "http://127.0.0.1:80"
+          CLEARML_API_HOST: "http://127.0.0.1:8008"
+          CLEARML_FILES_HOST: "http://127.0.0.1:8081"
+          CLEARML_API_ACCESS_KEY: "{{ secrets.clearml.api_access_key }}"
+          CLEARML_API_SECRET_KEY: "{{ secrets.clearml.api_secret_key }}"
+          CLEARML_AGENT_DEFAULT_BASE_DOCKER: "nvidia/cuda:12.9.0-runtime-ubuntu22.04"
+          CLEARML_WORKER_ID: "gpu-workstation-tasks"
+          # Map container path to host path for spawned containers
+          CLEARML_AGENT_DOCKER_HOST_MOUNT: "/home/aether/clearml/agent-gpu:/root/.clearml"
+          NVIDIA_VISIBLE_DEVICES: "all"
+          NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+          CLEARML_AGENT_QUEUES: "default"
+          # Skip Docker's --gpus flag (not compatible with Podman CDI)
+          # GPU access is handled via extra_docker_arguments in clearml.conf
+          CLEARML_DOCKER_SKIP_GPUS_FLAG: "1"
+        volumes:
+          - /home/aether/clearml/agent-gpu:/root/.clearml:Z
+          - /run/user/1000/podman/podman.sock:/var/run/docker.sock:Z
+        security_opt:
+          - label=disable
+
+    # Serving container (simplified - no Kafka/Zookeeper for homelab)
+    - name: Create ClearML Serving container
+      containers.podman.podman_container:
+        name: clearml-serving
+        image: docker.io/allegroai/clearml-serving-inference:latest
+        pull: always
+        state: quadlet
+        pod: clearml.pod
+        restart_policy: "no"
+        device:
+          - nvidia.com/gpu=all
+        env:
+          CLEARML_WEB_HOST: "http://127.0.0.1:80"
+          CLEARML_API_HOST: "http://127.0.0.1:8008"
+          CLEARML_FILES_HOST: "http://127.0.0.1:8081"
+          CLEARML_API_ACCESS_KEY: "{{ secrets.clearml.api_access_key }}"
+          CLEARML_API_SECRET_KEY: "{{ secrets.clearml.api_secret_key }}"
+          CLEARML_SERVING_PORT: "8080"
+          CLEARML_SERVING_POLL_FREQ: "1.0"
+          NVIDIA_VISIBLE_DEVICES: "all"
+        volumes:
+          - /home/aether/clearml/serving:/opt/clearml/serving:Z
+        security_opt:
+          - seccomp=unconfined
+          - label=disable
+
+    # Start everything
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start ClearML pod
+      systemd:
+        name: clearml-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for ClearML to be ready
+      wait_for:
+        host: localhost
+        port: "{{ vm.gpu_workstation.ports.clearml_web }}"
+        timeout: 120
+      register: wait_result
+      until: not wait_result.failed
+      retries: 5
+      delay: 10

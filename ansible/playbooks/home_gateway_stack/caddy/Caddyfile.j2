@@ -215,6 +215,28 @@ swarmui.home.shdr.ch {
   reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.swarmui }}
 }
 
+clearml.home.shdr.ch {
+  handle /api/* {
+    uri strip_prefix /api
+    reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_api }}
+  }
+  handle {
+    reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_web }}
+  }
+}
+
+api.clearml.home.shdr.ch {
+  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_api }}
+}
+
+files.clearml.home.shdr.ch {
+  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_files }}
+}
+
+serving.clearml.home.shdr.ch {
+  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_serving }}
+}
+
 litellm.home.shdr.ch {
   reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.litellm }}
 }
@@ -285,6 +307,18 @@ kk.home.shdr.ch, *.kk.home.shdr.ch {
 
 infisical.home.shdr.ch {
   reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.infisical }}
+}
+
+temporal.home.shdr.ch {
+  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.temporal_ui }}
+}
+
+grpc.temporal.home.shdr.ch {
+  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.temporal_grpc }} {
+    transport http {
+      versions h2c
+    }
+  }
 }
 
 :9443 {
