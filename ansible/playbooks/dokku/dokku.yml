@@ -78,6 +78,14 @@
       delay: 5
       changed_when: false
 
+    - name: Install Dokku Postgres plugin
+      become: true
+      shell: |
+        docker exec dokku dokku plugin:installed postgres || \
+        docker exec dokku dokku plugin:install https://github.com/dokku/dokku-postgres.git postgres
+      register: dokku_postgres_plugin
+      changed_when: "'postgres' in dokku_postgres_plugin.stdout"
+
     - name: Add admin SSH key to Dokku
       become: true
       shell: |
@@ -103,4 +111,3 @@
       systemd:
         name: docker
         state: restarted
-
