@@ -6,6 +6,7 @@ This playbook is for configuring the gateway stack virtual machine. The gateway 
 - Unifi Network Application: Network controller for managing home wifi access point. Has a mongodb instance.
 - Caddy: Reverse proxy for home network
 - Tailscale Subnet Router: Gateway between the home network and the tailscale network.
+- Rotating Proxy: SOCKS5 proxy that rotates between ProtonVPN servers for anonymity.
 
 ## Usage
 
