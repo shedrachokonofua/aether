@@ -330,9 +330,9 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 10 state related
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 action accept
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 protocol tcp_udp
-          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination port 53,111,443,2049,4317,4318
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination port 53,111,443,1080,2049,4317,4318
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination address 10.0.2.0/24
-          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 description 'Allow DNS, NFS, monitoring to Infrastructure (VLAN 2)'
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 description 'Allow DNS, NFS, monitoring, proxy to Infrastructure (VLAN 2)'
           - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
           - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
           - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept

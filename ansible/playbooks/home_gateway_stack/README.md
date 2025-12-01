@@ -38,3 +38,9 @@ task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/caddy/site.yml
 ```bash
 task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/tailscale/site.yml
 ```
+
+### Deploy Rotating Proxy
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/rotating-proxy/site.yml
+```

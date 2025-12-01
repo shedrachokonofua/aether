@@ -1,0 +1,40 @@
+# HAProxy config for rotating SOCKS5 proxy
+# TCP load balancer across wireproxy backends
+
+global
+    log stdout format raw local0 info
+    maxconn 4096
+
+defaults
+    mode tcp
+    log global
+    option tcplog
+    option dontlognull
+    retries 3
+    option redispatch
+    timeout connect 5s
+    timeout client 30s
+    timeout server 30s
+
+# Stats and Prometheus metrics endpoint
+frontend stats
+    bind *:8404
+    mode http
+    http-request use-service prometheus-exporter if { path /metrics }
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+
+# SOCKS5 proxy frontend
+frontend socks5_frontend
+    bind *:1080
+    default_backend wireproxy_backends
+
+# Wireproxy backend pool
+backend wireproxy_backends
+    balance random
+    option tcp-check
+{% for server in protonvpn_servers %}
+    server {{ server.name }} 127.0.0.1:{{ server.port }} check inter 10s fall 2 rise 2
+{% endfor %}
+

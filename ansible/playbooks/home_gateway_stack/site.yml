@@ -18,6 +18,10 @@
           scrape_interval: 30s
           static_configs:
             - targets: ["localhost:9130"]
+        - job_name: "rotating-proxy"
+          scrape_interval: 15s
+          static_configs:
+            - targets: ["localhost:8404"]
 
 - name: Deploy adguard pod
   import_playbook: adguard/site.yml
@@ -30,3 +34,6 @@
 
 - name: Deploy tailscale pod
   import_playbook: tailscale/site.yml
+
+- name: Deploy rotating-proxy pod
+  import_playbook: rotating-proxy/site.yml

@@ -1,0 +1,112 @@
+---
+- name: Deploy rotating-proxy pod
+  hosts: home-gateway-stack
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    rotating_proxy_dir: /home/{{ vm.home_gateway_stack.admin }}/rotating-proxy
+    # ProtonVPN server configurations
+    # Private keys, public keys, and endpoints are stored in secrets.protonvpn.servers.<name>
+    protonvpn_servers:
+      - name: ca_toronto_1
+        port: 1081
+      - name: ca_toronto_2
+        port: 1082
+      - name: ca_toronto_3
+        port: 1083
+      - name: us_seattle_1
+        port: 1084
+      - name: us_chicago_1
+        port: 1085
+      - name: us_ny_1
+        port: 1086
+      - name: us_ny_2
+        port: 1087
+      - name: ca_vancouver_1
+        port: 1088
+      - name: ca_montreal_1
+        port: 1089
+      - name: ca_montreal_2
+        port: 1090
+
+  tasks:
+    - name: Create rotating-proxy directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ rotating_proxy_dir }}"
+        - "{{ rotating_proxy_dir }}/wireproxy-configs"
+
+    - name: Create wireproxy config for each ProtonVPN server
+      ansible.builtin.template:
+        src: ./wireproxy.conf.j2
+        dest: "{{ rotating_proxy_dir }}/wireproxy-configs/{{ item.name }}.conf"
+        mode: "0644"
+      loop: "{{ protonvpn_servers }}"
+
+    - name: Create HAProxy config
+      ansible.builtin.template:
+        src: ./haproxy.cfg.j2
+        dest: "{{ rotating_proxy_dir }}/haproxy.cfg"
+        mode: "0644"
+
+    # Cleanup old mubeng setup
+    - name: Remove old mubeng quadlet file
+      ansible.builtin.file:
+        path: ~/.config/containers/systemd/mubeng.container
+        state: absent
+
+    - name: Remove old mubeng proxy list
+      ansible.builtin.file:
+        path: "{{ rotating_proxy_dir }}/proxies.txt"
+        state: absent
+
+    - name: Create rotating-proxy pod
+      containers.podman.podman_pod:
+        name: rotating-proxy
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.home_gateway_stack.ports.rotating_proxy }}:1080"
+          - "{{ vm.home_gateway_stack.ports.rotating_proxy_metrics }}:8404"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create wireproxy containers for each ProtonVPN server
+      containers.podman.podman_container:
+        name: "wireproxy-{{ item.name }}"
+        image: ghcr.io/whyvl/wireproxy:latest
+        state: quadlet
+        pod: rotating-proxy.pod
+        cap_add:
+          - NET_ADMIN
+        volumes:
+          - "{{ rotating_proxy_dir }}/wireproxy-configs/{{ item.name }}.conf:/etc/wireproxy/config:Z"
+        command: ["-c", "/etc/wireproxy/config"]
+      loop: "{{ protonvpn_servers }}"
+
+    - name: Create HAProxy load balancer container
+      containers.podman.podman_container:
+        name: haproxy
+        image: docker.io/library/haproxy:3.1-alpine
+        state: quadlet
+        pod: rotating-proxy.pod
+        volumes:
+          - "{{ rotating_proxy_dir }}/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro,Z"
+
+    - name: Reload systemd daemon for user
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start rotating-proxy quadlet
+      ansible.builtin.systemd:
+        name: rotating-proxy-pod
+        state: restarted
+        scope: user

@@ -1,0 +1,17 @@
+# WireProxy config for {{ item.name }}
+# Bridges WireGuard tunnel to SOCKS5 proxy
+
+[Interface]
+PrivateKey = {{ secrets.protonvpn.servers[item.name].private_key }}
+Address = {{ secrets.protonvpn.interface_address }}
+DNS = {{ secrets.protonvpn.dns }}
+
+[Peer]
+PublicKey = {{ secrets.protonvpn.servers[item.name].public_key }}
+AllowedIPs = 0.0.0.0/0
+Endpoint = {{ secrets.protonvpn.servers[item.name].endpoint }}
+PersistentKeepalive = 25
+
+[Socks5]
+BindAddress = 0.0.0.0:{{ item.port }}
+
