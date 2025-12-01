@@ -300,6 +300,7 @@ media_stack:
     qbittorrent: 8080
     qbittorrent_exporter: 8090
     prowlarr: 9696
+    sabnzbd: 8085
 
 dokku:
   id: 1021

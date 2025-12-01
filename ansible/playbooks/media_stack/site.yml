@@ -22,3 +22,6 @@
 
 - name: Deploy Prowlarr
   import_playbook: prowlarr.yml
+
+- name: Deploy SABnzbd
+  import_playbook: sabnzbd.yml

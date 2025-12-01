@@ -1,0 +1,63 @@
+---
+- name: Deploy SABnzbd
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    sabnzbd_config_dir: /home/{{ vm.media_stack.admin }}/sabnzbd/config
+    sabnzbd_downloads_dir: /mnt/media/downloads
+    sabnzbd_port: "{{ vm.media_stack.ports.sabnzbd }}"
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Create SABnzbd config directory
+      become: yes
+      ansible.builtin.file:
+        path: "{{ sabnzbd_config_dir }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ vm.media_stack.admin }}"
+        group: "{{ vm.media_stack.admin }}"
+        recurse: yes
+
+    - name: Deploy SABnzbd config (only if not exists)
+      ansible.builtin.template:
+        src: sabnzbd.ini.j2
+        dest: "{{ sabnzbd_config_dir }}/sabnzbd.ini"
+        mode: "0644"
+        force: no
+
+    - name: Deploy SABnzbd container
+      containers.podman.podman_container:
+        name: sabnzbd
+        image: lscr.io/linuxserver/sabnzbd:latest
+        state: quadlet
+        recreate: true
+        ports:
+          - "{{ sabnzbd_port }}:8080"
+        env:
+          PUID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }}"
+          PGID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}"
+          TZ: "America/Toronto"
+          HOST_WHITELIST_ENTRIES: "sabnzbd.home.shdr.ch"
+        volume:
+          - "{{ sabnzbd_config_dir }}:/config:Z"
+          - "{{ sabnzbd_downloads_dir }}:/downloads"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start SABnzbd quadlet
+      ansible.builtin.systemd:
+        name: sabnzbd
+        state: restarted
+        scope: user
