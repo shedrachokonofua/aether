@@ -302,6 +302,7 @@ media_stack:
     prowlarr: 9696
     sabnzbd: 8085
     filestash: 8334
+    jellyfin: 8096
 
 dokku:
   id: 1021

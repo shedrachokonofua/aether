@@ -28,3 +28,6 @@
 
 - name: Deploy Filestash
   import_playbook: filestash.yml
+
+- name: Deploy Jellyfin
+  import_playbook: jellyfin.yml

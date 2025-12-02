@@ -1,0 +1,68 @@
+---
+- name: Deploy Jellyfin
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    jellyfin_config_dir: /home/{{ vm.media_stack.admin }}/jellyfin
+    jellyfin_port: "{{ vm.media_stack.ports.jellyfin }}"
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Create Jellyfin directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ jellyfin_config_dir }}"
+        - "{{ jellyfin_config_dir }}/config"
+        - "{{ jellyfin_config_dir }}/cache"
+
+    - name: Create media library folders
+      become: true
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0777"
+      loop:
+        - /nvme/data/media/movies
+        - /nvme/data/media/tv
+        - /nvme/data/media/music
+        - /hdd/data/movies
+        - /hdd/data/tv
+        - /hdd/data/music
+
+    - name: Deploy Jellyfin container
+      containers.podman.podman_container:
+        name: jellyfin
+        image: docker.io/jellyfin/jellyfin:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ jellyfin_port }}:8096"
+        env:
+          JELLYFIN_PublishedServerUrl: "https://jellyfin.home.shdr.ch"
+        volume:
+          - "{{ jellyfin_config_dir }}/config:/config:Z"
+          - "{{ jellyfin_config_dir }}/cache:/cache:Z"
+          - /nvme/data/media:/media/nvme:ro
+          - /hdd/data:/media/hdd:ro
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Jellyfin quadlet
+      ansible.builtin.systemd:
+        name: jellyfin
+        state: restarted
+        scope: user

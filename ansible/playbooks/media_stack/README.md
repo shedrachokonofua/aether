@@ -8,10 +8,10 @@ This playbook is for configuring the media stack virtual machine. The media stac
 - Prowlarr: Indexer manager/proxy
 - SABnzbd: Usenet download client
 - Filestash: Web-based file browser with video transcoding support
+- Jellyfin: Media server for streaming movies, TV shows, music
 
 ## Planned Additions
 
-- Jellyfin: Media server for streaming movies, TV shows, music
 - Calibre-Web: E-book library management
 - Sonarr: TV series management
 
@@ -61,4 +61,17 @@ Deploys Filestash web-based file browser with video transcoding. Access at https
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/media_stack/filestash.yml
+```
+
+### Deploy Jellyfin
+
+Deploys Jellyfin media server. Access at https://jellyfin.home.shdr.ch
+
+Media libraries mounted at:
+
+- `/media/nvme` → NVMe media (downloads, fast access)
+- `/media/hdd` → HDD data (cold storage)
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/jellyfin.yml
 ```
