@@ -291,8 +291,8 @@ media_stack:
   name: "media-stack"
   node: "trinity"
   admin: "aether"
-  cores: 4
-  memory: 4096
+  cores: 8
+  memory: 8192
   disk_gb: 128
   ip: "10.0.3.5"
   gateway: "10.0.3.1"
@@ -303,6 +303,10 @@ media_stack:
     sabnzbd: 8085
     filestash: 8334
     jellyfin: 8096
+    jellyseerr: 5055
+    sonarr: 8989
+    radarr: 7878
+    lidarr: 8686
 
 dokku:
   id: 1021

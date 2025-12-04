@@ -1,0 +1,54 @@
+---
+- name: Deploy Sonarr
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    sonarr_config_dir: /home/{{ vm.media_stack.admin }}/sonarr
+    sonarr_port: "{{ vm.media_stack.ports.sonarr }}"
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Create Sonarr directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ sonarr_config_dir }}"
+        - "{{ sonarr_config_dir }}/config"
+
+    - name: Deploy Sonarr container
+      containers.podman.podman_container:
+        name: sonarr
+        image: lscr.io/linuxserver/sonarr:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ sonarr_port }}:8989"
+        env:
+          PUID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }}"
+          PGID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}"
+          TZ: "America/Toronto"
+        volume:
+          - "{{ sonarr_config_dir }}/config:/config:Z"
+          - /nvme/data/media:/media/nvme:rw
+          - /hdd/data:/media/hdd:rw
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Sonarr quadlet
+      ansible.builtin.systemd:
+        name: sonarr
+        state: restarted
+        scope: user

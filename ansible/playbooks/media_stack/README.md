@@ -9,11 +9,15 @@ This playbook is for configuring the media stack virtual machine. The media stac
 - SABnzbd: Usenet download client
 - Filestash: Web-based file browser with video transcoding support
 - Jellyfin: Media server for streaming movies, TV shows, music
+- Jellyseerr: Request management for Jellyfin
+- Sonarr: TV series automation
+- Radarr: Movie automation
+- Lidarr: Music automation
 
 ## Planned Additions
 
+- Bazarr: Subtitle management
 - Calibre-Web: E-book library management
-- Sonarr: TV series management
 
 ## Usage
 
@@ -74,4 +78,36 @@ Media libraries mounted at:
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/media_stack/jellyfin.yml
+```
+
+### Deploy Jellyseerr
+
+Deploys Jellyseerr request management. Access at https://jellyseerr.home.shdr.ch
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/jellyseerr.yml
+```
+
+### Deploy Sonarr
+
+Deploys Sonarr TV series automation. Access at https://sonarr.home.shdr.ch
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/sonarr.yml
+```
+
+### Deploy Radarr
+
+Deploys Radarr movie automation. Access at https://radarr.home.shdr.ch
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/radarr.yml
+```
+
+### Deploy Lidarr
+
+Deploys Lidarr music automation. Access at https://lidarr.home.shdr.ch
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/lidarr.yml
 ```

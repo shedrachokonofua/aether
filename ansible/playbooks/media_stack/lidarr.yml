@@ -1,0 +1,55 @@
+---
+- name: Deploy Lidarr
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    lidarr_config_dir: /home/{{ vm.media_stack.admin }}/lidarr
+    lidarr_port: "{{ vm.media_stack.ports.lidarr }}"
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Create Lidarr directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ lidarr_config_dir }}"
+        - "{{ lidarr_config_dir }}/config"
+
+    - name: Deploy Lidarr container
+      containers.podman.podman_container:
+        name: lidarr
+        image: lscr.io/linuxserver/lidarr:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ lidarr_port }}:8686"
+        env:
+          PUID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }}"
+          PGID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}"
+          TZ: "America/Toronto"
+        volume:
+          - "{{ lidarr_config_dir }}/config:/config:Z"
+          - /nvme/data/media:/media/nvme:rw
+          - /hdd/data:/media/hdd:rw
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Lidarr quadlet
+      ansible.builtin.systemd:
+        name: lidarr
+        state: restarted
+        scope: user
+

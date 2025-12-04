@@ -317,6 +317,22 @@ jellyfin.home.shdr.ch {
   reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyfin }}
 }
 
+jellyseerr.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyseerr }}
+}
+
+sonarr.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.sonarr }}
+}
+
+radarr.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.radarr }}
+}
+
+lidarr.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.lidarr }}
+}
+
 stats.proxy.home.shdr.ch {
   reverse_proxy localhost:{{ vm.home_gateway_stack.ports.rotating_proxy_metrics }}
 }

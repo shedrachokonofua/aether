@@ -1,0 +1,45 @@
+---
+- name: Deploy Jellyseerr
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    jellyseerr_config_dir: /home/{{ vm.media_stack.admin }}/jellyseerr
+    jellyseerr_port: "{{ vm.media_stack.ports.jellyseerr }}"
+
+  tasks:
+    - name: Create Jellyseerr directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ jellyseerr_config_dir }}"
+        - "{{ jellyseerr_config_dir }}/config"
+
+    - name: Deploy Jellyseerr container
+      containers.podman.podman_container:
+        name: jellyseerr
+        image: docker.io/fallenbagel/jellyseerr:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ jellyseerr_port }}:5055"
+        env:
+          TZ: "America/Toronto"
+        volume:
+          - "{{ jellyseerr_config_dir }}/config:/app/config:Z"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Jellyseerr quadlet
+      ansible.builtin.systemd:
+        name: jellyseerr
+        state: restarted
+        scope: user

@@ -1,0 +1,54 @@
+---
+- name: Deploy Radarr
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    radarr_config_dir: /home/{{ vm.media_stack.admin }}/radarr
+    radarr_port: "{{ vm.media_stack.ports.radarr }}"
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Create Radarr directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ radarr_config_dir }}"
+        - "{{ radarr_config_dir }}/config"
+
+    - name: Deploy Radarr container
+      containers.podman.podman_container:
+        name: radarr
+        image: lscr.io/linuxserver/radarr:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ radarr_port }}:7878"
+        env:
+          PUID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }}"
+          PGID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}"
+          TZ: "America/Toronto"
+        volume:
+          - "{{ radarr_config_dir }}/config:/config:Z"
+          - /nvme/data/media:/media/nvme:rw
+          - /hdd/data:/media/hdd:rw
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Radarr quadlet
+      ansible.builtin.systemd:
+        name: radarr
+        state: restarted
+        scope: user

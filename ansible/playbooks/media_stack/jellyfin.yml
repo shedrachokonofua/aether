@@ -49,8 +49,8 @@
         volume:
           - "{{ jellyfin_config_dir }}/config:/config:Z"
           - "{{ jellyfin_config_dir }}/cache:/cache:Z"
-          - /nvme/data/media:/media/nvme:ro
-          - /hdd/data:/media/hdd:ro
+          - /nvme/data/media:/media/nvme:rw
+          - /hdd/data:/media/hdd:rw
         quadlet_options:
           - |
             [Install]
