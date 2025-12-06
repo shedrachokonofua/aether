@@ -1,0 +1,10 @@
+api {
+  web_server: https://clearml.home.shdr.ch
+  api_server: https://api.clearml.home.shdr.ch
+  files_server: https://files.clearml.home.shdr.ch
+
+  credentials {
+    "access_key" = "{{ secrets.clearml.api_access_key }}"
+    "secret_key" = "{{ secrets.clearml.api_secret_key }}"
+  }
+}

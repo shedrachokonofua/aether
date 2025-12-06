@@ -45,6 +45,12 @@
         - ./jupyter/notebooks
         - ./jupyter/data
 
+    - name: Write clearml.conf
+      template:
+        src: clearml.conf.j2
+        dest: /home/aether/jupyter/clearml.conf
+        mode: "0644"
+
     - name: Create JupyterLab container
       containers.podman.podman_container:
         name: jupyter
@@ -58,6 +64,7 @@
         volumes:
           - /home/aether/jupyter/notebooks:/home/jovyan/work:Z,U
           - /home/aether/jupyter/data:/home/jovyan/data:Z,U
+          - /home/aether/jupyter/clearml.conf:/home/jovyan/clearml.conf:Z,U
         device:
           - nvidia.com/gpu=all
         env:
