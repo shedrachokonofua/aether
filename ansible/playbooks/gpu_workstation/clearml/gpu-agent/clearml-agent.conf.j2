@@ -1,0 +1,26 @@
+api {
+    web_server: http://127.0.0.1:80
+    api_server: http://127.0.0.1:8008
+    files_server: http://127.0.0.1:8081
+    credentials {
+        "access_key" = "{{ secrets.clearml.api_access_key }}"
+        "secret_key" = "{{ secrets.clearml.api_secret_key }}"
+    }
+}
+agent {
+    worker_id: "gpu-workstation-tasks"
+    docker_host_mount: "/home/aether/clearml/agent-gpu:/root/.clearml"
+    extra_docker_arguments: [
+        "--network=host",
+        "--device", "nvidia.com/gpu=all",
+        "--security-opt=label=disable",
+        "-e", "CLEARML_API_HOST=http://127.0.0.1:8008",
+        "-e", "CLEARML_WEB_HOST=http://127.0.0.1:80",
+        "-e", "CLEARML_FILES_HOST=http://127.0.0.1:8081",
+        "-e", "CLEARML_API_ACCESS_KEY={{ secrets.clearml.api_access_key }}",
+        "-e", "CLEARML_API_SECRET_KEY={{ secrets.clearml.api_secret_key }}"
+    ]
+    default_docker {
+        image: "nvidia/cuda:12.9.0-runtime-ubuntu24.04"
+    }
+}
