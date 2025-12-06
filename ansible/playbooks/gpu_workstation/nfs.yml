@@ -1,0 +1,36 @@
+---
+- name: Mount NFS shares for ML data
+  hosts: gpu-workstation
+  become: true
+  roles:
+    - common
+  tasks:
+    - name: Install NFS client utilities
+      dnf:
+        name: nfs-utils
+        state: present
+
+    - name: Create mount points
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /mnt/nfs/nvme/data/ml
+        - /mnt/nfs/hdd/data/ml
+
+    - name: Mount NFS share for nvme/data/ml
+      ansible.posix.mount:
+        path: /mnt/nfs/nvme/data/ml
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/nvme/data/ml"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted
+
+    - name: Mount NFS share for hdd/data/ml
+      ansible.posix.mount:
+        path: /mnt/nfs/hdd/data/ml
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/hdd/data/ml"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted

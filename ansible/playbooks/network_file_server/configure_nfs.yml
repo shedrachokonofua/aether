@@ -43,6 +43,18 @@
           - "10.0.2.0/24"
           - "10.0.3.0/24"
           - "10.0.4.0/24"
+      - path: /mnt/nvme/data/ml
+        options: "rw,sync,no_subtree_check,no_root_squash"
+        allowed_ips:
+          - "10.0.2.0/24"
+          - "10.0.3.0/24"
+          - "10.0.4.0/24"
+      - path: /mnt/hdd/data/ml
+        options: "rw,sync,no_subtree_check,no_root_squash"
+        allowed_ips:
+          - "10.0.2.0/24"
+          - "10.0.3.0/24"
+          - "10.0.4.0/24"
   roles:
     - common
     - dnf
@@ -66,6 +78,8 @@
         - { path: /mnt/nvme/data/gaming, mode: "0755" }
         - { path: /mnt/nvme/data/media, mode: "0755" }
         - { path: /mnt/nvme/data/media/downloads, mode: "0777" }
+        - { path: /mnt/nvme/data/ml, mode: "0777" }
+        - { path: /mnt/hdd/data/ml, mode: "0777" }
 
     - name: Ensure /var/lib/nfs directory exists with correct permissions
       file:
