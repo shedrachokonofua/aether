@@ -16,6 +16,12 @@ resource "cloudflare_zone_setting" "shdrch_ssl" {
   value      = "strict"
 }
 
+resource "cloudflare_zone_setting" "shdrch_always_use_https" {
+  zone_id    = cloudflare_zone.shdrch_domain.id
+  setting_id = "always_use_https"
+  value      = "on"
+}
+
 resource "cloudflare_dns_record" "aether_public_gateway_root" {
   name    = "@"
   content = module.aws.public_gateway_ip
