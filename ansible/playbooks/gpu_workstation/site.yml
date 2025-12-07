@@ -12,6 +12,9 @@
         name: git
         state: present
 
+- name: Configure SSH keys
+  import_playbook: ssh.yml
+
 - name: Mount NFS shares
   import_playbook: nfs.yml
 

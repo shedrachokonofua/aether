@@ -32,6 +32,15 @@ output "home_dev_workstation_private_key" {
   sensitive = true
 }
 
+output "home_gpu_workstation_public_key" {
+  value = local.home.gpu_workstation.public_key
+}
+
+output "home_gpu_workstation_private_key" {
+  value     = local.home.gpu_workstation.private_key
+  sensitive = true
+}
+
 output "home_lute_public_key" {
   value = module.home.lute_public_key
 }

@@ -1,0 +1,29 @@
+---
+- name: Configure SSH keys for GPU Workstation
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Write private key to file
+      copy:
+        content: "{{ tf_outputs.home_gpu_workstation_private_key.value }}"
+        dest: "/home/{{ vm.gpu_workstation.admin }}/.ssh/id_ed25519"
+        mode: "0600"
+        owner: "{{ vm.gpu_workstation.admin }}"
+        group: "{{ vm.gpu_workstation.admin }}"
+
+    - name: Write public key to file
+      copy:
+        content: "{{ tf_outputs.home_gpu_workstation_public_key.value }}"
+        dest: "/home/{{ vm.gpu_workstation.admin }}/.ssh/id_ed25519.pub"
+        mode: "0644"
+        owner: "{{ vm.gpu_workstation.admin }}"
+        group: "{{ vm.gpu_workstation.admin }}"
+
+    - name: Ensure ssh service is running
+      systemd:
+        name: sshd
+        state: started
+        enabled: true
+

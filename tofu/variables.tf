@@ -10,6 +10,10 @@ resource "tls_private_key" "home_dev_workstation_ssh_key" {
   algorithm = "ED25519"
 }
 
+resource "tls_private_key" "home_gpu_workstation_ssh_key" {
+  algorithm = "ED25519"
+}
+
 resource "tls_private_key" "home_cockpit_ssh_key" {
   algorithm = "ED25519"
 }
@@ -23,6 +27,7 @@ locals {
 
   authorized_keys = concat(
     [
+      tls_private_key.home_gpu_workstation_ssh_key.public_key_openssh,
       tls_private_key.home_dev_workstation_ssh_key.public_key_openssh,
       tls_private_key.home_cockpit_ssh_key.public_key_openssh,
     ],
@@ -53,6 +58,10 @@ locals {
     cockpit = {
       private_key = tls_private_key.home_cockpit_ssh_key.private_key_openssh
       public_key  = tls_private_key.home_cockpit_ssh_key.public_key_openssh
+    }
+    gpu_workstation = {
+      private_key = tls_private_key.home_gpu_workstation_ssh_key.private_key_openssh
+      public_key  = tls_private_key.home_gpu_workstation_ssh_key.public_key_openssh
     }
   }
 
