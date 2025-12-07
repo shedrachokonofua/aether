@@ -1,0 +1,38 @@
+---
+- name: Mount NFS shares for data access
+  hosts: dev-workstation
+  become: true
+  roles:
+    - common
+  tasks:
+    - name: Install NFS client utilities
+      dnf:
+        name: nfs-utils
+        state: present
+
+    - name: Create mount points
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /mnt/nfs/nvme/data
+        - /mnt/nfs/hdd/data
+
+    - name: Mount NFS share for nvme/data
+      ansible.posix.mount:
+        path: /mnt/nfs/nvme/data
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/nvme/data"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted
+
+    - name: Mount NFS share for hdd/data
+      ansible.posix.mount:
+        path: /mnt/nfs/hdd/data
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/hdd/data"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted
+
+

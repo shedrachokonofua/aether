@@ -4,3 +4,6 @@
 
 - name: Configure Fish
   import_playbook: fish/site.yml
+
+- name: Mount NFS shares
+  import_playbook: nfs.yml
