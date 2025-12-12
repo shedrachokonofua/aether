@@ -25,7 +25,6 @@
       PROXY_USERNAME: "{{ secrets.firecrawl.proxy_username }}"
       PROXY_PASSWORD: "{{ secrets.firecrawl.proxy_password }}"
       SEARXNG_ENDPOINT: "https://searxng.home.shdr.ch"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.home.shdr.ch"
   tasks:
     - name: Create Firecrawl pod
       containers.podman.podman_pod:
@@ -100,8 +99,7 @@
           PORT: "3002"
           WORKER_PORT: "3005"
           EXTRACT_WORKER_PORT: "3004"
-          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-api"
-        command: ["node", "--import", "./dist/src/otel.js", "dist/src/index.js"]
+        command: ["node", "dist/src/index.js"]
 
     - name: Create nuq worker container
       containers.podman.podman_container:
@@ -114,14 +112,7 @@
         env:
           <<: *firecrawl_env
           PORT: "3006"
-          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-nuq-worker"
-        command:
-          [
-            "node",
-            "--import",
-            "./dist/src/otel.js",
-            "dist/src/services/worker/nuq-worker.js",
-          ]
+        command: ["node", "dist/src/services/worker/nuq-worker.js"]
 
     - name: Create queue worker container
       containers.podman.podman_container:
@@ -134,14 +125,7 @@
         env:
           <<: *firecrawl_env
           PORT: "3005"
-          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-worker"
-        command:
-          [
-            "node",
-            "--import",
-            "./dist/src/otel.js",
-            "dist/src/services/queue-worker.js",
-          ]
+        command: ["node", "dist/src/services/queue-worker.js"]
 
     - name: Create extract-worker container
       containers.podman.podman_container:
@@ -154,14 +138,7 @@
         env:
           <<: *firecrawl_env
           PORT: "3004"
-          OTEL_SERVICE_NAME: "ai-tool-stack-firecrawl-extract-worker"
-        command:
-          [
-            "node",
-            "--import",
-            "./dist/src/otel.js",
-            "dist/src/services/extract-worker.js",
-          ]
+        command: ["node", "dist/src/services/extract-worker.js"]
 
     - name: Create firecrawl-mcp container
       containers.podman.podman_container:
