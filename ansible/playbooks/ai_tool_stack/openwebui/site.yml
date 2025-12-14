@@ -71,7 +71,7 @@
           OPENAI_API_KEY: "{{ secrets.litellm.virtual_keys.openwebui }}"
           ENABLE_OLLAMA_API: "false"
           ENABLE_WEB_SEARCH: "true"
-          WEB_SEARCH_RESULT_COUNT: "5"
+          WEB_SEARCH_RESULT_COUNT: 10
           WEB_SEARCH_ENGINE: "searxng"
           SEARXNG_QUERY_URL: "https://searxng.home.shdr.ch/search?format=json&q=<query>"
           CONTENT_EXTRACTION_ENGINE: "docling"
@@ -80,6 +80,15 @@
           RAG_OPENAI_API_BASE_URL: "https://litellm.home.shdr.ch/v1"
           RAG_OPENAI_API_KEY: "{{ secrets.litellm.virtual_keys.openwebui }}"
           RAG_EMBEDDING_MODEL: "aether/qwen3-embedding:4b"
+          ENABLE_RAG_HYBRID_SEARCH: "true"
+          ENABLE_RAG_HYBRID_SEARCH_ENRICHED_TEXTS: "true"
+          RAG_RERANKING_MODEL: "aether/bge-reranker-large"
+          RAG_RERANKING_ENGINE: "external"
+          RAG_EXTERNAL_RERANKER_URL: "https://litellm.home.shdr.ch/rerank"
+          RAG_EXTERNAL_RERANKER_API_KEY: "{{ secrets.litellm.virtual_keys.openwebui }}"
+          RAG_TOP_K: 10
+          RAG_TOP_K_RERANKER: 10
+          RAG_RELEVANCE_THRESHOLD: 0.15
           RAG_ALLOWED_FILE_EXTENSIONS: "pdf,docx,txt,pptx,csv,xlsx,xls"
           CODE_EXECUTION_ENGINE: "jupyter"
           CODE_EXECUTION_JUPYTER_URL: "https://jupyter.home.shdr.ch"
