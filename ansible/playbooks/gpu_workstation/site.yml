@@ -38,3 +38,6 @@
 
 - name: Deploy ClearML MLOps Platform
   import_playbook: clearml.yml
+
+- name: Deploy BGE Reranker via TEI
+  import_playbook: reranker.yml

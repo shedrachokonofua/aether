@@ -61,6 +61,12 @@ model_list:
       model: "anthropic/claude-sonnet-4-5"
       litellm_credential_name: anthropic_credential
 
+  # Reranker via TEI
+  - model_name: "aether/bge-reranker-large"
+    litellm_params:
+      model: huggingface/BAAI/bge-reranker-large
+      api_base: http://{{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.reranker }}
+
   # OpenRouter models
   - model_name: "openrouter/glm-4.6"
     litellm_params:

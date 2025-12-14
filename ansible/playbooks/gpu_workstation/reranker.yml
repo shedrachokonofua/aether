@@ -1,0 +1,57 @@
+---
+- name: Deploy BGE Reranker via TEI
+  hosts: gpu-workstation
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    reranker_model: "BAAI/bge-reranker-large"
+  tasks:
+    - name: Create TEI cache directory
+      file:
+        path: ./tei-cache
+        state: directory
+        mode: "0777"
+
+    - name: Create reranker container
+      containers.podman.podman_container:
+        name: reranker
+        image: docker.io/hotchpotch/tei-blackwell-testing
+        pull: always
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        ports:
+          - "{{ vm.gpu_workstation.ports.reranker }}:80/tcp"
+        volumes:
+          - /home/aether/tei-cache:/data:Z
+        device:
+          - nvidia.com/gpu=all
+        env:
+          NVIDIA_VISIBLE_DEVICES: "all"
+          NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+        security_opt:
+          - label=disable
+        command: --model-id {{ reranker_model }}
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd daemon for user
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start reranker service
+      systemd:
+        name: reranker
+        state: restarted
+        enabled: yes
+        scope: user
+
+    - name: Wait for reranker to start
+      wait_for:
+        port: "{{ vm.gpu_workstation.ports.reranker }}"
+        host: 127.0.0.1
+        timeout: 180
