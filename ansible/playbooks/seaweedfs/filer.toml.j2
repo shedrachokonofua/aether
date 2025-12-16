@@ -1,0 +1,10 @@
+# SeaweedFS Filer configuration
+# Using embedded leveldb2 for metadata storage
+
+[filer.options]
+recursive_delete = false
+
+[leveldb2]
+enabled = true
+dir = "{{ seaweedfs_filer_dir }}/leveldb2"
+

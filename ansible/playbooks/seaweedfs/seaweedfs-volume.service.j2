@@ -1,0 +1,30 @@
+[Unit]
+Description=SeaweedFS Volume
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ seaweedfs_user }}
+Group={{ seaweedfs_group }}
+SyslogIdentifier=seaweedfs-volume
+
+ExecStartPre=/usr/bin/test -d {{ seaweedfs_volume_nvme_dir }}
+ExecStartPre=/usr/bin/test -d {{ seaweedfs_volume_hdd_dir }}
+ExecStartPre=/usr/bin/test -d {{ seaweedfs_volume_index_dir }}
+
+ExecStart=/usr/local/bin/weed volume \
+  -ip={{ seaweedfs_ip }} \
+  -port={{ seaweedfs_port_volume }} \
+  -mserver={{ seaweedfs_ip }}:{{ seaweedfs_port_master }} \
+  -dir={{ seaweedfs_volume_nvme_dir }},{{ seaweedfs_volume_hdd_dir }} \
+  -disk=nvme,hdd \
+  -dir.idx={{ seaweedfs_volume_index_dir }}
+
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+
+

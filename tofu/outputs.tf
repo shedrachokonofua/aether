@@ -138,3 +138,8 @@ output "home_dokku_gitlab_private_key" {
   value     = module.home.dokku_gitlab_private_key
   sensitive = true
 }
+
+output "home_seaweedfs_password" {
+  value     = module.home.seaweedfs_password
+  sensitive = true
+}

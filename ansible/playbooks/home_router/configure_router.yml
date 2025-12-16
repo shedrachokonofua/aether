@@ -4,7 +4,6 @@
   gather_facts: false
   roles:
     - common
-    - vm_baseline
   vars:
     ansible_persistent_connect_timeout: 0
   tasks:
@@ -328,11 +327,30 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 10 action accept
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 10 state established
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 10 state related
+          # Home Gateway Stack - DNS, HTTPS, Proxy
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 action accept
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 protocol tcp_udp
-          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination port 53,111,443,1080,2049,4317,4318
-          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination address 10.0.2.0/24
-          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 description 'Allow DNS, NFS, monitoring, proxy to Infrastructure (VLAN 2)'
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination port 53,{{ vm.home_gateway_stack.ports.caddy_https }},{{ vm.home_gateway_stack.ports.rotating_proxy }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 destination address {{ vm.home_gateway_stack.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 20 description 'Allow DNS, HTTPS, proxy to Home Gateway'
+          # NFS - portmapper and NFS
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 21 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 21 protocol tcp_udp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 21 destination port 111,2049
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 21 destination address {{ vm.nfs.ip.vyos }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 21 description 'Allow NFS to Network File Server'
+          # Monitoring Stack - OTEL
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 destination port {{ vm.monitoring_stack.ports.otel_grpc }},{{ vm.monitoring_stack.ports.otel_http }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 destination address {{ vm.monitoring_stack.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 description 'Allow OTEL to Monitoring Stack'
+          # SeaweedFS - S3 and Filer
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 destination port {{ vm.seaweedfs.ports.s3 }},{{ vm.seaweedfs.ports.filer }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 destination address {{ vm.seaweedfs.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 description 'Allow S3 and Filer to SeaweedFS'
           - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
           - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
           - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept

@@ -75,3 +75,8 @@ output "dokku_gitlab_private_key" {
   value     = tls_private_key.dokku_gitlab_ssh_key.private_key_pem
   sensitive = true
 }
+
+output "seaweedfs_password" {
+  value     = random_password.seaweedfs_password.result
+  sensitive = true
+}

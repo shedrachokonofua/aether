@@ -644,6 +644,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/dokku/site.yml
 
+  configure:home:seaweedfs:
+    desc: Configure the SeaweedFS object storage
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/seaweedfs/site.yml
+
   configure:aws:public-gateway:
     desc: Configure the public gateway stack
     cmds:

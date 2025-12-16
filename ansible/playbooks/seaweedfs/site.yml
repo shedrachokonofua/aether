@@ -1,0 +1,15 @@
+---
+- name: Bootstrap SeaweedFS LXC
+  import_playbook: bootstrap_lxc.yml
+
+- name: Apply baseline to SeaweedFS LXC
+  hosts: seaweedfs
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+    - vm_baseline
+    - vm_monitoring_agent
+
+- name: Configure SeaweedFS services
+  import_playbook: configure_seaweedfs.yml
