@@ -6,7 +6,7 @@
     - common
   vars:
     # SeaweedFS release tag, e.g. "3.90"
-    seaweedfs_version: "3.90"
+    seaweedfs_version: "4.03"
 
     seaweedfs_download_url: "https://github.com/seaweedfs/seaweedfs/releases/download/{{ seaweedfs_version }}/linux_amd64.tar.gz"
     seaweedfs_install_root: "/opt/seaweedfs"
