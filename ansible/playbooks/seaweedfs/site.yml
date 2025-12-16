@@ -9,7 +9,9 @@
     - common
     - dnf
     - vm_baseline
-    - vm_monitoring_agent
+    - role: vm_monitoring_agent
+      vars:
+        podman_metrics_enabled: false
 
 - name: Configure SeaweedFS services
   import_playbook: configure_seaweedfs.yml
