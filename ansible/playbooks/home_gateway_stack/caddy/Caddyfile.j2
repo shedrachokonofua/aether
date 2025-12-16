@@ -357,6 +357,18 @@ grpc.temporal.home.shdr.ch {
   }
 }
 
+seaweed.home.shdr.ch {
+  reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.filer }}
+}
+
+s3.seaweed.home.shdr.ch {
+  reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.s3 }}
+}
+
+master.seaweed.home.shdr.ch {
+  reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.master }}
+}
+
 :9443 {
   @shdrch host shdr.ch
   @ai host ai.shdr.ch
