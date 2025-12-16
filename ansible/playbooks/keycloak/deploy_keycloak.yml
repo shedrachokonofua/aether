@@ -1,0 +1,168 @@
+---
+- name: Deploy Keycloak
+  hosts: keycloak
+  become: true
+  roles:
+    - common
+  vars:
+    keycloak_version: "26.4.7"
+    keycloak_download_url: "https://github.com/keycloak/keycloak/releases/download/{{ keycloak_version }}/keycloak-{{ keycloak_version }}.tar.gz"
+    keycloak_install_root: "/opt/keycloak"
+    keycloak_install_dir: "{{ keycloak_install_root }}/{{ keycloak_version }}"
+    keycloak_bin: "{{ keycloak_install_dir }}/bin"
+    keycloak_data_dir: "/var/lib/keycloak"
+    keycloak_log_dir: "/var/log/keycloak"
+
+    keycloak_user: "keycloak"
+    keycloak_group: "keycloak"
+
+    keycloak_ip: "{{ vm.keycloak.ip }}"
+    keycloak_http_port: "{{ vm.keycloak.ports.http }}"
+    keycloak_https_port: "{{ vm.keycloak.ports.https }}"
+    keycloak_hostname: "auth.shdr.ch"
+
+    keycloak_admin_user: "{{ secrets.keycloak.admin_user }}"
+    keycloak_admin_password: "{{ secrets.keycloak.admin_password }}"
+
+  tasks:
+    - name: Install required packages
+      ansible.builtin.dnf:
+        name:
+          - java-21-openjdk-headless
+          - curl
+          - tar
+        state: present
+
+    - name: Ensure Keycloak group exists
+      ansible.builtin.group:
+        name: "{{ keycloak_group }}"
+        system: true
+
+    - name: Ensure Keycloak user exists
+      ansible.builtin.user:
+        name: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        system: true
+        shell: /sbin/nologin
+        home: "/var/lib/keycloak"
+        create_home: true
+
+    - name: Ensure install root exists
+      ansible.builtin.file:
+        path: "{{ keycloak_install_root }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure data directory exists
+      ansible.builtin.file:
+        path: "{{ keycloak_data_dir }}"
+        state: directory
+        owner: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        mode: "0750"
+
+    - name: Ensure log directory exists
+      ansible.builtin.file:
+        path: "{{ keycloak_log_dir }}"
+        state: directory
+        owner: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        mode: "0750"
+
+    - name: Download Keycloak release tarball
+      ansible.builtin.get_url:
+        url: "{{ keycloak_download_url }}"
+        dest: "/tmp/keycloak-{{ keycloak_version }}.tar.gz"
+        mode: "0644"
+
+    - name: Create install directory
+      ansible.builtin.file:
+        path: "{{ keycloak_install_dir }}"
+        state: directory
+        owner: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        mode: "0755"
+
+    - name: Extract Keycloak
+      ansible.builtin.unarchive:
+        src: "/tmp/keycloak-{{ keycloak_version }}.tar.gz"
+        dest: "{{ keycloak_install_dir }}"
+        remote_src: true
+        owner: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        creates: "{{ keycloak_install_dir }}/bin/kc.sh"
+        extra_opts:
+          - --strip-components=1
+
+    - name: Ensure Keycloak data directory exists
+      ansible.builtin.file:
+        path: "{{ keycloak_install_dir }}/data"
+        state: directory
+        owner: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        mode: "0750"
+
+    - name: Symlink keycloak into /usr/local/bin
+      ansible.builtin.file:
+        src: "{{ keycloak_bin }}/kc.sh"
+        dest: /usr/local/bin/kc
+        state: link
+        force: true
+
+    - name: Write keycloak.conf
+      ansible.builtin.template:
+        src: keycloak.conf.j2
+        dest: "{{ keycloak_install_dir }}/conf/keycloak.conf"
+        owner: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        mode: "0600"
+      notify: Restart keycloak
+
+    - name: Build Keycloak (optimize startup)
+      ansible.builtin.command:
+        cmd: "{{ keycloak_bin }}/kc.sh build"
+        chdir: "{{ keycloak_install_dir }}"
+      register: build_result
+      changed_when: "'Build' in build_result.stdout"
+
+    - name: Fix ownership after build
+      ansible.builtin.file:
+        path: "{{ keycloak_install_dir }}"
+        owner: "{{ keycloak_user }}"
+        group: "{{ keycloak_group }}"
+        recurse: true
+
+    - name: Install systemd service
+      ansible.builtin.template:
+        src: keycloak.service.j2
+        dest: /etc/systemd/system/keycloak.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd daemon
+
+    - name: Enable and start Keycloak
+      ansible.builtin.systemd:
+        name: keycloak.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for Keycloak to be ready
+      ansible.builtin.wait_for:
+        host: "{{ keycloak_ip }}"
+        port: "{{ keycloak_http_port }}"
+        timeout: 120
+
+  handlers:
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart keycloak
+      ansible.builtin.systemd:
+        name: keycloak.service
+        state: restarted
+        daemon_reload: true

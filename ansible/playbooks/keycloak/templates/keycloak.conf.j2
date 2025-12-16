@@ -1,0 +1,35 @@
+# Keycloak configuration
+# https://www.keycloak.org/server/all-config
+
+# Database - Using built-in H2 for single-node homelab
+# NON_KEYWORDS=VALUE is required for H2 2.x compatibility (VALUE is a reserved keyword)
+db=dev-file
+db-url=jdbc:h2:file:{{ keycloak_data_dir }}/h2/keycloakdb;AUTO_SERVER=TRUE;NON_KEYWORDS=VALUE
+
+# HTTP/HTTPS settings
+http-enabled=true
+http-host={{ keycloak_ip }}
+http-port={{ keycloak_http_port }}
+https-port={{ keycloak_https_port }}
+
+# Proxy settings (behind Caddy reverse proxy)
+proxy-headers=xforwarded
+http-relative-path=/
+
+# Hostname
+hostname=https://{{ keycloak_hostname }}
+hostname-strict=false
+hostname-backchannel-dynamic=true
+
+# Health and metrics
+health-enabled=true
+metrics-enabled=true
+
+# Logging
+log=console,file
+log-file={{ keycloak_log_dir }}/keycloak.log
+log-level=INFO
+
+# Cache
+cache=local
+

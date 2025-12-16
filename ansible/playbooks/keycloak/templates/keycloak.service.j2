@@ -1,0 +1,29 @@
+[Unit]
+Description=Keycloak Identity Provider
+After=network.target
+
+[Service]
+Type=exec
+User={{ keycloak_user }}
+Group={{ keycloak_group }}
+WorkingDirectory={{ keycloak_install_dir }}
+
+Environment=KC_BOOTSTRAP_ADMIN_USERNAME={{ keycloak_admin_user }}
+Environment=KC_BOOTSTRAP_ADMIN_PASSWORD={{ keycloak_admin_password }}
+Environment="JAVA_OPTS=-Xms512m -Xmx1536m"
+
+ExecStart={{ keycloak_bin }}/kc.sh start --optimized
+
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ keycloak_data_dir }} {{ keycloak_log_dir }} {{ keycloak_install_dir }}/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+

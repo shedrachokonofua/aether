@@ -5,4 +5,5 @@
   become: true
   roles:
     - common
+    - dnf
     - vm_baseline

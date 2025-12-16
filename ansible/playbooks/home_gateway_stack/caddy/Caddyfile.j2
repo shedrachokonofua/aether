@@ -369,6 +369,10 @@ master.seaweed.home.shdr.ch {
   reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.master }}
 }
 
+auth.shdr.ch {
+  reverse_proxy {{ vm.keycloak.ip }}:{{ vm.keycloak.ports.http }}
+}
+
 :9443 {
   @shdrch host shdr.ch
   @ai host ai.shdr.ch

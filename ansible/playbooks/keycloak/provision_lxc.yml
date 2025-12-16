@@ -1,0 +1,82 @@
+---
+- name: Provision Keycloak LXC
+  hosts: oracle
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Pull fedora template
+      community.general.proxmox_template:
+        node: "{{ vm.keycloak.node }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        url: "http://download.proxmox.com/images/system/fedora-41-default_20241118_amd64.tar.xz"
+
+    - name: Check if Keycloak LXC exists
+      community.general.proxmox_vm_info:
+        vmid: "{{ vm.keycloak.id }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+      register: previous_vm_info
+      ignore_errors: true
+
+    - name: Stop Keycloak LXC
+      community.general.proxmox:
+        vmid: "{{ vm.keycloak.id }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        state: stopped
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: stop_result
+      until: not stop_result.failed
+      retries: 5
+      delay: 5
+      ignore_errors: true
+
+    - name: Delete Keycloak LXC
+      community.general.proxmox:
+        vmid: "{{ vm.keycloak.id }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        state: absent
+      when: (previous_vm_info.proxmox_vms | length) > 0
+      register: delete_result
+      until: not delete_result.failed
+      retries: 5
+      delay: 5
+      ignore_errors: true
+
+    - name: Create Keycloak LXC
+      community.general.proxmox:
+        node: "{{ vm.keycloak.node }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        vmid: "{{ vm.keycloak.id }}"
+        password: "{{ secrets.keycloak.lxc_password }}"
+        hostname: "{{ vm.keycloak.name }}"
+        ostemplate: "local:vztmpl/fedora-41-default_20241118_amd64.tar.xz"
+        ostype: "fedora"
+        cores: "{{ vm.keycloak.cores }}"
+        memory: "{{ vm.keycloak.memory }}"
+        disk: "local-lvm:{{ vm.keycloak.disk_gb }}"
+        nameserver: "{{ vm.home_gateway_stack.ip }}"
+        netif:
+          net0: "name=eth0,bridge=vmbr0,gw={{ vm.keycloak.gateway }},ip={{ vm.keycloak.ip }}/24,tag=2"
+        features:
+          - nesting=1
+        unprivileged: true
+
+    - name: Start Keycloak LXC
+      community.general.proxmox:
+        vmid: "{{ vm.keycloak.id }}"
+        api_host: "{{ secrets.proxmox.cluster_host }}"
+        api_user: "{{ secrets.proxmox.cluster_username }}"
+        api_password: "{{ secrets.proxmox.cluster_password }}"
+        state: started
+        timeout: 300
+      ignore_errors: true

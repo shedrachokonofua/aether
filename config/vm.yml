@@ -340,3 +340,17 @@ seaweedfs:
     s3: 8333
     filer: 8888
     master: 9333
+
+keycloak:
+  id: 1023
+  name: "keycloak"
+  node: "oracle"
+  admin: "root"
+  cores: 2
+  memory: 2048
+  disk_gb: 32
+  ip: "10.0.2.8"
+  gateway: "10.0.2.1"
+  ports:
+    http: 8080
+    https: 8443
