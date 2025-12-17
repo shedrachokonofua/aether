@@ -292,8 +292,8 @@ media_stack:
   name: "media-stack"
   node: "trinity"
   admin: "aether"
-  cores: 8
-  memory: 8192
+  cores: 4
+  memory: 4096
   disk_gb: 128
   ip: "10.0.3.5"
   gateway: "10.0.3.1"
