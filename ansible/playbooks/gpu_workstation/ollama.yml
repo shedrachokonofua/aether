@@ -85,6 +85,9 @@
         - gemma3:27b
         - qwen3:8b
         - qwen3-next:80b
+        - olmo-3:32b
+        - qwen3-vl:32b
+        - nemotron-3-nano:30b
         - hf.co/Trilogix1/Hugston-microsoft-Fara-7B:F16
       register: model_pull
       changed_when: "'pulling' in model_pull.stdout"
