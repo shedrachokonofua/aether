@@ -32,3 +32,22 @@
   - [ ] Add Uptime Kuma for external monitoring
   - [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
 - [ ] Rewrite dev workstation to NixOS
+- [ ] Move dev workstation to Neo
+- [ ] Move dokku to Trinity
+- [ ] Integrate Single Sign-On:
+  - [ ] LiteLLM
+  - [ ] Gitlab
+  - [ ] Home Assistant
+  - [ ] Element
+  - [ ] Infisical
+  - [ ] Jellyfin
+  - [ ] qBittorrent
+  - [ ] SABnzbd
+  - [ ] Prowlarr
+  - [ ] Sonarr
+  - [ ] Radarr
+  - [ ] Lidarr
+  - [ ] Dokploy
+  - [ ] Affine
+  - [ ] Homarr
+  - [ ] N8N

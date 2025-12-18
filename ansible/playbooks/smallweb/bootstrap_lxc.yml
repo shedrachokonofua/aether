@@ -1,0 +1,58 @@
+---
+- name: Bootstrap Smallweb LXC (run on Proxmox host)
+  hosts: trinity
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    lxc_id: "{{ vm.smallweb.id }}"
+  tasks:
+    - name: Install openssh-server and python3 in LXC
+      shell: pct exec {{ lxc_id }} -- dnf install -y openssh-server python3 2>&1 | cat
+      args:
+        executable: /bin/bash
+      changed_when: true
+      failed_when: false
+
+    - name: Create .ssh directory
+      command: pct exec {{ lxc_id }} -- mkdir -p /root/.ssh
+      changed_when: true
+
+    - name: Set .ssh directory permissions
+      command: pct exec {{ lxc_id }} -- chmod 700 /root/.ssh
+      changed_when: true
+
+    - name: Write authorized_keys to temp file
+      copy:
+        content: "{{ ssh_authorized_keys | join('\n') }}\n"
+        dest: /tmp/smallweb_authorized_keys
+        mode: "0600"
+
+    - name: Push authorized_keys to LXC
+      command: pct push {{ lxc_id }} /tmp/smallweb_authorized_keys /root/.ssh/authorized_keys
+      changed_when: true
+
+    - name: Clean up temp file
+      file:
+        path: /tmp/smallweb_authorized_keys
+        state: absent
+
+    - name: Set authorized_keys permissions
+      command: pct exec {{ lxc_id }} -- chmod 600 /root/.ssh/authorized_keys
+      changed_when: true
+
+    - name: Enable and start sshd in LXC
+      command: pct exec {{ lxc_id }} -- systemctl enable --now sshd
+      changed_when: true
+
+    - name: Wait for SSH port to be ready
+      wait_for:
+        host: "{{ vm.smallweb.ip }}"
+        port: 22
+        timeout: 60
+      delegate_to: localhost
+
+    - name: Remove nologin file if present
+      command: pct exec {{ lxc_id }} -- rm -f /run/nologin
+      changed_when: true
+

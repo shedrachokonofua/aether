@@ -1,0 +1,205 @@
+---
+- name: Configure Smallweb
+  hosts: smallweb
+  become: true
+  roles:
+    - common
+  vars:
+    # Smallweb user/group
+    smallweb_user: "smallweb"
+    smallweb_group: "smallweb"
+
+    # Directories
+    smallweb_home: "/home/smallweb"
+    smallweb_dir: "/home/smallweb/smallweb"
+    smallweb_config_dir: "/home/smallweb/smallweb/.smallweb"
+
+    # Network
+    smallweb_ip: "{{ vm.smallweb.ip }}"
+    smallweb_domain: "small.home.shdr.ch"
+    smallweb_port: "{{ vm.smallweb.ports.http }}"
+    smallweb_ssh_port: "{{ vm.smallweb.ports.ssh }}"
+
+    # OIDC Authentication (Keycloak)
+    smallweb_authorized_emails: "{{ secrets.smallweb.authorized_emails | default([]) }}"
+
+  tasks:
+    # =========================================================================
+    # Install Dependencies
+    # =========================================================================
+    - name: Install required packages
+      ansible.builtin.dnf:
+        name:
+          - curl
+          - unzip
+          - git
+        state: present
+
+    # =========================================================================
+    # Create User
+    # =========================================================================
+    - name: Ensure smallweb group exists
+      ansible.builtin.group:
+        name: "{{ smallweb_group }}"
+        system: false
+
+    - name: Ensure smallweb user exists
+      ansible.builtin.user:
+        name: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        home: "{{ smallweb_home }}"
+        shell: /bin/bash
+        create_home: true
+
+    # =========================================================================
+    # Install Deno
+    # =========================================================================
+    - name: Check if Deno is installed
+      ansible.builtin.stat:
+        path: "{{ smallweb_home }}/.deno/bin/deno"
+      register: deno_binary
+
+    - name: Install Deno
+      ansible.builtin.shell: |
+        curl -fsSL https://deno.land/install.sh | sh
+      args:
+        creates: "{{ smallweb_home }}/.deno/bin/deno"
+      become: true
+      become_user: "{{ smallweb_user }}"
+      environment:
+        HOME: "{{ smallweb_home }}"
+      when: not deno_binary.stat.exists
+
+    - name: Add Deno to PATH in .bashrc
+      ansible.builtin.lineinfile:
+        path: "{{ smallweb_home }}/.bashrc"
+        line: 'export PATH="$HOME/.deno/bin:$PATH"'
+        create: true
+        owner: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        mode: "0644"
+
+    # =========================================================================
+    # Install Smallweb
+    # =========================================================================
+    - name: Check if Smallweb is installed
+      ansible.builtin.stat:
+        path: "{{ smallweb_home }}/.local/bin/smallweb"
+      register: smallweb_binary
+
+    - name: Install Smallweb
+      ansible.builtin.shell: |
+        curl -fsSL https://install.smallweb.run | sh
+      args:
+        creates: "{{ smallweb_home }}/.local/bin/smallweb"
+      become: true
+      become_user: "{{ smallweb_user }}"
+      environment:
+        HOME: "{{ smallweb_home }}"
+      when: not smallweb_binary.stat.exists
+
+    - name: Add local bin to PATH in .bashrc
+      ansible.builtin.lineinfile:
+        path: "{{ smallweb_home }}/.bashrc"
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        create: true
+        owner: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        mode: "0644"
+
+    # =========================================================================
+    # Initialize Smallweb
+    # =========================================================================
+    - name: Ensure smallweb directory exists
+      ansible.builtin.file:
+        path: "{{ smallweb_dir }}"
+        state: directory
+        owner: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        mode: "0755"
+
+    - name: Ensure smallweb config directory exists
+      ansible.builtin.file:
+        path: "{{ smallweb_config_dir }}"
+        state: directory
+        owner: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        mode: "0755"
+
+    - name: Write smallweb config
+      ansible.builtin.template:
+        src: config.json.j2
+        dest: "{{ smallweb_config_dir }}/config.json"
+        owner: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        mode: "0644"
+      notify: Restart smallweb
+
+    # =========================================================================
+    # Create Example App
+    # =========================================================================
+    - name: Ensure example app directory exists
+      ansible.builtin.file:
+        path: "{{ smallweb_dir }}/example"
+        state: directory
+        owner: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        mode: "0755"
+
+    - name: Create example app
+      ansible.builtin.copy:
+        content: |
+          export default {
+            fetch() {
+              return new Response("Hello from Smallweb on Aether! 🚀", {
+                headers: { "Content-Type": "text/plain; charset=utf-8" },
+              });
+            }
+          }
+        dest: "{{ smallweb_dir }}/example/main.ts"
+        owner: "{{ smallweb_user }}"
+        group: "{{ smallweb_group }}"
+        mode: "0644"
+
+    # =========================================================================
+    # Systemd Service
+    # =========================================================================
+    - name: Install smallweb systemd service
+      ansible.builtin.template:
+        src: smallweb.service.j2
+        dest: /etc/systemd/system/smallweb.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd daemon
+        - Restart smallweb
+
+    - name: Enable and start smallweb service
+      ansible.builtin.systemd:
+        name: smallweb.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # =========================================================================
+    # Firewall
+    # =========================================================================
+    - name: Open Smallweb HTTP port in firewall
+      ansible.posix.firewalld:
+        port: "{{ smallweb_port }}/tcp"
+        permanent: true
+        state: enabled
+        immediate: true
+      ignore_errors: true
+
+  handlers:
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart smallweb
+      ansible.builtin.systemd:
+        name: smallweb.service
+        state: restarted
+        daemon_reload: true

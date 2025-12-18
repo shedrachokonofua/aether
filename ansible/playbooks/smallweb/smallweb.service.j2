@@ -1,0 +1,21 @@
+[Unit]
+Description=Smallweb - File-based personal cloud
+After=network.target
+
+[Service]
+Type=simple
+User={{ smallweb_user }}
+Group={{ smallweb_group }}
+WorkingDirectory={{ smallweb_dir }}
+Environment="SMALLWEB_DIR={{ smallweb_dir }}"
+Environment="HOME={{ smallweb_home }}"
+Environment="PATH={{ smallweb_home }}/.local/bin:{{ smallweb_home }}/.deno/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="OTEL_DENO=true"
+Environment="OTEL_SERVICE_NAME=smallweb"
+ExecStart={{ smallweb_home }}/.local/bin/smallweb up --enable-crons --addr :{{ smallweb_port }}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+

@@ -651,6 +651,13 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/seaweedfs/site.yml
 
+  configure:home:smallweb:
+    desc: Configure the Smallweb server
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/smallweb/site.yml
+
   provision:home:keycloak:
     desc: Provision the Keycloak identity provider LXC
     cmds:

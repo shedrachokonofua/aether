@@ -99,3 +99,8 @@ output "keycloak_openwebui_client_secret" {
   value     = keycloak_openid_client.openwebui.client_secret
   sensitive = true
 }
+
+output "smallweb_password" {
+  value     = random_password.smallweb_password.result
+  sensitive = true
+}

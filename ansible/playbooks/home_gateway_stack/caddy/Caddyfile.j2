@@ -373,6 +373,10 @@ auth.shdr.ch {
   reverse_proxy {{ vm.keycloak.ip }}:{{ vm.keycloak.ports.http }}
 }
 
+small.home.shdr.ch, *.small.home.shdr.ch {
+  reverse_proxy {{ vm.smallweb.ip }}:{{ vm.smallweb.ports.http }}
+}
+
 :9443 {
   @shdrch host shdr.ch
   @ai host ai.shdr.ch
