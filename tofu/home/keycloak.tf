@@ -112,6 +112,19 @@ resource "keycloak_role" "grafana_viewer" {
   description = "Grafana Viewer"
 }
 
+# Open WebUI roles
+resource "keycloak_role" "openwebui_admin" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "openwebui-admin"
+  description = "Open WebUI Administrator"
+}
+
+resource "keycloak_role" "openwebui_user" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "openwebui-user"
+  description = "Open WebUI User"
+}
+
 # =============================================================================
 # Aether Realm - Application Users
 # =============================================================================
@@ -136,11 +149,13 @@ resource "keycloak_user" "shdrch_aether" {
   }
 }
 
-# Give shdrch admin role for Grafana
 resource "keycloak_user_roles" "shdrch_aether_roles" {
   realm_id = keycloak_realm.aether.id
   user_id  = keycloak_user.shdrch_aether.id
-  role_ids = [keycloak_role.grafana_admin.id]
+  role_ids = [
+    keycloak_role.grafana_admin.id,
+    keycloak_role.openwebui_admin.id,
+  ]
 }
 
 # =============================================================================
@@ -183,5 +198,57 @@ resource "keycloak_openid_client_default_scopes" "grafana_default_scopes" {
     "openid",
     "roles",
   ]
+}
+
+# Open WebUI OIDC Client
+resource "keycloak_openid_client" "openwebui" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "openwebui"
+  name      = "Open WebUI"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://openwebui.home.shdr.ch"
+  base_url  = "https://openwebui.home.shdr.ch"
+  admin_url = "https://openwebui.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://openwebui.home.shdr.ch/oauth/oidc/callback",
+  ]
+
+  web_origins = [
+    "https://openwebui.home.shdr.ch",
+  ]
+}
+
+# Default scopes for Open WebUI
+resource "keycloak_openid_client_default_scopes" "openwebui_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openwebui.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "openid",
+    "roles",
+  ]
+}
+
+# Protocol mapper to expose realm roles at top-level "roles" claim for Open WebUI
+# Open WebUI's OAUTH_ROLES_CLAIM doesn't support nested paths like realm_access.roles
+resource "keycloak_openid_user_realm_role_protocol_mapper" "openwebui_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openwebui.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 

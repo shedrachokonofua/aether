@@ -94,3 +94,8 @@ output "keycloak_gitlab_ci_client_secret" {
   value     = keycloak_openid_client.gitlab_ci.client_secret
   sensitive = true
 }
+
+output "keycloak_openwebui_client_secret" {
+  value     = keycloak_openid_client.openwebui.client_secret
+  sensitive = true
+}

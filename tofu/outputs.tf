@@ -148,3 +148,8 @@ output "keycloak_grafana_client_secret" {
   value     = module.home.keycloak_grafana_client_secret
   sensitive = true
 }
+
+output "keycloak_openwebui_client_secret" {
+  value     = module.home.keycloak_openwebui_client_secret
+  sensitive = true
+}
