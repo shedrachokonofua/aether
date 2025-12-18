@@ -1,6 +1,7 @@
 # TODOs
 
-- [ ] Disable and prune ZFS snapshots on `hdd/backups-vm` to reclaim ~4.4 TB (PBS already has versioning)
+- [⏳] S3 offsite backup migration: nuke Glacier objects and re-sync to Intelligent-Tiering (~2h ETA)
+- [⏳] Disable and prune ZFS snapshots on `hdd/backups-vm` to reclaim ~4.4 TB (PBS already has versioning)
 - [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures)
 - [ ] Prepare repo for open source
   - [ ] Add pre-commit hooks for secret detection
