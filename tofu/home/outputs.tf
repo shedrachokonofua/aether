@@ -80,3 +80,17 @@ output "seaweedfs_password" {
   value     = random_password.seaweedfs_password.result
   sensitive = true
 }
+
+output "keycloak_grafana_client_secret" {
+  value     = keycloak_openid_client.grafana.client_secret
+  sensitive = true
+}
+
+output "keycloak_gitlab_ci_client_id" {
+  value = keycloak_openid_client.gitlab_ci.client_id
+}
+
+output "keycloak_gitlab_ci_client_secret" {
+  value     = keycloak_openid_client.gitlab_ci.client_secret
+  sensitive = true
+}

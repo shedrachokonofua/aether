@@ -143,3 +143,8 @@ output "home_seaweedfs_password" {
   value     = module.home.seaweedfs_password
   sensitive = true
 }
+
+output "keycloak_grafana_client_secret" {
+  value     = module.home.keycloak_grafana_client_secret
+  sensitive = true
+}

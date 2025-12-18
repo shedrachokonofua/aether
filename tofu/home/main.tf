@@ -22,6 +22,25 @@ variable "authorized_keys" {
   type = list(string)
 }
 
+variable "keycloak_admin_password" {
+  type      = string
+  sensitive = true
+}
+
+variable "keycloak_admin_username" {
+  type    = string
+  default = "admin"
+}
+
+variable "keycloak_shdrch_email" {
+  type = string
+}
+
+variable "keycloak_shdrch_initial_password" {
+  type      = string
+  sensitive = true
+}
+
 locals {
   vm = yamldecode(file("${path.module}/../../config/vm.yml"))
 }
@@ -31,6 +50,11 @@ terraform {
     proxmox = {
       source  = "bpg/proxmox"
       version = "0.71.0"
+    }
+
+    keycloak = {
+      source  = "keycloak/keycloak"
+      version = ">= 5.5.0"
     }
   }
 }

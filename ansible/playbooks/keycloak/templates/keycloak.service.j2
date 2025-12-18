@@ -8,8 +8,8 @@ User={{ keycloak_user }}
 Group={{ keycloak_group }}
 WorkingDirectory={{ keycloak_install_dir }}
 
-Environment=KC_BOOTSTRAP_ADMIN_USERNAME={{ keycloak_admin_user }}
-Environment=KC_BOOTSTRAP_ADMIN_PASSWORD={{ keycloak_admin_password }}
+Environment=KC_BOOTSTRAP_ADMIN_USERNAME={{ keycloak_bootstrap_admin_user }}
+Environment=KC_BOOTSTRAP_ADMIN_PASSWORD={{ keycloak_bootstrap_admin_password }}
 Environment="JAVA_OPTS=-Xms512m -Xmx1536m"
 
 ExecStart={{ keycloak_bin }}/kc.sh start --optimized

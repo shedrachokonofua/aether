@@ -21,8 +21,8 @@
     keycloak_https_port: "{{ vm.keycloak.ports.https }}"
     keycloak_hostname: "auth.shdr.ch"
 
-    keycloak_admin_user: "{{ secrets.keycloak.admin_user }}"
-    keycloak_admin_password: "{{ secrets.keycloak.admin_password }}"
+    keycloak_bootstrap_admin_user: "{{ secrets.keycloak.bootstrap_admin_user }}"
+    keycloak_bootstrap_admin_password: "{{ secrets.keycloak.bootstrap_admin_password }}"
 
   tasks:
     - name: Install required packages

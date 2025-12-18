@@ -63,6 +63,12 @@ locals {
       private_key = tls_private_key.home_gpu_workstation_ssh_key.private_key_openssh
       public_key  = tls_private_key.home_gpu_workstation_ssh_key.public_key_openssh
     }
+    keycloak = {
+      admin_username          = data.sops_file.secrets.data["keycloak.bootstrap_admin_user"]
+      admin_password          = data.sops_file.secrets.data["keycloak.bootstrap_admin_password"]
+      shdrch_email            = data.sops_file.secrets.data["keycloak.shdrch_email"]
+      shdrch_initial_password = data.sops_file.secrets.data["keycloak.shdrch_initial_password"]
+    }
   }
 
   tailscale = {

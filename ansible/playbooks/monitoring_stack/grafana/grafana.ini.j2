@@ -1,0 +1,24 @@
+[paths]
+provisioning = /etc/grafana/provisioning
+
+[server]
+root_url = https://grafana.home.shdr.ch
+
+[users]
+default_theme = light
+
+[auth.generic_oauth]
+enabled = true
+name = Aether
+allow_sign_up = true
+auto_login = true
+client_id = grafana
+client_secret = {{ tf_outputs.keycloak_grafana_client_secret.value }}
+scopes = openid email profile roles
+email_attribute_path = email
+login_attribute_path = preferred_username
+name_attribute_path = name
+auth_url = https://auth.shdr.ch/realms/aether/protocol/openid-connect/auth
+token_url = https://auth.shdr.ch/realms/aether/protocol/openid-connect/token
+api_url = https://auth.shdr.ch/realms/aether/protocol/openid-connect/userinfo
+role_attribute_path = contains(realm_access.roles[*], 'grafana-admin') && 'Admin' || contains(realm_access.roles[*], 'grafana-editor') && 'Editor' || 'Viewer'

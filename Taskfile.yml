@@ -651,6 +651,20 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/seaweedfs/site.yml
 
+  provision:home:keycloak:
+    desc: Provision the Keycloak identity provider LXC
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/keycloak/site.yml
+
+  configure:home:keycloak:
+    desc: Configure the Keycloak identity provider
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/keycloak/deploy_keycloak.yml
+
   configure:aws:public-gateway:
     desc: Configure the public gateway stack
     cmds:
