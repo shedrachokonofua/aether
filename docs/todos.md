@@ -1,9 +1,30 @@
 # TODOs
 
-- [⏳] S3 offsite backup migration: nuke Glacier objects and re-sync to Intelligent-Tiering (~2h ETA)
-- [⏳] Disable and prune ZFS snapshots on `hdd/backups-vm` to reclaim ~4.4 TB (PBS already has versioning)
-- [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures)
-- [ ] Prepare repo for open source
+- [ ] Deploy step-ca LXC (Oracle, unprivileged) #P0
+  - [ ] Configure root/intermediate CA
+  - [ ] Configure ACME provisioner (internal TLS certs)
+  - [ ] Configure SSH CA (host/user certs)
+  - [ ] Configure OIDC provisioner (Keycloak → X.509 + SSH certs)
+  - [ ] Configure JWK provisioner (machine bootstrap)
+- [ ] Configure hosts to trust step-ca SSH CA #P0
+  - [ ] Add TrustedUserCAKeys to sshd_config (all hosts/VMs/LXCs)
+  - [ ] Configure authorized principals per host
+- [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures) #P2
+- [ ] Split AdGuard from Gateway Stack #P0
+  - [ ] Provision standalone LXC (Oracle)
+  - [ ] Update VyOS DHCP
+  - [ ] Remove from gateway stack playbook
+- [ ] Configure GitLab CI SSH access (token exchange → OIDC → SSH cert) #P0
+- [ ] Enroll Cockpit with step-ca (SSH user cert, auto-renewal) #P1
+- [ ] Deploy AdGuard HA #P1
+  - [ ] Provision secondary LXC (Niobe)
+  - [ ] Update VyOS DHCP with both DNS servers
+- [ ] Configure AWS federation #P1
+  - [ ] Keycloak OIDC provider in AWS IAM (human + app access)
+  - [ ] GitLab identity provider in Keycloak (token exchange for CI)
+  - [ ] step-ca trust anchor in IAM Roles Anywhere (machine workloads)
+  - [ ] Migrate Backup Server from static credentials to IAM Roles Anywhere
+- [ ] Prepare repo for open source #P1
   - [ ] Add pre-commit hooks for secret detection
     - [ ] Create `.pre-commit-config.yaml` with gitleaks and custom SOPS checks
     - [ ] Add `.gitleaks.toml` for custom rules
@@ -14,32 +35,26 @@
     - [ ] Deprecate `sops:decrypt` / `sops:encrypt` in-place tasks
   - [ ] Add `.sops.yaml` config file to document encryption expectations
   - [ ] Update README with new SOPS workflow
-- [ ] Add manually-imported Grafana dashboards to Ansible provisioning (Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
-- [ ] Apply for AWS SES production access
-- [ ] Create architecture diagrams
+- [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding) #P1
+- [ ] Add Grafana dashboards to Ansible provisioning (Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS) #P1
+- [ ] Integrate SSO (OIDC-native apps) #P1
+  - [ ] LiteLLM
+  - [ ] Gitlab #P0
+  - [ ] Dokploy
+  - [ ] Infisical
+  - [ ] Element
+  - [ ] Affine
+  - [ ] N8N
+  - [ ] SeaweedFS
+- [ ] Apply for AWS SES production access #P2
+- [ ] Create architecture diagrams #P3
   - [ ] Network topology (physical, VLANs, firewall zones, traffic flows)
   - [ ] Compute layout (hosts → VMs/LXCs, resources, storage backends)
   - [ ] Storage architecture (ZFS pools, NFS/SMB exports, performance vs capacity tiers)
   - [ ] Backup flow (ZFS snapshots → PBS → S3 Glacier pipeline)
   - [ ] External access path (Cloudflare → AWS → Tailscale → home)
-- [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding)
-- [ ] Add TTS/STT inference to GPU Workstation
-- [ ] Integrate Matter/Thread border router into IoT stack
-- [ ] Deploy wasmCloud LXC
-- [ ] Refactor public gateway as "Soren"
-  - [ ] Rename to Soren in docs, Ansible, Tailscale
-  - [ ] Upgrade Lightsail to micro ($5/mo)
-  - [ ] Add Uptime Kuma for external monitoring
-  - [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
-- [ ] Rewrite dev workstation to NixOS
-- [ ] Move dev workstation to Neo
-- [ ] Move dokku to Trinity
-- [ ] Integrate Single Sign-On:
-  - [ ] LiteLLM
-  - [ ] Gitlab
+- [ ] Integrate SSO (reverse proxy / quirky auth) #P2
   - [ ] Home Assistant
-  - [ ] Element
-  - [ ] Infisical
   - [ ] Jellyfin
   - [ ] qBittorrent
   - [ ] SABnzbd
@@ -47,7 +62,15 @@
   - [ ] Sonarr
   - [ ] Radarr
   - [ ] Lidarr
-  - [ ] Dokploy
-  - [ ] Affine
   - [ ] Homarr
-  - [ ] N8N
+- [ ] Move dokku to Trinity #P3
+- [ ] Rewrite dev workstation to NixOS #P3
+- [ ] Move dev workstation to Neo #P3
+- [ ] Refactor public gateway as "Soren" #P3
+  - [ ] Rename to Soren in docs, Ansible, Tailscale
+  - [ ] Upgrade Lightsail instance to micro ($5/mo)
+  - [ ] Add Uptime Kuma for external monitoring
+  - [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
+- [ ] Add TTS/STT inference to GPU Workstation #P2
+- [ ] Integrate Matter/Thread border router into IoT stack #P2
+- [ ] Deploy wasmCloud LXC #P2

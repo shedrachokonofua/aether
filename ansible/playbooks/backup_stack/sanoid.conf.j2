@@ -1,50 +1,68 @@
-# Example https://github.com/jimsalterjrs/sanoid/blob/master/sanoid.conf.example
+# Snapshot Strategy:
+# - NVME: Hourly-only (12h retention) for instant rollback. PBS covers daily/weekly/monthly.
+# - HDD/VM: Daily-only (7d retention). PBS covers longer retention.
+# - HDD/Data: Daily with long retention. Media is write-once, minimal snapshot overhead.
+# - HDD/Backups-Data: Minimal retention. It's a backup of backups.
+# - HDD/Backups-VM: Disabled. PBS handles its own versioning.
 
-[template_hourly_retention]
-  hourly = 12
-  daily = 7
-  weekly = 4
-  monthly = 1
-  yearly = 0
-  autosnap = yes
-  autoprune = yes
-  recursive = yes
-
-[template_daily_retention_long]
-  hourly = 0
-  daily = 14
-  weekly = 8
-  monthly = 6
-  yearly = 0
-  autosnap = yes
-  autoprune = yes
-  recursive = yes
-
-[template_daily_retention_short]
-  hourly = 0
-  daily = 7
-  weekly = 0
-  monthly = 0
-  yearly = 0
-  autosnap = yes
-  autoprune = yes
-  recursive = yes
-
+# NVME datasets: hourly-only, PBS covers longer retention
 [nvme/personal]
-  use_template = template_hourly_retention
-  # Override specific settings here if needed
+	hourly = 12
+	daily = 0
+	weekly = 0
+	monthly = 0
+	yearly = 0
+	autosnap = yes
+	autoprune = yes
+	recursive = yes
 
 [nvme/vm]
-  use_template = template_hourly_retention
+	hourly = 12
+	daily = 0
+	weekly = 0
+	monthly = 0
+	yearly = 0
+	autosnap = yes
+	autoprune = yes
+	recursive = yes
 
 [nvme/data]
-  use_template = template_hourly_retention
+	hourly = 12
+	daily = 0
+	weekly = 0
+	monthly = 0
+	yearly = 0
+	autosnap = yes
+	autoprune = yes
+	recursive = yes
 
+# HDD datasets
 [hdd/vm]
-  use_template = template_daily_retention_long
+	hourly = 0
+	daily = 7
+	weekly = 0
+	monthly = 0
+	yearly = 0
+	autosnap = yes
+	autoprune = yes
+	recursive = yes
 
 [hdd/data]
-  use_template = template_daily_retention_long
+	hourly = 0
+	daily = 14
+	weekly = 8
+	monthly = 6
+	yearly = 0
+	autosnap = yes
+	autoprune = yes
+	recursive = yes
 
 [hdd/backups-data]
-  use_template = template_daily_retention_short
+	hourly = 0
+	daily = 3
+	weekly = 0
+	monthly = 0
+	yearly = 0
+	autosnap = yes
+	autoprune = yes
+	recursive = yes

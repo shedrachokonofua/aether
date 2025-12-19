@@ -154,15 +154,17 @@ Layered approach (snapshots, local backups/replicas, offsite S3) following the 3
 
 #### ZFS Snapshots
 
-| Dataset          | Frequency      | Retention                        |
-| ---------------- | -------------- | -------------------------------- |
-| nvme/personal    | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
-| nvme/vm          | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
-| nvme/data        | Hourly         | Hourly: 12, Daily: 7, Weekly: 4  |
-| hdd/vm           | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
-| hdd/data         | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 |
-| hdd/backups-vm   | Daily @ 2:00AM | Daily: 7                         |
-| hdd/backups-data | Daily @ 2:00AM | Daily: 7                         |
+Snapshots provide instant rollback capability. PBS handles longer-term retention for VMs.
+
+| Dataset          | Frequency      | Retention                        | Notes                           |
+| ---------------- | -------------- | -------------------------------- | ------------------------------- |
+| nvme/personal    | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
+| nvme/vm          | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
+| nvme/data        | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
+| hdd/vm           | Daily @ 1:30AM | Daily: 7                         | PBS covers weekly/monthly       |
+| hdd/data         | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 | Write-once media, low overhead  |
+| hdd/backups-data | Daily @ 2:00AM | Daily: 3                         | Backup of backups               |
+| hdd/backups-vm   | Disabled       | -                                | PBS handles own versioning      |
 
 #### Proxmox Backup Server
 
