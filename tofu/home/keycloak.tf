@@ -252,3 +252,35 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "openwebui_roles" {
   add_to_userinfo     = true
 }
 
+# step-ca OIDC Client (for SSH certificates and user X.509 certs)
+resource "keycloak_openid_client" "step_ca" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "step-ca"
+  name      = "step-ca Certificate Authority"
+  enabled   = true
+
+  # Public client - step-ca validates tokens via JWKS, doesn't need secret
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = true
+
+  # Device authorization for headless SSH login (step ssh login)
+  oauth2_device_authorization_grant_enabled = true
+
+  valid_redirect_uris = [
+    "http://127.0.0.1:10000/*", # Local callback for step CLI
+  ]
+}
+
+# Default scopes for step-ca
+resource "keycloak_openid_client_default_scopes" "step_ca_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.step_ca.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "openid",
+  ]
+}
+

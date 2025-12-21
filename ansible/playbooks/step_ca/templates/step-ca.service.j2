@@ -1,0 +1,38 @@
+[Unit]
+Description=step-ca Certificate Authority
+After=network-online.target
+Wants=network-online.target
+Documentation=https://smallstep.com/docs/step-ca
+
+[Service]
+Type=exec
+User={{ step_ca_user }}
+Group={{ step_ca_group }}
+WorkingDirectory={{ step_ca_home }}
+
+Environment=STEPPATH={{ step_ca_home }}
+
+# Load password via systemd credentials (more secure than --password-file)
+LoadCredential=password:{{ step_ca_home }}/secrets/password.txt
+
+ExecStart=/usr/bin/step-ca {{ step_ca_home }}/config/ca.json --password-file=%d/password
+
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ step_ca_home }} {{ step_ca_data_dir }} {{ step_ca_log_dir }}
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Allow binding to privileged ports if needed
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+

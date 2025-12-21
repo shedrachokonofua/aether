@@ -1,0 +1,294 @@
+---
+- name: Deploy step-ca
+  hosts: step-ca
+  become: true
+  roles:
+    - common
+  vars:
+    step_ca_user: "step"
+    step_ca_group: "step"
+    step_ca_home: "/etc/step-ca"
+    step_ca_data_dir: "/var/lib/step-ca"
+    step_ca_log_dir: "/var/log/step-ca"
+
+    step_ca_ip: "{{ vm.step_ca.ip }}"
+    step_ca_port: "{{ vm.step_ca.ports.https }}"
+    step_ca_dns: "ca.shdr.ch"
+    step_ca_name: "Aether"
+
+    # Provisioner name
+    jwk_provisioner_name: "machine-bootstrap"
+
+    # Passwords from secrets
+    step_ca_password: "{{ secrets.step_ca.password }}"
+    step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password }}"
+
+  tasks:
+    # =========================================================================
+    # Installation
+    # =========================================================================
+
+    - name: Download step-cli binary
+      ansible.builtin.get_url:
+        url: https://dl.smallstep.com/cli/docs-ca-install/latest/step_linux_amd64.tar.gz
+        dest: /tmp/step_linux_amd64.tar.gz
+        mode: "0644"
+        timeout: 120
+      retries: 3
+      delay: 5
+
+    - name: Extract step-cli
+      ansible.builtin.unarchive:
+        src: /tmp/step_linux_amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install step-cli binary
+      ansible.builtin.copy:
+        src: /tmp/step_linux_amd64/bin/step
+        dest: /usr/bin/step
+        mode: "0755"
+        remote_src: true
+
+    - name: Download step-ca binary
+      ansible.builtin.get_url:
+        url: https://dl.smallstep.com/certificates/docs-ca-install/latest/step-ca_linux_amd64.tar.gz
+        dest: /tmp/step-ca_linux_amd64.tar.gz
+        mode: "0644"
+        timeout: 120
+      retries: 3
+      delay: 5
+
+    - name: Extract step-ca
+      ansible.builtin.unarchive:
+        src: /tmp/step-ca_linux_amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install step-ca binary
+      ansible.builtin.copy:
+        src: /tmp/step-ca_linux_amd64/step-ca
+        dest: /usr/bin/step-ca
+        mode: "0755"
+        remote_src: true
+
+    - name: Allow step-ca to bind to privileged ports
+      community.general.capabilities:
+        path: /usr/bin/step-ca
+        capability: cap_net_bind_service=+ep
+        state: present
+
+    - name: Clean up downloads
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/step_linux_amd64.tar.gz
+        - /tmp/step_linux_amd64
+        - /tmp/step-ca_linux_amd64.tar.gz
+        - /tmp/step-ca_linux_amd64
+
+    # =========================================================================
+    # User and Directory Setup
+    # =========================================================================
+
+    - name: Ensure step group exists
+      ansible.builtin.group:
+        name: "{{ step_ca_group }}"
+        system: true
+
+    - name: Ensure step user exists
+      ansible.builtin.user:
+        name: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        system: true
+        shell: /sbin/nologin
+        home: "{{ step_ca_home }}"
+        create_home: true
+
+    - name: Ensure home directory has correct ownership
+      ansible.builtin.file:
+        path: "{{ step_ca_home }}"
+        state: directory
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0750"
+
+    - name: Ensure data directory exists
+      ansible.builtin.file:
+        path: "{{ step_ca_data_dir }}"
+        state: directory
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0750"
+
+    - name: Ensure log directory exists
+      ansible.builtin.file:
+        path: "{{ step_ca_log_dir }}"
+        state: directory
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0750"
+
+    # =========================================================================
+    # Password Files
+    # =========================================================================
+
+    - name: Ensure secrets directory exists
+      ansible.builtin.file:
+        path: "{{ step_ca_home }}/secrets"
+        state: directory
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0700"
+
+    - name: Write CA password file
+      ansible.builtin.copy:
+        content: "{{ step_ca_password }}"
+        dest: "{{ step_ca_home }}/secrets/password.txt"
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Write provisioner password file
+      ansible.builtin.copy:
+        content: "{{ step_ca_provisioner_password }}"
+        dest: "{{ step_ca_home }}/secrets/provisioner-password.txt"
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0600"
+      no_log: true
+
+    # =========================================================================
+    # CA Initialization
+    # =========================================================================
+
+    - name: Check if CA is already initialized
+      ansible.builtin.stat:
+        path: "{{ step_ca_home }}/certs/root_ca.crt"
+      register: root_ca_stat
+
+    - name: Initialize step-ca PKI
+      when: not root_ca_stat.stat.exists
+      become_user: "{{ step_ca_user }}"
+      ansible.builtin.command:
+        cmd: >
+          step ca init
+          --name="{{ step_ca_name }}"
+          --dns="{{ step_ca_dns }}"
+          --dns="{{ step_ca_ip }}"
+          --address=":{{ step_ca_port }}"
+          --provisioner="{{ jwk_provisioner_name }}"
+          --password-file="{{ step_ca_home }}/secrets/password.txt"
+          --provisioner-password-file="{{ step_ca_home }}/secrets/provisioner-password.txt"
+          --ssh
+      environment:
+        STEPPATH: "{{ step_ca_home }}"
+      args:
+        creates: "{{ step_ca_home }}/certs/root_ca.crt"
+
+    # =========================================================================
+    # Systemd Service (start CA before adding provisioners)
+    # =========================================================================
+
+    - name: Install systemd service
+      ansible.builtin.template:
+        src: step-ca.service.j2
+        dest: /etc/systemd/system/step-ca.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd daemon
+
+    - name: Enable and start step-ca
+      ansible.builtin.systemd:
+        name: step-ca.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for step-ca to be ready
+      ansible.builtin.wait_for:
+        host: "{{ step_ca_ip }}"
+        port: "{{ step_ca_port }}"
+        timeout: 120
+
+    - name: List existing provisioners
+      ansible.builtin.command:
+        cmd: >
+          step ca provisioner list
+          --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
+          --root={{ step_ca_home }}/certs/root_ca.crt
+      register: provisioner_list
+      changed_when: false
+
+    # =========================================================================
+    # Add OIDC Provisioner (Keycloak) - skipped if Keycloak not ready
+    # =========================================================================
+
+    - name: Check if Keycloak is reachable
+      ansible.builtin.uri:
+        url: "https://auth.shdr.ch/realms/aether/.well-known/openid-configuration"
+        method: GET
+        return_content: false
+        status_code: 200
+        timeout: 10
+      register: keycloak_check
+      failed_when: false
+
+    - name: Add OIDC provisioner for Keycloak
+      when:
+        - keycloak_check.status == 200
+        - "'keycloak' not in provisioner_list.stdout"
+      ansible.builtin.command:
+        cmd: >
+          step ca provisioner add keycloak
+          --type=OIDC
+          --client-id=step-ca
+          --configuration-endpoint=https://auth.shdr.ch/realms/aether/.well-known/openid-configuration
+          --admin=shdrch@shdr.ch
+          --listen-address=:10000
+          --ssh
+          --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
+          --root={{ step_ca_home }}/certs/root_ca.crt
+          --admin-provisioner={{ jwk_provisioner_name }}
+          --admin-password-file={{ step_ca_home }}/secrets/provisioner-password.txt
+      environment:
+        STEPPATH: "{{ step_ca_home }}"
+      notify: Restart step-ca
+
+    - name: Warn if OIDC provisioner skipped
+      when: keycloak_check.status != 200
+      ansible.builtin.debug:
+        msg: "OIDC provisioner skipped — Keycloak not reachable. Run again after tofu apply."
+
+    # =========================================================================
+    # Add SSHPOP Provisioner (for SSH cert renewal)
+    # =========================================================================
+
+    - name: Add SSHPOP provisioner
+      when: "'sshpop' not in provisioner_list.stdout"
+      ansible.builtin.command:
+        cmd: >
+          step ca provisioner add sshpop
+          --type=SSHPOP
+          --ssh
+          --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
+          --root={{ step_ca_home }}/certs/root_ca.crt
+          --admin-provisioner={{ jwk_provisioner_name }}
+          --admin-password-file={{ step_ca_home }}/secrets/provisioner-password.txt
+      environment:
+        STEPPATH: "{{ step_ca_home }}"
+      notify: Restart step-ca
+
+  handlers:
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart step-ca
+      ansible.builtin.systemd:
+        name: step-ca.service
+        state: restarted
+        daemon_reload: true

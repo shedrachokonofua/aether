@@ -16,7 +16,8 @@ RUN apk update && \
   openssh \
   ca-certificates \
   groff \
-  less && \
+  less \
+  step-cli@community && \
   update-ca-certificates && \
   # Clean up
   rm -rf /var/cache/apk/*
@@ -32,6 +33,7 @@ RUN ansible --version && \
   sops --version && \
   aws --version && \
   age-keygen --version && \
-  ssh -V
+  ssh -V && \
+  step version
 
 CMD ["/bin/sh"]

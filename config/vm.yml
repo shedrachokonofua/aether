@@ -368,3 +368,16 @@ smallweb:
   ports:
     http: 7777
     ssh: 2222
+
+step_ca:
+  id: 1025
+  name: "step-ca"
+  node: "oracle"
+  admin: "root"
+  cores: 2
+  memory: 1024
+  disk_gb: 16
+  ip: "10.0.2.9"
+  gateway: "10.0.2.1"
+  ports:
+    https: 443

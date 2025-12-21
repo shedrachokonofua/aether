@@ -1,30 +1,38 @@
 # TODOs
 
-- [ ] Deploy step-ca LXC (Oracle, unprivileged) #P0
-  - [ ] Configure root/intermediate CA
-  - [ ] Configure ACME provisioner (internal TLS certs)
-  - [ ] Configure SSH CA (host/user certs)
-  - [ ] Configure OIDC provisioner (Keycloak → X.509 + SSH certs)
-  - [ ] Configure JWK provisioner (machine bootstrap)
-- [ ] Configure hosts to trust step-ca SSH CA #P0
+## P0
+
+- [ ] Configure hosts to trust step-ca SSH CA
   - [ ] Add TrustedUserCAKeys to sshd_config (all hosts/VMs/LXCs)
   - [ ] Configure authorized principals per host
-- [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures) #P2
-- [ ] Split AdGuard from Gateway Stack #P0
-  - [ ] Provision standalone LXC (Oracle)
-  - [ ] Update VyOS DHCP
+- [ ] Split AdGuard from Gateway Stack
+  - [ ] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
+  - [ ] Deploy AdGuard
+  - [ ] Update Caddy upstream IP for admin UI
+  - [ ] Update VyOS DHCP to point at new IP
   - [ ] Remove from gateway stack playbook
-- [ ] Configure GitLab CI SSH access (token exchange → OIDC → SSH cert) #P0
-- [ ] Enroll Cockpit with step-ca (SSH user cert, auto-renewal) #P1
-- [ ] Deploy AdGuard HA #P1
-  - [ ] Provision secondary LXC (Niobe)
+- [ ] Configure GitLab CI SSH access (token exchange → OIDC → SSH cert)
+- [ ] Integrate GitLab SSO (OIDC)
+
+## P1
+
+- [ ] Direct Cloudflare ACME cert for Keycloak (after AdGuard split)
+  - [ ] Create Ansible role for certbot + cloudflare plugin
+  - [ ] Deploy to Keycloak LXC (auth.shdr.ch)
+  - [ ] Configure cert renewal hook (systemd reload)
+  - [ ] Remove Caddy proxy route for auth.shdr.ch
+  - [ ] Update AdGuard DNS to point directly at Keycloak
+- [ ] Enroll Cockpit with step-ca (SSH user cert, auto-renewal)
+- [ ] Deploy AdGuard HA
+  - [ ] Provision secondary LXC on Niobe (Gigahub network for VyOS-independent DNS)
+  - [ ] Configure AdGuard sync between primary/secondary
   - [ ] Update VyOS DHCP with both DNS servers
-- [ ] Configure AWS federation #P1
+- [ ] Configure AWS federation
   - [ ] Keycloak OIDC provider in AWS IAM (human + app access)
   - [ ] GitLab identity provider in Keycloak (token exchange for CI)
   - [ ] step-ca trust anchor in IAM Roles Anywhere (machine workloads)
   - [ ] Migrate Backup Server from static credentials to IAM Roles Anywhere
-- [ ] Prepare repo for open source #P1
+- [ ] Prepare repo for open source
   - [ ] Add pre-commit hooks for secret detection
     - [ ] Create `.pre-commit-config.yaml` with gitleaks and custom SOPS checks
     - [ ] Add `.gitleaks.toml` for custom rules
@@ -35,27 +43,44 @@
     - [ ] Deprecate `sops:decrypt` / `sops:encrypt` in-place tasks
   - [ ] Add `.sops.yaml` config file to document encryption expectations
   - [ ] Update README with new SOPS workflow
-- [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding) #P1
-- [ ] Add Grafana dashboards to Ansible provisioning (Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS) #P1
-- [ ] Integrate SSO (OIDC-native apps) #P1
+- [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding)
+- [ ] Add Grafana dashboards to Ansible provisioning (Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
+- [ ] Integrate SSO (OIDC-native apps)
   - [ ] LiteLLM
-  - [ ] Gitlab #P0
   - [ ] Dokploy
   - [ ] Infisical
   - [ ] Element
   - [ ] Affine
   - [ ] N8N
   - [ ] SeaweedFS
-- [ ] Apply for AWS SES production access #P2
-- [ ] Create architecture diagrams #P3
-  - [ ] Network topology (physical, VLANs, firewall zones, traffic flows)
-  - [ ] Compute layout (hosts → VMs/LXCs, resources, storage backends)
-  - [ ] Storage architecture (ZFS pools, NFS/SMB exports, performance vs capacity tiers)
-  - [ ] Backup flow (ZFS snapshots → PBS → S3 Glacier pipeline)
-  - [ ] External access path (Cloudflare → AWS → Tailscale → home)
-- [ ] Integrate SSO (reverse proxy / quirky auth) #P2
+- [ ] Setup Gelato for Jellyfin (Real-Debrid streaming)
+  - [ ] Deploy AIOStreams on media-stack
+  - [ ] Setup Gelato plugin
+    - [ ] Create "Movie Streaming" library
+    - [ ] Create "TV Streaming" library
+- [ ] Expose Jellyfin publicly at tv.shdr.ch (bypass Cloudflare proxy for video ToS)
+  - [ ] Add CrowdSec to public gateway
+    - [ ] Install CrowdSec agent on Lightsail
+    - [ ] Generate bouncer API key
+  - [ ] Update Caddy build with plugins
+    - [ ] Add caddy-cloudflare-ip (auto-fetch CF IP ranges for trusted_proxies)
+    - [ ] Add caddy-crowdsec-bouncer/http (native CrowdSec handler)
+  - [ ] Update public gateway Caddyfile
+    - [ ] Add CrowdSec global config (api_url, api_key)
+    - [ ] Add trusted_proxies cloudflare directive
+    - [ ] Add CF IP filtering for \*.shdr.ch (reject non-Cloudflare sources)
+    - [ ] Add tv.shdr.ch route (open to all, protected by CrowdSec)
+  - [ ] Update home gateway Caddyfile
+    - [ ] Add @tv matcher to :9443 block → Jellyfin
+  - [ ] Add DNS record in cloudflare.tf (tv.shdr.ch, proxied=false)
+  - [ ] Setup jellyfin-plugin-sso (Keycloak OIDC)
+
+## P2
+
+- [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures)
+- [ ] Apply for AWS SES production access
+- [ ] Integrate SSO (reverse proxy / quirky auth)
   - [ ] Home Assistant
-  - [ ] Jellyfin
   - [ ] qBittorrent
   - [ ] SABnzbd
   - [ ] Prowlarr
@@ -63,14 +88,23 @@
   - [ ] Radarr
   - [ ] Lidarr
   - [ ] Homarr
-- [ ] Move dokku to Trinity #P3
-- [ ] Rewrite dev workstation to NixOS #P3
-- [ ] Move dev workstation to Neo #P3
-- [ ] Refactor public gateway as "Soren" #P3
+- [ ] Add TTS/STT inference to GPU Workstation
+- [ ] Integrate Matter/Thread border router into IoT stack
+- [ ] Deploy wasmCloud LXC
+
+## P3
+
+- [ ] Create architecture diagrams
+  - [ ] Network topology (physical, VLANs, firewall zones, traffic flows)
+  - [ ] Compute layout (hosts → VMs/LXCs, resources, storage backends)
+  - [ ] Storage architecture (ZFS pools, NFS/SMB exports, performance vs capacity tiers)
+  - [ ] Backup flow (ZFS snapshots → PBS → S3 Glacier pipeline)
+  - [ ] External access path (Cloudflare → AWS → Tailscale → home)
+- [ ] Move dokku to Trinity
+- [ ] Rewrite dev workstation to NixOS
+- [ ] Move dev workstation to Neo
+- [ ] Refactor public gateway as "Soren"
   - [ ] Rename to Soren in docs, Ansible, Tailscale
   - [ ] Upgrade Lightsail instance to micro ($5/mo)
   - [ ] Add Uptime Kuma for external monitoring
   - [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
-- [ ] Add TTS/STT inference to GPU Workstation #P2
-- [ ] Integrate Matter/Thread border router into IoT stack #P2
-- [ ] Deploy wasmCloud LXC #P2

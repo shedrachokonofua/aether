@@ -686,6 +686,56 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/game_server/site.yml
 
+  provision:home:step-ca:
+    desc: Provision the step-ca certificate authority LXC
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/step_ca/site.yml
+
+  configure:home:step-ca:
+    desc: Configure the step-ca certificate authority
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/step_ca/deploy_step_ca.yml
+
+  ca:fingerprint:
+    desc: Get CA root fingerprint
+    cmds:
+      - ssh root@10.0.2.9 'step certificate fingerprint /etc/step-ca/certs/root_ca.crt'
+
+  ca:install-root:mac:
+    desc: Install step-ca root CA to macOS Keychain
+    cmds:
+      - curl -sk https://ca.shdr.ch/roots.pem -o /tmp/step-ca-root.crt
+      - sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/step-ca-root.crt
+      - rm /tmp/step-ca-root.crt
+      - echo "Root CA installed. Restart browser to pick up changes."
+
+  ca:bootstrap:
+    desc: Bootstrap trust with step-ca and install root CA to system trust
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/step
+      - |
+        FINGERPRINT=$(ssh root@10.0.2.9 'step certificate fingerprint /etc/step-ca/certs/root_ca.crt')
+        docker run --rm -it \
+          -v {{.CACHE_DIR}}/step:/root/.step \
+          -p 10000:10000 \
+          {{.DOCKER_IMAGE}} \
+          step ca bootstrap --ca-url=https://ca.shdr.ch --fingerprint=$FINGERPRINT --install
+
+  ca:login:
+    desc: Get SSH certificate via Keycloak OIDC (uses device auth flow)
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/step
+      - docker run --rm -it
+        -v {{.CACHE_DIR}}/step:/root/.step
+        -v /run/host-services/ssh-auth.sock:/ssh-agent
+        -e SSH_AUTH_SOCK=/ssh-agent
+        {{.DOCKER_IMAGE}}
+        step ssh login --provisioner=keycloak --console
+
   update:authorized-keys:
     desc: Update authorized keys
     cmds:
