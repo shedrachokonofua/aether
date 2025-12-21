@@ -261,7 +261,7 @@
     - name: Warn if OIDC provisioner skipped
       when: keycloak_check.status != 200
       ansible.builtin.debug:
-        msg: "OIDC provisioner skipped — Keycloak not reachable. Run again after tofu apply."
+        msg: "OIDC provisioner skipped — Provisioner already added or Keycloak not reachable."
 
     # =========================================================================
     # Add SSHPOP Provisioner (for SSH cert renewal)

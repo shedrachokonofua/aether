@@ -377,7 +377,7 @@ step_ca:
   cores: 2
   memory: 1024
   disk_gb: 16
-  ip: "10.0.2.9"
-  gateway: "10.0.2.1"
+  ip: "192.168.2.235"
+  gateway: "192.168.2.1"
   ports:
     https: 443

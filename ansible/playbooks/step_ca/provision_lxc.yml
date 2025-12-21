@@ -64,7 +64,7 @@
         cores: "{{ vm.step_ca.cores }}"
         memory: "{{ vm.step_ca.memory }}"
         disk: "local-lvm:{{ vm.step_ca.disk_gb }}"
-        nameserver: "{{ vm.home_gateway_stack.ip }}"
+        nameserver: "{{ vm.router.ip.gigahub }}"
         netif:
           net0: "name=eth0,bridge=vmbr0,gw={{ vm.step_ca.gateway }},ip={{ vm.step_ca.ip }}/24,tag=2"
         features:
