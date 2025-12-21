@@ -1,9 +1,9 @@
 ---
-# - name: Provision Keycloak LXC
-#   import_playbook: provision_lxc.yml
+- name: Provision Keycloak LXC
+  import_playbook: provision_lxc.yml
 
-# - name: Bootstrap Keycloak LXC
-#   import_playbook: bootstrap_lxc.yml
+- name: Bootstrap Keycloak LXC
+  import_playbook: bootstrap_lxc.yml
 
 - name: Apply baseline to Keycloak LXC
   hosts: keycloak
@@ -15,5 +15,6 @@
     - role: vm_monitoring_agent
       vars:
         podman_metrics_enabled: false
-# - name: Deploy Keycloak
-#   import_playbook: deploy_keycloak.yml
+
+- name: Deploy Keycloak
+  import_playbook: deploy_keycloak.yml
