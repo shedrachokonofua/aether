@@ -24,14 +24,21 @@ dns:
   refuse_any: true
   upstream_dns:
     - https://dns10.quad9.net/dns-query
+    - https://cloudflare-dns.com/dns-query
+    - https://dns.google/dns-query
   upstream_dns_file: ""
   bootstrap_dns:
     - 9.9.9.10
     - 149.112.112.10
     - 2620:fe::10
     - 2620:fe::fe:10
-  fallback_dns: []
-  upstream_mode: load_balance
+    - 1.1.1.1
+    - 8.8.8.8
+  fallback_dns:
+    - 9.9.9.10
+    - 1.1.1.1
+    - 8.8.8.8
+  upstream_mode: parallel
   fastest_timeout: 1s
   allowed_clients: []
   disallowed_clients: []
@@ -236,6 +243,8 @@ filtering:
     - domain: home.shdr.ch
       answer: {{ vm.home_gateway_stack.ip }}
     - domain: auth.shdr.ch
+      answer: {{ vm.home_gateway_stack.ip }}
+    - domain: ca.shdr.ch
       answer: {{ vm.home_gateway_stack.ip }}
     - domain: ssh.gitlab.home.shdr.ch
       answer: {{ vm.gitlab.ip }}
