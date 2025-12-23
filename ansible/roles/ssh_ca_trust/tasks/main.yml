@@ -1,0 +1,96 @@
+---
+# =============================================================================
+# SSH CA Trust Configuration
+# Configures the host to accept SSH user certificates signed by step-ca
+# =============================================================================
+
+- name: Ensure OpenSSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+  become: true
+
+# =============================================================================
+# Fetch and Install CA Public Key
+# =============================================================================
+
+- name: Fetch SSH user CA public key from step-ca
+  ansible.builtin.command:
+    cmd: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{ ssh_ca_host }} cat {{ ssh_ca_pubkey_remote }}"
+  delegate_to: localhost
+  become: false
+  register: ca_pubkey_result
+  changed_when: false
+
+- name: Install SSH user CA public key
+  ansible.builtin.copy:
+    content: "{{ ca_pubkey_result.stdout }}"
+    dest: "{{ ssh_ca_pubkey_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart sshd
+
+# =============================================================================
+# Configure Authorized Principals
+# =============================================================================
+
+- name: Ensure principals directory exists
+  ansible.builtin.file:
+    path: "{{ ssh_principals_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+# ansible_user comes from inventory, which is set from vm.yml (vm.<name>.admin)
+# This creates principals for both the admin user and root
+- name: Build user principals mapping
+  ansible.builtin.set_fact:
+    _effective_user_principals: >-
+      {{
+        ssh_ca_user_principals | default({})
+        | combine({ansible_user: ssh_ca_principals})
+        | combine({'root': ssh_ca_principals})
+      }}
+
+- name: Create principals files for each user
+  ansible.builtin.copy:
+    content: |
+      {% for principal in item.value %}
+      {{ principal }}
+      {% endfor %}
+    dest: "{{ ssh_principals_dir }}/{{ item.key }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ _effective_user_principals | dict2items }}"
+  become: true
+  notify: Restart sshd
+
+# =============================================================================
+# Configure SSHD
+# =============================================================================
+
+- name: Configure TrustedUserCAKeys in sshd_config
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?TrustedUserCAKeys"
+    line: "TrustedUserCAKeys {{ ssh_ca_pubkey_path }}"
+    state: present
+    backup: true
+    validate: "/usr/sbin/sshd -t -f %s"
+  become: true
+  notify: Restart sshd
+
+- name: Configure AuthorizedPrincipalsFile in sshd_config
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?AuthorizedPrincipalsFile"
+    line: "AuthorizedPrincipalsFile {{ ssh_principals_dir }}/%u"
+    state: present
+    validate: "/usr/sbin/sshd -t -f %s"
+  become: true
+  notify: Restart sshd

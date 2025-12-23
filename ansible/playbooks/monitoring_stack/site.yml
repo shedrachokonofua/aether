@@ -8,7 +8,58 @@
     - dnf
     - vm_monitoring_agent
   tasks:
-    - name: Create required directories
+    # === Directory Setup ===
+    - name: Create prometheus directory
+      become: true
+      file:
+        path: ./prometheus/data
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [prometheus]
+
+    - name: Create loki directory
+      become: true
+      file:
+        path: ./loki/data
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [loki]
+
+    - name: Create tempo directory
+      become: true
+      file:
+        path: ./tempo
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [tempo]
+
+    - name: Create otel directory
+      become: true
+      file:
+        path: ./otel
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [otel]
+
+    - name: Create grafana directory
+      become: true
+      file:
+        path: ./grafana/provisioning
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [grafana]
+
+    - name: Create ntopng directories
       become: true
       file:
         path: "{{ item }}"
@@ -17,51 +68,72 @@
         owner: aether
         group: aether
       loop:
-        - ./prometheus/data
-        - ./loki/data
-        - ./tempo
-        - ./otel
-        - ./grafana/provisioning
         - ./ntopng/data
         - ./ntopng/redis
-        - ./pve-exporter
-        - ./pbs-exporter
+      tags: [ntopng]
 
+    - name: Create pve-exporter directory
+      become: true
+      file:
+        path: ./pve-exporter
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [pve-exporter]
+
+    - name: Create pbs-exporter directory
+      become: true
+      file:
+        path: ./pbs-exporter
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [pbs-exporter]
+
+    # === Configuration Files ===
     - name: Copy prometheus config
       copy:
         src: ./prometheus.yml
         dest: ./prometheus/prometheus.yml
         mode: "0755"
+      tags: [prometheus]
 
     - name: Create loki config
       copy:
         src: ./loki_config.yml
         dest: ./loki/loki_config.yml
         mode: "0755"
+      tags: [loki]
 
     - name: Create tempo config
       copy:
         src: ./tempo.yml
         dest: ./tempo/tempo.yml
         mode: "0755"
+      tags: [tempo]
 
     - name: Create otel config
       copy:
         src: ./otel_config.yml
         dest: ./otel/otel_config.yml
         mode: "0755"
+      tags: [otel]
 
     - name: Create grafana config
-      copy:
-        src: ./grafana/grafana.ini
+      template:
+        src: ./grafana/grafana.ini.j2
         dest: ./grafana/grafana.ini
         mode: "0755"
+      tags: [grafana]
 
     - name: Create grafana provisioning
       copy:
         src: ./grafana/provisioning/
         dest: ./grafana/provisioning/
         mode: "0755"
+      tags: [grafana]
 
     - name: Create PVE exporter config
       copy:
@@ -73,7 +145,9 @@
             verify_ssl: false
         dest: ./pve-exporter/pve.yml
         mode: "0644"
+      tags: [pve-exporter]
 
+    # === Pods ===
     - name: Create monitoring stack pod
       containers.podman.podman_pod:
         name: monitoring-stack
@@ -94,6 +168,17 @@
           - |
             [Install]
             WantedBy=default.target
+      tags:
+        [
+          prometheus,
+          loki,
+          tempo,
+          otel,
+          grafana,
+          pve-exporter,
+          pbs-exporter,
+          monitoring-pod,
+        ]
 
     - name: Create ntopng pod
       containers.podman.podman_pod:
@@ -106,12 +191,22 @@
           - |
             [Install]
             WantedBy=default.target
+      tags: [ntopng]
 
+    # === Volumes ===
     - name: Create prometheus storage volume
       containers.podman.podman_volume:
         name: prometheus_storage
         state: quadlet
+      tags: [prometheus]
 
+    - name: Create grafana storage volume
+      containers.podman.podman_volume:
+        name: grafana_storage
+        state: quadlet
+      tags: [grafana]
+
+    # === Containers ===
     - name: Start prometheus
       containers.podman.podman_container:
         name: prometheus
@@ -127,6 +222,7 @@
           - "--web.console.templates=/etc/prometheus/consoles"
           - "--web.enable-lifecycle"
         state: quadlet
+      tags: [prometheus]
 
     - name: Start Loki
       containers.podman.podman_container:
@@ -140,6 +236,7 @@
           - /home/aether/loki/loki_config.yml:/etc/loki/config.yml:Z
           - /home/aether/loki/data:/var/lib/loki:Z
         state: quadlet
+      tags: [loki]
 
     - name: Start tempo
       containers.podman.podman_container:
@@ -152,6 +249,7 @@
         volumes:
           - /home/aether/tempo/tempo.yml:/etc/tempo.yaml:Z
         state: quadlet
+      tags: [tempo]
 
     - name: Start otel collector
       containers.podman.podman_container:
@@ -162,11 +260,7 @@
         volumes:
           - /home/aether/otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
         state: quadlet
-
-    - name: Create grafana storage volume
-      containers.podman.podman_volume:
-        name: grafana_storage
-        state: quadlet
+      tags: [otel]
 
     - name: Start grafana
       containers.podman.podman_container:
@@ -179,6 +273,7 @@
           - /home/aether/grafana/grafana.ini:/etc/grafana/grafana.ini:Z
           - /home/aether/grafana/provisioning:/etc/grafana/provisioning:Z
           - grafana_storage.volume:/var/lib/grafana:Z
+      tags: [grafana]
 
     - name: Start PVE exporter
       containers.podman.podman_container:
@@ -189,6 +284,7 @@
         state: quadlet
         volumes:
           - /home/aether/pve-exporter/pve.yml:/etc/prometheus/pve.yml:Z
+      tags: [pve-exporter]
 
     - name: Start PBS exporter
       containers.podman.podman_container:
@@ -204,6 +300,7 @@
           PBS_API_TOKEN_NAME: "{{ secrets.pbs.monitoring_token_id }}"
           PBS_INSECURE: "true"
           PBS_LISTEN_ADDRESS: ":10019"
+      tags: [pbs-exporter]
 
     - name: Start ntopng redis
       containers.podman.podman_container:
@@ -214,6 +311,7 @@
         state: quadlet
         volumes:
           - /home/aether/ntopng/redis:/data:Z
+      tags: [ntopng]
 
     - name: Start netflow2ng
       containers.podman.podman_container:
@@ -224,6 +322,7 @@
         pod: ntopng.pod
         command:
           - "--tlv"
+      tags: [ntopng]
 
     - name: Start ntopng
       containers.podman.podman_container:
@@ -246,20 +345,46 @@
         cap_add:
           - NET_ADMIN
           - NET_RAW
+      tags: [ntopng]
 
+    # === Systemd ===
     - name: Reload systemd
       systemd:
         daemon_reload: yes
         scope: user
+      tags:
+        [
+          prometheus,
+          loki,
+          tempo,
+          otel,
+          grafana,
+          pve-exporter,
+          pbs-exporter,
+          ntopng,
+          systemd,
+        ]
 
     - name: Start monitoring stack quadlet
       systemd:
         name: monitoring-stack-pod
         state: restarted
         scope: user
+      tags:
+        [
+          prometheus,
+          loki,
+          tempo,
+          otel,
+          grafana,
+          pve-exporter,
+          pbs-exporter,
+          monitoring-pod,
+        ]
 
     - name: Start ntopng pod quadlet
       systemd:
         name: ntopng-pod
         state: restarted
         scope: user
+      tags: [ntopng]

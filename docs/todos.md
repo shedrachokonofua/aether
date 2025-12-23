@@ -2,17 +2,14 @@
 
 ## P0
 
-- [ ] Configure hosts to trust step-ca SSH CA
-  - [ ] Add TrustedUserCAKeys to sshd_config (all hosts/VMs/LXCs)
-  - [ ] Configure authorized principals per host
+- [ ] Integrate GitLab SSO (OIDC)
+- [ ] Configure GitLab CI SSH access (token exchange → OIDC → SSH cert)
 - [ ] Split AdGuard from Gateway Stack
   - [ ] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
   - [ ] Deploy AdGuard
   - [ ] Update Caddy upstream IP for admin UI
   - [ ] Update VyOS DHCP to point at new IP
   - [ ] Remove from gateway stack playbook
-- [ ] Configure GitLab CI SSH access (token exchange → OIDC → SSH cert)
-- [ ] Integrate GitLab SSO (OIDC)
 
 ## P1
 
@@ -44,7 +41,7 @@
   - [ ] Add `.sops.yaml` config file to document encryption expectations
   - [ ] Update README with new SOPS workflow
 - [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding)
-- [ ] Add Grafana dashboards to Ansible provisioning (Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
+- [ ] Codify existing Grafana dashboards in Ansible (currently manual: Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
 - [ ] Integrate SSO (OIDC-native apps)
   - [ ] LiteLLM
   - [ ] Dokploy
@@ -77,6 +74,12 @@
 
 ## P2
 
+- [ ] Consolidate ProtonVPN infrastructure
+  - [ ] Unify secrets under `secrets.protonvpn.*` (move qbittorrent VPN creds)
+  - [ ] Switch qBittorrent from Gluetun to tun2socks → rotating-proxy
+  - [ ] Configure SearXNG to use rotating-proxy SOCKS5
+  - [ ] Configure Firecrawl to use rotating-proxy SOCKS5
+  - [ ] Configure Prowlarr to use rotating-proxy SOCKS5
 - [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures)
 - [ ] Apply for AWS SES production access
 - [ ] Integrate SSO (reverse proxy / quirky auth)

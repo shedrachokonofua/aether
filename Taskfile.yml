@@ -703,7 +703,7 @@ tasks:
   ca:fingerprint:
     desc: Get CA root fingerprint
     cmds:
-      - ssh root@10.0.2.9 'step certificate fingerprint /etc/step-ca/certs/root_ca.crt'
+      - ssh root@192.168.2.235 'step certificate fingerprint /etc/step-ca/certs/root_ca.crt'
 
   ca:install-root:mac:
     desc: Install step-ca root CA to macOS Keychain
@@ -718,7 +718,7 @@ tasks:
     cmds:
       - mkdir -p {{.CACHE_DIR}}/step
       - |
-        FINGERPRINT=$(ssh root@10.0.2.9 'step certificate fingerprint /etc/step-ca/certs/root_ca.crt')
+        FINGERPRINT=$(ssh root@192.168.2.235 'step certificate fingerprint /etc/step-ca/certs/root_ca.crt')
         docker run --rm -it \
           -v {{.CACHE_DIR}}/step:/root/.step \
           -p 10000:10000 \
@@ -733,8 +733,48 @@ tasks:
         -v {{.CACHE_DIR}}/step:/root/.step
         -v /run/host-services/ssh-auth.sock:/ssh-agent
         -e SSH_AUTH_SOCK=/ssh-agent
+        -e STEPDEBUG={{.STEPDEBUG | default "0"}}
         {{.DOCKER_IMAGE}}
         step ssh login --provisioner=keycloak --console
+
+  ca:inspect:
+    desc: Inspect current SSH certificate (shows principals and extensions)
+    cmds:
+      - |
+        docker run --rm -it \
+          -v {{.CACHE_DIR}}/step:/root/.step \
+          -v /run/host-services/ssh-auth.sock:/ssh-agent \
+          -e SSH_AUTH_SOCK=/ssh-agent \
+          {{.DOCKER_IMAGE}} \
+          sh -c "step ssh list --raw 2>/dev/null | grep -v '^ssh-' | head -1 | step ssh inspect || echo 'No SSH certificate found. Run task ca:login first'"
+
+  ca:logout:
+    desc: Remove SSH certificate from agent
+    cmds:
+      - |
+        docker run --rm -it \
+          -v {{.CACHE_DIR}}/step:/root/.step \
+          -v /run/host-services/ssh-auth.sock:/ssh-agent \
+          -e SSH_AUTH_SOCK=/ssh-agent \
+          {{.DOCKER_IMAGE}} \
+          step ssh logout
+
+  ca:ssh:
+    desc: SSH using only step certificate (e.g. task ca:ssh -- root@smallweb)
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/step
+      - |
+        docker run --rm -it \
+          -v {{.CACHE_DIR}}/step:/root/.step \
+          {{.DOCKER_IMAGE}} \
+          sh -c 'eval "$(ssh-agent -s)" && step ssh login --provisioner=keycloak --console && ssh {{.CLI_ARGS}}'
+
+  configure:ssh-ca-trust:
+    desc: Configure all hosts to trust step-ca SSH certificates
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/configure_ssh_ca_trust.yml
 
   update:authorized-keys:
     desc: Update authorized keys

@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# Configure SSH CA Trust
+# =============================================================================
+#
+# VyOS router is configured separately in home_router/configure_router.yml.
+#
+# This playbook configures:
+#   - Proxmox hosts
+#   - VMs/LXCs (except router/vyos-packer)
+#   - AWS public gateway
+#
+# Usage:
+#   task configure:ssh-ca-trust
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Proxmox Hosts
+# -----------------------------------------------------------------------------
+- name: Configure SSH CA trust on Proxmox hosts
+  hosts: machines
+  become: true
+  become_method: su
+  gather_facts: true
+  roles:
+    - common
+    - ssh_ca_trust
+
+# -----------------------------------------------------------------------------
+# VMs and LXCs
+# -----------------------------------------------------------------------------
+- name: Configure SSH CA trust on VMs
+  hosts: vms:!router:!vyos-packer
+  become: true
+  gather_facts: true
+  roles:
+    - common
+    - ssh_ca_trust
+
+# -----------------------------------------------------------------------------
+# AWS Public Gateway (Amazon Linux)
+# -----------------------------------------------------------------------------
+- name: Configure SSH CA trust on public gateway
+  hosts: public-gateway
+  become: true
+  gather_facts: true
+  roles:
+    - common
+    - ssh_ca_trust

@@ -93,11 +93,11 @@ resource "keycloak_realm" "aether" {
 # Aether Realm - Roles
 # =============================================================================
 
-# Grafana roles (mapped via role_attribute_path in Grafana config)
-resource "keycloak_role" "grafana_admin" {
+# Global admin role
+resource "keycloak_role" "admin" {
   realm_id    = keycloak_realm.aether.id
-  name        = "grafana-admin"
-  description = "Grafana Administrator"
+  name        = "admin"
+  description = "Full administrator access to all services"
 }
 
 resource "keycloak_role" "grafana_editor" {
@@ -110,13 +110,6 @@ resource "keycloak_role" "grafana_viewer" {
   realm_id    = keycloak_realm.aether.id
   name        = "grafana-viewer"
   description = "Grafana Viewer"
-}
-
-# Open WebUI roles
-resource "keycloak_role" "openwebui_admin" {
-  realm_id    = keycloak_realm.aether.id
-  name        = "openwebui-admin"
-  description = "Open WebUI Administrator"
 }
 
 resource "keycloak_role" "openwebui_user" {
@@ -153,8 +146,7 @@ resource "keycloak_user_roles" "shdrch_aether_roles" {
   realm_id = keycloak_realm.aether.id
   user_id  = keycloak_user.shdrch_aether.id
   role_ids = [
-    keycloak_role.grafana_admin.id,
-    keycloak_role.openwebui_admin.id,
+    keycloak_role.admin.id,
   ]
 }
 
@@ -195,7 +187,6 @@ resource "keycloak_openid_client_default_scopes" "grafana_default_scopes" {
   default_scopes = [
     "profile",
     "email",
-    "openid",
     "roles",
   ]
 }
@@ -233,7 +224,6 @@ resource "keycloak_openid_client_default_scopes" "openwebui_default_scopes" {
   default_scopes = [
     "profile",
     "email",
-    "openid",
     "roles",
   ]
 }
@@ -280,7 +270,21 @@ resource "keycloak_openid_client_default_scopes" "step_ca_default_scopes" {
   default_scopes = [
     "profile",
     "email",
-    "openid",
+    "roles",
   ]
+}
+
+# Protocol mapper to expose realm roles at top-level "roles" claim for step-ca
+# step-ca SSH templates can then access .Token.roles directly
+resource "keycloak_openid_user_realm_role_protocol_mapper" "step_ca_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.step_ca.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 

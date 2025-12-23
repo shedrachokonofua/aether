@@ -105,8 +105,8 @@
           OAUTH_SCOPES: "openid email profile roles"
           ENABLE_OAUTH_ROLE_MANAGEMENT: "true"
           OAUTH_ROLES_CLAIM: "roles"
-          OAUTH_ALLOWED_ROLES: "openwebui-admin,openwebui-user"
-          OAUTH_ADMIN_ROLES: "openwebui-admin"
+          OAUTH_ALLOWED_ROLES: "admin,openwebui-user"
+          OAUTH_ADMIN_ROLES: "admin"
         volumes:
           - /home/aether/openwebui/data:/app/backend/data:Z
 

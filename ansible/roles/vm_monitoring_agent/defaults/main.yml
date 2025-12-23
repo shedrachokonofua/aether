@@ -18,7 +18,6 @@ host_metrics_collection_interval: "15s"
 host_metrics_initial_delay: "1s"
 
 # Podman Metrics Configuration (when Podman is installed)
-podman_metrics_enabled: true  # Set to false to disable podman stats collection
 podman_metrics_collection_interval: "15s"
 podman_metrics_initial_delay: "1s"
 

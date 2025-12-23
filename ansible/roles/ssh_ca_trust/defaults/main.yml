@@ -1,0 +1,21 @@
+---
+# Path to the SSH user CA public key on target host
+ssh_ca_pubkey_path: /etc/ssh/ca_user_key.pub
+
+# step-ca host to fetch SSH CA public key from
+ssh_ca_host: "{{ vm.step_ca.ip }}"
+
+# Path to SSH user CA public key on step-ca
+ssh_ca_pubkey_remote: /etc/step-ca/certs/ssh_user_ca_key.pub
+
+# Directory for authorized principals files
+ssh_principals_dir: /etc/ssh/auth_principals
+
+# Default principals allowed for this host
+# Users with the "admin" Keycloak role get this principal in their SSH cert
+ssh_ca_principals:
+  - "admin"
+
+# Map of local users → principals that can authenticate as them
+# Example: { root: ["admin", "shdrch@shdr.ch"], aether: ["admin"] }
+ssh_ca_user_principals: {}

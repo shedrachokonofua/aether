@@ -3,6 +3,9 @@
   hosts: machines
   become: true
   become_method: su
+  roles:
+    - common
+    - ssh_ca_trust
 
   tasks:
     - name: Install proxmoxer

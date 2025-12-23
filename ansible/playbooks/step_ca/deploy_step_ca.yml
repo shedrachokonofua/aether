@@ -25,6 +25,43 @@
 
   tasks:
     # =========================================================================
+    # Network Configuration (route to VyOS networks via router)
+    # =========================================================================
+
+    - name: Add route to VyOS networks (runtime)
+      ansible.builtin.command:
+        cmd: ip route add 10.0.0.0/8 via 192.168.2.231
+      register: route_result
+      changed_when: route_result.rc == 0
+      failed_when: false
+
+    - name: Ensure NetworkManager dispatcher directory exists
+      ansible.builtin.file:
+        path: /etc/NetworkManager/dispatcher.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Make route to VyOS networks persistent (NetworkManager dispatcher)
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Route to VyOS-managed networks via router
+          # This script runs when NetworkManager brings up an interface
+
+          INTERFACE="$1"
+          ACTION="$2"
+
+          if [ "$ACTION" = "up" ]; then
+              ip route add 10.0.0.0/8 via 192.168.2.231 2>/dev/null || true
+          fi
+        dest: /etc/NetworkManager/dispatcher.d/99-vyos-route
+        owner: root
+        group: root
+        mode: "0755"
+
+    # =========================================================================
     # Installation
     # =========================================================================
 
@@ -224,6 +261,27 @@
       changed_when: false
 
     # =========================================================================
+    # SSH Templates (role-based certificate features)
+    # =========================================================================
+
+    - name: Ensure templates directory exists
+      ansible.builtin.file:
+        path: "{{ step_ca_home }}/templates/ssh"
+        state: directory
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0750"
+
+    - name: Install SSH user certificate template
+      ansible.builtin.copy:
+        src: ssh_user.tpl
+        dest: "{{ step_ca_home }}/templates/ssh/user.tpl"
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0640"
+      register: ssh_template_result
+
+    # =========================================================================
     # Add OIDC Provisioner (Keycloak) - skipped if Keycloak not ready
     # =========================================================================
 
@@ -250,6 +308,32 @@
           --admin=shdrch@shdr.ch
           --listen-address=:10000
           --ssh
+          --ssh-template={{ step_ca_home }}/templates/ssh/user.tpl
+          --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
+          --root={{ step_ca_home }}/certs/root_ca.crt
+          --admin-provisioner={{ jwk_provisioner_name }}
+          --admin-password-file={{ step_ca_home }}/secrets/provisioner-password.txt
+      environment:
+        STEPPATH: "{{ step_ca_home }}"
+      notify: Restart step-ca
+
+    - name: Check if Keycloak provisioner has SSH template
+      when: "'keycloak' in provisioner_list.stdout"
+      ansible.builtin.shell:
+        cmd: |
+          cat {{ step_ca_home }}/config/ca.json | jq -e '.authority.provisioners[] | select(.name=="keycloak") | .options.ssh.template' > /dev/null 2>&1
+      register: provisioner_has_template
+      failed_when: false
+      changed_when: false
+
+    - name: Update Keycloak provisioner SSH template
+      when:
+        - "'keycloak' in provisioner_list.stdout"
+        - ssh_template_result.changed or provisioner_has_template.rc != 0
+      ansible.builtin.command:
+        cmd: >
+          step ca provisioner update keycloak
+          --ssh-template={{ step_ca_home }}/templates/ssh/user.tpl
           --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
           --root={{ step_ca_home }}/certs/root_ca.crt
           --admin-provisioner={{ jwk_provisioner_name }}
@@ -261,7 +345,7 @@
     - name: Warn if OIDC provisioner skipped
       when: keycloak_check.status != 200
       ansible.builtin.debug:
-        msg: "OIDC provisioner skipped — Provisioner already added or Keycloak not reachable."
+        msg: "OIDC provisioner skipped — Keycloak not reachable."
 
     # =========================================================================
     # Add SSHPOP Provisioner (for SSH cert renewal)

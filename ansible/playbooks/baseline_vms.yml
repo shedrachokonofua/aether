@@ -1,6 +1,6 @@
 ---
 - name: Apply baseline configuration to all VMs
-  hosts: vms
+  hosts: vms:!router:!vyos-packer
   gather_facts: true
   become: true
   roles:
