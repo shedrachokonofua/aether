@@ -100,6 +100,11 @@ output "keycloak_openwebui_client_secret" {
   sensitive = true
 }
 
+output "keycloak_gitlab_client_secret" {
+  value     = keycloak_openid_client.gitlab.client_secret
+  sensitive = true
+}
+
 output "smallweb_password" {
   value     = random_password.smallweb_password.result
   sensitive = true

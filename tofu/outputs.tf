@@ -153,3 +153,8 @@ output "keycloak_openwebui_client_secret" {
   value     = module.home.keycloak_openwebui_client_secret
   sensitive = true
 }
+
+output "keycloak_gitlab_client_secret" {
+  value     = module.home.keycloak_gitlab_client_secret
+  sensitive = true
+}

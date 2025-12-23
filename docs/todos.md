@@ -2,7 +2,6 @@
 
 ## P0
 
-- [ ] Integrate GitLab SSO (OIDC)
 - [ ] Configure GitLab CI SSH access (token exchange → OIDC → SSH cert)
 - [ ] Split AdGuard from Gateway Stack
   - [ ] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
