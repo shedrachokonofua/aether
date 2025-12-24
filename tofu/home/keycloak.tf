@@ -130,7 +130,7 @@ resource "keycloak_user_roles" "shdrch_aether_roles" {
   realm_id = keycloak_realm.aether.id
   user_id  = keycloak_user.shdrch_aether.id
   role_ids = [
-    keycloak_role.admin.id,
+    keycloak_role.admin.id
   ]
 }
 
@@ -431,5 +431,64 @@ resource "keycloak_identity_provider_token_exchange_scope_permission" "gitlab_ci
   provider_alias = keycloak_oidc_identity_provider.gitlab_ci.alias
   policy_type    = "client"
   clients        = [keycloak_openid_client.ci_deploy.id]
+}
+
+# =============================================================================
+# Jellyfin OIDC Client (jellyfin-plugin-sso)
+# =============================================================================
+
+resource "keycloak_role" "jellyfin_user" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "jellyfin-user"
+  description = "Jellyfin User - allowed to access Jellyfin"
+}
+
+resource "keycloak_openid_client" "jellyfin" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "jellyfin"
+  name      = "Jellyfin"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://jellyfin.home.shdr.ch"
+  base_url  = "https://jellyfin.home.shdr.ch"
+  admin_url = "https://jellyfin.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://jellyfin.home.shdr.ch/sso/OID/redirect/aether",
+    "https://tv.shdr.ch/sso/OID/redirect/aether",
+  ]
+
+  web_origins = [
+    "https://jellyfin.home.shdr.ch",
+    "https://tv.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "jellyfin_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.jellyfin.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "jellyfin_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.jellyfin.id
+  name      = "realm-roles"
+
+  claim_name          = "realm_access.roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 

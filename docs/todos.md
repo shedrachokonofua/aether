@@ -17,7 +17,6 @@
   - [ ] Update home gateway Caddyfile
     - [ ] Add @tv matcher to :9443 block → Jellyfin
   - [ ] Add DNS record in cloudflare.tf (tv.shdr.ch, proxied=false)
-- [ ] Setup jellyfin-plugin-sso (Keycloak OIDC)
 - [ ] Setup Gelato for Jellyfin (Real-Debrid streaming)
   - [ ] Deploy AIOStreams on media-stack
   - [ ] Setup Gelato plugin
