@@ -67,12 +67,12 @@ output "dokku_password" {
   sensitive = true
 }
 
-output "dokku_gitlab_public_key" {
-  value = tls_private_key.dokku_gitlab_ssh_key.public_key_openssh
+output "dokku_deployment_public_key" {
+  value = tls_private_key.dokku_deployment_ssh_key.public_key_openssh
 }
 
-output "dokku_gitlab_private_key" {
-  value     = tls_private_key.dokku_gitlab_ssh_key.private_key_pem
+output "dokku_deployment_private_key" {
+  value     = tls_private_key.dokku_deployment_ssh_key.private_key_pem
   sensitive = true
 }
 
@@ -102,6 +102,11 @@ output "keycloak_openwebui_client_secret" {
 
 output "keycloak_gitlab_client_secret" {
   value     = keycloak_openid_client.gitlab.client_secret
+  sensitive = true
+}
+
+output "keycloak_ci_deploy_client_secret" {
+  value     = keycloak_openid_client.ci_deploy.client_secret
   sensitive = true
 }
 

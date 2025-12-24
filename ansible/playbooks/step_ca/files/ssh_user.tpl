@@ -1,12 +1,11 @@
 {
     "type": {{ toJson .Type }},
     "keyId": {{ toJson .KeyID }},
-    "principals": [
-        {{ toJson .Token.email }}
-        {{- range .Token.roles }},
-        {{ toJson . }}
-        {{- end }}
-    ],
+    {{- if .Token.email }}
+    "principals": {{ toJson (prepend .Token.roles .Token.email) }},
+    {{- else }}
+    "principals": {{ toJson .Token.roles }},
+    {{- end }}
     {{- if has "admin" .Token.roles }}
     "extensions": {
         "permit-pty": "",

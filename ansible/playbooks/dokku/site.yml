@@ -1,7 +1,4 @@
 ---
-- name: Configure GitLab CI/CD Integration
-  import_playbook: gitlab_integration.yml
-
 - name: Deploy Dokku Platform
   import_playbook: dokku.yml
 

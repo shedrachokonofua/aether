@@ -11,10 +11,9 @@ ssh_ca_pubkey_remote: /etc/step-ca/certs/ssh_user_ca_key.pub
 # Directory for authorized principals files
 ssh_principals_dir: /etc/ssh/auth_principals
 
-# Default principals allowed for this host
+# Additional principals allowed for this host (admin is always included)
 # Users with the "admin" Keycloak role get this principal in their SSH cert
-ssh_ca_principals:
-  - "admin"
+ssh_ca_principals: []
 
 # Map of local users → principals that can authenticate as them
 # Example: { root: ["admin", "shdrch@shdr.ch"], aether: ["admin"] }

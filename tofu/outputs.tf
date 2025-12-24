@@ -130,12 +130,12 @@ output "home_dokku_password" {
   sensitive = true
 }
 
-output "home_dokku_gitlab_public_key" {
-  value = module.home.dokku_gitlab_public_key
+output "home_dokku_deployment_public_key" {
+  value = module.home.dokku_deployment_public_key
 }
 
-output "home_dokku_gitlab_private_key" {
-  value     = module.home.dokku_gitlab_private_key
+output "home_dokku_deployment_private_key" {
+  value     = module.home.dokku_deployment_private_key
   sensitive = true
 }
 
@@ -156,5 +156,10 @@ output "keycloak_openwebui_client_secret" {
 
 output "keycloak_gitlab_client_secret" {
   value     = module.home.keycloak_gitlab_client_secret
+  sensitive = true
+}
+
+output "keycloak_ci_deploy_client_secret" {
+  value     = module.home.keycloak_ci_deploy_client_secret
   sensitive = true
 }

@@ -52,7 +52,7 @@ resource "random_password" "dokku_console_password" {
   length = 8
 }
 
-resource "tls_private_key" "dokku_gitlab_ssh_key" {
+resource "tls_private_key" "dokku_deployment_ssh_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
 }

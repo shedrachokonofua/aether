@@ -47,13 +47,15 @@
 
 # ansible_user comes from inventory, which is set from vm.yml (vm.<name>.admin)
 # This creates principals for both the admin user and root
+# Always include 'admin' principal
 - name: Build user principals mapping
   ansible.builtin.set_fact:
+    _effective_principals: "{{ ssh_ca_principals | union(['admin']) }}"
     _effective_user_principals: >-
       {{
         ssh_ca_user_principals | default({})
-        | combine({ansible_user: ssh_ca_principals})
-        | combine({'root': ssh_ca_principals})
+        | combine({ansible_user: ssh_ca_principals | union(['admin'])})
+        | combine({'root': ssh_ca_principals | union(['admin'])})
       }}
 
 - name: Create principals files for each user

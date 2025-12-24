@@ -345,6 +345,12 @@
           - set firewall ipv4 name SERVICES-to-MGMT rule 10 action accept
           - set firewall ipv4 name SERVICES-to-MGMT rule 10 state established
           - set firewall ipv4 name SERVICES-to-MGMT rule 10 state related
+          # Step-CA access for certificate operations
+          - set firewall ipv4 name SERVICES-to-MGMT rule 20 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 20 protocol tcp
+          - set firewall ipv4 name SERVICES-to-MGMT rule 20 destination port {{ vm.step_ca.ports.https }}
+          - set firewall ipv4 name SERVICES-to-MGMT rule 20 destination address {{ vm.step_ca.ip }}
+          - set firewall ipv4 name SERVICES-to-MGMT rule 20 description 'Allow HTTPS to step-ca'
 
           # Configure media zone restrictions
           - set firewall ipv4 name MEDIA-to-TRUSTED default-action drop

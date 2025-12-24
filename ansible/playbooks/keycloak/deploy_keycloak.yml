@@ -120,9 +120,9 @@
         mode: "0600"
       notify: Restart keycloak
 
-    - name: Build Keycloak (optimize startup)
+    - name: Build Keycloak
       ansible.builtin.command:
-        cmd: "{{ keycloak_bin }}/kc.sh build"
+        cmd: "{{ keycloak_bin }}/kc.sh build --features=token-exchange:v1,admin-fine-grained-authz:v1"
         chdir: "{{ keycloak_install_dir }}"
       register: build_result
       changed_when: "'Build' in build_result.stdout"

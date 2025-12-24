@@ -2,7 +2,28 @@
 
 ## P0
 
-- [ ] Configure GitLab CI SSH access (token exchange → OIDC → SSH cert)
+- [ ] Expose Jellyfin publicly at tv.shdr.ch (bypass Cloudflare proxy for video ToS)
+  - [ ] Add CrowdSec to public gateway
+    - [ ] Install CrowdSec agent on Lightsail
+    - [ ] Generate bouncer API key
+  - [ ] Update Caddy build with plugins
+    - [ ] Add caddy-cloudflare-ip (auto-fetch CF IP ranges for trusted_proxies)
+    - [ ] Add caddy-crowdsec-bouncer/http (native CrowdSec handler)
+  - [ ] Update public gateway Caddyfile
+    - [ ] Add CrowdSec global config (api_url, api_key)
+    - [ ] Add trusted_proxies cloudflare directive
+    - [ ] Add CF IP filtering for \*.shdr.ch (reject non-Cloudflare sources)
+    - [ ] Add tv.shdr.ch route (open to all, protected by CrowdSec)
+  - [ ] Update home gateway Caddyfile
+    - [ ] Add @tv matcher to :9443 block → Jellyfin
+  - [ ] Add DNS record in cloudflare.tf (tv.shdr.ch, proxied=false)
+- [ ] Setup jellyfin-plugin-sso (Keycloak OIDC)
+- [ ] Setup Gelato for Jellyfin (Real-Debrid streaming)
+  - [ ] Deploy AIOStreams on media-stack
+  - [ ] Setup Gelato plugin
+    - [ ] Create "Movie Streaming" library
+    - [ ] Create "TV Streaming" library
+- [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding)
 - [ ] Split AdGuard from Gateway Stack
   - [ ] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
   - [ ] Deploy AdGuard
@@ -39,7 +60,6 @@
     - [ ] Deprecate `sops:decrypt` / `sops:encrypt` in-place tasks
   - [ ] Add `.sops.yaml` config file to document encryption expectations
   - [ ] Update README with new SOPS workflow
-- [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding)
 - [ ] Codify existing Grafana dashboards in Ansible (currently manual: Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
 - [ ] Integrate SSO (OIDC-native apps)
   - [ ] LiteLLM
@@ -49,27 +69,6 @@
   - [ ] Affine
   - [ ] N8N
   - [ ] SeaweedFS
-- [ ] Setup Gelato for Jellyfin (Real-Debrid streaming)
-  - [ ] Deploy AIOStreams on media-stack
-  - [ ] Setup Gelato plugin
-    - [ ] Create "Movie Streaming" library
-    - [ ] Create "TV Streaming" library
-- [ ] Expose Jellyfin publicly at tv.shdr.ch (bypass Cloudflare proxy for video ToS)
-  - [ ] Add CrowdSec to public gateway
-    - [ ] Install CrowdSec agent on Lightsail
-    - [ ] Generate bouncer API key
-  - [ ] Update Caddy build with plugins
-    - [ ] Add caddy-cloudflare-ip (auto-fetch CF IP ranges for trusted_proxies)
-    - [ ] Add caddy-crowdsec-bouncer/http (native CrowdSec handler)
-  - [ ] Update public gateway Caddyfile
-    - [ ] Add CrowdSec global config (api_url, api_key)
-    - [ ] Add trusted_proxies cloudflare directive
-    - [ ] Add CF IP filtering for \*.shdr.ch (reject non-Cloudflare sources)
-    - [ ] Add tv.shdr.ch route (open to all, protected by CrowdSec)
-  - [ ] Update home gateway Caddyfile
-    - [ ] Add @tv matcher to :9443 block → Jellyfin
-  - [ ] Add DNS record in cloudflare.tf (tv.shdr.ch, proxied=false)
-  - [ ] Setup jellyfin-plugin-sso (Keycloak OIDC)
 
 ## P2
 

@@ -348,6 +348,31 @@
         msg: "OIDC provisioner skipped — Keycloak not reachable."
 
     # =========================================================================
+    # Add OIDC Provisioner for CI (keycloak-ci) - uses ci-deploy client
+    # =========================================================================
+
+    - name: Add OIDC provisioner for CI token exchange
+      when:
+        - keycloak_check.status == 200
+        - "'keycloak-ci' not in provisioner_list.stdout"
+      ansible.builtin.command:
+        cmd: >
+          step ca provisioner add keycloak-ci
+          --type=OIDC
+          --client-id=ci-deploy
+          --configuration-endpoint=https://auth.shdr.ch/realms/aether/.well-known/openid-configuration
+          --listen-address=:10001
+          --ssh
+          --ssh-template={{ step_ca_home }}/templates/ssh/user.tpl
+          --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
+          --root={{ step_ca_home }}/certs/root_ca.crt
+          --admin-provisioner={{ jwk_provisioner_name }}
+          --admin-password-file={{ step_ca_home }}/secrets/provisioner-password.txt
+      environment:
+        STEPPATH: "{{ step_ca_home }}"
+      notify: Restart step-ca
+
+    # =========================================================================
     # Add SSHPOP Provisioner (for SSH cert renewal)
     # =========================================================================
 

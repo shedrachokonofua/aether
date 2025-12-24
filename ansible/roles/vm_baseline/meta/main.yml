@@ -1,4 +1,6 @@
 ---
 dependencies:
   - cockpit_agent
-  - ssh_ca_trust
+  - role: ssh_ca_trust
+    vars:
+      ssh_ca_principals: "{{ ssh_ca_principals | default([]) }}"

@@ -1,8 +1,3 @@
-# Keycloak Configuration
-# Note: Keycloak LXC is provisioned by Ansible BEFORE tofu apply
-# This file only configures Keycloak itself (realm, clients, users)
-
-
 provider "keycloak" {
   client_id = "admin-cli"
   username  = var.keycloak_admin_username
@@ -14,13 +9,11 @@ provider "keycloak" {
 # Master Realm - Admin Users & Service Accounts
 # =============================================================================
 
-# Reference the master realm admin role
 data "keycloak_role" "master_admin" {
   realm_id = "master"
   name     = "admin"
 }
 
-# Personal admin user in master realm (for Keycloak administration)
 resource "keycloak_user" "shdrch_master" {
   realm_id       = "master"
   username       = "shdrch"
@@ -32,7 +25,7 @@ resource "keycloak_user" "shdrch_master" {
 
   initial_password {
     value     = var.keycloak_shdrch_initial_password
-    temporary = true # Force password change on first login
+    temporary = true
   }
 
   lifecycle {
@@ -40,14 +33,12 @@ resource "keycloak_user" "shdrch_master" {
   }
 }
 
-# Give shdrch full admin access in master realm
 resource "keycloak_user_roles" "shdrch_master_admin" {
   realm_id = "master"
   user_id  = keycloak_user.shdrch_master.id
   role_ids = [data.keycloak_role.master_admin.id]
 }
 
-# GitLab CI service account for programmatic realm/client management
 resource "keycloak_openid_client" "gitlab_ci" {
   realm_id  = "master"
   client_id = "gitlab-ci"
@@ -60,14 +51,12 @@ resource "keycloak_openid_client" "gitlab_ci" {
   direct_access_grants_enabled = false
 }
 
-# Give GitLab CI service account admin access (can create realms, manage clients)
 resource "keycloak_openid_client_service_account_realm_role" "gitlab_ci_admin" {
   realm_id                = "master"
   service_account_user_id = keycloak_openid_client.gitlab_ci.service_account_user_id
   role                    = "admin"
 }
 
-# Aether Realm
 resource "keycloak_realm" "aether" {
   realm   = "aether"
   enabled = true
@@ -79,21 +68,17 @@ resource "keycloak_realm" "aether" {
   admin_theme   = "keycloak.v2"
   email_theme   = "keycloak"
 
-  # Session settings
   sso_session_idle_timeout = "30m"
   sso_session_max_lifespan = "10h"
   access_token_lifespan    = "5m"
   refresh_token_max_reuse  = 0
-
-  # Security
-  password_policy = "length(12) and notUsername"
+  password_policy          = "length(12) and notUsername"
 }
 
 # =============================================================================
 # Aether Realm - Roles
 # =============================================================================
 
-# Global admin role
 resource "keycloak_role" "admin" {
   realm_id    = keycloak_realm.aether.id
   name        = "admin"
@@ -122,7 +107,6 @@ resource "keycloak_role" "openwebui_user" {
 # Aether Realm - Application Users
 # =============================================================================
 
-# Personal user in aether realm (for logging into apps like Grafana)
 resource "keycloak_user" "shdrch_aether" {
   realm_id       = keycloak_realm.aether.id
   username       = "shdrch"
@@ -134,7 +118,7 @@ resource "keycloak_user" "shdrch_aether" {
 
   initial_password {
     value     = var.keycloak_shdrch_initial_password
-    temporary = true # Force password change on first login
+    temporary = true
   }
 
   lifecycle {
@@ -154,7 +138,6 @@ resource "keycloak_user_roles" "shdrch_aether_roles" {
 # Aether Realm - OIDC Clients
 # =============================================================================
 
-# Grafana OIDC Client
 resource "keycloak_openid_client" "grafana" {
   realm_id  = keycloak_realm.aether.id
   client_id = "grafana"
@@ -179,7 +162,6 @@ resource "keycloak_openid_client" "grafana" {
   ]
 }
 
-# Default scopes for Grafana
 resource "keycloak_openid_client_default_scopes" "grafana_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.grafana.id
@@ -191,7 +173,6 @@ resource "keycloak_openid_client_default_scopes" "grafana_default_scopes" {
   ]
 }
 
-# Open WebUI OIDC Client
 resource "keycloak_openid_client" "openwebui" {
   realm_id  = keycloak_realm.aether.id
   client_id = "openwebui"
@@ -216,7 +197,6 @@ resource "keycloak_openid_client" "openwebui" {
   ]
 }
 
-# Default scopes for Open WebUI
 resource "keycloak_openid_client_default_scopes" "openwebui_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.openwebui.id
@@ -228,8 +208,6 @@ resource "keycloak_openid_client_default_scopes" "openwebui_default_scopes" {
   ]
 }
 
-# Protocol mapper to expose realm roles at top-level "roles" claim for Open WebUI
-# Open WebUI's OAUTH_ROLES_CLAIM doesn't support nested paths like realm_access.roles
 resource "keycloak_openid_user_realm_role_protocol_mapper" "openwebui_roles" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.openwebui.id
@@ -242,27 +220,23 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "openwebui_roles" {
   add_to_userinfo     = true
 }
 
-# step-ca OIDC Client (for SSH certificates and user X.509 certs)
 resource "keycloak_openid_client" "step_ca" {
   realm_id  = keycloak_realm.aether.id
   client_id = "step-ca"
   name      = "step-ca Certificate Authority"
   enabled   = true
 
-  # Public client - step-ca validates tokens via JWKS, doesn't need secret
   access_type                  = "PUBLIC"
   standard_flow_enabled        = true
   direct_access_grants_enabled = true
 
-  # Device authorization for headless SSH login (step ssh login)
   oauth2_device_authorization_grant_enabled = true
 
   valid_redirect_uris = [
-    "http://127.0.0.1:10000/*", # Local callback for step CLI
+    "http://127.0.0.1:10000/*",
   ]
 }
 
-# Default scopes for step-ca
 resource "keycloak_openid_client_default_scopes" "step_ca_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.step_ca.id
@@ -274,8 +248,6 @@ resource "keycloak_openid_client_default_scopes" "step_ca_default_scopes" {
   ]
 }
 
-# Protocol mapper to expose realm roles at top-level "roles" claim for step-ca
-# step-ca SSH templates can then access .Token.roles directly
 resource "keycloak_openid_user_realm_role_protocol_mapper" "step_ca_roles" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.step_ca.id
@@ -288,7 +260,6 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "step_ca_roles" {
   add_to_userinfo     = true
 }
 
-# GitLab OIDC Client (for user SSO login - separate from gitlab_ci service account)
 resource "keycloak_openid_client" "gitlab" {
   realm_id  = keycloak_realm.aether.id
   client_id = "gitlab"
@@ -313,7 +284,6 @@ resource "keycloak_openid_client" "gitlab" {
   ]
 }
 
-# Default scopes for GitLab
 resource "keycloak_openid_client_default_scopes" "gitlab_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.gitlab.id
@@ -325,8 +295,6 @@ resource "keycloak_openid_client_default_scopes" "gitlab_default_scopes" {
   ]
 }
 
-# Protocol mapper to expose realm roles as "groups" claim for GitLab
-# GitLab's admin_groups expects roles in a "groups" array
 resource "keycloak_openid_user_realm_role_protocol_mapper" "gitlab_groups" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.gitlab.id
@@ -337,5 +305,131 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "gitlab_groups" {
   add_to_id_token     = true
   add_to_access_token = true
   add_to_userinfo     = true
+}
+
+# =============================================================================
+# GitLab CI Identity Provider (for token exchange)
+# =============================================================================
+
+resource "keycloak_oidc_identity_provider" "gitlab_ci" {
+  realm        = keycloak_realm.aether.id
+  alias        = "gitlab-ci"
+  display_name = "GitLab CI"
+  enabled      = true
+
+  issuer            = "https://gitlab.home.shdr.ch"
+  authorization_url = "https://gitlab.home.shdr.ch/oauth/authorize"
+  token_url         = "https://gitlab.home.shdr.ch/oauth/token"
+  jwks_url          = "https://gitlab.home.shdr.ch/oauth/discovery/keys"
+
+  client_id     = "https://gitlab.home.shdr.ch"
+  client_secret = "unused"
+
+  trust_email        = false
+  link_only          = false
+  store_token        = false
+  validate_signature = true
+
+  disable_user_info        = true
+  hide_on_login_page       = true
+  disable_type_claim_check = true
+}
+
+resource "keycloak_custom_identity_provider_mapper" "gitlab_ci_username" {
+  realm                    = keycloak_realm.aether.id
+  name                     = "project-branch-username"
+  identity_provider_alias  = keycloak_oidc_identity_provider.gitlab_ci.alias
+  identity_provider_mapper = "oidc-username-idp-mapper"
+
+  extra_config = {
+    "syncMode" = "INHERIT"
+    "template" = "gitlab_ci/$${CLAIM.project_path}/$${CLAIM.ref}"
+  }
+}
+
+resource "keycloak_custom_identity_provider_mapper" "gitlab_ci_deploy_role" {
+  realm                    = keycloak_realm.aether.id
+  name                     = "ci-deploy-role"
+  identity_provider_alias  = keycloak_oidc_identity_provider.gitlab_ci.alias
+  identity_provider_mapper = "oidc-hardcoded-role-idp-mapper"
+
+  extra_config = {
+    "syncMode" = "INHERIT"
+    "role"     = "ci-deploy"
+  }
+}
+
+resource "keycloak_role" "ci_deploy" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "ci-deploy"
+  description = "Role for CI/CD deployments"
+}
+
+# =============================================================================
+# CI Deploy Client (for token exchange flow)
+# =============================================================================
+
+resource "keycloak_openid_client" "ci_deploy" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "ci-deploy"
+  name      = "CI Deploy Token Exchange"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = false
+  direct_access_grants_enabled = false
+  service_accounts_enabled     = false
+}
+
+resource "keycloak_openid_client_default_scopes" "ci_deploy_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.ci_deploy.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "ci_deploy_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.ci_deploy.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "ci_deploy_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.ci_deploy.id
+  name      = "ci-deploy-audience"
+
+  included_client_audience = keycloak_openid_client.ci_deploy.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_user_property_protocol_mapper" "ci_deploy_subject" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.ci_deploy.id
+  name      = "subject"
+
+  user_property       = "username"
+  claim_name          = "sub"
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_identity_provider_token_exchange_scope_permission" "gitlab_ci_token_exchange" {
+  realm_id       = keycloak_realm.aether.id
+  provider_alias = keycloak_oidc_identity_provider.gitlab_ci.alias
+  policy_type    = "client"
+  clients        = [keycloak_openid_client.ci_deploy.id]
 }
 
