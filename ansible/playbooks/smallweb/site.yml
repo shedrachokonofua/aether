@@ -8,7 +8,12 @@
   roles:
     - common
     - dnf
-    - vm_baseline
+    - role: vm_baseline
+      vars:
+        ssh_ca_user_principals:
+          smallweb:
+            - ci-deploy
+            - admin
     - role: vm_monitoring_agent
       vars:
         podman_metrics_enabled: false

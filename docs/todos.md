@@ -69,6 +69,12 @@
   - [ ] Affine
   - [ ] N8N
   - [ ] SeaweedFS
+- [ ] Enable SSH certificate auth for GitLab git push
+  - [ ] Configure gitlab_sshd to trust step-ca user CA
+    - [ ] Copy ssh_user_ca_key.pub to GitLab config
+    - [ ] Add gitlab_sshd trusted_cert_file in gitlab.rb.j2
+  - [ ] Update gitlab.yml playbook to deploy CA pubkey
+  - [ ] Test step ssh login → git push workflow
 
 ## P2
 
