@@ -61,7 +61,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "offsite_backup_en
 resource "aws_s3_bucket_versioning" "offsite_backup_versioning" {
   bucket = aws_s3_bucket.offsite_backup.id
   versioning_configuration {
-    status = "Enabled"
+    # Disabled - Deep Archive has 180-day minimum storage charge per object,
+    # so versioning causes paying for "deleted" versions for 6 months.
+    # The source data (PBS/ZFS) already has its own versioning.
+    status = "Suspended"
   }
 
   lifecycle {
@@ -73,20 +76,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "offsite_backup_lifecycle" {
   bucket = aws_s3_bucket.offsite_backup.id
 
   rule {
-    id     = "IntelligentTieringWithVersionCleanup"
+    id     = "DeepArchiveBackups"
     status = "Enabled"
 
     filter {
       prefix = ""
     }
 
+    # Cost: ~$0.00099/GB/month | Retrieval: 12-48 hours, ~$0.02/GB
     transition {
-      days          = 0
-      storage_class = "INTELLIGENT_TIERING"
+      days          = 1
+      storage_class = "DEEP_ARCHIVE"
     }
 
-    noncurrent_version_expiration {
-      noncurrent_days = 7
+    # Auto-delete after 181 days (just past Deep Archive 180-day minimum)
+    # You're paying for 180 days regardless, so no point keeping longer unless needed
+    expiration {
+      days = 181
     }
   }
 
