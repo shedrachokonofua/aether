@@ -2,21 +2,6 @@
 
 ## P0
 
-- [ ] Expose Jellyfin publicly at tv.shdr.ch (bypass Cloudflare proxy for video ToS)
-  - [ ] Add CrowdSec to public gateway
-    - [ ] Install CrowdSec agent on Lightsail
-    - [ ] Generate bouncer API key
-  - [ ] Update Caddy build with plugins
-    - [ ] Add caddy-cloudflare-ip (auto-fetch CF IP ranges for trusted_proxies)
-    - [ ] Add caddy-crowdsec-bouncer/http (native CrowdSec handler)
-  - [ ] Update public gateway Caddyfile
-    - [ ] Add CrowdSec global config (api_url, api_key)
-    - [ ] Add trusted_proxies cloudflare directive
-    - [ ] Add CF IP filtering for \*.shdr.ch (reject non-Cloudflare sources)
-    - [ ] Add tv.shdr.ch route (open to all, protected by CrowdSec)
-  - [ ] Update home gateway Caddyfile
-    - [ ] Add @tv matcher to :9443 block → Jellyfin
-  - [ ] Add DNS record in cloudflare.tf (tv.shdr.ch, proxied=false)
 - [ ] Setup Gelato for Jellyfin (Real-Debrid streaming)
   - [ ] Deploy AIOStreams on media-stack
   - [ ] Setup Gelato plugin
@@ -84,7 +69,6 @@
   - [ ] Configure Firecrawl to use rotating-proxy SOCKS5
   - [ ] Configure Prowlarr to use rotating-proxy SOCKS5
 - [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures)
-- [ ] Apply for AWS SES production access
 - [ ] Integrate SSO (reverse proxy / quirky auth)
   - [ ] Home Assistant
   - [ ] qBittorrent

@@ -1,15 +1,51 @@
 ---
+# Public Gateway Caddy Configuration
+# ===================================
+# Custom Caddy build with plugins:
+#   - caddy-dns/cloudflare: ACME DNS challenge for wildcard certs
+#   - caddy-cloudflare-ip: Auto-fetch CF IP ranges for trusted_proxies
+#   - caddy-crowdsec-bouncer/http: IP reputation checking (community blocklist)
+#   - caddy-crowdsec-bouncer/appsec: WAF (OWASP CRS - SQLi, XSS, CVE vpatches)
+#
+# Routes:
+#   - tv.shdr.ch: Direct access, CrowdSec bouncer + AppSec WAF
+#   - *.shdr.ch: Cloudflare-proxied only (IP verified), CrowdSec bouncer
+
 - name: Deploy caddy
   hosts: public-gateway
   gather_facts: true
   become: true
+  roles:
+    - common
   tasks:
-    - name: Download Caddy with Cloudflare plugin
-      get_url:
-        url: "https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com%2Fcaddy-dns%2Fcloudflare"
+    - name: Read CrowdSec bouncer API key
+      slurp:
+        src: /etc/crowdsec/caddy-bouncer.key
+      register: bouncer_key_file
+
+    - name: Set bouncer API key fact
+      set_fact:
+        crowdsec_bouncer_api_key: "{{ bouncer_key_file.content | b64decode | trim }}"
+
+    - name: Check if custom Caddy binary exists locally
+      delegate_to: localhost
+      become: false
+      stat:
+        path: "{{ playbook_dir }}/aether-public-gateway-caddy"
+      register: caddy_binary
+
+    - name: Build custom Caddy binary if not exists
+      delegate_to: localhost
+      become: false
+      command: "{{ playbook_dir }}/build-caddy.sh"
+      when: not caddy_binary.stat.exists
+
+    - name: Upload custom Caddy binary
+      copy:
+        src: "{{ playbook_dir }}/aether-public-gateway-caddy"
         dest: /usr/local/bin/caddy
         mode: "0755"
-        timeout: 30
+      notify: Restart Caddy
 
     - name: Create Caddy directories
       file:
@@ -25,7 +61,8 @@
       template:
         src: ./Caddyfile.j2
         dest: /etc/caddy/Caddyfile
-        mode: "0755"
+        mode: "0644"
+      notify: Restart Caddy
 
     - name: Write systemd service file
       copy:
@@ -48,3 +85,9 @@
         name: caddy
         state: started
         enabled: yes
+
+  handlers:
+    - name: Restart Caddy
+      systemd:
+        name: caddy
+        state: restarted

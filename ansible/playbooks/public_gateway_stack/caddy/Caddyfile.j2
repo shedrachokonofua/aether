@@ -1,16 +1,57 @@
 {
   log {
     level DEBUG
+    output file /var/log/caddy/access.log {
+      roll_size 100mb
+      roll_keep 5
+    }
   }
 
   acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
+
+  crowdsec {
+    api_url http://localhost:8080
+    api_key {{ crowdsec_bouncer_api_key }}
+    ticker_interval 15s
+    appsec_url http://localhost:7422
+  }
+
+  # Trust Cloudflare proxy IPs (auto-fetched)
+  servers {
+    trusted_proxies cloudflare
+  }
 }
 
+# tv.shdr.ch - Direct access (bypasses Cloudflare proxy)
+# Protected by CrowdSec bouncer + AppSec WAF
+tv.shdr.ch {
+  route {
+    crowdsec
+    appsec
+    reverse_proxy 10.0.2.2:9443 {
+      header_up Host {host}
+      header_up X-Real-IP {remote_host}
+      header_up X-Forwarded-For {remote_host}
+      header_up X-Forwarded-Proto {scheme}
+    }
+  }
+}
+
+# All other *.shdr.ch traffic - Must come through Cloudflare
+# Uses trusted_proxies IP verification to detect direct access attempts
 shdr.ch, *.shdr.ch {
-  reverse_proxy 10.0.2.2:9443 {
-    header_up Host {host}
-    header_up X-Real-IP {http.request.header.Cf-Connecting-Ip}
-    header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
-    header_up X-Forwarded-Proto {scheme}
+  # Block direct access: if remote_ip == client_ip, request didn't come through trusted proxy
+  # (Caddy ignores X-Forwarded-For from untrusted IPs, so client_ip = remote_ip for direct requests)
+  @direct_access `{http.request.remote.host} == {client_ip}`
+  respond @direct_access "Access denied" 403
+
+  route {
+    crowdsec
+    reverse_proxy 10.0.2.2:9443 {
+      header_up Host {host}
+      header_up X-Real-IP {client_ip}
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Forwarded-Proto {scheme}
+    }
   }
 }

@@ -1,0 +1,136 @@
+---
+- name: Deploy CrowdSec
+  hosts: public-gateway
+  gather_facts: true
+  become: true
+  roles:
+    - common
+  tasks:
+    - name: Add CrowdSec repository (Amazon Linux 2023)
+      yum_repository:
+        name: crowdsec
+        description: CrowdSec packages
+        baseurl: https://packagecloud.io/crowdsec/crowdsec/el/9/$basearch
+        gpgcheck: no
+        enabled: yes
+
+    - name: Install CrowdSec
+      dnf:
+        name:
+          - crowdsec
+          - crowdsec-firewall-bouncer-nftables
+        state: present
+
+    - name: Enroll with CrowdSec Hub (optional - for threat intelligence)
+      command: cscli console enroll {{ secrets.crowdsec.console_enrollment_key }}
+      args:
+        creates: /etc/crowdsec/console.yaml
+      when: secrets.crowdsec.console_enrollment_key is defined
+      ignore_errors: true
+
+    - name: Install collections (detection scenarios)
+      command: cscli collections install {{ item }}
+      loop:
+        - crowdsecurity/linux # SSH brute force, su/sudo abuse
+        - crowdsecurity/caddy # Caddy log parsing
+        - crowdsecurity/http-cve # Known CVE exploits
+        - crowdsecurity/base-http-scenarios # HTTP flood, bad user agents, scanners
+        - crowdsecurity/sshd # SSH attacks
+      register: collection_install
+      changed_when: "'installed' in collection_install.stdout"
+      failed_when: false
+
+    - name: Install AppSec config
+      command: cscli appsec-configs install crowdsecurity/appsec-default
+      register: appsec_config_install
+      changed_when: "'installed' in appsec_config_install.stdout"
+      failed_when: false
+
+    - name: Install AppSec rules (required by appsec-default)
+      command: cscli appsec-rules install {{ item }}
+      loop:
+        - crowdsecurity/base-config
+        - crowdsecurity/crs
+        - crowdsecurity/appsec-generic-test
+        - crowdsecurity/experimental-no-user-agent
+        - crowdsecurity/generic-freemarker-ssti
+        - crowdsecurity/generic-wordpress-uploads-listing
+        - crowdsecurity/generic-wordpress-uploads-php
+      register: appsec_rules_install
+      changed_when: "'installed' in appsec_rules_install.stdout"
+      failed_when: false
+
+    - name: Install vpatch rules (CVE protection)
+      shell: cscli appsec-rules list -a | grep vpatch | awk '{print $1}' | xargs cscli appsec-rules install
+      register: vpatch_install
+      changed_when: "'installed' in vpatch_install.stdout"
+      failed_when: false
+
+    - name: Configure AppSec component
+      copy:
+        dest: /etc/crowdsec/acquis.d/appsec.yaml
+        content: |
+          listen_addr: 127.0.0.1:7422
+          appsec_config: crowdsecurity/appsec-default
+          name: appsec
+          source: appsec
+          labels:
+            type: appsec
+        mode: "0644"
+      notify: Restart CrowdSec
+
+    - name: Configure CrowdSec to read Caddy logs
+      copy:
+        dest: /etc/crowdsec/acquis.d/caddy.yaml
+        content: |
+          filenames:
+            - /var/log/caddy/access.log
+          labels:
+            type: caddy
+        mode: "0644"
+      notify: Restart CrowdSec
+
+    - name: Check if bouncer already exists
+      command: cscli bouncers list -o raw
+      register: bouncer_list
+      changed_when: false
+
+    - name: Generate bouncer API key
+      command: cscli bouncers add caddy-bouncer -o raw
+      register: new_bouncer_key
+      when: "'caddy-bouncer' not in bouncer_list.stdout"
+      changed_when: true
+
+    - name: Save new bouncer API key
+      copy:
+        content: "{{ new_bouncer_key.stdout }}"
+        dest: /etc/crowdsec/caddy-bouncer.key
+        mode: "0600"
+      when: new_bouncer_key.stdout is defined
+
+    - name: Read bouncer API key from file
+      slurp:
+        src: /etc/crowdsec/caddy-bouncer.key
+      register: existing_bouncer_key
+
+    - name: Set bouncer API key fact
+      set_fact:
+        crowdsec_bouncer_api_key: "{{ existing_bouncer_key.content | b64decode | trim }}"
+
+    - name: Start and enable CrowdSec
+      systemd:
+        name: crowdsec
+        state: started
+        enabled: yes
+
+    - name: Start and enable CrowdSec firewall bouncer (nftables)
+      systemd:
+        name: crowdsec-firewall-bouncer
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Restart CrowdSec
+      systemd:
+        name: crowdsec
+        state: restarted

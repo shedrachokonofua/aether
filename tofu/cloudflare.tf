@@ -48,6 +48,17 @@ resource "cloudflare_dns_record" "aether_public_gateway_wildcard" {
   }
 }
 
+# tv.shdr.ch - Direct access for Jellyfin (bypasses Cloudflare proxy for video ToS)
+# Protected by CrowdSec on the public gateway instead of Cloudflare WAF
+resource "cloudflare_dns_record" "aether_public_gateway_tv" {
+  name    = "tv"
+  content = module.aws.public_gateway_ip
+  type    = "A"
+  zone_id = cloudflare_zone.shdrch_domain.id
+  proxied = false
+  ttl     = 300
+}
+
 resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail" {
   name    = "protonmail._domainkey.shdr.ch"
   content = "protonmail.domainkey.doppwpp2flj65ryomxwk7mre2jvwcrl2wvszn5cbvpxo5blaw2yfa.domains.proton.ch"

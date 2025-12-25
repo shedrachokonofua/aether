@@ -73,6 +73,12 @@ resource "keycloak_realm" "aether" {
   access_token_lifespan    = "5m"
   refresh_token_max_reuse  = 0
   password_policy          = "length(12) and notUsername"
+
+  smtp_server {
+    from = "no-reply@shdr.ch"
+    host = local.vm.messaging_stack.ip
+    port = local.vm.messaging_stack.ports.smtp
+  }
 }
 
 # =============================================================================
@@ -190,10 +196,12 @@ resource "keycloak_openid_client" "openwebui" {
 
   valid_redirect_uris = [
     "https://openwebui.home.shdr.ch/oauth/oidc/callback",
+    "https://ai.shdr.ch/oauth/oidc/callback",
   ]
 
   web_origins = [
     "https://openwebui.home.shdr.ch",
+    "https://ai.shdr.ch",
   ]
 }
 

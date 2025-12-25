@@ -4,10 +4,13 @@
   gather_facts: true
   roles:
     - common
-    - dnf
+#     - dnf
 
-- name: Deploy tailscale
-  import_playbook: tailscale/site.yml
+# - name: Deploy tailscale
+#   import_playbook: tailscale/site.yml
+
+# - name: Deploy CrowdSec
+#   import_playbook: crowdsec/site.yml
 
 - name: Deploy caddy
   import_playbook: caddy/site.yml

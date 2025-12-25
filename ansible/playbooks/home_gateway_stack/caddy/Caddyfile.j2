@@ -379,7 +379,9 @@ small.home.shdr.ch, *.small.home.shdr.ch {
 
 :9443 {
   @shdrch host shdr.ch
+  @auth host auth.shdr.ch
   @ai host ai.shdr.ch
+  @tv host tv.shdr.ch
 
   handle @shdrch {
     reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.http }} {
@@ -390,6 +392,10 @@ small.home.shdr.ch, *.small.home.shdr.ch {
     }
   }
 
+  handle @auth {
+    reverse_proxy {{ vm.keycloak.ip }}:{{ vm.keycloak.ports.http }}
+  }
+
   handle @ai {
     reverse_proxy {{ vm.dokploy.ip }} {
       header_up Host "open-webui.d.home.shdr.ch"
@@ -397,6 +403,10 @@ small.home.shdr.ch, *.small.home.shdr.ch {
       header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
       header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
     }
+  }
+
+  handle @tv {
+    reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyfin }}
   }
 
   handle {

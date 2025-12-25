@@ -52,3 +52,7 @@ terraform.rc
 *.retry
 
 *.pem
+
+# Built binaries
+aether-public-gateway-caddy
+
