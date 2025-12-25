@@ -8,6 +8,7 @@ resource "proxmox_virtual_environment_vm" "gitlab" {
 
   cpu {
     cores = local.vm.gitlab.cores
+    type  = "host"
   }
 
   memory {
