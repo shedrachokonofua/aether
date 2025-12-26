@@ -1,0 +1,408 @@
+---
+- name: Deploy OpenBao
+  hosts: openbao
+  become: true
+  roles:
+    - common
+  vars:
+    openbao_version: "2.4.4"
+    openbao_download_url: "https://github.com/openbao/openbao/releases/download/v{{ openbao_version }}/bao_{{ openbao_version }}_Linux_x86_64.tar.gz"
+    openbao_install_dir: "/opt/openbao"
+    openbao_config_dir: "/etc/openbao.d"
+    openbao_data_dir: "/var/lib/openbao"
+    openbao_log_dir: "/var/log/openbao"
+    openbao_tls_dir: "{{ openbao_config_dir }}/tls"
+
+    openbao_user: "openbao"
+    openbao_group: "openbao"
+
+    openbao_ip: "{{ vm.openbao.ip }}"
+    openbao_https_port: "{{ vm.openbao.ports.https }}"
+    openbao_cluster_port: "{{ vm.openbao.ports.cluster }}"
+    openbao_hostname: "bao.home.shdr.ch"
+
+    # step-ca configuration for TLS certificates
+    step_ca_url: "https://ca.shdr.ch"
+    step_ca_provisioner: "machine-bootstrap"
+    step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password }}"
+
+    # Keycloak OIDC configuration
+    keycloak_url: "https://auth.shdr.ch"
+    keycloak_realm: "aether"
+
+    # AWS KMS auto-unseal via IAM Roles Anywhere (certificate-based)
+    # Loaded automatically from secrets/aws/openbao-kms.yml via common role
+    openbao_aws_kms_key_id: "{{ aws_openbao_kms.kms_key_id | default(omit) }}"
+    openbao_aws_region: "{{ aws_openbao_kms.region | default('us-east-1') }}"
+    openbao_aws_roles_anywhere_profile_arn: "{{ aws_openbao_kms.profile_arn | default(omit) }}"
+    openbao_aws_roles_anywhere_role_arn: "{{ aws_openbao_kms.role_arn | default(omit) }}"
+    openbao_aws_roles_anywhere_trust_anchor_arn: "{{ aws_openbao_kms.trust_anchor_arn | default(omit) }}"
+
+  tasks:
+    # =========================================================================
+    # Installation
+    # =========================================================================
+
+    - name: Install required packages
+      ansible.builtin.dnf:
+        name:
+          - tar
+          - curl
+          - jq
+        state: present
+
+    - name: Download step-cli binary
+      ansible.builtin.get_url:
+        url: https://dl.smallstep.com/cli/docs-ca-install/latest/step_linux_amd64.tar.gz
+        dest: /tmp/step_linux_amd64.tar.gz
+        mode: "0644"
+        timeout: 120
+      retries: 3
+      delay: 5
+
+    - name: Extract step-cli
+      ansible.builtin.unarchive:
+        src: /tmp/step_linux_amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install step-cli binary
+      ansible.builtin.copy:
+        src: /tmp/step_linux_amd64/bin/step
+        dest: /usr/bin/step
+        mode: "0755"
+        remote_src: true
+
+    - name: Clean up step-cli download
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/step_linux_amd64.tar.gz
+        - /tmp/step_linux_amd64
+
+    - name: Download OpenBao binary
+      ansible.builtin.get_url:
+        url: "{{ openbao_download_url }}"
+        dest: /tmp/openbao.tar.gz
+        mode: "0644"
+        timeout: 120
+      retries: 3
+      delay: 5
+
+    - name: Create install directory
+      ansible.builtin.file:
+        path: "{{ openbao_install_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Extract OpenBao
+      ansible.builtin.unarchive:
+        src: /tmp/openbao.tar.gz
+        dest: "{{ openbao_install_dir }}"
+        remote_src: true
+
+    - name: Create symlink to bao binary
+      ansible.builtin.file:
+        src: "{{ openbao_install_dir }}/bao"
+        dest: /usr/local/bin/bao
+        state: link
+        force: true
+
+    - name: Set bao binary capabilities (mlock)
+      community.general.capabilities:
+        path: "{{ openbao_install_dir }}/bao"
+        capability: cap_ipc_lock=+ep
+        state: present
+
+    - name: Clean up OpenBao download
+      ansible.builtin.file:
+        path: /tmp/openbao.tar.gz
+        state: absent
+
+    # =========================================================================
+    # User and Directory Setup
+    # =========================================================================
+
+    - name: Ensure OpenBao group exists
+      ansible.builtin.group:
+        name: "{{ openbao_group }}"
+        system: true
+
+    - name: Ensure OpenBao user exists
+      ansible.builtin.user:
+        name: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        system: true
+        shell: /sbin/nologin
+        home: "{{ openbao_data_dir }}"
+        create_home: true
+
+    - name: Ensure config directory exists
+      ansible.builtin.file:
+        path: "{{ openbao_config_dir }}"
+        state: directory
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0750"
+
+    - name: Ensure TLS directory exists
+      ansible.builtin.file:
+        path: "{{ openbao_tls_dir }}"
+        state: directory
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0750"
+
+    - name: Ensure data directory exists
+      ansible.builtin.file:
+        path: "{{ openbao_data_dir }}"
+        state: directory
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0750"
+
+    - name: Ensure raft storage directory exists
+      ansible.builtin.file:
+        path: "{{ openbao_data_dir }}/raft"
+        state: directory
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0750"
+
+    - name: Ensure log directory exists
+      ansible.builtin.file:
+        path: "{{ openbao_log_dir }}"
+        state: directory
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0750"
+
+    # =========================================================================
+    # step-ca Bootstrap and TLS Certificate
+    # =========================================================================
+
+    - name: Ensure step config directory exists
+      ansible.builtin.file:
+        path: "{{ openbao_config_dir }}/step"
+        state: directory
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0750"
+
+    - name: Write provisioner password file
+      ansible.builtin.copy:
+        content: "{{ step_ca_provisioner_password }}"
+        dest: "{{ openbao_config_dir }}/step/provisioner-password.txt"
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Check if step-ca is reachable
+      ansible.builtin.uri:
+        url: "{{ step_ca_url }}/health"
+        method: GET
+        return_content: false
+        status_code: 200
+        timeout: 10
+        validate_certs: false
+      register: step_ca_check
+      failed_when: false
+
+    - name: Download step-ca root certificate
+      when: step_ca_check.status == 200
+      ansible.builtin.get_url:
+        url: "{{ step_ca_url }}/roots.pem"
+        dest: /tmp/step_root_ca.pem
+        validate_certs: false
+        mode: "0644"
+
+    - name: Get step-ca root certificate fingerprint
+      when: step_ca_check.status == 200
+      ansible.builtin.command:
+        cmd: "step certificate fingerprint /tmp/step_root_ca.pem"
+      register: ca_fingerprint
+      changed_when: false
+
+    - name: Bootstrap step-ca trust
+      when: step_ca_check.status == 200
+      become_user: "{{ openbao_user }}"
+      ansible.builtin.command:
+        cmd: >
+          step ca bootstrap
+          --ca-url={{ step_ca_url }}
+          --fingerprint={{ ca_fingerprint.stdout }}
+          --force
+      environment:
+        STEPPATH: "{{ openbao_config_dir }}/step"
+      args:
+        creates: "{{ openbao_config_dir }}/step/certs/root_ca.crt"
+
+    - name: Request TLS certificate from step-ca
+      when: step_ca_check.status == 200
+      become_user: "{{ openbao_user }}"
+      ansible.builtin.command:
+        cmd: >
+          step ca certificate
+          {{ openbao_hostname }}
+          {{ openbao_tls_dir }}/openbao.crt
+          {{ openbao_tls_dir }}/openbao.key
+          --san={{ openbao_hostname }}
+          --san={{ openbao_ip }}
+          --san=localhost
+          --san=127.0.0.1
+          --provisioner={{ step_ca_provisioner }}
+          --provisioner-password-file={{ openbao_config_dir }}/step/provisioner-password.txt
+          --force
+      environment:
+        STEPPATH: "{{ openbao_config_dir }}/step"
+      args:
+        creates: "{{ openbao_tls_dir }}/openbao.crt"
+      notify: Restart openbao
+
+    - name: Copy CA certificate for OpenBao
+      when: step_ca_check.status == 200
+      ansible.builtin.copy:
+        src: "{{ openbao_config_dir }}/step/certs/root_ca.crt"
+        dest: "{{ openbao_tls_dir }}/ca.crt"
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0644"
+        remote_src: true
+
+    - name: Split certificate bundle into leaf and chain (for IAM Roles Anywhere)
+      when: step_ca_check.status == 200
+      ansible.builtin.shell: |
+        csplit -z -f {{ openbao_tls_dir }}/openbao-part- {{ openbao_tls_dir }}/openbao.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
+        mv {{ openbao_tls_dir }}/openbao-part-00 {{ openbao_tls_dir }}/openbao-leaf.crt
+        mv {{ openbao_tls_dir }}/openbao-part-01 {{ openbao_tls_dir }}/openbao-chain.crt
+        chown {{ openbao_user }}:{{ openbao_group }} {{ openbao_tls_dir }}/openbao-leaf.crt {{ openbao_tls_dir }}/openbao-chain.crt
+        chmod 0640 {{ openbao_tls_dir }}/openbao-leaf.crt {{ openbao_tls_dir }}/openbao-chain.crt
+      args:
+        creates: "{{ openbao_tls_dir }}/openbao-leaf.crt"
+
+    - name: Warn if step-ca not reachable
+      when: step_ca_check.status != 200
+      ansible.builtin.debug:
+        msg: "TLS certificate setup skipped — step-ca not reachable. Run deploy again after step-ca is available."
+
+    # =========================================================================
+    # OpenBao Configuration
+    # =========================================================================
+
+    - name: Write OpenBao configuration
+      ansible.builtin.template:
+        src: openbao.hcl.j2
+        dest: "{{ openbao_config_dir }}/openbao.hcl"
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0640"
+      notify: Restart openbao
+
+    # =========================================================================
+    # AWS IAM Roles Anywhere (for KMS auto-unseal)
+    # =========================================================================
+
+    - name: Download AWS signing helper
+      when: openbao_aws_roles_anywhere_profile_arn is defined
+      ansible.builtin.get_url:
+        url: "https://rolesanywhere.amazonaws.com/releases/1.4.0/X86_64/Linux/aws_signing_helper"
+        dest: /usr/local/bin/aws_signing_helper
+        mode: "0755"
+        timeout: 120
+      retries: 3
+      delay: 5
+
+    - name: Install jq for AWS credential parsing
+      when: openbao_aws_roles_anywhere_profile_arn is defined
+      ansible.builtin.dnf:
+        name: jq
+        state: present
+
+    - name: Create AWS startup wrapper script
+      when: openbao_aws_roles_anywhere_profile_arn is defined
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          set -e
+
+          # Get AWS credentials from IAM Roles Anywhere using step-ca certificate
+          CREDS=$(/usr/local/bin/aws_signing_helper credential-process \
+            --certificate {{ openbao_tls_dir }}/openbao-leaf.crt \
+            --private-key {{ openbao_tls_dir }}/openbao.key \
+            --intermediates {{ openbao_tls_dir }}/openbao-chain.crt \
+            --trust-anchor-arn {{ openbao_aws_roles_anywhere_trust_anchor_arn }} \
+            --profile-arn {{ openbao_aws_roles_anywhere_profile_arn }} \
+            --role-arn {{ openbao_aws_roles_anywhere_role_arn }})
+
+          export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
+          export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
+          export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
+          export AWS_REGION={{ openbao_aws_region | default('us-east-1') }}
+
+          exec /opt/openbao/bao server -config=/etc/openbao.d/openbao.hcl
+        dest: "{{ openbao_config_dir }}/start-with-aws.sh"
+        owner: "{{ openbao_user }}"
+        group: "{{ openbao_group }}"
+        mode: "0750"
+      notify: Restart openbao
+
+    # =========================================================================
+    # Systemd Service
+    # =========================================================================
+
+    - name: Install systemd service
+      ansible.builtin.template:
+        src: openbao.service.j2
+        dest: /etc/systemd/system/openbao.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd daemon
+
+    - name: Enable and start OpenBao
+      ansible.builtin.systemd:
+        name: openbao.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for OpenBao to be ready
+      ansible.builtin.wait_for:
+        host: "{{ openbao_ip }}"
+        port: "{{ openbao_https_port }}"
+        timeout: 120
+
+    # =========================================================================
+    # Certificate Renewal Daemon (step ca renew --daemon)
+    # =========================================================================
+
+    - name: Install step-ca renewal service
+      ansible.builtin.template:
+        src: openbao-cert-renew.service.j2
+        dest: /etc/systemd/system/openbao-cert-renew.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd daemon
+
+    - name: Enable and start certificate renewal daemon
+      ansible.builtin.systemd:
+        name: openbao-cert-renew.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart openbao
+      ansible.builtin.systemd:
+        name: openbao.service
+        state: restarted
+        daemon_reload: true

@@ -84,8 +84,3 @@ variable "aws_region" {
   description = "AWS region to deploy to"
 }
 
-variable "aws_iac_role_arn" {
-  type        = string
-  description = "ARN of the IAC role to assume"
-}
-

@@ -500,3 +500,65 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "jellyfin_roles" {
   add_to_userinfo     = true
 }
 
+# =============================================================================
+# OpenBao OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "openbao" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "openbao"
+  name      = "OpenBao"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = true
+
+  root_url  = "https://bao.home.shdr.ch"
+  base_url  = "https://bao.home.shdr.ch"
+  admin_url = "https://bao.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://bao.home.shdr.ch/ui/vault/auth/oidc/oidc/callback",
+    "https://bao.home.shdr.ch/oidc/callback",
+  ]
+
+  web_origins = [
+    "https://bao.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "openbao_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openbao.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "openbao_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openbao.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "openbao_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openbao.id
+  name      = "openbao-audience"
+
+  included_client_audience = keycloak_openid_client.openbao.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+

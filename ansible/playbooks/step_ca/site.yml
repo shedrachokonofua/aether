@@ -18,3 +18,6 @@
 
 - name: Deploy step-ca
   import_playbook: deploy_step_ca.yml
+
+- name: Provision AWS Trust Anchor for IAM Roles Anywhere
+  import_playbook: provision_aws_trust.yml

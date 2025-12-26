@@ -1,13 +1,15 @@
-FROM alpine:3.21
+FROM alpine:3.23
 
 # Add community repository
-RUN echo "@community https://dl-cdn.alpinelinux.org/alpine/v3.21/community" >> /etc/apk/repositories
+RUN echo "@community https://dl-cdn.alpinelinux.org/alpine/v3.23/community" >> /etc/apk/repositories
 
 # Update and install packages including OpenSSH for SSH support
 RUN apk update && \
   apk add --no-cache \
   python3 \
   py3-pip \
+  py3-boto3 \
+  py3-botocore \
   ansible@community \
   sops@community \
   age \

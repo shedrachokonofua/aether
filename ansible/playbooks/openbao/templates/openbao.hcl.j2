@@ -1,0 +1,45 @@
+# OpenBao configuration
+# Managed by Ansible
+
+ui = true
+
+{% if openbao_aws_kms_key_id is defined %}
+# AWS KMS auto-unseal
+seal "awskms" {
+  region     = "{{ openbao_aws_region | default('us-east-1') }}"
+  kms_key_id = "{{ openbao_aws_kms_key_id }}"
+}
+{% endif %}
+
+# Storage backend (Integrated Raft storage)
+storage "raft" {
+  path    = "{{ openbao_data_dir }}/raft"
+  node_id = "openbao-1"
+}
+
+# HTTPS listener with step-ca TLS
+listener "tcp" {
+  address       = "0.0.0.0:{{ openbao_https_port }}"
+  cluster_address = "0.0.0.0:{{ openbao_cluster_port }}"
+  tls_cert_file = "{{ openbao_tls_dir }}/openbao.crt"
+  tls_key_file  = "{{ openbao_tls_dir }}/openbao.key"
+  tls_client_ca_file = "{{ openbao_tls_dir }}/ca.crt"
+
+  # TLS configuration
+  tls_min_version = "tls12"
+}
+
+# Cluster configuration
+cluster_addr = "https://{{ openbao_ip }}:{{ openbao_cluster_port }}"
+api_addr     = "https://{{ openbao_hostname }}"
+
+# Telemetry for Prometheus
+telemetry {
+  disable_hostname = true
+  prometheus_retention_time = "30s"
+}
+
+# Logging
+log_level = "info"
+log_format = "json"
+

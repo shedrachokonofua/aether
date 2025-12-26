@@ -333,6 +333,18 @@ lidarr.home.shdr.ch {
   reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.lidarr }}
 }
 
+aiostreams.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.aiostreams }}
+}
+
+stremthru.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.stremthru }}
+}
+
+nzbdav.home.shdr.ch {
+  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.nzbdav }}
+}
+
 stats.proxy.home.shdr.ch {
   reverse_proxy localhost:{{ vm.home_gateway_stack.ports.rotating_proxy_metrics }}
 }
@@ -371,6 +383,20 @@ master.seaweed.home.shdr.ch {
 
 auth.shdr.ch {
   reverse_proxy {{ vm.keycloak.ip }}:{{ vm.keycloak.ports.http }}
+}
+
+bao.home.shdr.ch {
+  reverse_proxy {{ vm.openbao.ip }}:{{ vm.openbao.ports.https }} {
+    transport http {
+      tls
+      tls_insecure_skip_verify
+    }
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up Upgrade {http.request.header.Upgrade}
+    header_up Connection {http.request.header.Connection}
+  }
 }
 
 small.home.shdr.ch, *.small.home.shdr.ch {

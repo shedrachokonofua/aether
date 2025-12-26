@@ -1,0 +1,51 @@
+[Unit]
+Description=OpenBao - A tool for managing secrets
+Documentation=https://openbao.org/docs
+After=network-online.target
+Wants=network-online.target
+ConditionFileNotEmpty={{ openbao_config_dir }}/openbao.hcl
+
+[Service]
+Type=notify
+User={{ openbao_user }}
+Group={{ openbao_group }}
+WorkingDirectory={{ openbao_data_dir }}
+
+# Configuration
+Environment="BAO_ADDR=https://127.0.0.1:{{ openbao_https_port }}"
+Environment="BAO_CACERT={{ openbao_tls_dir }}/ca.crt"
+Environment="STEPPATH={{ openbao_config_dir }}/step"
+
+{% if openbao_aws_roles_anywhere_profile_arn is defined %}
+# AWS KMS auto-unseal: wrapper script fetches temporary creds via IAM Roles Anywhere
+ExecStart={{ openbao_config_dir }}/start-with-aws.sh
+{% else %}
+ExecStart={{ openbao_install_dir }}/bao server -config={{ openbao_config_dir }}/openbao.hcl
+{% endif %}
+ExecReload=/bin/kill --signal HUP $MAINPID
+KillMode=process
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths={{ openbao_data_dir }} {{ openbao_log_dir }} {{ openbao_config_dir }}
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+# Resource limits
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
+CapabilityBoundingSet=CAP_IPC_LOCK CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_IPC_LOCK
+
+[Install]
+WantedBy=multi-user.target
+

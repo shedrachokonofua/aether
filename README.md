@@ -62,19 +62,22 @@ All CLI tools required to manage the cloud are included in a toolbox docker imag
 
 These steps set up the base infrastructure necessary for provisioning the cloud. The goal is to:
 
-1. Deploy the bootstrap AWS IAM stack using the provided AWS credentials. This will create the Dev user and IAC role. These will be used to bootstrap the rest of the infrastructure, and for aws management from the home network.
-1. Deploy the bootstrap OpenTofu backend stack. This will create the S3 bucket, KMS key, and DynamoDB table used to store the OpenTofu state.
-1. Write the AWS credentials to the `secrets/aws-dev-user.env` file.
-1. Write the OpenTofu state config to the `config/tofu-state.config` file.
+1. Deploy the OpenTofu backend stack (S3 bucket, KMS key, DynamoDB table for state)
+1. Write the OpenTofu state config to `config/tofu-state.config`
 
 #### Steps
 
-1. Create a new AWS IAM user with AdministratorAccess policy, download the credentials
 1. Copy age private key to `config/age-key.txt`
+1. Login to AWS (opens browser, 12h session)
+
+   ```bash
+   task aws:login
+   ```
+
 1. Run the bootstrap task
 
    ```bash
-   task bootstrap -- <aws access-key-id> <aws secret-access-key>
+   task bootstrap
    ```
 
 ### Provision Home Network
@@ -96,6 +99,24 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
    ```bash
    task provision:home:nfs
    ```
+
+### Provision Certificate Authority ([README](ansible/playbooks/step_ca/README.md))
+
+```bash
+task provision:home:step-ca
+```
+
+### Provision OpenBao ([README](ansible/playbooks/openbao/README.md))
+
+```bash
+task provision:home:openbao
+```
+
+### Provision Keycloak ([README](ansible/playbooks/keycloak/README.md))
+
+```bash
+task provision:home:keycloak
+```
 
 ### Provision Infrastructure
 

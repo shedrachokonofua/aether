@@ -10,6 +10,7 @@ config/age-key.txt
 config/tofu-state.config
 
 secrets/tf-outputs.json
+secrets/aws/
 
 # Local .terraform directories
 **/.terraform/*

@@ -13,6 +13,21 @@
     file: "/workspace/secrets/tf-outputs.json"
     name: tf_outputs
 
+- name: Find AWS stack output files
+  ansible.builtin.find:
+    paths: "/workspace/secrets/aws"
+    patterns: "*.yml"
+  register: aws_files
+  delegate_to: localhost
+  ignore_errors: true
+
+- name: Load AWS stack outputs
+  ansible.builtin.include_vars:
+    file: "{{ item.path }}"
+    name: "aws_{{ item.path | basename | replace('.yml', '') | replace('-', '_') }}"
+  loop: "{{ aws_files.files | default([]) }}"
+  ignore_errors: true
+
 - name: Load base authorized_keys
   set_fact:
     base_ssh_authorized_keys: >-

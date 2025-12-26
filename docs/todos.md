@@ -2,11 +2,11 @@
 
 ## P0
 
-- [ ] Setup Gelato for Jellyfin (Real-Debrid streaming)
-  - [ ] Deploy AIOStreams on media-stack
-  - [ ] Setup Gelato plugin
-    - [ ] Create "Movie Streaming" library
-    - [ ] Create "TV Streaming" library
+- [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
+- [ ] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection
+  - [ ] Add journal-gatewayd to host_monitoring_agent role
+  - [ ] Deploy forwarder to monitoring stack
+  - [ ] Configure sources for all Proxmox hosts + public gateway
 - [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding)
 - [ ] Split AdGuard from Gateway Stack
   - [ ] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
@@ -59,6 +59,7 @@
     - [ ] Add gitlab_sshd trusted_cert_file in gitlab.rb.j2
   - [ ] Update gitlab.yml playbook to deploy CA pubkey
   - [ ] Test step ssh login → git push workflow
+- [ ] Replace Jellyseer, Sonarr, Radarr with MediaManager
 
 ## P2
 
@@ -74,9 +75,6 @@
   - [ ] qBittorrent
   - [ ] SABnzbd
   - [ ] Prowlarr
-  - [ ] Sonarr
-  - [ ] Radarr
-  - [ ] Lidarr
   - [ ] Homarr
 - [ ] Add TTS/STT inference to GPU Workstation
 - [ ] Integrate Matter/Thread border router into IoT stack
@@ -97,4 +95,3 @@
   - [ ] Rename to Soren in docs, Ansible, Tailscale
   - [ ] Upgrade Lightsail instance to micro ($5/mo)
   - [ ] Add Uptime Kuma for external monitoring
-  - [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)

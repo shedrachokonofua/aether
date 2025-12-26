@@ -1,0 +1,70 @@
+---
+# Deploys AWS KMS + IAM Roles Anywhere profile for OpenBao auto-unseal
+# Requires: step-ca trust anchor deployed (via step-ca site.yml or provision:aws:step-ca-trust)
+#
+# Usage: task ansible:playbook -- ./ansible/playbooks/openbao/provision_aws_kms.yml
+
+- name: Provision AWS KMS for OpenBao Auto-Unseal
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
+    trust_anchor_stack: "aether-step-ca-trust"
+    stack_name: "aether-openbao-kms"
+
+  tasks:
+    - name: Get step-ca trust anchor ARN from CloudFormation
+      amazon.aws.cloudformation_info:
+        stack_name: "{{ trust_anchor_stack }}"
+        region: "{{ aws_region }}"
+      register: trust_anchor_stack_info
+      failed_when: trust_anchor_stack_info.cloudformation | length == 0
+
+    - name: Extract trust anchor ARN
+      ansible.builtin.set_fact:
+        trust_anchor_arn: "{{ trust_anchor_stack_info.cloudformation[trust_anchor_stack].stack_outputs.TrustAnchorArn }}"
+
+    - name: Display trust anchor info
+      ansible.builtin.debug:
+        msg: "Using Trust Anchor: {{ trust_anchor_arn }}"
+
+    - name: Deploy OpenBao KMS CloudFormation stack
+      amazon.aws.cloudformation:
+        stack_name: "{{ stack_name }}"
+        state: present
+        region: "{{ aws_region }}"
+        template: "{{ playbook_dir }}/cf/openbao-kms.yaml"
+        template_parameters:
+          pTrustAnchorArn: "{{ trust_anchor_arn }}"
+        capabilities:
+          - CAPABILITY_NAMED_IAM
+        tags:
+          Project: aether
+          Component: openbao
+      register: cf_stack
+
+    - name: Ensure AWS secrets directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../secrets/aws"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+
+    - name: Write OpenBao KMS outputs
+      ansible.builtin.copy:
+        content: |
+          kms_key_id: {{ cf_stack.stack_outputs.KMSKeyId }}
+          kms_key_arn: {{ cf_stack.stack_outputs.KMSKeyArn }}
+          profile_arn: {{ cf_stack.stack_outputs.ProfileArn }}
+          role_arn: {{ cf_stack.stack_outputs.RoleArn }}
+          trust_anchor_arn: {{ trust_anchor_arn }}
+          region: {{ aws_region }}
+        dest: "{{ playbook_dir }}/../../../secrets/aws/openbao-kms.yml"
+        mode: "0600"
+      delegate_to: localhost
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg: "OpenBao KMS deployed: {{ cf_stack.stack_outputs.KMSKeyId }}"

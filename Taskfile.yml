@@ -18,110 +18,77 @@ tasks:
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
+        --env-file {{.CACHE_DIR}}/aws-env
         {{.DOCKER_IMAGE}}
         tofu {{.CLI_ARGS}}
 
   tofu:create-state-config:
     desc: Create a Terraform state configuration
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
+        --env-file {{.CACHE_DIR}}/aws-env
         {{.DOCKER_IMAGE}}
         sh ./scripts/create-tofu-state-config.sh
 
   tofu:init:
     desc: Initialize the Terraform workspace
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - task: tofu:create-state-config
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
+        --env-file {{.CACHE_DIR}}/aws-env
         {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu init -backend-config=../config/tofu-state.config -upgrade
+        tofu -chdir=tofu init -backend-config=../config/tofu-state.config -upgrade -reconfigure
 
   tofu:plan:
     desc: Plan Terraform changes
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu plan {{.CLI_ARGS}}
 
   tofu:output:
     desc: Get Terraform output
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu output {{.CLI_ARGS}}
 
   tofu:write-outputs:
     desc: Write secrets/tf-outputs.json file
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         sh -c "tofu -chdir=tofu output -json > /workspace/secrets/tf-outputs.json"
 
   tofu:apply:
     desc: Apply Terraform changes
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu apply {{.CLI_ARGS}}
@@ -129,18 +96,12 @@ tasks:
 
   tofu:refresh:
     desc: Refresh Terraform resources
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu refresh-only {{.CLI_ARGS}}
@@ -148,50 +109,36 @@ tasks:
 
   tofu:remove:
     desc: Remove Terraform resources
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu state rm {{.CLI_ARGS}}
 
   tofu:force-unlock:
     desc: Force unlock the Terraform state
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu force-unlock {{.CLI_ARGS}}
 
   tofu:destroy:
     desc: Destroy Terraform resources
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu destroy {{.CLI_ARGS}}
@@ -208,72 +155,48 @@ tasks:
 
   tofu:import:
     desc: Import Terraform resources
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu import {{.CLI_ARGS}}
 
   tofu:state-mv:
     desc: Move Terraform state resources
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu state mv {{.CLI_ARGS}}
 
   tofu:state-list:
     desc: List Terraform state resources
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu state list {{.CLI_ARGS}}
 
   tofu:show:
     desc: Show Terraform resources
-    dotenv: ["./secrets/aws-dev-user.env"]
     cmds:
       - docker run --rm -it
         -v ${PWD}:/workspace
         -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
-        -e TF_VAR_aws_iac_role_arn
-        -e TF_VAR_aws_region
+        --env-file {{.CACHE_DIR}}/aws-env
         -e SOPS_AGE_KEY_FILE=../config/age-key.txt
         {{.DOCKER_IMAGE}}
         tofu -chdir=tofu show {{.CLI_ARGS}}
@@ -408,16 +331,32 @@ tasks:
         {{.DOCKER_IMAGE}}
         age-keygen {{.CLI_ARGS}}
 
+  aws:login:
+    desc: Login to AWS (click link, creds valid 12h)
+    cmds:
+      - rm -f ${HOME}/.aws/credentials
+      - docker run --rm -it
+        -v ${HOME}/.aws:/root/.aws
+        {{.DOCKER_IMAGE}}
+        aws login --remote --region=us-east-1 {{.CLI_ARGS}}
+      - task: aws:export-creds
+
+  aws:export-creds:
+    desc: Export AWS login credentials to env file for tofu/ansible
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}
+      - |
+        docker run --rm -v ${HOME}/.aws:/root/.aws:ro {{.DOCKER_IMAGE}} \
+          sh -c 'aws configure export-credentials --format env | sed "s/^export //" && REGION=$(aws configure get region) && echo "AWS_REGION=$REGION" && echo "AWS_DEFAULT_REGION=$REGION"' > {{.CACHE_DIR}}/aws-env
+      - echo "Credentials exported to {{.CACHE_DIR}}/aws-env"
+
   aws:
     desc: Run AWS CLI commands
     cmds:
-      - docker run --rm -it
+      - docker run --rm
         -v ${PWD}:/workspace
+        -v ${HOME}/.aws:/root/.aws:ro
         -w /workspace
-        -e AWS_ACCESS_KEY_ID
-        -e AWS_SECRET_ACCESS_KEY
-        -e AWS_SESSION_TOKEN
-        -e AWS_REGION
         {{.DOCKER_IMAGE}}
         aws --no-cli-pager {{.CLI_ARGS}}
 
@@ -687,11 +626,36 @@ tasks:
           CLI_ARGS: ./ansible/playbooks/game_server/site.yml
 
   provision:home:step-ca:
-    desc: Provision the step-ca certificate authority LXC
+    desc: Provision the step-ca certificate authority LXC (run 'aws:login' first)
     cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/step_ca/site.yml
+      - task: ansible:clear-pc
+      - task: ansible:galaxy:install
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
+        -v ${HOME}/.aws:/root/.aws:ro
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-playbook ./ansible/playbooks/step_ca/site.yml
+
+  provision:aws:step-ca-trust:
+    desc: Deploy AWS Trust Anchor for step-ca certificates (run 'aws login' first)
+    cmds:
+      - task: ansible:clear-pc
+      - task: ansible:galaxy:install
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        --env-file {{.CACHE_DIR}}/aws-env
+        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-playbook ./ansible/playbooks/step_ca/provision_aws_trust.yml
 
   configure:home:step-ca:
     desc: Configure the step-ca certificate authority
@@ -699,6 +663,45 @@ tasks:
       - task: ansible:playbook
         vars:
           CLI_ARGS: ./ansible/playbooks/step_ca/deploy_step_ca.yml
+
+  provision:home:openbao:
+    desc: Provision the OpenBao secrets management LXC (run 'aws:login' first)
+    cmds:
+      - task: ansible:clear-pc
+      - task: ansible:galaxy:install
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
+        -v ${HOME}/.aws:/root/.aws:ro
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-playbook ./ansible/playbooks/openbao/site.yml
+
+  provision:aws:openbao-kms:
+    desc: Deploy AWS KMS + IAM Roles Anywhere for OpenBao auto-unseal (run 'aws login' first)
+    cmds:
+      - task: ansible:clear-pc
+      - task: ansible:galaxy:install
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
+        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
+        -v {{.CACHE_DIR}}/ansible:/root/.ansible
+        --env-file {{.CACHE_DIR}}/aws-env
+        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        ansible-playbook ./ansible/playbooks/openbao/provision_aws_kms.yml
+
+  configure:home:openbao:
+    desc: Configure the OpenBao secrets management
+    cmds:
+      - task: ansible:playbook
+        vars:
+          CLI_ARGS: ./ansible/playbooks/openbao/deploy_openbao.yml
 
   ca:fingerprint:
     desc: Get CA root fingerprint

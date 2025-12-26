@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: IAM Roles Anywhere Trust Anchor for step-ca certificates
+
+Parameters:
+  pStepCARootCertificate:
+    Type: String
+    Description: PEM-encoded step-ca root CA certificate
+
+Resources:
+  # ==========================================================================
+  # IAM Roles Anywhere Trust Anchor
+  # Allows any step-ca issued certificate to assume AWS roles
+  # ==========================================================================
+  rTrustAnchor:
+    Type: AWS::RolesAnywhere::TrustAnchor
+    Properties:
+      Name: step-ca-trust-anchor
+      Enabled: true
+      Source:
+        SourceType: CERTIFICATE_BUNDLE
+        SourceData:
+          X509CertificateData: !Ref pStepCARootCertificate
+      Tags:
+        - Key: Name
+          Value: step-ca-trust-anchor
+        - Key: Project
+          Value: aether
+
+Outputs:
+  TrustAnchorArn:
+    Description: IAM Roles Anywhere Trust Anchor ARN (use in service-specific profiles)
+    Value: !GetAtt rTrustAnchor.TrustAnchorArn
+    Export:
+      Name: StepCATrustAnchorArn
+
+  TrustAnchorId:
+    Description: IAM Roles Anywhere Trust Anchor ID
+    Value: !Ref rTrustAnchor
+    Export:
+      Name: StepCATrustAnchorId

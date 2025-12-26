@@ -308,6 +308,9 @@ media_stack:
     sonarr: 8989
     radarr: 7878
     lidarr: 8686
+    aiostreams: 3000
+    stremthru: 8081
+    nzbdav: 3001
 
 dokku:
   id: 1021
@@ -381,3 +384,17 @@ step_ca:
   gateway: "192.168.2.1"
   ports:
     https: 443
+
+openbao:
+  id: 1026
+  name: "openbao"
+  node: "oracle"
+  admin: "root"
+  cores: 2
+  memory: 2048
+  disk_gb: 32
+  ip: "10.0.2.9"
+  gateway: "10.0.2.1"
+  ports:
+    https: 8200
+    cluster: 8201

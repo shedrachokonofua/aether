@@ -1,0 +1,61 @@
+---
+# Deploys IAM Roles Anywhere Trust Anchor for step-ca certificates
+# This allows any step-ca issued certificate to authenticate to AWS
+#
+# Usage: task ansible:playbook -- ./ansible/playbooks/step_ca/provision_aws_trust.yml
+
+- name: Provision AWS Trust Anchor for step-ca
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1', true) }}"
+    step_ca_url: "https://ca.shdr.ch"
+    stack_name: "aether-step-ca-trust"
+
+  tasks:
+    - name: Fetch step-ca root certificate
+      ansible.builtin.uri:
+        url: "{{ step_ca_url }}/roots.pem"
+        return_content: true
+        validate_certs: false
+      register: step_ca_root_cert
+
+    - name: Display root cert info
+      ansible.builtin.debug:
+        msg: "Fetched step-ca root certificate ({{ step_ca_root_cert.content | length }} bytes)"
+
+    - name: Deploy step-ca Trust Anchor CloudFormation stack
+      amazon.aws.cloudformation:
+        stack_name: "{{ stack_name }}"
+        state: present
+        region: "{{ aws_region }}"
+        template: "{{ playbook_dir }}/cf/aws-trust-anchor.yaml"
+        template_parameters:
+          pStepCARootCertificate: "{{ step_ca_root_cert.content }}"
+        tags:
+          Project: aether
+          Component: step-ca
+      register: cf_stack
+
+    - name: Ensure AWS secrets directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../secrets/aws"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+
+    - name: Write step-ca trust anchor outputs
+      ansible.builtin.copy:
+        content: |
+          trust_anchor_arn: {{ cf_stack.stack_outputs.TrustAnchorArn }}
+          trust_anchor_id: {{ cf_stack.stack_outputs.TrustAnchorId }}
+        dest: "{{ playbook_dir }}/../../../secrets/aws/step-ca-trust.yml"
+        mode: "0600"
+      delegate_to: localhost
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg: "step-ca Trust Anchor deployed: {{ cf_stack.stack_outputs.TrustAnchorArn }}"
+

@@ -1,0 +1,23 @@
+---
+- name: Provision OpenBao LXC
+  import_playbook: provision_lxc.yml
+
+- name: Bootstrap OpenBao LXC
+  import_playbook: bootstrap_lxc.yml
+
+- name: Apply baseline to OpenBao LXC
+  hosts: openbao
+  gather_facts: true
+  roles:
+    - common
+    - dnf
+    - vm_baseline
+    - role: vm_monitoring_agent
+      vars:
+        podman_metrics_enabled: false
+
+- name: Provision AWS KMS for auto-unseal
+  import_playbook: provision_aws_kms.yml
+
+- name: Deploy OpenBao
+  import_playbook: deploy_openbao.yml
