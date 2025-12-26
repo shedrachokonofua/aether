@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: KMS key and IAM Roles Anywhere for OpenBao auto-unseal (certificate-based, no static credentials)
+
+Parameters:
+  pStepCARootCertificate:
+    Type: String
+    Description: PEM-encoded step-ca root CA certificate (base64)
+
+Resources:
+  # ==========================================================================
+  # KMS Key for OpenBao Auto-Unseal
+  # ==========================================================================
+  rOpenBaoKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: OpenBao auto-unseal key
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowRootAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: AllowOpenBaoRole
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt rOpenBaoRole.Arn
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:DescribeKey
+            Resource: "*"
+      Tags:
+        - Key: Name
+          Value: openbao-auto-unseal
+
+  rOpenBaoKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/openbao-auto-unseal
+      TargetKeyId: !Ref rOpenBaoKMSKey
+
+  # ==========================================================================
+  # IAM Roles Anywhere - Trust step-ca certificates
+  # ==========================================================================
+  rTrustAnchor:
+    Type: AWS::RolesAnywhere::TrustAnchor
+    Properties:
+      Name: step-ca-trust-anchor
+      Enabled: true
+      Source:
+        SourceType: CERTIFICATE_BUNDLE
+        SourceData:
+          X509CertificateData: !Ref pStepCARootCertificate
+      Tags:
+        - Key: Name
+          Value: step-ca-trust-anchor
+
+  rOpenBaoProfile:
+    Type: AWS::RolesAnywhere::Profile
+    Properties:
+      Name: openbao-auto-unseal
+      Enabled: true
+      RoleArns:
+        - !GetAtt rOpenBaoRole.Arn
+      DurationSeconds: 3600 # 1 hour sessions
+      Tags:
+        - Key: Name
+          Value: openbao-auto-unseal
+
+  # ==========================================================================
+  # IAM Role for OpenBao (assumed via Roles Anywhere)
+  # ==========================================================================
+  rOpenBaoRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: openbao-auto-unseal
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rolesanywhere.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+              - sts:SetSourceIdentity
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt rTrustAnchor.TrustAnchorArn
+              StringEquals:
+                # Only allow certificates with CN=bao.home.shdr.ch
+                aws:PrincipalTag/x509Subject/CN: "bao.home.shdr.ch"
+      Policies:
+        - PolicyName: openbao-kms-unseal
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                Resource: !GetAtt rOpenBaoKMSKey.Arn
+
+Outputs:
+  KMSKeyId:
+    Description: KMS Key ID for OpenBao auto-unseal
+    Value: !Ref rOpenBaoKMSKey
+    Export:
+      Name: OpenBaoKMSKeyId
+
+  KMSKeyArn:
+    Description: KMS Key ARN for OpenBao auto-unseal
+    Value: !GetAtt rOpenBaoKMSKey.Arn
+    Export:
+      Name: OpenBaoKMSKeyArn
+
+  TrustAnchorArn:
+    Description: IAM Roles Anywhere Trust Anchor ARN
+    Value: !GetAtt rTrustAnchor.TrustAnchorArn
+    Export:
+      Name: OpenBaoTrustAnchorArn
+
+  ProfileArn:
+    Description: IAM Roles Anywhere Profile ARN
+    Value: !GetAtt rOpenBaoProfile.ProfileArn
+    Export:
+      Name: OpenBaoProfileArn
+
+  RoleArn:
+    Description: IAM Role ARN for OpenBao
+    Value: !GetAtt rOpenBaoRole.Arn
+    Export:
+      Name: OpenBaoRoleArn

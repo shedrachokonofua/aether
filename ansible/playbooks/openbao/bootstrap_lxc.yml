@@ -69,4 +69,3 @@
     - name: Remove nologin file if present
       command: pct exec {{ lxc_id }} -- rm -f /run/nologin
       changed_when: true
-
