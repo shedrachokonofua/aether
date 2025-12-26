@@ -1,0 +1,51 @@
+---
+- name: Deploy AIOStreams
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    aiostreams_config_dir: /home/{{ vm.media_stack.admin }}/aiostreams
+    aiostreams_port: "{{ vm.media_stack.ports.aiostreams }}"
+
+  tasks:
+    - name: Create AIOStreams directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ aiostreams_config_dir }}"
+        - "{{ aiostreams_config_dir }}/data"
+
+    - name: Deploy AIOStreams container
+      containers.podman.podman_container:
+        name: aiostreams
+        image: ghcr.io/viren070/aiostreams:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ aiostreams_port }}:3000"
+        env:
+          TZ: "America/Toronto"
+          SECRET_KEY: "{{ secrets.aiostreams.secret_key }}"
+          BASE_URL: "https://aiostreams.home.shdr.ch"
+          DATABASE_URI: "sqlite://./data/db.sqlite"
+          BUILTIN_STREMTHRU_URL: "http://{{ vm.media_stack.ip }}:{{ vm.media_stack.ports.stremthru }}"
+          DEFAULT_REALDEBRID_API_KEY: "{{ secrets.stremthru.realdebrid_api_token }}"
+          DEFAULT_PREMIUMIZE_API_KEY: "{{ secrets.stremthru.premiumize_api_key }}"
+        volume:
+          - "{{ aiostreams_config_dir }}/data:/app/data:Z"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start AIOStreams quadlet
+      ansible.builtin.systemd:
+        name: aiostreams
+        state: restarted
+        scope: user

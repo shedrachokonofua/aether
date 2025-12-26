@@ -1,0 +1,29 @@
+[Unit]
+Description=RClone mount for NZBDav WebDAV
+After=network-online.target nzbdav.service
+Wants=network-online.target
+RequiresMountsFor=/mnt
+
+[Service]
+Type=notify
+User={{ vm.media_stack.admin }}
+Group={{ vm.media_stack.admin }}
+ExecStartPre=/usr/bin/sleep 5
+ExecStart=/usr/bin/rclone mount nzb-dav: {{ nzbdav_mount_point }} \
+    --config=/home/{{ vm.media_stack.admin }}/.config/rclone/rclone.conf \
+    --vfs-cache-mode=full \
+    --buffer-size=1024M \
+    --dir-cache-time=1s \
+    --vfs-cache-max-size=5G \
+    --vfs-cache-max-age=180m \
+    --links \
+    --use-cookies \
+    --allow-other \
+    --uid={{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }} \
+    --gid={{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}
+ExecStop=/usr/bin/fusermount3 -uz {{ nzbdav_mount_point }}
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

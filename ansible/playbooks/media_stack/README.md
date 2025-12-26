@@ -13,6 +13,9 @@ This playbook is for configuring the media stack virtual machine. The media stac
 - Sonarr: TV series automation
 - Radarr: Movie automation
 - Lidarr: Music automation
+- AIOStreams: Stremio addon aggregator for debrid services
+- StremThru: Debrid proxy supporting RealDebrid and Premiumize
+- NZBDav: Virtual Usenet filesystem via WebDAV for streaming without downloading
 
 ## Planned Additions
 
@@ -110,4 +113,30 @@ Deploys Lidarr music automation. Access at https://lidarr.home.shdr.ch
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/media_stack/lidarr.yml
+```
+
+### Deploy AIOStreams
+
+Deploys AIOStreams Stremio addon aggregator. Access at https://aiostreams.home.shdr.ch
+
+Configure at `/stremio/configure` to set up your addons and debrid services.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/aiostreams.yml
+```
+
+### Deploy StremThru
+
+Deploys StremThru debrid proxy with RealDebrid and Premiumize support. Access at https://stremthru.home.shdr.ch
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/stremthru.yml
+```
+
+### Deploy NZBDav
+
+Deploys NZBDav WebDAV server for virtual Usenet streaming. Creates rclone FUSE mount at `/mnt/nzbdav`. Access at https://nzbdav.home.shdr.ch
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/media_stack/nzbdav.yml
 ```

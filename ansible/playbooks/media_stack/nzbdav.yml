@@ -1,0 +1,116 @@
+---
+- name: Deploy NZBDav
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    nzbdav_config_dir: /home/{{ vm.media_stack.admin }}/nzbdav
+    nzbdav_port: "{{ vm.media_stack.ports.nzbdav }}"
+    nzbdav_mount_point: /mnt/nzbdav
+
+  tasks:
+    - name: Get user information
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ vm.media_stack.admin }}"
+
+    - name: Install fuse3 and rclone
+      become: true
+      ansible.builtin.dnf:
+        name:
+          - fuse3
+          - rclone
+        state: present
+
+    - name: Enable user_allow_other in fuse.conf
+      become: true
+      ansible.builtin.lineinfile:
+        path: /etc/fuse.conf
+        regexp: "^#?user_allow_other"
+        line: "user_allow_other"
+        state: present
+
+    - name: Create NZBDav directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ nzbdav_config_dir }}"
+        - "{{ nzbdav_config_dir }}/config"
+
+    - name: Create NZBDav data directory
+      ansible.builtin.file:
+        path: "{{ nzbdav_config_dir }}/data"
+        state: directory
+        mode: "0777"
+
+    - name: Create rclone config directory
+      ansible.builtin.file:
+        path: /home/{{ vm.media_stack.admin }}/.config/rclone
+        state: directory
+        mode: "0755"
+
+    - name: Create rclone config for NZBDav
+      ansible.builtin.template:
+        src: rclone-nzbdav.conf.j2
+        dest: /home/{{ vm.media_stack.admin }}/.config/rclone/rclone.conf
+        mode: "0600"
+
+    - name: Create NZBDav mount point
+      become: true
+      ansible.builtin.file:
+        path: "{{ nzbdav_mount_point }}"
+        state: directory
+        mode: "0777"
+        owner: "{{ vm.media_stack.admin }}"
+        group: "{{ vm.media_stack.admin }}"
+
+    - name: Deploy NZBDav container
+      containers.podman.podman_container:
+        name: nzbdav
+        image: ghcr.io/nzbdav-dev/nzbdav:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ nzbdav_port }}:3000"
+        env:
+          PUID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].1 }}"
+          PGID: "{{ ansible_facts['getent_passwd'][vm.media_stack.admin].2 }}"
+          TZ: "America/Toronto"
+        volume:
+          - "{{ nzbdav_config_dir }}/config:/config:Z"
+          - "{{ nzbdav_config_dir }}/data:/data:Z"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create rclone mount systemd service
+      become: true
+      ansible.builtin.template:
+        src: rclone-nzbdav.service.j2
+        dest: /etc/systemd/system/rclone-nzbdav.service
+        mode: "0644"
+
+    - name: Reload systemd (user scope)
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Reload systemd (system scope for rclone mount)
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Start NZBDav quadlet
+      ansible.builtin.systemd:
+        name: nzbdav
+        state: restarted
+        scope: user
+
+    - name: Enable and start rclone mount
+      become: true
+      ansible.builtin.systemd:
+        name: rclone-nzbdav
+        state: started
+        enabled: true

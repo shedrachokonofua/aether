@@ -1,0 +1,47 @@
+---
+- name: Deploy StremThru
+  hosts: media-stack
+  gather_facts: true
+  vars:
+    stremthru_config_dir: /home/{{ vm.media_stack.admin }}/stremthru
+    stremthru_port: "{{ vm.media_stack.ports.stremthru }}"
+
+  tasks:
+    - name: Create StremThru directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ stremthru_config_dir }}"
+        - "{{ stremthru_config_dir }}/data"
+
+    - name: Deploy StremThru container
+      containers.podman.podman_container:
+        name: stremthru
+        image: docker.io/muniftanjim/stremthru:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ stremthru_port }}:8080"
+        env:
+          TZ: "America/Toronto"
+          STREMTHRU_DATABASE_URI: "sqlite://./data/stremthru.db"
+          STREMTHRU_STORE_AUTH: "*:realdebrid:{{ secrets.stremthru.realdebrid_api_token }},*:premiumize:{{ secrets.stremthru.premiumize_api_key }}"
+        volume:
+          - "{{ stremthru_config_dir }}/data:/app/data:Z"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start StremThru quadlet
+      ansible.builtin.systemd:
+        name: stremthru
+        state: restarted
+        scope: user

@@ -29,6 +29,9 @@
 - name: Deploy Filestash
   import_playbook: filestash.yml
 
+- name: Deploy NZBDav
+  import_playbook: nzbdav.yml
+
 - name: Deploy Jellyfin
   import_playbook: jellyfin.yml
 
@@ -43,3 +46,9 @@
 
 - name: Deploy Lidarr
   import_playbook: lidarr.yml
+
+- name: Deploy AIOStreams
+  import_playbook: aiostreams.yml
+
+- name: Deploy StremThru
+  import_playbook: stremthru.yml

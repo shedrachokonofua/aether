@@ -51,6 +51,7 @@
           - "{{ jellyfin_config_dir }}/cache:/cache:Z"
           - /nvme/data/media:/media/nvme:rw
           - /hdd/data:/media/hdd:rw
+          - /mnt/nzbdav:/mnt/nzbdav:ro
         quadlet_options:
           - |
             [Install]
