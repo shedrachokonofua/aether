@@ -58,4 +58,3 @@
     - name: Display result
       ansible.builtin.debug:
         msg: "step-ca Trust Anchor deployed: {{ cf_stack.stack_outputs.TrustAnchorArn }}"
-

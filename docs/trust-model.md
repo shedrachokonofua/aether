@@ -59,13 +59,12 @@ Machines authenticate using X.509 certificates issued by step-ca. Certificates a
 
 ### Provisioners
 
-| Provisioner       | Type   | Purpose                             | Status           |
-| ----------------- | ------ | ----------------------------------- | ---------------- |
-| machine-bootstrap | JWK    | Machine provisioning via Ansible    | Active           |
-| keycloak          | OIDC   | Human auth → SSH/X.509 certs        | Active           |
-| sshpop            | SSHPOP | SSH certificate renewal             | Active           |
-| gitlab-ci         | OIDC   | GitLab CI job → certificates        | Planned          |
-| keycloak-ci       | OIDC   | CI via Keycloak (has static secret) | To Be Deprecated |
+| Provisioner       | Type   | Purpose                          | Status |
+| ----------------- | ------ | -------------------------------- | ------ |
+| machine-bootstrap | JWK    | Machine provisioning via Ansible | Active |
+| keycloak          | OIDC   | Human auth → SSH/X.509 certs     | Active |
+| sshpop            | SSHPOP | SSH certificate renewal          | Active |
+| gitlab-ci         | OIDC   | GitLab CI job → certificates     | Active |
 
 ### Certificate Lifecycle
 
@@ -112,8 +111,6 @@ Humans authenticate via Keycloak using OIDC. Keycloak handles:
 | jellyfin  | Media streaming      | Role mapping (jellyfin-user)           |
 | openbao   | Secrets management   | User policies based on Keycloak groups |
 | step-ca   | Certificate requests | User → SSH/X.509 certs (public client) |
-
-Note: `ci-deploy` client exists for CI token exchange but is to be deprecated — requires static secret in GitLab CI variables.
 
 ## External Trust Relationships
 
@@ -163,8 +160,6 @@ OpenBao supports multiple auth methods, bridging both identity planes:
 
 GitLab CI jobs receive JWT tokens (`CI_JOB_JWT`) that can be exchanged for short-lived credentials.
 
-### Target Flow (Direct)
-
 ```txt
 GitLab CI Job
      │
@@ -178,23 +173,7 @@ step-ca (gitlab-ci provisioner)
      └──► Internal services (mTLS)
 ```
 
-step-ca trusts GitLab's OIDC issuer directly. No static secrets, full JWT claims preserved.
-
-### To Be Deprecated Flow (Token Exchange)
-
-```txt
-GitLab CI Job
-     │
-     ▼ CI_JOB_JWT
-Keycloak (gitlab-ci IdP)
-     │
-     ▼ Token Exchange (requires ci-deploy client_secret) ← STATIC SECRET
-step-ca (keycloak-ci provisioner)
-     │
-     ▼ Certificate
-```
-
-**Why deprecating:** Requires `client_secret` stored in GitLab CI variables — violates the "no static secrets" principle. Keycloak adds complexity without adding value for machine flows.
+step-ca trusts GitLab's OIDC issuer directly. No static secrets required — full JWT claims preserved.
 
 ### JWT Claims Available
 

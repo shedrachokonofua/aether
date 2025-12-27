@@ -348,22 +348,40 @@
         msg: "OIDC provisioner skipped — Keycloak not reachable."
 
     # =========================================================================
-    # Add OIDC Provisioner for CI (keycloak-ci) - uses ci-deploy client
+    # Add OIDC Provisioner for GitLab CI (Direct JWT Trust - No Static Secrets)
     # =========================================================================
 
-    - name: Add OIDC provisioner for CI token exchange
+    - name: Install SSH GitLab CI certificate template
+      ansible.builtin.copy:
+        src: ssh_gitlab_ci.tpl
+        dest: "{{ step_ca_home }}/templates/ssh/gitlab_ci.tpl"
+        owner: "{{ step_ca_user }}"
+        group: "{{ step_ca_group }}"
+        mode: "0640"
+
+    - name: Check if GitLab is reachable
+      ansible.builtin.uri:
+        url: "https://gitlab.home.shdr.ch/.well-known/openid-configuration"
+        method: GET
+        return_content: false
+        status_code: 200
+        timeout: 10
+      register: gitlab_check
+      failed_when: false
+
+    - name: Add OIDC provisioner for GitLab CI (direct JWT trust)
       when:
-        - keycloak_check.status == 200
-        - "'keycloak-ci' not in provisioner_list.stdout"
+        - gitlab_check.status == 200
+        - "'gitlab-ci' not in provisioner_list.stdout"
       ansible.builtin.command:
         cmd: >
-          step ca provisioner add keycloak-ci
+          step ca provisioner add gitlab-ci
           --type=OIDC
-          --client-id=ci-deploy
-          --configuration-endpoint=https://auth.shdr.ch/realms/aether/.well-known/openid-configuration
-          --listen-address=:10001
+          --client-id=https://gitlab.home.shdr.ch
+          --configuration-endpoint=https://gitlab.home.shdr.ch/.well-known/openid-configuration
+          --listen-address=:10002
           --ssh
-          --ssh-template={{ step_ca_home }}/templates/ssh/user.tpl
+          --ssh-template={{ step_ca_home }}/templates/ssh/gitlab_ci.tpl
           --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
           --root={{ step_ca_home }}/certs/root_ca.crt
           --admin-provisioner={{ jwk_provisioner_name }}
@@ -371,6 +389,11 @@
       environment:
         STEPPATH: "{{ step_ca_home }}"
       notify: Restart step-ca
+
+    - name: Warn if GitLab CI provisioner skipped
+      when: gitlab_check.status != 200
+      ansible.builtin.debug:
+        msg: "GitLab CI OIDC provisioner skipped — GitLab not reachable at gitlab.home.shdr.ch"
 
     # =========================================================================
     # Add SSHPOP Provisioner (for SSH cert renewal)

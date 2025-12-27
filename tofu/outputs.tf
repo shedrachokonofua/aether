@@ -158,8 +158,3 @@ output "keycloak_gitlab_client_secret" {
   value     = module.home.keycloak_gitlab_client_secret
   sensitive = true
 }
-
-output "keycloak_ci_deploy_client_secret" {
-  value     = module.home.keycloak_ci_deploy_client_secret
-  sensitive = true
-}

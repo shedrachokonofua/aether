@@ -37,6 +37,7 @@
   - [ ] Add pre-commit hooks for secret detection
     - [ ] Create `.pre-commit-config.yaml` with gitleaks and custom SOPS checks
     - [ ] Add `.gitleaks.toml` for custom rules
+  - [ ] Move SOP key service to OpenBao with Age key as fallback and for infra bootstrap. Age key is stored and pulled from SSM, but never stored on repo or disk.
   - [ ] Update SOPS workflow to never decrypt in place
     - [ ] Add `sops:edit` task (decrypts to /tmp, re-encrypts on save)
     - [ ] Add `sops:view` task (stdout only)
