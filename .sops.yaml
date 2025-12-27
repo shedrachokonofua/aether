@@ -8,12 +8,15 @@
 creation_rules:
   - path_regex: secrets/.*\.ya?ml$
     hc_vault_transit_uri: https://bao.home.shdr.ch/v1/aether/keys/sops
+    kms: arn:aws:kms:us-east-1:412381775456:key/0c6fc122-d674-40ce-a0db-45c75baaea18
     age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
 
   - path_regex: ansible/.*vault.*\.ya?ml$
     hc_vault_transit_uri: https://bao.home.shdr.ch/v1/aether/keys/sops
+    kms: arn:aws:kms:us-east-1:412381775456:key/0c6fc122-d674-40ce-a0db-45c75baaea18
     age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
 
   - path_regex: .*\.enc\..*$
     hc_vault_transit_uri: https://bao.home.shdr.ch/v1/aether/keys/sops
+    kms: arn:aws:kms:us-east-1:412381775456:key/0c6fc122-d674-40ce-a0db-45c75baaea18
     age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
