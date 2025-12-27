@@ -1,0 +1,23 @@
+# SOPS Configuration
+# https://github.com/getsops/sops#using-sops-yaml-conf-to-select-kms-pgp-and-age-for-new-files
+#
+# This file defines encryption rules for secrets in this repository.
+# All secrets are encrypted using Age keys.
+#
+# IMPORTANT: Never commit decrypted secrets. Use the safe SOPS tasks:
+#   - task sops:view -- <file>     # View decrypted content (stdout only)
+#   - task sops:edit -- <file>     # Edit encrypted file safely
+#   - task sops:get -- <path> <file>  # Extract single value
+
+creation_rules:
+  # Secrets directory - main secrets storage
+  - path_regex: secrets/.*\.ya?ml$
+    age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
+
+  # Ansible vault files
+  - path_regex: ansible/.*vault.*\.ya?ml$
+    age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
+
+  # Any file with .enc. in the name
+  - path_regex: .*\.enc\..*$
+    age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5

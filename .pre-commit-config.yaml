@@ -1,0 +1,44 @@
+# Pre-commit configuration
+# https://pre-commit.com/
+#
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Gitleaks - secret detection
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # SOPS encryption check - ensures secrets are encrypted
+  - repo: local
+    hooks:
+      - id: sops-check
+        name: Check SOPS encryption
+        language: system
+        files: \.(yml|yaml)$
+        pass_filenames: true
+        entry: >-
+          bash -c 'for file in "$@"; do
+          if [[ "$file" =~ ^secrets/.*\.ya?ml$ ]] || [[ "$file" =~ \.enc\. ]]; then
+          if ! grep -q "^sops:" "$file" 2>/dev/null; then
+          echo "ERROR: $file appears to be unencrypted"; exit 1; fi; fi; done' --
+
+      - id: no-age-private-keys
+        name: No Age private keys
+        language: system
+        types: [text]
+        pass_filenames: true
+        exclude: ^(\.gitleaks\.toml|\.pre-commit-config\.yaml)$
+        entry: >-
+          bash -c 'grep -lE "AGE-SECRET-KEY-" "$@" &&
+          echo "ERROR: Age private key detected!" && exit 1 || true' --
+
+  # YAML lint (disabled for now)
+  # - repo: https://github.com/adrienverge/yamllint
+  #   rev: v1.33.0
+  #   hooks:
+  #     - id: yamllint
+  #       args: [-c, .yamllint.yml]
+  #       exclude: ^(secrets/|ansible/.*vault.*)

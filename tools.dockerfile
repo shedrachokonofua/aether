@@ -19,10 +19,19 @@ RUN apk update && \
   ca-certificates \
   groff \
   less \
+  nano \
+  yq@community \
+  pre-commit@community \
+  git \
+  curl \
   step-cli@community && \
   update-ca-certificates && \
   # Clean up
   rm -rf /var/cache/apk/*
+
+# Install gitleaks from GitHub releases
+RUN ARCH=$(uname -m | sed 's/x86_64/x64/' | sed 's/aarch64/arm64/') && \
+    curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_${ARCH}.tar.gz" | tar xz -C /usr/local/bin gitleaks
 
 # Create and set the workspace directory
 RUN mkdir -p /workspaces

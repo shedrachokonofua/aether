@@ -292,6 +292,33 @@ tasks:
         {{.DOCKER_IMAGE}}
         ansible all -m ping
 
+  pre-commit:
+    desc: Run pre-commit hooks on all files
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/pre-commit
+      - docker run --rm
+        -v ${PWD}:/workspace
+        -v ${PWD}/.git:/workspace/.git
+        -v {{.CACHE_DIR}}/pre-commit:/root/.cache/pre-commit
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        pre-commit run --all-files {{.CLI_ARGS}}
+
+  pre-commit:install:
+    desc: Install pre-commit hooks (run locally, not in container)
+    cmds:
+      - pre-commit install
+
+  gitleaks:
+    desc: Scan full git history for secrets
+    cmds:
+      - docker run --rm
+        -v ${PWD}:/workspace
+        -v ${PWD}/.git:/workspace/.git
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        gitleaks detect --source . -v {{.CLI_ARGS}}
+
   sops:
     desc: Run SOPS commands
     cmds:
@@ -303,24 +330,49 @@ tasks:
         {{.DOCKER_IMAGE}}
         sops {{.CLI_ARGS}}
 
-  sops:encrypt:
+  sops:view:
+    desc: View decrypted SOPS file contents (stdout only, never writes to disk)
     cmds:
-      - docker run --rm -it
+      - docker run --rm
         -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/gnupg:/root/.gnupg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        sops --encrypt --age $(cat ./config/public-age-keys.txt) --in-place {{.CLI_ARGS}}
-
-  sops:decrypt:
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/gnupg:/root/.gnupg
         -w /workspace
         -e SOPS_AGE_KEY_FILE=./config/age-key.txt
         {{.DOCKER_IMAGE}}
-        sops --decrypt --in-place {{.CLI_ARGS}}
+        sops --decrypt {{.CLI_ARGS}}
+
+  sops:edit:
+    desc: Edit encrypted SOPS file safely (decrypts to /tmp, re-encrypts on save)
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -w /workspace
+        -e SOPS_AGE_KEY_FILE=./config/age-key.txt
+        -e 'EDITOR=nano -T 4'
+        {{.DOCKER_IMAGE}}
+        sops {{.CLI_ARGS}}
+
+  sops:get:
+    desc: "Extract single value from SOPS file (usage: task sops:get -- '.key.path' file.yml)"
+    vars:
+      JSON_PATH: '{{index (splitList " " .CLI_ARGS) 0}}'
+      FILE_PATH: '{{index (splitList " " .CLI_ARGS) 1}}'
+    cmds:
+      - docker run --rm
+        -v ${PWD}:/workspace
+        -w /workspace
+        -e SOPS_AGE_KEY_FILE=./config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        sh -c "sops --decrypt {{.FILE_PATH}} | yq e '{{.JSON_PATH}}' -"
+
+  sops:list:
+    desc: "List all keys in SOPS file (usage: task sops:list -- file.yml)"
+    cmds:
+      - docker run --rm
+        -v ${PWD}:/workspace
+        -w /workspace
+        -e SOPS_AGE_KEY_FILE=./config/age-key.txt
+        {{.DOCKER_IMAGE}}
+        sh -c "sops --decrypt {{.CLI_ARGS}} | yq '.. | path | select(length > 0) | \".\" + join(\".\")' -"
 
   age-keygen:
     desc: Generate an AGE key pair
@@ -419,29 +471,50 @@ tasks:
         vars:
           CLI_ARGS: ./ansible/playbooks/network_file_server/site.yml
 
-  secrets:encrypt:
-    desc: Encrypt secrets
+  secrets:view:
+    desc: View decrypted secrets (stdout only)
     cmds:
-      - task: sops:encrypt
+      - task: sops:view
         vars:
           CLI_ARGS: ./secrets/secrets.yml
 
-  se:
-    desc: secrets:encrypt
+  sv:
+    desc: secrets:view (shorthand)
     cmds:
-      - task: secrets:encrypt
+      - task: secrets:view
 
-  secrets:decrypt:
-    desc: Decrypt secrets
+  secrets:edit:
+    desc: Edit secrets safely (in-memory)
     cmds:
-      - task: sops:decrypt
+      - task: sops:edit
         vars:
           CLI_ARGS: ./secrets/secrets.yml
 
-  sd:
-    desc: secrets:decrypt
+  secrets:get:
+    desc: "Get single secret value (usage: task secrets:get -- '.key.path')"
     cmds:
-      - task: secrets:decrypt
+      - task: sops:get
+        vars:
+          CLI_ARGS: "{{.CLI_ARGS}} ./secrets/secrets.yml"
+
+  sg:
+    desc: secrets:get (shorthand)
+    cmds:
+      - task: secrets:get
+        vars:
+          CLI_ARGS: "{{.CLI_ARGS}}"
+
+  secrets:list:
+    desc: List all secret keys (without values)
+    cmds:
+      - task: sops:list
+        vars:
+          CLI_ARGS: ./secrets/secrets.yml
+
+  sl:
+    desc: secrets:list (shorthand)
+    cmds:
+      - task: secrets:list
 
   provision:infrastructure:
     desc: Provision the infrastructure

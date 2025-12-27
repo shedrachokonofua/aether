@@ -1,0 +1,25 @@
+# Gitleaks Configuration
+# https://github.com/gitleaks/gitleaks
+#
+# Custom rules for this repository
+
+title = "Aether Gitleaks Config"
+
+# Extend the default rules
+[extend]
+useDefault = true
+
+# Global allowlist for encrypted SOPS files
+[allowlist]
+description = "SOPS encrypted files"
+paths = ['''secrets/.*\.yml$''', '''.*\.enc\..*''']
+
+# Custom rules
+[[rules]]
+id = "age-private-key"
+description = "Age private key"
+regex = '''AGE-SECRET-KEY-[A-Z0-9]{58}'''
+tags = ["key", "age"]
+
+# Note: SOPS encryption check is handled by pre-commit hook, not gitleaks
+# The regex-based approach causes false positives on ENC[...] values

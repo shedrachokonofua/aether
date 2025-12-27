@@ -9,7 +9,7 @@ This document describes the identity and trust architecture for the home infrast
 3. **Trust roots, not brokers** — Services trust step-ca or platform JWTs directly, no forced intermediaries
 4. **Centralize identity, distribute authorization** — One CA, one human IdP, but services own their own policies
 
-**The litmus test:** When adding an auth flow, ask: "Does this introduce a static secret?" If yes, find another way.
+**The litmus test:** When adding an auth flow, ask: "Does this introduce a static secret?" If yes, see if another way is possible.
 
 ## Identity Planes
 

@@ -11,6 +11,34 @@ Access Analyzers monitor for:
 - Unused IAM roles and users with a 90-day unused access threshold
 - External access to account resources
 
+## State Management
+
+### OpenTofu Backend
+
+CloudFormation stack providing remote state storage:
+
+- **S3 bucket** - State files with KMS encryption, versioning, delete protection
+- **DynamoDB table** - State locking (pay-per-request)
+- **KMS key** - Encryption for S3 and DynamoDB
+- **Access logs bucket** - S3 access logs archived to Glacier
+
+## Identity
+
+### IAM Roles Anywhere
+
+Trust anchor for step-ca certificates, enabling certificate-based AWS authentication without static credentials.
+
+| Profile             | Role                | Trusted CN       | Permissions         |
+| ------------------- | ------------------- | ---------------- | ------------------- |
+| openbao-auto-unseal | openbao-auto-unseal | bao.home.shdr.ch | KMS Encrypt/Decrypt |
+
+### KMS Keys
+
+| Key                 | Purpose                            | Rotation |
+| ------------------- | ---------------------------------- | -------- |
+| opentofu-backend    | State file and DynamoDB encryption | Disabled |
+| openbao-auto-unseal | OpenBao seal/unseal operations     | Enabled  |
+
 ## Compute
 
 ### Public Gateway

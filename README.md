@@ -2,6 +2,18 @@
 
 IaC for my personal cloud.
 
+## Docs
+
+| Doc                                | Description                               |
+| ---------------------------------- | ----------------------------------------- |
+| [Home](docs/home.md)               | Hosts, network, storage, backups          |
+| [Blueprint](docs/blueprint.md)     | Infrastructure layout and allocation      |
+| [Trust Model](docs/trust-model.md) | Identity and authentication design        |
+| [AWS](docs/aws.md)                 | Gateway, offsite backups, KMS, IAM, email |
+| [Cloudflare](docs/cloudflare.md)   | DNS and external access                   |
+| [Tailscale](docs/tailscale.md)     | Secure remote access to home network      |
+| [TODOs](docs/todos.md)             | Roadmap and planned work                  |
+
 ## Dependencies
 
 - Task
@@ -16,7 +28,10 @@ All CLI tools required to manage the cloud are included in a toolbox docker imag
 - Ansible
 - AWS CLI
 - OpenTofu
-- Sops
+- SOPS + Age
+- step-cli
+- yq
+- pre-commit + gitleaks
 
 ### Usage
 
@@ -37,17 +52,38 @@ All CLI tools required to manage the cloud are included in a toolbox docker imag
 
 ## Managing secrets
 
-1. Encrypt secrets
+Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using Age keys. Configuration in `.sops.yaml` defines which files are encrypted.
 
-   ```bash
-   task sops:encrypt secrets/<file>.yaml
-   ```
+### View secrets (stdout only)
 
-1. Decrypt secrets
+```bash
+task sops:view -- secrets/secrets.yml
+```
 
-   ```bash
-   task sops:decrypt secrets/<file>.yaml
-   ```
+### Edit secrets (safe in-memory edit)
+
+```bash
+task sops:edit -- secrets/secrets.yml
+```
+
+### Extract a single value
+
+```bash
+task sops:get -- '.db_password' secrets/secrets.yml
+```
+
+### Pre-commit hooks
+
+This repo uses pre-commit hooks to prevent accidental secret leaks:
+
+```bash
+# Install pre-commit (first time only)
+pip install pre-commit
+pre-commit install
+
+# Run manually
+pre-commit run --all-files
+```
 
 ## Deployment
 
@@ -137,12 +173,3 @@ task tofu:apply
 ```bash
 task configure
 ```
-
-## Docs
-
-### Realms
-
-- [Home](docs/home.md)
-- [AWS](docs/aws.md)
-- [Cloudflare](docs/cloudflare.md)
-- [Tailscale](docs/tailscale.md)
