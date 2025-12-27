@@ -4,7 +4,7 @@
     name: vm
 
 - name: Load secrets
-  include_vars:
+  community.sops.load_vars:
     file: "/workspace/secrets/secrets.yml"
     name: secrets
 

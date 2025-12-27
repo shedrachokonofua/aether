@@ -279,7 +279,7 @@ tasks:
         -v ${PWD}:/workspace
         -v ${SSH_AUTH_SOCK}:/ssh-agent
         -e SSH_AUTH_SOCK=/ssh-agent
-        -e SOPS_AGE_KEY_FILE=/workspace/config/age-key.txt
+        {{.SOPS_ARGS}}
         -v {{.CACHE_DIR}}/ansible:/root/.ansible
         -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
         -w /workspace
