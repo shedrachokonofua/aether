@@ -2,6 +2,10 @@
 
 ## P0
 
+- [ ] Certificate expiry alerting (step-ca file certs)
+  - [ ] Add x509-certificate-exporter to vm_monitoring_agent role
+  - [ ] Add cert expiry rules to Grafana alerting (<30% lifetime remaining)
+  - [ ] Add cert renewal daemon health rules (systemd unit down)
 - [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
 - [ ] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection
   - [ ] Add journal-gatewayd to host_monitoring_agent role

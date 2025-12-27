@@ -2,17 +2,18 @@
 Description=Renew OpenBao TLS certificate from step-ca
 After=network-online.target openbao.service
 Wants=network-online.target
-Requires=openbao.service
+BindsTo=openbao.service
 
 [Service]
 Type=simple
-User={{ openbao_user }}
-Group={{ openbao_group }}
+User=root
+Group=root
 
 Environment="STEPPATH={{ openbao_config_dir }}/step"
 
+# Renewal script re-splits certs for IAM Roles Anywhere and restarts OpenBao
 ExecStart=/usr/bin/step ca renew --daemon \
-  --exec "systemctl reload openbao.service || systemctl restart openbao.service" \
+  --exec "{{ openbao_config_dir }}/renew-hook.sh" \
   {{ openbao_tls_dir }}/openbao.crt \
   {{ openbao_tls_dir }}/openbao.key
 

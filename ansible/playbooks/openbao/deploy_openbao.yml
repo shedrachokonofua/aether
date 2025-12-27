@@ -380,6 +380,32 @@
     # Certificate Renewal Daemon (step ca renew --daemon)
     # =========================================================================
 
+    - name: Create certificate renewal hook script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Renewal hook script for step ca renew --daemon
+          # Re-splits certificate bundle for IAM Roles Anywhere and restarts OpenBao
+          set -e
+
+          CERT_FILE="{{ openbao_tls_dir }}/openbao.crt"
+          TLS_DIR="{{ openbao_tls_dir }}"
+
+          # Re-split the certificate bundle into leaf and chain
+          csplit -z -f "${TLS_DIR}/openbao-part-" "${CERT_FILE}" '/-----BEGIN CERTIFICATE-----/' '{*}' 2>/dev/null
+          mv "${TLS_DIR}/openbao-part-00" "${TLS_DIR}/openbao-leaf.crt"
+          mv "${TLS_DIR}/openbao-part-01" "${TLS_DIR}/openbao-chain.crt"
+          chown {{ openbao_user }}:{{ openbao_group }} "${TLS_DIR}/openbao-leaf.crt" "${TLS_DIR}/openbao-chain.crt"
+          chmod 0640 "${TLS_DIR}/openbao-leaf.crt" "${TLS_DIR}/openbao-chain.crt"
+
+          # Restart OpenBao to use the new certificate
+          systemctl restart openbao.service
+        dest: "{{ openbao_config_dir }}/renew-hook.sh"
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart openbao-cert-renew
+
     - name: Install step-ca renewal service
       ansible.builtin.template:
         src: openbao-cert-renew.service.j2
@@ -387,7 +413,9 @@
         owner: root
         group: root
         mode: "0644"
-      notify: Reload systemd daemon
+      notify:
+        - Reload systemd daemon
+        - Restart openbao-cert-renew
 
     - name: Enable and start certificate renewal daemon
       ansible.builtin.systemd:
@@ -404,5 +432,11 @@
     - name: Restart openbao
       ansible.builtin.systemd:
         name: openbao.service
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart openbao-cert-renew
+      ansible.builtin.systemd:
+        name: openbao-cert-renew.service
         state: restarted
         daemon_reload: true
