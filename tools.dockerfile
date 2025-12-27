@@ -1,3 +1,7 @@
+# Stage 1: Get OpenBao binary from official image
+FROM ghcr.io/openbao/openbao:2.4.4 AS openbao
+
+# Stage 2: Main toolbox image
 FROM alpine:3.23
 
 # Add community repository
@@ -24,6 +28,8 @@ RUN apk update && \
   pre-commit@community \
   git \
   curl \
+  unzip \
+  jq \
   step-cli@community && \
   update-ca-certificates && \
   # Clean up
@@ -33,17 +39,21 @@ RUN apk update && \
 RUN ARCH=$(uname -m | sed 's/x86_64/x64/' | sed 's/aarch64/arm64/') && \
     curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_${ARCH}.tar.gz" | tar xz -C /usr/local/bin gitleaks
 
+# Copy OpenBao CLI from official image
+COPY --from=openbao /bin/bao /usr/local/bin/bao
+
 # Create and set the workspace directory
 RUN mkdir -p /workspaces
 WORKDIR /workspaces
 
-# Verify installations, including SSH version
+# Verify installations
 RUN ansible --version && \
   ansible-galaxy --version && \
   tofu version && \
   sops --version && \
   aws --version && \
   age-keygen --version && \
+  bao version && \
   ssh -V && \
   step version
 

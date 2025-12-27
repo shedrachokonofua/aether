@@ -11,8 +11,8 @@ Resources:
     Type: AWS::KMS::Key
     Properties:
       Description: AWS KMS Key to encrypt the OpenTofu backend Amazon S3 bucket
-      Enabled: True
-      EnableKeyRotation: False
+      Enabled: true
+      EnableKeyRotation: false
       KeyPolicy:
         Version: 2012-10-17
         Id: key-s3-bucket-opentofu-backend
@@ -167,6 +167,47 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # SOPS KMS key
+  rSOPSKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: SOPS encryption key (fallback when OpenBao unavailable)
+      Enabled: true
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: sops-key-policy
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: AllowSOPSEncryptDecrypt
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+      Tags:
+        - Key: Purpose
+          Value: sops-encryption
+        - Key: Service
+          Value: secrets-management
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  rSOPSKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/aether-sops
+      TargetKeyId: !Ref rSOPSKMSKey
+
 Outputs:
   OpenTofuBackendBucketName:
     Value: !Ref rOpenTofuRemoteBackendBucket
@@ -182,3 +223,9 @@ Outputs:
     Value: !GetAtt rKMSOpenTofuBackendKey.Arn
     Export:
       Name: "OpenTofuBackendKMSKeyArn"
+
+  SOPSKMSKeyArn:
+    Description: KMS key ARN for SOPS encryption (use in .sops.yaml)
+    Value: !GetAtt rSOPSKMSKey.Arn
+    Export:
+      Name: "SOPSKMSKeyArn"

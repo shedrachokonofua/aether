@@ -243,8 +243,8 @@ Certificates and tokens can be exchanged bidirectionally when needed, without st
 
 ### OpenBao Sealed + AWS Unreachable
 
-1. Retrieve recovery keys from offline storage
-2. Manual unseal: `bao operator unseal` (requires K of N keys)
+1. Retrieve recovery keys from `secrets/openbao-recovery-keys.yml`
+2. Manual unseal: `bao operator unseal` (requires 3 of 5 keys)
 3. Restore AWS connectivity and re-seal to return to auto-unseal
 
 ### step-ca Compromise

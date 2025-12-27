@@ -384,10 +384,11 @@ resource "keycloak_openid_client" "openbao" {
   name      = "OpenBao"
   enabled   = true
 
-  access_type                  = "CONFIDENTIAL"
-  standard_flow_enabled        = true
-  implicit_flow_enabled        = false
-  direct_access_grants_enabled = true
+  access_type                               = "CONFIDENTIAL"
+  standard_flow_enabled                     = true
+  implicit_flow_enabled                     = false
+  direct_access_grants_enabled              = true
+  oauth2_device_authorization_grant_enabled = true
 
   root_url  = "https://bao.home.shdr.ch"
   base_url  = "https://bao.home.shdr.ch"

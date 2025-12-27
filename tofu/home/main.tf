@@ -41,6 +41,7 @@ variable "keycloak_shdrch_initial_password" {
   sensitive = true
 }
 
+
 locals {
   vm = yamldecode(file("${path.module}/../../config/vm.yml"))
 }
@@ -56,6 +57,11 @@ terraform {
       source  = "keycloak/keycloak"
       version = ">= 5.5.0"
     }
+
+    vault = {
+      source  = "hashicorp/vault"
+      version = ">= 4.0.0"
+    }
   }
 }
 
@@ -64,4 +70,10 @@ provider "proxmox" {
   username = var.proxmox_username
   password = var.proxmox_password
   insecure = true
+}
+
+# OpenBao provider (Vault-compatible)
+# Requires: task bao:login (token cached), then export VAULT_TOKEN=$(cat ~/.aether-toolbox/bao/token)
+provider "vault" {
+  address = "https://bao.home.shdr.ch"
 }

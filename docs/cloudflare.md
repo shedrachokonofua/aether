@@ -9,6 +9,7 @@ The root domain `shdr.ch` (derived from "Shedrach" without vowels) is managed th
 The zone is configured with the following settings:
 
 - **SSL Mode**: Strict - Requires valid SSL certificates on origin servers
+- **Always Use HTTPS**: Enabled - Forces HTTPS for all requests
 - **Zone Type**: Full - Complete DNS management through Cloudflare
 
 ## DNS Management
@@ -17,25 +18,26 @@ The zone is configured with the following settings:
 
 The domain routes public traffic through the AWS-hosted public gateway with Cloudflare's CDN and DDoS protection enabled.
 
-| Record Type | Name | Target                | Proxied | Purpose                    |
-| ----------- | ---- | --------------------- | ------- | -------------------------- |
-| A           | @    | AWS Public Gateway IP | Yes     | Root domain routing        |
-| A           | \*   | AWS Public Gateway IP | Yes     | Wildcard subdomain routing |
+| Record Type | Name | Target                | Proxied | Purpose                                                                             |
+| ----------- | ---- | --------------------- | ------- | ----------------------------------------------------------------------------------- |
+| A           | @    | AWS Public Gateway IP | Yes     | Root domain routing                                                                 |
+| A           | \*   | AWS Public Gateway IP | Yes     | Wildcard subdomain routing                                                          |
+| A           | tv   | AWS Public Gateway IP | No      | Jellyfin video streaming (unproxied to comply with Cloudflare ToS on video content) |
 
 ### Email (ProtonMail)
 
 The domain is configured for ProtonMail email service, providing end-to-end encrypted email with custom domain support. This includes all necessary DNS records for email authentication (SPF, DKIM, DMARC) and proper mail routing.
 
-| Record Type | Name                    | Priority | Purpose               |
-| ----------- | ----------------------- | -------- | --------------------- |
-| MX          | shdr.ch                 | 10       | Primary mail server   |
-| MX          | shdr.ch                 | 20       | Secondary mail server |
-| CNAME       | protonmail.\_domainkey  | -        | DKIM verification 1   |
-| CNAME       | protonmail2.\_domainkey | -        | DKIM verification 2   |
-| CNAME       | protonmail3.\_domainkey | -        | DKIM verification 3   |
-| TXT         | \_dmarc                 | -        | DMARC policy          |
-| TXT         | shdr.ch                 | -        | SPF record            |
-| TXT         | shdr.ch                 | -        | Domain verification   |
+| Record Type | Name                    | Priority | Purpose                              |
+| ----------- | ----------------------- | -------- | ------------------------------------ |
+| MX          | shdr.ch                 | 10       | Primary mail server                  |
+| MX          | shdr.ch                 | 20       | Secondary mail server                |
+| CNAME       | protonmail.\_domainkey  | -        | DKIM verification 1                  |
+| CNAME       | protonmail2.\_domainkey | -        | DKIM verification 2                  |
+| CNAME       | protonmail3.\_domainkey | -        | DKIM verification 3                  |
+| TXT         | \_dmarc                 | -        | DMARC policy (reports to Cloudflare) |
+| TXT         | shdr.ch                 | -        | SPF record                           |
+| TXT         | shdr.ch                 | -        | Domain verification                  |
 
 ### Email (AWS SES)
 

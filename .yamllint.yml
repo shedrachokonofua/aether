@@ -3,10 +3,10 @@
 
 extends: default
 yaml-files:
-  - '*.yaml'
-  - '*.yml'
-  - '*.yaml.j2'
-  - '*.yml.j2'
+  - "*.yaml"
+  - "*.yml"
+  - "*.yaml.j2"
+  - "*.yml.j2"
 ignore-from-file:
   - .gitignore
 rules:
@@ -18,8 +18,8 @@ rules:
     allowed-values:
       - "true"
       - "false"
-      - 'yes'
-      - 'no'
+      - "yes"
+      - "no"
   comments:
     min-spaces-from-content: 1
   indentation:

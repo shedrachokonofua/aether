@@ -1,23 +1,19 @@
 # SOPS Configuration
-# https://github.com/getsops/sops#using-sops-yaml-conf-to-select-kms-pgp-and-age-for-new-files
 #
-# This file defines encryption rules for secrets in this repository.
-# All secrets are encrypted using Age keys.
-#
-# IMPORTANT: Never commit decrypted secrets. Use the safe SOPS tasks:
-#   - task sops:view -- <file>     # View decrypted content (stdout only)
-#   - task sops:edit -- <file>     # Edit encrypted file safely
-#   - task sops:get -- <path> <file>  # Extract single value
+# Keys (all work for decrypt, any available used for encrypt):
+#   - Transit: OpenBao server-side encryption (primary)
+#   - KMS: AWS fallback (via SOPS_KMS_ARN env var)
+#   - Age: Offline emergency / bootstrap
 
 creation_rules:
-  # Secrets directory - main secrets storage
   - path_regex: secrets/.*\.ya?ml$
+    hc_vault_transit_uri: https://bao.home.shdr.ch/v1/aether/keys/sops
     age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
 
-  # Ansible vault files
   - path_regex: ansible/.*vault.*\.ya?ml$
+    hc_vault_transit_uri: https://bao.home.shdr.ch/v1/aether/keys/sops
     age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
 
-  # Any file with .enc. in the name
   - path_regex: .*\.enc\..*$
+    hc_vault_transit_uri: https://bao.home.shdr.ch/v1/aether/keys/sops
     age: age132mw5qfj4f90cwgjw0rdtr0qyx7dxrgz78vze6fgm52mcqsrgutqnzxjp5
