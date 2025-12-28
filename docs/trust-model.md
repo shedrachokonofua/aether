@@ -22,23 +22,30 @@ The system separates human and machine identity into distinct planes, each with 
 
 ## Trust Hierarchy
 
-```txt
-                         ┌─────────────────────┐
-                         │      step-ca        │
-                         │   (Root of Trust)   │
-                         └──────────┬──────────┘
-                                    │
-            ┌───────────────────────┼───────────────────────┐
-            │                       │                       │
-            ▼                       ▼                       ▼
-     ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-     │  Keycloak   │         │  AWS IAM    │         │   GitLab    │
-     │ (Human IdP) │         │   Roles     │         │  (CI OIDC)  │
-     └──────┬──────┘         │  Anywhere   │         └──────┬──────┘
-            │                └──────┬──────┘                │
-            ▼                       ▼                       ▼
-      Human users              Machine-to-              CI job
-      → UI access              cloud auth               identity
+```mermaid
+flowchart TB
+    StepCA["<b>step-ca</b><br/><i>Root of Trust</i>"]
+
+    StepCA --> Keycloak
+    StepCA --> AWS
+    StepCA --> GitLab
+
+    subgraph Human["Human Plane"]
+        Keycloak["Keycloak<br/><i>Human IdP</i>"]
+        Keycloak --> Users["Human users<br/>→ UI access"]
+    end
+
+    subgraph Machine["Machine Plane"]
+        AWS["AWS IAM<br/>Roles Anywhere"]
+        AWS --> M2C["Machine-to-cloud<br/>auth"]
+    end
+
+    subgraph CI["CI Plane"]
+        GitLab["GitLab<br/><i>CI OIDC</i>"]
+        GitLab --> Jobs["CI job<br/>identity"]
+    end
+
+    style StepCA fill:#d4f0e7,stroke:#6ac4a0
 ```
 
 step-ca is the root of trust for the entire infrastructure:
@@ -89,6 +96,26 @@ Humans authenticate via Keycloak using OIDC. Keycloak handles:
 - MFA enforcement
 - Group/role mappings
 - Session management
+
+```mermaid
+flowchart LR
+    Human[Human] -->|OIDC| Keycloak[Keycloak<br/><i>auth.shdr.ch</i>]
+
+    Keycloak -->|token| Apps
+    Keycloak -->|device auth| CLI[CLI Toolbox]
+
+    subgraph Apps["Web Apps"]
+        Grafana
+        GitLab
+        OpenWebUI
+        Jellyfin
+        OpenBao
+    end
+
+    CLI -->|token exchange| StepCA[step-ca<br/><i>SSH cert</i>]
+    CLI -->|token exchange| Bao[OpenBao<br/><i>Bao token</i>]
+    CLI -->|token exchange| AWS[AWS<br/><i>STS creds</i>]
+```
 
 ### Keycloak Configuration
 
@@ -177,17 +204,16 @@ OpenBao supports multiple auth methods, bridging both identity planes:
 
 GitLab CI jobs receive JWT tokens (`CI_JOB_JWT`) that can be exchanged for short-lived credentials.
 
-```txt
-GitLab CI Job
-     │
-     ▼ CI_JOB_JWT (automatic, no secrets)
-step-ca (gitlab-ci provisioner)
-     │
-     ▼ Short-lived certificate
-     │
-     ├──► OpenBao (cert auth)
-     ├──► AWS (Roles Anywhere)
-     └──► Internal services (mTLS)
+```mermaid
+flowchart LR
+    Job[GitLab CI Job] -->|CI_JOB_JWT| StepCA[step-ca<br/><i>gitlab-ci provisioner</i>]
+    StepCA -->|Short-lived cert| Targets
+
+    subgraph Targets["Authenticated Access"]
+        Bao[OpenBao<br/><i>cert auth</i>]
+        AWS[AWS<br/><i>Roles Anywhere</i>]
+        Services[Internal services<br/><i>mTLS</i>]
+    end
 ```
 
 step-ca trusts GitLab's OIDC issuer directly. No static secrets required — full JWT claims preserved.
@@ -213,18 +239,12 @@ step-ca trusts GitLab's OIDC issuer directly. No static secrets required — ful
 
 Certificates and tokens can be exchanged bidirectionally when needed, without static secrets.
 
-```txt
-                 ┌─────────────┐
-                 │   step-ca   │
-                 └──────┬──────┘
-                        │
-         ┌──────────────┴──────────────┐
-         │                             │
-         ▼                             ▼
-  ┌─────────────┐               ┌─────────────┐
-  │ Certificate │◄─────────────►│  Keycloak   │
-  └─────────────┘               │    Token    │
-                                └─────────────┘
+```mermaid
+flowchart TB
+    StepCA[step-ca]
+    StepCA --> Cert[Certificate]
+    StepCA --> Token[Keycloak Token]
+    Cert <-->|exchange| Token
 ```
 
 | Exchange              | How                         | Use Case                                |

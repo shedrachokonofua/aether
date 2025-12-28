@@ -19,15 +19,46 @@ IaC for my private cloud.
 
 ## Docs
 
-| Doc                                | Description                               |
-| ---------------------------------- | ----------------------------------------- |
-| [Home](docs/home.md)               | Hosts, network, storage, backups          |
-| [Blueprint](docs/blueprint.md)     | Infrastructure layout and allocation      |
-| [Trust Model](docs/trust-model.md) | Identity and authentication design        |
-| [AWS](docs/aws.md)                 | Gateway, offsite backups, KMS, IAM, email |
-| [Cloudflare](docs/cloudflare.md)   | DNS and external access                   |
-| [Tailscale](docs/tailscale.md)     | Secure remote access to home network      |
-| [TODOs](docs/todos.md)             | Roadmap and planned work                  |
+### Infrastructure
+
+| Doc                                              | Description                           |
+| ------------------------------------------------ | ------------------------------------- |
+| [Hosts](docs/hosts.md)                           | Proxmox cluster nodes and host roles  |
+| [Virtual Machines](docs/virtual-machines.md)     | VM/LXC allocation and resource usage  |
+| [Networking](docs/networking.md)                 | VLANs, firewall, DNS, reverse proxy   |
+| [Storage](docs/storage.md)                       | ZFS pools, NFS, SMB, SeaweedFS        |
+| [Backups](docs/backups.md)                       | 3-2-1 strategy, PBS, offsite to AWS   |
+| [UPS](docs/ups.md)                               | Uninterruptible power supply          |
+
+### Security & Identity
+
+| Doc                                | Description                             |
+| ---------------------------------- | --------------------------------------- |
+| [Trust Model](docs/trust-model.md) | Identity planes and auth architecture   |
+| [Secrets](docs/secrets.md)         | OpenBao, SOPS, encryption key hierarchy |
+
+### Services
+
+| Doc                                  | Description                             |
+| ------------------------------------ | --------------------------------------- |
+| [AI/ML](docs/ai-ml.md)               | GPU workstation, Ollama, LiteLLM, RAG   |
+| [PaaS](docs/paas.md)                 | Dokku, Dokploy, Smallweb                |
+| [Monitoring](docs/monitoring.md)     | OTEL, Prometheus, Grafana, Loki, Tempo  |
+| [Communication](docs/communication.md) | Matrix, ntfy, Postfix, bridges        |
+
+### External
+
+| Doc                              | Description                          |
+| -------------------------------- | ------------------------------------ |
+| [AWS](docs/aws.md)               | Public gateway, backups, KMS, IAM    |
+| [Cloudflare](docs/cloudflare.md) | DNS and CDN                          |
+| [Tailscale](docs/tailscale.md)   | Secure remote access via mesh VPN    |
+
+### Meta
+
+| Doc                        | Description            |
+| -------------------------- | ---------------------- |
+| [TODOs](docs/todos.md)     | Roadmap and planned work |
 
 ## Dependencies
 

@@ -48,6 +48,7 @@ Lightsail instance in us-east-1b running Amazon Linux 2023 on nano bundle, servi
 - Static IP address
 - SSH (port 22) and HTTPS (port 443) exposed
 - Dedicated key pair for access
+- CrowdSec IDS/IPS (see Networking)
 
 ## Storage
 

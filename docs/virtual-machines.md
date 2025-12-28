@@ -1,18 +1,8 @@
-# Blueprint
+# Virtual Machines
 
-## Home
+All VMs and LXCs run on Proxmox VE across the five-host cluster. Storage is either local to the node or served via NFS from Smith.
 
-### Available Resources
-
-| Host    | RAM   | Storage                              | CPU                  | GPU                       | Cores | Threads | vCPUs | Ethernet | Status |
-| ------- | ----- | ------------------------------------ | -------------------- | ------------------------- | ----- | ------- | ----- | -------- | ------ |
-| Oracle  | 16GB  | 1TB                                  | Intel Core i5-12600H | Intel Iris Xe             | 12    | 16      | 16    | 10G      | LIVE   |
-| Smith   | 128GB | 8TB NVME(4TB x2) + 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super     | 8     | 16      | 16    | 10G      | LIVE   |
-| Niobe   | 64GB  | 512GB                                | AMD Ryzen 9 6900HX   | AMD Radeon 680M           | 8     | 16      | 16    | 2.5G     | LIVE   |
-| Neo     | 128GB | 2TB                                  | AMD Rzyen 9 9950X    | Nvidia RTX Pro 6000 Max-Q | 16    | 32      | 32    | 10G      | LIVE   |
-| Trinity | 64GB  | 1TB                                  | Intel Core i9-13900H | Intel Iris Xe             | 14    | 20      | 20    | 10G      | LIVE   |
-
-### Resource Allocation
+## Resource Allocation
 
 | Name                    | Host    | Type | RAM  | Storage                      | Storage Location | vCPU | GPU         | On By Default | Notes                                                                                           | Status      |
 | ----------------------- | ------- | ---- | ---- | ---------------------------- | ---------------- | ---- | ----------- | ------------- | ----------------------------------------------------------------------------------------------- | ----------- |
@@ -22,7 +12,7 @@
 | Gaming Server           | Smith   | VM   | 16GB | 256GB                        | Node - NVME      | 12   | Passthrough | No            | Bazzite VM: Steam, PS, PS2, PS3 simulation                                                      | LIVE        |
 | GPU Workstation         | Neo     | VM   | 48GB | 1TB                          | Node             | 32   | Passthrough | Yes           | Ollama + Models, Docling, ComfyUI, JupyterLab, SwarmUI, ClearML                                 | LIVE        |
 | AI Tool Stack           | Neo     | VM   | 8GB  | 128GB                        | NFS - NVME       | 4    | None        | Yes           | LiteLLM, SearXNG, Firecrawl, OpenWebUI, LibreChat, Bytebot                                      | LIVE        |
-| Monitoring Stack        | Niobe   | VM   | 4GB  | 128GB                        | Node             | 4    | None        | Yes           | Otel Collector, Prometheus, Grafana, Tempo, Loki, Promtail, Pyroscope                           | LIVE        |
+| Monitoring Stack        | Niobe   | VM   | 4GB  | 128GB                        | Node             | 4    | None        | Yes           | Prometheus, Grafana, Loki, Tempo, Otel Collector, ntopng                                        | LIVE        |
 | Gitlab                  | Trinity | VM   | 8GB  | 128GB                        | NFS - NVME       | 8    | None        | Yes           | VCS, CI/CD, Package Registry                                                                    | LIVE        |
 | Lute Stack              | Smith   | VM   | 40GB | 256GB                        | NFS - NVME       | 8    | None        | Yes           | Lute, Redis, Minio, Neo4j                                                                       | LIVE        |
 | Coupe Sandbox           | Niobe   | VM   | 4GB  | 64GB                         | NFS - NVME       | 4    | None        | Yes           | Deployment server for coupe projects                                                            | LIVE        |
@@ -43,3 +33,11 @@
 | OpenBao                 | Oracle  | LXC  | 2GB  | 32GB                         | Node             | 2    | None        | Yes           | Secrets management: KV, dynamic credentials, Keycloak OIDC auth                                 | LIVE        |
 | AdGuard - Primary       | Oracle  | LXC  | 1GB  | 16GB                         | Node             | 2    | None        | Yes           | AdGuard Home, AdGuard DNS, AdGuard Exporter                                                     | PLANNED     |
 | AdGuard - Secondary     | Niobe   | LXC  | 1GB  | 16GB                         | Node             | 2    | None        | Yes           | AdGuard Home, AdGuard DNS, AdGuard Exporter                                                     | PLANNED     |
+
+## Totals
+
+| Metric  | Allocated | Available |
+| ------- | --------- | --------- |
+| RAM     | 194GB     | 400GB     |
+| vCPU    | 137       | 100       |
+| Storage | ~3.5TB    | ~12TB     |

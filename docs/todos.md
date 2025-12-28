@@ -72,12 +72,6 @@
 
 ## P3
 
-- [ ] Create architecture diagrams
-  - [ ] Network topology (physical, VLANs, firewall zones, traffic flows)
-  - [ ] Compute layout (hosts → VMs/LXCs, resources, storage backends)
-  - [ ] Storage architecture (ZFS pools, NFS/SMB exports, performance vs capacity tiers)
-  - [ ] Backup flow (ZFS snapshots → PBS → S3 Glacier pipeline)
-  - [ ] External access path (Cloudflare → AWS → Tailscale → home)
 - [ ] Move dokku to Trinity
 - [ ] Rewrite dev workstation to NixOS
 - [ ] Move dev workstation to Neo

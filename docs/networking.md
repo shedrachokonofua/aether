@@ -1,27 +1,15 @@
-# Home
+# Networking
 
-## Hosts
-
-| Host    | RAM   | Storage                             | CPU                  | GPU                      | Cores | Threads | vCPUs | Network | Model             | Gigahub IP    |
-| ------- | ----- | ----------------------------------- | -------------------- | ------------------------ | ----- | ------- | ----- | ------- | ----------------- | ------------- |
-| Niobe   | 64GB  | 512GB MVME                          | AMD Ryzen 9 6900HX   | AMD Radeon 680M          | 8     | 16      | 16    | 2.5Gbps | Beelink Ser6 Max  | 192.168.2.201 |
-| Trinity | 64GB  | 1TB NVME                            | Intel Core i9-13900H | Intel Iris Xe            | 14    | 20      | 20    | 10Gbps  | Minisforum MS-01  | 192.168.2.202 |
-| Oracle  | 16GB  | 1TB NVME                            | Intel Core i5-12600H | Intel Iris Xe            | 12    | 16      | 16    | 10Gbps  | Minisforum MS-01  | 192.168.2.203 |
-| Smith   | 128GB | 8TB NVME(4TB x2), 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super    | 8     | 16      | 16    | 10Gbps  | Custom            | 192.168.2.204 |
-| Neo     | 128GB | 2TB NVME                            | AMD Ryzen 9 9950X    | Nvidia RTX Pro 6000 MaxQ | 16    | 32      | 32    | 10Gbps  | Custom            | 192.168.2.205 |
-
-## Network
-
-### WAN
+## WAN
 
 Assigned by Bell Gigahub via PPPoE. 3Gbps up/down.
 
-### LAN
+## LAN
 
 Bell Gigahub LAN Base: 192.168.2.0/24
 VyOS LAN Base: 10.0.0.0/16
 
-#### VLANs
+### VLANs
 
 | VLAN | Name           | Subnet         | Gateway     | DHCP Range | Description                                                        |
 | ---- | -------------- | -------------- | ----------- | ---------- | ------------------------------------------------------------------ |
@@ -33,7 +21,38 @@ VyOS LAN Base: 10.0.0.0/16
 | 6    | IoT            | 10.0.6.0/24    | 10.0.6.1    | 2 - 254    | Home IoT devices with access to internet                           |
 | 7    | Guest          | 10.0.7.0/24    | 10.0.7.1    | 2 - 254    | Guest network with internet access only                            |
 
-#### Firewall
+```mermaid
+graph TB
+    ISP[Bell ISP] ---|PPPoE| GH[Bell Gigahub<br/>192.168.2.0/24]
+
+    subgraph VyOS["VyOS Router"]
+        eth0[eth0 - Gigahub]
+        pppoe0[pppoe0 - WAN]
+        eth1[eth1 - Trunk]
+    end
+
+    GH --- eth0 --- pppoe0
+
+    subgraph VLANs["VLANs (10.0.0.0/16)"]
+        V2[V2 - Infrastructure]
+        V3[V3 - Services]
+        V4[V4 - Personal]
+        V5[V5 - Media]
+        V6[V6 - IoT]
+        V7[V7 - Guest]
+    end
+
+    eth1 --- VLANs
+
+    subgraph Proxmox["Proxmox Cluster"]
+        Nodes[Oracle · Trinity · Smith<br/>Neo · Niobe]
+    end
+
+    Proxmox ---|Untagged V1| GH
+    Proxmox -.->|Tagged V2-V7| VLANs
+```
+
+### Firewall
 
 | VLAN | Name           | Zone      | Internet | Infrastructure (V2)            | Services (V3)                 | Personal (V4)                 | Media (V5)            | IoT (V6)                 | Guest (V7) | Router Access              | Gigahub |
 | ---- | -------------- | --------- | -------- | ------------------------------ | ----------------------------- | ----------------------------- | --------------------- | ------------------------ | ---------- | -------------------------- | ------- |
@@ -44,7 +63,200 @@ VyOS LAN Base: 10.0.0.0/16
 | 6    | IoT            | UNTRUSTED | ✅       | ❌ (Can receive from trusted)  | ❌ (Can receive from trusted) | ❌ (Can receive from trusted) | ❌                    | ✅ (Full)                | ❌         | ✅ (DNS, DHCP only)        | ❌      |
 | 7    | Guest          | UNTRUSTED | ✅       | ❌ (Can receive from trusted)  | ❌ (Can receive from trusted) | ❌ (Can receive from trusted) | ❌                    | ❌                       | ✅ (Full)  | ✅ (DNS, DHCP only)        | ❌      |
 
-#### Rack Switch
+## DNS
+
+AdGuard Home provides DNS resolution and ad blocking for the home network. Runs on the Gateway Stack (planned migration to standalone LXC).
+
+### Upstream Resolvers
+
+| Provider   | Protocol |
+| ---------- | -------- |
+| Quad9      | DoH      |
+| Cloudflare | DoH      |
+| Google     | DoH      |
+
+### DNS Rewrites
+
+Internal services resolve to the home gateway for reverse proxy routing:
+
+| Domain                  | Target       |
+| ----------------------- | ------------ |
+| \*.home.shdr.ch         | Gateway IP   |
+| home.shdr.ch            | Gateway IP   |
+| auth.shdr.ch            | Gateway IP   |
+| ca.shdr.ch              | step-ca IP   |
+| ssh.gitlab.home.shdr.ch | GitLab IP    |
+| smtp.home.shdr.ch       | Messaging IP |
+
+```mermaid
+graph LR
+    subgraph Clients
+        C1[Personal Devices]
+        C2[Services VMs]
+        C3[Media Devices]
+        C4[IoT Devices]
+    end
+
+    subgraph VyOS
+        DNS1[DNS Forwarder<br/>10.0.x.1]
+    end
+
+    subgraph Home Gateway Stack
+        ADG[AdGuard Home<br/>:53]
+    end
+
+    subgraph DoH Upstreams
+        Q9[Quad9]
+        CF[Cloudflare]
+        GG[Google]
+    end
+
+    subgraph DNS Rewrites
+        R1[*.home.shdr.ch → Gateway]
+        R2[auth.shdr.ch → Gateway]
+        R3[ca.shdr.ch → step-ca]
+        R4[ssh.gitlab.home.shdr.ch → GitLab]
+    end
+
+    C1 & C2 & C3 & C4 -->|Query| DNS1
+    DNS1 -->|Forward| ADG
+    ADG -->|Rewrite Match| R1 & R2 & R3 & R4
+    ADG -->|External Query| Q9 & CF & GG
+```
+
+## Reverse Proxy
+
+Caddy handles TLS termination and reverse proxying for all internal services. Runs on the Gateway Stack.
+
+### Features
+
+- Automatic HTTPS via ACME DNS validation (Cloudflare)
+- Wildcard certificate for `*.home.shdr.ch`
+- Auth integration with Keycloak (forward auth)
+- HAProxy frontend for high-availability upstreams
+
+### Public Access
+
+Public traffic flows: Cloudflare → AWS Public Gateway (CrowdSec + Caddy) → Tailscale → Home Gateway → Caddy → Service
+
+```mermaid
+graph TB
+    subgraph Internet
+        User[User]
+        CF[Cloudflare]
+    end
+
+    subgraph AWS["AWS Public Gateway"]
+        NFT[nftables]
+        CAD1[Caddy]
+        CS[CrowdSec + AppSec]
+    end
+
+    subgraph Tailscale
+        TS1[AWS Node]
+        TS2[Home Node]
+    end
+
+    subgraph Home
+        CAD2[Caddy]
+        SVC[Service]
+    end
+
+    User -->|"*.shdr.ch"| CF
+    User -->|"tv.shdr.ch (direct)"| NFT
+    CF --> NFT
+    NFT -->|blocked IPs| CS
+    NFT --> CAD1
+    CAD1 <-->|check| CS
+    CAD1 --> TS1
+    TS1 ---|Encrypted| TS2
+    TS2 --> CAD2
+    CAD2 --> SVC
+```
+
+## CrowdSec
+
+Intrusion detection and prevention system on the AWS public gateway, analyzing Caddy access logs for malicious traffic.
+
+| Component        | Purpose                             |
+| ---------------- | ----------------------------------- |
+| CrowdSec Agent   | Log analysis and threat detection   |
+| Firewall Bouncer | nftables IP blocking                |
+| AppSec WAF       | Application-layer attack prevention |
+
+**Detection Collections**:
+
+- SSH brute force and sudo abuse
+- HTTP CVE exploits
+- Scanners and bad user agents
+- HTTP flood attacks
+
+**AppSec Rules**:
+
+- CRS (Core Rule Set)
+- CVE virtual patches
+- WordPress-specific protections
+
+## Rotating Proxy
+
+SOCKS5 proxy for anonymized outbound traffic. HAProxy load balances across multiple WireProxy backends connected to ProtonVPN. Usage is opt-in—services must explicitly configure the proxy endpoint.
+
+### Architecture
+
+| Component | Purpose                           |
+| --------- | --------------------------------- |
+| HAProxy   | TCP load balancer (random)        |
+| WireProxy | WireGuard to SOCKS5 bridge        |
+| ProtonVPN | VPN provider (WireGuard protocol) |
+
+```mermaid
+graph LR
+    subgraph Consumers
+        QB[qBittorrent]
+        SX[SearXNG]
+        FC[Firecrawl]
+        PW[Prowlarr]
+    end
+
+    subgraph RotatingProxy["Rotating Proxy Pod"]
+        HAP[HAProxy<br/>:1080]
+        subgraph Pool["WireProxy Pool"]
+            subgraph CA["Canada (:1081-1083, :1088-1090)"]
+                WCA[Toronto 1-3<br/>Vancouver<br/>Montreal 1-2]
+            end
+            subgraph US["USA (:1084-1087)"]
+                WUS[Seattle · Chicago<br/>NY 1-2]
+            end
+        end
+    end
+
+    subgraph ProtonVPN
+        VPN1[CA Servers]
+        VPN2[US Servers]
+    end
+
+    QB & SX & FC & PW -->|SOCKS5| HAP
+    HAP -->|Random| Pool
+    WCA -->|WireGuard| VPN1
+    WUS -->|WireGuard| VPN2
+```
+
+### Endpoint
+
+- SOCKS5: `proxy.home.shdr.ch:1080`
+
+### Consumers
+
+| Service     | Purpose                       |
+| ----------- | ----------------------------- |
+| qBittorrent | Torrent traffic anonymization |
+| SearXNG     | Search query privacy          |
+| Firecrawl   | Web scraping IP rotation      |
+| Prowlarr    | Indexer access                |
+
+## Physical Infrastructure
+
+### Rack Switch
 
 **Device Name**: QNAP QSW-M3216R-8S8T-US
 
@@ -69,7 +281,7 @@ VyOS LAN Base: 10.0.0.0/16
 
 - VLAN 1: Bell Gigahub LAN (192.168.2.0/24) - Direct access, bypasses VyOS firewall
 
-#### Office Switch
+### Office Switch
 
 **Device Name**: Nicgiga 8-Port 2.5Gbps Switch 10Gbps SFP Uplink
 
@@ -86,7 +298,7 @@ VyOS LAN Base: 10.0.0.0/16
 | 4    | Ethernet | Raspberry Pi 5     | 4             | -           | 1Gbps   |
 | 9    | SFP+     | Rack Switch        | 1             | 4, 5        | 10Gbps  |
 
-#### Access Point
+### Access Point
 
 **Device Name**: Ubiquiti Unifi U7 Pro
 
@@ -100,89 +312,3 @@ VyOS LAN Base: 10.0.0.0/16
 | Sienna Helix | 5    |
 | Indigo Tide  | 6    |
 | Moss Cove    | 7    |
-
-## Storage
-
-Smith is the designated shared storage node in the home cluster. It's running ZFS with an array consisting of:
-
-| Count | Type | Size | RAID   | Total(Raw) | Total(Usable) |
-| ----- | ---- | ---- | ------ | ---------- | ------------- |
-| 2     | NVME | 4TB  | RAID0  | 8TB        | 8TB           |
-| 4     | HDD  | 14TB | RAID10 | 56TB       | 28TB          |
-
-### Pools
-
-| Pool | Description |
-| ---- | ----------- |
-| nvme | NVMe drives |
-| hdd  | HDD drives  |
-
-### Datasets
-
-| Name             | Mountpoint            | Compression | Record Size | Description                                    |
-| ---------------- | --------------------- | ----------- | ----------- | ---------------------------------------------- |
-| nvme/personal    | /mnt/nvme/personal    | lz4         | default     | Personal data storage                          |
-| nvme/vm          | /mnt/nvme/vm          | lz4         | 16K         | Performance-optimized storage for VMs          |
-| nvme/data        | /mnt/nvme/data        | lz4         | default     | Performance-optimized storage for generic data |
-| hdd/vm           | /mnt/hdd/vm           | lz4         | default     | Capacity-optimized storage for VMs             |
-| hdd/data         | /mnt/hdd/data         | lz4         | default     | Capacity-optimized storage for generic data    |
-| hdd/backups-vm   | /mnt/hdd/backups-vm   | lz4         | default     | VM backups                                     |
-| hdd/backups-data | /mnt/hdd/backups-data | lz4         | default     | Generic data backups                           |
-
-### Network File System
-
-Smith hosts an NFS server that serves as a storage backend for the home proxmox cluster.
-
-#### NFS Exports
-
-- /mnt/nvme/vm
-- /mnt/hdd/vm
-
-### SMB/CIFS
-
-Smith also hosts a Samba server for sharing files within the home network.
-
-#### SMB/CIFS Exports
-
-- /mnt/nvme/personal
-- /mnt/nvme/data
-- /mnt/hdd/data
-
-### Backups
-
-Layered approach (snapshots, local backups/replicas, offsite S3) following the 3-2-1 rule.
-
-#### ZFS Snapshots
-
-Snapshots provide instant rollback capability. PBS handles longer-term retention for VMs.
-
-| Dataset          | Frequency      | Retention                        | Notes                           |
-| ---------------- | -------------- | -------------------------------- | ------------------------------- |
-| nvme/personal    | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
-| nvme/vm          | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
-| nvme/data        | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
-| hdd/vm           | Daily @ 1:30AM | Daily: 7                         | PBS covers weekly/monthly       |
-| hdd/data         | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 | Write-once media, low overhead  |
-| hdd/backups-data | Daily @ 2:00AM | Daily: 3                         | Backup of backups               |
-| hdd/backups-vm   | Disabled       | -                                | PBS handles own versioning      |
-
-#### Proxmox Backup Server
-
-Handles local, deduplicated backups for VMs and LXCs on the proxmox cluster.
-
-| Frequency   | Retention                       |
-| ----------- | ------------------------------- |
-| Daily @ 2AM | Daily: 3, Weekly: 2, Monthly: 3 |
-
-#### Local Replication
-
-| Source Dataset | Target Dataset            | Frequency      |
-| -------------- | ------------------------- | -------------- |
-| nvme/personal  | hdd/backups-data/personal | Daily @ 2:30AM |
-| nvme/data      | hdd/backups-data/data     | Daily @ 2:30AM |
-
-#### Offsite Backups
-
-| Source Dataset | Target                                     | Frequency   |
-| -------------- | ------------------------------------------ | ----------- |
-| hdd            | S3: Intelligent-Tiering (7-day versioning) | Daily @ 3AM |
