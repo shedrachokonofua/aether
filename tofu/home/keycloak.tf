@@ -82,6 +82,16 @@ resource "keycloak_realm" "aether" {
     host = local.vm.messaging_stack.ip
     port = local.vm.messaging_stack.ports.smtp
   }
+
+  # Brute force detection
+  bruteforce_protected              = true
+  permanent_lockout                 = false
+  max_login_failures                = 5
+  wait_increment_seconds            = 60
+  quick_login_check_milli_seconds   = 1000
+  minimum_quick_login_wait_seconds  = 60
+  max_failure_wait_seconds          = 900
+  failure_reset_time_seconds        = 43200
 }
 
 # =============================================================================
