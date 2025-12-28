@@ -33,9 +33,6 @@
   - [ ] Configure AdGuard sync between primary/secondary
   - [ ] Update VyOS DHCP with both DNS servers
 - [ ] Configure AWS federation
-  - [ ] Keycloak OIDC provider in AWS IAM (human + app access)
-  - [ ] GitLab identity provider in Keycloak (token exchange for CI)
-  - [ ] step-ca trust anchor in IAM Roles Anywhere (machine workloads)
   - [ ] Migrate Backup Server from static credentials to IAM Roles Anywhere
 - [ ] Codify existing Grafana dashboards in Ansible (currently manual: Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
 - [ ] Integrate SSO (OIDC-native apps)

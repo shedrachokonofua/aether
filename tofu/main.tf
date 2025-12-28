@@ -25,6 +25,7 @@ module "aws" {
   source                 = "./aws"
   aws_region             = var.aws_region
   aws_notification_email = local.aws.notification_email
+  keycloak_shdrch_sub    = module.home.keycloak_shdrch_user_id
 }
 
 provider "cloudflare" {

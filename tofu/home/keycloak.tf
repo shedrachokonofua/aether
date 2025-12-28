@@ -68,8 +68,8 @@ resource "keycloak_realm" "aether" {
   admin_theme   = "keycloak.v2"
   email_theme   = "keycloak"
 
-  sso_session_idle_timeout = "30m"
-  sso_session_max_lifespan = "10h"
+  sso_session_idle_timeout = "2h"
+  sso_session_max_lifespan = "12h"
   access_token_lifespan    = "5m"
   refresh_token_max_reuse  = 0
   password_policy          = "length(12) and notUsername"
@@ -433,6 +433,81 @@ resource "keycloak_openid_audience_protocol_mapper" "openbao_audience" {
   name      = "openbao-audience"
 
   included_client_audience = keycloak_openid_client.openbao.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+# =============================================================================
+# Toolbox Client - Unified Developer Login
+# =============================================================================
+# Public client for device authorization grant (CLI login without browser redirect).
+# Used by `task login` to authenticate developers and exchange tokens for:
+#   - AWS (via STS AssumeRoleWithWebIdentity)
+#   - OpenBao (via JWT auth backend)
+#   - step-ca SSH certs (optional, via OIDC provisioner)
+
+resource "keycloak_openid_client" "toolbox" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "toolbox"
+  name      = "Aether Toolbox"
+  enabled   = true
+
+  # PUBLIC client - device auth doesn't support client secrets
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = false
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  consent_required             = false # Skip grant screen for trusted client
+
+  # Device authorization grant - the key feature for CLI auth
+  oauth2_device_authorization_grant_enabled = true
+}
+
+# Note: Role check happens at downstream systems (OpenBao JWT auth, AWS could use sub claim)
+# Keycloak client authorization requires CONFIDENTIAL client which breaks device auth flow
+
+resource "keycloak_openid_client_default_scopes" "toolbox_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.toolbox.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# Add realm roles to tokens (for AWS role mapping)
+resource "keycloak_openid_user_realm_role_protocol_mapper" "toolbox_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.toolbox.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+# Add audience claim for OpenBao JWT auth
+resource "keycloak_openid_audience_protocol_mapper" "toolbox_openbao_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.toolbox.id
+  name      = "openbao-audience"
+
+  included_client_audience = keycloak_openid_client.openbao.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+# Add audience claim for AWS (client ID in STS call)
+resource "keycloak_openid_audience_protocol_mapper" "toolbox_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.toolbox.id
+  name      = "toolbox-audience"
+
+  included_client_audience = keycloak_openid_client.toolbox.client_id
   add_to_id_token          = true
   add_to_access_token      = true
 }

@@ -62,8 +62,8 @@ resource "vault_jwt_auth_backend" "keycloak" {
   default_role       = "default"
 
   tune {
-    default_lease_ttl = "1h"
-    max_lease_ttl     = "8h"
+    default_lease_ttl = "12h"
+    max_lease_ttl     = "12h"
     token_type        = "default-service"
   }
 }
@@ -108,5 +108,48 @@ resource "vault_policy" "admin" {
       capabilities = ["create", "read", "update", "delete", "list", "sudo"]
     }
   EOT
+}
+
+# =============================================================================
+# JWT Auth - CLI token exchange (no browser redirect)
+# =============================================================================
+# Separate from OIDC auth - accepts pre-obtained JWT tokens directly.
+# Used by `task login` to exchange Keycloak tokens for Bao tokens.
+
+resource "vault_jwt_auth_backend" "jwt" {
+  path               = "jwt"
+  type               = "jwt"
+  oidc_discovery_url = "https://auth.shdr.ch/realms/aether"
+  default_role       = "cli"
+
+  tune {
+    default_lease_ttl = "12h"
+    max_lease_ttl     = "12h"
+    token_type        = "default-service"
+  }
+}
+
+# CLI role - accepts tokens from aether-cli client
+resource "vault_jwt_auth_backend_role" "cli" {
+  backend        = vault_jwt_auth_backend.jwt.path
+  role_name      = "cli"
+  role_type      = "jwt"
+  token_policies = ["default", "sops"]
+
+  user_claim = "preferred_username"
+  # Accept tokens from the toolbox CLI client
+  bound_audiences = [keycloak_openid_client.toolbox.client_id, keycloak_openid_client.openbao.client_id]
+}
+
+# CLI admin role - for users with admin role in Keycloak
+resource "vault_jwt_auth_backend_role" "cli_admin" {
+  backend        = vault_jwt_auth_backend.jwt.path
+  role_name      = "cli-admin"
+  role_type      = "jwt"
+  token_policies = ["admin", "sops"]
+
+  user_claim   = "preferred_username"
+  bound_claims = { "roles" = "admin" }
+  bound_audiences = [keycloak_openid_client.toolbox.client_id, keycloak_openid_client.openbao.client_id]
 }
 

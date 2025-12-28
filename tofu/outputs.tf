@@ -158,3 +158,14 @@ output "keycloak_gitlab_client_secret" {
   value     = module.home.keycloak_gitlab_client_secret
   sensitive = true
 }
+
+# AWS OIDC Federation (for task login)
+output "keycloak_oidc_provider_arn" {
+  description = "ARN of the Keycloak OIDC identity provider in AWS"
+  value       = module.aws.keycloak_oidc_provider_arn
+}
+
+output "aws_admin_role_arn" {
+  description = "ARN of the admin role for SSO users in AWS"
+  value       = module.aws.admin_role_arn
+}

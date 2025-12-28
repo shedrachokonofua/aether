@@ -15,6 +15,11 @@ variable "aws_notification_email" {
   type = string
 }
 
+variable "keycloak_shdrch_sub" {
+  description = "Keycloak shdrch user subject ID for OIDC condition"
+  type        = string
+}
+
 provider "aws" {
   region = var.aws_region
 }

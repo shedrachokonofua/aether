@@ -73,26 +73,32 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using a three
 2. **Fallback**: AWS KMS (when OpenBao unavailable)
 3. **Emergency**: Age key (offline, works when everything else is down)
 
-### Normal workflow
+### Unified Login
+
+Single SSO login via Keycloak device auth:
 
 ```bash
-# Login to OpenBao (via UI at https://bao.home.shdr.ch, then paste token)
-task bao:login
+# Login once - opens browser to auth.shdr.ch, gets: SSH cert + OpenBao token + AWS creds
+task login
 
-# View/edit secrets (uses Transit)
+# Check auth status
+task login:status
+
+# View/edit secrets
 task sops:view -- secrets/secrets.yml
 task sops:edit -- secrets/secrets.yml
 task sops:get -- '.db_password' secrets/secrets.yml
 ```
 
-### Fallback workflow (OpenBao unavailable)
+### Standalone/Fallback workflows
 
 ```bash
-# Option 1: AWS KMS (automatic if logged in)
-task aws:login
-task sops:view -- secrets/secrets.yml
+# Separate logins (still work independently)
+task ca:login    # SSH certificate only (step-ca)
+task bao:login   # OpenBao only (manual token paste)
+task aws:login   # AWS only (AWS Identity Center)
 
-# Option 2: Age key (bootstrap or emergency)
+# Age key (bootstrap or emergency)
 # Write Age key to config/age-key.txt, use SOPS, then remove
 task sops:view -- secrets/secrets.yml
 rm config/age-key.txt
@@ -103,7 +109,7 @@ rm config/age-key.txt
 Re-encrypt all secrets with current keys from `.sops.yaml`:
 
 ```bash
-task bao:login
+task login
 task sops:rotate
 ```
 

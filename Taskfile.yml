@@ -347,14 +347,109 @@ tasks:
         gitleaks detect --source . -v {{.CLI_ARGS}}
 
   # ===========================================================================
+  # Unified Login (Keycloak SSO → SSH + OpenBao + AWS)
+  # ===========================================================================
+  # Single browser auth that provides credentials for everything.
+  # Replaces: task ca:login + task bao:login + task aws:login
+  #
+  # Flow:
+  #   1. Opens auth.shdr.ch device auth page
+  #   2. User authenticates via Keycloak SSO
+  #   3. Token exchanged for SSH certificate (step-ca, if agent available)
+  #   4. Token exchanged for OpenBao token (JWT auth)
+  #   5. Token exchanged for AWS creds (STS AssumeRoleWithWebIdentity)
+
+  login:
+    desc: Unified login via Keycloak SSO (AWS + OpenBao + SSH cert in one auth)
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/bao {{.CACHE_DIR}}/step
+      - |
+        SSH_AGENT_ARGS=""
+        if [ -S "${SSH_AUTH_SOCK:-}" ]; then
+          SSH_AGENT_ARGS="-v ${SSH_AUTH_SOCK}:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
+        fi
+        docker run --rm -it \
+          -v ${PWD}:/workspace \
+          -v {{.CACHE_DIR}}:/cache \
+          -v {{.CACHE_DIR}}/step:/root/.step \
+          -e AETHER_CACHE_DIR=/cache \
+          -e AETHER_DEBUG={{.AETHER_DEBUG | default "0"}} \
+          $SSH_AGENT_ARGS \
+          -w /workspace \
+          {{.DOCKER_IMAGE}} \
+          /workspace/scripts/login.sh {{.CLI_ARGS}}
+
+  login:status:
+    desc: Check auth status for all services
+    cmds:
+      - |
+        SSH_AGENT_ARGS=""
+        if [ -S "${SSH_AUTH_SOCK:-}" ]; then
+          SSH_AGENT_ARGS="-v ${SSH_AUTH_SOCK}:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
+        fi
+        docker run --rm \
+          -v ${PWD}:/workspace \
+          -v {{.CACHE_DIR}}:/cache \
+          -v {{.CACHE_DIR}}/step:/root/.step \
+          -e AETHER_CACHE_DIR=/cache \
+          $SSH_AGENT_ARGS \
+          -w /workspace \
+          {{.DOCKER_IMAGE}} \
+          /workspace/scripts/login.sh --status
+
+  login:aws:
+    desc: Login for AWS only
+    cmds:
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}:/cache
+        -e AETHER_CACHE_DIR=/cache
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        /workspace/scripts/login.sh --aws
+
+  login:bao:
+    desc: Login for OpenBao only
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/bao
+      - docker run --rm -it
+        -v ${PWD}:/workspace
+        -v {{.CACHE_DIR}}:/cache
+        -e AETHER_CACHE_DIR=/cache
+        -w /workspace
+        {{.DOCKER_IMAGE}}
+        /workspace/scripts/login.sh --bao
+
+  login:ssh:
+    desc: Login for SSH certificate only
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/step
+      - |
+        if [ ! -S "${SSH_AUTH_SOCK:-}" ]; then
+          echo "❌ SSH agent not available. Ensure ssh-agent is running."
+          exit 1
+        fi
+        docker run --rm -it \
+          -v ${PWD}:/workspace \
+          -v {{.CACHE_DIR}}:/cache \
+          -v {{.CACHE_DIR}}/step:/root/.step \
+          -v ${SSH_AUTH_SOCK}:/ssh-agent \
+          -e SSH_AUTH_SOCK=/ssh-agent \
+          -e AETHER_CACHE_DIR=/cache \
+          -w /workspace \
+          {{.DOCKER_IMAGE}} \
+          /workspace/scripts/login.sh --ssh
+
+  # ===========================================================================
   # SOPS / OpenBao + KMS Integration
   # ===========================================================================
   # Key hierarchy (SOPS tries in order):
-  #   1. OpenBao Transit - primary (requires bao:login)
-  #   2. AWS KMS - fallback (requires aws:login)
+  #   1. OpenBao Transit - primary (requires login or bao:login)
+  #   2. AWS KMS - fallback (requires login or aws:login)
   #   3. Age - migration only (requires age key file)
   #
-  # Normal:   task bao:login && task sops:view -- secrets/secrets.yml
+  # Normal:   task login && task sops:view -- secrets/secrets.yml
+  # Legacy:   task bao:login && task sops:view -- secrets/secrets.yml
   # Fallback: task aws:login && task sops:view -- secrets/secrets.yml
 
   bao:login:
@@ -499,11 +594,11 @@ tasks:
       - echo "Credentials exported to {{.CACHE_DIR}}/aws-env"
 
   aws:
-    desc: Run AWS CLI commands
+    desc: Run AWS CLI commands (run 'task login' or 'task aws:login' first)
     cmds:
       - docker run --rm
         -v ${PWD}:/workspace
-        -v ${HOME}/.aws:/root/.aws:ro
+        --env-file {{.CACHE_DIR}}/aws-env
         -w /workspace
         {{.DOCKER_IMAGE}}
         aws --no-cli-pager {{.CLI_ARGS}}

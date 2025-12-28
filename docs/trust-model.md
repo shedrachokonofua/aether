@@ -95,26 +95,42 @@ Humans authenticate via Keycloak using OIDC. Keycloak handles:
 | Setting                  | Value                                    |
 | ------------------------ | ---------------------------------------- |
 | Realm                    | aether                                   |
-| SSO session idle timeout | 30m                                      |
-| SSO session max lifespan | 10h                                      |
+| SSO session idle timeout | 2h                                       |
+| SSO session max lifespan | 12h                                      |
 | Access token lifespan    | 5m                                       |
 | Password policy          | length(12), notUsername                  |
 | Features enabled         | token-exchange, admin-fine-grained-authz |
 
 ### OIDC Clients (Aether Realm)
 
-| Client    | Purpose              | Token Use                              |
-| --------- | -------------------- | -------------------------------------- |
-| grafana   | Monitoring access    | Role mapping (grafana-editor/viewer)   |
-| openwebui | AI chat interface    | Role mapping (openwebui-user)          |
-| gitlab    | Code access          | User provisioning + group sync         |
-| jellyfin  | Media streaming      | Role mapping (jellyfin-user)           |
-| openbao   | Secrets management   | User policies based on Keycloak groups |
-| step-ca   | Certificate requests | User → SSH/X.509 certs (public client) |
+| Client    | Purpose              | Token Use                                    |
+| --------- | -------------------- | -------------------------------------------- |
+| toolbox   | CLI authentication   | Device auth → SSH cert, Bao token, AWS creds |
+| grafana   | Monitoring access    | Role mapping (grafana-editor/viewer)         |
+| openwebui | AI chat interface    | Role mapping (openwebui-user)                |
+| gitlab    | Code access          | User provisioning + group sync               |
+| jellyfin  | Media streaming      | Role mapping (jellyfin-user)                 |
+| openbao   | Secrets management   | User policies based on Keycloak groups       |
+| step-ca   | Certificate requests | User → SSH/X.509 certs (public client)       |
 
 ## External Trust Relationships
 
-### AWS IAM Roles Anywhere
+### AWS IAM OIDC Identity Provider
+
+AWS trusts Keycloak as an OIDC issuer, allowing token exchange for temporary AWS credentials.
+
+**Identity Provider**: `aether-oidc`
+
+- Trusts `https://auth.shdr.ch/realms/aether`
+- Credentials via STS AssumeRoleWithWebIdentity
+
+**Roles**:
+
+| Role         | Who               | Permissions         |
+| ------------ | ----------------- | ------------------- |
+| aether-admin | Me (admin in SSO) | AdministratorAccess |
+
+### AWS IAM Roles Anywhere (Machine Access)
 
 AWS trusts step-ca as an identity provider via IAM Roles Anywhere. The trust anchor is provisioned from step-ca's root certificate.
 
@@ -143,7 +159,8 @@ OpenBao supports multiple auth methods, bridging both identity planes:
 
 | Auth Method     | Identity Plane | Use Case                                      |
 | --------------- | -------------- | --------------------------------------------- |
-| OIDC (Keycloak) | Human          | Interactive UI/CLI access                     |
+| OIDC (Keycloak) | Human          | Interactive browser access (bao.home.shdr.ch) |
+| JWT (Keycloak)  | Human          | CLI token exchange (`task login` → Bao token) |
 | Cert            | Machine        | Service-to-Vault authentication               |
 | Token           | N/A            | Bootstrap, automation (avoid in steady-state) |
 
