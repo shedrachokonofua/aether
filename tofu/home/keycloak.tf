@@ -84,14 +84,17 @@ resource "keycloak_realm" "aether" {
   }
 
   # Brute force detection
-  bruteforce_protected              = true
-  permanent_lockout                 = false
-  max_login_failures                = 5
-  wait_increment_seconds            = 60
-  quick_login_check_milli_seconds   = 1000
-  minimum_quick_login_wait_seconds  = 60
-  max_failure_wait_seconds          = 900
-  failure_reset_time_seconds        = 43200
+  security_defenses {
+    brute_force_detection {
+      permanent_lockout                = false
+      max_login_failures               = 5
+      wait_increment_seconds           = 60
+      quick_login_check_milli_seconds  = 1000
+      minimum_quick_login_wait_seconds = 60
+      max_failure_wait_seconds         = 900
+      failure_reset_time_seconds       = 43200
+    }
+  }
 }
 
 # =============================================================================
@@ -111,78 +114,6 @@ resource "keycloak_required_action" "webauthn_register" {
   alias          = "webauthn-register"
   enabled        = true
   default_action = false
-}
-
-# Custom browser flow that requires MFA for admins
-resource "keycloak_authentication_flow" "browser_mfa" {
-  realm_id    = keycloak_realm.aether.id
-  alias       = "browser-mfa"
-  description = "Browser flow with MFA required for admins"
-}
-
-resource "keycloak_authentication_subflow" "browser_mfa_forms" {
-  realm_id          = keycloak_realm.aether.id
-  alias             = "browser-mfa-forms"
-  parent_flow_alias = keycloak_authentication_flow.browser_mfa.alias
-  provider_id       = "basic-flow"
-  requirement       = "ALTERNATIVE"
-}
-
-resource "keycloak_authentication_execution" "browser_mfa_username" {
-  realm_id          = keycloak_realm.aether.id
-  parent_flow_alias = keycloak_authentication_subflow.browser_mfa_forms.alias
-  authenticator     = "auth-username-password-form"
-  requirement       = "REQUIRED"
-}
-
-resource "keycloak_authentication_subflow" "browser_mfa_conditional" {
-  realm_id          = keycloak_realm.aether.id
-  alias             = "browser-mfa-conditional-otp"
-  parent_flow_alias = keycloak_authentication_subflow.browser_mfa_forms.alias
-  provider_id       = "basic-flow"
-  requirement       = "CONDITIONAL"
-
-  depends_on = [keycloak_authentication_execution.browser_mfa_username]
-}
-
-resource "keycloak_authentication_execution" "browser_mfa_role_condition" {
-  realm_id          = keycloak_realm.aether.id
-  parent_flow_alias = keycloak_authentication_subflow.browser_mfa_conditional.alias
-  authenticator     = "conditional-user-role"
-  requirement       = "REQUIRED"
-}
-
-resource "keycloak_authentication_execution_config" "browser_mfa_role_condition_config" {
-  realm_id     = keycloak_realm.aether.id
-  execution_id = keycloak_authentication_execution.browser_mfa_role_condition.id
-  alias        = "admin-role-condition"
-  config = {
-    condUserRole = "admin"
-    negate       = "false"
-  }
-}
-
-resource "keycloak_authentication_execution" "browser_mfa_otp" {
-  realm_id          = keycloak_realm.aether.id
-  parent_flow_alias = keycloak_authentication_subflow.browser_mfa_conditional.alias
-  authenticator     = "auth-otp-form"
-  requirement       = "ALTERNATIVE"
-
-  depends_on = [keycloak_authentication_execution.browser_mfa_role_condition]
-}
-
-resource "keycloak_authentication_execution" "browser_mfa_webauthn" {
-  realm_id          = keycloak_realm.aether.id
-  parent_flow_alias = keycloak_authentication_subflow.browser_mfa_conditional.alias
-  authenticator     = "webauthn-authenticator"
-  requirement       = "ALTERNATIVE"
-
-  depends_on = [keycloak_authentication_execution.browser_mfa_otp]
-}
-
-resource "keycloak_authentication_bindings" "browser_mfa_binding" {
-  realm_id     = keycloak_realm.aether.id
-  browser_flow = keycloak_authentication_flow.browser_mfa.alias
 }
 
 # =============================================================================
