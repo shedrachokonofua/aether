@@ -6,6 +6,7 @@ IaC for my private cloud.
 
 - **Infrastructure as Code**: Provisioning and configuration with Ansible, OpenTofu, and Packer
 - **Compute**: Proxmox VE cluster (5 nodes, 400GB RAM, 100 vCPUs) running VMs and LXC containers
+- **Application Containers**: Rootless Podman Quadlets (systemd-native), Docker only for where Podman is not feasible
 - **Networking**: VyOS router with zone-based firewall, 3Gbps symmetric WAN, 10Gbps backbone, VLAN segmentation, AdGuard DNS, Tailscale mesh, rotating VPN SOCKS5 proxy
 - **Public Gateway**: Selective internet exposure via Cloudflare DNS/CDN, AWS Lightsail DMZ + CrowdSec WAF, proxied home via Tailscale mesh
 - **Storage**: ZFS with NFS/SMB exports, SeaweedFS S3, 3-2-1 backups to Glacier
@@ -21,14 +22,14 @@ IaC for my private cloud.
 
 ### Infrastructure
 
-| Doc                                              | Description                           |
-| ------------------------------------------------ | ------------------------------------- |
-| [Hosts](docs/hosts.md)                           | Proxmox cluster nodes and host roles  |
-| [Virtual Machines](docs/virtual-machines.md)     | VM/LXC allocation and resource usage  |
-| [Networking](docs/networking.md)                 | VLANs, firewall, DNS, reverse proxy   |
-| [Storage](docs/storage.md)                       | ZFS pools, NFS, SMB, SeaweedFS        |
-| [Backups](docs/backups.md)                       | 3-2-1 strategy, PBS, offsite to AWS   |
-| [UPS](docs/ups.md)                               | Uninterruptible power supply          |
+| Doc                                          | Description                          |
+| -------------------------------------------- | ------------------------------------ |
+| [Hosts](docs/hosts.md)                       | Proxmox cluster nodes and host roles |
+| [Virtual Machines](docs/virtual-machines.md) | VM/LXC allocation and resource usage |
+| [Networking](docs/networking.md)             | VLANs, firewall, DNS, reverse proxy  |
+| [Storage](docs/storage.md)                   | ZFS pools, NFS, SMB, SeaweedFS       |
+| [Backups](docs/backups.md)                   | 3-2-1 strategy, PBS, offsite to AWS  |
+| [UPS](docs/ups.md)                           | Uninterruptible power supply         |
 
 ### Security & Identity
 
@@ -39,26 +40,26 @@ IaC for my private cloud.
 
 ### Services
 
-| Doc                                  | Description                             |
-| ------------------------------------ | --------------------------------------- |
-| [AI/ML](docs/ai-ml.md)               | GPU workstation, Ollama, LiteLLM, RAG   |
-| [PaaS](docs/paas.md)                 | Dokku, Dokploy, Smallweb                |
-| [Monitoring](docs/monitoring.md)     | OTEL, Prometheus, Grafana, Loki, Tempo  |
-| [Communication](docs/communication.md) | Matrix, ntfy, Postfix, bridges        |
+| Doc                                    | Description                            |
+| -------------------------------------- | -------------------------------------- |
+| [AI/ML](docs/ai-ml.md)                 | GPU workstation, Ollama, LiteLLM, RAG  |
+| [PaaS](docs/paas.md)                   | Dokku, Dokploy, Smallweb               |
+| [Monitoring](docs/monitoring.md)       | OTEL, Prometheus, Grafana, Loki, Tempo |
+| [Communication](docs/communication.md) | Matrix, ntfy, Postfix, bridges         |
 
 ### External
 
-| Doc                              | Description                          |
-| -------------------------------- | ------------------------------------ |
-| [AWS](docs/aws.md)               | Public gateway, backups, KMS, IAM    |
-| [Cloudflare](docs/cloudflare.md) | DNS and CDN                          |
-| [Tailscale](docs/tailscale.md)   | Secure remote access via mesh VPN    |
+| Doc                              | Description                       |
+| -------------------------------- | --------------------------------- |
+| [AWS](docs/aws.md)               | Public gateway, backups, KMS, IAM |
+| [Cloudflare](docs/cloudflare.md) | DNS and CDN                       |
+| [Tailscale](docs/tailscale.md)   | Secure remote access via mesh VPN |
 
 ### Meta
 
-| Doc                        | Description            |
-| -------------------------- | ---------------------- |
-| [TODOs](docs/todos.md)     | Roadmap and planned work |
+| Doc                    | Description              |
+| ---------------------- | ------------------------ |
+| [TODOs](docs/todos.md) | Roadmap and planned work |
 
 ## Dependencies
 

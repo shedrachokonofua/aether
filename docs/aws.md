@@ -58,7 +58,8 @@ S3 bucket for offsite backups of home storage layer and virtual machines with:
 
 - Server-side encryption (AES256)
 - Immediate transition to Glacier Flexible Retrieval
-- Dedicated IAM user with minimal required permissions
+- **Current**: Dedicated IAM user with minimal required permissions (stored/encrypted via SOPS)
+- **Planned**: Backup Server auth via AWS IAM Roles Anywhere (step-ca certificate-based) to remove static credentials (see `docs/todos.md`)
 - Public access blocked
 
 ## Email
