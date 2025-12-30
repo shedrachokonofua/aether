@@ -81,12 +81,12 @@ device_auth_start() {
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "client_id=${KEYCLOAK_CLIENT_ID}" \
     -d "scope=openid profile email roles")
-  
+
   if echo "$response" | jq -e '.error' &>/dev/null; then
     log_error "Device auth failed: $(echo "$response" | jq -r '.error_description // .error')"
     exit 1
   fi
-  
+
   echo "$response"
 }
 
@@ -95,30 +95,30 @@ device_auth_poll() {
   local device_code="$1"
   local interval="${2:-5}"
   local expires_in="${3:-600}"
-  
+
   local deadline=$(($(date +%s) + expires_in))
-  
+
   while true; do
     if [[ $(date +%s) -gt $deadline ]]; then
       log_error "Device authorization timed out"
       exit 1
     fi
-    
+
     local response
     response=$(curl -sS -X POST "${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token" \
       -H "Content-Type: application/x-www-form-urlencoded" \
       -d "client_id=${KEYCLOAK_CLIENT_ID}" \
       -d "grant_type=urn:ietf:params:oauth:grant-type:device_code" \
       -d "device_code=${device_code}" 2>&1) || true
-    
+
     if echo "$response" | jq -e '.access_token' &>/dev/null; then
       echo "$response"
       return 0
     fi
-    
+
     local error
     error=$(echo "$response" | jq -r '.error // empty')
-    
+
     case "$error" in
       authorization_pending)
         sleep "$interval"
@@ -155,20 +155,20 @@ decode_jwt() {
 exchange_for_aws() {
   local id_token="$1"
   local role_arn="${2:-}"
-  
+
   # Debug: show token claims
   if [[ "${AETHER_DEBUG:-}" == "1" ]]; then
     log_info "ID Token claims:"
     decode_jwt "$id_token"
   fi
-  
+
   log_info "Exchanging token for AWS credentials..."
-  
+
   # Auto-detect role ARN if not provided
   if [[ -z "$role_arn" ]]; then
     # Try admin role first (most common for CLI users)
     role_arn="arn:aws:iam::$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "ACCOUNT"):role/aether-admin"
-    
+
     # If we can't get account ID, we need to try assuming with the token
     # The role ARN is output by tofu, so we'll use a known pattern
     if [[ "$role_arn" == *"ACCOUNT"* ]]; then
@@ -176,7 +176,7 @@ exchange_for_aws() {
       role_arn=""
     fi
   fi
-  
+
   # Try to get credentials from tf-outputs if available
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -184,7 +184,7 @@ exchange_for_aws() {
   if [[ -z "$role_arn" ]] && [[ -f "$outputs_file" ]]; then
     role_arn=$(jq -r '.aws_admin_role_arn.value // empty' "$outputs_file" 2>/dev/null || true)
   fi
-  
+
   # Last resort: hardcoded pattern (user may need to set AETHER_AWS_ROLE)
   if [[ -z "$role_arn" ]]; then
     role_arn="${AETHER_AWS_ROLE:-}"
@@ -194,11 +194,11 @@ exchange_for_aws() {
       return 1
     fi
   fi
-  
+
   if [[ "${AETHER_DEBUG:-}" == "1" ]]; then
     log_info "Using role ARN: $role_arn"
   fi
-  
+
   local response
   response=$(aws sts assume-role-with-web-identity \
     --role-arn "$role_arn" \
@@ -210,14 +210,14 @@ exchange_for_aws() {
       log_error "AWS token exchange failed: $response"
       return 1
     }
-  
+
   # Extract credentials
   local access_key secret_key session_token expiration
   access_key=$(echo "$response" | jq -r '.Credentials.AccessKeyId')
   secret_key=$(echo "$response" | jq -r '.Credentials.SecretAccessKey')
   session_token=$(echo "$response" | jq -r '.Credentials.SessionToken')
   expiration=$(echo "$response" | jq -r '.Credentials.Expiration')
-  
+
   # Write credentials to env file (plain KEY=VALUE for Docker --env-file compatibility)
   cat > "$CACHE_DIR/aws-env" <<EOF
 AWS_ACCESS_KEY_ID=${access_key}
@@ -227,7 +227,7 @@ AWS_REGION=${AWS_REGION}
 AWS_DEFAULT_REGION=${AWS_REGION}
 EOF
   chmod 600 "$CACHE_DIR/aws-env"
-  
+
   # Also write to standard AWS credentials file for tools that prefer it
   mkdir -p "$HOME/.aws"
   cat > "$HOME/.aws/credentials" <<EOF
@@ -237,23 +237,23 @@ aws_secret_access_key = ${secret_key}
 aws_session_token = ${session_token}
 EOF
   chmod 600 "$HOME/.aws/credentials"
-  
+
   log_success "AWS credentials cached (expires: $expiration)"
   return 0
 }
 
 exchange_for_bao() {
   local access_token="$1"
-  
+
   log_info "Exchanging token for OpenBao credentials..."
-  
+
   # Try admin role first, fall back to cli role
   local role="cli-admin"
   local response
   response=$(curl -sS -X POST "${OPENBAO_URL}/v1/auth/jwt/login" \
     -H "Content-Type: application/json" \
     -d "{\"jwt\": \"${access_token}\", \"role\": \"${role}\"}" 2>&1) || true
-  
+
   # Check if admin role worked
   if ! echo "$response" | jq -e '.auth.client_token' &>/dev/null; then
     # Fall back to regular cli role
@@ -262,48 +262,48 @@ exchange_for_bao() {
       -H "Content-Type: application/json" \
       -d "{\"jwt\": \"${access_token}\", \"role\": \"${role}\"}" 2>&1) || true
   fi
-  
+
   if ! echo "$response" | jq -e '.auth.client_token' &>/dev/null; then
     local error
     error=$(echo "$response" | jq -r '.errors[0] // "unknown error"')
     log_error "OpenBao token exchange failed: $error"
     return 1
   fi
-  
+
   local token lease_duration policies
   token=$(echo "$response" | jq -r '.auth.client_token')
   lease_duration=$(echo "$response" | jq -r '.auth.lease_duration')
   policies=$(echo "$response" | jq -r '.auth.policies | join(", ")')
-  
+
   # Write token to cache
   echo "$token" > "$CACHE_DIR/bao/token"
   chmod 600 "$CACHE_DIR/bao/token"
-  
+
   local expires_at
   expires_at=$(date -d "+${lease_duration} seconds" 2>/dev/null || date -v "+${lease_duration}S" 2>/dev/null || echo "unknown")
-  
+
   log_success "OpenBao token cached (policies: ${policies}, expires: ~${lease_duration}s)"
   return 0
 }
 
 exchange_for_ssh_cert() {
-  local access_token="$1"
-  
+  local id_token="$1"
+
   # Check if SSH agent is available
   if [[ ! -S "${SSH_AUTH_SOCK:-}" ]]; then
     log_warn "SSH agent not available, skipping SSH certificate"
     log_info "  Use 'task ca:login' on host, or pass SSH_AUTH_SOCK to container"
     return 1
   fi
-  
+
   # Check if step CLI is available
   if ! command -v step &>/dev/null; then
     log_warn "step CLI not available, skipping SSH certificate"
     return 1
   fi
-  
+
   log_info "Exchanging token for SSH certificate..."
-  
+
   # Bootstrap step-ca trust if needed (silent)
   if [[ ! -f "${STEPPATH:-$HOME/.step}/config/defaults.json" ]]; then
     local fingerprint
@@ -312,18 +312,20 @@ exchange_for_ssh_cert() {
       step ca bootstrap --ca-url="$STEP_CA_URL" --fingerprint="$fingerprint" --force &>/dev/null || true
     fi
   fi
-  
-  # Exchange token for SSH certificate
+
+  # Exchange ID token for SSH certificate
+  # Use 'toolbox' provisioner which accepts tokens from the toolbox client (azp=toolbox)
+  # ID token (not access token) because it contains required identity claims like 'sub'
   local output
   output=$(step ssh login \
-    --provisioner=keycloak \
-    --token="$access_token" \
+    --provisioner=toolbox \
+    --token="$id_token" \
     --ca-url="$STEP_CA_URL" \
     2>&1) || {
       log_error "SSH certificate exchange failed: $output"
       return 1
     }
-  
+
   log_success "SSH certificate added to agent"
   return 0
 }
@@ -334,7 +336,7 @@ exchange_for_ssh_cert() {
 
 check_status() {
   echo -e "\n${BLUE}=== Aether Auth Status ===${NC}\n"
-  
+
   # Check step-ca SSH cert (most used day-to-day)
   echo -e "${BLUE}SSH:${NC}"
   if [[ -S "${SSH_AUTH_SOCK:-}" ]]; then
@@ -367,7 +369,7 @@ check_status() {
   else
     log_info "Agent not available in container (check on host with 'ssh-add -l')"
   fi
-  
+
   # Check OpenBao
   echo -e "\n${BLUE}OpenBao:${NC}"
   if [[ -f "$CACHE_DIR/bao/token" ]]; then
@@ -375,7 +377,7 @@ check_status() {
     token=$(cat "$CACHE_DIR/bao/token")
     local lookup
     lookup=$(curl -sS -H "X-Vault-Token: $token" "${OPENBAO_URL}/v1/auth/token/lookup-self" 2>&1) || true
-    
+
     if echo "$lookup" | jq -e '.data' &>/dev/null; then
       local display_name ttl policies
       display_name=$(echo "$lookup" | jq -r '.data.display_name')
@@ -388,7 +390,7 @@ check_status() {
   else
     log_warn "Not authenticated (no cached token)"
   fi
-  
+
   # Check AWS
   echo -e "\n${BLUE}AWS:${NC}"
   if [[ -f "$CACHE_DIR/aws-env" ]]; then
@@ -408,7 +410,7 @@ check_status() {
   else
     log_warn "Not authenticated (no cached credentials)"
   fi
-  
+
   echo ""
 }
 
@@ -420,7 +422,7 @@ do_login() {
   local do_aws=true
   local do_bao=true
   local do_ssh=auto  # auto = try if SSH agent available
-  
+
   # Parse args
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -470,22 +472,22 @@ do_login() {
         ;;
     esac
   done
-  
+
   ensure_deps
   ensure_cache_dir
-  
+
   # Start device authorization
   log_info "Starting device authorization..."
   local device_response
   device_response=$(device_auth_start)
-  
+
   local device_code user_code verification_uri interval expires_in
   device_code=$(echo "$device_response" | jq -r '.device_code')
   user_code=$(echo "$device_response" | jq -r '.user_code')
   verification_uri=$(echo "$device_response" | jq -r '.verification_uri_complete // .verification_uri')
   interval=$(echo "$device_response" | jq -r '.interval // 5')
   expires_in=$(echo "$device_response" | jq -r '.expires_in // 600')
-  
+
   echo ""
   echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "${YELLOW}  Open this URL in your browser:${NC}"
@@ -495,54 +497,55 @@ do_login() {
   echo -e "  ${YELLOW}Code: ${GREEN}${user_code}${NC}"
   echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
-  
+
   # Try to open browser automatically
   if command -v xdg-open &>/dev/null; then
     xdg-open "$verification_uri" 2>/dev/null &
   elif command -v open &>/dev/null; then
     open "$verification_uri" 2>/dev/null &
   fi
-  
+
   log_info "Waiting for browser authentication..."
-  
+
   # Poll for tokens
   local token_response
   token_response=$(device_auth_poll "$device_code" "$interval" "$expires_in")
-  
+
   local access_token id_token
   access_token=$(echo "$token_response" | jq -r '.access_token')
   id_token=$(echo "$token_response" | jq -r '.id_token')
-  
+
   log_success "Authentication successful!"
   echo ""
-  
+
   # Exchange tokens (ordered by importance: SSH → Bao → AWS)
   local ssh_ok=true
   local ssh_skipped=false
   local bao_ok=true
   local aws_ok=true
-  
+
   # SSH: auto-detect or explicit (most used day-to-day)
+  # Uses ID token (contains sub claim required by OIDC provisioner)
   if [[ "$do_ssh" == "auto" ]]; then
     if [[ -S "${SSH_AUTH_SOCK:-}" ]]; then
-      exchange_for_ssh_cert "$access_token" || ssh_ok=false
+      exchange_for_ssh_cert "$id_token" || ssh_ok=false
     else
       ssh_skipped=true
     fi
   elif [[ "$do_ssh" == "true" ]]; then
-    exchange_for_ssh_cert "$access_token" || ssh_ok=false
+    exchange_for_ssh_cert "$id_token" || ssh_ok=false
   else
     ssh_skipped=true
   fi
-  
+
   if $do_bao; then
     exchange_for_bao "$access_token" || bao_ok=false
   fi
-  
+
   if $do_aws; then
     exchange_for_aws "$id_token" || aws_ok=false
   fi
-  
+
   # Summary (same order)
   echo ""
   echo -e "${BLUE}=== Login Summary ===${NC}"
@@ -570,7 +573,7 @@ do_login() {
     fi
   fi
   echo ""
-  
+
   # Only fail on explicit requests, not auto-detected SSH
   if ! $bao_ok || ! $aws_ok; then
     exit 1

@@ -348,6 +348,34 @@
         msg: "OIDC provisioner skipped — Keycloak not reachable."
 
     # =========================================================================
+    # Add OIDC Provisioner for Toolbox (Unified CLI Login)
+    # =========================================================================
+    # Toolbox is a PUBLIC Keycloak client for device auth flow (task login).
+    # Tokens have azp=toolbox, so we need a separate provisioner that accepts it.
+
+    - name: Add OIDC provisioner for Toolbox
+      when:
+        - keycloak_check.status == 200
+        - "'toolbox' not in provisioner_list.stdout"
+      ansible.builtin.command:
+        cmd: >
+          step ca provisioner add toolbox
+          --type=OIDC
+          --client-id=toolbox
+          --configuration-endpoint=https://auth.shdr.ch/realms/aether/.well-known/openid-configuration
+          --admin=shdrch@shdr.ch
+          --listen-address=:10001
+          --ssh
+          --ssh-template={{ step_ca_home }}/templates/ssh/user.tpl
+          --ca-url=https://{{ step_ca_ip }}:{{ step_ca_port }}
+          --root={{ step_ca_home }}/certs/root_ca.crt
+          --admin-provisioner={{ jwk_provisioner_name }}
+          --admin-password-file={{ step_ca_home }}/secrets/provisioner-password.txt
+      environment:
+        STEPPATH: "{{ step_ca_home }}"
+      notify: Restart step-ca
+
+    # =========================================================================
     # Add OIDC Provisioner for GitLab CI (Direct JWT Trust - No Static Secrets)
     # =========================================================================
 
