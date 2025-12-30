@@ -94,6 +94,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "offsite_backup_lifecycle" {
     expiration {
       days = 181
     }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
   }
 
   depends_on = [aws_s3_bucket_ownership_controls.offsite_backup_ownership_controls]
