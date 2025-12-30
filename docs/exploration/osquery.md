@@ -310,7 +310,7 @@ fleet_enroll_secret: "{{ secrets.fleet_enroll_secret }}"
 
 ## Status
 
-**Exploration phase.** Powerful but adds complexity. Consider after core patch management (Trivy, WUD, Cockpit) is in place.
+**Exploration phase.** Powerful but adds complexity.
 
 ## Related Documents
 

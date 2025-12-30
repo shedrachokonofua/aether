@@ -349,7 +349,7 @@ https://semaphore.home.shdr.ch/project/1/templates?filter=${__data.fields.contai
 
 ## Status
 
-**Exploration phase.** Low complexity, high operational value. Recommended for implementation after Ceph + Proxmox HA.
+**Exploration phase.** Low complexity, high operational value.
 
 ## Related Documents
 

@@ -21,6 +21,16 @@
 
 ## P1
 
+- [ ] Enable Proxmox HA for critical VMs ([exploration](exploration/proxmox-ha.md))
+  - [ ] Convert Trinity to local-zfs
+  - [ ] Convert Oracle to local-zfs
+  - [ ] Convert Niobe to local-zfs
+  - [ ] Configure HA resources in Tofu
+- [ ] Deploy Ceph distributed storage ([exploration](exploration/ceph.md))
+  - [ ] Install NVMe drives in Trinity and Neo
+  - [ ] Initialize Ceph cluster via Proxmox
+  - [ ] Migrate workload VMs to Ceph storage
+  - [ ] Enable Proxmox HA for Ceph-tier VMs
 - [ ] Direct Cloudflare ACME cert for Keycloak (after AdGuard split)
   - [ ] Create Ansible role for certbot + cloudflare plugin
   - [ ] Deploy to Keycloak LXC (auth.shdr.ch)
@@ -49,6 +59,25 @@
 
 ## P2
 
+- [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))
+  - [ ] Deploy WUD for container update visibility
+  - [ ] Deploy Trivy for CVE scanning
+  - [ ] Deploy Ansible Semaphore for controlled deployment
+  - [ ] Create Grafana dashboard for unified view
+- [ ] Deploy Fleet/osquery for host visibility ([exploration](exploration/osquery.md))
+  - [ ] Deploy Fleet server on Monitoring Stack
+  - [ ] Add osquery agent to vm_monitoring_agent role
+  - [ ] Configure scheduled queries and policies
+- [ ] Complete Tailscale integration ([exploration](exploration/full-tailscale-integration.md))
+  - [ ] Phase 2: Gateway credential security (WIF)
+  - [ ] Phase 3: VyOS route for home → Tailnet
+  - [ ] Phase 4: MagicDNS via AdGuard
+- [ ] Deploy network security stack ([exploration](exploration/network-security.md))
+  - [ ] Provision Network Security Stack VM on Oracle
+  - [ ] Deploy Suricata with VyOS port mirror
+  - [ ] Deploy Zeek for protocol analysis
+  - [ ] Deploy Nuclei for vulnerability scanning
+  - [ ] Add Wazuh agents to vm_monitoring_agent role
 - [ ] Consolidate ProtonVPN infrastructure
   - [ ] Unify secrets under `secrets.protonvpn.*` (move qbittorrent VPN creds)
   - [ ] Switch qBittorrent from Gluetun to tun2socks → rotating-proxy
