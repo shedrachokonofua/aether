@@ -44,16 +44,6 @@
         compress: "lz4"
         recordsize: "default"
         atime: "off"
-      - name: "nvme/seaweedfs" # SeaweedFS hot tier + metadata
-        mountpoint: "/mnt/nvme/seaweedfs"
-        compress: "lz4"
-        recordsize: "default"
-        atime: "off"
-      - name: "hdd/seaweedfs" # SeaweedFS cold tier
-        mountpoint: "/mnt/hdd/seaweedfs"
-        compress: "lz4"
-        recordsize: "default"
-        atime: "off"
   tasks:
     # --- Pool Creation Tasks ---
     - name: Check if NVMe pool "{{ nvme_pool_name }}" exists

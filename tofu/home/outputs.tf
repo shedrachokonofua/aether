@@ -42,11 +42,6 @@ output "cockpit_password" {
   sensitive = true
 }
 
-output "coupe_password" {
-  value     = random_password.coupe_password.result
-  sensitive = true
-}
-
 output "gpu_workstation_password" {
   value     = random_password.gpu_workstation_console_password.result
   sensitive = true
@@ -73,11 +68,6 @@ output "dokku_deployment_public_key" {
 
 output "dokku_deployment_private_key" {
   value     = tls_private_key.dokku_deployment_ssh_key.private_key_pem
-  sensitive = true
-}
-
-output "seaweedfs_password" {
-  value     = random_password.seaweedfs_password.result
   sensitive = true
 }
 

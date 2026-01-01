@@ -1,7 +1,6 @@
 ---
 - name: Upgrade Fedora VMs
   hosts:
-    - coupe
     - cockpit
     - ups-management-stack
     - dev-workstation

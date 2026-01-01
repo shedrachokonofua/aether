@@ -9,7 +9,7 @@ IaC for my private cloud.
 - **Application Containers**: Rootless Podman Quadlets (systemd-native), Docker only for where Podman is not feasible
 - **Networking**: VyOS router with zone-based firewall, 3Gbps symmetric WAN, 10Gbps backbone, VLAN segmentation, AdGuard DNS, Tailscale mesh, rotating VPN SOCKS5 proxy
 - **Public Gateway**: Selective internet exposure via Cloudflare DNS/CDN, AWS Lightsail DMZ + CrowdSec WAF, proxied home via Tailscale mesh
-- **Storage**: ZFS with NFS/SMB exports, SeaweedFS S3, 3-2-1 backups to Glacier
+- **Storage**: ZFS with NFS/SMB exports, 3-2-1 backups to Glacier
 - **Security**: Private PKI (step-ca), Keycloak SSO, mTLS, OpenBao secrets, SOPS with multi-key encryption
 - **DevOps**: GitLab (VCS, CI/CD, registries, Terraform state), Dokku/Dokploy/Smallweb PaaS, Coder workspaces
 - **AI & ML**: Private LLM inference (Ollama, LiteLLM, OpenWebUI), Stable Diffusion (ComfyUI, SwarmUI) on RTX Pro 6000 Max-Q
@@ -27,7 +27,7 @@ IaC for my private cloud.
 | [Hosts](docs/hosts.md)                       | Proxmox cluster nodes and host roles |
 | [Virtual Machines](docs/virtual-machines.md) | VM/LXC allocation and resource usage |
 | [Networking](docs/networking.md)             | VLANs, firewall, DNS, reverse proxy  |
-| [Storage](docs/storage.md)                   | ZFS pools, NFS, SMB, SeaweedFS       |
+| [Storage](docs/storage.md)                   | ZFS pools, NFS, SMB                  |
 | [Backups](docs/backups.md)                   | 3-2-1 strategy, PBS, offsite to AWS  |
 | [UPS](docs/ups.md)                           | Uninterruptible power supply         |
 

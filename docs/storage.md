@@ -10,22 +10,19 @@ graph LR
         PVE["Proxmox Cluster"]
         VMs["Service VMs"]
         HomeNet["Home Network"]
-        Apps["S3 Clients"]
     end
 
     subgraph Protocols
         NFS["NFS Server"]
         SMB["SMB/CIFS"]
-        S3["SeaweedFS S3"]
     end
 
     Smith["Smith ZFS Storage"]
 
     PVE & VMs --> NFS
     HomeNet --> SMB
-    Apps --> S3
     
-    NFS & SMB & S3 --> Smith
+    NFS & SMB --> Smith
 ```
 
 | Count | Type | Size | RAID   | Total(Raw) | Total(Usable) |
@@ -88,7 +85,7 @@ Some workloads use node-local NVME instead of NFS for specific reasons:
 | Niobe   | Monitoring Stack                            | TSDB write performance                               |
 
 
-Smith's VMs (Gaming Server, NFS Server, Backup Server, SeaweedFS) use local storage by definition — Smith _is_ the storage node.
+Smith's VMs (Gaming Server, NFS Server, Backup Server) use local storage by definition — Smith _is_ the storage node.
 
 ## NFS Storage
 
@@ -114,13 +111,3 @@ Smith hosts a Samba server for sharing files within the home network.
 - /mnt/nvme/personal
 - /mnt/nvme/data
 - /mnt/hdd/data
-
-## SeaweedFS
-
-SeaweedFS runs as an LXC on Smith, providing S3-compatible object storage with:
-
-- S3 API with IAM authentication
-- WebDAV access
-- Filer for hierarchical storage
-
-Storage is backed by HDD mountpoints for capacity-optimized object storage.

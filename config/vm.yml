@@ -158,17 +158,6 @@ lute:
     traefik: 8080
     core: 22000
 
-coupe:
-  id: 1012
-  name: "coupe"
-  node: "niobe"
-  admin: "aether"
-  cores: 4
-  memory: 4096
-  disk_gb: 64
-  ip: "10.0.3.12"
-  gateway: "10.0.3.1"
-
 bazzite_builder:
   id: 1013
   name: "bazzite-builder"
@@ -328,21 +317,6 @@ dokku:
     infisical: 8081
     temporal_grpc: 7233
     temporal_ui: 8082
-
-seaweedfs:
-  id: 1022
-  name: "seaweedfs"
-  node: "smith"
-  admin: "root"
-  cores: 4
-  memory: 4096
-  disk_gb: 32
-  ip: "10.0.2.7"
-  gateway: "10.0.2.1"
-  ports:
-    s3: 8333
-    filer: 8888
-    master: 9333
 
 keycloak:
   id: 1023
