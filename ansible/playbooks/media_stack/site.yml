@@ -14,8 +14,8 @@
             - targets:
                 ["localhost:{{ vm.media_stack.ports.qbittorrent_exporter }}"]
 
-- name: Mount NFS share
-  import_playbook: mount_nfs.yml
+- name: Mount network storage
+  import_playbook: mount_network_storage.yml
 
 - name: Deploy qBittorrent
   import_playbook: qbittorrent.yml

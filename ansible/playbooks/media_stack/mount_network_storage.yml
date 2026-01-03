@@ -1,0 +1,93 @@
+---
+- name: Mount CephFS and NFS storage for media stack
+  hosts: media-stack
+  become: true
+  roles:
+    - common
+  vars:
+    ceph_monitors: "192.168.2.202,192.168.2.204,192.168.2.205"
+
+  tasks:
+    # Cleanup old NFS mounts
+    - name: Unmount old NFS paths if present
+      ansible.posix.mount:
+        path: "{{ item }}"
+        state: unmounted
+      loop:
+        - /mnt/media
+        - /mnt/nvme
+        - /mnt/hdd
+        - /mnt/personal
+        - /nvme/data
+        - /nvme/personal
+      ignore_errors: true
+
+    - name: Remove old paths from fstab
+      ansible.posix.mount:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /mnt/media
+        - /mnt/nvme
+        - /mnt/hdd
+        - /mnt/personal
+        - /nvme/data
+        - /nvme/personal
+      ignore_errors: true
+
+    # Install CephFS and NFS clients
+    - name: Install storage client utilities
+      ansible.builtin.dnf:
+        name:
+          - ceph-common
+          - nfs-utils
+        state: present
+
+    # Create Ceph config for mounting
+    - name: Create Ceph config directory
+      ansible.builtin.file:
+        path: /etc/ceph
+        state: directory
+        mode: "0755"
+
+    - name: Write Ceph admin secret
+      ansible.builtin.copy:
+        content: "{{ secrets.ceph.admin_key }}"
+        dest: /etc/ceph/ceph.client.admin.secret
+        mode: "0600"
+
+    - name: Write minimal Ceph config
+      ansible.builtin.copy:
+        content: |
+          [global]
+          mon_host = {{ ceph_monitors }}
+        dest: /etc/ceph/ceph.conf
+        mode: "0644"
+
+    # Create mount points (apps expect /nvme/data/media and /hdd/data)
+    - name: Create mount points
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /nvme/data/media
+        - /hdd/data
+
+    # Mount CephFS /media at /nvme/data/media (maintains app compatibility)
+    - name: Mount CephFS for media
+      ansible.posix.mount:
+        path: /nvme/data/media
+        src: "{{ ceph_monitors }}:/media"
+        fstype: ceph
+        opts: name=admin,secretfile=/etc/ceph/ceph.client.admin.secret,_netdev,noatime
+        state: mounted
+
+    # Mount NFS for cold HDD data
+    - name: Mount NFS share for hdd/data
+      ansible.posix.mount:
+        path: /hdd/data
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/hdd/data"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted

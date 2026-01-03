@@ -27,8 +27,7 @@
           - "{{ filestash_port }}:8334"
         volume:
           - "{{ filestash_config_dir }}/data:/app/data/state:Z"
-          - /nvme/data:/nvme/data
-          - /nvme/personal:/nvme/personal
+          - /nvme/data/media:/nvme/data/media
           - /hdd/data:/hdd/data
         quadlet_options:
           - |

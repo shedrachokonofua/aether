@@ -65,8 +65,8 @@
           - /home/aether/jupyter/notebooks:/home/jovyan/work:Z,U
           - /home/aether/jupyter/data:/home/jovyan/data:Z,U
           - /home/aether/jupyter/clearml.conf:/home/jovyan/clearml.conf:Z,U
-          - /mnt/nfs/nvme/data/ml:/home/jovyan/data/nvme
-          - /mnt/nfs/hdd/data/ml:/home/jovyan/data/hdd
+          - /mnt/ml:/home/jovyan/data/cephfs
+          - /mnt/hdd/ml:/home/jovyan/data/hdd
         device:
           - nvidia.com/gpu=all
         env:

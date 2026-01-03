@@ -1,0 +1,86 @@
+---
+- name: Mount CephFS and NFS storage for ML workloads
+  hosts: gpu-workstation
+  become: true
+  roles:
+    - common
+  vars:
+    ceph_monitors: "192.168.2.202,192.168.2.204,192.168.2.205"
+
+  tasks:
+    # Cleanup old NFS mounts
+    - name: Unmount old NFS paths if present
+      ansible.posix.mount:
+        path: "{{ item }}"
+        state: unmounted
+      loop:
+        - /mnt/nfs/nvme/data/ml
+        - /mnt/nfs/hdd/data/ml
+      ignore_errors: true
+
+    - name: Remove old paths from fstab
+      ansible.posix.mount:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /mnt/nfs/nvme/data/ml
+        - /mnt/nfs/hdd/data/ml
+      ignore_errors: true
+
+    # Install CephFS and NFS clients
+    - name: Install storage client utilities
+      dnf:
+        name:
+          - ceph-common
+          - nfs-utils
+        state: present
+
+    # Create Ceph keyring for mounting
+    - name: Create Ceph config directory
+      file:
+        path: /etc/ceph
+        state: directory
+        mode: "0755"
+
+    - name: Write Ceph admin secret
+      copy:
+        content: "{{ secrets.ceph.admin_key }}"
+        dest: /etc/ceph/ceph.client.admin.secret
+        mode: "0600"
+
+    - name: Write minimal Ceph config
+      copy:
+        content: |
+          [global]
+          mon_host = {{ ceph_monitors }}
+        dest: /etc/ceph/ceph.conf
+        mode: "0644"
+
+    # Create mount points
+    - name: Create mount points
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /mnt/ml
+        - /mnt/hdd/ml
+
+    # Mount CephFS for hot ML data
+    - name: Mount CephFS for ML data
+      ansible.posix.mount:
+        path: /mnt/ml
+        src: "{{ ceph_monitors }}:/ml"
+        fstype: ceph
+        opts: name=admin,secretfile=/etc/ceph/ceph.client.admin.secret,_netdev,noatime
+        state: mounted
+
+    # Mount NFS for cold HDD ML data
+    - name: Mount NFS share for hdd/data/ml
+      ansible.posix.mount:
+        path: /mnt/hdd/ml
+        src: "{{ vm.nfs.ip.vyos }}:/mnt/hdd/data/ml"
+        fstype: nfs4
+        opts: defaults,_netdev,noatime
+        state: mounted
+

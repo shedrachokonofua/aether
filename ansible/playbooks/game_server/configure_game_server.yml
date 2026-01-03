@@ -4,8 +4,8 @@
   gather_facts: true
   roles:
     - common
-    - vm_baseline
-    - vm_monitoring_agent
+    # - vm_baseline
+    # - vm_monitoring_agent
   tasks:
     - name: Resize partition to maximum size
       command: parted -s /dev/sda resizepart 4 100%
@@ -67,19 +67,72 @@
         state: present
       become: true
 
-    - name: Add gaming NFS mount point to fstab
+    # Cleanup old NFS mount (migrated to CephFS)
+    - name: Unmount old NFS gaming mount if present
+      ansible.posix.mount:
+        path: /mnt/gaming
+        state: unmounted
+      become: true
+      ignore_errors: true
+
+    - name: Remove old NFS gaming mount from fstab
+      ansible.posix.mount:
+        path: /mnt/gaming
+        state: absent
+      become: true
+      ignore_errors: true
+
+    - name: Remove old lineinfile fstab entry for gaming NFS
       lineinfile:
         path: /etc/fstab
-        line: "{{ vm.nfs.ip.vyos }}:/mnt/nvme/data/gaming /mnt/gaming nfs4 defaults,_netdev,noatime 0 0"
-        create: yes
+        regexp: '.*:/mnt/nvme/data/gaming.*'
+        state: absent
+      become: true
+      ignore_errors: true
+
+    - name: Check if ceph-common is already installed
+      command: rpm -q ceph-common
+      register: ceph_installed
+      changed_when: false
+      failed_when: false
       become: true
 
-    - name: Mount NFS share
+    - name: Install CephFS client via rpm-ostree
+      command: rpm-ostree install --apply-live --idempotent -y ceph-common
+      become: true
+      when: ceph_installed.rc != 0
+      async: 300
+      poll: 10
+
+    - name: Create Ceph config directory
+      file:
+        path: /etc/ceph
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Write Ceph admin secret
+      copy:
+        content: "{{ secrets.ceph.admin_key }}"
+        dest: /etc/ceph/ceph.client.admin.secret
+        mode: "0600"
+      become: true
+
+    - name: Write minimal Ceph config
+      copy:
+        content: |
+          [global]
+          mon_host = 192.168.2.202,192.168.2.204,192.168.2.205
+        dest: /etc/ceph/ceph.conf
+        mode: "0644"
+      become: true
+
+    - name: Mount CephFS for gaming
       mount:
         path: /mnt/gaming
-        src: "{{ vm.nfs.ip.vyos }}:/mnt/nvme/data/gaming"
-        fstype: nfs4
-        opts: defaults,_netdev,noatime
+        src: "192.168.2.202,192.168.2.204,192.168.2.205:/gaming"
+        fstype: ceph
+        opts: name=admin,secretfile=/etc/ceph/ceph.client.admin.secret,_netdev,noatime
         state: mounted
       become: true
 

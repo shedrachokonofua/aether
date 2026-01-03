@@ -43,6 +43,12 @@
           - set nat source rule 101 outbound-interface name eth0
           - set nat source rule 101 destination address 192.168.2.0/24
           - set nat source rule 101 translation address masquerade
+          # VLAN 3 to Gigahub network (Ceph storage access)
+          - set nat source rule 103 description "VLAN 3 to Gigahub network"
+          - set nat source rule 103 source address 10.0.3.0/24
+          - set nat source rule 103 outbound-interface name eth0
+          - set nat source rule 103 destination address 192.168.2.0/24
+          - set nat source rule 103 translation address masquerade
           # VLAN 4 to Gigahub network
           - set nat source rule 102 description "VLAN 4 to Gigahub network"
           - set nat source rule 102 source address 10.0.4.0/24
@@ -366,6 +372,27 @@
           - set firewall ipv4 name SERVICES-to-MGMT rule 20 destination port {{ vm.step_ca.ports.https }}
           - set firewall ipv4 name SERVICES-to-MGMT rule 20 destination address {{ vm.step_ca.ip }}
           - set firewall ipv4 name SERVICES-to-MGMT rule 20 description 'Allow HTTPS to step-ca'
+          # Ceph storage - monitors and OSDs on Proxmox hosts
+          - set firewall ipv4 name SERVICES-to-MGMT rule 30 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 30 protocol tcp
+          - set firewall ipv4 name SERVICES-to-MGMT rule 30 destination port 6789,6800-7300
+          - set firewall ipv4 name SERVICES-to-MGMT rule 30 destination address 192.168.2.201/32
+          - set firewall ipv4 name SERVICES-to-MGMT rule 30 description 'Allow Ceph to Niobe'
+          - set firewall ipv4 name SERVICES-to-MGMT rule 31 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 31 protocol tcp
+          - set firewall ipv4 name SERVICES-to-MGMT rule 31 destination port 6789,6800-7300
+          - set firewall ipv4 name SERVICES-to-MGMT rule 31 destination address 192.168.2.202/32
+          - set firewall ipv4 name SERVICES-to-MGMT rule 31 description 'Allow Ceph to Trinity'
+          - set firewall ipv4 name SERVICES-to-MGMT rule 32 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 32 protocol tcp
+          - set firewall ipv4 name SERVICES-to-MGMT rule 32 destination port 6789,6800-7300
+          - set firewall ipv4 name SERVICES-to-MGMT rule 32 destination address 192.168.2.204/32
+          - set firewall ipv4 name SERVICES-to-MGMT rule 32 description 'Allow Ceph to Smith'
+          - set firewall ipv4 name SERVICES-to-MGMT rule 33 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 33 protocol tcp
+          - set firewall ipv4 name SERVICES-to-MGMT rule 33 destination port 6789,6800-7300
+          - set firewall ipv4 name SERVICES-to-MGMT rule 33 destination address 192.168.2.205/32
+          - set firewall ipv4 name SERVICES-to-MGMT rule 33 description 'Allow Ceph to Neo'
 
           # Configure media zone restrictions
           - set firewall ipv4 name MEDIA-to-TRUSTED default-action drop
