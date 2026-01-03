@@ -21,7 +21,7 @@ resource "proxmox_virtual_environment_vm" "dokku" {
   }
 
   disk {
-    datastore_id = "nfs-nvme-vm-dataset"
+    datastore_id = "ceph-vm-disks"
     file_id      = proxmox_virtual_environment_download_file.fedora_image.id
     size         = local.vm.dokku.disk_gb
     interface    = "virtio0"

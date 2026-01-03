@@ -210,20 +210,19 @@ RAID0 is eliminated. Each piece of data exists on 3 nodes. Single drive failure 
 
 ## Migration Plan
 
-### Phase 1: Hardware Procurement
+### Phase 1: Hardware Procurement ✅
 
-| Item                    | Est. Cost     |
-| ----------------------- | ------------- |
-| 2x 4TB NVMe for Trinity | ~$800         |
-| 2x 4TB NVMe for Neo     | ~$800         |
-| **Total**               | **~$1600** 😭 |
+| Item                    | Status |
+| ----------------------- | ------ |
+| 2x 4TB NVMe for Trinity | ✅     |
+| 2x 4TB NVMe for Neo     | ✅     |
 
 ### Phase 2: Prepare Nodes
 
-1. Convert Oracle to local-zfs (for critical infra replication) — see `proxmox-ha.md`
-2. Convert Niobe to local-zfs (for monitoring)
-3. Install new NVMe in Trinity and Neo
-4. Verify 10Gbps connectivity between Smith, Trinity, Neo
+1. ~~Convert Oracle to local-zfs~~ (deferred — not blocking Ceph deployment)
+2. ~~Convert Niobe to local-zfs~~ (deferred — not blocking Ceph deployment)
+3. ✅ Install new NVMe in Trinity and Neo
+4. [ ] Verify 10Gbps connectivity between Smith, Trinity, Neo
 
 ### Phase 3: Deploy Ceph
 
@@ -359,10 +358,34 @@ ceph df
 
 ## Status
 
-**Exploration phase.** Recommended as the long-term storage architecture. Requires hardware purchase before implementation.
+**Deployed.** Ceph cluster operational with Trinity and Neo OSDs. VMs migrated from NFS. Pending: Smith OSDs, CephFS, HA configuration.
+
+### Completed
+
+- ✅ Hardware installed (NVMe on Trinity, Neo)
+- ✅ Ceph cluster initialized
+- ✅ 3 MONs (smith, trinity, neo)
+- ✅ 4 OSDs on Trinity + Neo (~15TB raw, ~5TB usable)
+- ✅ Pool `vm-disks` with 3x replication
+- ✅ All workload VMs migrated to Ceph
+- ✅ Terraform updated to use `ceph-vm-disks`
+
+### Pending
+
+- ⏳ Add Smith OSDs (+8TB raw → ~8TB total usable)
+- ⏳ **CephFS for hot data** — required, replaces `/mnt/nvme/data`
+- ⏳ Smith network bonding (3Gbps → 5.5Gbps) — optional
+- ⏳ Proxmox HA configuration
+
+### Lessons Learned
+
+1. **Smith's 10G NIC runs at PCIe x1** due to B550 chipset M.2 lane sharing. PCIEX4 slot disabled when M2B_SB populated. Resulted in 3Gbps instead of 10Gbps.
+2. **Average cluster speed ~7-8Gbps** — still 2.5x faster than single NFS server
+3. **Health warning expected** with only 2 nodes providing OSDs. Resolves when Smith OSDs added.
 
 ## Related Documents
 
+- [ceph-implementation.md](../ceph-implementation.md) — Step-by-step manual implementation guide
 - `proxmox-ha.md` — HA for local-tier VMs (Oracle, Niobe)
 - `../storage.md` — Current storage architecture
 - `../backups.md` — 3-2-1 backup strategy (unchanged)

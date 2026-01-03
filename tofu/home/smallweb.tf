@@ -18,7 +18,7 @@ resource "proxmox_virtual_environment_container" "smallweb" {
   }
 
   disk {
-    datastore_id = "nfs-nvme-vm-dataset"
+    datastore_id = "ceph-vm-disks"
     size         = local.vm.smallweb.disk_gb
   }
 

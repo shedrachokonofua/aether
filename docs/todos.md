@@ -11,7 +11,6 @@
   - [ ] Add journal-gatewayd to host_monitoring_agent role
   - [ ] Deploy forwarder to monitoring stack
   - [ ] Configure sources for all Proxmox hosts + public gateway
-- [ ] Setup iGPU passthrough on Trinity for Media Stack (Jellyfin hardware transcoding)
 - [ ] Split AdGuard from Gateway Stack
   - [ ] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
   - [ ] Deploy AdGuard
@@ -26,11 +25,13 @@
   - [ ] Convert Oracle to local-zfs
   - [ ] Convert Niobe to local-zfs
   - [ ] Configure HA resources in Tofu
-- [ ] Deploy Ceph distributed storage ([exploration](exploration/ceph.md))
-  - [ ] Install NVMe drives in Trinity and Neo
-  - [ ] Initialize Ceph cluster via Proxmox
-  - [ ] Migrate workload VMs to Ceph storage
-  - [ ] Enable Proxmox HA for Ceph-tier VMs
+- [ ] Deploy Ceph distributed storage ([exploration](exploration/ceph.md), [implementation](ceph-implementation.md))
+  - [x] Install NVMe drives in Trinity and Neo
+  - [x] Initialize Ceph cluster via Proxmox (Phase 1)
+  - [x] Migrate VM disks to Ceph RBD (Phase 2)
+  - [ ] Migrate file shares to CephFS (Phase 3)
+  - [ ] Add Smith OSDs (Phase 4)
+  - [ ] Enable Proxmox HA for Ceph-tier VMs (Phase 5)
 - [ ] Direct Cloudflare ACME cert for Keycloak (after AdGuard split)
   - [ ] Create Ansible role for certbot + cloudflare plugin
   - [ ] Deploy to Keycloak LXC (auth.shdr.ch)
@@ -48,7 +49,6 @@
   - [ ] Element
   - [ ] Affine
   - [ ] N8N
-  - [ ] SeaweedFS
 - [ ] Enable SSH certificate auth for GitLab git push
   - [ ] Configure gitlab_sshd to trust step-ca user CA
     - [ ] Copy ssh_user_ca_key.pub to GitLab config
@@ -59,6 +59,18 @@
 
 ## P2
 
+- [ ] Deploy Kubernetes cluster ([exploration](exploration/kubernetes.md))
+  - [ ] Provision 3 Talos VMs via Tofu (Trinity, Niobe, Neo)
+  - [ ] Bootstrap Talos cluster
+  - [ ] Install Cilium, Gateway API, Knative, OPA Gatekeeper
+  - [ ] Install Kubero (replaces Dokku + Dokploy)
+  - [ ] Install Secrets Store CSI + cert-manager
+  - [ ] Configure OTEL Collector → external Monitoring Stack
+  - [ ] Register GitLab Agent
+  - [ ] Migrate AI Tool Stack, Messaging Stack, Lute Stack
+  - [ ] Migrate Media Stack (rffmpeg → GPU Workstation for transcoding)
+  - [ ] Migrate Dokku/Dokploy apps to Kubero
+  - [ ] Configure multi-tenancy (namespaces, quotas, Keycloak OIDC)
 - [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))
   - [ ] Deploy WUD for container update visibility
   - [ ] Deploy Trivy for CVE scanning
@@ -91,14 +103,27 @@
   - [ ] SABnzbd
   - [ ] Prowlarr
   - [ ] Homarr
+- [ ] Deploy rffmpeg server on GPU Workstation (Jellyfin remote transcoding)
 - [ ] Add TTS/STT inference to GPU Workstation
 - [ ] Integrate Matter/Thread border router into IoT stack
 - [ ] Deploy wasmCloud LXC
 
 ## P3
 
-- [ ] Move dokku to Trinity
-- [ ] Rewrite dev workstation to NixOS
+- [ ] Migrate foundational VMs to NixOS ([exploration](exploration/nixos.md))
+  - [ ] Add nix/ directory with flake.nix
+  - [ ] Create dev shell for aether repo (nix develop)
+  - [ ] Migrate Cockpit VM (starter)
+  - [ ] Deploy Desktop VM on Trinity ([exploration](exploration/desktop-vm.md))
+    - [ ] Configure iGPU passthrough (freed from Media Stack)
+    - [ ] NixOS with KDE/GNOME/Hyprland configs
+    - [ ] Sunshine for streaming
+    - [ ] Distrobox for multi-distro dev
+  - [ ] Migrate Gateway Stack
+  - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao, AdGuard) via nixos-generators LXC
+  - [ ] Migrate Monitoring Stack
+  - [ ] Migrate Dev Workstation
+  - [ ] Migrate IoT Stack
 - [ ] Move dev workstation to Neo
 - [ ] Refactor public gateway as "Soren"
   - [ ] Rename to Soren in docs, Ansible, Tailscale

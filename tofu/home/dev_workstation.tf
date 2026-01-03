@@ -21,7 +21,7 @@ resource "proxmox_virtual_environment_vm" "dev_workstation" {
   }
 
   disk {
-    datastore_id = "nfs-nvme-vm-dataset"
+    datastore_id = "ceph-vm-disks"
     file_id      = proxmox_virtual_environment_download_file.fedora_image.id
     size         = local.vm.dev_workstation.disk_gb
     interface    = "virtio0"

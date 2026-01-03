@@ -20,7 +20,7 @@ resource "proxmox_virtual_environment_vm" "ups_management_stack" {
   }
 
   disk {
-    datastore_id = "nfs-nvme-vm-dataset"
+    datastore_id = "ceph-vm-disks"
     file_id      = proxmox_virtual_environment_download_file.fedora_image.id
     size         = local.vm.ups_management_stack.disk_gb
     interface    = "virtio0"
