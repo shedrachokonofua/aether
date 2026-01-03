@@ -61,3 +61,11 @@ module "dev_workstation_user" {
   file_prefix      = local.vm.dev_workstation.name
   console_password = random_password.dev_workstation_password.result
 }
+
+resource "proxmox_virtual_environment_haresource" "dev_workstation" {
+  resource_id  = "vm:${proxmox_virtual_environment_vm.dev_workstation.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}

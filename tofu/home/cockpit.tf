@@ -60,3 +60,11 @@ module "cockpit_user" {
   file_prefix      = local.vm.cockpit.name
   console_password = random_password.cockpit_password.result
 }
+
+resource "proxmox_virtual_environment_haresource" "cockpit" {
+  resource_id  = "vm:${proxmox_virtual_environment_vm.cockpit.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}

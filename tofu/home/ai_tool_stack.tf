@@ -59,3 +59,11 @@ module "ai_tool_stack_user" {
   file_prefix      = local.vm.ai_tool_stack.name
   console_password = random_password.ai_tool_stack_console_password.result
 }
+
+resource "proxmox_virtual_environment_haresource" "ai_tool_stack" {
+  resource_id  = "vm:${proxmox_virtual_environment_vm.ai_tool_stack.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}

@@ -59,3 +59,11 @@ module "gitlab_user" {
   file_prefix      = local.vm.gitlab.name
   console_password = random_password.gitlab_console_password.result
 }
+
+resource "proxmox_virtual_environment_haresource" "gitlab" {
+  resource_id  = "vm:${proxmox_virtual_environment_vm.gitlab.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}

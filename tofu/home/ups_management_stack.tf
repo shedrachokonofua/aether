@@ -58,3 +58,11 @@ module "ups_management_stack_user" {
   file_prefix      = local.vm.ups_management_stack.name
   console_password = random_password.ups_management_stack_console_password.result
 }
+
+resource "proxmox_virtual_environment_haresource" "ups_management_stack" {
+  resource_id  = "vm:${proxmox_virtual_environment_vm.ups_management_stack.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}

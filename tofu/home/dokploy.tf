@@ -59,3 +59,11 @@ module "dokploy_user" {
   file_prefix      = local.vm.dokploy.name
   console_password = random_password.dokploy_console_password.result
 }
+
+resource "proxmox_virtual_environment_haresource" "dokploy" {
+  resource_id  = "vm:${proxmox_virtual_environment_vm.dokploy.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}

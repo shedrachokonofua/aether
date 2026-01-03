@@ -61,3 +61,11 @@ resource "random_password" "smallweb_password" {
   length = 8
 }
 
+resource "proxmox_virtual_environment_haresource" "smallweb" {
+  resource_id  = "ct:${proxmox_virtual_environment_container.smallweb.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}
+

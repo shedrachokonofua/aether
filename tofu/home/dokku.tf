@@ -65,3 +65,11 @@ module "dokku_user" {
   console_password = random_password.dokku_console_password.result
 }
 
+resource "proxmox_virtual_environment_haresource" "dokku" {
+  resource_id  = "vm:${proxmox_virtual_environment_vm.dokku.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
+}
+
