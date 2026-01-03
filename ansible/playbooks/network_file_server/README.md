@@ -47,14 +47,6 @@ This configures the NFS server on the LXC and integrates it with the proxmox clu
 task ansible:playbook -- ./ansible/playbooks/network_file_server/configure_nfs.yml
 ```
 
-### Configure Proxmox NFS
-
-This adds the NFS storage backend to the proxmox cluster.
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/network_file_server/configure_proxmox_nfs.yml
-```
-
 ### Configure SMB
 
 This configures the SMB server on the LXC.

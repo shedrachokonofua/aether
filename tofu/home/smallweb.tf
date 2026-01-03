@@ -53,7 +53,7 @@ resource "proxmox_virtual_environment_container" "smallweb" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [initialization[0].user_account[0].keys]
+    ignore_changes  = [operating_system[0].template_file_id, initialization[0].user_account[0].keys]
   }
 }
 

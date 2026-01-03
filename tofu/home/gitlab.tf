@@ -44,7 +44,7 @@ resource "proxmox_virtual_environment_vm" "gitlab" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [initialization[0].user_data_file_id]
+    ignore_changes  = [disk[0].file_id, initialization[0].user_data_file_id]
   }
 }
 

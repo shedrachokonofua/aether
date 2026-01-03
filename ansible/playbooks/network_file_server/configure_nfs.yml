@@ -3,53 +3,8 @@
   hosts: nfs
   vars:
     nfs_exports:
-      - path: /mnt/nvme/vm
-        options: "rw,sync,no_subtree_check,no_root_squash"
-        allowed_ips:
-          - "{{ hostvars['trinity'].ansible_host }}"
-          - "{{ hostvars['oracle'].ansible_host }}"
-          - "{{ hostvars['smith'].ansible_host }}"
-          - "{{ hostvars['niobe'].ansible_host }}"
-          - "{{ hostvars['neo'].ansible_host }}"
-      - path: /mnt/hdd/vm
-        options: "rw,sync,no_subtree_check,no_root_squash"
-        allowed_ips:
-          - "{{ hostvars['trinity'].ansible_host }}"
-          - "{{ hostvars['oracle'].ansible_host }}"
-          - "{{ hostvars['smith'].ansible_host }}"
-          - "{{ hostvars['niobe'].ansible_host }}"
-          - "{{ hostvars['neo'].ansible_host }}"
-      - path: /mnt/nvme/data/gaming
-        options: "rw,sync,no_subtree_check,no_root_squash"
-        allowed_ips:
-          - "10.0.2.0/24"
-          - "10.0.3.0/24"
-          - "10.0.4.0/24"
-      - path: /mnt/nvme/data
-        options: "rw,sync,no_subtree_check,no_root_squash"
-        allowed_ips:
-          - "10.0.2.0/24"
-          - "10.0.3.0/24"
-          - "10.0.4.0/24"
+      # HDD data for VMs (media, archive, etc.)
       - path: /mnt/hdd/data
-        options: "rw,sync,no_subtree_check,no_root_squash"
-        allowed_ips:
-          - "10.0.2.0/24"
-          - "10.0.3.0/24"
-          - "10.0.4.0/24"
-      - path: /mnt/nvme/personal
-        options: "rw,sync,no_subtree_check,no_root_squash"
-        allowed_ips:
-          - "10.0.2.0/24"
-          - "10.0.3.0/24"
-          - "10.0.4.0/24"
-      - path: /mnt/nvme/data/ml
-        options: "rw,sync,no_subtree_check,no_root_squash"
-        allowed_ips:
-          - "10.0.2.0/24"
-          - "10.0.3.0/24"
-          - "10.0.4.0/24"
-      - path: /mnt/hdd/data/ml
         options: "rw,sync,no_subtree_check,no_root_squash"
         allowed_ips:
           - "10.0.2.0/24"
@@ -75,10 +30,6 @@
         owner: root
         group: root
       loop:
-        - { path: /mnt/nvme/data/gaming, mode: "0755" }
-        - { path: /mnt/nvme/data/media, mode: "0755" }
-        - { path: /mnt/nvme/data/media/downloads, mode: "0777" }
-        - { path: /mnt/nvme/data/ml, mode: "0777" }
         - { path: /mnt/hdd/data/ml, mode: "0777" }
 
     - name: Ensure /var/lib/nfs directory exists with correct permissions

@@ -16,23 +16,13 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
   }
 
   disk {
-    datastore_id = "zfs-nvme-vm-dataset"
+    datastore_id = "local-lvm"
     size         = local.vm.backup_stack.disk_gb
   }
 
   mount_point {
-    volume = "/mnt/nvme/personal"
-    path   = "/mnt/nvme/personal"
-  }
-
-  mount_point {
-    volume = "/mnt/nvme/data"
-    path   = "/mnt/nvme/data"
-  }
-
-  mount_point {
-    volume = "/mnt/nvme/vm"
-    path   = "/mnt/nvme/vm"
+    volume = "/mnt/pve/cephfs"
+    path   = "/mnt/cephfs"
   }
 
   mount_point {
@@ -81,7 +71,7 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [initialization[0].user_account[0].keys]
+    ignore_changes  = [operating_system[0].template_file_id, initialization[0].user_account[0].keys]
   }
 }
 

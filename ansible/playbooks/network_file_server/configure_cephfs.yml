@@ -1,0 +1,26 @@
+---
+- name: Configure CephFS directories
+  hosts: trinity  # Only need to run on one Ceph node - filesystem is shared
+  become: true
+  vars:
+    cephfs_mount: /mnt/pve/cephfs
+    cephfs_directories:
+      - { path: gaming, mode: "0777" }
+      - { path: media, mode: "0777" }
+      - { path: ml, mode: "0777" }
+  tasks:
+    - name: Verify CephFS is mounted
+      stat:
+        path: "{{ cephfs_mount }}"
+      register: cephfs_stat
+      failed_when: not cephfs_stat.stat.exists
+
+    - name: Create CephFS directory structure
+      file:
+        path: "{{ cephfs_mount }}/{{ item.path }}"
+        state: directory
+        mode: "{{ item.mode }}"
+        owner: root
+        group: root
+      loop: "{{ cephfs_directories }}"
+
