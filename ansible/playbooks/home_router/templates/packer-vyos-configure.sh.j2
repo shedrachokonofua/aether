@@ -3,12 +3,14 @@
 set -e
 set -x
 
-# export DEBIAN_FRONTEND=noninteractive
+# =============================================================================
+# VyOS Packer Configuration Script
+# Sets up base user, SSH keys, and SSH CA trust infrastructure
+# =============================================================================
 
-# delete interfaces ethernet eth0 address
-# delete interfaces ethernet eth0 hw-id
-# delete system name-server
-
+# -----------------------------------------------------------------------------
+# Create aether user with SSH keys
+# -----------------------------------------------------------------------------
 cat <<EOF > /home/vyos/configure-vyos.sh
 #!/bin/vbash
 source /opt/vyatta/etc/functions/script-template
@@ -28,9 +30,52 @@ chown vyos:users /home/vyos/configure-vyos.sh
 su - vyos -c "/home/vyos/configure-vyos.sh"
 rm -rf /home/vyos/configure-vyos.sh
 
-cat <<EOF > /opt/vyatta/etc/config/scripts/vyos-postconfig-bootup.script
+# -----------------------------------------------------------------------------
+# SSH CA Trust Infrastructure (step-ca ECDSA workaround)
+# VyOS pki openssh only supports ssh-rsa. This creates infrastructure to
+# inject ECDSA CA trust into sshd_config at runtime via systemd drop-in.
+# The actual CA key is deployed by configure_router.yml after provisioning.
+# -----------------------------------------------------------------------------
+mkdir -p /opt/vyatta/etc/config/ssh-ca/auth_principals
+mkdir -p /opt/vyatta/etc/config/scripts
+
+# Patch script: runs before sshd starts, injects TrustedUserCAKeys
+cat <<'PATCH_SCRIPT' > /opt/vyatta/etc/config/scripts/patch-sshd-config.sh
+#!/bin/bash
+CONFIG_DIR="/config/ssh-ca"
+SSHD_CONFIG="/run/sshd/sshd_config"
+TRUSTED_CA_FILE="/run/sshd/trusted_user_ca"
+PRINCIPALS_DIR="/etc/ssh/auth_principals"
+[ -f "$SSHD_CONFIG" ] || exit 0
+[ -f "$CONFIG_DIR/step-ca.pub" ] || exit 0
+cp "$CONFIG_DIR/step-ca.pub" "$TRUSTED_CA_FILE"
+chmod 644 "$TRUSTED_CA_FILE"
+mkdir -p "$PRINCIPALS_DIR"
+chmod 755 "$PRINCIPALS_DIR"
+[ -d "$CONFIG_DIR/auth_principals" ] && cp -r "$CONFIG_DIR/auth_principals/"* "$PRINCIPALS_DIR/" 2>/dev/null || true
+if ! grep -q '^TrustedUserCAKeys' "$SSHD_CONFIG"; then
+    echo 'TrustedUserCAKeys /run/sshd/trusted_user_ca' >> "$SSHD_CONFIG"
+    echo 'AuthorizedPrincipalsFile /etc/ssh/auth_principals/%u' >> "$SSHD_CONFIG"
+fi
+PATCH_SCRIPT
+chmod +x /opt/vyatta/etc/config/scripts/patch-sshd-config.sh
+
+# -----------------------------------------------------------------------------
+# VyOS Post-Config Bootup Script
+# Runs after boot to set network config and create systemd drop-in for SSH CA
+# -----------------------------------------------------------------------------
+cat <<'BOOTUP_SCRIPT' > /opt/vyatta/etc/config/scripts/vyos-postconfig-bootup.script
 #!/bin/vbash
 source /opt/vyatta/etc/functions/script-template
+
+# Create systemd drop-in for SSH CA trust (if CA key exists)
+if [ -f /config/ssh-ca/step-ca.pub ]; then
+    mkdir -p /etc/systemd/system/ssh@.service.d
+    echo -e '[Service]\nExecStartPre=/config/scripts/patch-sshd-config.sh' > /etc/systemd/system/ssh@.service.d/99-ssh-ca-trust.conf
+    systemctl daemon-reload
+fi
+
+# Network configuration
 configure
 set system host-name 'aether-home-router'
 set interfaces ethernet eth0 address {{ vm.router.ip.gigahub }}/24
@@ -38,4 +83,4 @@ set interfaces ethernet eth1 address {{ vm.router.ip.vyos }}/16
 commit
 save
 exit
-EOF
+BOOTUP_SCRIPT
