@@ -1,8 +1,64 @@
 # Storage
 
-## Shared Storage (Smith)
+## Shared Storage
 
-Smith is the designated shared storage node in the home cluster. It runs ZFS with arrays consisting of:
+### Ceph (Distributed)
+
+Ceph provides distributed storage for HA-capable workloads across the cluster.
+
+```mermaid
+flowchart TB
+    subgraph Consumers
+        HAVMs[13 HA VMs]
+        CephFSMounts[CephFS Mounts]
+    end
+
+    subgraph Pools
+        RBD[ceph-vm-disks]
+        FS[cephfs]
+    end
+
+    subgraph Cluster["Ceph Cluster (3x replication)"]
+        Trinity[Trinity<br/>MON + 2x 4TB OSD] ~~~ Neo[Neo<br/>MON + 2x 4TB OSD] ~~~ Smith[Smith<br/>MON + 2x 4TB OSD]
+    end
+
+    HAVMs --> RBD
+    CephFSMounts --> FS
+    RBD --> Cluster
+    FS --> Cluster
+```
+
+| Node      | OSDs   | Raw      | Network    |
+| --------- | ------ | -------- | ---------- |
+| Trinity   | 2x 4TB | 8TB      | 10Gbps     |
+| Neo       | 2x 4TB | 8TB      | 10Gbps     |
+| Smith     | 2x 4TB | 8TB      | 3Gbps\*    |
+| **Total** | **6**  | **24TB** | ~8Gbps avg |
+
+\* Smith limited by PCIe x1 (B550 M.2 lane sharing)
+
+**Usable capacity:** ~8TB (3x replication)
+
+| Pool          | Type   | Use Case                             |
+| ------------- | ------ | ------------------------------------ |
+| ceph-vm-disks | RBD    | VM disks (HA-enabled)                |
+| cephfs        | CephFS | Runtime mounts, shared data, backups |
+
+### CephFS Mounts
+
+VMs that mount CephFS for shared data access:
+
+| VM              | Mount Point | Use Case                  |
+| --------------- | ----------- | ------------------------- |
+| dev-workstation | /mnt/cephfs | Projects, shared data     |
+| gpu-workstation | /mnt/cephfs | Checkpoints, outputs      |
+| media-stack     | /mnt/cephfs | Media files               |
+| game-server     | /mnt/cephfs | Game saves, configuration |
+| backup-stack    | /mnt/cephfs | Offsite backup source     |
+
+### ZFS (Smith HDD)
+
+Smith's HDD array provides bulk/cold storage via ZFS:
 
 ```mermaid
 graph LR
@@ -21,86 +77,56 @@ graph LR
 
     PVE & VMs --> NFS
     HomeNet --> SMB
-    
+
     NFS & SMB --> Smith
 ```
 
 | Count | Type | Size | RAID   | Total(Raw) | Total(Usable) |
 | ----- | ---- | ---- | ------ | ---------- | ------------- |
-| 2     | NVME | 4TB  | RAID0  | 8TB        | 8TB           |
 | 4     | HDD  | 14TB | RAID10 | 56TB       | 28TB          |
 
-### ZFS Pools
+**Note:** Smith's NVMe drives (2x 4TB) are now Ceph OSDs, not ZFS.
 
-| Pool | Description |
-| ---- | ----------- |
-| nvme | NVMe drives |
-| hdd  | HDD drives  |
+### ZFS Pool
+
+| Pool | Description             |
+| ---- | ----------------------- |
+| hdd  | HDD array for bulk data |
 
 ### Datasets
 
-| Name             | Mountpoint            | Compression | Record Size | Description                                    |
-| ---------------- | --------------------- | ----------- | ----------- | ---------------------------------------------- |
-| nvme/personal    | /mnt/nvme/personal    | lz4         | default     | Personal data storage                          |
-| nvme/vm          | /mnt/nvme/vm          | lz4         | 16K         | Performance-optimized storage for VMs          |
-| nvme/data        | /mnt/nvme/data        | lz4         | default     | Performance-optimized storage for generic data |
-| hdd/vm           | /mnt/hdd/vm           | lz4         | default     | Capacity-optimized storage for VMs             |
-| hdd/data         | /mnt/hdd/data         | lz4         | default     | Capacity-optimized storage for generic data    |
-| hdd/backups-vm   | /mnt/hdd/backups-vm   | lz4         | default     | VM backups                                     |
-| hdd/backups-data | /mnt/hdd/backups-data | lz4         | default     | Generic data backups                           |
-
-```mermaid
-graph TD
-    subgraph Hardware
-        D_NVME["2x 4TB NVMe"]
-        D_HDD["4x 14TB HDD"]
-    end
-
-    subgraph "NVMe Pool (8TB RAID0)"
-        nvme_personal[personal]
-        nvme_vm[vm]
-        nvme_data[data]
-    end
-
-    subgraph "HDD Pool (28TB RAID10)"
-        hdd_vm[vm]
-        hdd_data[data]
-        hdd_backups_vm[backups-vm]
-        hdd_backups_data[backups-data]
-    end
-
-    D_NVME --> nvme_personal & nvme_vm & nvme_data
-    D_HDD --> hdd_vm & hdd_data & hdd_backups_vm & hdd_backups_data
-```
+| Name             | Mountpoint            | Compression | Description                         |
+| ---------------- | --------------------- | ----------- | ----------------------------------- |
+| hdd/data         | /mnt/hdd/data         | lz4         | Bulk data storage                   |
+| hdd/personal     | /mnt/hdd/personal     | lz4         | Personal files (migrated from NVMe) |
+| hdd/backups-vm   | /mnt/hdd/backups-vm   | lz4         | PBS VM backups                      |
+| hdd/backups-data | /mnt/hdd/backups-data | lz4         | Data backups                        |
 
 ## Node-Local Storage
 
-Some workloads use node-local NVME instead of NFS for specific reasons:
+Critical infrastructure uses node-local storage to remain independent of Ceph/NFS:
 
-| Host    | Workloads                                   | Reason                                               |
-| ------- | ------------------------------------------- | ---------------------------------------------------- |
-| Oracle  | Router, Gateway, Keycloak, step-ca, OpenBao | NFS-independent (core infra must boot without Smith) |
-| Neo     | GPU Workstation                             | Model/checkpoint I/O performance                     |
-| Trinity | Development Workstation                     | Fast local disk for builds                           |
-| Niobe   | Monitoring Stack                            | TSDB write performance                               |
+| Host   | Workloads                                   | Reason                                               |
+| ------ | ------------------------------------------- | ---------------------------------------------------- |
+| Oracle | Router, Gateway, Keycloak, step-ca, OpenBao | Ceph-independent (core infra must boot without Ceph) |
+| Neo    | GPU Workstation                             | GPU passthrough pins to host                         |
+| Niobe  | Monitoring Stack                            | Must alert when Ceph has issues                      |
+| Smith  | Backup Stack                                | Must work if Ceph fails                              |
 
-
-Smith's VMs (Gaming Server, NFS Server, Backup Server) use local storage by definition — Smith _is_ the storage node.
+**Note:** Most workload VMs (GitLab, Dokku, Dokploy, messaging, media, etc.) now run on Ceph for HA capability.
 
 ## NFS Storage
 
-Smith hosts an NFS server that serves as a storage backend for the Proxmox cluster. VMs and LXCs use NFS mounts for:
+With workload VMs on Ceph and runtime mounts on CephFS, NFS usage is minimal:
 
-- **Stateless workloads** — PaaS apps, sandboxes
-- **Migratability** — VMs that may move between hosts
-- **Shared data** — Media, documents accessed by multiple services
+- **Legacy compatibility** — Services that still expect NFS paths
+- **HDD tier access** — Bulk data for capacity workloads
 
 ### NFS Exports
 
-| Export       | Tier | Consumers                                                     |
-| ------------ | ---- | ------------------------------------------------------------- |
-| /mnt/nvme/vm | NVME | GitLab, Dokku, Dokploy, AI Tool Stack, Lute, most service VMs |
-| /mnt/hdd/vm  | HDD  | Capacity workloads (future use)                               |
+| Export      | Tier | Consumers        |
+| ----------- | ---- | ---------------- |
+| /mnt/hdd/vm | HDD  | Capacity storage |
 
 ## SMB/CIFS
 
@@ -108,6 +134,5 @@ Smith hosts a Samba server for sharing files within the home network.
 
 ### SMB/CIFS Exports
 
-- /mnt/nvme/personal
-- /mnt/nvme/data
-- /mnt/hdd/data
+- /mnt/hdd/data — Bulk data storage
+- /mnt/hdd/personal — Personal files (migrated from NVMe)

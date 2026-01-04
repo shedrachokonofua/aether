@@ -34,8 +34,6 @@
   - [ ] Remove Caddy proxy route for auth.shdr.ch
   - [ ] Update AdGuard DNS to point directly at Keycloak
 - [ ] Enroll Cockpit with step-ca (SSH user cert, auto-renewal)
-- [ ] Configure AWS federation
-  - [ ] Migrate Backup Server from static credentials to IAM Roles Anywhere
 - [ ] Codify existing Grafana dashboards in Ansible (currently manual: Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
 - [ ] Integrate SSO (OIDC-native apps)
   - [ ] LiteLLM

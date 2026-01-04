@@ -358,24 +358,24 @@ ceph df
 
 ## Status
 
-**Deployed.** Ceph cluster operational with Trinity and Neo OSDs. VMs migrated from NFS. Pending: Smith OSDs, CephFS, HA configuration.
+**Production.** Ceph cluster operational with HA enabled for all workload VMs.
 
 ### Completed
 
-- ✅ Hardware installed (NVMe on Trinity, Neo)
+- ✅ Hardware installed (NVMe on Trinity, Neo, Smith)
 - ✅ Ceph cluster initialized
 - ✅ 3 MONs (smith, trinity, neo)
-- ✅ 4 OSDs on Trinity + Neo (~15TB raw, ~5TB usable)
+- ✅ 6 OSDs across all nodes (~24TB raw, ~8TB usable)
 - ✅ Pool `vm-disks` with 3x replication
 - ✅ All workload VMs migrated to Ceph
 - ✅ Terraform updated to use `ceph-vm-disks`
+- ✅ **CephFS deployed** — runtime mounts for dev/GPU workstations, media, game server
+- ✅ **Proxmox HA enabled** — 13 workload VMs with automatic failover
+- ✅ **Smith OSDs added** — full 3-node cluster
 
 ### Pending
 
-- ⏳ Add Smith OSDs (+8TB raw → ~8TB total usable)
-- ⏳ **CephFS for hot data** — required, replaces `/mnt/nvme/data`
 - ⏳ Smith network bonding (3Gbps → 5.5Gbps) — optional
-- ⏳ Proxmox HA configuration
 
 ### Lessons Learned
 

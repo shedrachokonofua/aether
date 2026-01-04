@@ -283,7 +283,7 @@ bao kv put secret/bitcoin/multisig-key-2 \
 1. Create VM on Smith: 4 vCPU, 12GB RAM
 2. Create ZFS dataset: `hdd/blockchain` (~1TB)
 3. Deploy docker-compose with bitcoind + monerod
-4. Start sync, wait 2-5 days for both chains
+4. Start sync (3-5 days for both chains on HDD)
 5. Limit CPU with `-par=2` / `--max-concurrency=2`
 
 ### Phase 3: Electrum Server
@@ -308,12 +308,12 @@ bao kv put secret/bitcoin/multisig-key-2 \
 | Bitcoin Node    | 2    | 4GB  | 600GB | HDD fine after sync |
 | Monero Node     | 1    | 4GB  | 200GB | HDD fine after sync |
 | Electrum Server | 1    | 2GB  | 100GB | Index size          |
-| Lightning (LND) | 1    | 2GB  | 20GB  | SSD preferred       |
+| Lightning (LND) | 1    | 2GB  | 20GB  | HDD acceptable      |
 | **Total**       | 5    | 12GB | 920GB |                     |
 
 **Host:** Smith (has 28TB HDD RAID10, plenty of capacity)
 
-**Storage:** Use `hdd/blockchain` dataset. Consider chainstate on NVMe for faster sync.
+**Storage:** Use `hdd/blockchain` dataset. Initial sync takes longer on HDD (~3-5 days for both chains) but performs fine afterward.
 
 ## Costs
 
@@ -358,9 +358,8 @@ bao kv put secret/bitcoin/multisig-key-2 \
 ## Open Questions
 
 1. Which hardware wallet? (Coldcard vs Trezor)
-2. HDD vs SSD for blockchain data? (HDD fine, just slower sync)
-3. Lightning channel funding amount? (Start with ~$100-200 total)
-4. Monero wallet? (Feather Wallet recommended)
+2. Lightning channel funding amount? (Start with ~$100-200 total)
+3. Monero wallet? (Feather Wallet recommended)
 
 ## Status
 

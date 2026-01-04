@@ -532,18 +532,18 @@ tofu plan  # Should show no changes
 
 ## Current Status
 
-| Component               | Status                                |
-| ----------------------- | ------------------------------------- |
-| Ceph packages installed | ✅                                    |
-| MONs created (3)        | ✅                                    |
-| OSDs on Trinity/Neo (4) | ✅                                    |
-| Pool `vm-disks` created | ✅                                    |
-| RBD storage added       | ✅                                    |
-| VMs migrated            | ✅                                    |
-| Smith OSDs              | ⏳ Pending                            |
-| CephFS for hot data     | ⏳ Required — replaces /mnt/nvme/data |
-| Smith bonding           | ⏳ Optional                           |
-| Proxmox HA enabled      | ⏳ Pending                            |
+| Component               | Status               |
+| ----------------------- | -------------------- |
+| Ceph packages installed | ✅                   |
+| MONs created (3)        | ✅                   |
+| OSDs (6 total)          | ✅                   |
+| Pool `vm-disks` created | ✅                   |
+| RBD storage added       | ✅                   |
+| VMs migrated            | ✅                   |
+| CephFS deployed         | ✅                   |
+| Proxmox HA enabled      | ✅ (13 workload VMs) |
+| Smith OSDs              | ✅                   |
+| Smith bonding           | ⏳ Optional          |
 
 ---
 
@@ -565,7 +565,7 @@ tofu plan  # Should show no changes
 │                            │                               │
 │                    vm-disks pool                           │
 │                    (3x replication)                        │
-│                    ~5TB usable → ~8TB with Smith           │
+│                    ~8TB usable                             │
 └─────────────────────────────────────────────────────────────┘
 
 * Smith limited by PCIe x1 (B550 M.2 lane sharing)

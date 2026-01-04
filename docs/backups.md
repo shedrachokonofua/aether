@@ -4,33 +4,27 @@ Layered approach (snapshots, local backups/replicas, offsite S3) following the 3
 
 ```mermaid
 flowchart LR
-    subgraph Sources["Sources"]
-        VMs[Proxmox VMs/LXCs]
+    subgraph Copy1["① Primary"]
+        Ceph[Ceph<br/>3x replicated]
     end
 
-    subgraph Smith["Smith"]
-        subgraph Copy1["① Primary"]
-            NVME[NVME Pool]
-        end
-        subgraph Copy2["② Local Backup"]
-            HDD[HDD Pool]
-            PBS[Proxmox Backup]
-        end
-        Snap[ZFS Snapshots<br/><i>Hourly/Daily</i>]
+    subgraph Copy2["② Local Backup"]
+        PBS[Proxmox Backup]
+        HDD[Smith HDD Pool]
     end
 
     subgraph Copy3["③ Offsite"]
-        S3[AWS S3 → Glacier<br/><i>Daily @ 3AM</i>]
+        S3[AWS S3 → Glacier]
     end
 
+    VMs[Proxmox VMs] --> Ceph
     VMs --> PBS
-    NVME --> Snap
-    NVME -.->|Replication<br/>Daily @ 2:30AM| HDD
     PBS --> HDD
-    HDD --> S3
+    Ceph --> Restic[Restic]
+    HDD --> Restic
+    Restic --> S3
 
-    style VMs fill:#f7d4e5,stroke:#d46a9f
-    style NVME fill:#d4f0e7,stroke:#6ac4a0
+    style Ceph fill:#e5d4f7,stroke:#9f6ad4
     style HDD fill:#d4e5f7,stroke:#6a9fd4
     style S3 fill:#f0e4d4,stroke:#c4a06a
 ```
@@ -39,23 +33,9 @@ flowchart LR
 
 | Rule              | Implementation                                     |
 | ----------------- | -------------------------------------------------- |
-| **3** copies      | Primary (NVME) + Local backup (HDD) + Offsite (S3) |
-| **2** media types | NVMe SSDs + HDDs (+ Glacier tape archive)          |
+| **3** copies      | Primary (Ceph) + Local backup (HDD) + Offsite (S3) |
+| **2** media types | NVMe (Ceph OSDs) + HDDs (+ Glacier tape)           |
 | **1** offsite     | AWS S3 with Glacier transition                     |
-
-## ZFS Snapshots
-
-Snapshots provide instant rollback capability. PBS handles longer-term retention for VMs.
-
-| Dataset          | Frequency      | Retention                        | Notes                           |
-| ---------------- | -------------- | -------------------------------- | ------------------------------- |
-| nvme/personal    | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
-| nvme/vm          | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
-| nvme/data        | Hourly         | Hourly: 12                       | PBS covers daily/weekly/monthly |
-| hdd/vm           | Daily @ 1:30AM | Daily: 7                         | PBS covers weekly/monthly       |
-| hdd/data         | Daily @ 1:30AM | Daily: 14, Weekly: 8, Monthly: 6 | Write-once media, low overhead  |
-| hdd/backups-data | Daily @ 2:00AM | Daily: 3                         | Backup of backups               |
-| hdd/backups-vm   | Disabled       | -                                | PBS handles own versioning      |
 
 ## Proxmox Backup Server
 
@@ -65,22 +45,40 @@ Handles local, deduplicated backups for VMs and LXCs on the Proxmox cluster. Run
 | ----------- | ------------------------------- |
 | Daily @ 2AM | Daily: 3, Weekly: 2, Monthly: 3 |
 
-## Local Replication
-
-ZFS send/receive replication from NVME tier to HDD tier for data durability.
-
-| Source Dataset | Target Dataset            | Frequency      |
-| -------------- | ------------------------- | -------------- |
-| nvme/personal  | hdd/backups-data/personal | Daily @ 2:30AM |
-| nvme/data      | hdd/backups-data/data     | Daily @ 2:30AM |
-
 ## Offsite Backups
 
-Rclone syncs the HDD pool to AWS S3 for offsite disaster recovery.
+Restic + Backrest sync critical data to AWS S3 for offsite disaster recovery.
 
-| Source Dataset | Target                         | Frequency   |
-| -------------- | ------------------------------ | ----------- |
-| hdd            | S3: Glacier Flexible Retrieval | Daily @ 3AM |
+### Components
+
+- **Restic** — Deduplicating backup program with encryption
+- **Backrest** — Web UI and scheduler for Restic (port 9898)
+- **Web UI** — `https://backrest.home.shdr.ch`
+
+### Backup Sources
+
+| Source              | Description                | Frequency   |
+| ------------------- | -------------------------- | ----------- |
+| /mnt/cephfs         | CephFS distributed storage | Daily @ 3AM |
+| /mnt/hdd/data       | HDD pool data              | Daily @ 3AM |
+| /mnt/hdd/backups-vm | PBS VM backups             | Daily @ 3AM |
+
+### Retention Policy
+
+| Type    | Keep |
+| ------- | ---- |
+| Last N  | 7    |
+| Daily   | 7    |
+| Weekly  | 4    |
+| Monthly | 6    |
+
+### AWS Authentication
+
+Uses **IAM Roles Anywhere** with step-ca certificates — no static credentials:
+
+- TLS certificate from step-ca (`backup-stack.home.shdr.ch`)
+- AWS Signing Helper fetches temporary credentials via certificate
+- Automatic certificate renewal via `step ca renew --daemon`
 
 ### AWS S3 Configuration
 
@@ -88,6 +86,5 @@ S3 bucket for offsite backups with:
 
 - Server-side encryption (AES256)
 - Immediate transition to Glacier Flexible Retrieval
-- **Current**: Dedicated IAM user with minimal required permissions (stored/encrypted via SOPS)
-- **Planned**: Migrate the Backup Server to AWS IAM Roles Anywhere (step-ca certificate-based auth) to remove static credentials (see `docs/todos.md`)
+- IAM Roles Anywhere authentication (no static credentials)
 - Public access blocked
