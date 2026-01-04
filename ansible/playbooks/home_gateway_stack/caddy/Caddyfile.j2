@@ -54,7 +54,7 @@ office-switch.home.shdr.ch {
 }
 
 dns.home.shdr.ch {
-  reverse_proxy {{ vm.home_gateway_stack.ip }}:{{ vm.home_gateway_stack.ports.adguard_admin }}
+  reverse_proxy {{ vm.adguard.ip }}:{{ vm.adguard.ports.admin }}
 }
 
 ap.home.shdr.ch {
