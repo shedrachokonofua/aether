@@ -9,6 +9,8 @@ vars:
 
 env:
   ANSIBLE_CONFIG: ./ansible/ansible.cfg
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
 
 tasks:
   # ===========================================================================

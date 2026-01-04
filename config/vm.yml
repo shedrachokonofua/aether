@@ -38,7 +38,6 @@ home_gateway_stack:
     caddy: 80
     caddy_https: 443
     unifi_admin: 8443
-    adguard_admin: 4000
     rotating_proxy: 1080
     rotating_proxy_metrics: 8404
 

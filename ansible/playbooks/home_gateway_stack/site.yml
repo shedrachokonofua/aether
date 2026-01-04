@@ -10,10 +10,6 @@
           scrape_interval: 15s
           static_configs:
             - targets: ["localhost:2019"]
-        - job_name: "adguard"
-          scrape_interval: 15s
-          static_configs:
-            - targets: ["localhost:9618"]
         - job_name: "unifi"
           scrape_interval: 30s
           static_configs:
@@ -22,9 +18,6 @@
           scrape_interval: 15s
           static_configs:
             - targets: ["localhost:8404"]
-
-- name: Deploy adguard pod
-  import_playbook: adguard/site.yml
 
 - name: Deploy unifi pod
   import_playbook: unifi/site.yml
