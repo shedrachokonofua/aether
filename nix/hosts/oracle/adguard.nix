@@ -2,6 +2,22 @@
 # DNS server for the home network
 { config, lib, pkgs, ... }:
 
+let
+  # AdGuard Exporter for Prometheus metrics
+  adguard-exporter = pkgs.buildGoModule rec {
+    pname = "adguard-exporter";
+    version = "1.2.1";
+
+    src = pkgs.fetchFromGitHub {
+      owner = "henrywhitaker3";
+      repo = "adguard-exporter";
+      rev = "v${version}";
+      hash = "sha256-OltYzxBOOcaW3oYNFvxxjG1qRvuLaZfReSeQaNGiRDc=";
+    };
+
+    vendorHash = "sha256-fDSR0+INsVBD5XauPdSETMNJZkrIbpKwZ/6Tb2Po4fY=";
+  };
+in
 {
   imports = [
     ../../modules/lxc-base.nix
@@ -182,7 +198,34 @@
     };
   };
 
-  # Firewall - DNS and admin UI
+  # AdGuard Exporter for Prometheus
+  # Note: Exporter requires credentials even if AdGuard has no auth
+  systemd.services.adguard-exporter = {
+    description = "AdGuard Home Prometheus Exporter";
+    after = [ "network.target" "adguardhome.service" ];
+    wantedBy = [ "multi-user.target" ];
+
+    environment = {
+      ADGUARD_SERVERS = "http://localhost:3000";
+      ADGUARD_USERNAMES = "admin";   # Required by exporter
+      ADGUARD_PASSWORDS = "admin";   # TODO: Use secrets if auth enabled
+      INTERVAL = "15s";
+    };
+
+    serviceConfig = {
+      ExecStart = "${adguard-exporter}/bin/adguard-exporter";
+      Restart = "always";
+      RestartSec = "5s";
+      DynamicUser = true;
+    };
+  };
+
+  # OTEL Agent - extend with adguard exporter scrape
+  aether.otel-agent.prometheusScrapeConfigs = [
+    { job_name = "adguard"; targets = [ "localhost:9618" ]; }
+  ];
+
+  # Firewall - DNS and admin UI (metrics scraped locally by OTEL)
   networking.firewall.allowedTCPPorts = [
     53    # DNS TCP
     3000  # Admin UI

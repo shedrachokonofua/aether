@@ -8,6 +8,7 @@ in
 {
   imports = [
     (modulesPath + "/virtualisation/proxmox-lxc.nix")
+    ./otel-agent.nix
   ];
 
   options.aether.lxc = {
@@ -15,17 +16,17 @@ in
       type = lib.types.str;
       description = "Hostname for the LXC";
     };
-
-    otlpEndpoint = lib.mkOption {
-      type = lib.types.str;
-      default = "http://10.0.2.3:4318";
-      description = "OTLP HTTP endpoint for telemetry";
-    };
   };
 
   config = {
     # Hostname
     networking.hostName = cfg.hostname;
+
+    # Enable OTEL agent with defaults (can be extended per-host)
+    aether.otel-agent = {
+      enable = lib.mkDefault true;
+      hostname = cfg.hostname;
+    };
 
     # SSH with CA trust + authorized_keys fallback
     services.openssh = {
@@ -80,112 +81,12 @@ in
       jq
     ];
 
-    # OpenTelemetry Collector for monitoring
-    # Note: 24.11 has broken 0.112, overlay in flake.nix pulls 0.114
-    # See: https://github.com/NixOS/nixpkgs/issues/368321
-    services.opentelemetry-collector = {
-      enable = true;
-      package = pkgs.opentelemetry-collector-contrib;
-      settings = {
-        receivers = {
-          otlp = {
-            protocols = {
-              grpc.endpoint = "127.0.0.1:4317";
-              http.endpoint = "127.0.0.1:4318";
-            };
-          };
-          journald = {
-            directory = "/var/log/journal/";
-            storage = "file_storage/journald_cursor_storage";
-          };
-          hostmetrics = {
-            collection_interval = "30s";
-            initial_delay = "1s";
-            scrapers = {
-              cpu = { };
-              disk = { };
-              filesystem = { };
-              load = { };
-              memory = { };
-              network = { };
-              paging = { };
-              processes = { };
-              process = { };
-              system = { };
-            };
-          };
-        };
-
-        processors = {
-          batch = {
-            send_batch_size = 1000;
-            timeout = "10s";
-          };
-          resource = {
-            attributes = [
-              { key = "host.name"; value = cfg.hostname; action = "insert"; }
-              { key = "service.name"; value = cfg.hostname; action = "insert"; }
-              { key = "os.type"; value = "NixOS"; action = "insert"; }
-              { key = "os.version"; value = "24.11"; action = "insert"; }
-            ];
-          };
-        };
-
-        extensions = {
-          "file_storage/journald_cursor_storage" = {
-            directory = "/var/lib/opentelemetry-collector";
-          };
-        };
-
-        exporters = {
-          otlphttp.endpoint = cfg.otlpEndpoint;
-        };
-
-        service = {
-          telemetry = {
-            metrics = {
-              readers = [{
-                periodic = {
-                  exporter = {
-                    otlp = {
-                      protocol = "http/protobuf";
-                      endpoint = cfg.otlpEndpoint;
-                    };
-                  };
-                };
-              }];
-            };
-          };
-          extensions = [ "file_storage/journald_cursor_storage" ];
-          pipelines = {
-            metrics = {
-              receivers = [ "otlp" "hostmetrics" ];
-              processors = [ "batch" "resource" ];
-              exporters = [ "otlphttp" ];
-            };
-            logs = {
-              receivers = [ "otlp" "journald" ];
-              processors = [ "batch" "resource" ];
-              exporters = [ "otlphttp" ];
-            };
-            traces = {
-              receivers = [ "otlp" ];
-              processors = [ "batch" "resource" ];
-              exporters = [ "otlphttp" ];
-            };
-          };
-        };
-      };
-    };
-
-    # Persistent storage directories
+    # Persistent storage for SSH CA key cache
     systemd.tmpfiles.rules = [
-      "d /var/lib/ssh-ca 0755 root root -"                    # SSH CA key cache
-      "d /var/lib/opentelemetry-collector 0755 root root -"   # OTEL cursor storage
+      "d /var/lib/ssh-ca 0755 root root -"
     ];
 
     # NixOS version
     system.stateVersion = "24.11";
   };
 }
-
