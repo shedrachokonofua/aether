@@ -1,0 +1,36 @@
+[Unit]
+Description=Backrest - Restic backup UI and scheduler
+Documentation=https://github.com/garethgeorge/backrest
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ backrest_user }}
+ExecStart={{ step_config_dir }}/start-backrest.sh
+Restart=on-failure
+RestartSec=10
+
+# Environment
+Environment="BACKREST_PORT={{ backrest_port }}"
+Environment="BACKREST_BIND_ADDRESS={{ backrest_bind_address }}"
+Environment="BACKREST_CONFIG={{ backrest_config_dir }}/config.json"
+Environment="BACKREST_DATA={{ backrest_data_dir }}"
+Environment="XDG_CACHE_HOME={{ backrest_data_dir }}/cache"
+Environment="HOME=/{{ backrest_user }}"
+Environment="AWS_REGION={{ aws_region }}"
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths={{ backrest_data_dir }} {{ backrest_config_dir }} /var/log
+{% for path in backup_paths %}
+ReadOnlyPaths={{ path }}
+{% endfor %}
+
+[Install]
+WantedBy=multi-user.target
+
+

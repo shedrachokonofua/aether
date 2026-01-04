@@ -1,7 +1,0 @@
-[{{ rclone_s3_remote_name }}]
-type = s3
-provider = AWS
-env_auth = false
-access_key_id = {{ tf_outputs.aws_offsite_backup_user_access_key.value }}
-secret_access_key = {{ tf_outputs.aws_offsite_backup_user_secret_access_key.value }}
-region = us-east-1

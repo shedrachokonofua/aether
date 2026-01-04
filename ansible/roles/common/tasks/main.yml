@@ -13,20 +13,28 @@
     file: "{{ aether_root }}/secrets/tf-outputs.json"
     name: tf_outputs
 
+- name: Check if AWS stack output directory exists
+  ansible.builtin.stat:
+    path: "{{ aether_root }}/secrets/aws"
+  register: aws_dir
+  delegate_to: localhost
+  become: false
+
 - name: Find AWS stack output files
   ansible.builtin.find:
     paths: "{{ aether_root }}/secrets/aws"
     patterns: "*.yml"
   register: aws_files
   delegate_to: localhost
-  ignore_errors: true
+  become: false
+  when: aws_dir.stat.exists and aws_dir.stat.isdir
 
 - name: Load AWS stack outputs
   ansible.builtin.include_vars:
     file: "{{ item.path }}"
     name: "aws_{{ item.path | basename | replace('.yml', '') | replace('-', '_') }}"
   loop: "{{ aws_files.files | default([]) }}"
-  ignore_errors: true
+  when: aws_files.files is defined
 
 - name: Load base authorized_keys
   set_fact:

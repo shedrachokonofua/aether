@@ -12,11 +12,5 @@
 - name: Configure Proxmox backups
   import_playbook: configure_proxmox_backups.yml
 
-- name: Configure ZFS snapshots
-  import_playbook: configure_zfs_snapshots.yml
-
-- name: Configure ZFS Replication
-  import_playbook: configure_zfs_replication.yml
-
 - name: Configure Offsite backups
   import_playbook: configure_offsite_backups/site.yml

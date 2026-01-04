@@ -1,19 +1,93 @@
-resource "aws_iam_user" "offsite_backup_user" {
-  name = "offsite-backup-user"
+# =============================================================================
+# IAM Roles Anywhere (replaces static IAM user credentials)
+# Uses step-ca trust anchor provisioned via CloudFormation
+# =============================================================================
+
+data "aws_cloudformation_stack" "step_ca_trust" {
+  name = "aether-step-ca-trust"
+}
+
+resource "aws_iam_role" "offsite_backup" {
+  name = "offsite-backup"
   path = "/aether/"
 
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "rolesanywhere.amazonaws.com"
+        }
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession",
+          "sts:SetSourceIdentity"
+        ]
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = data.aws_cloudformation_stack.step_ca_trust.outputs["TrustAnchorArn"]
+          }
+          StringEquals = {
+            # Only allow certificates with CN=backup-stack.home.shdr.ch
+            "aws:PrincipalTag/x509Subject/CN" = "backup-stack.home.shdr.ch"
+          }
+        }
+      }
+    ]
+  })
+
   lifecycle {
     prevent_destroy = true
   }
 }
 
-resource "aws_iam_access_key" "offsite_backup_user_access_key" {
-  user = aws_iam_user.offsite_backup_user.name
+resource "aws_iam_role_policy" "offsite_backup" {
+  name = "offsite-backup-s3"
+  role = aws_iam_role.offsite_backup.id
 
-  lifecycle {
-    prevent_destroy = true
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowListBucket"
+        Effect = "Allow"
+        Action = ["s3:ListBucket"]
+        Resource = [aws_s3_bucket.offsite_backup.arn]
+      },
+      {
+        Sid    = "AllowObjectActions"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:GetObjectAttributes",
+          "s3:RestoreObject"
+        ]
+        Resource = ["${aws_s3_bucket.offsite_backup.arn}/*"]
+      }
+    ]
+  })
+}
+
+resource "aws_rolesanywhere_profile" "offsite_backup" {
+  name      = "offsite-backup"
+  enabled   = true
+  role_arns = [aws_iam_role.offsite_backup.arn]
+
+  # 1 hour sessions (restic/backrest will refresh as needed)
+  duration_seconds = 3600
+
+  tags = {
+    Name    = "offsite-backup"
+    Project = "aether"
   }
 }
+
+# =============================================================================
+# S3 Bucket for offsite backups
+# =============================================================================
 
 resource "aws_s3_bucket" "offsite_backup" {
   bucket = "aether-home-offsite-backup"
@@ -103,54 +177,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "offsite_backup_lifecycle" {
   depends_on = [aws_s3_bucket_ownership_controls.offsite_backup_ownership_controls]
 }
 
-data "aws_iam_policy_document" "offsite_backup_policy_document" {
-  statement {
-    sid       = "AllowUserListBucket"
-    actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.offsite_backup.arn]
-    principals {
-      type        = "AWS"
-      identifiers = [aws_iam_user.offsite_backup_user.arn]
-    }
-  }
-
-  statement {
-    sid = "AllowUserObjectActions"
-    actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:DeleteObject",
-      "s3:GetObjectAttributes",
-      "s3:RestoreObject"
-    ]
-    resources = ["${aws_s3_bucket.offsite_backup.arn}/*"]
-    principals {
-      type        = "AWS"
-      identifiers = [aws_iam_user.offsite_backup_user.arn]
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "offsite_backup_policy" {
-  bucket = aws_s3_bucket.offsite_backup.id
-  policy = data.aws_iam_policy_document.offsite_backup_policy_document.json
-
-  depends_on = [aws_s3_bucket_server_side_encryption_configuration.offsite_backup_encryption]
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-output "offsite_backup_user_access_key" {
-  value     = aws_iam_access_key.offsite_backup_user_access_key.id
-  sensitive = true
-}
-
-output "offsite_backup_user_secret_access_key" {
-  value     = aws_iam_access_key.offsite_backup_user_access_key.secret
-  sensitive = true
-}
+# =============================================================================
+# Outputs
+# =============================================================================
 
 output "offsite_backup_bucket_name" {
   value = aws_s3_bucket.offsite_backup.id
@@ -158,4 +187,16 @@ output "offsite_backup_bucket_name" {
 
 output "offsite_backup_bucket_arn" {
   value = aws_s3_bucket.offsite_backup.arn
+}
+
+output "offsite_backup_role_arn" {
+  value = aws_iam_role.offsite_backup.arn
+}
+
+output "offsite_backup_profile_arn" {
+  value = aws_rolesanywhere_profile.offsite_backup.arn
+}
+
+output "offsite_backup_trust_anchor_arn" {
+  value = data.aws_cloudformation_stack.step_ca_trust.outputs["TrustAnchorArn"]
 }

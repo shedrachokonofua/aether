@@ -1,9 +1,9 @@
 # Backup Stack
 
-This playbook will configure the backup stack virtual machine. The backup stack is an debian LXC that hosts the following services:
+This playbook will configure the backup stack virtual machine. The backup stack is a Debian LXC that hosts the following services:
 
 - Proxmox Backup Server
-- Rclone
+- Restic + Backrest (offsite S3 backups)
 
 This playbook also configures ZFS snapshots and replication on Smith using sanoid and syncoid.
 
@@ -41,18 +41,24 @@ Installs Sanoid and configures scheduled ZFS snapshots for all datasets.
 task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_zfs_snapshots.yml
 ```
 
-### Configure ZFS replication
-
-Configures syncoid to replicate non-VM ZFS datasets from nvme to hdd.
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_zfs_replication.yml
-```
-
 ### Configure offsite backups
 
-Configures rclone for offsite backups to s3 and google drive.
+Configures Restic and Backrest for offsite backups to S3. Uses IAM Roles Anywhere with step-ca certificates for authentication (no static credentials).
+
+**Components:**
+
+- **Restic** - Deduplicating backup program
+- **Backrest** - Web UI and scheduler for Restic (runs on port 9898)
+- **aws_signing_helper** - Fetches temporary AWS credentials via IAM Roles Anywhere
+
+**Prerequisites:**
+
+- step-ca certificate for `backup-stack.home.shdr.ch` in `/etc/step-ca/certs/`
+- AWS Trust Anchor deployed (`aether-step-ca-trust` CloudFormation stack)
+- Terraform applied with IAM role and Roles Anywhere profile
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_offsite_backups/site.yml
 ```
+
+**Web UI:** `https://backrest.home.shdr.ch`

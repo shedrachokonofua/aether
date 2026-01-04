@@ -37,13 +37,24 @@ tasks:
   tofu:apply:
     desc: Apply + write outputs
     cmds:
-      - tofu -chdir=tofu apply {{.CLI_ARGS}}
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        tofu -chdir=tofu apply {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
+
+  tofu:plan:
+    desc: Plan changes
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        tofu -chdir=tofu plan {{.CLI_ARGS}}
 
   tofu:refresh:
     desc: Refresh + write outputs
     cmds:
-      - tofu -chdir=tofu refresh-only {{.CLI_ARGS}}
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        tofu -chdir=tofu refresh-only {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
 
   # ===========================================================================
@@ -100,8 +111,12 @@ tasks:
   provision:infra:
     cmds: [task: tofu:init, task: tofu:apply]
 
+  ansible:playbook:
+    cmds:
+      - ansible-playbook ansible/playbooks/{{.CLI_ARGS}}
   provision:router:
-    cmds: [ansible-playbook ansible/playbooks/home_router/site.yml]
+    cmds:
+      - ansible-playbook ansible/playbooks/home_router/site.yml
   configure:router:
     cmds: [ansible-playbook ansible/playbooks/home_router/configure_router.yml]
   provision:nfs:

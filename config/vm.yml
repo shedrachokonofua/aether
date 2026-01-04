@@ -15,7 +15,7 @@ router:
   node: "oracle"
   admin: "aether"
   cores: 8
-  memory: 4096
+  memory: 2048
   disk_gb: 128
   ip:
     gigahub: "192.168.2.231"
@@ -118,6 +118,8 @@ backup_stack:
   disk_gb: 20
   ip: "192.168.2.233"
   gateway: "192.168.2.1"
+  ports:
+    backrest: 9898
 
 iot_management_stack:
   id: 1009
@@ -352,7 +354,7 @@ step_ca:
   node: "oracle"
   admin: "root"
   cores: 2
-  memory: 1024
+  memory: 512
   disk_gb: 16
   ip: "192.168.2.235"
   gateway: "192.168.2.1"
@@ -365,7 +367,7 @@ openbao:
   node: "oracle"
   admin: "root"
   cores: 2
-  memory: 2048
+  memory: 512
   disk_gb: 32
   ip: "10.0.2.9"
   gateway: "10.0.2.1"

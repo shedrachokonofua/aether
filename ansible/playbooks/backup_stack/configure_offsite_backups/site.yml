@@ -1,114 +1,487 @@
 ---
-- name: Configure rclone and daily S3 sync on Debian LXC
+# Configures Restic + Backrest for offsite backups to S3
+# Uses IAM Roles Anywhere with step-ca certificates for authentication
+#
+# Usage: task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_offsite_backups/site.yml
+
+- name: Configure Restic and Backrest for offsite S3 backups
   hosts: backup-stack
   become: true
   roles:
     - common
+
   vars:
-    # --- User Configuration ---
-    rclone_user: root
-    rclone_config_dir: "/{{ rclone_user }}/.config/rclone"
-    rclone_config_file: "{{ rclone_config_dir }}/rclone.conf"
-    rclone_sync_script_path: "/usr/local/bin/s3-sync.sh"
-    rclone_s3_log_file: "/var/log/s3-sync.log"
+    # --- Paths ---
+    backrest_user: root
+    backrest_config_dir: "/{{ backrest_user }}/.config/backrest"
+    backrest_data_dir: "/var/lib/backrest"
+    aws_config_dir: "/{{ backrest_user }}/.aws"
+    certs_dir: "/etc/step-ca/certs"
+    step_config_dir: "/etc/step-ca/step"
 
-    # --- rclone Configuration ---
-    rclone_s3_remote_name: "S3Offsite"
-    rclone_s3_storage_class: "DEEP_ARCHIVE"
+    # --- step-ca configuration ---
+    step_ca_url: "https://{{ vm.step_ca.ip }}:{{ vm.step_ca.ports.https }}"
+    step_ca_provisioner: "machine-bootstrap"
+    step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password }}"
+    backup_stack_hostname: "backup-stack.home.shdr.ch"
+    backup_stack_ip: "{{ vm.backup_stack.ip }}"
 
-    # --- Sync Job Configuration ---
-    rclone_local_sync_path: "/mnt/hdd"
-    rclone_s3_bucket_path: "{{ tf_outputs.aws_offsite_backup_bucket_name.value }}/"
-    rclone_s3_sync_time: "03:00" # Time for daily sync (HH:MM) - systemd OnCalendar format
+    # --- AWS Configuration ---
+    aws_region: us-east-1
+    aws_profile: backups
 
-    # --- Systemd Configuration ---
-    s3_sync_service_name: "rclone-s3-sync"
-    s3_sync_timer_name: "{{ s3_sync_service_name }}.timer"
+    # --- S3 Repository ---
+    s3_bucket: "{{ tf_outputs.aws_offsite_backup_bucket_name.value }}"
+    restic_repository: "s3:s3.amazonaws.com/{{ s3_bucket }}/restic"
+
+    # --- IAM Roles Anywhere ---
+    trust_anchor_arn: "{{ tf_outputs.aws_offsite_backup_trust_anchor_arn.value }}"
+    profile_arn: "{{ tf_outputs.aws_offsite_backup_profile_arn.value }}"
+    role_arn: "{{ tf_outputs.aws_offsite_backup_role_arn.value }}"
+
+    # --- Backrest Configuration ---
+    backrest_version: "1.7.1"
+    backrest_port: "{{ vm.backup_stack.ports.backrest }}"
+    backrest_bind_address: "0.0.0.0"
+
+    # --- Backup Sources ---
+    backup_paths:
+      - /mnt/cephfs
+      - /mnt/hdd/data
+      - /mnt/hdd/backups-vm
 
   tasks:
-    - name: Update apt cache and install prerequisites
+    # =========================================================================
+    # Install dependencies
+    # =========================================================================
+    - name: Install prerequisites
       ansible.builtin.apt:
         name:
           - curl
           - unzip
+          - jq
         state: present
+        update_cache: true
 
-    - name: Check if rclone is already installed
+    # =========================================================================
+    # Install step-cli (for certificate management)
+    # =========================================================================
+    - name: Check if step-cli is installed
       ansible.builtin.stat:
-        path: /usr/bin/rclone
-      register: rclone_binary_stat
+        path: /usr/bin/step
+      register: step_cli_stat
 
-    - name: Download and install rclone install script
+    - name: Download step-cli binary
+      when: not step_cli_stat.stat.exists
       ansible.builtin.get_url:
-        url: https://rclone.org/install.sh
-        dest: /tmp/rclone-install.sh
+        url: https://dl.smallstep.com/cli/docs-ca-install/latest/step_linux_amd64.tar.gz
+        dest: /tmp/step_linux_amd64.tar.gz
+        mode: "0644"
+        timeout: 120
+      retries: 3
+      delay: 5
+
+    - name: Extract step-cli
+      when: not step_cli_stat.stat.exists
+      ansible.builtin.unarchive:
+        src: /tmp/step_linux_amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install step-cli binary
+      when: not step_cli_stat.stat.exists
+      ansible.builtin.copy:
+        src: /tmp/step_linux_amd64/bin/step
+        dest: /usr/bin/step
         mode: "0755"
-      when: not rclone_binary_stat.stat.exists
+        remote_src: true
 
-    - name: Execute rclone install script
-      ansible.builtin.command:
-        cmd: /tmp/rclone-install.sh
-        creates: /usr/bin/rclone
-      when: not rclone_binary_stat.stat.exists
-
-    - name: Ensure rclone config directory exists
+    - name: Clean up step-cli download
+      when: not step_cli_stat.stat.exists
       ansible.builtin.file:
-        path: "{{ rclone_config_dir }}"
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/step_linux_amd64.tar.gz
+        - /tmp/step_linux_amd64
+
+    # =========================================================================
+    # Install AWS Signing Helper (for IAM Roles Anywhere)
+    # =========================================================================
+    - name: Check if aws_signing_helper is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/aws_signing_helper
+      register: signing_helper_stat
+
+    - name: Download aws_signing_helper
+      ansible.builtin.get_url:
+        # Note: Not all GitHub releases are published to CDN (e.g., 1.7.1, 1.7.2 return 403)
+        url: "https://rolesanywhere.amazonaws.com/releases/1.7.0/X86_64/Linux/aws_signing_helper"
+        dest: /usr/local/bin/aws_signing_helper
+        mode: "0755"
+      when: not signing_helper_stat.stat.exists
+
+    # =========================================================================
+    # step-ca Bootstrap and TLS Certificate
+    # =========================================================================
+    - name: Ensure step config directory exists
+      ansible.builtin.file:
+        path: "{{ step_config_dir }}"
         state: directory
-        owner: "{{ rclone_user }}"
-        group: "{{ rclone_user }}"
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Ensure certs directory exists
+      ansible.builtin.file:
+        path: "{{ certs_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Write provisioner password file
+      ansible.builtin.copy:
+        content: "{{ step_ca_provisioner_password }}"
+        dest: "{{ step_config_dir }}/provisioner-password.txt"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Check if step-ca is reachable
+      ansible.builtin.uri:
+        url: "{{ step_ca_url }}/health"
+        method: GET
+        return_content: false
+        status_code: 200
+        timeout: 10
+        validate_certs: false
+      register: step_ca_check
+      failed_when: false
+
+    - name: Download step-ca root certificate
+      when: step_ca_check.status == 200
+      ansible.builtin.get_url:
+        url: "{{ step_ca_url }}/roots.pem"
+        dest: /tmp/step_root_ca.pem
+        validate_certs: false
+        mode: "0644"
+
+    - name: Get step-ca root certificate fingerprint
+      when: step_ca_check.status == 200
+      ansible.builtin.command:
+        cmd: "step certificate fingerprint /tmp/step_root_ca.pem"
+      register: ca_fingerprint
+      changed_when: false
+
+    - name: Bootstrap step-ca trust
+      when: step_ca_check.status == 200
+      ansible.builtin.command:
+        cmd: >
+          step ca bootstrap
+          --ca-url={{ step_ca_url }}
+          --fingerprint={{ ca_fingerprint.stdout }}
+          --force
+      environment:
+        STEPPATH: "{{ step_config_dir }}"
+      args:
+        creates: "{{ step_config_dir }}/certs/root_ca.crt"
+
+    - name: Request TLS certificate from step-ca
+      when: step_ca_check.status == 200
+      ansible.builtin.command:
+        cmd: >
+          step ca certificate
+          {{ backup_stack_hostname }}
+          {{ certs_dir }}/cert.pem
+          {{ certs_dir }}/key.pem
+          --san={{ backup_stack_hostname }}
+          --san={{ backup_stack_ip }}
+          --san=localhost
+          --san=127.0.0.1
+          --provisioner={{ step_ca_provisioner }}
+          --provisioner-password-file={{ step_config_dir }}/provisioner-password.txt
+          --force
+      environment:
+        STEPPATH: "{{ step_config_dir }}"
+      args:
+        creates: "{{ certs_dir }}/cert.pem"
+      notify: Restart backrest
+
+    - name: Split certificate bundle into leaf and chain (for IAM Roles Anywhere)
+      when: step_ca_check.status == 200
+      ansible.builtin.shell: |
+        csplit -z -f {{ certs_dir }}/cert-part- {{ certs_dir }}/cert.pem '/-----BEGIN CERTIFICATE-----/' '{*}'
+        mv {{ certs_dir }}/cert-part-00 {{ certs_dir }}/cert-leaf.pem
+        mv {{ certs_dir }}/cert-part-01 {{ certs_dir }}/cert-chain.pem
+        chown root:root {{ certs_dir }}/cert-leaf.pem {{ certs_dir }}/cert-chain.pem
+        chmod 0640 {{ certs_dir }}/cert-leaf.pem {{ certs_dir }}/cert-chain.pem
+      args:
+        creates: "{{ certs_dir }}/cert-leaf.pem"
+
+    - name: Warn if step-ca not reachable
+      when: step_ca_check.status != 200
+      ansible.builtin.debug:
+        msg: "TLS certificate setup skipped — step-ca not reachable. Run deploy again after step-ca is available."
+
+    # =========================================================================
+    # Install Restic
+    # =========================================================================
+    - name: Check if restic is installed
+      ansible.builtin.stat:
+        path: /usr/bin/restic
+      register: restic_stat
+
+    - name: Install restic via apt
+      ansible.builtin.apt:
+        name: restic
+        state: present
+      when: not restic_stat.stat.exists
+
+    - name: Update restic to latest version
+      ansible.builtin.command:
+        cmd: restic self-update
+      register: restic_update
+      changed_when: "'already' not in restic_update.stdout"
+      failed_when: false
+
+    # =========================================================================
+    # Install Backrest
+    # =========================================================================
+    - name: Check if backrest is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/backrest
+      register: backrest_stat
+
+    - name: Download Backrest
+      ansible.builtin.get_url:
+        url: "https://github.com/garethgeorge/backrest/releases/download/v{{ backrest_version }}/backrest_Linux_x86_64.tar.gz"
+        dest: /tmp/backrest.tar.gz
+        mode: "0644"
+      when: not backrest_stat.stat.exists or backrest_force_update | default(false)
+
+    - name: Extract Backrest
+      ansible.builtin.unarchive:
+        src: /tmp/backrest.tar.gz
+        dest: /usr/local/bin
+        remote_src: true
+        extra_opts:
+          - --strip-components=0
+        creates: /usr/local/bin/backrest
+      when: not backrest_stat.stat.exists or backrest_force_update | default(false)
+
+    - name: Make backrest executable
+      ansible.builtin.file:
+        path: /usr/local/bin/backrest
+        mode: "0755"
+
+    # =========================================================================
+    # Configure AWS credentials (IAM Roles Anywhere)
+    # =========================================================================
+    - name: Create AWS config directory
+      ansible.builtin.file:
+        path: "{{ aws_config_dir }}"
+        state: directory
+        owner: "{{ backrest_user }}"
         mode: "0700"
 
-    - name: Create rclone configuration file from template
+    - name: Create AWS config with credential_process
       ansible.builtin.template:
-        src: rclone.conf.j2
-        dest: "{{ rclone_config_file }}"
-        owner: "{{ rclone_user }}"
-        group: "{{ rclone_user }}"
-        mode: "0600" # Restrict permissions as it contains secrets
-      notify: Reload systemd daemon
+        src: aws-config.j2
+        dest: "{{ aws_config_dir }}/config"
+        owner: "{{ backrest_user }}"
+        mode: "0600"
 
-    - name: Create rclone sync script from template
-      ansible.builtin.template:
-        src: s3-sync.sh.j2
-        dest: "{{ rclone_sync_script_path }}"
-        owner: root
+    - name: Create backrest startup wrapper script (fetches AWS creds as env vars)
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          set -e
+
+          # Restic's minio-go library doesn't support credential_process from AWS config.
+          # We must fetch credentials and export as environment variables.
+          # See: https://github.com/restic/restic/blob/master/internal/backend/s3/s3.go
+
+          CREDS=$(/usr/local/bin/aws_signing_helper credential-process \
+            --certificate {{ certs_dir }}/cert-leaf.pem \
+            --private-key {{ certs_dir }}/key.pem \
+            --intermediates {{ certs_dir }}/cert-chain.pem \
+            --trust-anchor-arn {{ trust_anchor_arn }} \
+            --profile-arn {{ profile_arn }} \
+            --role-arn {{ role_arn }})
+
+          export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
+          export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
+          export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
+
+          exec /usr/local/bin/backrest
+        dest: "{{ step_config_dir }}/start-backrest.sh"
+        owner: "{{ backrest_user }}"
         group: root
-        mode: "0750" # Executable by owner and group
+        mode: "0750"
+      notify: Restart backrest
 
-    - name: Ensure log file exists and has correct permissions
+    # =========================================================================
+    # Configure Backrest
+    # =========================================================================
+    - name: Create Backrest config directory
       ansible.builtin.file:
-        path: "{{ rclone_s3_log_file }}"
-        state: touch
-        owner: "{{ rclone_user }}" # User running the script needs write access
-        mode: "0640"
+        path: "{{ backrest_config_dir }}"
+        state: directory
+        owner: "{{ backrest_user }}"
+        mode: "0700"
 
-    - name: Create systemd service unit file for s3 sync
+    - name: Create Backrest data directory
+      ansible.builtin.file:
+        path: "{{ backrest_data_dir }}"
+        state: directory
+        owner: "{{ backrest_user }}"
+        mode: "0700"
+
+    - name: Generate restic repository password
+      ansible.builtin.set_fact:
+        restic_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+      when: restic_password is not defined
+      no_log: true
+
+    - name: Check if Backrest config exists
+      ansible.builtin.stat:
+        path: "{{ backrest_config_dir }}/config.json"
+      register: backrest_config_stat
+
+    - name: Create initial Backrest config
       ansible.builtin.template:
-        src: s3-sync.service.j2
-        dest: "/etc/systemd/system/{{ s3_sync_service_name }}.service"
+        src: backrest-config.json.j2
+        dest: "{{ backrest_config_dir }}/config.json"
+        owner: "{{ backrest_user }}"
+        mode: "0600"
+      when: not backrest_config_stat.stat.exists
+      notify: Restart backrest
+
+    # =========================================================================
+    # Configure systemd service
+    # =========================================================================
+    - name: Create Backrest systemd service
+      ansible.builtin.template:
+        src: backrest.service.j2
+        dest: /etc/systemd/system/backrest.service
         owner: root
         group: root
         mode: "0644"
-      notify: Reload systemd daemon
+      notify:
+        - Reload systemd
+        - Restart backrest
 
-    - name: Create systemd timer unit file for s3 sync
-      ansible.builtin.template:
-        src: s3-sync.timer.j2
-        dest: "/etc/systemd/system/{{ s3_sync_timer_name }}"
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Reload systemd daemon
-
-    - name: Enable and start the systemd timer
+    - name: Enable and start Backrest service
       ansible.builtin.systemd:
-        name: "{{ s3_sync_timer_name }}"
-        enabled: yes
+        name: backrest
+        enabled: true
         state: started
-        daemon_reload: yes # Ensure systemd reads new/changed units
+        daemon_reload: true
+
+    # =========================================================================
+    # Certificate Renewal Daemon (step ca renew --daemon)
+    # =========================================================================
+    - name: Create certificate renewal hook script
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Renewal hook script for step ca renew --daemon
+          # Re-splits certificate bundle for IAM Roles Anywhere and restarts Backrest
+          set -e
+
+          CERT_FILE="{{ certs_dir }}/cert.pem"
+          CERTS_DIR="{{ certs_dir }}"
+
+          # Re-split the certificate bundle into leaf and chain
+          csplit -z -f "${CERTS_DIR}/cert-part-" "${CERT_FILE}" '/-----BEGIN CERTIFICATE-----/' '{*}' 2>/dev/null
+          mv "${CERTS_DIR}/cert-part-00" "${CERTS_DIR}/cert-leaf.pem"
+          mv "${CERTS_DIR}/cert-part-01" "${CERTS_DIR}/cert-chain.pem"
+          chown root:root "${CERTS_DIR}/cert-leaf.pem" "${CERTS_DIR}/cert-chain.pem"
+          chmod 0640 "${CERTS_DIR}/cert-leaf.pem" "${CERTS_DIR}/cert-chain.pem"
+
+          # Restart Backrest to use the new certificate
+          systemctl restart backrest.service
+        dest: "{{ step_config_dir }}/renew-hook.sh"
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart backrest-cert-renew
+
+    - name: Install step-ca renewal service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Renew backup-stack TLS certificate from step-ca
+          After=network-online.target backrest.service
+          Wants=network-online.target
+          BindsTo=backrest.service
+
+          [Service]
+          Type=simple
+          User=root
+          Group=root
+
+          Environment="STEPPATH={{ step_config_dir }}"
+
+          # Renewal script re-splits certs for IAM Roles Anywhere and restarts Backrest
+          ExecStart=/usr/bin/step ca renew --daemon \
+            --exec "{{ step_config_dir }}/renew-hook.sh" \
+            {{ certs_dir }}/cert.pem \
+            {{ certs_dir }}/key.pem
+
+          Restart=on-failure
+          RestartSec=30
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/backrest-cert-renew.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart backrest-cert-renew
+
+    - name: Enable and start certificate renewal daemon
+      ansible.builtin.systemd:
+        name: backrest-cert-renew.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # =========================================================================
+    # Cleanup old rclone configuration (if exists)
+    # =========================================================================
+    - name: Stop and disable old rclone timer
+      ansible.builtin.systemd:
+        name: rclone-s3-sync.timer
+        state: stopped
+        enabled: false
+      failed_when: false
+
+    - name: Remove old rclone systemd units
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/rclone-s3-sync.service
+        - /etc/systemd/system/rclone-s3-sync.timer
+      notify: Reload systemd
 
   handlers:
-    - name: Reload systemd daemon
+    - name: Reload systemd
       ansible.builtin.systemd:
-        daemon_reload: yes
+        daemon_reload: true
+
+    - name: Restart backrest
+      ansible.builtin.systemd:
+        name: backrest
+        state: restarted
+
+    - name: Restart backrest-cert-renew
+      ansible.builtin.systemd:
+        name: backrest-cert-renew.service
+        state: restarted
+        daemon_reload: true

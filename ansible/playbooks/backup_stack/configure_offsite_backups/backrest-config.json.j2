@@ -1,0 +1,43 @@
+{
+  "version": 4,
+  "modno": 1,
+  "instance": "backup-stack",
+  "repos": [
+    {
+      "id": "offsite-s3",
+      "uri": "{{ restic_repository }}",
+      "password": "{{ restic_password }}",
+      "autoInitialize": true,
+      "flags": [
+        "-o", "s3.connections=50"
+      ],
+      "prunePolicy": {
+        "maxUnusedPercent": 25
+      }
+    }
+  ],
+  "plans": [
+{% for path in backup_paths %}
+    {
+      "id": "backup-{{ path | basename }}",
+      "repo": "offsite-s3",
+      "paths": ["{{ path }}"],
+      "schedule": {
+        "cron": "0 3 * * *",
+        "clock": "LOCAL"
+      },
+      "retention": {
+        "policyKeepLastN": 7,
+        "policyKeepDaily": 7,
+        "policyKeepWeekly": 4,
+        "policyKeepMonthly": 6
+      }
+    }{{ "," if not loop.last else "" }}
+{% endfor %}
+  ],
+  "auth": {
+    "disabled": true
+  }
+}
+
+
