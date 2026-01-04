@@ -30,7 +30,7 @@ home_gateway_stack:
   node: "oracle"
   admin: "aether"
   cores: 8
-  memory: 4096
+  memory: 2048
   disk_gb: 128
   ip: "10.0.2.2"
   gateway: "10.0.2.1"
@@ -380,7 +380,7 @@ adguard:
   node: "oracle"
   admin: "root"
   cores: 1
-  memory: 512
+  memory: 1024
   disk_gb: 20
   ip: "192.168.2.236"
   gateway: "192.168.2.1"

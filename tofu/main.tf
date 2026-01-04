@@ -1,6 +1,7 @@
 terraform {
   backend "s3" {
     encrypt = true
+    region = var.aws_region
   }
 
   required_providers {
