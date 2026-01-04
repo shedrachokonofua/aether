@@ -67,15 +67,12 @@
           - set service dns forwarding listen-address 10.0.5.1
           - set service dns forwarding listen-address 10.0.6.1
           - set service dns forwarding listen-address 10.0.7.1
-          # TODO: Remove gigahub DNS when AdGuard is deployed on gigahub network
           - set service dns forwarding listen-address 192.168.2.231
           - set service dns forwarding allow-from 10.0.0.0/16
-          # TODO: Remove gigahub allow-from when AdGuard is deployed on gigahub network
           - set service dns forwarding allow-from 192.168.2.0/24
           - set service dns forwarding cache-size 50000
           - set service dns forwarding negative-ttl 0
-          - set service dns forwarding name-server {{ vm.home_gateway_stack.ip }}
-          - set service dns forwarding name-server 8.8.8.8
+          - set service dns forwarding name-server {{ vm.adguard.ip }}
         save: true
 
     - name: Configure VLAN interfaces
@@ -332,12 +329,6 @@
           - set firewall ipv4 name MGMT-to-LOCAL rule 20 destination port 22
           - set firewall ipv4 name MGMT-to-LOCAL rule 20 source address 192.168.2.0/24
           - set firewall ipv4 name MGMT-to-LOCAL rule 20 description 'Allow SSH from Gigahub network'
-          # TODO: Remove DNS rule when AdGuard is deployed on gigahub network
-          - set firewall ipv4 name MGMT-to-LOCAL rule 30 action accept
-          - set firewall ipv4 name MGMT-to-LOCAL rule 30 protocol tcp_udp
-          - set firewall ipv4 name MGMT-to-LOCAL rule 30 destination port 53
-          - set firewall ipv4 name MGMT-to-LOCAL rule 30 source address 192.168.2.0/24
-          - set firewall ipv4 name MGMT-to-LOCAL rule 30 description 'Allow DNS from Gigahub network'
 
           # Create WAN to LOCAL firewall rules
           - set firewall ipv4 name WAN-to-LOCAL default-action drop
