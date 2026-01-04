@@ -11,14 +11,6 @@
   - [ ] Add journal-gatewayd to host_monitoring_agent role
   - [ ] Deploy forwarder to monitoring stack
   - [ ] Configure sources for all Proxmox hosts + public gateway
-- [ ] Split AdGuard from Gateway Stack (NixOS LXC)
-  - [x] Set up nix/ directory with flake.nix
-  - [x] Build AdGuard NixOS LXC config
-  - [x] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
-  - [x] Deploy AdGuard
-  - [x] Update VyOS DNS forwarding to point at new AdGuard IP
-  - [ ] Update Caddy upstream IP for admin UI
-  - [ ] Remove from gateway stack playbook
 
 ## P1
 

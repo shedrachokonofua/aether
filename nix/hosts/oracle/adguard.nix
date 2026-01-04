@@ -3,7 +3,6 @@
 { config, lib, pkgs, ... }:
 
 let
-  # AdGuard Exporter for Prometheus metrics
   adguard-exporter = pkgs.buildGoModule rec {
     pname = "adguard-exporter";
     version = "1.2.1";
@@ -27,25 +26,21 @@ in
     hostname = "adguard";
   };
 
-  # AdGuard Home
   services.adguardhome = {
     enable = true;
-    mutableSettings = false;  # Declarative config
+    mutableSettings = false;
     openFirewall = true;
 
     settings = {
-      # Web interface
       http = {
         address = "0.0.0.0:3000";
         session_ttl = "720h";
       };
 
-      # DNS settings - matches production config
       dns = {
         bind_hosts = [ "0.0.0.0" ];
         port = 53;
 
-        # Upstream DNS servers (parallel mode for speed)
         upstream_dns = [
           "https://dns10.quad9.net/dns-query"
           "https://cloudflare-dns.com/dns-query"
@@ -54,7 +49,6 @@ in
         upstream_mode = "parallel";
         fastest_timeout = "1s";
 
-        # Bootstrap DNS (for resolving DoH hostnames)
         bootstrap_dns = [
           "9.9.9.10"
           "149.112.112.10"
@@ -62,73 +56,59 @@ in
           "8.8.8.8"
         ];
 
-        # Fallback DNS
         fallback_dns = [
           "9.9.9.10"
           "1.1.1.1"
           "8.8.8.8"
         ];
 
-        # DNSSEC disabled (causes issues with some domains)
         enable_dnssec = false;
 
-        # Cache settings
-        cache_size = 4194304;  # 4MB
+        cache_size = 4194304;
 
-        # Rate limiting disabled
         ratelimit = 0;
         ratelimit_subnet_len_ipv4 = 24;
         ratelimit_subnet_len_ipv6 = 56;
 
-        # Refuse ANY queries (amplification protection)
         refuse_any = true;
 
-        # Blocked hostnames
         blocked_hosts = [
           "version.bind"
           "id.server"
           "hostname.bind"
         ];
 
-        # Performance
         max_goroutines = 300;
         upstream_timeout = "10s";
 
-        # Use private PTR resolvers
         use_private_ptr_resolvers = true;
 
-        # Enable hosts file
         hostsfile_enabled = true;
       };
 
-      # Query log - 90 days retention
       querylog = {
         enabled = true;
         file_enabled = true;
         interval = "2160h";
         size_memory = 1000;
-        # Log all queries including answered from cache
         ignored = [];
       };
 
-      # Statistics - 7 days for better trends
       statistics = {
         enabled = true;
-        interval = "168h";  # 7 days
+        interval = "168h";
         ignored = [];
       };
 
-      # Application logging
       log = {
         enabled = true;
-        file = "";  # stdout/journald
-        verbose = false;  # Set true for debug
+        file = "";
+        verbose = false;
         local_time = true;
-        max_size = 100;  # MB
-        max_age = 3;     # days
+        max_size = 100;
+        max_age = 3;
       };
 
-      # Filter lists
       filters = [
         { enabled = true; id = 1; name = "AdGuard DNS filter"; url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt"; }
         { enabled = true; id = 1741404507; name = "HaGeZi's Pro++ Blocklist"; url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_51.txt"; }
@@ -153,7 +133,6 @@ in
         { enabled = true; id = 1741404526; name = "Phishing Army"; url = "https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt"; }
       ];
 
-      # User rules (allowlist overrides)
       user_rules = [
         "www.langflow.store^$important"
         "@@||langflow.store^$important"
@@ -163,7 +142,6 @@ in
         "@@||brightdata.com^$important"
       ];
 
-      # Filtering settings
       filtering = {
         protection_enabled = true;
         filtering_enabled = true;
@@ -184,12 +162,10 @@ in
         ];
       };
 
-      # TLS disabled (handled by reverse proxy)
       tls = {
         enabled = false;
       };
 
-      # DHCP disabled
       dhcp = {
         enabled = false;
       };
@@ -198,8 +174,6 @@ in
     };
   };
 
-  # AdGuard Exporter for Prometheus
-  # Note: Exporter requires credentials even if AdGuard has no auth
   systemd.services.adguard-exporter = {
     description = "AdGuard Home Prometheus Exporter";
     after = [ "network.target" "adguardhome.service" ];
@@ -207,8 +181,7 @@ in
 
     environment = {
       ADGUARD_SERVERS = "http://localhost:3000";
-      ADGUARD_USERNAMES = "admin";   # Required by exporter
-      ADGUARD_PASSWORDS = "admin";   # TODO: Use secrets if auth enabled
+      ADGUARD_USERNAMES = "admin";
       INTERVAL = "15s";
     };
 
@@ -220,28 +193,22 @@ in
     };
   };
 
-  # OTEL Agent - extend with adguard exporter scrape
   aether.otel-agent.prometheusScrapeConfigs = [
     { job_name = "adguard"; targets = [ "localhost:9618" ]; }
   ];
 
-  # Firewall - DNS and admin UI (metrics scraped locally by OTEL)
   networking.firewall.allowedTCPPorts = [
-    53    # DNS TCP
-    3000  # Admin UI
+    53
+    3000
   ];
   networking.firewall.allowedUDPPorts = [
-    53    # DNS UDP
+    53
   ];
 
-  # Disable systemd-resolved - AdGuard handles DNS
   services.resolved.enable = false;
 
-  # Fallback nameservers for bootstrap (before AdGuard starts)
   networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
 
-  # Route to VyOS networks via VyOS router (for OTEL export)
-  # TODO: Add this route on gigahub router instead
   networking.localCommands = ''
     ip route add 10.0.2.0/24 via 192.168.2.231 dev eth0 || true
   '';

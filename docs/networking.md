@@ -65,7 +65,7 @@ graph TB
 
 ## DNS
 
-AdGuard Home provides DNS resolution and ad blocking for the home network. Runs on the Gateway Stack (planned migration to standalone LXC).
+AdGuard Home provides DNS resolution and ad blocking for the home network. Runs on a standalone LXC container on Oracle.
 
 ### Upstream Resolvers
 
@@ -101,7 +101,7 @@ graph LR
         DNS1[DNS Forwarder<br/>10.0.x.1]
     end
 
-    subgraph Home Gateway Stack
+    subgraph AdGuard LXC
         ADG[AdGuard Home<br/>:53]
     end
 
