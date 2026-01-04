@@ -1,0 +1,135 @@
+---
+- name: Bootstrap AdGuard LXC (run on Proxmox host)
+  hosts: oracle
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    lxc_id: "{{ vm.adguard.id }}"
+    nixos_bin: "/run/current-system/sw/bin"
+    ssh_ca_host: "{{ vm.step_ca.ip }}"
+    ssh_ca_pubkey_remote: "/etc/step-ca/certs/ssh_user_ca_key.pub"
+  tasks:
+    - name: Wait for LXC to be running
+      command: pct status {{ lxc_id }}
+      register: lxc_status
+      until: "'running' in lxc_status.stdout"
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Wait for systemd to be ready in LXC
+      command: pct exec {{ lxc_id }} -- {{ nixos_bin }}/systemctl is-system-running --wait
+      register: systemd_ready
+      until: systemd_ready.rc == 0 or 'running' in systemd_ready.stdout or 'degraded' in systemd_ready.stdout
+      retries: 30
+      delay: 2
+      changed_when: false
+      failed_when: false
+
+    - name: Fetch SSH user CA public key from step-ca
+      ansible.builtin.command:
+        cmd: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{ ssh_ca_host }} cat {{ ssh_ca_pubkey_remote }}"
+      delegate_to: localhost
+      become: false
+      register: ca_pubkey_result
+      changed_when: false
+
+    - name: Create persistent SSH CA cache directory
+      command: pct exec {{ lxc_id }} -- {{ nixos_bin }}/mkdir -p /var/lib/ssh-ca
+      changed_when: true
+
+    - name: Write CA key to persistent cache
+      copy:
+        content: "{{ ca_pubkey_result.stdout }}\n"
+        dest: /tmp/ca_user_key.pub
+        mode: "0644"
+
+    - name: Push CA key to persistent cache in LXC
+      command: pct push {{ lxc_id }} /tmp/ca_user_key.pub /var/lib/ssh-ca/ca_user_key.pub
+      changed_when: true
+
+    - name: Clean up CA key temp file
+      file:
+        path: /tmp/ca_user_key.pub
+        state: absent
+
+    - name: Create /etc/nixos directory
+      command: pct exec {{ lxc_id }} -- {{ nixos_bin }}/mkdir -p /etc/nixos
+      changed_when: true
+
+    - name: Write bootstrap NixOS configuration
+      copy:
+        content: |
+          { config, pkgs, modulesPath, ... }:
+          {
+            imports = [
+              (modulesPath + "/virtualisation/proxmox-lxc.nix")
+            ];
+
+            services.openssh = {
+              enable = true;
+              authorizedKeysFiles = [];
+              settings = {
+                PermitRootLogin = "prohibit-password";
+                PasswordAuthentication = false;
+                StrictModes = false;
+                AuthorizedPrincipalsFile = "/etc/ssh/auth_principals/%u";
+              };
+              extraConfig = ''
+                TrustedUserCAKeys /etc/ssh/ca_user_key.pub
+              '';
+            };
+
+            # SSH CA public key
+            environment.etc."ssh/ca_user_key.pub".text = ''
+              {{ ca_pubkey_result.stdout }}
+            '';
+
+            # Principals - allow 'admin' principal to login as root
+            environment.etc."ssh/auth_principals/root".text = ''
+              admin
+            '';
+
+            # proxmox-lxc module handles networking from Proxmox config
+
+            system.stateVersion = "24.11";
+          }
+        dest: /tmp/adguard_configuration.nix
+        mode: "0644"
+
+    - name: Push NixOS configuration to LXC
+      command: pct push {{ lxc_id }} /tmp/adguard_configuration.nix /etc/nixos/configuration.nix
+      changed_when: true
+
+    - name: Clean up temp file
+      file:
+        path: /tmp/adguard_configuration.nix
+        state: absent
+
+    - name: Add nixpkgs channel (with environment sourced)
+      shell: |
+        pct exec {{ lxc_id }} -- /bin/sh -c '. /etc/set-environment && nix-channel --add https://nixos.org/channels/nixos-24.11 nixos'
+      changed_when: true
+
+    - name: Update nix channels (with environment sourced)
+      shell: |
+        pct exec {{ lxc_id }} -- /bin/sh -c '. /etc/set-environment && nix-channel --update'
+      changed_when: true
+      async: 300
+      poll: 10
+
+    - name: Rebuild NixOS to enable SSH with CA trust
+      shell: |
+        pct exec {{ lxc_id }} -- /bin/sh -c '. /etc/set-environment && nixos-rebuild switch'
+      register: rebuild_result
+      changed_when: true
+      async: 600
+      poll: 15
+
+    - name: Wait for SSH port to be ready
+      wait_for:
+        host: "{{ vm.adguard.ip }}"
+        port: 22
+        timeout: 120
+      delegate_to: localhost

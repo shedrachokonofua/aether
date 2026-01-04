@@ -173,6 +173,15 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/step_ca/provision_aws_trust.yml]
   configure:step-ca:
     cmds: [ansible-playbook ansible/playbooks/step_ca/deploy_step_ca.yml]
+  provision:adguard:
+    cmds: [ansible-playbook ansible/playbooks/adguard/site.yml]
+  configure:adguard:
+    desc: Deploy NixOS configuration to AdGuard LXC
+    vars:
+      ADGUARD_IP:
+        sh: yq '.adguard.ip' config/vm.yml
+    cmds:
+      - nix run nixpkgs#nixos-rebuild -- switch --flake .#adguard --target-host root@{{.ADGUARD_IP}}
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:

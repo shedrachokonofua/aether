@@ -7,6 +7,47 @@
   };
 
   outputs = { self, nixpkgs, flake-utils }:
+    let
+      # Overlay to fix opentelemetry-collector-contrib in >= 24.11
+      # See: https://github.com/NixOS/nixpkgs/issues/368321
+      otelFixOverlay = final: prev: {
+        opentelemetry-collector-contrib =
+          let
+            pkg = prev.opentelemetry-collector-contrib;
+          in
+          if final.lib.versionOlder pkg.version "0.112" || final.lib.versionAtLeast pkg.version "0.114"
+          then pkg
+          else
+            let
+              commit = "17ddfd8ca1090321149a6d857110fd8eee856569";
+              opentelemetry-collector-builder = final.callPackage
+                (final.fetchurl {
+                  url = "https://github.com/NixOS/nixpkgs/raw/${commit}/pkgs/tools/misc/opentelemetry-collector/builder.nix";
+                  hash = "sha256-A46CZH8wQLDix3nYTWPx8ZJJoKbu0Nu36eTW5361TvU=";
+                })
+                { };
+              opentelemetry-collector-releases = final.callPackage
+                (final.fetchurl {
+                  url = "https://github.com/NixOS/nixpkgs/raw/${commit}/pkgs/tools/misc/opentelemetry-collector/releases.nix";
+                  hash = "sha256-JBWakNxHDPI3vSdhBoZ+WQn5adahV1iigOOTm0fjrkQ=";
+                })
+                { inherit opentelemetry-collector-builder; };
+            in
+            opentelemetry-collector-releases.otelcol-contrib;
+      };
+
+      # System-agnostic outputs (NixOS configurations)
+      nixosConfigurations = {
+        adguard = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            ./nix/hosts/oracle/adguard.nix
+          ];
+        };
+      };
+    in
+    # Per-system outputs (dev shells)
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -56,10 +97,6 @@
             echo ""
           '';
         };
-
-        # Future: NixOS configurations will go here
-        # nixosConfigurations = { ... };
       }
-    );
+    ) // { inherit nixosConfigurations; };
 }
-

@@ -374,3 +374,17 @@ openbao:
   ports:
     https: 8200
     cluster: 8201
+
+adguard:
+  id: 1027
+  name: "adguard"
+  node: "oracle"
+  admin: "root"
+  cores: 1
+  memory: 512
+  disk_gb: 20
+  ip: "192.168.2.236"
+  gateway: "192.168.2.1"
+  ports:
+    dns: 53
+    admin: 3000

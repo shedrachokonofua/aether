@@ -1,0 +1,67 @@
+---
+- name: Provision AdGuard LXC (NixOS)
+  hosts: oracle
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    nixos_template_url: "https://hydra.nixos.org/build/316271671/download/1/nixos-system-x86_64-linux.tar.xz"
+    nixos_template_name: "nixos-24.11-proxmox-lxc.tar.xz"
+    lxc_id: "{{ vm.adguard.id }}"
+  tasks:
+    - name: Download NixOS LXC template
+      ansible.builtin.get_url:
+        url: "{{ nixos_template_url }}"
+        dest: "/var/lib/vz/template/cache/{{ nixos_template_name }}"
+        mode: "0644"
+        timeout: 300
+      retries: 3
+      delay: 10
+
+    - name: Check if AdGuard LXC exists
+      command: pct status {{ lxc_id }}
+      register: lxc_exists
+      failed_when: false
+      changed_when: false
+
+    - name: Stop AdGuard LXC
+      command: pct stop {{ lxc_id }}
+      when: lxc_exists.rc == 0
+      register: stop_result
+      failed_when: false
+      changed_when: stop_result.rc == 0
+
+    - name: Wait for LXC to stop
+      command: pct status {{ lxc_id }}
+      register: lxc_status
+      until: "'stopped' in lxc_status.stdout"
+      retries: 30
+      delay: 2
+      when: lxc_exists.rc == 0 and stop_result.rc == 0
+      changed_when: false
+
+    - name: Delete AdGuard LXC
+      command: pct destroy {{ lxc_id }} --purge
+      when: lxc_exists.rc == 0
+      register: delete_result
+      failed_when: false
+      changed_when: delete_result.rc == 0
+
+    - name: Create AdGuard LXC
+      command: >
+        pct create {{ lxc_id }}
+        /var/lib/vz/template/cache/{{ nixos_template_name }}
+        --hostname {{ vm.adguard.name }}
+        --password {{ secrets.adguard.lxc_password }}
+        --cores {{ vm.adguard.cores }}
+        --memory {{ vm.adguard.memory }}
+        --rootfs local-lvm:{{ vm.adguard.disk_gb }}
+        --net0 name=eth0,bridge=vmbr0,gw={{ vm.adguard.gateway }},ip={{ vm.adguard.ip }}/24
+        --nameserver {{ vm.router.ip.gigahub }}
+        --features nesting=1
+        --unprivileged 1
+      changed_when: true
+
+    - name: Start AdGuard LXC
+      command: pct start {{ lxc_id }}
+      changed_when: true

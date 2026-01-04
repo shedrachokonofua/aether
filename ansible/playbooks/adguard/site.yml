@@ -1,0 +1,10 @@
+---
+- name: Provision AdGuard LXC
+  import_playbook: provision_lxc.yml
+
+- name: Bootstrap AdGuard LXC
+  import_playbook: bootstrap_lxc.yml
+
+# Configuration is handled by NixOS
+# After bootstrap, deploy with:
+#   task configure:adguard
