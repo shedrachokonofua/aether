@@ -4,10 +4,20 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
+    nixos-generators = {
+      url = "github:nix-community/nixos-generators";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, nixos-generators, disko }:
     let
+      system = "x86_64-linux";
+      
       # Overlay to fix opentelemetry-collector-contrib in >= 24.11
       # See: https://github.com/NixOS/nixpkgs/issues/368321
       otelFixOverlay = final: prev: {
@@ -36,21 +46,29 @@
             opentelemetry-collector-releases.otelcol-contrib;
       };
 
+      # SSH CA key module - reads from environment variable at build time
+      # Build with: SSH_CA_PUBKEY="ecdsa-sha2..." nix build .#vm-base-image --impure
+      sshCaModule = { lib, ... }: {
+        aether.base.sshCaPubKey = builtins.getEnv "SSH_CA_PUBKEY";
+      };
+
       # System-agnostic outputs (NixOS configurations)
+      # Build with: SSH_CA_PUBKEY="$(ssh root@step-ca cat /etc/step-ca/certs/ssh_user_ca_key.pub)" nixos-rebuild ... --impure
       nixosConfigurations = {
         adguard = nixpkgs.lib.nixosSystem {
-          system = "x86_64-linux";
+          inherit system;
           modules = [
             { nixpkgs.overlays = [ otelFixOverlay ]; }
             ./nix/hosts/oracle/adguard.nix
+            sshCaModule
           ];
         };
       };
     in
-    # Per-system outputs (dev shells)
-    flake-utils.lib.eachDefaultSystem (system:
+    # Per-system outputs (dev shells + packages)
+    flake-utils.lib.eachDefaultSystem (sys:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = nixpkgs.legacyPackages.${sys};
       in
       {
         # Dev shell - replaces Docker toolbox
@@ -98,5 +116,30 @@
           '';
         };
       }
-    ) // { inherit nixosConfigurations; };
+    ) // { 
+      inherit nixosConfigurations; 
+      
+      # Base images for VMs and LXCs
+      # Build with: SSH_CA_PUBKEY="$(ssh root@step-ca cat /etc/step-ca/certs/ssh_user_ca_key.pub)" nix build .#vm-base-image --impure
+      packages.${system} = {
+        # qcow2 image for Terraform + cloud-init workflow
+        vm-base-image = nixos-generators.nixosGenerate {
+          inherit system;
+          format = "qcow";
+          modules = [
+            ./nix/images/vm-base.nix
+            sshCaModule
+          ];
+        };
+        
+        lxc-base-image = nixos-generators.nixosGenerate {
+          inherit system;
+          format = "proxmox-lxc";
+          modules = [
+            ./nix/images/lxc-base.nix
+            sshCaModule
+          ];
+        };
+      };
+    };
 }

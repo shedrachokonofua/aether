@@ -13,28 +13,38 @@ This playbook provisions [AdGuard Home](https://adguard.com/en/adguard-home/over
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
+│  Base Image (build once)                                                │
+│  $ task nix:upload-lxc-image                                            │
+│  └── Builds NixOS LXC image with SSH CA trust baked in                  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
 │  Ansible (one-time setup)                                               │
-│  ├── provision_lxc.yml    → Create NixOS LXC via pct                    │
-│  └── bootstrap_lxc.yml    → Configure SSH CA trust via pct exec         │
+│  $ task provision:adguard                                               │
+│  └── Creates LXC from base image, SSH works immediately                 │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  NixOS (repeatable)                                                     │
-│  $ task deploy:adguard                                                  │
+│  $ task configure:adguard                                               │
 │  └── nixos-rebuild switch --flake .#adguard --target-host root@...      │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Usage
 
-### Full Provision (new LXC)
+### First Time Setup
 
 ```bash
-# 1. Provision + bootstrap LXC
+# 1. Build and upload the base image (one-time)
+task nix:upload-lxc-image
+
+# 2. Provision the LXC
 task provision:adguard
 
-# 2. Deploy NixOS configuration
+# 3. Deploy NixOS configuration
 task configure:adguard
 ```
 
@@ -46,22 +56,11 @@ After changing `nix/hosts/oracle/adguard.nix`:
 task configure:adguard
 ```
 
-## Sub-Playbooks
-
-### provision_lxc.yml
-
-Creates the NixOS LXC container on Proxmox.
+### Rebuild LXC (if needed)
 
 ```bash
-ansible-playbook ansible/playbooks/adguard/provision_lxc.yml
-```
-
-### bootstrap_lxc.yml
-
-Configures SSH access with CA trust so `nixos-rebuild` can connect.
-
-```bash
-ansible-playbook ansible/playbooks/adguard/bootstrap_lxc.yml
+task provision:adguard
+task configure:adguard
 ```
 
 ## NixOS Configuration
@@ -69,7 +68,8 @@ ansible-playbook ansible/playbooks/adguard/bootstrap_lxc.yml
 The actual AdGuard configuration lives in:
 
 - `nix/hosts/oracle/adguard.nix` - AdGuard-specific config
-- `nix/modules/lxc-base.nix` - Common LXC config (SSH, OTEL, packages)
+- `nix/modules/base.nix` - Common base config (SSH CA trust)
+- `nix/modules/otel-agent.nix` - Monitoring agent
 
 ### Key Settings
 
@@ -79,13 +79,6 @@ The actual AdGuard configuration lives in:
 | DNS          | 192.168.2.236:53           |
 | Upstream DNS | Cloudflare DoH, Google DoH |
 | DNSSEC       | Enabled                    |
-
-## Required Secrets
-
-```yaml
-adguard:
-  lxc_password: "<lxc-root-password>"
-```
 
 ## Network
 

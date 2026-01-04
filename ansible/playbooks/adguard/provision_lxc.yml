@@ -1,22 +1,37 @@
 ---
+# Provision AdGuard LXC using custom NixOS base image
+# The base image has SSH CA trust baked in - no bootstrap needed!
+#
+# Prerequisites:
+#   1. Build and upload the base image: task nix:upload-lxc-image
+#   2. This creates /var/lib/vz/template/cache/nixos-base-lxc.tar.xz on oracle
+#
+# After provisioning:
+#   task configure:adguard  # Deploys the full NixOS config via nixos-rebuild
+
 - name: Provision AdGuard LXC (NixOS)
   hosts: oracle
   gather_facts: true
   roles:
     - common
   vars:
-    nixos_template_url: "https://hydra.nixos.org/build/316271671/download/1/nixos-system-x86_64-linux.tar.xz"
-    nixos_template_name: "nixos-24.11-proxmox-lxc.tar.xz"
+    # Custom NixOS base image with SSH CA trust baked in (on cephfs, shared across nodes)
+    nixos_template: "cephfs:vztmpl/nixos-base-lxc.tar.xz"
+    nixos_template_path: "/mnt/pve/cephfs/template/cache/nixos-base-lxc.tar.xz"
     lxc_id: "{{ vm.adguard.id }}"
   tasks:
-    - name: Download NixOS LXC template
-      ansible.builtin.get_url:
-        url: "{{ nixos_template_url }}"
-        dest: "/var/lib/vz/template/cache/{{ nixos_template_name }}"
-        mode: "0644"
-        timeout: 300
-      retries: 3
-      delay: 10
+    - name: Check if base image exists on cephfs
+      stat:
+        path: "{{ nixos_template_path }}"
+      register: base_image
+      delegate_to: smith
+
+    - name: Fail if base image not found
+      fail:
+        msg: |
+          NixOS base image not found at {{ nixos_template }}
+          Build and upload it first: task nix:upload-lxc-image
+      when: not base_image.stat.exists
 
     - name: Check if AdGuard LXC exists
       command: pct status {{ lxc_id }}
@@ -50,9 +65,8 @@
     - name: Create AdGuard LXC
       command: >
         pct create {{ lxc_id }}
-        /var/lib/vz/template/cache/{{ nixos_template_name }}
+        {{ nixos_template }}
         --hostname {{ vm.adguard.name }}
-        --password {{ secrets.adguard.lxc_password }}
         --cores {{ vm.adguard.cores }}
         --memory {{ vm.adguard.memory }}
         --rootfs local-lvm:{{ vm.adguard.disk_gb }}
@@ -65,3 +79,10 @@
     - name: Start AdGuard LXC
       command: pct start {{ lxc_id }}
       changed_when: true
+
+    - name: Wait for SSH to be ready
+      wait_for:
+        host: "{{ vm.adguard.ip }}"
+        port: 22
+        timeout: 120
+      delegate_to: localhost

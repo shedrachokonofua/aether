@@ -109,6 +109,64 @@ tasks:
       - ansible-galaxy role install -r requirements.yml
 
   # ===========================================================================
+  # NixOS Base Images
+  # ===========================================================================
+  nix:build-vm-image:
+    desc: Build NixOS VM base image (qcow2 for Proxmox + Terraform)
+    vars:
+      STEP_CA_IP:
+        sh: yq '.step_ca.ip' config/vm.yml
+    cmds:
+      - |
+        echo "Fetching SSH CA public key from step-ca..."
+        SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
+        echo "Building VM base image (qcow2)..."
+        rm -rf .nix-vm-image
+        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix build .#vm-base-image --impure -o .nix-vm-image
+        echo "✅ Image built: $(ls .nix-vm-image/*.qcow2)"
+
+  nix:build-lxc-image:
+    desc: Build NixOS LXC base image (tar.xz for Proxmox)
+    vars:
+      STEP_CA_IP:
+        sh: yq '.step_ca.ip' config/vm.yml
+    cmds:
+      - |
+        echo "Fetching SSH CA public key from step-ca..."
+        SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
+        echo "Building LXC base image..."
+        rm -rf .nix-lxc-image
+        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix build .#lxc-base-image --impure -o .nix-lxc-image
+        echo "✅ Image built: $(ls .nix-lxc-image/tarball/*.tar.xz)"
+
+  nix:upload-vm-image:
+    desc: Upload VM base image to cephfs (for Terraform)
+    deps: [nix:build-vm-image]
+    vars:
+      SMITH_IP: 192.168.2.204
+    cmds:
+      - |
+        echo "Uploading VM image to cephfs..."
+        ssh root@{{.SMITH_IP}} "mkdir -p /mnt/pve/cephfs/template/iso"
+        rsync -avP .nix-vm-image/*.qcow2 root@{{.SMITH_IP}}:/mnt/pve/cephfs/template/iso/nixos-base-vm.qcow2
+        echo "✅ Uploaded to cephfs:iso/nixos-base-vm.qcow2"
+        echo ""
+        echo "Reference in Terraform:"
+        echo '  file_id = "cephfs:iso/nixos-base-vm.qcow2"'
+
+  nix:upload-lxc-image:
+    desc: Upload LXC base image to cephfs (shared across all nodes)
+    deps: [nix:build-lxc-image]
+    vars:
+      SMITH_IP: 192.168.2.204
+    cmds:
+      - |
+        echo "Uploading LXC image to cephfs..."
+        ssh root@{{.SMITH_IP}} "mkdir -p /mnt/pve/cephfs/template/cache"
+        rsync -avP .nix-lxc-image/tarball/*.tar.xz root@{{.SMITH_IP}}:/mnt/pve/cephfs/template/cache/nixos-base-lxc.tar.xz
+        echo "✅ Uploaded to cephfs:vztmpl/nixos-base-lxc.tar.xz"
+
+  # ===========================================================================
   # Playbooks
   # ===========================================================================
   provision:infra:
@@ -177,14 +235,24 @@ tasks:
   configure:step-ca:
     cmds: [ansible-playbook ansible/playbooks/step_ca/deploy_step_ca.yml]
   provision:adguard:
+    desc: Provision AdGuard LXC from base image
     cmds: [ansible-playbook ansible/playbooks/adguard/site.yml]
   configure:adguard:
     desc: Deploy NixOS configuration to AdGuard LXC
     vars:
       ADGUARD_IP:
         sh: yq '.adguard.ip' config/vm.yml
+      STEP_CA_IP:
+        sh: yq '.step_ca.ip' config/vm.yml
     cmds:
-      - nix run nixpkgs#nixos-rebuild -- switch --flake .#adguard --target-host root@{{.ADGUARD_IP}}
+      - |
+        SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
+        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#adguard --target-host root@{{.ADGUARD_IP}} --impure
+  deploy:adguard:
+    desc: Full deploy - provision LXC + configure NixOS
+    cmds:
+      - task: provision:adguard
+      - task: configure:adguard
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:

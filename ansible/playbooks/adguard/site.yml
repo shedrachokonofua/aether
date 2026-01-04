@@ -1,10 +1,14 @@
 ---
+# AdGuard LXC Provisioning
+#
+# Prerequisites:
+#   task nix:upload-lxc-image  # Build & upload base image (one-time)
+#
+# This playbook creates the LXC from the base image.
+# SSH CA trust is baked in - no bootstrap step needed!
+
 - name: Provision AdGuard LXC
   import_playbook: provision_lxc.yml
 
-- name: Bootstrap AdGuard LXC
-  import_playbook: bootstrap_lxc.yml
-
-# Configuration is handled by NixOS
-# After bootstrap, deploy with:
+# After provisioning, deploy the NixOS config:
 #   task configure:adguard

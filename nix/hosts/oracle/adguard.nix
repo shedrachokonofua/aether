@@ -1,6 +1,6 @@
 # AdGuard Home LXC configuration
 # DNS server for the home network
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, modulesPath, ... }:
 
 let
   adguard-exporter = pkgs.buildGoModule rec {
@@ -19,12 +19,11 @@ let
 in
 {
   imports = [
-    ../../modules/lxc-base.nix
+    (modulesPath + "/virtualisation/proxmox-lxc.nix")
+    ../../modules/base.nix
   ];
 
-  aether.lxc = {
-    hostname = "adguard";
-  };
+  networking.hostName = "adguard";
 
   services.adguardhome = {
     enable = true;
@@ -182,6 +181,7 @@ in
     environment = {
       ADGUARD_SERVERS = "http://localhost:3000";
       ADGUARD_USERNAMES = "admin";
+      ADGUARD_PASSWORDS = "fakepasswordforexporter";
       INTERVAL = "15s";
     };
 
@@ -209,7 +209,16 @@ in
 
   networking.nameservers = [ "1.1.1.1" "8.8.8.8" ];
 
-  networking.localCommands = ''
-    ip route add 10.0.2.0/24 via 192.168.2.231 dev eth0 || true
-  '';
+  # Static route to internal network via VyOS router
+  systemd.services.add-internal-route = {
+    description = "Add route to internal network";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${pkgs.iproute2}/bin/ip route replace 10.0.2.0/24 via 192.168.2.231 dev eth0";
+    };
+  };
 }

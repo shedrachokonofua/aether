@@ -1,6 +1,7 @@
 # Nix / direnv
 .direnv/
 result
+.nix-*
 
 # Environment variables
 .env
