@@ -454,6 +454,58 @@
         daemon_reload: true
 
     # =========================================================================
+    # AWS Credential Refresh Timer
+    # =========================================================================
+    # Restic's minio-go library doesn't support credential_process or auto-refresh.
+    # AWS session credentials expire after 8 hours. Restart backrest before the
+    # daily backup to ensure fresh credentials are available.
+
+    - name: Create credential refresh service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Refresh AWS credentials for Backrest
+          Documentation=https://github.com/restic/restic/issues/2389
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/systemctl restart backrest.service
+        dest: /etc/systemd/system/backrest-cred-refresh.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Create credential refresh timer
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Refresh AWS credentials before daily backup
+          Documentation=https://github.com/restic/restic/issues/2389
+
+          [Timer]
+          # Run at 2:55 AM daily, 5 minutes before the 3 AM backup schedule
+          OnCalendar=*-*-* 02:55:00
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/backrest-cred-refresh.timer
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Enable cred refresh timer
+
+    - name: Enable and start credential refresh timer
+      ansible.builtin.systemd:
+        name: backrest-cred-refresh.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # =========================================================================
     # Cleanup old rclone configuration (if exists)
     # =========================================================================
     - name: Stop and disable old rclone timer
@@ -486,4 +538,11 @@
       ansible.builtin.systemd:
         name: backrest-cert-renew.service
         state: restarted
+        daemon_reload: true
+
+    - name: Enable cred refresh timer
+      ansible.builtin.systemd:
+        name: backrest-cred-refresh.timer
+        enabled: true
+        state: started
         daemon_reload: true
