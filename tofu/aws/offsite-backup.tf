@@ -11,6 +11,9 @@ resource "aws_iam_role" "offsite_backup" {
   name = "offsite-backup"
   path = "/aether/"
 
+  # Allow sessions up to 8 hours (28800 seconds)
+  max_session_duration = 28800
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -76,8 +79,8 @@ resource "aws_rolesanywhere_profile" "offsite_backup" {
   enabled   = true
   role_arns = [aws_iam_role.offsite_backup.arn]
 
-  # 1 hour sessions (restic/backrest will refresh as needed)
-  duration_seconds = 3600
+  # 8 hour sessions (28800 seconds)
+  duration_seconds = 28800
 
   tags = {
     Name    = "offsite-backup"

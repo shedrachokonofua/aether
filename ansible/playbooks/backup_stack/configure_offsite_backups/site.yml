@@ -202,6 +202,7 @@
           --san=127.0.0.1
           --provisioner={{ step_ca_provisioner }}
           --provisioner-password-file={{ step_config_dir }}/provisioner-password.txt
+          --not-after 168h
           --force
       environment:
         STEPPATH: "{{ step_config_dir }}"
@@ -309,7 +310,8 @@
             --intermediates {{ certs_dir }}/cert-chain.pem \
             --trust-anchor-arn {{ trust_anchor_arn }} \
             --profile-arn {{ profile_arn }} \
-            --role-arn {{ role_arn }})
+            --role-arn {{ role_arn }} \
+            --session-duration 28800)
 
           export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
           export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)

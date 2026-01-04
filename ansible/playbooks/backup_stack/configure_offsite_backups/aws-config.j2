@@ -1,4 +1,4 @@
 [profile {{ aws_profile }}]
 region = {{ aws_region }}
-credential_process = /usr/local/bin/aws_signing_helper credential-process --certificate {{ certs_dir }}/cert-leaf.pem --private-key {{ certs_dir }}/key.pem --intermediates {{ certs_dir }}/cert-chain.pem --trust-anchor-arn {{ trust_anchor_arn }} --profile-arn {{ profile_arn }} --role-arn {{ role_arn }}
+credential_process = /usr/local/bin/aws_signing_helper credential-process --certificate {{ certs_dir }}/cert-leaf.pem --private-key {{ certs_dir }}/key.pem --intermediates {{ certs_dir }}/cert-chain.pem --trust-anchor-arn {{ trust_anchor_arn }} --profile-arn {{ profile_arn }} --role-arn {{ role_arn }} --session-duration 28800
 
