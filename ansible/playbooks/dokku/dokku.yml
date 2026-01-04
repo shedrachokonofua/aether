@@ -92,7 +92,7 @@
     - name: Add admin SSH key to Dokku
       become: true
       shell: |
-        echo "{{ lookup('file', '/workspace/config/authorized_keys') }}" | docker exec -i dokku dokku ssh-keys:add admin || true
+        echo "{{ lookup('file', aether_root + '/config/authorized_keys') }}" | docker exec -i dokku dokku ssh-keys:add admin || true
       register: dokku_ssh_result
       changed_when: "'Fingerprint' in dokku_ssh_result.stdout"
       failed_when: false

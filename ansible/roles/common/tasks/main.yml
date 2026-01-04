@@ -1,21 +1,21 @@
 - name: Load VM config
   include_vars:
-    file: "/workspace/config/vm.yml"
+    file: "{{ aether_root }}/config/vm.yml"
     name: vm
 
 - name: Load secrets
   community.sops.load_vars:
-    file: "/workspace/secrets/secrets.yml"
+    file: "{{ aether_root }}/secrets/secrets.yml"
     name: secrets
 
 - name: Load tf outputs
   include_vars:
-    file: "/workspace/secrets/tf-outputs.json"
+    file: "{{ aether_root }}/secrets/tf-outputs.json"
     name: tf_outputs
 
 - name: Find AWS stack output files
   ansible.builtin.find:
-    paths: "/workspace/secrets/aws"
+    paths: "{{ aether_root }}/secrets/aws"
     patterns: "*.yml"
   register: aws_files
   delegate_to: localhost
@@ -32,7 +32,7 @@
   set_fact:
     base_ssh_authorized_keys: >-
       {{
-        lookup('file', '/workspace/config/authorized_keys').splitlines()
+        lookup('file', aether_root + '/config/authorized_keys').splitlines()
         | reject('equalto', '')
         | reject('match', '^#')
         | list

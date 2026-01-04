@@ -30,6 +30,7 @@ IaC for my private cloud.
 | [Storage](docs/storage.md)                   | ZFS pools, NFS, SMB                  |
 | [Backups](docs/backups.md)                   | 3-2-1 strategy, PBS, offsite to AWS  |
 | [UPS](docs/ups.md)                           | Uninterruptible power supply         |
+| [NixOS](docs/nixos.md)                       | Declarative OS configuration         |
 
 ### Security & Identity
 
@@ -63,39 +64,33 @@ IaC for my private cloud.
 
 ## Dependencies
 
-- Task
-- Docker
+- [Nix](https://nixos.org/) (provides all tools via `nix develop`)
 
 ## Toolbox
 
-All CLI tools required to manage the cloud are included in a toolbox docker image.
-
-### Included in toolbox docker image
+All CLI tools are provided by the Nix flake. Enter the dev shell to get:
 
 - Ansible
 - AWS CLI
 - OpenTofu
 - SOPS + Age
+- OpenBao CLI
 - step-cli
-- yq
+- jq, yq
 - pre-commit + gitleaks
 
 ### Usage
 
-1. Build the docker image
+```bash
+# Enter dev shell (or use direnv)
+nix develop
 
-   ```bash
-   task build-tools
-   ```
-
-1. Use tools
-
-   ```bash
-   task ansible -- --version
-   task aws -- --version
-   task sops -- --version
-   task tofu -- --version
-   ```
+# Tools are now available directly
+tofu --version
+ansible --version
+aws --version
+sops --version
+```
 
 ## Managing secrets
 
@@ -116,23 +111,23 @@ task login
 # Check auth status
 task login:status
 
-# View/edit secrets
-task sops:view -- secrets/secrets.yml
-task sops:edit -- secrets/secrets.yml
-task sops:get -- '.db_password' secrets/secrets.yml
+# View/edit secrets (shortcuts: sv, se, sg, sl)
+task sv              # view secrets/secrets.yml
+task se              # edit secrets/secrets.yml
+task sg -- '.path'   # get single value
+task sl              # list all keys
 ```
 
 ### Standalone/Fallback workflows
 
 ```bash
-# Separate logins (still work independently)
-task ca:login    # SSH certificate only (step-ca)
-task bao:login   # OpenBao only (manual token paste)
-task aws:login   # AWS only (AWS Identity Center)
+# Separate service logins
+step ssh login --provisioner=keycloak  # SSH certificate (step-ca)
+# OpenBao: login at https://bao.home.shdr.ch, token auto-cached
 
 # Age key (bootstrap or emergency)
 # Write Age key to config/age-key.txt, use SOPS, then remove
-task sops:view -- secrets/secrets.yml
+task sv
 rm config/age-key.txt
 ```
 
@@ -166,8 +161,7 @@ The Age key is **not stored on disk** normally. For bootstrap or emergencies:
 This repo uses pre-commit hooks to prevent accidental secret leaks:
 
 ```bash
-# Install pre-commit (first time only)
-pip install pre-commit
+# Install hooks (first time only)
 pre-commit install
 
 # Run manually
@@ -193,10 +187,10 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
 
 #### Steps
 
-1. Login to AWS (opens browser, 12h session)
+1. Login (opens browser, gets AWS + OpenBao + SSH creds)
 
    ```bash
-   task aws:login
+   task login
    ```
 
 1. Run the bootstrap task
@@ -208,7 +202,7 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
 1. Verify SOPS KMS key was created
 
    ```bash
-   task aws -- kms describe-key --key-id alias/aether-sops
+   aws kms describe-key --key-id alias/aether-sops
    ```
 
 ### Provision Home Network
@@ -246,16 +240,17 @@ task provision:home:openbao
 After first-time init, save recovery keys to `secrets/openbao-recovery-keys.yml` and encrypt:
 
 ```bash
-task sops:encrypt -- secrets/openbao-recovery-keys.yml
+sops -e -i secrets/openbao-recovery-keys.yml
 ```
 
 SOPS Transit + OIDC auth is configured during `task tofu:apply` (bootstrap with root token, then revoke):
 
 ```bash
 # First time only: use root token to bootstrap OIDC
-task bao:login  # paste root token
+export VAULT_ADDR=https://bao.home.shdr.ch
+export VAULT_TOKEN=<root-token>
 task tofu:apply
-task bao:root-token:revoke  # revoke root token after bootstrap
+bao token revoke -self  # revoke root token after bootstrap
 ```
 
 ### Provision Keycloak ([README](ansible/playbooks/keycloak/README.md))

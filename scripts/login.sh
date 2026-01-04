@@ -229,14 +229,17 @@ EOF
   chmod 600 "$CACHE_DIR/aws-env"
 
   # Also write to standard AWS credentials file for tools that prefer it
-  mkdir -p "$HOME/.aws"
-  cat > "$HOME/.aws/credentials" <<EOF
+  # (may fail on NixOS if ~/.aws is managed differently - that's fine, aws-env works)
+  {
+    mkdir -p "$HOME/.aws" &&
+    cat > "$HOME/.aws/credentials" <<EOF
 [default]
 aws_access_key_id = ${access_key}
 aws_secret_access_key = ${secret_key}
 aws_session_token = ${session_token}
 EOF
-  chmod 600 "$HOME/.aws/credentials"
+    chmod 600 "$HOME/.aws/credentials"
+  } 2>/dev/null || true
 
   log_success "AWS credentials cached (expires: $expiration)"
   return 0

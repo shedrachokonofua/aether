@@ -11,9 +11,11 @@
   - [ ] Add journal-gatewayd to host_monitoring_agent role
   - [ ] Deploy forwarder to monitoring stack
   - [ ] Configure sources for all Proxmox hosts + public gateway
-- [ ] Split AdGuard from Gateway Stack
+- [ ] Split AdGuard from Gateway Stack (NixOS LXC)
+  - [ ] Set up nix/ directory with flake.nix
+  - [ ] Build AdGuard NixOS LXC config
   - [ ] Provision standalone LXC on Oracle (Gigahub network for VyOS-independent DNS)
-  - [ ] Deploy AdGuard
+  - [ ] Deploy AdGuard via nixos-generators
   - [ ] Update Caddy upstream IP for admin UI
   - [ ] Update VyOS DHCP to point at new IP
   - [ ] Remove from gateway stack playbook
@@ -77,10 +79,12 @@
   - [ ] Phase 2: Gateway credential security (WIF)
   - [ ] Phase 3: VyOS route for home → Tailnet
   - [ ] Phase 4: MagicDNS via AdGuard
-- [ ] Deploy network security stack ([exploration](exploration/network-security.md))
-  - [ ] Provision Network Security Stack VM on Oracle
-  - [ ] Deploy Suricata with VyOS port mirror
-  - [ ] Deploy Zeek for protocol analysis
+- [ ] Deploy network security stack as NixOS VM ([exploration](exploration/network-security.md))
+  - [ ] Create NixOS config for Network Security Stack
+  - [ ] Provision VM on Oracle via Tofu
+  - [ ] Deploy via nixos-rebuild --target-host
+  - [ ] Configure VyOS port mirror to span port
+  - [ ] Deploy Suricata with ET Open rules
   - [ ] Deploy Nuclei for vulnerability scanning
   - [ ] Add Wazuh agents to vm_monitoring_agent role
 - [ ] Consolidate ProtonVPN infrastructure
@@ -103,20 +107,17 @@
 
 ## P3
 
-- [ ] Migrate foundational VMs to NixOS ([exploration](exploration/nixos.md))
-  - [ ] Add nix/ directory with flake.nix
-  - [ ] Create dev shell for aether repo (nix develop)
-  - [ ] Migrate Cockpit VM (starter)
+- [ ] Continue NixOS migration ([docs](../nixos.md), [exploration](exploration/nixos.md))
+  - [ ] Migrate Gateway Stack
+  - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao) via nixos-generators LXC
+  - [ ] Migrate Monitoring Stack
+  - [ ] Migrate Dev Workstation
+  - [ ] Migrate IoT Stack
   - [ ] Deploy Desktop VM on Trinity ([exploration](exploration/desktop-vm.md))
     - [ ] Configure iGPU passthrough (freed from Media Stack)
     - [ ] NixOS with KDE/GNOME/Hyprland configs
     - [ ] Sunshine for streaming
     - [ ] Distrobox for multi-distro dev
-  - [ ] Migrate Gateway Stack
-  - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao, AdGuard) via nixos-generators LXC
-  - [ ] Migrate Monitoring Stack
-  - [ ] Migrate Dev Workstation
-  - [ ] Migrate IoT Stack
 - [ ] Move dev workstation to Neo
 - [ ] Refactor public gateway as "Soren"
   - [ ] Rename to Soren in docs, Ansible, Tailscale

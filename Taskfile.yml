@@ -1,1049 +1,182 @@
 version: "3"
 
+# Minimal Taskfile for Nix workflow
+# Most tools are just available: tofu, ansible, sops, aws, step, bao
+# This file only contains multi-step workflows and playbook shortcuts
+
 vars:
-  DOCKER_IMAGE: aether-toolbox:latest
   CACHE_DIR: ${HOME}/.aether-toolbox
-  # Shared SOPS credential args - evaluated at runtime
-  SOPS_ARGS:
-    sh: |
-      ARGS=""
-      [ -f "${HOME}/.aether-toolbox/bao/token" ] && ARGS="$ARGS -e VAULT_ADDR=https://bao.home.shdr.ch -e VAULT_TOKEN=$(cat ${HOME}/.aether-toolbox/bao/token)"
-      if [ -f "${HOME}/.aether-toolbox/aws-env" ]; then
-        ARGS="$ARGS --env-file ${HOME}/.aether-toolbox/aws-env"
-        KMS_ARN=$(docker run --rm --env-file ${HOME}/.aether-toolbox/aws-env aether-toolbox:latest aws kms describe-key --key-id alias/aether-sops --query 'KeyMetadata.Arn' --output text 2>/dev/null || true)
-        [ -n "$KMS_ARN" ] && ARGS="$ARGS -e SOPS_KMS_ARN=$KMS_ARN"
-      fi
-      [ -f "./config/age-key.txt" ] && ARGS="$ARGS -e SOPS_AGE_KEY_FILE=/workspace/config/age-key.txt"
-      echo "$ARGS"
+
+env:
+  ANSIBLE_CONFIG: ./ansible/ansible.cfg
 
 tasks:
-  build-tools:
-    desc: Build the toolbox Docker image
-    cmds:
-      - docker build --no-cache -t {{.DOCKER_IMAGE}} -f tools.dockerfile .
-
-  tofu:
-    desc: Run OpenTofu commands
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/tofu
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        {{.DOCKER_IMAGE}}
-        tofu {{.CLI_ARGS}}
-
-  tofu:create-state-config:
-    desc: Create a Terraform state configuration
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        {{.DOCKER_IMAGE}}
-        sh ./scripts/create-tofu-state-config.sh
-
-  tofu:init:
-    desc: Initialize the Terraform workspace
-    cmds:
-      - task: tofu:create-state-config
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu init -backend-config=../config/tofu-state.config -upgrade -reconfigure
-
-  tofu:plan:
-    desc: Plan Terraform changes
-    cmds:
-      - |
-        VAULT_TOKEN=""
-        if [ -f "{{.CACHE_DIR}}/bao/token" ]; then
-          VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
-        fi
-        docker run --rm -it \
-          -v ${PWD}:/workspace \
-          -v {{.CACHE_DIR}}/tofu:/root/.terraform.d \
-          -w /workspace \
-          --env-file {{.CACHE_DIR}}/aws-env \
-          -e SOPS_AGE_KEY_FILE=../config/age-key.txt \
-          -e VAULT_ADDR=https://bao.home.shdr.ch \
-          -e VAULT_TOKEN="$VAULT_TOKEN" \
-          {{.DOCKER_IMAGE}} \
-          tofu -chdir=tofu plan {{.CLI_ARGS}}
-
-  tofu:output:
-    desc: Get Terraform output
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu output {{.CLI_ARGS}}
-
-  tofu:write-outputs:
-    desc: Write secrets/tf-outputs.json file
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        sh -c "tofu -chdir=tofu output -json > /workspace/secrets/tf-outputs.json"
-
-  tofu:apply:
-    desc: Apply Terraform changes
-    cmds:
-      - |
-        VAULT_TOKEN=""
-        if [ -f "{{.CACHE_DIR}}/bao/token" ]; then
-          VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
-        fi
-        docker run --rm -it \
-          -v ${PWD}:/workspace \
-          -v {{.CACHE_DIR}}/tofu:/root/.terraform.d \
-          -w /workspace \
-          --env-file {{.CACHE_DIR}}/aws-env \
-          -e SOPS_AGE_KEY_FILE=../config/age-key.txt \
-          -e VAULT_ADDR=https://bao.home.shdr.ch \
-          -e VAULT_TOKEN="$VAULT_TOKEN" \
-          {{.DOCKER_IMAGE}} \
-          tofu -chdir=tofu apply {{.CLI_ARGS}}
-      - task: tofu:write-outputs
-
-  tofu:refresh:
-    desc: Refresh Terraform resources
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu refresh-only {{.CLI_ARGS}}
-      - task: tofu:write-outputs
-
-  tofu:remove:
-    desc: Remove Terraform resources
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu state rm {{.CLI_ARGS}}
-
-  tofu:force-unlock:
-    desc: Force unlock the Terraform state
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu force-unlock {{.CLI_ARGS}}
-
-  tofu:destroy:
-    desc: Destroy Terraform resources
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu destroy {{.CLI_ARGS}}
-
-  tofu:fmt:
-    desc: Format Terraform files
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        tofu fmt {{.CLI_ARGS}}
-
-  tofu:import:
-    desc: Import Terraform resources
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu import {{.CLI_ARGS}}
-
-  tofu:state-mv:
-    desc: Move Terraform state resources
-    cmds:
-      - docker run --rm
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu state mv {{.CLI_ARGS}}
-
-  tofu:state-list:
-    desc: List Terraform state resources
-    cmds:
-      - docker run --rm
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu state list {{.CLI_ARGS}}
-
-  tofu:show:
-    desc: Show Terraform resources
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -w /workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e SOPS_AGE_KEY_FILE=../config/age-key.txt
-        {{.DOCKER_IMAGE}}
-        tofu -chdir=tofu show {{.CLI_ARGS}}
-
-  ansible:
-    desc: Run Ansible commands
-    dir: ./ansible
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/ansible
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh:/root/.ssh
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible {{.CLI_ARGS}}
-
-  ansible:galaxy:
-    desc: Run Ansible Galaxy commands
-    dir: ./ansible
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh:/root/.ssh
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-galaxy {{.CLI_ARGS}}
-
-  ansible:galaxy:install:
-    desc: Run Ansible Galaxy commands
-    dir: ./ansible
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh:/root/.ssh
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-galaxy collection install -r ./requirements.yml
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-galaxy install -r ./requirements.yml
-
-  ansible:playbook:
-    desc: Run Ansible playbooks
-    cmds:
-      - task: ansible:clear-pc
-      - task: ansible:galaxy:install
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${SSH_AUTH_SOCK}:/ssh-agent
-        -e SSH_AUTH_SOCK=/ssh-agent
-        {{.SOPS_ARGS}}
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-playbook {{.CLI_ARGS}}
-
-  ansible:list-hosts:
-    desc: List Ansible hosts
-    dir: ./ansible
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
-        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible all --list-hosts
-
-  ansible:clear-pc:
-    desc: Clear Ansible persistent connection cache
-    dir: "{{.CACHE_DIR}}/ansible"
-    cmds:
-      - sudo rm -rf pc
-
-  ansible:ping:
-    desc: Ping Ansible hosts
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
-        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible all -m ping
-
-  pre-commit:
-    desc: Run pre-commit hooks on all files
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/pre-commit
-      - docker run --rm
-        -v ${PWD}:/workspace
-        -v ${PWD}/.git:/workspace/.git
-        -v {{.CACHE_DIR}}/pre-commit:/root/.cache/pre-commit
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        pre-commit run --all-files {{.CLI_ARGS}}
-
-  pre-commit:install:
-    desc: Install pre-commit hooks (run locally, not in container)
-    cmds:
-      - pre-commit install
-
-  gitleaks:
-    desc: Scan full git history for secrets
-    cmds:
-      - docker run --rm
-        -v ${PWD}:/workspace
-        -v ${PWD}/.git:/workspace/.git
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        gitleaks detect --source . -v {{.CLI_ARGS}}
-
   # ===========================================================================
-  # Unified Login (Keycloak SSO → SSH + OpenBao + AWS)
+  # Auth (multi-step flows worth wrapping)
   # ===========================================================================
-  # Single browser auth that provides credentials for everything.
-  # Replaces: task ca:login + task bao:login + task aws:login
-  #
-  # Flow:
-  #   1. Opens auth.shdr.ch device auth page
-  #   2. User authenticates via Keycloak SSO
-  #   3. Token exchanged for SSH certificate (step-ca, if agent available)
-  #   4. Token exchanged for OpenBao token (JWT auth)
-  #   5. Token exchanged for AWS creds (STS AssumeRoleWithWebIdentity)
-
   login:
-    desc: Unified login via Keycloak SSO (AWS + OpenBao + SSH cert in one auth)
+    desc: Unified SSO login (AWS + OpenBao + SSH cert)
     cmds:
       - mkdir -p {{.CACHE_DIR}}/bao {{.CACHE_DIR}}/step
-      - |
-        SSH_AGENT_ARGS=""
-        if [ -S "${SSH_AUTH_SOCK:-}" ]; then
-          SSH_AGENT_ARGS="-v ${SSH_AUTH_SOCK}:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
-        fi
-        docker run --rm -it \
-          -v ${PWD}:/workspace \
-          -v {{.CACHE_DIR}}:/cache \
-          -v {{.CACHE_DIR}}/step:/root/.step \
-          -e AETHER_CACHE_DIR=/cache \
-          -e AETHER_DEBUG={{.AETHER_DEBUG | default "0"}} \
-          $SSH_AGENT_ARGS \
-          -w /workspace \
-          {{.DOCKER_IMAGE}} \
-          /workspace/scripts/login.sh {{.CLI_ARGS}}
+      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh {{.CLI_ARGS}}
 
   login:status:
-    desc: Check auth status for all services
+    desc: Check auth status
     cmds:
-      - |
-        SSH_AGENT_ARGS=""
-        if [ -S "${SSH_AUTH_SOCK:-}" ]; then
-          SSH_AGENT_ARGS="-v ${SSH_AUTH_SOCK}:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
-        fi
-        docker run --rm \
-          -v ${PWD}:/workspace \
-          -v {{.CACHE_DIR}}:/cache \
-          -v {{.CACHE_DIR}}/step:/root/.step \
-          -e AETHER_CACHE_DIR=/cache \
-          $SSH_AGENT_ARGS \
-          -w /workspace \
-          {{.DOCKER_IMAGE}} \
-          /workspace/scripts/login.sh --status
-
-  login:aws:
-    desc: Login for AWS only
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}:/cache
-        -e AETHER_CACHE_DIR=/cache
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        /workspace/scripts/login.sh --aws
-
-  login:bao:
-    desc: Login for OpenBao only
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/bao
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}:/cache
-        -e AETHER_CACHE_DIR=/cache
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        /workspace/scripts/login.sh --bao
-
-  login:ssh:
-    desc: Login for SSH certificate only
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/step
-      - |
-        if [ ! -S "${SSH_AUTH_SOCK:-}" ]; then
-          echo "❌ SSH agent not available. Ensure ssh-agent is running."
-          exit 1
-        fi
-        docker run --rm -it \
-          -v ${PWD}:/workspace \
-          -v {{.CACHE_DIR}}:/cache \
-          -v {{.CACHE_DIR}}/step:/root/.step \
-          -v ${SSH_AUTH_SOCK}:/ssh-agent \
-          -e SSH_AUTH_SOCK=/ssh-agent \
-          -e AETHER_CACHE_DIR=/cache \
-          -w /workspace \
-          {{.DOCKER_IMAGE}} \
-          /workspace/scripts/login.sh --ssh
+      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh --status
 
   # ===========================================================================
-  # SOPS / OpenBao + KMS Integration
+  # Tofu (only compound operations)
   # ===========================================================================
-  # Key hierarchy (SOPS tries in order):
-  #   1. OpenBao Transit - primary (requires login or bao:login)
-  #   2. AWS KMS - fallback (requires login or aws:login)
-  #   3. Age - migration only (requires age key file)
-  #
-  # Normal:   task login && task sops:view -- secrets/secrets.yml
-  # Legacy:   task bao:login && task sops:view -- secrets/secrets.yml
-  # Fallback: task aws:login && task sops:view -- secrets/secrets.yml
-
-  bao:login:
-    desc: Set OpenBao token (login via UI at https://bao.home.shdr.ch, then paste token)
+  tofu:init:
+    desc: Init with backend config
     cmds:
-      - mkdir -p {{.CACHE_DIR}}/bao
-      - |
-        echo "Login at: https://bao.home.shdr.ch (OIDC → Keycloak)"
-        echo "Then copy your token from the UI."
-        echo ""
-        echo "Paste your OpenBao token:"
-        read -r TOKEN
-        echo "$TOKEN" > {{.CACHE_DIR}}/bao/token
-      - echo "✅ OpenBao token cached at {{.CACHE_DIR}}/bao/token"
+      - sh ./scripts/create-tofu-state-config.sh
+      - tofu -chdir=tofu init -backend-config=../config/tofu-state.config -upgrade -reconfigure
 
-  bao:status:
-    desc: Check OpenBao connection and token status
+  tofu:apply:
+    desc: Apply + write outputs
     cmds:
-      - |
-        TOKEN=$(cat {{.CACHE_DIR}}/bao/token 2>/dev/null || echo "")
-        if [ -z "$TOKEN" ]; then
-          echo "❌ Not authenticated. Run 'task bao:login' first."
-          exit 1
-        fi
-        docker run --rm \
-          -e BAO_ADDR=https://bao.home.shdr.ch \
-          -e BAO_TOKEN="$TOKEN" \
-          {{.DOCKER_IMAGE}} \
-          bao token lookup
+      - tofu -chdir=tofu apply {{.CLI_ARGS}}
+      - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
 
-  bao:root-token:
-    desc: Generate a temporary root token using recovery keys (for bootstrap/emergency)
+  tofu:refresh:
+    desc: Refresh + write outputs
     cmds:
-      - |
-        echo "⚠️  Generating temporary root token..."
-        echo "This requires 3 of 5 recovery keys from secrets/openbao-recovery-keys.yml"
-        echo ""
-        ssh root@10.0.2.9 'export BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/etc/openbao.d/tls/ca.crt && bao operator generate-root -init' | tee /tmp/bao-root-init.txt
-        echo ""
-        echo "📋 Copy the OTP above, then run 'task bao:root-token:provide-keys'"
+      - tofu -chdir=tofu refresh-only {{.CLI_ARGS}}
+      - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
 
-  bao:root-token:provide-keys:
-    desc: Provide recovery keys to complete root token generation
-    cmds:
-      - |
-        echo "Enter recovery keys one at a time (3 required)..."
-        ssh -t root@10.0.2.9 'export BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/etc/openbao.d/tls/ca.crt && bao operator generate-root'
-        echo ""
-        echo "After providing 3 keys, decode the token:"
-        echo "  bao operator generate-root -decode=<encoded_token> -otp=<otp_from_init>"
-
-  bao:root-token:revoke:
-    desc: Revoke the current root token (use after bootstrap/emergency work)
-    cmds:
-      - |
-        TOKEN=$(cat {{.CACHE_DIR}}/bao/token 2>/dev/null || echo "")
-        if [ -z "$TOKEN" ]; then
-          echo "❌ No token to revoke."
-          exit 1
-        fi
-        echo "⚠️  Revoking root token..."
-        docker run --rm \
-          -e BAO_ADDR=https://bao.home.shdr.ch \
-          -e BAO_TOKEN="$TOKEN" \
-          {{.DOCKER_IMAGE}} \
-          bao token revoke -self
-        rm -f {{.CACHE_DIR}}/bao/token
-        echo "✅ Root token revoked and cache cleared"
-
-  sops:
-    desc: Run SOPS commands (uses Transit, KMS, or Age - whichever is available)
-    cmds:
-      - docker run --rm -it -v ${PWD}:/workspace -w /workspace {{.SOPS_ARGS}} {{.DOCKER_IMAGE}} sops {{.CLI_ARGS}}
-
-  sops:view:
-    desc: View decrypted SOPS file contents (stdout only, never writes to disk)
-    cmds:
-      - docker run --rm -v ${PWD}:/workspace -w /workspace {{.SOPS_ARGS}} {{.DOCKER_IMAGE}} sops --decrypt {{.CLI_ARGS}}
-
-  sops:edit:
-    desc: Edit encrypted SOPS file safely (decrypts to /tmp, re-encrypts on save)
-    cmds:
-      - docker run --rm -it -v ${PWD}:/workspace -w /workspace -e 'EDITOR=nano -T 4' {{.SOPS_ARGS}} {{.DOCKER_IMAGE}} sops {{.CLI_ARGS}}
-
-  sops:encrypt:
-    desc: Encrypt a plaintext file with SOPS (first-time encryption)
-    cmds:
-      - docker run --rm -v ${PWD}:/workspace -w /workspace {{.SOPS_ARGS}} {{.DOCKER_IMAGE}} sops --encrypt --in-place {{.CLI_ARGS}}
-
-  sops:get:
-    desc: "Extract single value from SOPS file (usage: task sops:get -- '.key.path' file.yml)"
-    vars:
-      JSON_PATH: '{{index (splitList " " .CLI_ARGS) 0}}'
-      FILE_PATH: '{{index (splitList " " .CLI_ARGS) 1}}'
-    cmds:
-      - docker run --rm -v ${PWD}:/workspace -w /workspace {{.SOPS_ARGS}} {{.DOCKER_IMAGE}} sh -c "sops --decrypt {{.FILE_PATH}} | yq e '{{.JSON_PATH}}' -"
-
-  sops:list:
-    desc: "List all keys in SOPS file (usage: task sops:list -- file.yml)"
-    cmds:
-      - docker run --rm -v ${PWD}:/workspace -w /workspace {{.SOPS_ARGS}} {{.DOCKER_IMAGE}} sh -c "sops --decrypt {{.CLI_ARGS}} | yq '.. | path | select(length > 0) | \".\" + join(\".\")' -"
-
-  sops:rotate:
-    desc: Re-encrypt all SOPS files with keys from .sops.yaml (run after adding Transit/KMS)
-    cmds:
-      - |
-        for f in $(find secrets -name '*.yml' -o -name '*.yaml' 2>/dev/null); do
-          echo "Rotating: $f"
-          docker run --rm -v ${PWD}:/workspace -w /workspace {{.SOPS_ARGS}} {{.DOCKER_IMAGE}} sops updatekeys --yes "$f"
-        done
-        echo "✅ Rotation complete"
-
-  age-keygen:
-    desc: Generate an AGE key pair
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        age-keygen {{.CLI_ARGS}}
-
-  aws:login:
-    desc: Login to AWS (click link, creds valid 12h)
-    cmds:
-      - rm -f ${HOME}/.aws/credentials
-      - docker run --rm -it
-        -v ${HOME}/.aws:/root/.aws
-        {{.DOCKER_IMAGE}}
-        aws login --remote --region=us-east-1 {{.CLI_ARGS}}
-      - task: aws:export-creds
-
-  aws:export-creds:
-    desc: Export AWS login credentials to env file for tofu/ansible
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}
-      - |
-        docker run --rm -v ${HOME}/.aws:/root/.aws:ro {{.DOCKER_IMAGE}} \
-          sh -c 'aws configure export-credentials --format env | sed "s/^export //" && \
-                 REGION=$(aws configure get region) && \
-                 echo "AWS_REGION=$REGION" && echo "AWS_DEFAULT_REGION=$REGION"' \
-          > {{.CACHE_DIR}}/aws-env
-      - echo "Credentials exported to {{.CACHE_DIR}}/aws-env"
-
-  aws:
-    desc: Run AWS CLI commands (run 'task login' or 'task aws:login' first)
-    cmds:
-      - docker run --rm
-        -v ${PWD}:/workspace
-        --env-file {{.CACHE_DIR}}/aws-env
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        aws --no-cli-pager {{.CLI_ARGS}}
-
-  shell:
-    desc: Start a shell in the toolbox container
-    cmds:
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v {{.CACHE_DIR}}/tofu:/root/.terraform.d
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -v {{.CACHE_DIR}}/gnupg:/root/.gnupg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-
-  bootstrap:sops:
-    desc: Bootstrap SOPS
-    cmds:
-      - task: age-keygen
-        vars:
-          CLI_ARGS: -o config/age-key.txt
-
-  bootstrap:
-    desc: Bootstrap the project
-    cmds:
-      - chmod +x ./bootstrap/bootstrap.sh
-      - ./bootstrap/bootstrap.sh {{.CLI_ARGS}}
-
-  baseline:home:machines:
-    desc: Run the baseline playbook
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/baseline_machines.yml
-
-  baseline:home:vms:
-    desc: Run the baseline playbook
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/baseline_vms.yml
-
-  provision:home:router:
-    desc: Deploy the home router
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/home_router/site.yml
-
-  configure:home:router:
-    desc: Configure the home router
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/home_router/configure_router.yml
-
-  provision:home:nfs:
-    desc: Deploy the home network file server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/network_file_server/site.yml
-
-  secrets:view:
-    desc: View decrypted secrets (stdout only)
-    cmds:
-      - task: sops:view
-        vars:
-          CLI_ARGS: ./secrets/secrets.yml
-
+  # ===========================================================================
+  # Secrets (only needs Bao env vars - AWS uses ~/.aws/credentials, age uses .sops.yaml)
+  # ===========================================================================
   sv:
-    desc: secrets:view (shorthand)
+    desc: View secrets
     cmds:
-      - task: secrets:view
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        sops -d ./secrets/secrets.yml
 
-  secrets:edit:
-    desc: Edit secrets safely (in-memory)
+  se:
+    desc: Edit secrets
     cmds:
-      - task: sops:edit
-        vars:
-          CLI_ARGS: ./secrets/secrets.yml
-
-  secrets:get:
-    desc: "Get single secret value (usage: task secrets:get -- '.key.path')"
-    cmds:
-      - task: sops:get
-        vars:
-          CLI_ARGS: "{{.CLI_ARGS}} ./secrets/secrets.yml"
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        sops ./secrets/secrets.yml
 
   sg:
-    desc: secrets:get (shorthand)
+    desc: "Get secret (usage: task sg -- .path.to.key)"
     cmds:
-      - task: secrets:get
-        vars:
-          CLI_ARGS: "{{.CLI_ARGS}}"
-
-  secrets:list:
-    desc: List all secret keys (without values)
-    cmds:
-      - task: sops:list
-        vars:
-          CLI_ARGS: ./secrets/secrets.yml
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        sops -d ./secrets/secrets.yml | yq '{{.CLI_ARGS}}'
 
   sl:
-    desc: secrets:list (shorthand)
-    cmds:
-      - task: secrets:list
-
-  provision:infrastructure:
-    desc: Provision the infrastructure
-    cmds:
-      - task: tofu:init
-      - task: tofu:plan
-      - task: tofu:apply
-
-  configure:home:gateway:
-    desc: Configure the home gateway stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/home_gateway_stack/site.yml
-
-  configure:home:caddy:
-    desc: Configure the home Caddy server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/home_gateway_stack/caddy/site.yml
-
-  configure:home:monitoring:
-    desc: Configure the home monitoring stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/monitoring_stack/site.yml
-
-  configure:home:dokploy:
-    desc: Configure the home Dokploy server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/dokploy/site.yml
-
-  configure:home:gitlab:
-    desc: Configure the home GitLab server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/gitlab/site.yml
-
-  configure:home:backup-stack:
-    desc: Configure the home backup stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/backup_stack/site.yml
-
-  configure:home:iot-management-stack:
-    desc: Configure the IoT management stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/iot_management_stack/site.yml
-
-  configure:home:vm-monitoring-agents:
-    desc: Configure the VM monitoring agents
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/setup_vm_monitoring_agents.yml
-
-  configure:home:host-monitoring-agents:
-    desc: Configure monitoring on Proxmox hosts
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/setup_host_monitoring_agents.yml
-
-  configure:home:cockpit-agents:
-    desc: Configure the cockpit agents
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/setup_cockpit_agents.yml
-
-  configure:home:dev-workstation:
-    desc: Configure the dev workstation
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/dev_workstation/site.yml
-
-  configure:home:cockpit:
-    desc: Configure the cockpit server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/cockpit/site.yml
-
-  configure:home:gpu-workstation:
-    desc: Configure the gpu workstation
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/gpu_workstation/site.yml
-
-  configure:home:ai-tool-stack:
-    desc: Configure the ai tool stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/ai_tool_stack/site.yml
-
-  configure:home:media-stack:
-    desc: Configure the media stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/media_stack/site.yml
-
-  configure:home:messaging-stack:
-    desc: Configure the messaging stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/messaging_stack/site.yml
-
-  configure:home:ups-management-stack:
-    desc: Configure the UPS management stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/ups_management_stack/site.yml
-
-  configure:home:dokku:
-    desc: Configure the Dokku PaaS server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/dokku/site.yml
-
-  configure:home:smallweb:
-    desc: Configure the Smallweb server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/smallweb/site.yml
-
-  provision:home:keycloak:
-    desc: Provision the Keycloak identity provider LXC
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/keycloak/site.yml
-
-  configure:home:keycloak:
-    desc: Configure the Keycloak identity provider
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/keycloak/deploy_keycloak.yml
-
-  configure:aws:public-gateway:
-    desc: Configure the public gateway stack
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/public_gateway_stack/site.yml
-
-  provision:home:game-server:
-    desc: Provision the game server
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/game_server/site.yml
-
-  provision:home:step-ca:
-    desc: Provision the step-ca certificate authority LXC (run 'aws:login' first)
-    cmds:
-      - task: ansible:clear-pc
-      - task: ansible:galaxy:install
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
-        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
-        -v ${HOME}/.aws:/root/.aws:ro
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-playbook ./ansible/playbooks/step_ca/site.yml
-
-  provision:aws:step-ca-trust:
-    desc: Deploy AWS Trust Anchor for step-ca certificates (run 'aws login' first)
-    cmds:
-      - task: ansible:clear-pc
-      - task: ansible:galaxy:install
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
-        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-playbook ./ansible/playbooks/step_ca/provision_aws_trust.yml
-
-  configure:home:step-ca:
-    desc: Configure the step-ca certificate authority
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/step_ca/deploy_step_ca.yml
-
-  provision:home:openbao:
-    desc: Provision the OpenBao secrets management LXC (run 'aws:login' first)
-    cmds:
-      - task: ansible:clear-pc
-      - task: ansible:galaxy:install
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
-        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
-        -v ${HOME}/.aws:/root/.aws:ro
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-playbook ./ansible/playbooks/openbao/site.yml
-
-  provision:aws:openbao-kms:
-    desc: Deploy AWS KMS + IAM Roles Anywhere for OpenBao auto-unseal (run 'aws login' first)
-    cmds:
-      - task: ansible:clear-pc
-      - task: ansible:galaxy:install
-      - docker run --rm -it
-        -v ${PWD}:/workspace
-        -v ${HOME}/.ssh/id_rsa:/root/.ssh/id_rsa
-        -v ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519
-        -v {{.CACHE_DIR}}/ansible:/root/.ansible
-        --env-file {{.CACHE_DIR}}/aws-env
-        -e ANSIBLE_CONFIG=/workspace/ansible/ansible.cfg
-        -w /workspace
-        {{.DOCKER_IMAGE}}
-        ansible-playbook ./ansible/playbooks/openbao/provision_aws_kms.yml
-
-  configure:home:openbao:
-    desc: Configure the OpenBao secrets management
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/openbao/deploy_openbao.yml
-
-  ca:fingerprint:
-    desc: Get CA root fingerprint (fetched via HTTPS)
+    desc: List secret keys
     cmds:
       - |
-        docker run --rm \
-          {{.DOCKER_IMAGE}} \
-          sh -c 'curl -sk https://ca.shdr.ch/roots.pem | step certificate fingerprint -'
+        # [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        sops -d ./secrets/secrets.yml | yq '.. | path | select(length > 0) | "." + join(".")'
 
-  ca:install-root:mac:
-    desc: Install step-ca root CA to macOS Keychain
-    cmds:
-      - curl -sk https://ca.shdr.ch/roots.pem -o /tmp/step-ca-root.crt
-      - sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/step-ca-root.crt
-      - rm /tmp/step-ca-root.crt
-      - echo "Root CA installed. Restart browser to pick up changes."
-
-  ca:bootstrap:
-    desc: Bootstrap trust with step-ca and install root CA to system trust
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/step
-      - |
-        docker run --rm -it \
-          -v {{.CACHE_DIR}}/step:/root/.step \
-          -p 10000:10000 \
-          {{.DOCKER_IMAGE}} \
-          sh -c 'FINGERPRINT=$(curl -sk https://ca.shdr.ch/roots.pem | step certificate fingerprint -) && \
-                 step ca bootstrap --ca-url=https://ca.shdr.ch --fingerprint=$FINGERPRINT --install'
-
-  ca:login:
-    desc: Get SSH certificate via Keycloak OIDC (uses device auth flow)
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/step
-      - docker run --rm -it
-        -v {{.CACHE_DIR}}/step:/root/.step
-        -v ${SSH_AUTH_SOCK}:/ssh-agent
-        -e SSH_AUTH_SOCK=/ssh-agent
-        -e STEPDEBUG={{.STEPDEBUG | default "0"}}
-        {{.DOCKER_IMAGE}}
-        step ssh login --provisioner=keycloak --console --ca-url=https://ca.shdr.ch
-
-  ca:inspect:
-    desc: Inspect current SSH certificate (shows principals and extensions)
+  sops:rotate:
+    desc: Rotate all secrets with current keys
     cmds:
       - |
-        docker run --rm -it \
-          -v {{.CACHE_DIR}}/step:/root/.step \
-          -v /run/host-services/ssh-auth.sock:/ssh-agent \
-          -e SSH_AUTH_SOCK=/ssh-agent \
-          {{.DOCKER_IMAGE}} \
-          sh -c "step ssh list --raw 2>/dev/null | grep -v '^ssh-' | head -1 | step ssh inspect || echo 'No SSH certificate found. Run task ca:login first'"
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        find secrets -name '*.yml' -o -name '*.yaml' | xargs -I{} sops updatekeys --yes {}
 
-  ca:logout:
-    desc: Remove SSH certificate from agent
+  # ===========================================================================
+  # Ansible Galaxy (worth automating)
+  # ===========================================================================
+  galaxy:
+    desc: Install Ansible dependencies
+    dir: ./ansible
     cmds:
-      - |
-        docker run --rm -it \
-          -v {{.CACHE_DIR}}/step:/root/.step \
-          -v /run/host-services/ssh-auth.sock:/ssh-agent \
-          -e SSH_AUTH_SOCK=/ssh-agent \
-          {{.DOCKER_IMAGE}} \
-          step ssh logout
+      - ansible-galaxy collection install -r requirements.yml
+      - ansible-galaxy role install -r requirements.yml
 
-  ca:ssh:
-    desc: SSH using only step certificate (e.g. task ca:ssh -- root@smallweb)
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/step
-      - |
-        docker run --rm -it \
-          -v {{.CACHE_DIR}}/step:/root/.step \
-          {{.DOCKER_IMAGE}} \
-          sh -c 'eval "$(ssh-agent -s)" && step ssh login --provisioner=keycloak --console && ssh {{.CLI_ARGS}}'
+  # ===========================================================================
+  # Playbooks
+  # ===========================================================================
+  provision:infra:
+    cmds: [task: tofu:init, task: tofu:apply]
 
-  configure:ssh-ca-trust:
-    desc: Configure all hosts to trust step-ca SSH certificates
-    cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/configure_ssh_ca_trust.yml
+  provision:router:
+    cmds: [ansible-playbook ansible/playbooks/home_router/site.yml]
+  configure:router:
+    cmds: [ansible-playbook ansible/playbooks/home_router/configure_router.yml]
+  provision:nfs:
+    cmds: [ansible-playbook ansible/playbooks/network_file_server/site.yml]
+  configure:gateway:
+    cmds: [ansible-playbook ansible/playbooks/home_gateway_stack/site.yml]
+  configure:caddy:
+    cmds: [ansible-playbook ansible/playbooks/home_gateway_stack/caddy/site.yml]
+  configure:monitoring:
+    cmds: [ansible-playbook ansible/playbooks/monitoring_stack/site.yml]
+  configure:dokploy:
+    cmds: [ansible-playbook ansible/playbooks/dokploy/site.yml]
+  configure:gitlab:
+    cmds: [ansible-playbook ansible/playbooks/gitlab/site.yml]
+  configure:backup:
+    cmds: [ansible-playbook ansible/playbooks/backup_stack/site.yml]
+  configure:iot:
+    cmds: [ansible-playbook ansible/playbooks/iot_management_stack/site.yml]
+  configure:vm-agents:
+    cmds: [ansible-playbook ansible/playbooks/setup_vm_monitoring_agents.yml]
+  configure:host-agents:
+    cmds: [ansible-playbook ansible/playbooks/setup_host_monitoring_agents.yml]
+  configure:cockpit-agents:
+    cmds: [ansible-playbook ansible/playbooks/setup_cockpit_agents.yml]
+  configure:dev-workstation:
+    cmds: [ansible-playbook ansible/playbooks/dev_workstation/site.yml]
+  configure:cockpit:
+    cmds: [ansible-playbook ansible/playbooks/cockpit/site.yml]
+  configure:gpu-workstation:
+    cmds: [ansible-playbook ansible/playbooks/gpu_workstation/site.yml]
+  configure:ai-tools:
+    cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/site.yml]
+  configure:media-stack:
+    cmds: [ansible-playbook ansible/playbooks/media_stack/site.yml]
+  configure:messaging-stack:
+    cmds: [ansible-playbook ansible/playbooks/messaging_stack/site.yml]
+  configure:ups-management-stack:
+    cmds: [ansible-playbook ansible/playbooks/ups_management_stack/site.yml]
+  configure:dokku:
+    cmds: [ansible-playbook ansible/playbooks/dokku/site.yml]
+  configure:smallweb:
+    cmds: [ansible-playbook ansible/playbooks/smallweb/site.yml]
+  provision:keycloak:
+    cmds: [ansible-playbook ansible/playbooks/keycloak/site.yml]
+  configure:keycloak:
+    cmds: [ansible-playbook ansible/playbooks/keycloak/deploy_keycloak.yml]
+  configure:public-gateway:
+    cmds: [ansible-playbook ansible/playbooks/public_gateway_stack/site.yml]
+  provision:game-server:
+    cmds: [ansible-playbook ansible/playbooks/game_server/site.yml]
+  provision:step-ca:
+    cmds: [ansible-playbook ansible/playbooks/step_ca/site.yml]
+  provision:step-ca-trust:
+    cmds: [ansible-playbook ansible/playbooks/step_ca/provision_aws_trust.yml]
+  configure:step-ca:
+    cmds: [ansible-playbook ansible/playbooks/step_ca/deploy_step_ca.yml]
+  provision:openbao:
+    cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
+  provision:openbao-kms:
+    cmds: [ansible-playbook ansible/playbooks/openbao/provision_aws_kms.yml]
+  configure:openbao:
+    cmds: [ansible-playbook ansible/playbooks/openbao/deploy_openbao.yml]
+  configure:ssh-ca:
+    cmds: [ansible-playbook ansible/playbooks/configure_ssh_ca_trust.yml]
+  configure:ssh-keys:
+    cmds: [ansible-playbook ansible/playbooks/update_authorized_keys.yml]
+  baseline:machines:
+    cmds: [ansible-playbook ansible/playbooks/baseline_machines.yml]
+  baseline:vms:
+    cmds: [ansible-playbook ansible/playbooks/baseline_vms.yml]
 
-  update:authorized-keys:
-    desc: Update authorized keys
+  configure:all:
     cmds:
-      - task: ansible:playbook
-        vars:
-          CLI_ARGS: ./ansible/playbooks/update_authorized_keys.yml
-
-  configure:
-    desc: Configure all infrastructure
-    cmds:
-      - task: configure:home:gateway
-      - task: configure:home:monitoring
-      - task: configure:home:dokploy
-      - task: configure:home:gitlab
-      - task: configure:home:backup-stack
+      - task: configure:gateway
+      - task: configure:monitoring
+      - task: configure:dokploy
+      - task: configure:gitlab
+      - task: configure:backup

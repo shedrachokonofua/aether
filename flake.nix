@@ -20,6 +20,7 @@
             # Infrastructure as Code
             opentofu
             ansible
+            python3Packages.ansible-pylibssh  # For network_cli connections (VyOS)
             
             # Secrets management
             sops
@@ -52,10 +53,6 @@
 
           shellHook = ''
             echo "🚀 Aether dev shell loaded"
-            echo ""
-            echo "Tools available:"
-            echo "  tofu, ansible, sops, age, aws, step, bao"
-            echo "  jq, yq, git, task, pre-commit, gitleaks"
             echo ""
           '';
         };

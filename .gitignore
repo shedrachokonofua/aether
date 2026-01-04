@@ -1,3 +1,7 @@
+# Nix / direnv
+.direnv/
+result
+
 # Environment variables
 .env
 *.env
