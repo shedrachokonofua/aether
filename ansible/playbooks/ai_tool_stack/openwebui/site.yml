@@ -95,7 +95,7 @@
           CODE_INTERPRETER_ENGINE: "jupyter"
           CODE_INTERPRETER_JUPYTER_URL: "https://jupyter.home.shdr.ch"
           TOOL_SERVER_CONNECTIONS: "'{{ tool_server_connections | to_json }}'"
-          WEBUI_URL: "https://openwebui.home.shdr.ch"
+          WEBUI_URL: "https://ai.shdr.ch"
           ENABLE_LOGIN_FORM: "false"
           ENABLE_OAUTH_SIGNUP: "true"
           OAUTH_PROVIDER_NAME: "Aether"
