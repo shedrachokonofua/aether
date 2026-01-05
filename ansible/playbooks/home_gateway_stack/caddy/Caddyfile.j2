@@ -105,13 +105,7 @@ ntopng.home.shdr.ch {
 }
 
 kvm.home.shdr.ch {
-  reverse_proxy https://192.168.2.220 {
-    transport http {
-      tls
-      tls_insecure_skip_verify
-    }
-    header_up Host {http.request.host}
-  }
+  reverse_proxy 192.168.2.220
 }
 
 d.home.shdr.ch, *.d.home.shdr.ch {

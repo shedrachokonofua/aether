@@ -272,7 +272,7 @@ graph LR
 | 3    | Ethernet | Niobe                                                 | 1             | 2, 3, 4, 5, 6, 7 | 2.5Gbps |
 | 4    | Ethernet | UPS                                                   | 1             | -                | 100Mbps |
 | 5    | Ethernet | Office Switch                                         | 1             | 4, 5             | 2.5Gbps |
-| 6    | Ethernet | PiKVM                                                 | 1             | -                | 1Gbps   |
+| 6    | Ethernet | JetKVM                                                | 1             | -                | 1Gbps   |
 | 7    | Ethernet | MoCA Adapter (Uplink to unmanaged living room switch) | 5             | -                | 2.5Gbps |
 | 9    | SFP+     | Oracle                                                | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
 | 10   | SFP+     | Trinity                                               | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
