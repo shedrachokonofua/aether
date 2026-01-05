@@ -192,9 +192,30 @@ in
           # Use resourcedetection to auto-detect hostname from OS
           resourcedetection = {
             detectors = [ "system" ];
-            system.hostname_sources = [ "os" ];
+            system = {
+              hostname_sources = [ "os" ];
+              resource_attributes = {
+                "host.name".enabled = true;
+                "os.type".enabled = true;
+              };
+            };
           };
-          # Add static attributes (os.type, service.name = hostname)
+          # Set service.name from detected host.name
+          transform = {
+            log_statements = [{
+              context = "resource";
+              statements = [
+                ''set(attributes["service.name"], attributes["host.name"]) where attributes["service.name"] == nil''
+              ];
+            }];
+            metric_statements = [{
+              context = "resource";
+              statements = [
+                ''set(attributes["service.name"], attributes["host.name"]) where attributes["service.name"] == nil''
+              ];
+            }];
+          };
+          # Add static attributes
           resource = {
             attributes = [
               { key = "os.type"; value = "NixOS"; action = "insert"; }
@@ -218,7 +239,7 @@ in
                 (optional cfg.otlpReceiver.enable "otlp") ++
                 (optional (cfg.prometheusScrapeConfigs != []) "prometheus") ++
                 (optional cfg.hostMetrics.enable "hostmetrics");
-              processors = [ "batch" "resourcedetection" "resource" ];
+              processors = [ "batch" "resourcedetection" "transform" "resource" ];
               exporters = [ "otlphttp" ];
             };
             logs = {
@@ -226,12 +247,12 @@ in
                 (optional cfg.otlpReceiver.enable "otlp") ++
                 (optional cfg.journald.enable "journald") ++
                 (optional cfg.filelog.enable "filelog");
-              processors = [ "batch" "resourcedetection" "resource" ];
+              processors = [ "batch" "resourcedetection" "transform" "resource" ];
               exporters = [ "otlphttp" ];
             };
             traces = mkIf cfg.otlpReceiver.enable {
               receivers = [ "otlp" ];
-              processors = [ "batch" "resourcedetection" "resource" ];
+              processors = [ "batch" "resourcedetection" "transform" "resource" ];
               exporters = [ "otlphttp" ];
             };
           };

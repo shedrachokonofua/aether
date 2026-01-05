@@ -1,0 +1,56 @@
+---
+# Create isolated bridge for IDS mirror traffic
+# This is a one-time setup - bridge persists across reboots
+#
+# The vmbr_mirror bridge connects:
+#   - VyOS eth2 (mirror output)
+#   - IDS Stack eth1 (promiscuous capture)
+#
+# No other VMs should be attached to this bridge.
+
+- name: Create IDS mirror bridge on Proxmox
+  hosts: oracle
+  gather_facts: false
+  roles:
+    - common
+  tasks:
+    - name: Check if vmbr_mirror already exists
+      command: ip link show vmbr_mirror
+      register: bridge_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Add vmbr_mirror to /etc/network/interfaces
+      blockinfile:
+        path: /etc/network/interfaces
+        marker: "# {mark} ANSIBLE MANAGED - IDS Mirror Bridge"
+        block: |
+          auto vmbr_mirror
+          iface vmbr_mirror inet manual
+                  bridge-ports none
+                  bridge-stp off
+                  bridge-fd 0
+                  # Disable MAC learning - mirror traffic has foreign MACs
+                  post-up ip link set vmbr_mirror type bridge ageing_time 0
+                  post-up for i in /sys/class/net/vmbr_mirror/brif/*/learning; do echo 0 > $i; done 2>/dev/null || true
+                  post-up for i in /sys/class/net/vmbr_mirror/brif/*/flood; do echo 1 > $i; done 2>/dev/null || true
+      register: bridge_config
+
+    - name: Apply bridge config if changed
+      command: ifreload -a
+      when: bridge_config.changed
+
+    - name: Verify bridge exists
+      command: ip link show vmbr_mirror
+      changed_when: false
+
+    - name: Apply mirror-friendly settings to existing bridge ports
+      shell: |
+        ip link set vmbr_mirror type bridge ageing_time 0
+        for i in /sys/class/net/vmbr_mirror/brif/*/learning; do echo 0 > $i; done 2>/dev/null || true
+        for i in /sys/class/net/vmbr_mirror/brif/*/flood; do echo 1 > $i; done 2>/dev/null || true
+      changed_when: false
+
+    - name: Display bridge status
+      debug:
+        msg: "vmbr_mirror bridge is ready for IDS mirror traffic"

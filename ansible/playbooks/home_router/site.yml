@@ -1,4 +1,7 @@
 ---
+- name: Create IDS mirror bridge (prerequisite)
+  import_playbook: create_mirror_bridge.yml
+
 - name: Destroy VyOS Packer
   import_playbook: destroy_vyos_packer.yml
 

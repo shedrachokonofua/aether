@@ -12,9 +12,10 @@
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    quadlet-nix.url = "github:SEIAROTg/quadlet-nix";
   };
 
-  outputs = { self, nixpkgs, flake-utils, nixos-generators, disko }:
+  outputs = { self, nixpkgs, flake-utils, nixos-generators, disko, quadlet-nix }:
     let
       system = "x86_64-linux";
       
@@ -60,6 +61,15 @@
           modules = [
             { nixpkgs.overlays = [ otelFixOverlay ]; }
             ./nix/hosts/oracle/adguard.nix
+            sshCaModule
+          ];
+        };
+        ids-stack = nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [
+            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            quadlet-nix.nixosModules.quadlet
+            ./nix/hosts/oracle/ids-stack.nix
             sshCaModule
           ];
         };

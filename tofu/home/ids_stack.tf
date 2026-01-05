@@ -49,10 +49,11 @@ resource "proxmox_virtual_environment_vm" "ids_stack" {
     vlan_id = 2
   }
 
-  # eth1: Span port for mirrored traffic from VyOS eth1 (trunk)
-  # Same bridge as router, no VLAN tag, firewall disabled for promiscuous capture
+  # eth1: Span port for mirrored traffic from VyOS eth2
+  # Isolated bridge - only VyOS and IDS Stack are connected
+  # Created by: ansible-playbook ansible/playbooks/home_router/create_mirror_bridge.yml
   network_device {
-    bridge   = "vmbr0"
+    bridge   = "vmbr_mirror"
     firewall = false
   }
 

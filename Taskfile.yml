@@ -253,6 +253,9 @@ tasks:
     cmds:
       - task: provision:adguard
       - task: configure:adguard
+  provision:ids-mirror-bridge:
+    desc: Create isolated bridge for IDS mirror traffic (one-time)
+    cmds: [ansible-playbook ansible/playbooks/home_router/create_mirror_bridge.yml]
   configure:ids-stack:
     desc: Deploy NixOS configuration to IDS Stack VM
     vars:
@@ -264,6 +267,13 @@ tasks:
       - |
         SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
         SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#ids-stack --target-host root@{{.IDS_STACK_IP}} --impure
+  deploy:ids-stack:
+    desc: Full deploy - provision VM + configure NixOS
+    cmds:
+      - task: provision:ids-mirror-bridge
+      - task: tofu:apply
+        vars: { CLI_ARGS: "-target=proxmox_virtual_environment_vm.ids_stack" }
+      - task: configure:ids-stack
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:

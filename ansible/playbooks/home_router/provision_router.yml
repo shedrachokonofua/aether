@@ -69,6 +69,7 @@
         net:
           net0: "virtio,bridge=vmbr0,firewall=1"
           net1: "virtio,bridge=vmbr0,firewall=1"
+          net2: "virtio,bridge=vmbr_mirror,firewall=0"  # Mirror output to IDS Stack
         ipconfig:
           ipconfig0: "ip={{vm.router.ip.gigahub}}/24,gw={{vm.router.gateway.gigahub}}"
           ipconfig1: "ip={{vm.router.ip.vyos}}/24,gw={{vm.router.gateway.vyos}}"

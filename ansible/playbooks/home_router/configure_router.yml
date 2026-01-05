@@ -92,6 +92,18 @@
           - set interfaces ethernet eth1 vif 7 address 10.0.7.1/24
         save: true
 
+    # -------------------------------------------------------------------------
+    # IDS Mirror - Send copy of all trunk traffic to IDS Stack via eth2
+    # eth2 connects to vmbr_mirror (isolated bridge to IDS Stack only)
+    # -------------------------------------------------------------------------
+    - name: Configure IDS traffic mirror
+      vyos.vyos.vyos_config:
+        lines:
+          - set interfaces ethernet eth2 description "IDS Mirror Output"
+          - set interfaces ethernet eth1 mirror ingress eth2
+          - set interfaces ethernet eth1 mirror egress eth2
+        save: true
+
     - name: Configure SSH
       vyos.vyos.vyos_config:
         lines:
