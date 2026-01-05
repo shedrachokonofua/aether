@@ -23,8 +23,6 @@ in
     ../../modules/base.nix
   ];
 
-  networking.hostName = "adguard";
-
   services.adguardhome = {
     enable = true;
     mutableSettings = false;

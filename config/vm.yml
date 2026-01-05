@@ -378,7 +378,7 @@ adguard:
   id: 1027
   name: "adguard"
   node: "oracle"
-  admin: "root"
+  admin: "aether"
   cores: 1
   memory: 1024
   disk_gb: 20
@@ -387,3 +387,18 @@ adguard:
   ports:
     dns: 53
     admin: 3000
+
+ids_stack:
+  id: 1028
+  name: "intrusion-detection-stack"
+  node: "oracle"
+  admin: "aether"
+  cores: 4
+  memory: 4096
+  disk_gb: 128
+  ip: "10.0.2.7"
+  gateway: "10.0.2.1"
+  ports:
+    suricata_metrics: 9917
+    wazuh_api: 55000
+    wazuh_agent: 1514

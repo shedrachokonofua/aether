@@ -11,12 +11,6 @@ in
   options.aether.otel-agent = {
     enable = mkEnableOption "Aether OTEL monitoring agent";
 
-    hostname = mkOption {
-      type = types.str;
-      default = config.networking.hostName;
-      description = "Hostname to use in resource attributes";
-    };
-
     otlpEndpoint = mkOption {
       type = types.str;
       default = "https://otel.home.shdr.ch";
@@ -195,10 +189,14 @@ in
             send_batch_size = 1000;
             timeout = "10s";
           };
+          # Use resourcedetection to auto-detect hostname from OS
+          resourcedetection = {
+            detectors = [ "system" ];
+            system.hostname_sources = [ "os" ];
+          };
+          # Add static attributes (os.type, service.name = hostname)
           resource = {
             attributes = [
-              { key = "host.name"; value = cfg.hostname; action = "insert"; }
-              { key = "service.name"; value = cfg.hostname; action = "insert"; }
               { key = "os.type"; value = "NixOS"; action = "insert"; }
             ];
           };
@@ -220,7 +218,7 @@ in
                 (optional cfg.otlpReceiver.enable "otlp") ++
                 (optional (cfg.prometheusScrapeConfigs != []) "prometheus") ++
                 (optional cfg.hostMetrics.enable "hostmetrics");
-              processors = [ "batch" "resource" ];
+              processors = [ "batch" "resourcedetection" "resource" ];
               exporters = [ "otlphttp" ];
             };
             logs = {
@@ -228,12 +226,12 @@ in
                 (optional cfg.otlpReceiver.enable "otlp") ++
                 (optional cfg.journald.enable "journald") ++
                 (optional cfg.filelog.enable "filelog");
-              processors = [ "batch" "resource" ];
+              processors = [ "batch" "resourcedetection" "resource" ];
               exporters = [ "otlphttp" ];
             };
             traces = mkIf cfg.otlpReceiver.enable {
               receivers = [ "otlp" ];
-              processors = [ "batch" "resource" ];
+              processors = [ "batch" "resourcedetection" "resource" ];
               exporters = [ "otlphttp" ];
             };
           };
@@ -241,6 +239,8 @@ in
       };
     };
 
-    # Storage directory - NixOS creates /var/lib/opentelemetry-collector via StateDirectory
+    # Wait for cloud-init-hostname to complete so hostname is set correctly (VMs only)
+    systemd.services.opentelemetry-collector.after =
+      optional config.services.cloud-init.enable "cloud-init-hostname.service";
   };
 }

@@ -148,11 +148,11 @@ tasks:
       - |
         echo "Uploading VM image to cephfs..."
         ssh root@{{.SMITH_IP}} "mkdir -p /mnt/pve/cephfs/template/iso"
-        rsync -avP .nix-vm-image/*.qcow2 root@{{.SMITH_IP}}:/mnt/pve/cephfs/template/iso/nixos-base-vm.qcow2
-        echo "✅ Uploaded to cephfs:iso/nixos-base-vm.qcow2"
+        rsync -avP .nix-vm-image/*.qcow2 root@{{.SMITH_IP}}:/mnt/pve/cephfs/template/iso/nixos-base-vm.qcow2.img
+        echo "✅ Uploaded to cephfs:iso/nixos-base-vm.qcow2.img"
         echo ""
         echo "Reference in Terraform:"
-        echo '  file_id = "cephfs:iso/nixos-base-vm.qcow2"'
+        echo '  file_id = "cephfs:iso/nixos-base-vm.qcow2.img"'
 
   nix:upload-lxc-image:
     desc: Upload LXC base image to cephfs (shared across all nodes)
@@ -253,6 +253,17 @@ tasks:
     cmds:
       - task: provision:adguard
       - task: configure:adguard
+  configure:ids-stack:
+    desc: Deploy NixOS configuration to IDS Stack VM
+    vars:
+      IDS_STACK_IP:
+        sh: yq '.ids_stack.ip' config/vm.yml
+      STEP_CA_IP:
+        sh: yq '.step_ca.ip' config/vm.yml
+    cmds:
+      - |
+        SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
+        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#ids-stack --target-host root@{{.IDS_STACK_IP}} --impure
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:

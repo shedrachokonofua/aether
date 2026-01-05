@@ -10,22 +10,41 @@ in
     ./otel-agent.nix
   ];
 
-  options.aether.base = {
-    sshCaPubKey = lib.mkOption {
-      type = lib.types.str;
-      description = "SSH user CA public key from step-ca";
-      example = "ecdsa-sha2-nistp256 AAAA...";
-    };
+  options.aether = {
+    base = {
+      sshCaPubKey = lib.mkOption {
+        type = lib.types.str;
+        description = "SSH user CA public key from step-ca";
+        example = "ecdsa-sha2-nistp256 AAAA...";
+      };
 
-    additionalPrincipals = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [];
-      description = "Additional principals allowed to SSH as root (admin is always included)";
+      additionalPrincipals = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [];
+        description = "Additional principals allowed to SSH as root (admin is always included)";
+      };
     };
   };
 
   config = {
+    # Set hostname immediately on activation (VMs only - LXCs can't write to /proc/sys/kernel/hostname)
+    # Reads from cloud-init user-data if networking.hostName is default "nixos"
+    system.activationScripts.hostname = lib.mkIf config.services.cloud-init.enable {
+      deps = [];
+      text = ''
+        HOSTNAME="${config.networking.hostName}"
+        if [ "$HOSTNAME" = "nixos" ] && [ -f /var/lib/cloud/instance/user-data.txt ]; then
+          CLOUD_HOSTNAME=$(${pkgs.yq-go}/bin/yq -r '.hostname // ""' /var/lib/cloud/instance/user-data.txt 2>/dev/null || true)
+          if [ -n "$CLOUD_HOSTNAME" ] && [ "$CLOUD_HOSTNAME" != "null" ]; then
+            HOSTNAME="$CLOUD_HOSTNAME"
+          fi
+        fi
+        echo "$HOSTNAME" > /proc/sys/kernel/hostname
+      '';
+    };
+
     # Enable monitoring by default on all machines
+    # OTEL uses resourcedetection to auto-detect hostname from OS
     aether.otel-agent.enable = lib.mkDefault true;
 
     # aether user - standard admin user for all VMs/LXCs
