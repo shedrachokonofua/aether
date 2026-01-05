@@ -1,0 +1,157 @@
+---
+# Configure Suricata IDS on VyOS Router using native service support
+# VyOS has built-in Suricata integration via `set service suricata`
+# https://docs.vyos.io/en/latest/configuration/service/suricata.html
+#
+# This playbook:
+# 1. Configures Suricata to monitor the trunk interface (eth1)
+# 2. Sets up address/port groups for rule management
+# 3. Configures EVE JSON logging for OTEL collection
+# 4. Updates Suricata rules
+
+- name: Configure Suricata IDS on VyOS Router
+  hosts: router
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    ansible_persistent_connect_timeout: 0
+    suricata_interface: "eth1"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Configure Suricata service using native VyOS commands
+    # -------------------------------------------------------------------------
+    - name: Configure Suricata interface and logging
+      vyos.vyos.vyos_config:
+        lines:
+          # Monitor trunk interface with all VLANs
+          - set service suricata interface {{ suricata_interface }}
+
+          # Configure EVE JSON logging (collected by OTEL)
+          - set service suricata log eve filename eve.json
+          - set service suricata log eve filetype regular
+          # Core event types
+          - set service suricata log eve type alert
+          - set service suricata log eve type anomaly
+          - set service suricata log eve type drop
+          - set service suricata log eve type flow
+          - set service suricata log eve type netflow
+          # Application protocols
+          - set service suricata log eve type dcerpc
+          - set service suricata log eve type dhcp
+          - set service suricata log eve type dnp3
+          - set service suricata log eve type dns
+          - set service suricata log eve type files
+          - set service suricata log eve type ftp
+          - set service suricata log eve type http
+          - set service suricata log eve type http2
+          - set service suricata log eve type ikev2
+          - set service suricata log eve type krb5
+          - set service suricata log eve type mqtt
+          - set service suricata log eve type nfs
+          - set service suricata log eve type rdp
+          - set service suricata log eve type rfb
+          - set service suricata log eve type sip
+          - set service suricata log eve type smb
+          - set service suricata log eve type smtp
+          - set service suricata log eve type snmp
+          - set service suricata log eve type ssh
+          - set service suricata log eve type tftp
+          - set service suricata log eve type tls
+
+          # Address group required by VyOS - using lowercase (no underscores allowed)
+          - set service suricata address-group homenet address 10.0.0.0/8
+          - set service suricata address-group homenet address 172.16.0.0/12
+          - set service suricata address-group homenet address 192.168.0.0/16
+
+          # Port groups required by VyOS
+          - set service suricata port-group httpports port 80
+          - set service suricata port-group httpports port 443
+          - set service suricata port-group httpports port 8080
+          - set service suricata port-group sshports port 22
+          - set service suricata port-group dnsports port 53
+        save: true
+      register: suricata_config
+
+    # -------------------------------------------------------------------------
+    # Workaround: VyOS generates non-standard variable names and misses defaults
+    # Patch the generated config to use standard variable names and add missing ones
+    # -------------------------------------------------------------------------
+    - name: Patch suricata.yaml variable names
+      vyos.vyos.vyos_command:
+        commands:
+          - "sudo sed -i 's/HOMENET/HOME_NET/g; s/HTTPPORTS/HTTP_PORTS/g; s/SSHPORTS/SSH_PORTS/g; s/DNSPORTS/DNS_PORTS/g' /run/suricata/suricata.yaml"
+
+    - name: Add missing standard Suricata address variables
+      vyos.vyos.vyos_command:
+        commands:
+          - >-
+            sudo sed -i '/HOME_NET:/a\
+                EXTERNAL_NET: "!$$HOME_NET"\
+                HTTP_SERVERS: "$$HOME_NET"\
+                SQL_SERVERS: "$$HOME_NET"\
+                DNS_SERVERS: "$$HOME_NET"\
+                SMTP_SERVERS: "$$HOME_NET"\
+                TELNET_SERVERS: "$$HOME_NET"\
+                AIM_SERVERS: "any"\
+                DC_SERVERS: "$$HOME_NET"\
+                DNP3_SERVER: "$$HOME_NET"\
+                DNP3_CLIENT: "$$HOME_NET"\
+                MODBUS_CLIENT: "$$HOME_NET"\
+                MODBUS_SERVER: "$$HOME_NET"\
+                ENIP_CLIENT: "$$HOME_NET"\
+                ENIP_SERVER: "$$HOME_NET"'
+            /run/suricata/suricata.yaml
+
+    - name: Add missing standard Suricata port variables
+      vyos.vyos.vyos_command:
+        commands:
+          - >-
+            sudo sed -i '/port-groups:/a\
+                TEREDO_PORTS: 3544\
+                GENEVE_PORTS: 6081\
+                VXLAN_PORTS: 4789\
+                SHELLCODE_PORTS: "!80"\
+                ORACLE_PORTS: 1521\
+                FTP_PORTS: 21'
+            /run/suricata/suricata.yaml
+
+    - name: Create Suricata log directory
+      vyos.vyos.vyos_command:
+        commands:
+          - "sudo mkdir -p /var/log/suricata"
+
+    # -------------------------------------------------------------------------
+    # Update Suricata rules (downloads latest rulesets)
+    # This is required after initial configuration
+    # -------------------------------------------------------------------------
+    - name: Update Suricata rules
+      vyos.vyos.vyos_command:
+        commands:
+          - update suricata
+      when: suricata_config.changed
+      register: suricata_update
+      vars:
+        # Rule download can take several minutes
+        ansible_command_timeout: 600
+
+    - name: Restart Suricata if config changed
+      vyos.vyos.vyos_command:
+        commands:
+          - restart suricata
+      when: suricata_config.changed and not suricata_update.changed | default(false)
+
+    - name: Verify Suricata is running
+      vyos.vyos.vyos_command:
+        commands:
+          - show log suricata
+      register: suricata_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display Suricata status
+      debug:
+        msg: "Suricata log output: {{ suricata_status.stdout_lines | default(['No output']) }}"
+      # Note: OTEL collector is configured to collect Suricata EVE JSON logs
+      # from /var/log/suricata/eve.json via the filelog receiver in configure_otel.yml

@@ -20,5 +20,8 @@
 - name: Configure OTEL monitoring
   import_playbook: configure_otel.yml
 
+- name: Configure Suricata IDS
+  import_playbook: configure_suricata.yml
+
 - name: Destroy VyOS Packer
   import_playbook: destroy_vyos_packer.yml
