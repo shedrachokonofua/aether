@@ -42,6 +42,19 @@ This applies the network configuration to the router.
 task ansible:playbook -- ./ansible/playbooks/home_router/configure_router.yml
 ```
 
+### Configure OTEL Monitoring
+
+This deploys an OpenTelemetry Collector container on VyOS for metrics and log collection. Uses VyOS's native container system (Podman-based) and persists configuration in `/config` to survive upgrades.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/home_router/configure_otel.yml
+```
+
+**What it monitors:**
+- Host metrics (CPU, memory, disk, network, processes)
+- VyOS system logs (`/var/log/messages`, `/var/log/auth.log`, `/var/log/vyos/*.log`)
+- Exports to the monitoring stack via OTLP
+
 ### Destroy VyOS Packer
 
 This tears down the VyOS packer VM and deletes the disk.

@@ -17,5 +17,8 @@
 - name: Apply configuration
   import_playbook: configure_router.yml
 
+- name: Configure OTEL monitoring
+  import_playbook: configure_otel.yml
+
 - name: Destroy VyOS Packer
   import_playbook: destroy_vyos_packer.yml

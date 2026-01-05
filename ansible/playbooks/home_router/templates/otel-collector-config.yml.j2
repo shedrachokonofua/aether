@@ -1,0 +1,96 @@
+# OpenTelemetry Collector Configuration for VyOS Router
+# Adapted for container deployment on VyOS
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  # VyOS syslog/file-based logs
+  filelog:
+    storage: file_storage/filelog_cursor_storage
+    include:
+      - /var/log/messages
+      - /var/log/auth.log
+      - /var/log/vyatta/*.log
+      - /var/log/frr/*.log
+    include_file_path: true
+    include_file_name: true
+
+  hostmetrics:
+    collection_interval: {{ vyos_otel_host_metrics_interval | default('15s') }}
+    initial_delay: 1s
+    root_path: /hostfs
+    scrapers:
+      cpu:
+      disk:
+      load:
+      memory:
+      network:
+      processes:
+      process:
+      system:
+
+  podman_stats:
+    endpoint: unix:///run/podman/podman.sock
+    collection_interval: {{ vyos_podman_metrics_collection_interval | default('15s') }}
+    initial_delay: {{ vyos_podman_metrics_initial_delay | default('1s') }}
+    timeout: 5s
+
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+
+  resource:
+    attributes:
+      - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: service.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: os.type
+        value: "VyOS"
+        action: insert
+      - key: device.type
+        value: "router"
+        action: insert
+
+extensions:
+  file_storage/filelog_cursor_storage:
+    directory: /var/lib/otelcol/storage
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+exporters:
+  otlphttp:
+    endpoint: http://{{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_http }}
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 300s
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 10000
+
+service:
+  extensions: [file_storage/filelog_cursor_storage, health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp, hostmetrics, podman_stats]
+      processors: [batch, resource]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp, filelog]
+      processors: [batch, resource]
+      exporters: [otlphttp]
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlphttp]
+

@@ -1,0 +1,159 @@
+---
+# Configure OTEL Collector on VyOS Router using native container support
+# VyOS uses Podman under the hood via `set container` commands
+#
+# This playbook:
+# 1. Deploys OTEL config to /config (persistent across upgrades)
+# 2. Configures a VyOS native container running otelcol-contrib
+# 3. Mounts necessary host paths for log/metrics collection
+
+- name: Configure OTEL Monitoring on VyOS Router
+  hosts: router
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    ansible_persistent_connect_timeout: 0
+    vyos_otel_version: "{{ otel_collector_version | default('0.142.0') }}"
+    vyos_otel_endpoint: "https://otel.home.shdr.ch"
+    vyos_otel_host_metrics_interval: "15s"
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # Create persistent directories and deploy configuration
+    # -------------------------------------------------------------------------
+    - name: Create OTEL config directories
+      vyos.vyos.vyos_command:
+        commands:
+          - "sudo mkdir -p /config/otel"
+          - "sudo mkdir -p /config/containers/otel-storage"
+          - "sudo chmod 755 /config/otel"
+          - "sudo chmod 777 /config/containers/otel-storage"
+
+    - name: Generate OTEL config locally
+      template:
+        src: templates/otel-collector-config.yml.j2
+        dest: "/tmp/vyos-otel-config.yml"
+        mode: "0644"
+      delegate_to: localhost
+
+    - name: Read generated config
+      slurp:
+        src: "/tmp/vyos-otel-config.yml"
+      register: otel_config_content
+      delegate_to: localhost
+
+    - name: Deploy OTEL config to VyOS
+      vyos.vyos.vyos_command:
+        commands:
+          - "echo '{{ otel_config_content.content | b64decode | replace(\"'\", \"'\\''\") }}' | sudo tee /config/otel/config.yml"
+          - "sudo chmod 644 /config/otel/config.yml"
+
+    - name: Cleanup local temp file
+      file:
+        path: "/tmp/vyos-otel-config.yml"
+        state: absent
+      delegate_to: localhost
+
+    # -------------------------------------------------------------------------
+    # Enable podman socket for container metrics collection
+    # -------------------------------------------------------------------------
+    - name: Enable podman socket
+      vyos.vyos.vyos_command:
+        commands:
+          - "sudo systemctl enable --now podman.socket || true"
+
+    # -------------------------------------------------------------------------
+    # Pull container image (required before configuring container in VyOS)
+    # -------------------------------------------------------------------------
+    - name: Pull OTEL Collector container image
+      vyos.vyos.vyos_command:
+        commands:
+          - "add container image ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:{{ vyos_otel_version }}"
+      register: image_pull
+      changed_when: "'Pulling' in image_pull.stdout | join('')"
+
+    # -------------------------------------------------------------------------
+    # Configure VyOS native container for OTEL Collector
+    # Using vyos container system (Podman-based)
+    # Note: VyOS containers use host networking by default when no network specified
+    # -------------------------------------------------------------------------
+    - name: Configure OTEL Collector container
+      vyos.vyos.vyos_config:
+        lines:
+          # Container image configuration
+          - set container name otel-collector image ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:{{ vyos_otel_version }}
+          - set container name otel-collector description 'OpenTelemetry Collector for metrics and logs'
+
+          # Run as root for podman socket and host metrics access
+          - set container name otel-collector uid 0
+          - set container name otel-collector gid 0
+          - set container name otel-collector allow-host-networks
+          - set container name otel-collector allow-host-pid
+
+          # Restart policy
+          - set container name otel-collector restart on-failure
+
+          # Container arguments - point to config file
+          - set container name otel-collector argument '--config=/etc/otel/config.yml'
+
+          # Mount the config directory
+          - set container name otel-collector volume otel-config source /config/otel
+          - set container name otel-collector volume otel-config destination /etc/otel
+          - set container name otel-collector volume otel-config mode ro
+
+          # Mount storage for cursor persistence
+          - set container name otel-collector volume otel-storage source /config/containers/otel-storage
+          - set container name otel-collector volume otel-storage destination /var/lib/otelcol/storage
+          - set container name otel-collector volume otel-storage mode rw
+
+          # Mount host logs for collection (read-only)
+          - set container name otel-collector volume host-logs source /var/log
+          - set container name otel-collector volume host-logs destination /var/log
+          - set container name otel-collector volume host-logs mode ro
+
+          # Mount /proc for host metrics (read-only)
+          - set container name otel-collector volume host-proc source /proc
+          - set container name otel-collector volume host-proc destination /hostfs/proc
+          - set container name otel-collector volume host-proc mode ro
+
+          # Mount /sys for host metrics (read-only)
+          - set container name otel-collector volume host-sys source /sys
+          - set container name otel-collector volume host-sys destination /hostfs/sys
+          - set container name otel-collector volume host-sys mode ro
+
+          # Mount /etc for host info (read-only)
+          - set container name otel-collector volume host-etc source /etc
+          - set container name otel-collector volume host-etc destination /hostfs/etc
+          - set container name otel-collector volume host-etc mode ro
+
+          # Mount podman socket for container metrics
+          - set container name otel-collector volume podman-socket source /run/podman/podman.sock
+          - set container name otel-collector volume podman-socket destination /run/podman/podman.sock
+          - set container name otel-collector volume podman-socket mode ro
+
+          # Environment variables for hostmetrics receiver
+          - set container name otel-collector environment HOST_PROC value /hostfs/proc
+          - set container name otel-collector environment HOST_SYS value /hostfs/sys
+          - set container name otel-collector environment HOST_ETC value /hostfs/etc
+          - set container name otel-collector environment HOST_VAR value /hostfs/var
+          - set container name otel-collector environment HOST_RUN value /hostfs/run
+        save: true
+      register: container_config
+
+    - name: Restart container if config changed
+      vyos.vyos.vyos_command:
+        commands:
+          - "sudo podman restart otel-collector || sudo podman start otel-collector || true"
+      when: container_config.changed
+
+    - name: Verify OTEL container is running
+      vyos.vyos.vyos_command:
+        commands:
+          - "sudo podman ps --filter name=otel-collector --format '{{ '{{' }}.Status{{ '}}' }}'"
+      register: container_status
+      changed_when: false
+
+    - name: Display container status
+      debug:
+        msg: "OTEL Collector container status: {{ container_status.stdout_lines }}"
