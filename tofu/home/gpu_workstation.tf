@@ -70,9 +70,10 @@ resource "random_password" "gpu_workstation_console_password" {
 }
 
 module "gpu_workstation_user" {
-  source           = "./modules/vm_user_cloudinit"
-  node_name        = local.vm.gpu_workstation.node
-  authorized_keys  = var.authorized_keys
-  file_prefix      = local.vm.gpu_workstation.name
-  console_password = random_password.gpu_workstation_console_password.result
+  source            = "./modules/vm_user_cloudinit"
+  node_name         = local.vm.gpu_workstation.node
+  authorized_keys   = var.authorized_keys
+  file_prefix       = local.vm.gpu_workstation.name
+  console_password  = random_password.gpu_workstation_console_password.result
+  snippet_datastore = "local"
 }

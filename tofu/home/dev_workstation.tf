@@ -28,6 +28,8 @@ resource "proxmox_virtual_environment_vm" "dev_workstation" {
   }
 
   initialization {
+    datastore_id = "ceph-vm-disks"
+
     ip_config {
       ipv4 {
         address = "${local.vm.dev_workstation.ip}/24"

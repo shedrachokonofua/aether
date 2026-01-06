@@ -27,6 +27,8 @@ resource "proxmox_virtual_environment_vm" "messaging_stack" {
   }
 
   initialization {
+    datastore_id = "ceph-vm-disks"
+
     ip_config {
       ipv4 {
         address = "${local.vm.messaging_stack.ip}/24"

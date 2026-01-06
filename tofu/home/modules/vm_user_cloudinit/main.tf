@@ -20,6 +20,16 @@ variable "console_password" {
   sensitive = true
 }
 
+variable "snippet_datastore" {
+  type    = string
+  default = "cephfs"
+}
+
+variable "snippet_node" {
+  type    = string
+  default = "smith"
+}
+
 terraform {
   required_providers {
     proxmox = {
@@ -51,8 +61,8 @@ locals {
 
 resource "proxmox_virtual_environment_file" "cloud_config" {
   content_type = "snippets"
-  datastore_id = "local"
-  node_name    = var.node_name
+  datastore_id = var.snippet_datastore
+  node_name    = var.snippet_datastore == "cephfs" ? var.snippet_node : var.node_name
 
   source_raw {
     file_name = "${var.file_prefix}-cloud-config.yml"

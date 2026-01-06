@@ -54,9 +54,10 @@ resource "random_password" "gateway_stack_console_password" {
 }
 
 module "gateway_stack_user" {
-  source           = "./modules/vm_user_cloudinit"
-  node_name        = local.vm.home_gateway_stack.node
-  authorized_keys  = var.authorized_keys
-  file_prefix      = local.vm.home_gateway_stack.name
-  console_password = random_password.gateway_stack_console_password.result
+  source            = "./modules/vm_user_cloudinit"
+  node_name         = local.vm.home_gateway_stack.node
+  authorized_keys   = var.authorized_keys
+  file_prefix       = local.vm.home_gateway_stack.name
+  console_password  = random_password.gateway_stack_console_password.result
+  snippet_datastore = "local"
 }

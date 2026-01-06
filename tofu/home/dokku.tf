@@ -28,6 +28,8 @@ resource "proxmox_virtual_environment_vm" "dokku" {
   }
 
   initialization {
+    datastore_id = "ceph-vm-disks"
+
     ip_config {
       ipv4 {
         address = "${local.vm.dokku.ip}/24"

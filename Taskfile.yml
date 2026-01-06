@@ -57,7 +57,7 @@ tasks:
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
-        tofu -chdir=tofu refresh-only {{.CLI_ARGS}}
+        tofu -chdir=tofu refresh {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
 
   # ===========================================================================

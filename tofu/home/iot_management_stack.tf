@@ -32,6 +32,8 @@ resource "proxmox_virtual_environment_vm" "iot_management_stack" {
   }
 
   initialization {
+    datastore_id = "ceph-vm-disks"
+
     ip_config {
       ipv4 {
         address = "${local.vm.iot_management_stack.ip}/24"
@@ -64,10 +66,3 @@ module "iot_management_stack_user" {
   console_password = random_password.iot_management_stack_console_password.result
 }
 
-resource "proxmox_virtual_environment_haresource" "iot_management_stack" {
-  resource_id  = "vm:${proxmox_virtual_environment_vm.iot_management_stack.vm_id}"
-  state        = "started"
-  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
-  max_restart  = 3
-  max_relocate = 2
-}
