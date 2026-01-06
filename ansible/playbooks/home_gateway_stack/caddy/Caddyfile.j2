@@ -100,10 +100,6 @@ loki.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}
 }
 
-ntopng.home.shdr.ch {
-  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.ntopng }}
-}
-
 kvm.home.shdr.ch {
   reverse_proxy 192.168.2.220
 }

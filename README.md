@@ -13,7 +13,7 @@ IaC for my private cloud.
 - **Security**: Private PKI (step-ca), Keycloak SSO, mTLS, OpenBao secrets, SOPS with multi-key encryption
 - **DevOps**: GitLab (VCS, CI/CD, registries, Terraform state), Dokku/Dokploy/Smallweb PaaS, Coder workspaces
 - **AI & ML**: Private LLM inference (Ollama, LiteLLM, OpenWebUI), Stable Diffusion (ComfyUI, SwarmUI) on RTX Pro 6000 Max-Q
-- **Observability**: Prometheus/Grafana, Loki, Tempo, OTEL Collector, ntopng, NUT
+- **Observability**: Prometheus/Grafana, Loki, Tempo, OTEL Collector, NUT
 - **Communications**: Matrix homeserver with bridges, ntfy/Apprise notifications, Postfix relay via SES
 - **Smart Home**: Home Assistant with Z-Wave and Thread/Matter
 - **Entertainment**: Cloud gaming via Bazzite + Sunshine (RTX 1660 Super passthrough), Jellyfin media

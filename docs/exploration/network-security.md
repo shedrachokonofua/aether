@@ -1,6 +1,6 @@
-# Network Security Exploration
+# IDS Stack Exploration
 
-Exploration of network scanning, visualization, and intrusion detection for internal network visibility.
+Exploration of intrusion detection (network + host) and vulnerability scanning for internal security visibility.
 
 ## Goal
 
@@ -15,7 +15,6 @@ Extend security visibility beyond the public gateway to the internal network:
 | Aspect                 | Current                 | Gap                                          |
 | ---------------------- | ----------------------- | -------------------------------------------- |
 | Public IDS             | CrowdSec on AWS gateway | Only covers inbound public traffic           |
-| Traffic analysis       | ntopng (sFlow/NetFlow)  | Volume/flow visibility, not deep inspection  |
 | Asset inventory        | Manual docs, Proxmox    | No network-wide discovery                    |
 | Internal IDS           | None                    | Blind to east-west threats, lateral movement |
 | Vulnerability scanning | None                    | Don't know what's exposed internally         |
@@ -24,7 +23,7 @@ Extend security visibility beyond the public gateway to the internal network:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Network Security Stack                                 │
+│                              IDS Stack                                       │
 │                                                                              │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │                        VyOS Router                                   │   │
@@ -35,16 +34,16 @@ Extend security visibility beyond the public gateway to the internal network:
 │                                    │                                         │
 │                                    ▼                                         │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                    Network Security Stack                           │   │
+│   │                         IDS Stack VM                                 │   │
 │   │                                                                      │   │
 │   │   ┌──────────┐     ┌──────────┐     ┌──────────┐                   │   │
-│   │   │ Suricata │     │   Zeek   │     │  Nuclei  │                   │   │
-│   │   │  (IDS)   │     │(Protocol)│     │ (Scanner)│                   │   │
+│   │   │ Suricata │     │   Zeek   │     │  Wazuh   │                   │   │
+│   │   │  (NIDS)  │     │(Protocol)│     │  (HIDS)  │                   │   │
 │   │   └────┬─────┘     └────┬─────┘     └────┬─────┘                   │   │
 │   │        │                │                │                          │   │
 │   │        ▼                ▼                ▼                          │   │
 │   │   ┌─────────────────────────────────────────┐                      │   │
-│   │   │              Filebeat / OTEL            │                      │   │
+│   │   │              OTEL Collector             │                      │   │
 │   │   └─────────────────────────────────────────┘                      │   │
 │   │                         │                                           │   │
 │   └─────────────────────────┼───────────────────────────────────────────┘   │
@@ -52,17 +51,10 @@ Extend security visibility beyond the public gateway to the internal network:
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │                    Monitoring Stack                                  │   │
 │   │                                                                      │   │
-│   │   Loki (logs) ◄─────── Suricata EVE JSON                           │   │
-│   │   Prometheus ◄──────── Suricata metrics                            │   │
+│   │   Loki (logs) ◄─────── Suricata EVE JSON, Wazuh alerts             │   │
+│   │   Prometheus ◄──────── Suricata metrics, Wazuh exporter            │   │
 │   │   Grafana ◄──────────► Dashboards + Alerts                         │   │
 │   │                                                                      │   │
-│   └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                              │
-│   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                       NetBox (IPAM/DCIM)                             │   │
-│   │                                                                      │   │
-│   │   Network topology · IP allocations · Device inventory              │   │
-│   │   Cables · VLANs · Rack layouts · Documentation                     │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -139,7 +131,7 @@ Fast, template-based vulnerability scanner. See [Nuclei](https://github.com/proj
 | Template library  | 8000+ community templates                    |
 | CVE detection     | Find known vulnerabilities                   |
 | Misconfigs        | Default creds, exposed panels, leaky headers |
-| Scheduled scans   | Weekly/monthly internal scans                |
+| Scheduled scans   | Daily internal scans                         |
 | CI/CD integration | Scan before deploy                           |
 
 **Scan targets:**
@@ -157,7 +149,7 @@ Fast, template-based vulnerability scanner. See [Nuclei](https://github.com/proj
 - Unpatched CVE in exposed service
 - Debug endpoints enabled
 
-**Deployment:** Scheduled systemd timer, results to Loki or ntfy alerts.
+**Deployment:** K8s CronJob in `infra` namespace (see `kubernetes.md`). Scales to zero between runs, results ship to Loki via K8s OTEL DaemonSet.
 
 ### NetBox (Network Source of Truth)
 
@@ -210,7 +202,7 @@ Host-level intrusion detection with centralized management. See [Wazuh](https://
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Wazuh Manager                            │
-│                (on Network Security Stack)                   │
+│                    (on IDS Stack VM)                         │
 │                                                              │
 │   Receives events from all agents, correlates, alerts       │
 └──────────────────────────┬──────────────────────────────────┘
@@ -293,116 +285,111 @@ Route high-severity Suricata alerts to ntfy:
     summary: "High severity IDS alert detected"
 ```
 
-### Correlating with ntopng
+### Tool Correlation
 
-ntopng shows traffic volume, Suricata shows threats:
+Each tool answers different questions:
 
-| Tool     | Question                                         |
-| -------- | ------------------------------------------------ |
-| ntopng   | "Who's using the most bandwidth?"                |
-| Suricata | "Is that traffic malicious?"                     |
-| Zeek     | "What protocols and data are being transferred?" |
+| Tool     | Question                                      |
+| -------- | --------------------------------------------- |
+| Zeek     | "Who's talking to whom? What protocols/data?" |
+| Suricata | "Is that traffic malicious?"                  |
+| Wazuh    | "What's happening on the hosts themselves?"   |
 
 ## Deployment Plan
 
-### Phase 1: Network Security Stack VM
+### Phase 1: IDS Stack VM
 
-1. Create Network Security Stack VM (Infrastructure VLAN)
+1. Create IDS Stack VM (Infrastructure VLAN, 4GB RAM — can bump later)
 2. Configure VyOS port mirror to span port
 3. Install Suricata with ET Open rules
-4. Configure EVE JSON logging
-5. Ship logs to Loki via OTEL Collector
-6. Create Grafana dashboard
-7. Configure alerts for severity 1-2
+4. Install Zeek
+5. Install Wazuh Manager
+6. Configure EVE JSON logging + Zeek logs + Wazuh alerts
+7. Ship logs to Loki via OTEL Collector
+8. Create Grafana dashboards (Suricata + Zeek + Wazuh)
+9. Configure alerts for severity 1-2
 
-### Phase 2: Wazuh (Host IDS)
+### Phase 2: Wazuh Agents
 
-1. Add Wazuh Manager to Monitoring Stack (bump RAM 8GB → 10GB)
-2. Configure manager (agent groups, rules, decoders)
-3. Add Wazuh agent tasks to `vm_monitoring_agent` role
-4. Deploy agents to all VMs
-5. Configure FIM paths (`/etc`, `/bin`, `/usr/bin`)
-6. Ship alerts to Loki or use Wazuh Prometheus exporter
-7. Add host security panels to Grafana
+1. Add Wazuh agent tasks to `vm_monitoring_agent` role
+2. Deploy agents to all VMs
+3. Configure FIM paths (`/etc`, `/bin`, `/usr/bin`)
+4. Add host security panels to Grafana
 
-### Phase 3: Vulnerability Scanning
+### Phase 3: Vulnerability Scanning (K8s)
 
-1. Install Nuclei on Network Security Stack VM
-2. Create scan target list (internal subnets)
-3. Create systemd timer for weekly scans
-4. Ship results to Loki
-5. Add scan results panel to dashboard
+Nuclei runs on K8s as a CronJob (no span port requirement, scales to zero):
 
-### Phase 4: Deep Protocol Analysis (Optional)
+1. Create Nuclei CronJob in `infra` namespace
+2. Configure scan target list (internal subnets)
+3. Schedule daily scans (midnight)
+4. Results ship to Loki via K8s OTEL DaemonSet
+5. Add scan results panel to Grafana dashboard
+6. Alert on new high/critical findings
 
-1. Add Zeek to Network Security Stack (may need RAM bump) or deploy on Niobe
-2. Configure to parse alongside Suricata
-3. Ship conn.log, dns.log, http.log to Loki
-4. Add forensics queries to Grafana
+See `kubernetes.md` for K8s deployment details.
 
-**Note:** 6GB is tight for Suricata + Wazuh + Zeek. Add Zeek later if needed, or run it on Niobe for forensics (accepts the network hop tradeoff for non-realtime analysis).
+### Phase 4: Tuning + Scale
+
+1. Monitor IDS Stack resource usage
+2. Bump RAM to 6-8GB if hitting limits
+3. Tune Suricata rules (disable noisy/irrelevant signatures)
+4. Tune Wazuh FIM paths based on false positives
+5. Add custom Zeek scripts if needed
 
 ## Lab Integration
 
 ### Proposed VM Allocation
 
-| Name                   | Host   | Type | RAM | Storage | Storage Location | vCPU | On By Default | Notes                              | Status  |
-| ---------------------- | ------ | ---- | --- | ------- | ---------------- | ---- | ------------- | ---------------------------------- | ------- |
-| Network Security Stack | Oracle | VM   | 4GB | 128GB   | Node             | 4    | Yes           | Suricata, Nuclei, OTEL             | PLANNED |
-| (Wazuh Manager)        | Niobe  | —    | —   | —       | —                | —    | —             | Added to existing Monitoring Stack | PLANNED |
+| Name      | Host   | Type    | RAM | Storage | Storage Location | vCPU | On By Default | Notes                                  | Status  |
+| --------- | ------ | ------- | --- | ------- | ---------------- | ---- | ------------- | -------------------------------------- | ------- |
+| IDS Stack | Oracle | VM      | 4GB | 128GB   | Node             | 4    | Yes           | Suricata + Zeek + Wazuh Manager + OTEL | PLANNED |
+| Nuclei    | K8s    | CronJob | —   | —       | —                | —    | —             | Scales to zero between scans           | PLANNED |
 
-**Requires downsizing existing Oracle VMs:**
+**Oracle current allocation (16GB host):**
 
-| VM              | Current | New   | Actual Used | Savings |
-| --------------- | ------- | ----- | ----------- | ------- |
-| Router          | 4GB     | 2GB   | 1.6GB       | 2GB     |
-| step-ca         | 1GB     | 512MB | 0.2GB       | 512MB   |
-| OpenBao         | 2GB     | 512MB | 0.09GB      | 1.5GB   |
-| **Total freed** |         |       |             | **4GB** |
+| VM            | RAM     |
+| ------------- | ------- |
+| Router        | 2GB     |
+| Gateway Stack | 2GB     |
+| Keycloak      | 2GB     |
+| step-ca       | 512MB   |
+| OpenBao       | 512MB   |
+| AdGuard       | 1GB     |
+| **Current**   | **8GB** |
 
-**Oracle after changes (16GB host):**
+**Oracle after IDS Stack:**
 
-| VM                     | RAM         |
-| ---------------------- | ----------- |
-| Router                 | 2GB         |
-| Gateway Stack          | 4GB         |
-| Keycloak               | 2GB         |
-| step-ca                | 512MB       |
-| OpenBao                | 512MB       |
-| AdGuard (planned)      | 1GB         |
-| Network Security Stack | 4GB         |
-| **Total**              | **14GB** ✅ |
-| **Headroom**           | **2GB** 👍  |
+| VM           | RAM         |
+| ------------ | ----------- |
+| (existing)   | 8GB         |
+| IDS Stack    | 4GB         |
+| **Total**    | **12GB** ✅ |
+| **Headroom** | **4GB** 👍  |
 
-**Monitoring Stack (Niobe) addition:**
-
-| Component     | RAM Added |
-| ------------- | --------- |
-| Wazuh Manager | +2GB      |
-
-Monitoring Stack: 8GB → 10GB (Niobe has 64GB, plenty of room)
+**Note:** 4GB is tight for Suricata + Zeek + Wazuh. Monitor usage and bump to 6-8GB if needed.
 
 ### Host Placement Rationale
 
-**Network Security Stack → Oracle:**
+**IDS Stack → Oracle:**
 
 - Router VM is on Oracle — mirrored traffic stays on internal bridge (no physical network)
 - Internal vmbr = memory-to-memory, effectively unlimited bandwidth
 - No risk of saturating physical NICs during bulk transfers
 - Infrastructure VLAN (V2) placement alongside core services
-- Wazuh Manager centrally located for agent connections
-- Requires downsizing Router (4→2GB), Gateway (4→3GB), OpenBao (2→1GB) to fit
+- All IDS (network + host) in one place
+- Oracle VMs already optimized — 8GB headroom available
 
 ### Network Configuration
 
-Network Security Stack needs a dedicated NIC for span traffic:
+IDS Stack needs a dedicated NIC for span traffic:
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
 │                           Oracle Host                              │
 │                                                                    │
 │   ┌──────────┐         ┌──────────────────────────┐               │
-│   │  Router  │         │  Network Security Stack  │               │
+│   │  Router  │         │        IDS Stack         │               │
 │   │  (VyOS)  │         │                          │               │
 │   │          │         │  eth0: 10.0.2.x          │◄── Management │
 │   │   eth1 ──┼─mirror─►│  eth1: span (promisc)    │◄── Mirrored   │
@@ -416,7 +403,7 @@ Network Security Stack needs a dedicated NIC for span traffic:
 **VyOS config:**
 
 ```bash
-# Mirror trunk traffic to Network Security Stack's span interface
+# Mirror trunk traffic to IDS Stack's span interface
 set interfaces ethernet eth1 mirror ingress eth2
 set interfaces ethernet eth1 mirror egress eth2
 ```
@@ -424,43 +411,40 @@ set interfaces ethernet eth1 mirror egress eth2
 **Proxmox VM config:**
 
 ```bash
-# Network Security Stack - eth1 (span port)
+# IDS Stack - eth1 (span port)
 # Attach to same bridge as router trunk, promiscuous mode
 net1: virtio,bridge=vmbr1,firewall=0
 ```
 
 ### Resource Impact
 
-| Metric  | Current | After  | Net Change |
-| ------- | ------- | ------ | ---------- |
-| RAM     | 194GB   | 196GB  | +2GB       |
-| vCPU    | 137     | 141    | +4         |
-| Storage | ~3.5TB  | ~3.6TB | +128GB     |
-
-RAM breakdown: Security Stack +4GB, Wazuh +2GB to Monitoring Stack, downsizing saves 4GB.
+| Metric  | Current | After | Net Change |
+| ------- | ------- | ----- | ---------- |
+| RAM     | —       | —     | +4GB       |
+| vCPU    | —       | —     | +4         |
+| Storage | —       | —     | +128GB     |
 
 **Wazuh agents:** ~50MB RAM each, negligible CPU. Deployed via `vm_monitoring_agent` role.
 
 ### Integration Points
 
-| Component              | Integrates With  | How                                       |
-| ---------------------- | ---------------- | ----------------------------------------- |
-| Network Security Stack | Router           | Receives mirrored traffic (internal vmbr) |
-| Network Security Stack | Monitoring Stack | OTEL Collector → Loki, Prometheus         |
-| Wazuh Manager          | Monitoring Stack | Co-located, shared Grafana                |
-| Wazuh Manager          | All VMs          | Agents connect to manager (1514)          |
-| Wazuh Manager          | Grafana          | Wazuh exporter → Prometheus               |
+| Component     | Integrates With  | How                                       |
+| ------------- | ---------------- | ----------------------------------------- |
+| IDS Stack     | Router           | Receives mirrored traffic (internal vmbr) |
+| IDS Stack     | Monitoring Stack | OTEL Collector → Loki, Prometheus         |
+| Wazuh Manager | All VMs          | Agents connect to manager (1514)          |
+| Wazuh Manager | Grafana          | Wazuh exporter → Prometheus               |
 
 ## Maintenance
 
-| Component    | Ongoing                            |
-| ------------ | ---------------------------------- |
-| Suricata     | Rule updates (automated via cron)  |
-| Wazuh        | Rule tuning, FIM path adjustments  |
-| Wazuh agents | Part of `vm_monitoring_agent` role |
-| Nuclei       | Template updates (automated)       |
-| Zeek         | Minimal                            |
-| Dashboards   | Evolves with stack                 |
+| Component    | Location | Ongoing                            |
+| ------------ | -------- | ---------------------------------- |
+| Suricata     | VM       | Rule updates (automated via cron)  |
+| Zeek         | VM       | Minimal                            |
+| Wazuh        | VM       | Rule tuning, FIM path adjustments  |
+| Wazuh agents | VMs      | Part of `vm_monitoring_agent` role |
+| Nuclei       | K8s      | Template updates (automated)       |
+| Dashboards   | —        | Evolves with stack                 |
 
 ## Decision Factors
 
@@ -481,13 +465,15 @@ RAM breakdown: Security Stack +4GB, Wazuh +2GB to Monitoring Stack, downsizing s
 
 ### Priority Recommendation
 
-| Priority | Component | Rationale                                       |
-| -------- | --------- | ----------------------------------------------- |
-| High     | Suricata  | Biggest gap — no internal network IDS           |
-| High     | Wazuh     | Catches what network IDS can't — host tampering |
-| High     | Nuclei    | Easy win — know what's exposed                  |
-| Medium   | Zeek      | Adds forensic depth, run alongside Suricata     |
-| Skip     | NetBox    | Overkill — current markdown docs work fine      |
+| Priority | Component | Location | Rationale                                       |
+| -------- | --------- | -------- | ----------------------------------------------- |
+| High     | Suricata  | VM       | Biggest gap — no internal network IDS           |
+| High     | Zeek      | VM       | Protocol analysis + forensic depth              |
+| High     | Wazuh     | VM       | Catches what network IDS can't — host tampering |
+| High     | Nuclei    | K8s      | Easy win — scales to zero, no span port needed  |
+| Skip     | NetBox    | —        | Overkill — current markdown docs work fine      |
+
+**Why Nuclei on K8s:** Unlike Suricata/Zeek (which need span port traffic from VyOS on the same host) and Wazuh (which must survive K8s compromise), Nuclei is a scheduled scanner with no network topology constraints. CronJob scales to zero between scans.
 
 ## Open Questions
 
@@ -537,12 +523,13 @@ Enterprise vulnerability scanner.
 
 ## Status
 
-**Exploration phase.** Suricata (network) + Wazuh (host) provide defense in depth. Nuclei adds proactive scanning. Start with Phases 1-3.
+**Exploration phase.** IDS Stack (Suricata + Zeek + Wazuh) provides defense in depth. Nuclei on K8s adds proactive scanning. Fleet/osquery on Monitoring Stack adds SQL-based fleet querying. Start with Phases 1-3.
 
 ## Related Documents
 
+- `kubernetes.md` — Nuclei runs as K8s CronJob in `infra` namespace
+- `osquery.md` — Fleet server on Monitoring Stack, SQL-based fleet querying
 - `../virtual-machines.md` — VM allocation and resource usage
 - `../networking.md` — Current network architecture
 - `../monitoring.md` — Existing observability stack
-- `osquery.md` — Host-level visibility (complements network IDS)
 - `patch-management.md` — Vulnerability management

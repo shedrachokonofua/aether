@@ -225,21 +225,6 @@
           - set service mdns repeater interface eth1.6
         save: true
 
-    - name: Configure NetFlow
-      vyos.vyos.vyos_config:
-        lines:
-          - set system flow-accounting interface pppoe0
-          - set system flow-accounting interface eth1.2
-          - set system flow-accounting interface eth1.3
-          - set system flow-accounting interface eth1.4
-          - set system flow-accounting interface eth1.5
-          - set system flow-accounting interface eth1.6
-          - set system flow-accounting interface eth1.7
-          - set system flow-accounting netflow engine-id 100
-          - set system flow-accounting netflow server {{ vm.monitoring_stack.ip }} port 2055
-          - set system flow-accounting netflow version 9
-        save: true
-
     - name: Configure firewall
       vyos.vyos.vyos_config:
         save: true

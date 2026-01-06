@@ -7,8 +7,6 @@ This playbook will configure the monitoring stack virtual machine. The monitorin
 - Loki
 - Tempo
 - Grafana
-- netflow2ng (NetFlow/sFlow collector)
-- ntopng (Network traffic monitoring)
 
 ## Usage
 

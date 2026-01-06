@@ -59,19 +59,6 @@
         group: aether
       tags: [grafana]
 
-    - name: Create ntopng directories
-      become: true
-      file:
-        path: "{{ item }}"
-        state: directory
-        mode: "0777"
-        owner: aether
-        group: aether
-      loop:
-        - ./ntopng/data
-        - ./ntopng/redis
-      tags: [ntopng]
-
     - name: Create pve-exporter directory
       become: true
       file:
@@ -179,19 +166,6 @@
           pbs-exporter,
           monitoring-pod,
         ]
-
-    - name: Create ntopng pod
-      containers.podman.podman_pod:
-        name: ntopng
-        network: host
-        state: quadlet
-        restart_policy: on-failure
-        recreate: true
-        quadlet_options:
-          - |
-            [Install]
-            WantedBy=default.target
-      tags: [ntopng]
 
     # === Volumes ===
     - name: Create prometheus storage volume
@@ -302,51 +276,6 @@
           PBS_LISTEN_ADDRESS: ":10019"
       tags: [pbs-exporter]
 
-    - name: Start ntopng redis
-      containers.podman.podman_container:
-        name: ntopng_redis
-        image: docker.io/redis:alpine
-        pod: ntopng.pod
-        pull: always
-        state: quadlet
-        volumes:
-          - /home/aether/ntopng/redis:/data:Z
-      tags: [ntopng]
-
-    - name: Start netflow2ng
-      containers.podman.podman_container:
-        name: netflow2ng
-        image: docker.io/synfinatic/netflow2ng:latest
-        pull: always
-        state: quadlet
-        pod: ntopng.pod
-        command:
-          - "--tlv"
-      tags: [ntopng]
-
-    - name: Start ntopng
-      containers.podman.podman_container:
-        name: ntopng
-        pod: ntopng.pod
-        image: docker.io/ntop/ntopng:latest
-        pull: always
-        state: quadlet
-        command:
-          - "--community"
-          - "--http-port"
-          - "0.0.0.0:{{ vm.monitoring_stack.ports.ntopng }}"
-          - "--interface"
-          - "tcp://localhost:5556"
-          - "--local-networks"
-          - "10.0.0.0/8,192.168.0.0/16"
-        volumes:
-          - /home/aether/ntopng/data:/var/lib/ntopng:Z
-          - /home/aether/ntopng/redis:/var/lib/redis:Z
-        cap_add:
-          - NET_ADMIN
-          - NET_RAW
-      tags: [ntopng]
-
     # === Systemd ===
     - name: Reload systemd
       systemd:
@@ -361,7 +290,6 @@
           grafana,
           pve-exporter,
           pbs-exporter,
-          ntopng,
           systemd,
         ]
 
@@ -381,10 +309,3 @@
           pbs-exporter,
           monitoring-pod,
         ]
-
-    - name: Start ntopng pod quadlet
-      systemd:
-        name: ntopng-pod
-        state: restarted
-        scope: user
-      tags: [ntopng]

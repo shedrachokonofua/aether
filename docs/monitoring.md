@@ -52,7 +52,6 @@ flowchart TB
 | Loki           | Log aggregation and querying                        |
 | Tempo          | Distributed trace storage                           |
 | Grafana        | Visualization and alerting                          |
-| ntopng         | Network traffic analysis (sFlow/NetFlow)            |
 
 ### Data Retention
 
