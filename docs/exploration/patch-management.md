@@ -182,7 +182,7 @@ Web UI for running Ansible playbooks.
 
 | Tier       | Policy               | Containers                                 | Rationale                              |
 | ---------- | -------------------- | ------------------------------------------ | -------------------------------------- |
-| **Auto**   | `podman auto-update` | Exporters, ntopng, Caddy, simple utilities | Stateless, low risk, restarts fine     |
+| **Auto**   | `podman auto-update` | Exporters, Caddy, simple utilities         | Stateless, low risk, restarts fine     |
 | **Notify** | Dashboard + manual   | Grafana, Prometheus, Loki, Tempo, AdGuard  | Want to review release notes           |
 | **Manual** | Dashboard + research | GitLab, Keycloak, OpenBao, databases       | Breaking changes, migrations, critical |
 

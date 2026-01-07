@@ -38,7 +38,7 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │   ├── step-ca          ├── Gaming Server   ├── Cockpit                          │
 │   ├── OpenBao          └── Blockchain      └── Dev Workstation                  │
 │   ├── AdGuard                                                                    │
-│   └── Net Security     Neo:                Trinity:                              │
+│   └── IDS Stack        Neo:                Trinity:                              │
 │                        └── GPU Workstation ├── Desktop VM (iGPU, Sunshine)      │
 │                           (Ollama,ComfyUI, └── IoT Stack (USB)                  │
 │                            rffmpeg)                                             │
@@ -81,26 +81,27 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 
 ## What Moves to Kubernetes
 
-| Workload     | Current                | K8s Resource       | Scale to Zero                  |
-| ------------ | ---------------------- | ------------------ | ------------------------------ |
-| LiteLLM      | Neo (AI Tool Stack VM) | Knative Service    | ✅                             |
-| OpenWebUI    | Neo (AI Tool Stack VM) | Knative Service    | ✅                             |
-| SearXNG      | Neo (AI Tool Stack VM) | Knative Service    | ✅                             |
-| Firecrawl    | Neo (AI Tool Stack VM) | Knative Service    | ✅                             |
-| Bytebot      | Neo (AI Tool Stack VM) | Knative Service    | ✅                             |
-| GitLab       | Trinity (VM)           | Helm (StatefulSet) | ❌ (needs to receive webhooks) |
-| Synapse      | Niobe (Messaging VM)   | Helm (StatefulSet) | ❌ (needs federation)          |
-| Element      | Niobe (Messaging VM)   | Knative Service    | ✅                             |
-| Lute         | Smith (VM)             | StatefulSet        | ❌                             |
-| NUT Server   | Niobe (UPS VM)         | Deployment         | ❌                             |
-| Peanut       | Niobe (UPS VM)         | Deployment         | ❌                             |
-| Smallweb     | Trinity (LXC)          | Knative Service    | ✅                             |
-| Coupe apps   | Niobe (VM)             | Knative Services   | ✅                             |
-| Dokku apps   | Neo (VM)               | Knative Services   | ✅                             |
-| Dokploy apps | Trinity (VM)           | Knative Services   | ✅                             |
-| Jellyfin     | Trinity (Media Stack)  | Deployment         | ❌ (rffmpeg → GPU Workstation) |
-| MediaManager | Trinity (Media Stack)  | Knative Service    | ✅                             |
-| qBittorrent  | Trinity (Media Stack)  | Deployment         | ❌ (SOCKS5 → rotating-proxy)   |
+| Workload     | Current                         | K8s Resource       | Scale to Zero                  |
+| ------------ | ------------------------------- | ------------------ | ------------------------------ |
+| LiteLLM      | Neo (AI Tool Stack VM)          | Knative Service    | ✅                             |
+| OpenWebUI    | Neo (AI Tool Stack VM)          | Knative Service    | ✅                             |
+| SearXNG      | Neo (AI Tool Stack VM)          | Knative Service    | ✅                             |
+| Firecrawl    | Neo (AI Tool Stack VM)          | Knative Service    | ✅                             |
+| Bytebot      | Neo (AI Tool Stack VM)          | Knative Service    | ✅                             |
+| GitLab       | Trinity (VM)                    | Helm (StatefulSet) | ❌ (needs to receive webhooks) |
+| Synapse      | Niobe (Messaging VM)            | Helm (StatefulSet) | ❌ (needs federation)          |
+| Element      | Niobe (Messaging VM)            | Knative Service    | ✅                             |
+| Lute         | Smith (VM)                      | StatefulSet        | ❌                             |
+| NUT Server   | Niobe (UPS VM)                  | Deployment         | ❌                             |
+| Peanut       | Niobe (UPS VM)                  | Deployment         | ❌                             |
+| Smallweb     | Trinity (LXC)                   | Knative Service    | ✅                             |
+| Coupe apps   | Niobe (VM)                      | Knative Services   | ✅                             |
+| Dokku apps   | Neo (VM)                        | Knative Services   | ✅                             |
+| Dokploy apps | Trinity (VM)                    | Knative Services   | ✅                             |
+| Jellyfin     | Trinity (Media Stack)           | Deployment         | ❌ (rffmpeg → GPU Workstation) |
+| MediaManager | Trinity (Media Stack)           | Knative Service    | ✅                             |
+| qBittorrent  | Trinity (Media Stack)           | Deployment         | ❌ (SOCKS5 → rotating-proxy)   |
+| Nuclei       | (new — see network-security.md) | CronJob            | ✅ (runs weekly)               |
 
 **VMs eliminated:** AI Tool Stack, GitLab, Messaging Stack, UPS Stack, Lute Stack, Coupe Sandbox, Dokku, Dokploy, Smallweb, Media Stack
 
@@ -108,26 +109,26 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 
 ## What Stays as VMs
 
-| Workload               | Host          | Why VM                             |
-| ---------------------- | ------------- | ---------------------------------- |
-| VyOS Router            | Oracle        | Network infrastructure             |
-| Gateway Stack          | Oracle        | Ingress to k8s, trust dependency   |
-| Keycloak               | Oracle        | K8s OIDC auth depends on it        |
-| step-ca                | Oracle        | K8s cert-manager depends on it     |
-| OpenBao                | Oracle        | K8s External Secrets depends on it |
-| AdGuard                | Oracle        | DNS for k8s nodes                  |
-| Network Security Stack | Oracle        | IDS via VyOS mirror                |
-| Monitoring Stack       | Niobe         | Must alert when k8s is down        |
-| Cockpit                | Niobe         | Manages Proxmox hosts              |
-| Dev Workstation        | Trinity/Niobe | Better as VM for IDE               |
-| GPU Workstation        | Neo           | GPU passthrough                    |
-| Gaming Server          | Smith         | GPU passthrough                    |
-| Desktop VM             | Trinity       | iGPU passthrough for Sunshine      |
-| IoT Stack              | Niobe         | USB passthrough for Z-Wave/Thread  |
-| NFS Server             | Smith         | Storage infrastructure             |
-| PBS                    | Smith         | Backup infrastructure              |
-| SeaweedFS              | Smith         | S3 storage infrastructure          |
-| Blockchain Stack       | Smith         | Always-on, ~1TB storage            |
+| Workload         | Host          | Why VM                              |
+| ---------------- | ------------- | ----------------------------------- |
+| VyOS Router      | Oracle        | Network infrastructure              |
+| Gateway Stack    | Oracle        | Ingress to k8s, trust dependency    |
+| Keycloak         | Oracle        | K8s OIDC auth depends on it         |
+| step-ca          | Oracle        | K8s cert-manager depends on it      |
+| OpenBao          | Oracle        | K8s External Secrets depends on it  |
+| AdGuard          | Oracle        | DNS for k8s nodes                   |
+| IDS Stack        | Oracle        | Span port from VyOS + Wazuh Manager |
+| Monitoring Stack | Niobe         | Must alert when k8s is down         |
+| Cockpit          | Niobe         | Manages Proxmox hosts               |
+| Dev Workstation  | Trinity/Niobe | Better as VM for IDE                |
+| GPU Workstation  | Neo           | GPU passthrough                     |
+| Gaming Server    | Smith         | GPU passthrough                     |
+| Desktop VM       | Trinity       | iGPU passthrough for Sunshine       |
+| IoT Stack        | Niobe         | USB passthrough for Z-Wave/Thread   |
+| NFS Server       | Smith         | Storage infrastructure              |
+| PBS              | Smith         | Backup infrastructure               |
+| SeaweedFS        | Smith         | S3 storage infrastructure           |
+| Blockchain Stack | Smith         | Always-on, ~1TB storage             |
 
 ## Platform Components
 
@@ -502,12 +503,13 @@ func deploy --registry ghcr.io/alice
 - [ ] Install cert-manager + step-ca ClusterIssuer
 - [ ] Install External Secrets Operator
 
-### Phase 3: Observability
+### Phase 3: Observability + Security Scanning
 
 - [ ] Deploy OTEL Collector DaemonSet
 - [ ] Configure export to Monitoring Stack
 - [ ] Enable Cilium Hubble
 - [ ] Create k8s dashboards in Grafana
+- [ ] Deploy Nuclei CronJob (weekly vulnerability scans, see `network-security.md`)
 
 ### Phase 4: GitLab Integration
 
@@ -571,5 +573,6 @@ func deploy --registry ghcr.io/alice
 - `ceph.md` — Prerequisite distributed storage
 - `nixos.md` — NixOS for foundational VMs (complementary)
 - `desktop-vm.md` — Desktop VM using iGPU freed from Media Stack
+- `network-security.md` — IDS Stack (Suricata + Wazuh on VM, Nuclei on K8s)
 - `../trust-model.md` — Identity architecture (k8s integrates with this)
 - `../monitoring.md` — Observability architecture (hybrid with k8s)

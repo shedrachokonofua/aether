@@ -303,16 +303,16 @@ fleet_enroll_secret: "{{ secrets.fleet_enroll_secret }}"
 
 ## Open Questions
 
-1. Deploy Fleet on Monitoring Stack or dedicated VM?
-2. MySQL/MariaDB: new instance or share with existing?
-3. Which scheduled queries to run by default?
-4. Integrate with Wazuh (if exploring HIDS)?
+1. MySQL/MariaDB: new instance or share with existing?
+2. Which scheduled queries to run by default?
+3. Use Wazuh's osquery integration or keep them separate?
 
 ## Status
 
-**Exploration phase.** Powerful but adds complexity.
+**Planned.** Fleet server on Monitoring Stack, osquery agents on all VMs via `vm_monitoring_agent` role.
 
 ## Related Documents
 
+- `network-security.md` — IDS Stack (Suricata + Zeek + Wazuh) — osquery complements with ad-hoc SQL queries
 - `patch-management.md` — Container CVEs, image updates, OS packages
-- `../monitoring.md` — Existing observability stack
+- `../monitoring.md` — Fleet server runs here

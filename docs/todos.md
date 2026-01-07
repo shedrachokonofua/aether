@@ -69,12 +69,13 @@
   - [ ] Phase 2: Gateway credential security (WIF)
   - [ ] Phase 3: VyOS route for home → Tailnet
   - [ ] Phase 4: MagicDNS via AdGuard
-- [ ] Deploy network security stack as NixOS VM ([exploration](exploration/network-security.md))
-  - [ ] Create NixOS config for Network Security Stack
-  - [ ] Provision VM on Oracle via Tofu
-  - [ ] Deploy via nixos-rebuild --target-host
-  - [ ] Configure VyOS port mirror to span port
-  - [ ] Deploy Suricata with ET Open rules
+- [x] Deploy IDS stack as NixOS VM ([exploration](exploration/network-security.md))
+  - [x] Create NixOS config (`nix/hosts/oracle/ids-stack.nix`)
+  - [x] Provision VM on Oracle via Tofu
+  - [x] Deploy via nixos-rebuild --target-host
+  - [x] Configure VyOS port mirror to span port
+  - [x] Deploy Zeek for network traffic analysis (quadlet-nix)
+  - [x] Deploy Suricata on VyOS router directly
   - [ ] Deploy Nuclei for vulnerability scanning
   - [ ] Add Wazuh agents to vm_monitoring_agent role
 - [ ] Consolidate ProtonVPN infrastructure
@@ -98,7 +99,10 @@
 ## P3
 
 - [ ] Continue NixOS migration ([docs](../nixos.md), [exploration](exploration/nixos.md))
-  - [ ] Migrate Gateway Stack
+  - [x] Dev shell (`nix develop`) - replaced Docker toolbox
+  - [x] AdGuard LXC - DNS, OTEL, Prometheus exporter
+  - [x] IDS Stack VM - Zeek via quadlet-nix
+  - [ ] Migrate Gateway Stack (Caddy, Tailscale, HAProxy)
   - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao) via nixos-generators LXC
   - [ ] Migrate Monitoring Stack
   - [ ] Migrate Dev Workstation

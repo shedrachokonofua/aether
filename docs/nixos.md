@@ -37,15 +37,15 @@ After:  NixOS declares what state IS       → no drift      → rollback = buil
 
 ### What Becomes NixOS
 
-| Target           | Current               | Becomes       | Why NixOS                                 |
-| ---------------- | --------------------- | ------------- | ----------------------------------------- |
-| CLI Toolbox      | Docker container      | `nix develop` | No container overhead, native shell       |
-| AdGuard          | Part of Gateway Stack | NixOS LXC     | DNS for everything, must be reliable      |
-| Network Security | Planned               | NixOS VM      | Greenfield, declarative IDS/scanning      |
-| Gateway Stack    | Fedora + Ansible      | NixOS VM      | Ingress for everything, needs reliability |
-| Monitoring Stack | Fedora + Ansible      | NixOS VM      | Must survive other failures               |
-| Identity Stack   | LXCs (Fedora)         | NixOS LXCs    | Critical PKI, secrets, identity           |
-| Dev Workstation  | Fedora + Ansible      | NixOS VM      | Reproducible dev environment              |
+| Target           | Current               | Becomes       | Status      |
+| ---------------- | --------------------- | ------------- | ----------- |
+| CLI Toolbox      | Docker container      | `nix develop` | ✅ Complete |
+| AdGuard          | Part of Gateway Stack | NixOS LXC     | ✅ Complete |
+| IDS Stack        | —                     | NixOS VM      | ✅ Complete |
+| Gateway Stack    | Fedora + Ansible      | NixOS VM      | Planned     |
+| Monitoring Stack | Fedora + Ansible      | NixOS VM      | Planned     |
+| Identity Stack   | LXCs (Fedora)         | NixOS LXCs    | Planned     |
+| Dev Workstation  | Fedora + Ansible      | NixOS VM      | Backlog     |
 
 ### What Stays As-Is
 
@@ -78,15 +78,14 @@ After:  NixOS declares what state IS       → no drift      → rollback = buil
 │                         NIXOS FOUNDATIONAL LAYER                             │
 │                                                                              │
 │   Oracle:                    Niobe:                    Trinity:              │
-│   ├── adguard.nix            ├── monitoring.nix        ├── dev.nix          │
-│   ├── network-security.nix   │   ├── Prometheus        │   └── Coder        │
-│   │   ├── Suricata           │   ├── Grafana           │                    │
-│   │   └── Nuclei             │   ├── Loki              ├── media.nix        │
-│   │                          │   └── OTEL              │   ├── Jellyfin     │
-│   ├── gateway.nix            │                         │   └── qBit+VPN     │
-│   │   ├── Caddy              └── iot.nix               │                    │
-│   │   ├── Tailscale              └── Home Assistant    │                    │
-│   │   └── HAProxy                                      │                    │
+│   ├── adguard.nix ✅         ├── monitoring.nix        ├── dev.nix          │
+│   ├── ids-stack.nix ✅       │   ├── Prometheus        │   └── Coder        │
+│   │   └── Zeek               │   ├── Grafana           │                    │
+│   │                          │   ├── Loki              ├── media.nix        │
+│   ├── gateway.nix            │   └── OTEL              │   ├── Jellyfin     │
+│   │   ├── Caddy              │                         │   └── qBit+VPN     │
+│   │   ├── Tailscale          └── iot.nix               │                    │
+│   │   └── HAProxy                └── Home Assistant    │                    │
 │   │                                                                          │
 │   ├── keycloak.nix (LXC)                                                    │
 │   ├── step-ca.nix (LXC)                                                     │
@@ -105,51 +104,48 @@ After:  NixOS declares what state IS       → no drift      → rollback = buil
 
 ```
 aether/
+├── flake.nix                     # Flake root (dev shell + host configs)
+├── flake.lock                    # Pinned dependencies
 ├── nix/
-│   ├── flake.nix                 # Flake root (dev shell + host configs)
-│   ├── flake.lock                # Pinned dependencies
 │   ├── hosts/                    # Per-host configurations
 │   │   └── oracle/
-│   │       ├── adguard.nix
-│   │       └── network-security.nix
+│   │       ├── adguard.nix       # DNS server (LXC)
+│   │       └── ids-stack.nix     # Network security (VM)
 │   ├── modules/                  # Reusable modules
-│   │   ├── base.nix              # Common config (users, SSH, OTEL)
-│   │   └── podman.nix            # quadlet-nix defaults
-│   └── shells/
-│       └── default.nix           # Dev environment (replaces Docker toolbox)
+│   │   ├── base.nix              # SSH CA, users, firewall, common packages
+│   │   ├── otel-agent.nix        # OTEL Collector with Prometheus scraping
+│   │   ├── vm-common.nix         # cloud-init, qemu-guest-agent
+│   │   └── vm-hardware.nix       # Boot/filesystem for nixos-rebuild
+│   └── images/                   # Base images for Proxmox
+│       ├── vm-base.nix           # qcow2 image (cloud-init enabled)
+│       └── lxc-base.nix          # Proxmox LXC template
 │
 ├── ansible/                      # Remaining (VyOS, GPU Workstation, Proxmox hosts)
 ├── tofu/                         # VM/LXC provisioning (unchanged)
 └── ...
 ```
 
-## Phase 1: Dev Shell (Replaces Docker Toolbox)
+## Dev Shell
 
-The first step is replacing the Docker-based toolbox with `nix develop`. This provides immediate value with zero risk to production systems.
-
-### Current Flow
-
-```bash
-# Build container
-task build-tools
-
-# Run tools inside Docker
-task tofu:plan    # docker run ... tofu plan
-task ansible:playbook -- ...  # docker run ... ansible-playbook
-```
-
-### New Flow
+The Nix flake provides a reproducible CLI environment with all infrastructure tools:
 
 ```bash
 # Enter dev shell (or auto-enter via direnv)
 nix develop
 
-# Run tools natively
-task tofu:plan    # just runs tofu
-task ansible:playbook -- ...  # just runs ansible
+# Tools are available directly
+task tofu:plan
+task ansible:playbook -- ...
 ```
 
-### Benefits
+With `direnv`, the shell auto-activates when entering the project:
+
+```bash
+$ cd ~/projects/aether
+direnv: loading .envrc
+direnv: using flake
+# Tools available automatically in every terminal tab
+```
 
 | Aspect          | Docker Toolbox     | nix develop       |
 | --------------- | ------------------ | ----------------- |
@@ -159,28 +155,40 @@ task ansible:playbook -- ...  # just runs ansible
 | Disk usage      | ~500MB image       | Shared /nix/store |
 | Host dependency | Docker daemon      | Nix only          |
 
-### Ergonomics
+## Base Images
 
-With `direnv` + `nix-direnv`, the shell auto-activates when entering the project:
+Build VM and LXC templates with SSH CA trust baked in:
 
 ```bash
-$ cd ~/projects/aether
-direnv: loading .envrc
-direnv: using flake
-# Tools available automatically in every terminal tab
+# Build qcow2 for Proxmox VMs (cloud-init enabled)
+SSH_CA_PUBKEY="$(ssh root@step-ca cat /etc/step-ca/certs/ssh_user_ca_key.pub)" \
+  nix build .#vm-base-image --impure
+
+# Build Proxmox LXC template
+SSH_CA_PUBKEY="..." nix build .#lxc-base-image --impure
 ```
 
-## Migration Path
+## Deployment
 
-| Phase | Target                    | Risk           | Effort |
-| ----- | ------------------------- | -------------- | ------ |
-| 1     | Dev shell (`nix develop`) | None           | Low    |
-| 2     | AdGuard LXC               | Low            | Medium |
-| 3     | Network Security VM       | Low            | Medium |
-| 4     | Gateway Stack             | Medium         | High   |
-| 5     | Identity Stack (LXCs)     | Medium         | High   |
-| 6     | Monitoring Stack          | Medium         | High   |
-| 7     | Remaining VMs             | Lower priority | —      |
+Deploy NixOS configurations to running VMs/LXCs:
+
+```bash
+# Deploy to target host
+SSH_CA_PUBKEY="$(ssh root@step-ca cat /etc/step-ca/certs/ssh_user_ca_key.pub)" \
+  nixos-rebuild switch --flake .#adguard --target-host root@adguard --impure
+```
+
+## Migration Progress
+
+| Phase | Target                    | Status      | Notes                                  |
+| ----- | ------------------------- | ----------- | -------------------------------------- |
+| 1     | Dev shell (`nix develop`) | ✅ Complete | Replaced Docker toolbox                |
+| 2     | AdGuard LXC               | ✅ Complete | Full DNS config, OTEL, Prometheus      |
+| 3     | IDS Stack VM              | ✅ Complete | Zeek via quadlet-nix, Suricata on VyOS |
+| 4     | Gateway Stack             | Planned     | Caddy, Tailscale, HAProxy              |
+| 5     | Identity Stack (LXCs)     | Planned     | Keycloak, step-ca, OpenBao             |
+| 6     | Monitoring Stack          | Planned     | Prometheus, Grafana, Loki, Tempo       |
+| 7     | Remaining VMs             | Backlog     | IoT, Media, Dev Workstation            |
 
 Each phase is independent. Ansible remains for non-NixOS targets indefinitely.
 

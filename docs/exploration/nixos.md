@@ -17,7 +17,6 @@ Replace Fedora + Ansible with NixOS for VMs that:
 | Gateway Stack    | Fedora + Ansible | NixOS     | Ingress for everything, needs reliability    |
 | Monitoring Stack | Fedora + Ansible | NixOS     | Must survive K8s failures                    |
 | Dev Workstation  | Fedora + Ansible | NixOS     | Reproducible dev environment                 |
-| Media Stack      | Fedora + Ansible | NixOS     | Complex stack, rollback valuable             |
 | IoT Stack        | Fedora + Ansible | NixOS     | USB passthrough works, declarative HA config |
 | Cockpit          | Fedora + Ansible | NixOS     | Minimal change, good starter                 |
 | Keycloak         | LXC              | NixOS LXC | Critical identity provider                   |
@@ -117,18 +116,21 @@ Containers managed as systemd units through [Podman Quadlet](https://docs.podman
 
 ```
 aether/
+├── flake.nix                     # Flake root (dev shell + host configs)
+├── flake.lock                    # Pinned dependencies
 ├── nix/
-│   ├── flake.nix                 # Flake root
-│   ├── flake.lock                # Pinned dependencies
-│   ├── hosts/                    # Per-VM configurations
-│   │   ├── oracle/
-│   │   ├── niobe/
-│   │   └── trinity/
+│   ├── hosts/                    # Per-host configurations
+│   │   └── oracle/
+│   │       ├── adguard.nix       # DNS server (LXC) ✅
+│   │       └── ids-stack.nix     # Network security (VM) ✅
 │   ├── modules/                  # Reusable modules
-│   │   ├── base.nix              # Common config (users, SSH, OTEL)
-│   │   └── podman.nix            # quadlet-nix defaults
-│   └── shells/
-│       └── default.nix           # aether dev environment
+│   │   ├── base.nix              # SSH CA, users, firewall, OTEL
+│   │   ├── otel-agent.nix        # OTEL Collector with Prometheus
+│   │   ├── vm-common.nix         # cloud-init, qemu-guest-agent
+│   │   └── vm-hardware.nix       # Boot/filesystem for nixos-rebuild
+│   └── images/                   # Base images for Proxmox
+│       ├── vm-base.nix           # qcow2 image
+│       └── lxc-base.nix          # LXC template
 │
 ├── ansible/                      # Remaining (GPU Workstation, Smith LXCs, etc.)
 ├── tofu/                         # VM provisioning (unchanged)
@@ -175,14 +177,15 @@ nixos-rebuild switch --flake .#gateway --target-host root@gateway
 
 ## Migration Strategy
 
-| Phase | Target                    | Risk                                     |
-| ----- | ------------------------- | ---------------------------------------- |
-| 1     | Dev shell (`nix develop`) | None                                     |
-| 2     | Cockpit                   | Lowest — minimal services                |
-| 3     | Gateway Stack             | Medium — high value                      |
-| 4     | Identity Stack (Oracle)   | Medium — rebuild LXCs via nix-generators |
-| 5     | Monitoring Stack          | Medium — declarative alerting            |
-| 6     | Media + IoT               | Lower priority                           |
+| Phase | Target                    | Status      | Notes                             |
+| ----- | ------------------------- | ----------- | --------------------------------- |
+| 1     | Dev shell (`nix develop`) | ✅ Complete | Replaced Docker toolbox           |
+| 2     | AdGuard LXC               | ✅ Complete | DNS, OTEL, Prometheus exporter    |
+| 3     | IDS Stack VM              | ✅ Complete | Zeek via quadlet-nix              |
+| 4     | Gateway Stack             | Planned     | Caddy, Tailscale, HAProxy         |
+| 5     | Identity Stack (Oracle)   | Planned     | Rebuild LXCs via nixos-generators |
+| 6     | Monitoring Stack          | Planned     | Declarative alerting              |
+| 7     | Media + IoT               | Backlog     | Lower priority                    |
 
 ### NixOS in LXC
 
@@ -209,7 +212,20 @@ Lower overhead than VMs, same declarative benefits.
 
 ## Status
 
-**Exploration complete.** Ready to implement starting with dev shell + Cockpit VM.
+**Phase 1-3 complete.** Dev shell, AdGuard LXC, and IDS Stack VM deployed and operational.
+
+### Completed
+
+- Dev shell (`nix develop`) with all infrastructure tools
+- AdGuard LXC with full DNS config, OTEL monitoring, Prometheus exporter
+- IDS Stack VM with Zeek (via quadlet-nix), network traffic analysis
+- Base VM/LXC images with SSH CA trust baked in
+- Reusable modules: `base.nix`, `otel-agent.nix`, `vm-common.nix`, `vm-hardware.nix`
+
+### Next
+
+- Gateway Stack (Caddy, Tailscale, HAProxy)
+- Identity Stack LXCs (Keycloak, step-ca, OpenBao)
 
 ## Related Documents
 
