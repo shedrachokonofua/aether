@@ -428,6 +428,14 @@
           - set firewall ipv4 name MEDIA-to-SERVICES default-action accept
 
           # Configure untrusted zone isolation
+          # Intra-zone isolation - prevent IoT/Guest devices from attacking each other
+          - set firewall ipv4 name UNTRUSTED-INTRA default-action drop
+          - set firewall ipv4 name UNTRUSTED-INTRA description 'Isolate IoT and Guest devices from each other'
+          - set firewall ipv4 name UNTRUSTED-INTRA rule 10 action accept
+          - set firewall ipv4 name UNTRUSTED-INTRA rule 10 state established
+          - set firewall ipv4 name UNTRUSTED-INTRA rule 10 state related
+          - set firewall zone UNTRUSTED intra-zone-filtering firewall name UNTRUSTED-INTRA
+
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED default-action drop
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 action accept
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 state established
