@@ -25,13 +25,14 @@ Enable automatic VM recovery when a Proxmox node fails. Instead of manual PBS re
 
 ### VM Storage Distribution
 
-| Tier  | Storage          | VMs                                                                         | HA Status     |
-| ----- | ---------------- | --------------------------------------------------------------------------- | ------------- |
-| Ceph  | ceph-vm-disks    | gitlab, dokploy, ai-tool-stack, dokku, messaging, iot, media, smallweb, etc | ✅ Ready      |
-| Local | Oracle local-lvm | vyos-router, home-gateway-stack, keycloak, step-ca, openbao                 | ❌ Needs ZFS  |
-| Local | Niobe local-lvm  | monitoring-stack                                                            | ❌ Needs ZFS  |
-| Local | Neo local        | gpu-workstation                                                             | ❌ GPU pinned |
-| Local | Smith local-lvm  | backup-stack                                                                | N/A           |
+| Tier  | Storage          | VMs                                                                   | HA Status            |
+| ----- | ---------------- | --------------------------------------------------------------------- | -------------------- |
+| Ceph  | ceph-vm-disks    | gitlab, dokploy, ai-tool-stack, dokku, messaging, media, smallweb etc | ✅ Configured (11)   |
+| Ceph  | ceph-vm-disks    | iot-management, game-server                                           | ❌ Hardware pinned   |
+| Local | Oracle local-lvm | vyos-router, home-gateway-stack, keycloak, step-ca, openbao           | ❌ Needs ZFS         |
+| Local | Niobe local-lvm  | monitoring-stack                                                      | ❌ Needs ZFS         |
+| Local | Neo local        | gpu-workstation                                                       | ❌ GPU pinned        |
+| Local | Smith local-lvm  | backup-stack                                                          | N/A                  |
 
 ## Why HA Matters
 
@@ -85,64 +86,59 @@ flowchart LR
 
 VMs on Ceph distributed storage with automatic HA:
 
-| VMID | Name            | Size  | Status |
-| ---- | --------------- | ----- | ------ |
-| 1005 | dokploy         | 256GB | ✅     |
-| 1006 | gitlab          | 128GB | ✅     |
-| 1009 | iot-management  | 32GB  | ✅     |
-| 1010 | dev-workstation | 256GB | ✅     |
-| 1011 | lute            | 256GB | ✅     |
-| 1014 | game-server     | 256GB | ✅     |
-| 1015 | cockpit         | 32GB  | ✅     |
-| 1016 | messaging-stack | 64GB  | ✅     |
-| 1018 | ai-tool-stack   | 128GB | ✅     |
-| 1019 | ups-management  | 32GB  | ✅     |
-| 1020 | media-stack     | 128GB | ✅     |
-| 1021 | dokku           | 256GB | ✅     |
-| 1024 | smallweb        | 16GB  | ✅     |
+| VMID | Name            | Size  | HA Configured |
+| ---- | --------------- | ----- | ------------- |
+| 1005 | dokploy         | 256GB | ✅            |
+| 1006 | gitlab          | 128GB | ✅            |
+| 1010 | dev-workstation | 256GB | ✅            |
+| 1011 | lute            | 256GB | ✅            |
+| 1015 | cockpit         | 32GB  | ✅            |
+| 1016 | messaging-stack | 64GB  | ✅            |
+| 1018 | ai-tool-stack   | 128GB | ✅            |
+| 1019 | ups-management  | 32GB  | ✅            |
+| 1020 | media-stack     | 128GB | ✅            |
+| 1021 | dokku           | 256GB | ✅            |
+| 1024 | smallweb        | 16GB  | ✅            |
 
-**HA readiness:** These VMs can failover immediately once Proxmox HA is configured — Ceph provides the shared storage.
+**HA configured:** 11 VMs have HA resources in Tofu and will auto-failover on node failure.
 
 ### Tier 3: Immovable (No HA)
 
-| VM              | Reason                         |
-| --------------- | ------------------------------ |
-| gpu-workstation | GPU passthrough pins it to Neo |
-| backup-stack    | Must work if Ceph fails        |
+| VM              | Reason                                    |
+| --------------- | ----------------------------------------- |
+| gpu-workstation | GPU passthrough pins it to Neo            |
+| iot-management  | USB passthrough (Z-Wave) pins it to Niobe |
+| game-server     | Not managed by Tofu                       |
+| backup-stack    | Must work if Ceph fails                   |
 
 ## Migration Plan
 
-### Phase 1: Configure HA for Ceph VMs — Ready Now ✅
+### Phase 1: Configure HA for Ceph VMs — ✅ DONE
 
-Ceph provides shared storage. HA can be enabled immediately:
+HA group and resources configured in Tofu (`tofu/home/ha.tf` + individual VM files):
 
 ```hcl
-# Tofu configuration
+# tofu/home/ha.tf
 resource "proxmox_virtual_environment_hagroup" "ceph_workloads" {
-  group      = "ceph-workloads"
-  nodes      = ["smith", "trinity", "neo"]
-  restricted = true
-  nofailback = true
+  group   = "ceph-workloads"
+  nodes   = { trinity = 5, neo = 4, smith = 3, niobe = 2 }
+  restricted  = true
+  no_failback = true
 }
 
-# All Ceph-tier VMs
+# Each VM file (e.g. tofu/home/gitlab.tf)
 resource "proxmox_virtual_environment_haresource" "gitlab" {
-  resource_id = "vm:1006"
-  state       = "started"
-  group       = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  resource_id  = "vm:${proxmox_virtual_environment_vm.gitlab.vm_id}"
+  state        = "started"
+  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
+  max_restart  = 3
+  max_relocate = 2
 }
-
-resource "proxmox_virtual_environment_haresource" "dokploy" {
-  resource_id = "vm:1005"
-  state       = "started"
-  group       = proxmox_virtual_environment_hagroup.ceph_workloads.group
-}
-
-# ... repeat for: 1009, 1010, 1011, 1014, 1015, 1016, 1018, 1019, 1020, 1021, 1024
 ```
 
-**Downtime:** None
-**Time:** ~15 minutes (Tofu apply)
+**Configured:** 11 VMs (dokploy, gitlab, dev-workstation, lute, cockpit, messaging-stack, ai-tool-stack, ups-management, media-stack, dokku, smallweb)
+
+**Excluded:** `iot-management` (USB passthrough), `game-server` (not in Tofu)
 
 ### Phase 2: Reinstall Trinity with ZFS (Replication Target)
 
@@ -306,20 +302,20 @@ When the failed node returns:
 
 ## Remaining Work
 
-| Item                    | Hardware | Time      | Downtime                   |
-| ----------------------- | -------- | --------- | -------------------------- |
-| Ceph HA config          | $0       | ~15 min   | None                       |
-| Trinity reinstall       | $0       | ~20 min   | None (Ceph VMs unaffected) |
-| Oracle reinstall        | $0       | ~45 min   | ~30 min (critical VMs)     |
-| Niobe reinstall         | $0       | ~30 min   | ~20 min (monitoring)       |
-| Replication + HA config | $0       | ~30 min   | None                       |
-| **Total**               | **$0**   | **~2.5h** | **~50 min across windows** |
+| Item                    | Hardware | Time    | Downtime                   |
+| ----------------------- | -------- | ------- | -------------------------- |
+| ~~Ceph HA config~~      | ~~$0~~   | ~~Done~~| ~~None~~                   |
+| Trinity reinstall       | $0       | ~20 min | None (Ceph VMs unaffected) |
+| Oracle reinstall        | $0       | ~45 min | ~30 min (critical VMs)     |
+| Niobe reinstall         | $0       | ~30 min | ~20 min (monitoring)       |
+| Replication + HA config | $0       | ~30 min | None                       |
+| **Total remaining**     | **$0**   | **~2h** | **~50 min across windows** |
 
 ## Decision Factors
 
 ### What's Already Done (via Ceph)
 
-- ✅ Auto-recovery for workload VMs (13 VMs)
+- ✅ HA configured for 11 Ceph-backed VMs (auto-failover enabled)
 - ✅ RPO=0 for workload VMs
 - ✅ No single point of failure for storage
 
@@ -339,7 +335,7 @@ When the failed node returns:
 
 ### Recommendation
 
-1. **Immediate:** Enable HA for Ceph VMs (Phase 1) — no downtime
+1. ~~**Immediate:** Enable HA for Ceph VMs (Phase 1) — no downtime~~ ✅ Done
 2. **Scheduled maintenance:** Reinstall Trinity, Oracle, Niobe with ZFS:
    - ~2.5 hours total work
    - ~50 min downtime across two windows (Oracle critical VMs, Niobe monitoring)
@@ -354,16 +350,18 @@ When the failed node returns:
 
 ## Status
 
-**Phase 1 ready.** Ceph HA can be enabled immediately. Local tier requires 3 Proxmox reinstalls.
+**Phase 1 complete.** HA is configured for 11 Ceph-backed VMs. Local tier requires 3 Proxmox reinstalls.
 
 | Phase | Description         | Status                | Downtime             |
 | ----- | ------------------- | --------------------- | -------------------- |
-| 1     | HA for Ceph VMs     | ⏳ Ready to configure | None                 |
+| 1     | HA for Ceph VMs     | ✅ Done (11 VMs)      | None                 |
 | 2     | Reinstall Trinity   | ⏳ Ready              | None                 |
 | 3     | Reinstall Oracle    | ⏳ Blocked on Phase 2 | ~30 min critical VMs |
 | 4     | Reinstall Niobe     | ⏳ Blocked on Phase 2 | ~20 min monitoring   |
 | 5     | Replication setup   | ⏳ Blocked on Phase 4 | None                 |
 | 6     | HA for critical VMs | ⏳ Blocked on Phase 5 | None                 |
+
+**Note:** `iot-management` and `game-server` are excluded from HA due to hardware passthrough (USB/GPU).
 
 ## Related Documents
 

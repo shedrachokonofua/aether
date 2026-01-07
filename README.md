@@ -5,7 +5,7 @@ IaC for my private cloud.
 ## Features
 
 - **Infrastructure as Code**: Provisioning and configuration with Ansible, OpenTofu, and Packer
-- **Compute**: Proxmox VE cluster (5 nodes, 400GB RAM, 100 vCPUs) running VMs and LXC containers
+- **Compute**: Proxmox VE cluster (5 nodes, 400GB RAM, 100 vCPUs) with HA failover for Ceph-backed VMs
 - **Application Containers**: Rootless Podman Quadlets (systemd-native), Docker only for where Podman is not feasible
 - **Networking**: VyOS router with zone-based firewall, 3Gbps symmetric WAN, 10Gbps backbone, VLAN segmentation, AdGuard DNS, Tailscale mesh, rotating VPN SOCKS5 proxy
 - **Public Gateway**: Selective internet exposure via Cloudflare DNS/CDN, AWS Lightsail DMZ + CrowdSec WAF, proxied home via Tailscale mesh
