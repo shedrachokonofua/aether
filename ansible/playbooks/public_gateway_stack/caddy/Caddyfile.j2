@@ -47,6 +47,7 @@ shdr.ch, *.shdr.ch {
 
   route {
     crowdsec
+    appsec
     reverse_proxy 10.0.2.2:9443 {
       header_up Host {host}
       header_up X-Real-IP {client_ip}
