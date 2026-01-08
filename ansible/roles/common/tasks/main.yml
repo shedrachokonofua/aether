@@ -2,16 +2,19 @@
   include_vars:
     file: "{{ aether_root }}/config/vm.yml"
     name: vm
+  tags: [always]
 
 - name: Load secrets
   community.sops.load_vars:
     file: "{{ aether_root }}/secrets/secrets.yml"
     name: secrets
+  tags: [always]
 
 - name: Load tf outputs
   include_vars:
     file: "{{ aether_root }}/secrets/tf-outputs.json"
     name: tf_outputs
+  tags: [always]
 
 - name: Check if AWS stack output directory exists
   ansible.builtin.stat:

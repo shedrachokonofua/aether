@@ -2,6 +2,9 @@
 - name: Deploy monitoring stack
   hosts: monitoring-stack
   gather_facts: true
+  vars:
+    # Disable OTLP receiver in vm_monitoring_agent - central collector handles it
+    otlp_receiver_enabled: false
   roles:
     - common
     - vm_baseline
@@ -79,6 +82,19 @@
         group: aether
       tags: [pbs-exporter]
 
+    - name: Create clickhouse directories
+      become: true
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      loop:
+        - ./clickhouse/data
+        - ./clickhouse/init
+      tags: [clickhouse]
+
     # === Configuration Files ===
     - name: Copy prometheus config
       copy:
@@ -102,8 +118,8 @@
       tags: [tempo]
 
     - name: Create otel config
-      copy:
-        src: ./otel_config.yml
+      template:
+        src: ./otel_config.yml.j2
         dest: ./otel/otel_config.yml
         mode: "0755"
       tags: [otel]
@@ -115,10 +131,27 @@
         mode: "0755"
       tags: [grafana]
 
-    - name: Create grafana provisioning
+    - name: Create grafana provisioning directories
+      file:
+        path: "./grafana/provisioning/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - datasources
+        - dashboards
+      tags: [grafana]
+
+    - name: Template grafana datasources
+      template:
+        src: ./grafana/provisioning/datasources/datasource.yml.j2
+        dest: ./grafana/provisioning/datasources/datasource.yml
+        mode: "0644"
+      tags: [grafana]
+
+    - name: Copy grafana dashboards provisioning
       copy:
-        src: ./grafana/provisioning/
-        dest: ./grafana/provisioning/
+        src: ./grafana/provisioning/dashboards/
+        dest: ./grafana/provisioning/dashboards/
         mode: "0755"
       tags: [grafana]
 
@@ -134,6 +167,13 @@
         mode: "0644"
       tags: [pve-exporter]
 
+    - name: Copy ClickHouse init scripts
+      copy:
+        src: ./clickhouse/
+        dest: ./clickhouse/init/
+        mode: "0644"
+      tags: [clickhouse]
+
     # === Pods ===
     - name: Create monitoring stack pod
       containers.podman.podman_pod:
@@ -146,6 +186,7 @@
           - "{{ vm.monitoring_stack.ports.otel_http }}:4318"
           - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"
           - "{{ vm.monitoring_stack.ports.otel_prometheus }}:8889"
+          - "{{ vm.monitoring_stack.ports.clickhouse }}:8123" # ClickHouse HTTP/Play UI
           - "9221:9221" # PVE Exporter
           - "10019:10019" # PBS Exporter
         state: quadlet
@@ -162,6 +203,7 @@
           tempo,
           otel,
           grafana,
+          clickhouse,
           pve-exporter,
           pbs-exporter,
           monitoring-pod,
@@ -179,6 +221,12 @@
         name: grafana_storage
         state: quadlet
       tags: [grafana]
+
+    - name: Create clickhouse storage volume
+      containers.podman.podman_volume:
+        name: clickhouse_storage
+        state: quadlet
+      tags: [clickhouse]
 
     # === Containers ===
     - name: Start prometheus
@@ -247,6 +295,8 @@
           - /home/aether/grafana/grafana.ini:/etc/grafana/grafana.ini:Z
           - /home/aether/grafana/provisioning:/etc/grafana/provisioning:Z
           - grafana_storage.volume:/var/lib/grafana:Z
+        env:
+          GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
       tags: [grafana]
 
     - name: Start PVE exporter
@@ -276,6 +326,22 @@
           PBS_LISTEN_ADDRESS: ":10019"
       tags: [pbs-exporter]
 
+    - name: Start ClickHouse
+      containers.podman.podman_container:
+        name: clickhouse
+        pod: monitoring-stack.pod
+        image: docker.io/clickhouse/clickhouse-server:latest
+        pull: always
+        state: quadlet
+        volumes:
+          - clickhouse_storage.volume:/var/lib/clickhouse:Z
+          - /home/aether/clickhouse/init:/docker-entrypoint-initdb.d:Z
+        env:
+          CLICKHOUSE_USER: aether
+          CLICKHOUSE_PASSWORD: "{{ secrets.clickhouse.password }}"
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      tags: [clickhouse]
+
     # === Systemd ===
     - name: Reload systemd
       systemd:
@@ -288,6 +354,7 @@
           tempo,
           otel,
           grafana,
+          clickhouse,
           pve-exporter,
           pbs-exporter,
           systemd,
@@ -305,6 +372,7 @@
           tempo,
           otel,
           grafana,
+          clickhouse,
           pve-exporter,
           pbs-exporter,
           monitoring-pod,

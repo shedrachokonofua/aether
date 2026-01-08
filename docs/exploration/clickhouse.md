@@ -841,16 +841,34 @@ LIMIT 20;
 
 ## Status
 
-**Exploration complete.** Ready for implementation.
+**Implemented.** ClickHouse deployed to monitoring stack.
 
-**Next steps:**
+**What was done:**
 
-1. Bump monitoring stack resources (8GB → 16GB RAM, 128GB → 256GB disk)
-2. Deploy ClickHouse container
-3. Create schema: Null ingest table + typed tables + MVs
-4. Configure Zeek log rotation in `ids-stack.nix`
-5. Configure IDS Stack OTEL with filelog receiver → ClickHouse exporter
-6. Build Zeek analytics dashboards in Grafana
+1. ✅ Monitoring stack already at 16GB RAM, 256GB disk
+2. ✅ ClickHouse container added to monitoring-stack pod (`ansible/playbooks/monitoring_stack/site.yml`)
+3. ✅ SQL init scripts created for typed tables + MVs (`ansible/playbooks/monitoring_stack/clickhouse/`)
+4. ✅ Zeek log rotation added to `nix/hosts/oracle/ids-stack.nix`
+5. ✅ OTEL config updated to route Zeek logs to ClickHouse (`otel_config.yml`)
+6. ✅ IDS dashboard updated with ClickHouse panels for Zeek analytics
+
+**Deployment:**
+
+```bash
+# Deploy home gateway (adds clickhouse.home.shdr.ch)
+task deploy:home-gateway-stack
+
+# Deploy monitoring stack with ClickHouse
+# SQL init scripts run automatically on first startup
+task deploy:monitoring-stack
+
+# Deploy IDS stack with log rotation
+task configure:ids-stack
+```
+
+**Schema auto-init:** The `otel_logs` table is pre-created with OTEL's exact schema (from [logs_table.sql](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/logs_table.sql)), so MVs and typed tables are created at container startup. No manual SQL execution needed.
+
+**Play UI:** Available at `https://clickhouse.home.shdr.ch/play` for ad-hoc queries.
 
 ## Related Documents
 

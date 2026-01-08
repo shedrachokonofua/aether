@@ -48,7 +48,7 @@ monitoring_stack:
   admin: "aether"
   cores: 4
   memory: 8192
-  disk_gb: 128
+  disk_gb: 256
   ip: "10.0.2.3"
   gateway: "10.0.2.1"
   ports:
@@ -59,6 +59,7 @@ monitoring_stack:
     otel_metrics: 8888
     otel_prometheus: 8889
     prometheus: 9090
+    clickhouse: 8123
 
 nfs:
   id: 1004

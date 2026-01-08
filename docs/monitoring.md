@@ -23,17 +23,25 @@ flowchart TB
             direction LR
             OTLP["OTLP Receiver"]
             PromRx["Prometheus Receiver"]
+            Router["Log Router"]
         end
 
         subgraph Backends["Backends"]
-            Prometheus[(Prometheus)] ~~~ Loki[(Loki)] ~~~ Tempo[(Tempo)]
+            Prometheus[(Prometheus)]
+            Loki[(Loki)]
+            Tempo[(Tempo)]
+            ClickHouse[(ClickHouse)]
         end
 
         Grafana[Grafana]
     end
 
-    OTLP --> Backends
-    PromRx --> Backends
+    OTLP --> Router
+    Router -->|Zeek logs| ClickHouse
+    Router -->|other logs| Loki
+    OTLP --> Prometheus
+    OTLP --> Tempo
+    PromRx --> Prometheus
     Backends --> Grafana
 
     style Hosts fill:#d4e5f7,stroke:#6a9fd4
@@ -45,21 +53,23 @@ flowchart TB
 
 ## Central Stack
 
-| Component      | Purpose                                             |
-| -------------- | --------------------------------------------------- |
-| OTEL Collector | Central receiver, scrapes hosts, routes to backends |
-| Prometheus     | Metrics storage (TSDB)                              |
-| Loki           | Log aggregation and querying                        |
-| Tempo          | Distributed trace storage                           |
-| Grafana        | Visualization and alerting                          |
+| Component      | Purpose                                               |
+| -------------- | ----------------------------------------------------- |
+| OTEL Collector | Central receiver, scrapes hosts, routes to backends   |
+| Prometheus     | Metrics storage (TSDB)                                |
+| Loki           | Log aggregation and querying                          |
+| Tempo          | Distributed trace storage                             |
+| ClickHouse     | Network protocol logs (Zeek) with SQL analytics       |
+| Grafana        | Visualization and alerting                            |
 
 ### Data Retention
 
-| Backend    | Retention | Notes                        |
-| ---------- | --------- | ---------------------------- |
-| Prometheus | 15 days   | Default TSDB retention       |
-| Loki       | 90 days   | Compactor deletes after 2h   |
-| Tempo      | 7 days    | Block retention in compactor |
+| Backend    | Retention | Notes                                        |
+| ---------- | --------- | -------------------------------------------- |
+| Prometheus | 15 days   | Default TSDB retention                       |
+| Loki       | 90 days   | Compactor deletes after 2h                   |
+| Tempo      | 7 days    | Block retention in compactor                 |
+| ClickHouse | 365 days  | TTL on tables, hourly aggregates for 1 year  |
 
 ## Monitoring Agents
 
@@ -117,22 +127,23 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 
 ## Dashboards
 
-| Dashboard       | Purpose                                 |
-| --------------- | --------------------------------------- |
-| Proxmox Cluster | Host/VM/LXC resource usage              |
-| Hosts           | Node exporter metrics for Proxmox hosts |
-| Disk Health     | SMART metrics, disk temps, wear levels  |
-| DNS             | AdGuard query stats, blocked domains    |
-| Reverse Proxy   | Caddy request rates, latencies, errors  |
-| HAProxy         | Backend health, connection stats        |
-| PBS             | Backup job status, datastore usage      |
-| UPS             | Power status, battery, load             |
-| Access Point    | UniFi AP client stats, signal strength  |
-| IoT             | Home Assistant                          |
-| qBittorrent     | Torrent stats, speeds                   |
-| Synapse         | Matrix server metrics                   |
-| Postfix         | Mail queue, delivery stats              |
-| ntfy            | Push notification delivery              |
+| Dashboard       | Purpose                                       |
+| --------------- | --------------------------------------------- |
+| Proxmox Cluster | Host/VM/LXC resource usage                    |
+| Hosts           | Node exporter metrics for Proxmox hosts       |
+| Disk Health     | SMART metrics, disk temps, wear levels        |
+| DNS             | AdGuard query stats, blocked domains          |
+| Reverse Proxy   | Caddy request rates, latencies, errors        |
+| HAProxy         | Backend health, connection stats              |
+| PBS             | Backup job status, datastore usage            |
+| UPS             | Power status, battery, load                   |
+| Access Point    | UniFi AP client stats, signal strength        |
+| IoT             | Home Assistant                                |
+| qBittorrent     | Torrent stats, speeds                         |
+| Synapse         | Matrix server metrics                         |
+| Postfix         | Mail queue, delivery stats                    |
+| ntfy            | Push notification delivery                    |
+| IDS Monitoring  | Suricata alerts, Zeek protocol analytics (CH) |
 
 ## Alerting
 

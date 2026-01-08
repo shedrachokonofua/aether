@@ -85,6 +85,44 @@ in
       };
     };
 
+    jsonFilelogs = mkOption {
+      type = types.attrsOf (types.submodule {
+        options = {
+          include = mkOption {
+            type = types.listOf types.str;
+            description = "File patterns to include";
+          };
+          exclude = mkOption {
+            type = types.listOf types.str;
+            default = [];
+            description = "File patterns to exclude";
+          };
+          timestampField = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            example = "ts";
+            description = "JSON field containing epoch timestamp (null = use log time)";
+          };
+          resourceAttributes = mkOption {
+            type = types.attrsOf types.str;
+            default = {};
+            example = { "log.source" = "zeek"; };
+            description = "Resource attributes to add (useful for routing)";
+          };
+        };
+      });
+      default = {};
+      example = {
+        zeek = {
+          include = [ "/var/lib/zeek/logs/*.log" "/var/lib/zeek/logs/**/*.log" ];
+          exclude = [ "/var/lib/zeek/logs/stats.log" ];
+          timestampField = "ts";
+          resourceAttributes = { "log.source" = "zeek"; };
+        };
+      };
+      description = "Named JSON filelog receivers with automatic parsing";
+    };
+
     otlpReceiver = {
       enable = mkOption {
         type = types.bool;
@@ -166,6 +204,28 @@ in
               include = cfg.filelog.patterns;
             };
           })
+
+          # JSON filelog receivers (generic, configurable per-VM)
+          (mapAttrs' (name: jfCfg: nameValuePair "filelog/${name}" ({
+            storage = "file_storage/${name}_checkpoint";
+            include = jfCfg.include;
+            exclude = jfCfg.exclude;
+            start_at = "end";
+            include_file_name = true;
+            operators = [
+              ({
+                type = "json_parser";
+              } // optionalAttrs (jfCfg.timestampField != null) {
+                timestamp = {
+                  parse_from = "attributes.${jfCfg.timestampField}";
+                  layout_type = "epoch";
+                  layout = "s";
+                };
+              })
+            ];
+          } // optionalAttrs (jfCfg.resourceAttributes != {}) {
+            resource = jfCfg.resourceAttributes;
+          })) cfg.jsonFilelogs)
         ];
 
         # Extensions for persistent storage (cursor positions)
@@ -182,6 +242,11 @@ in
               create_directory = true;
             };
           })
+          # JSON filelog checkpoints
+          (mapAttrs' (name: _: nameValuePair "file_storage/${name}_checkpoint" {
+            directory = cfg.storagePath;
+            create_directory = true;
+          }) cfg.jsonFilelogs)
         ];
 
         processors = {
@@ -232,7 +297,8 @@ in
         service = {
           extensions =
             (optional cfg.journald.enable "file_storage/journald_checkpoint") ++
-            (optional cfg.filelog.enable "file_storage/filelog_checkpoint");
+            (optional cfg.filelog.enable "file_storage/filelog_checkpoint") ++
+            (map (name: "file_storage/${name}_checkpoint") (attrNames cfg.jsonFilelogs));
           pipelines = {
             metrics = {
               receivers =
@@ -246,7 +312,8 @@ in
               receivers =
                 (optional cfg.otlpReceiver.enable "otlp") ++
                 (optional cfg.journald.enable "journald") ++
-                (optional cfg.filelog.enable "filelog");
+                (optional cfg.filelog.enable "filelog") ++
+                (map (name: "filelog/${name}") (attrNames cfg.jsonFilelogs));
               processors = [ "batch" "resourcedetection" "transform" "resource" ];
               exporters = [ "otlphttp" ];
             };

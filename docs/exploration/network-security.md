@@ -52,6 +52,7 @@ Extend security visibility beyond the public gateway to the internal network:
 │   │                    Monitoring Stack                                  │   │
 │   │                                                                      │   │
 │   │   Loki (logs) ◄─────── Suricata EVE JSON, Wazuh alerts             │   │
+│   │   ClickHouse ◄──────── Zeek protocol logs (SQL analytics)         │   │
 │   │   Prometheus ◄──────── Suricata metrics, Wazuh exporter            │   │
 │   │   Grafana ◄──────────► Dashboards + Alerts                         │   │
 │   │                                                                      │   │
@@ -245,9 +246,19 @@ wazuh_agent_groups: ["linux", "fedora"]
 
 ## Integration with Existing Stack
 
-### Logging to Loki
+### Log Routing
 
-Suricata EVE JSON logs ship directly to Loki:
+OTEL Collector routes logs based on source:
+
+| Source   | Destination | Reason                                           |
+| -------- | ----------- | ------------------------------------------------ |
+| Suricata | Loki        | Alert-focused, works well with LogQL             |
+| Zeek     | ClickHouse  | High-volume protocol logs, SQL analytics at scale |
+| Wazuh    | Loki        | Host alerts alongside other system logs          |
+
+**Zeek → ClickHouse:** Uses routing connector in OTEL config to detect `log.source=zeek` resource attribute and route to ClickHouse exporter. Typed tables + materialized views auto-transform raw JSON into queryable columns.
+
+**Suricata → Loki:** EVE JSON logs ship directly to Loki:
 
 ```yaml
 # otel-collector config
@@ -258,16 +269,17 @@ receivers:
       - type: json_parser
 
 exporters:
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
+  otlphttp/loki:
+    endpoint: http://localhost:3100/otlp
 ```
 
 ### Grafana Dashboards
 
-| Dashboard       | Data                   | Shows                                |
+| Dashboard       | Data Source            | Shows                                |
 | --------------- | ---------------------- | ------------------------------------ |
+| IDS Monitoring  | Loki + ClickHouse      | Combined Suricata alerts + Zeek analytics |
 | Suricata Alerts | Loki                   | Alert timeline, severity, signatures |
-| Network Flows   | Zeek logs              | Top talkers, protocols, connections  |
+| Zeek Analytics  | ClickHouse             | Connections, DNS, HTTP, SSL, SSH, files |
 | Threat Intel    | Suricata + intel feeds | Matched IOCs, blocked IPs            |
 | Scan Results    | Nuclei                 | Vulnerabilities by host, severity    |
 
@@ -289,11 +301,11 @@ Route high-severity Suricata alerts to ntfy:
 
 Each tool answers different questions:
 
-| Tool     | Question                                      |
-| -------- | --------------------------------------------- |
-| Zeek     | "Who's talking to whom? What protocols/data?" |
-| Suricata | "Is that traffic malicious?"                  |
-| Wazuh    | "What's happening on the hosts themselves?"   |
+| Tool     | Question                                      | Data Store  |
+| -------- | --------------------------------------------- | ----------- |
+| Zeek     | "Who's talking to whom? What protocols/data?" | ClickHouse  |
+| Suricata | "Is that traffic malicious?"                  | Loki        |
+| Wazuh    | "What's happening on the hosts themselves?"   | Loki        |
 
 ## Deployment Plan
 
@@ -523,7 +535,12 @@ Enterprise vulnerability scanner.
 
 ## Status
 
-**Exploration phase.** IDS Stack (Suricata + Zeek + Wazuh) provides defense in depth. Nuclei on K8s adds proactive scanning. Fleet/osquery on Monitoring Stack adds SQL-based fleet querying. Start with Phases 1-3.
+**Phase 1 implemented.** IDS Stack VM deployed on Oracle with Suricata (on VyOS router) and Zeek (via quadlet-nix). Zeek logs route to ClickHouse for SQL analytics, Suricata EVE JSON to Loki. IDS Monitoring dashboard provides unified view. See [ClickHouse exploration](clickhouse.md) for implementation details.
+
+**Remaining:**
+- Phase 2: Wazuh agents to VMs
+- Phase 3: Nuclei on K8s
+- Phase 4: Tuning + scale
 
 ## Related Documents
 

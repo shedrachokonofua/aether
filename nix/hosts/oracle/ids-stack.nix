@@ -26,12 +26,17 @@
     networkConfig.LinkLocalAddressing = "no";
   };
 
-  # OTEL agent - collect Zeek logs
+  # OTEL agent - collect logs
   aether.otel-agent.filelog.patterns = [
     "/var/log/*.log"
-    "/var/lib/zeek/logs/*.log"
-    "/var/lib/zeek/logs/**/*.log"
   ];
+  # Zeek JSON logs with proper parsing (extracts fields into LogAttributes)
+  aether.otel-agent.jsonFilelogs.zeek = {
+    include = [ "/var/lib/zeek/logs/*.log" "/var/lib/zeek/logs/**/*.log" ];
+    exclude = [ "/var/lib/zeek/logs/stats.log" ];
+    timestampField = "ts";
+    resourceAttributes."log.source" = "zeek";
+  };
 
   # Enable Podman for quadlet containers
   virtualisation.podman = {
@@ -73,8 +78,8 @@
           "/var/lib/zeek/logs:/logs:Z"
           "/var/lib/zeek/spool:/var/spool/zeek:Z"
         ];
-        # Run Zeek on the mirror interface with JSON logging
-        exec = "zeek -i ens19 local LogAscii::use_json=T";
+        # Run Zeek on the mirror interface with JSON logging and hourly rotation
+        exec = "zeek -i ens19 local LogAscii::use_json=T Log::default_rotation_interval=1hr";
         # Host network, capabilities, workdir, and environment via podman args
         podmanArgs = [
           "--network=host"
@@ -93,6 +98,23 @@
         After = [ "zeek-interface-setup.service" ];
         Requires = [ "zeek-interface-setup.service" ];
       };
+    };
+  };
+
+  # Cleanup old Zeek logs (OTEL ingests them quickly, 24h retention is plenty)
+  systemd.services.zeek-log-cleanup = {
+    description = "Clean up old Zeek log files";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.findutils}/bin/find /var/lib/zeek/logs -name '*.log' -mtime +1 -delete";
+    };
+  };
+  systemd.timers.zeek-log-cleanup = {
+    description = "Timer for Zeek log cleanup";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "hourly";
+      Persistent = true;
     };
   };
 

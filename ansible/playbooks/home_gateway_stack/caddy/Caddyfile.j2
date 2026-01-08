@@ -100,6 +100,10 @@ loki.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}
 }
 
+clickhouse.home.shdr.ch {
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.clickhouse }}
+}
+
 kvm.home.shdr.ch {
   reverse_proxy 192.168.2.220
 }

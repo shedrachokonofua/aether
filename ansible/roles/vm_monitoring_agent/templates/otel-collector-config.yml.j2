@@ -1,10 +1,12 @@
 receivers:
+{% if otlp_receiver_enabled | default(true) %}
   otlp:
     protocols:
       grpc:
-        endpoint: "127.0.0.1:4317"
+        endpoint: "127.0.0.1:{{ otlp_receiver_grpc_port | default(4317) }}"
       http:
-        endpoint: "127.0.0.1:4318"
+        endpoint: "127.0.0.1:{{ otlp_receiver_http_port | default(4318) }}"
+{% endif %}
   journald:
     directory: /var/log/journal/
     storage: file_storage/journald_cursor_storage
@@ -96,14 +98,16 @@ service:
   extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage]
   pipelines:
     metrics:
-      receivers: [otlp, hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}{% if has_docker_socket | default(false) %}, docker_stats{% endif %}{% if prometheus_scrape_configs | default([]) | length > 0 %}, prometheus{% endif %}]
+      receivers: [{% if otlp_receiver_enabled | default(true) %}otlp, {% endif %}hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}{% if has_docker_socket | default(false) %}, docker_stats{% endif %}{% if prometheus_scrape_configs | default([]) | length > 0 %}, prometheus{% endif %}]
       processors: [batch, resource]
       exporters: [otlphttp]
     logs:
-      receivers: [otlp, journald, filelog]
+      receivers: [{% if otlp_receiver_enabled | default(true) %}otlp, {% endif %}journald, filelog]
       processors: [batch, resource]
       exporters: [otlphttp]
+{% if otlp_receiver_enabled | default(true) %}
     traces:
       receivers: [otlp]
       processors: [batch, resource]
       exporters: [otlphttp]
+{% endif %}
