@@ -9,8 +9,9 @@ IaC for my private cloud.
 - **Application Containers**: Rootless Podman Quadlets (systemd-native), Docker only for where Podman is not feasible
 - **Networking**: VyOS router with zone-based firewall, 3Gbps symmetric WAN, 10Gbps backbone, VLAN segmentation, AdGuard DNS, Tailscale mesh, rotating VPN SOCKS5 proxy
 - **Public Gateway**: Selective internet exposure via Cloudflare DNS/CDN, AWS Lightsail DMZ + CrowdSec WAF, proxied home via Tailscale mesh
+- **Intrusion Detection**: Suricata IDS on VyOS router, Zeek network analysis, events analyzed via ClickHouse
 - **Storage**: ZFS + Ceph with NFS/SMB/CephFS, 3-2-1 backups via Restic to Glacier
-- **Security**: Private PKI (step-ca), Keycloak SSO, mTLS, OpenBao secrets, SOPS with multi-key encryption
+- **Identity & Credentials**: Private PKI (step-ca), Keycloak SSO, mTLS, OpenBao secrets, SOPS with multi-key encryption
 - **DevOps**: GitLab (VCS, CI/CD, registries, Terraform state), Dokku/Dokploy/Smallweb PaaS, Coder workspaces
 - **AI & ML**: Private LLM inference (Ollama, LiteLLM, OpenWebUI), Stable Diffusion (ComfyUI, SwarmUI) on RTX Pro 6000 Max-Q
 - **Observability**: OpenTelemetry-native setup with Prometheus, Grafana, Loki, Tempo, ClickHouse, OTEL Collector, NUT

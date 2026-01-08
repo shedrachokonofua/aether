@@ -254,6 +254,15 @@ in
             send_batch_size = 1000;
             timeout = "10s";
           };
+          # Drop otelcol-contrib file discovery spam from journald before export
+          "filter/drop_otel_noise" = {
+            error_mode = "ignore";  # Skip logs where condition can't be evaluated (e.g., no SYSLOG_IDENTIFIER)
+            logs = {
+              log_record = [
+                ''body["SYSLOG_IDENTIFIER"] == "otelcol-contrib"''
+              ];
+            };
+          };
           # Use resourcedetection to auto-detect hostname from OS
           resourcedetection = {
             detectors = [ "system" ];
@@ -295,6 +304,12 @@ in
         };
 
         service = {
+          # Only log warnings/errors - info level logs file discovery spam
+          telemetry.logs = {
+            level = "WARN";
+            encoding = "json";
+          };
+
           extensions =
             (optional cfg.journald.enable "file_storage/journald_checkpoint") ++
             (optional cfg.filelog.enable "file_storage/filelog_checkpoint") ++
@@ -314,7 +329,7 @@ in
                 (optional cfg.journald.enable "journald") ++
                 (optional cfg.filelog.enable "filelog") ++
                 (map (name: "filelog/${name}") (attrNames cfg.jsonFilelogs));
-              processors = [ "batch" "resourcedetection" "transform" "resource" ];
+              processors = [ "filter/drop_otel_noise" "batch" "resourcedetection" "transform" "resource" ];
               exporters = [ "otlphttp" ];
             };
             traces = mkIf cfg.otlpReceiver.enable {

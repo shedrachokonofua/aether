@@ -88,6 +88,9 @@ exporters:
 
 service:
   telemetry:
+    # Only log warnings/errors - info level logs file discovery spam
+    logs:
+      level: warn
     metrics:
       readers:
         - periodic:

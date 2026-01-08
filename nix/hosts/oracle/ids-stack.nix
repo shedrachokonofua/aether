@@ -79,7 +79,7 @@
           "/var/lib/zeek/spool:/var/spool/zeek:Z"
         ];
         # Run Zeek on the mirror interface with JSON logging and hourly rotation
-        exec = "zeek -i ens19 local LogAscii::use_json=T Log::default_rotation_interval=1hr";
+        exec = "zeek -i ens19 local LogAscii::use_json=T Log::default_rotation_interval=1day";
         # Host network, capabilities, workdir, and environment via podman args
         podmanArgs = [
           "--network=host"
