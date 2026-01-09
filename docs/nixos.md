@@ -56,7 +56,7 @@ After:  NixOS declares what state IS       → no drift      → rollback = buil
 | GPU Workstation | Fedora        | NVIDIA driver complexity          |
 | K8s Nodes       | Talos         | Purpose-built for Kubernetes      |
 | Proxmox Hosts   | Debian        | Too risky, minimal benefit        |
-| Smith LXCs      | Alpine/Debian | Storage infrastructure, stable    |
+| Smith LXCs      | Fedora/Debian | Storage infrastructure, stable    |
 
 ## Architecture
 

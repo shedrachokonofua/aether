@@ -38,10 +38,11 @@ flowchart TB
 
     OTLP --> Router
     Router -->|Zeek logs| ClickHouse
+    Router -->|Suricata logs| ClickHouse
     Router -->|other logs| Loki
-    OTLP --> Prometheus
-    OTLP --> Tempo
-    PromRx --> Prometheus
+    OTLP -->|metrics| Prometheus
+    OTLP -->|traces| Tempo
+    PromRx -->|metrics| Prometheus
     Backends --> Grafana
 
     style Hosts fill:#d4e5f7,stroke:#6a9fd4
@@ -53,23 +54,23 @@ flowchart TB
 
 ## Central Stack
 
-| Component      | Purpose                                               |
-| -------------- | ----------------------------------------------------- |
-| OTEL Collector | Central receiver, scrapes hosts, routes to backends   |
-| Prometheus     | Metrics storage (TSDB)                                |
-| Loki           | Log aggregation and querying                          |
-| Tempo          | Distributed trace storage                             |
-| ClickHouse     | Network protocol logs (Zeek) with SQL analytics       |
-| Grafana        | Visualization and alerting                            |
+| Component      | Purpose                                              |
+| -------------- | ---------------------------------------------------- |
+| OTEL Collector | Central receiver, scrapes hosts, routes to backends  |
+| Prometheus     | Metrics storage (TSDB)                               |
+| Loki           | Log aggregation and querying                         |
+| Tempo          | Distributed trace storage                            |
+| ClickHouse     | Network/IDS logs (Zeek, Suricata) with SQL analytics |
+| Grafana        | Visualization and alerting                           |
 
 ### Data Retention
 
-| Backend    | Retention | Notes                                        |
-| ---------- | --------- | -------------------------------------------- |
-| Prometheus | 15 days   | Default TSDB retention                       |
-| Loki       | 90 days   | Compactor deletes after 2h                   |
-| Tempo      | 7 days    | Block retention in compactor                 |
-| ClickHouse | 365 days  | TTL on tables, hourly aggregates for 1 year  |
+| Backend    | Retention | Notes                                       |
+| ---------- | --------- | ------------------------------------------- |
+| Prometheus | 15 days   | Default TSDB retention                      |
+| Loki       | 90 days   | Compactor deletes after 2h                  |
+| Tempo      | 7 days    | Block retention in compactor                |
+| ClickHouse | 365 days  | TTL on tables, hourly aggregates for 1 year |
 
 ## Monitoring Agents
 
@@ -143,7 +144,7 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 | Synapse         | Matrix server metrics                         |
 | Postfix         | Mail queue, delivery stats                    |
 | ntfy            | Push notification delivery                    |
-| IDS Monitoring  | Suricata alerts, Zeek protocol analytics (CH) |
+| IDS Monitoring  | Suricata alerts + Zeek analytics (ClickHouse) |
 
 ## Alerting
 

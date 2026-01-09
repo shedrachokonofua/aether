@@ -1,7 +1,6 @@
 -- Suricata ingest table with Null engine
 -- Schema matches OTEL exporter INSERT statement columns
 -- Same pattern as Zeek: Null engine accepts inserts, MVs route to typed tables
-
 CREATE DATABASE IF NOT EXISTS suricata;
 
 CREATE TABLE IF NOT EXISTS suricata.ingest (
@@ -23,5 +22,3 @@ CREATE TABLE IF NOT EXISTS suricata.ingest (
     LogAttributes Map(LowCardinality(String), String),
     EventName String
 ) ENGINE = Null;
-
-
