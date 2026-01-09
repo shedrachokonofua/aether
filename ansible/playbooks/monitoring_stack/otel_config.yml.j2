@@ -12,6 +12,21 @@ processors:
     send_batch_size: 2048
     send_batch_max_size: 4096
 
+  # Selectively promote essential resource attributes to metric labels
+  # This avoids the cardinality explosion from full resource_to_telemetry_conversion
+  transform/metrics:
+    metric_statements:
+      - context: datapoint
+        statements:
+          # Host/service identification
+          - set(attributes["host_name"], resource.attributes["host.name"]) where resource.attributes["host.name"] != nil
+          - set(attributes["service_name"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          - set(attributes["exported_job"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          # Container attributes for per-container breakdown
+          - set(attributes["container_name"], resource.attributes["container.name"]) where resource.attributes["container.name"] != nil
+          - set(attributes["container_image_name"], resource.attributes["container.image.name"]) where resource.attributes["container.image.name"] != nil
+          - set(attributes["container_id"], resource.attributes["container.id"]) where resource.attributes["container.id"] != nil
+
 connectors:
   # Route logs based on source - single decision point
   routing/logs:
@@ -78,7 +93,7 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [transform/metrics, batch]
       exporters: [prometheus]
 
     # Ingest logs and route based on source
