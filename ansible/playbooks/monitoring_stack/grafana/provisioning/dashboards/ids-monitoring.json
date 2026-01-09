@@ -27,7 +27,10 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -74,7 +77,11 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
@@ -82,29 +89,23 @@
       "pluginVersion": "11.5.2",
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum(count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" | alert_severity=\"1\" [$__interval]))",
-          "legendFormat": "severity 1",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum(count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" | alert_severity=\"2\" [$__interval]))",
-          "legendFormat": "severity 2",
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum(count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" | alert_severity=\"3\" [$__interval]))",
-          "legendFormat": "severity 3",
-          "refId": "C"
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT countIf(alert_severity = 1) as \"severity 1\", countIf(alert_severity = 2) as \"severity 2\", countIf(alert_severity = 3) as \"severity 3\" FROM suricata.alert WHERE Timestamp >= $__fromTime AND Timestamp <= $__toTime AND alert_severity IN (1, 2, 3)",
+          "refId": "A",
+          "format": 1
         }
       ],
       "title": "Alerts by Severity",
       "type": "stat"
     },
     {
-      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -179,29 +180,23 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum(count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" | alert_severity=\"1\" [$__interval]))",
-          "legendFormat": "severity 1",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum(count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" | alert_severity=\"2\" [$__interval]))",
-          "legendFormat": "severity 2",
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum(count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" | alert_severity=\"3\" [$__interval]))",
-          "legendFormat": "severity 3",
-          "refId": "C"
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT $__timeInterval(Timestamp) as time, toString(alert_severity) as severity, count() as alerts FROM suricata.alert WHERE Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, severity ORDER BY time",
+          "refId": "A",
+          "format": 0
         }
       ],
       "title": "Suricata Alerts Over Time",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -238,48 +233,49 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "topk(20, sum by (alert_signature) (count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" [$__range])))",
-          "legendFormat": "{{alert_signature}}",
-          "refId": "A"
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT alert_signature as signature, alert_category as category, count() as count FROM suricata.alert WHERE Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY alert_signature, alert_category ORDER BY count DESC LIMIT 20",
+          "refId": "A",
+          "format": 1
         }
       ],
       "title": "Top Signatures",
-      "transformations": [
-        { "id": "reduce", "options": { "reducers": ["sum"] } },
-        {
-          "id": "sortBy",
-          "options": {
-            "fields": {},
-            "sort": [{ "desc": true, "field": "Total" }]
-          }
-        }
-      ],
       "type": "table"
     },
     {
-      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" } }
+        },
+        "overrides": []
+      },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
       "id": 5,
       "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "time" }]
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "{service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=\"alert\" | line_format \"{{.alert_severity}} | {{.alert_signature}} | {{.src_ip}}:{{.src_port}} → {{.dest_ip}}:{{.dest_port}}\"",
-          "refId": "A"
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT Timestamp as time, alert_severity as severity, alert_signature as signature, toString(src_ip) as src_ip, src_port, toString(dest_ip) as dest_ip, dest_port FROM suricata.alert WHERE Timestamp >= $__fromTime AND Timestamp <= $__toTime ORDER BY Timestamp DESC LIMIT 100",
+          "refId": "A",
+          "format": 1
         }
       ],
       "title": "Recent Alerts",
-      "type": "logs"
+      "type": "table"
     },
     {
       "collapsed": false,
@@ -290,7 +286,10 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -307,25 +306,36 @@
         "legend": {
           "displayMode": "list",
           "placement": "right",
-          "showLegend": true
+          "showLegend": true,
+          "values": ["value", "percent"]
         },
         "pieType": "pie",
-        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["sum"],
+          "fields": "/^cnt$/",
+          "values": true
+        },
         "tooltip": { "mode": "single", "sort": "none" }
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum by (event_type) (count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" [$__range]))",
-          "legendFormat": "{{event_type}}",
-          "refId": "A"
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT event_type, sum(event_count) as cnt FROM suricata.event_type_hourly WHERE hour >= $__fromTime AND hour <= $__toTime GROUP BY event_type ORDER BY cnt DESC",
+          "refId": "A",
+          "format": 1
         }
       ],
       "title": "Events by Type",
       "type": "piechart"
     },
     {
-      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -363,7 +373,7 @@
       "id": 12,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": ["sum"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -372,10 +382,13 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
-          "expr": "sum by (event_type) (count_over_time({service_name=\"router\"} |= \"{\" | json | log_file_name=\"eve.json\" | event_type=~\"http|dns|tls|ssh|smtp|smb\" [$__interval]))",
-          "legendFormat": "{{event_type}}",
-          "refId": "A"
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "rawSql": "SELECT hour as time, event_type, sum(event_count) as events FROM suricata.event_type_hourly WHERE hour >= $__fromTime AND hour <= $__toTime AND event_type IN ('http', 'dns', 'tls') GROUP BY hour, event_type ORDER BY hour",
+          "refId": "A",
+          "format": 0
         }
       ],
       "title": "Protocol Events Over Time",
@@ -386,7 +399,7 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
       "id": 20,
       "panels": [],
-      "title": "Zeek Connections (ClickHouse)",
+      "title": "Zeek Connections",
       "type": "row"
     },
     {
@@ -819,7 +832,7 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 54 },
       "id": 40,
       "panels": [],
-      "title": "Zeek DNS (ClickHouse)",
+      "title": "Zeek DNS",
       "type": "row"
     },
     {
@@ -907,7 +920,7 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 63 },
       "id": 60,
       "panels": [],
-      "title": "Zeek SSL/TLS (ClickHouse)",
+      "title": "Zeek SSL/TLS",
       "type": "row"
     },
     {
@@ -1090,7 +1103,7 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 80 },
       "id": 50,
       "panels": [],
-      "title": "Zeek HTTP (ClickHouse)",
+      "title": "Zeek HTTP",
       "type": "row"
     },
     {
@@ -1216,7 +1229,7 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 97 },
       "id": 70,
       "panels": [],
-      "title": "Zeek SSH (ClickHouse)",
+      "title": "Zeek SSH",
       "type": "row"
     },
     {
@@ -1340,7 +1353,7 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 106 },
       "id": 80,
       "panels": [],
-      "title": "Zeek Files (ClickHouse)",
+      "title": "Zeek Files",
       "type": "row"
     },
     {

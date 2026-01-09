@@ -13,13 +13,13 @@ Address limitations with current log storage for high-volume, analytics-heavy wo
 
 ## Current State
 
-| Aspect            | Current              | Gap                                         |
-| ----------------- | -------------------- | ------------------------------------------- |
-| Zeek logs         | Loki                 | ~12M logs/day, expensive queries, no SQL    |
-| Suricata logs     | Loki                 | ~4M logs/day, works fine for alert-focused  |
-| Long-term metrics | Prometheus (15 days) | No historical trending beyond 2 weeks       |
-| High-cardinality  | Prometheus           | Cardinality limits, memory pressure         |
-| Per-IP analytics  | Loki (slow)          | Count queries take seconds, no aggregations |
+| Aspect            | Current              | Status                                    |
+| ----------------- | -------------------- | ----------------------------------------- |
+| Zeek logs         | ClickHouse           | ✅ Migrated — fast SQL analytics          |
+| Suricata logs     | ClickHouse           | ✅ Migrated — dashboard queries <100ms    |
+| Long-term metrics | Prometheus (15 days) | No historical trending beyond 2 weeks     |
+| High-cardinality  | Prometheus           | Cardinality limits, memory pressure       |
+| Per-IP analytics  | ClickHouse           | ✅ Fast aggregations with typed IPv4 cols |
 
 ### Log Volume Analysis
 
@@ -89,7 +89,7 @@ Typed columns via MVs provide 10-50x speedup over Map access.
 │   │                        Data Ingest Layer                             │   │
 │   │                                                                      │   │
 │   │   OTEL Collector ◄──── Zeek (clickhouse exporter)                   │   │
-│   │                  ◄──── Suricata (loki exporter + metrics)           │   │
+│   │                  ◄──── Suricata EVE (clickhouse exporter)           │   │
 │   │                  ◄──── All VMs (prometheus, loki)                   │   │
 │   └──────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                         │
@@ -98,12 +98,12 @@ Typed columns via MVs provide 10-50x speedup over Map access.
 │   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐        │
 │   │   ClickHouse     │  │      Loki        │  │   Prometheus     │        │
 │   │                  │  │                  │  │                  │        │
-│   │  • Zeek logs     │  │  • Suricata      │  │  • Metrics       │        │
-│   │  • Flow data     │  │  • App logs      │  │  • Suricata      │        │
-│   │  • Long-term     │  │  • System logs   │  │    counts        │        │
-│   │    metrics       │  │                  │  │                  │        │
-│   │                  │  │  Retention: 14d  │  │  Retention: 15d  │        │
-│   │  Retention: 30d  │  │                  │  │                  │        │
+│   │  • Zeek logs     │  │  • App logs      │  │  • Metrics       │        │
+│   │  • Suricata EVE  │  │  • System logs   │  │                  │        │
+│   │  • Long-term     │  │                  │  │  Retention: 15d  │        │
+│   │    metrics       │  │  Retention: 14d  │  │                  │        │
+│   │                  │  │                  │  │                  │        │
+│   │  Retention: 14-90d │                   │  │                  │        │
 │   └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘        │
 │            │                     │                     │                   │
 │            └─────────────────────┼─────────────────────┘                   │
@@ -285,14 +285,13 @@ GROUP BY src_vlan, dst_vlan;
 
 ## Data Flow
 
-| Source     | Data                    | Destination | Why                               |
-| ---------- | ----------------------- | ----------- | --------------------------------- |
-| Zeek       | conn, dns, http, ssl... | ClickHouse  | High volume, SQL analytics needed |
-| Suricata   | Alerts                  | Loki        | Lower volume, pattern matching    |
-| Suricata   | Alert counts            | Prometheus  | Pre-aggregated for dashboards     |
-| All VMs    | System metrics          | Prometheus  | Standard observability            |
-| All VMs    | Logs                    | Loki        | General log aggregation           |
-| Prometheus | Long-term metrics       | ClickHouse  | Historical trending (optional)    |
+| Source     | Data                    | Destination | Why                                |
+| ---------- | ----------------------- | ----------- | ---------------------------------- |
+| Zeek       | conn, dns, http, ssl... | ClickHouse  | High volume, SQL analytics needed  |
+| Suricata   | EVE JSON (all events)   | ClickHouse  | 4M logs/day, dashboard performance |
+| All VMs    | System metrics          | Prometheus  | Standard observability             |
+| All VMs    | Logs                    | Loki        | General log aggregation            |
+| Prometheus | Long-term metrics       | ClickHouse  | Historical trending (optional)     |
 
 ### Zeek → ClickHouse Pipeline
 
@@ -585,31 +584,56 @@ service:
 - `logs_table_name: zeek_ingest` — points to Null engine table
 - MVs transform and route to typed tables (`zeek_conn`, `zeek_dns`, etc.)
 
-### Router → Loki + Prometheus
+### Router → ClickHouse (Suricata)
 
-Keep Suricata in Loki (lower volume, alert-focused) with metric aggregation:
+Suricata EVE JSON is now routed to ClickHouse for fast dashboard queries:
 
 ```yaml
-# otel-collector-config.yml.j2
-connectors:
-  count:
-    logs:
-      suricata_alerts_total:
-        description: "Suricata alert count by severity"
-        conditions:
-          - 'attributes["event_type"] == "alert"'
-        attributes:
-          - key: severity
+# otel-collector-config.yml.j2 (router)
+receivers:
+  filelog/suricata:
+    include:
+      - /var/log/suricata/eve.json
+    operators:
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: "%Y-%m-%dT%H:%M:%S.%f%z"
+      # Flatten nested objects for ClickHouse MV access
+      - type: move
+        from: attributes.alert.signature
+        to: attributes["alert.signature"]
+        if: attributes.alert != nil
+      # ... (additional field flattening)
+
+processors:
+  resource/suricata:
+    attributes:
+      - key: log.source
+        value: "suricata"
+        action: insert
 
 pipelines:
   logs/suricata:
     receivers: [filelog/suricata]
-    processors: [batch]
-    exporters: [loki]
+    processors: [batch/suricata, resource/suricata]
+    exporters: [otlphttp]
+```
 
-  metrics/suricata:
-    receivers: [count]
-    exporters: [prometheus]
+The monitoring stack routes based on `log.source` attribute:
+
+```yaml
+# otel_config.yml.j2 (monitoring stack)
+connectors:
+  routing/logs:
+    default_pipelines: [logs/loki]
+    table:
+      - context: resource
+        condition: attributes["log.source"] == "zeek"
+        pipelines: [logs/clickhouse/zeek]
+      - context: resource
+        condition: attributes["log.source"] == "suricata"
+        pipelines: [logs/clickhouse/suricata]
 ```
 
 ### Grafana Datasources
@@ -841,32 +865,64 @@ LIMIT 20;
 
 ## Status
 
-**Implemented.** ClickHouse deployed to monitoring stack.
+**Implemented.** ClickHouse deployed to monitoring stack for both Zeek and Suricata.
 
-**What was done:**
+### Phase 1: Zeek Migration (Complete)
 
 1. ✅ Monitoring stack already at 16GB RAM, 256GB disk
 2. ✅ ClickHouse container added to monitoring-stack pod (`ansible/playbooks/monitoring_stack/site.yml`)
-3. ✅ SQL init scripts created for typed tables + MVs (`ansible/playbooks/monitoring_stack/clickhouse/`)
+3. ✅ SQL init scripts created for typed tables + MVs (`ansible/playbooks/monitoring_stack/clickhouse/01-04`)
 4. ✅ Zeek log rotation added to `nix/hosts/oracle/ids-stack.nix`
 5. ✅ OTEL config updated to route Zeek logs to ClickHouse (`otel_config.yml`)
 6. ✅ IDS dashboard updated with ClickHouse panels for Zeek analytics
 
+### Phase 2: Suricata Migration (Complete)
+
+Added Suricata to ClickHouse due to slow Loki queries causing CPU spikes on dashboard load.
+
+**What was done:**
+
+1. ✅ Suricata SQL init scripts created (`ansible/playbooks/monitoring_stack/clickhouse/05-08`):
+   - `05-suricata-ingest.sql` — Null engine ingest table
+   - `06-suricata-typed-tables.sql` — alert, flow, dns, http, tls, anomaly tables
+   - `07-suricata-materialized-views.sql` — MVs to transform EVE JSON
+   - `08-suricata-aggregations.sql` — Pre-aggregated hourly views
+2. ✅ Router OTEL config updated with Suricata-specific receiver and JSON parsing (`otel-collector-config.yml.j2`)
+3. ✅ Monitoring stack OTEL routing updated for Suricata → ClickHouse (`otel_config.yml.j2`)
+4. ✅ IDS dashboard Suricata panels converted from Loki to ClickHouse
+
+**Suricata Tables:**
+
+| Table              | Event Type | Retention | Purpose                     |
+| ------------------ | ---------- | --------- | --------------------------- |
+| `suricata.alert`   | alert      | 90 days   | Security alerts (priority)  |
+| `suricata.flow`    | flow       | 14 days   | Connection records (volume) |
+| `suricata.dns`     | dns        | 30 days   | DNS queries                 |
+| `suricata.http`    | http       | 30 days   | HTTP transactions           |
+| `suricata.tls`     | tls        | 30 days   | TLS handshakes, JA3 hashes  |
+| `suricata.anomaly` | anomaly    | 30 days   | Protocol anomalies          |
+
+**Pre-aggregated Views:**
+
+- `suricata.alert_hourly` — Alerts by severity/signature (365 days)
+- `suricata.alert_by_src_hourly` — Alerts by source IP (90 days)
+- `suricata.flow_hourly` — Flow stats by protocol (90 days)
+- `suricata.event_type_hourly` — Event counts by type (90 days)
+
 **Deployment:**
 
 ```bash
-# Deploy home gateway (adds clickhouse.home.shdr.ch)
-task deploy:home-gateway-stack
+# Deploy router with Suricata OTEL config
+task deploy:home-router
 
-# Deploy monitoring stack with ClickHouse
-# SQL init scripts run automatically on first startup
+# Deploy monitoring stack (creates Suricata tables on startup)
 task deploy:monitoring-stack
 
-# Deploy IDS stack with log rotation
-task configure:ids-stack
+# Deploy home gateway (Caddy routes)
+task deploy:home-gateway-stack
 ```
 
-**Schema auto-init:** The `otel_logs` table is pre-created with OTEL's exact schema (from [logs_table.sql](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/clickhouseexporter/internal/sqltemplates/logs_table.sql)), so MVs and typed tables are created at container startup. No manual SQL execution needed.
+**Schema auto-init:** Both `zeek.ingest` and `suricata.ingest` tables plus all MVs are created at container startup. No manual SQL execution needed.
 
 **Play UI:** Available at `https://clickhouse.home.shdr.ch/play` for ad-hoc queries.
 

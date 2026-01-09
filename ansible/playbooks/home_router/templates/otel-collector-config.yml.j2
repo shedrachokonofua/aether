@@ -9,7 +9,7 @@ receivers:
       http:
         endpoint: "0.0.0.0:4318"
 
-  # VyOS syslog/file-based logs
+  # VyOS syslog/file-based logs (non-Suricata)
   filelog:
     storage: file_storage/filelog_cursor_storage
     include:
@@ -17,9 +17,24 @@ receivers:
       - /var/log/auth.log
       - /var/log/vyatta/*.log
       - /var/log/frr/*.log
+    include_file_path: true
+    include_file_name: true
+
+  # Suricata EVE JSON logs - separate receiver for tagging
+  filelog/suricata:
+    storage: file_storage/filelog_cursor_storage
+    include:
       - /var/log/suricata/eve.json
     include_file_path: true
     include_file_name: true
+    operators:
+      # Parse Suricata EVE JSON - json_parser extracts nested objects as JSON strings
+      # ClickHouse MVs use JSONExtract functions to access nested fields
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%dT%H:%M:%S.%f%z'
+        on_error: send
 
   hostmetrics:
     collection_interval: {{ vyos_otel_host_metrics_interval | default('15s') }}
@@ -46,6 +61,11 @@ processors:
     send_batch_size: 1000
     timeout: 10s
 
+  # Larger batches for high-volume Suricata logs
+  batch/suricata:
+    send_batch_size: 5000
+    timeout: 5s
+
   resource:
     attributes:
       - key: host.name
@@ -59,6 +79,19 @@ processors:
         action: insert
       - key: device.type
         value: "router"
+        action: insert
+
+  # Tag Suricata logs for ClickHouse routing at monitoring stack
+  resource/suricata:
+    attributes:
+      - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: service.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: log.source
+        value: "suricata"
         action: insert
 
 extensions:
@@ -80,15 +113,25 @@ exporters:
       queue_size: 10000
 
 service:
+  # Only log warnings/errors - info level logs file discovery spam
+  telemetry:
+    logs:
+      level: warn
   extensions: [file_storage/filelog_cursor_storage, health_check]
   pipelines:
     metrics:
       receivers: [otlp, hostmetrics, podman_stats]
       processors: [batch, resource]
       exporters: [otlphttp]
+    # General logs (syslog, auth, etc.) -> Loki
     logs:
       receivers: [otlp, filelog]
       processors: [batch, resource]
+      exporters: [otlphttp]
+    # Suricata logs -> ClickHouse (via monitoring stack routing)
+    logs/suricata:
+      receivers: [filelog/suricata]
+      processors: [batch/suricata, resource/suricata]
       exporters: [otlphttp]
     traces:
       receivers: [otlp]
