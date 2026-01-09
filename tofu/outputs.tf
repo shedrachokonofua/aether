@@ -166,3 +166,16 @@ output "aws_admin_role_arn" {
   description = "ARN of the admin role for SSO users in AWS"
   value       = module.aws.admin_role_arn
 }
+
+# Kubernetes / Talos
+output "talos_kubeconfig" {
+  description = "Kubeconfig for the Talos Kubernetes cluster"
+  value       = module.home.talos_kubeconfig
+  sensitive   = true
+}
+
+output "talos_client_configuration" {
+  description = "Talosconfig for talosctl"
+  value       = module.home.talos_client_configuration
+  sensitive   = true
+}

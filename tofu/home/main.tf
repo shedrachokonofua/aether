@@ -62,6 +62,11 @@ terraform {
       source  = "hashicorp/vault"
       version = ">= 4.0.0"
     }
+
+    talos = {
+      source  = "siderolabs/talos"
+      version = "~> 0.10"
+    }
   }
 }
 

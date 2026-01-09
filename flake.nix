@@ -118,6 +118,12 @@
             
             # OpenBao CLI (Vault fork)
             openbao
+            
+            # Kubernetes / Talos
+            talosctl        # Talos cluster management
+            kubectl         # Kubernetes CLI
+            cilium-cli      # Cilium CNI management
+            kubernetes-helm # Helm charts
           ];
 
           shellHook = ''

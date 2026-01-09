@@ -60,3 +60,25 @@ locals {
   nixos_vm_image  = "cephfs:iso/nixos-base-vm.qcow2.img"
   nixos_lxc_image = "cephfs:vztmpl/nixos-base-lxc.tar.xz"
 }
+
+# =============================================================================
+# Talos Linux Images
+# =============================================================================
+# Nocloud image from Talos Image Factory with QEMU guest agent extension
+# Schematic ID includes: siderolabs/qemu-guest-agent
+
+locals {
+  talos_version = "v1.12.1"
+  # Schematic with qemu-guest-agent extension
+  # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&platform=nocloud
+  talos_schematic = "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+}
+
+# Talos ISO for Proxmox boot (nocloud platform)
+resource "proxmox_virtual_environment_download_file" "talos_iso" {
+  content_type = "iso"
+  datastore_id = "cephfs"
+  node_name    = "smith"
+  url          = "https://factory.talos.dev/image/${local.talos_schematic}/${local.talos_version}/nocloud-amd64.iso"
+  file_name    = "talos-${local.talos_version}-nocloud.iso"
+}

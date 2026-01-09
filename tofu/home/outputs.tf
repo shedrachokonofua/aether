@@ -95,3 +95,29 @@ output "keycloak_shdrch_user_id" {
   description = "Keycloak shdrch user subject ID (for AWS OIDC sub claim)"
   value       = keycloak_user.shdrch_aether.id
 }
+
+# =============================================================================
+# Talos Kubernetes Cluster
+# =============================================================================
+
+output "talos_kubeconfig" {
+  description = "Kubeconfig for the Talos Kubernetes cluster"
+  value       = talos_cluster_kubeconfig.this.kubeconfig_raw
+  sensitive   = true
+}
+
+output "talos_client_configuration" {
+  description = "Talosctl client configuration"
+  value       = data.talos_client_configuration.this.talos_config
+  sensitive   = true
+}
+
+output "talos_cluster_endpoint" {
+  description = "Kubernetes API server endpoint"
+  value       = local.talos_cluster_endpoint
+}
+
+output "talos_cluster_vip" {
+  description = "Cilium L2 announced VIP for LoadBalancer services"
+  value       = local.talos_cluster_vip
+}

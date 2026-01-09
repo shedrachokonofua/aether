@@ -60,6 +60,17 @@ tasks:
         tofu -chdir=tofu refresh {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
 
+  tofu:unlock:
+    desc: Unlock state
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        tofu -chdir=tofu force-unlock {{.CLI_ARGS}}
+
+  tofu:export-kubeconfig:
+    cmds:
+      - tofu -chdir=tofu output -raw talos_kubeconfig > ~/.kube/config
+
   # ===========================================================================
   # Secrets (only needs Bao env vars - AWS uses ~/.aws/credentials, age uses .sops.yaml)
   # ===========================================================================

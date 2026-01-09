@@ -550,3 +550,58 @@ resource "keycloak_openid_audience_protocol_mapper" "toolbox_audience" {
   add_to_access_token      = true
 }
 
+# =============================================================================
+# Kubernetes OIDC Client
+# =============================================================================
+# Public client for kubectl authentication via kubelogin/oidc-login plugin.
+# Supports device authorization grant for CLI login without browser redirect.
+# Used for: kubectl access to Talos Kubernetes cluster
+
+resource "keycloak_openid_client" "kubernetes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "kubernetes"
+  name      = "Kubernetes"
+  enabled   = true
+
+  # PUBLIC client - kubelogin doesn't require client secret
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+
+  # Device authorization grant for CLI auth (kubelogin)
+  oauth2_device_authorization_grant_enabled = true
+
+  # kubelogin callback URLs
+  valid_redirect_uris = [
+    "http://localhost:8000/*",
+    "http://localhost:18000/*",
+    "http://127.0.0.1:8000/*",
+    "http://127.0.0.1:18000/*",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "kubernetes_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.kubernetes.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# Add groups claim for Kubernetes RBAC
+resource "keycloak_openid_user_realm_role_protocol_mapper" "kubernetes_groups" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.kubernetes.id
+  name      = "groups"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
