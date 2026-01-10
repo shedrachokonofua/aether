@@ -104,6 +104,24 @@ clickhouse.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.clickhouse }}
 }
 
+wazuh.home.shdr.ch {
+  reverse_proxy https://{{ vm.ids_stack.ip }}:{{ vm.ids_stack.ports.wazuh_api }} {
+    transport http {
+      tls
+      tls_insecure_skip_verify
+    }
+  }
+}
+
+hids.home.shdr.ch {
+  reverse_proxy https://{{ vm.ids_stack.ip }}:{{ vm.ids_stack.ports.wazuh_dashboard }} {
+    transport http {
+      tls
+      tls_insecure_skip_verify
+    }
+  }
+}
+
 kvm.home.shdr.ch {
   reverse_proxy 192.168.2.220
 }

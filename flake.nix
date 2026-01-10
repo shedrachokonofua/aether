@@ -13,11 +13,22 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     quadlet-nix.url = "github:SEIAROTg/quadlet-nix";
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, nixos-generators, disko, quadlet-nix }:
+  outputs = { self, nixpkgs, flake-utils, nixos-generators, disko, quadlet-nix, sops-nix }:
     let
       system = "x86_64-linux";
+      pkgs = nixpkgs.legacyPackages.${system};
+      
+      # Shared facts for all NixOS hosts (vm config, tf outputs, etc.)
+      facts = (import ./nix/lib/facts.nix { inherit pkgs; }).facts;
+      
+      # Shared specialArgs for all NixOS configurations
+      sharedSpecialArgs = { inherit facts; };
       
       # Overlay to fix opentelemetry-collector-contrib in >= 24.11
       # See: https://github.com/NixOS/nixpkgs/issues/368321
@@ -58,6 +69,7 @@
       nixosConfigurations = {
         adguard = nixpkgs.lib.nixosSystem {
           inherit system;
+          specialArgs = sharedSpecialArgs;
           modules = [
             { nixpkgs.overlays = [ otelFixOverlay ]; }
             ./nix/hosts/oracle/adguard.nix
@@ -66,10 +78,11 @@
         };
         ids-stack = nixpkgs.lib.nixosSystem {
           inherit system;
+          specialArgs = sharedSpecialArgs;
           modules = [
             { nixpkgs.overlays = [ otelFixOverlay ]; }
             quadlet-nix.nixosModules.quadlet
-            ./nix/hosts/oracle/ids-stack.nix
+            ./nix/hosts/oracle/ids-stack
             sshCaModule
           ];
         };

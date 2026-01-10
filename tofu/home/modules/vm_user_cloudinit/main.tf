@@ -73,6 +73,21 @@ ${yamlencode(local.user_data_file_yaml)}
   }
 }
 
+# For backward compatibility with existing backups
+resource "proxmox_virtual_environment_file" "local_cloud_config" {
+  content_type = "snippets"
+  datastore_id = "local"
+  node_name    = var.node_name
+
+  source_raw {
+    file_name = "${var.file_prefix}-cloud-config.yml"
+    data      = <<EOF
+#cloud-config
+${yamlencode(local.user_data_file_yaml)}
+    EOF
+  }
+}
+
 output "cloud_config_id" {
   value = proxmox_virtual_environment_file.cloud_config.id
 }

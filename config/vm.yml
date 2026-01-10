@@ -60,6 +60,7 @@ monitoring_stack:
     otel_prometheus: 8889
     prometheus: 9090
     clickhouse: 8123
+    fleet: 8080
 
 nfs:
   id: 1004
@@ -402,3 +403,41 @@ ids_stack:
     suricata_metrics: 9917
     wazuh_api: 55000
     wazuh_agent: 1514
+    wazuh_registration: 1515
+    wazuh_dashboard: 5601
+
+# =============================================================================
+# Talos Kubernetes Cluster
+# =============================================================================
+# 3-node cluster with combined control plane + worker roles
+# Cilium CNI with L2 announcements for VIP (10.0.3.19)
+
+talos_trinity:
+  id: 1030
+  name: "talos-trinity"
+  node: "trinity"
+  cores: 8
+  memory: 16384
+  disk_gb: 64
+  ip: "10.0.3.16"
+  gateway: "10.0.3.1"
+
+talos_neo:
+  id: 1031
+  name: "talos-neo"
+  node: "neo"
+  cores: 8
+  memory: 16384
+  disk_gb: 64
+  ip: "10.0.3.17"
+  gateway: "10.0.3.1"
+
+talos_niobe:
+  id: 1032
+  name: "talos-niobe"
+  node: "niobe"
+  cores: 8
+  memory: 16384
+  disk_gb: 64
+  ip: "10.0.3.18"
+  gateway: "10.0.3.1"

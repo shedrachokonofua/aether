@@ -276,7 +276,9 @@ tasks:
         sh: yq '.step_ca.ip' config/vm.yml
     cmds:
       - |
+        # Get SSH CA public key for SSH trust
         SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
+        # Machine cert is pre-provisioned via Terraform (no provisioner password needed here)
         SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#ids-stack --target-host root@{{.IDS_STACK_IP}} --impure
   deploy:ids-stack:
     desc: Full deploy - provision VM + configure NixOS

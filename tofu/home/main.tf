@@ -41,6 +41,12 @@ variable "keycloak_shdrch_initial_password" {
   sensitive = true
 }
 
+variable "secrets" {
+  type        = map(string)
+  sensitive   = true
+  description = "SOPS secrets map passed from root module"
+}
+
 
 locals {
   vm = yamldecode(file("${path.module}/../../config/vm.yml"))
