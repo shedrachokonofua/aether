@@ -1,0 +1,183 @@
+---
+- name: Deploy Fleet
+  hosts: monitoring-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    # === Directory Setup ===
+    - name: Create fleet directories
+      become: true
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      loop:
+        - ./fleet
+        - ./fleet-mysql
+        - ./fleet-redis
+
+    # === Pod ===
+    - name: Create fleet pod
+      containers.podman.podman_pod:
+        name: fleet
+        ports:
+          - "{{ vm.monitoring_stack.ports.fleet }}:8080"
+        state: quadlet
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    # === Volumes ===
+    - name: Create fleet mysql storage volume
+      containers.podman.podman_volume:
+        name: fleet_mysql_storage
+        state: quadlet
+
+    - name: Create fleet redis storage volume
+      containers.podman.podman_volume:
+        name: fleet_redis_storage
+        state: quadlet
+
+    # === Containers ===
+    - name: Start Fleet MySQL
+      containers.podman.podman_container:
+        name: fleet_mysql
+        pod: fleet.pod
+        image: docker.io/mysql:8.0
+        pull: always
+        state: quadlet
+        volumes:
+          - fleet_mysql_storage.volume:/var/lib/mysql:Z
+        env:
+          MYSQL_ROOT_PASSWORD: "{{ secrets.fleet.mysql_root_password }}"
+          MYSQL_DATABASE: fleet
+          MYSQL_USER: fleet
+          MYSQL_PASSWORD: "{{ secrets.fleet.mysql_password }}"
+        command:
+          - "--default-authentication-plugin=mysql_native_password"
+          - "--sql-mode="
+
+    - name: Start Fleet Redis
+      containers.podman.podman_container:
+        name: fleet_redis
+        pod: fleet.pod
+        image: docker.io/redis:7-alpine
+        pull: always
+        state: quadlet
+        volumes:
+          - fleet_redis_storage.volume:/data:Z
+
+    - name: Start Fleet server
+      containers.podman.podman_container:
+        name: fleet
+        pod: fleet.pod
+        image: docker.io/fleetdm/fleet:v4.75.0
+        pull: always
+        state: quadlet
+        requires:
+          - fleet_mysql
+          - fleet_redis
+        env:
+          FLEET_MYSQL_ADDRESS: 127.0.0.1:3306
+          FLEET_MYSQL_DATABASE: fleet
+          FLEET_MYSQL_USERNAME: fleet
+          FLEET_MYSQL_PASSWORD: "{{ secrets.fleet.mysql_password }}"
+          FLEET_REDIS_ADDRESS: 127.0.0.1:6379
+          FLEET_SERVER_ADDRESS: 0.0.0.0:8080
+          FLEET_SERVER_TLS: "false"
+          FLEET_LOGGING_JSON: "true"
+          FLEET_SERVER_PRIVATE_KEY: "{{ secrets.fleet.server_private_key }}"
+
+    # === Systemd ===
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start fleet pod quadlet
+      systemd:
+        name: fleet-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for MySQL to be ready
+      shell: |
+        podman exec fleet_mysql mysqladmin ping -h 127.0.0.1 -u fleet -p'{{ secrets.fleet.mysql_password }}' --silent
+      register: mysql_ready
+      until: mysql_ready.rc == 0
+      retries: 30
+      delay: 2
+
+    - name: Initialize Fleet database (idempotent)
+      containers.podman.podman_container:
+        name: fleet_prepare_db
+        image: docker.io/fleetdm/fleet:v4.75.0
+        pod: fleet
+        state: started
+        detach: false
+        rm: true
+        env:
+          FLEET_MYSQL_ADDRESS: 127.0.0.1:3306
+          FLEET_MYSQL_DATABASE: fleet
+          FLEET_MYSQL_USERNAME: fleet
+          FLEET_MYSQL_PASSWORD: "{{ secrets.fleet.mysql_password }}"
+        command: fleet prepare db
+      register: fleet_db_init
+
+    - name: Restart Fleet server after DB init
+      systemd:
+        name: fleet
+        state: restarted
+        scope: user
+      when: fleet_db_init is changed
+
+    # === Fleet Initialization ===
+    - name: Wait for Fleet to be ready
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/healthz"
+        method: GET
+        status_code: 200
+      register: fleet_health
+      until: fleet_health.status == 200
+      retries: 30
+      delay: 5
+      tags: [fleet-init]
+
+    # Try setup first - if already set up, it returns 404
+    - name: Initialize Fleet admin user
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/setup"
+        method: POST
+        body_format: json
+        return_content: true
+        body:
+          admin:
+            email: "{{ secrets.fleet.admin_email }}"
+            name: "{{ secrets.fleet.admin_name | default('Admin') }}"
+            password: "{{ secrets.fleet.admin_password }}"
+          org_info:
+            org_name: "Aether"
+          server_url: "https://fleet.home.shdr.ch"
+        status_code: [200, 404, 422, 500]
+      register: fleet_setup
+      tags: [fleet-init]
+
+    - name: Debug setup response
+      debug:
+        var: fleet_setup
+      tags: [fleet-init]
+
+    - name: Fail if setup returned validation error
+      fail:
+        msg: "Fleet setup validation failed: {{ fleet_setup.content }}"
+      when: fleet_setup.status == 422
+      tags: [fleet-init]
+
+    # Note: Enroll secret and SAML SSO should be configured manually via the Fleet UI
+    # at https://fleet.home.shdr.ch after initial setup

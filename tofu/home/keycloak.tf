@@ -551,6 +551,39 @@ resource "keycloak_openid_audience_protocol_mapper" "toolbox_audience" {
 }
 
 # =============================================================================
+# Fleet SAML Client (osquery management)
+# =============================================================================
+# Fleet uses SAML (not OIDC) for SSO authentication.
+# Used for: Admin access to Fleet osquery management UI
+
+resource "keycloak_saml_client" "fleet" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "fleet"
+  name      = "Fleet"
+  enabled   = true
+
+  sign_documents          = true
+  sign_assertions         = true
+  include_authn_statement = true
+
+  signature_algorithm    = "RSA_SHA256"
+  signature_key_name     = "KEY_ID"
+  canonicalization_method = "EXCLUSIVE"
+
+  name_id_format = "email"
+
+  root_url            = "https://fleet.home.shdr.ch"
+  base_url            = "https://fleet.home.shdr.ch"
+  master_saml_processing_url = "https://fleet.home.shdr.ch/api/v1/fleet/sso"
+
+  valid_redirect_uris = [
+    "https://fleet.home.shdr.ch/api/v1/fleet/sso/callback",
+  ]
+
+  idp_initiated_sso_url_name = "fleet"
+}
+
+# =============================================================================
 # Kubernetes OIDC Client
 # =============================================================================
 # Public client for kubectl authentication via kubelogin/oidc-login plugin.

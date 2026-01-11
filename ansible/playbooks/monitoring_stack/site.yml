@@ -377,3 +377,6 @@
           pbs-exporter,
           monitoring-pod,
         ]
+
+- name: Deploy Fleet
+  import_playbook: fleet.yml

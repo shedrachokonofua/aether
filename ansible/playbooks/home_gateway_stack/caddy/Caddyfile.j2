@@ -407,6 +407,10 @@ small.home.shdr.ch, *.small.home.shdr.ch {
   reverse_proxy {{ vm.smallweb.ip }}:{{ vm.smallweb.ports.http }}
 }
 
+fleet.home.shdr.ch {
+  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.fleet }}
+}
+
 # =============================================================================
 # Kubernetes Cluster (Talos + Cilium)
 # =============================================================================

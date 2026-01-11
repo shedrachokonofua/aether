@@ -60,7 +60,7 @@ monitoring_stack:
     otel_prometheus: 8889
     prometheus: 9090
     clickhouse: 8123
-    fleet: 8080
+    fleet: 8084
 
 nfs:
   id: 1004

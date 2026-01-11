@@ -7,6 +7,8 @@ This playbook will configure the monitoring stack virtual machine. The monitorin
 - Loki
 - Tempo
 - Grafana
+- ClickHouse
+- Fleet (osquery management)
 
 ## Usage
 
