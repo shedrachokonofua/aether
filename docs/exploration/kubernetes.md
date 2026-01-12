@@ -268,6 +268,8 @@ Caddy (Gateway Stack VM)
 
 **Scale to zero is default** — deploy a Knative Service, it scales to zero after 60s idle. No config required.
 
+**Note:** Knative traditionally bundles Kourier (lightweight Envoy-based ingress), but Cilium's Gateway API implementation handles ingress routing, making Kourier redundant.
+
 ### Kubero (PaaS Layer)
 
 Heroku/Vercel-style PaaS that replaces both Dokku and Dokploy:
@@ -821,23 +823,23 @@ No SSH, no Ansible, no package managers. Just API calls.
 
 ### Phase 0: Prerequisites
 
-- [ ] Complete Proxmox HA (ZFS replication)
-- [ ] Deploy Ceph distributed storage
-- [ ] Verify 10Gbps connectivity
+- [x] Complete Proxmox HA (ZFS replication)
+- [x] Deploy Ceph distributed storage
+- [x] Verify 10Gbps connectivity
 
 ### Phase 1: Cluster Bootstrap
 
-- [ ] Add Talos entries to `config/vm.yml`
-- [ ] Create `tofu/home/talos_cluster.tf`
-- [ ] Run `tofu apply` to provision cluster
-- [ ] Verify cluster health with `talosctl` and `kubectl`
-- [ ] Install Cilium CNI with L2 announcements enabled
-- [ ] Configure CiliumLoadBalancerIPPool (10.0.3.19)
+- [x] Add Talos entries to `config/vm.yml`
+- [x] Create `tofu/home/talos_cluster.tf`
+- [x] Run `tofu apply` to provision cluster
+- [x] Verify cluster health with `talosctl` and `kubectl`
+- [x] Install Cilium CNI with L2 announcements enabled
+- [x] Configure CiliumLoadBalancerIPPool (10.0.3.19)
 
 ### Phase 2: Platform Components
 
-- [ ] Install Gateway API CRDs
-- [ ] Install Knative Serving + Kourier
+- [x] Install Gateway API CRDs
+- [ ] Install Knative Serving (uses Cilium Gateway API for ingress)
 - [ ] Install Knative Eventing
 - [ ] Install Kubero (PaaS layer)
 - [ ] Install OPA Gatekeeper

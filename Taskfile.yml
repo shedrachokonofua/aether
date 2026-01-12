@@ -38,12 +38,13 @@ tasks:
       - tofu -chdir=tofu init -backend-config=../config/tofu-state.config -upgrade -reconfigure
 
   tofu:apply:
-    desc: Apply + write outputs
+    desc: Apply + write outputs + export k8s auth
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
         tofu -chdir=tofu apply {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
+      - task: k8s:auth
 
   tofu:plan:
     desc: Plan changes
@@ -67,9 +68,18 @@ tasks:
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
         tofu -chdir=tofu force-unlock {{.CLI_ARGS}}
 
-  tofu:export-kubeconfig:
+  k8s:auth:
+    desc: Export kubeconfig + talosconfig for cluster access
     cmds:
-      - tofu -chdir=tofu output -raw talos_kubeconfig > ~/.kube/config
+      - |
+        mkdir -p ~/.kube ~/.talos
+        if tofu -chdir=tofu output -raw talos_kubeconfig > ~/.kube/config 2>/dev/null && \
+           tofu -chdir=tofu output -raw talos_client_configuration > ~/.talos/config 2>/dev/null; then
+          echo "✅ Exported ~/.kube/config (kubectl) and ~/.talos/config (talosctl)"
+        else
+          echo "⏭️  No k8s cluster in state, skipping auth export"
+        fi
+
 
   # ===========================================================================
   # Secrets (only needs Bao env vars - AWS uses ~/.aws/credentials, age uses .sops.yaml)

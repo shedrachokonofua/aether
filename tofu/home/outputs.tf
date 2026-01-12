@@ -113,11 +113,22 @@ output "talos_client_configuration" {
 }
 
 output "talos_cluster_endpoint" {
-  description = "Kubernetes API server endpoint"
+  description = "Kubernetes API server endpoint (uses API VIP)"
   value       = local.talos_cluster_endpoint
 }
 
-output "talos_cluster_vip" {
+output "talos_api_vip" {
+  description = "Talos native VIP for API server / kubectl"
+  value       = local.talos_api_vip
+}
+
+output "talos_workload_vip" {
   description = "Cilium L2 announced VIP for LoadBalancer services"
-  value       = local.talos_cluster_vip
+  value       = local.talos_workload_vip
+}
+
+output "talos_machine_secrets" {
+  description = "Talos machine secrets for generating configs"
+  value       = talos_machine_secrets.this.machine_secrets
+  sensitive   = true
 }
