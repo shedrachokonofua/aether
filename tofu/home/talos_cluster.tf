@@ -104,7 +104,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
 
   # Talos ISO boot
   cdrom {
-    file_id   = proxmox_virtual_environment_download_file.talos_iso.id
+    file_id   = local.talos_iso
     interface = "ide2"
   }
 
@@ -241,144 +241,189 @@ resource "talos_cluster_kubeconfig" "this" {
 }
 
 # =============================================================================
-# Cilium Installation
+# Cilium Installation (Helm)
 # =============================================================================
-# Install Cilium CNI after cluster bootstrap using cilium CLI
+# CNI with kube-proxy replacement, L2 announcements, and Gateway API support
 
-resource "null_resource" "install_cilium" {
-  depends_on = [data.talos_cluster_health.this]
+resource "helm_release" "cilium" {
+  depends_on = [talos_cluster_kubeconfig.this]
 
-  triggers = {
-    cluster_id = talos_machine_secrets.this.id
+  name             = "cilium"
+  repository       = "https://helm.cilium.io/"
+  chart            = "cilium"
+  namespace        = "kube-system"
+  create_namespace = false
+  version          = "1.17.0"
+  wait             = true
+  timeout          = 600
+
+  values = [yamlencode({
+    # Talos-specific: kube-proxy replacement
+    kubeProxyReplacement = true
+    k8sServiceHost       = local.talos_api_vip
+    k8sServicePort       = 6443
+
+    # L2 announcements for LoadBalancer services
+    l2announcements = { enabled = true }
+    externalIPs     = { enabled = true }
+
+    # Hubble observability
+    hubble = {
+      enabled = true
+      relay   = { enabled = true }
+      ui      = { enabled = true }
+    }
+
+    # Gateway API support
+    gatewayAPI = { enabled = true }
+
+    # IPAM mode
+    ipam = { mode = "kubernetes" }
+
+    # Operator replicas (single replica for small cluster)
+    operator = { replicas = 1 }
+
+    # Talos-specific: cgroup settings
+    cgroup = {
+      autoMount = { enabled = false }
+      hostRoot  = "/sys/fs/cgroup"
+    }
+
+    # Talos-specific: explicit capabilities
+    securityContext = {
+      capabilities = {
+        ciliumAgent      = ["CHOWN", "KILL", "NET_ADMIN", "NET_RAW", "IPC_LOCK", "SYS_ADMIN", "SYS_RESOURCE", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+        cleanCiliumState = ["NET_ADMIN", "SYS_ADMIN", "SYS_RESOURCE"]
+      }
+    }
+  })]
+}
+
+# L2 Announcement Policy - enables ARP responses for LoadBalancer IPs
+resource "kubernetes_manifest" "cilium_l2_policy" {
+  depends_on = [helm_release.cilium]
+
+  manifest = {
+    apiVersion = "cilium.io/v2alpha1"
+    kind       = "CiliumL2AnnouncementPolicy"
+    metadata = {
+      name = "cluster-ingress"
+    }
+    spec = {
+      interfaces      = ["^ens[0-9]+"]
+      externalIPs     = true
+      loadBalancerIPs = true
+    }
+  }
+}
+
+# LoadBalancer IP Pool - single VIP for all LoadBalancer services
+resource "kubernetes_manifest" "cilium_ip_pool" {
+  depends_on = [helm_release.cilium]
+
+  manifest = {
+    apiVersion = "cilium.io/v2alpha1"
+    kind       = "CiliumLoadBalancerIPPool"
+    metadata = {
+      name = "ingress-pool"
+    }
+    spec = {
+      blocks = [{
+        start = local.talos_workload_vip
+        stop  = local.talos_workload_vip
+      }]
+    }
+  }
+}
+
+# RBAC: Map Keycloak 'admin' group to cluster-admin
+resource "kubernetes_cluster_role_binding_v1" "oidc_admin" {
+  depends_on = [talos_cluster_kubeconfig.this]
+
+  metadata {
+    name = "oidc-admin"
   }
 
-  provisioner "local-exec" {
-    command = <<-EOT
-      # Write kubeconfig to temp file
-      echo '${talos_cluster_kubeconfig.this.kubeconfig_raw}' > /tmp/talos-kubeconfig
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "cluster-admin"
+  }
 
-      # Install Cilium with kube-proxy replacement and L2 announcements
-      # Talos-specific settings: cgroup mount + explicit capabilities
-      KUBECONFIG=/tmp/talos-kubeconfig cilium install \
-        --set kubeProxyReplacement=true \
-        --set k8sServiceHost=${local.talos_api_vip} \
-        --set k8sServicePort=6443 \
-        --set l2announcements.enabled=true \
-        --set externalIPs.enabled=true \
-        --set operator.replicas=1 \
-        --set hubble.enabled=true \
-        --set hubble.relay.enabled=true \
-        --set hubble.ui.enabled=true \
-        --set ipam.mode=kubernetes \
-        --set gatewayAPI.enabled=true \
-        --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
-        --set securityContext.capabilities.cleanCiliumState="{NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
-        --set cgroup.autoMount.enabled=false \
-        --set cgroup.hostRoot=/sys/fs/cgroup
-
-      # Wait for Cilium to be ready
-      KUBECONFIG=/tmp/talos-kubeconfig cilium status --wait
-
-      # Apply L2 announcement policy and IP pool
-      cat <<EOF | KUBECONFIG=/tmp/talos-kubeconfig kubectl apply -f -
-apiVersion: cilium.io/v2alpha1
-kind: CiliumL2AnnouncementPolicy
-metadata:
-  name: cluster-ingress
-spec:
-  interfaces:
-    - ^ens[0-9]+
-  externalIPs: true
-  loadBalancerIPs: true
----
-apiVersion: cilium.io/v2alpha1
-kind: CiliumLoadBalancerIPPool
-metadata:
-  name: ingress-pool
-spec:
-  blocks:
-    - start: ${local.talos_workload_vip}
-      stop: ${local.talos_workload_vip}
----
-# RBAC: Map Keycloak 'admin' role to cluster-admin
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: oidc-admin
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-  - kind: Group
-    name: admin
-    apiGroup: rbac.authorization.k8s.io
-EOF
-
-      # Cleanup
-      rm /tmp/talos-kubeconfig
-    EOT
+  subject {
+    kind      = "Group"
+    name      = "admin"
+    api_group = "rbac.authorization.k8s.io"
   }
 }
 
 # =============================================================================
 # Gateway API Installation
 # =============================================================================
-# Installs Gateway API CRDs, upgrades Cilium to enable Gateway controller,
-# and creates GatewayClass + Gateway resources
+# CRDs installed via kubectl (one-time bootstrap), resources managed by TF
 
-resource "null_resource" "install_gateway_api" {
-  depends_on = [null_resource.install_cilium]
+# Gateway API CRDs - must exist before GatewayClass/Gateway can be created
+# This is idempotent (kubectl apply) but won't track CRD state changes
+resource "null_resource" "gateway_api_crds" {
+  depends_on = [helm_release.cilium]
 
   triggers = {
-    gateway_api_version = local.gateway_api_version
-    cluster_id          = talos_machine_secrets.this.id
+    version = local.gateway_api_version
   }
 
   provisioner "local-exec" {
     command = <<-EOT
       echo '${talos_cluster_kubeconfig.this.kubeconfig_raw}' > /tmp/talos-kubeconfig
-      export KUBECONFIG=/tmp/talos-kubeconfig
-
-      # Install Gateway API CRDs
-      kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${local.gateway_api_version}/standard-install.yaml
-
-      # Upgrade Cilium to enable Gateway API controller (idempotent if already enabled)
-      cilium upgrade --set gatewayAPI.enabled=true
-
-      # Wait for Cilium to be ready after upgrade
-      cilium status --wait
-
-      # Apply GatewayClass and Gateway
-      kubectl apply -f - <<EOF
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: cilium
-spec:
-  controllerName: io.cilium/gateway-controller
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: main-gateway
-  namespace: default
-  annotations:
-    io.cilium/lb-ipam-ips: "${local.talos_workload_vip}"
-spec:
-  gatewayClassName: cilium
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-      hostname: "*.apps.home.shdr.ch"
-      allowedRoutes:
-        namespaces:
-          from: All
-EOF
-
+      KUBECONFIG=/tmp/talos-kubeconfig kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${local.gateway_api_version}/standard-install.yaml
       rm /tmp/talos-kubeconfig
     EOT
+  }
+}
+
+# GatewayClass - tells Cilium to handle Gateway resources
+resource "kubernetes_manifest" "gateway_class" {
+  depends_on = [null_resource.gateway_api_crds]
+
+  manifest = {
+    apiVersion = "gateway.networking.k8s.io/v1"
+    kind       = "GatewayClass"
+    metadata = {
+      name = "cilium"
+    }
+    spec = {
+      controllerName = "io.cilium/gateway-controller"
+    }
+  }
+}
+
+# Main Gateway - ingress point for all HTTP traffic
+resource "kubernetes_manifest" "main_gateway" {
+  depends_on = [kubernetes_manifest.gateway_class]
+
+  manifest = {
+    apiVersion = "gateway.networking.k8s.io/v1"
+    kind       = "Gateway"
+    metadata = {
+      name      = "main-gateway"
+      namespace = "default"
+      annotations = {
+        "io.cilium/lb-ipam-ips" = local.talos_workload_vip
+      }
+    }
+    spec = {
+      gatewayClassName = "cilium"
+      listeners = [{
+        name     = "http"
+        protocol = "HTTP"
+        port     = 80
+        hostname = "*.apps.home.shdr.ch"
+        allowedRoutes = {
+          namespaces = {
+            from = "All"
+          }
+        }
+      }]
+    }
   }
 }
 

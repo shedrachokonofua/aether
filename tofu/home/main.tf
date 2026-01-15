@@ -73,6 +73,16 @@ terraform {
       source  = "siderolabs/talos"
       version = "~> 0.10"
     }
+
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "3.0.1"
+    }
+
+    helm = {
+      source  = "hashicorp/helm"
+      version = "3.1.1"
+    }
   }
 }
 
@@ -87,4 +97,20 @@ provider "proxmox" {
 # Requires: task bao:login (token cached), then export VAULT_TOKEN=$(cat ~/.aether-toolbox/bao/token)
 provider "vault" {
   address = "https://bao.home.shdr.ch"
+}
+
+provider "kubernetes" {
+  host                   = try(talos_cluster_kubeconfig.this.kubernetes_client_configuration.host, null)
+  client_certificate     = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_certificate), null)
+  client_key             = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_key), null)
+  cluster_ca_certificate = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate), null)
+}
+
+provider "helm" {
+  kubernetes = {
+    host                   = try(talos_cluster_kubeconfig.this.kubernetes_client_configuration.host, null)
+    client_certificate     = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_certificate), null)
+    client_key             = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_key), null)
+    cluster_ca_certificate = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate), null)
+  }
 }
