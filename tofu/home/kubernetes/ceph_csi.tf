@@ -2,12 +2,6 @@
 # Ceph CSI Driver for Kubernetes
 # =============================================================================
 # Enables dynamic provisioning of Ceph RBD volumes.
-#
-# Prereqs:
-# - Ceph cluster running (see docs/ceph-implementation.md)
-# - RBD pool "kubernetes" exists
-# - Monitors: 192.168.2.202, 192.168.2.204, 192.168.2.205
-# - secrets/secrets.yml has ceph.fsid and ceph.admin_key
 
 locals {
   # Use explicit v2 msgr addresses (port 3300) for modern Ceph (Squid/19+)
@@ -27,7 +21,6 @@ resource "kubernetes_namespace_v1" "system" {
   metadata {
     name = "system"
     labels = {
-      # CSI drivers require privileged Pod Security Standard
       "pod-security.kubernetes.io/enforce" = "privileged"
     }
   }
@@ -66,16 +59,12 @@ resource "helm_release" "ceph_csi_rbd" {
   timeout    = 600
 
   values = [yamlencode({
-    # Ceph cluster configuration
     csiConfig = [{
       clusterID = local.ceph_fsid
       monitors  = local.ceph_monitors
     }]
 
-    # Single replica for small cluster
-    provisioner = { replicaCount = 1 }
-
-    # We manage StorageClass separately for better control
+    provisioner  = { replicaCount = 1 }
     storageClass = { create = false }
   })]
 }
@@ -106,7 +95,6 @@ resource "kubernetes_storage_class_v1" "ceph_rbd" {
     pool          = local.ceph_pool
     imageFeatures = "layering"
 
-    # Secret references for provisioner operations
     "csi.storage.k8s.io/provisioner-secret-name"            = kubernetes_secret_v1.ceph_csi.metadata[0].name
     "csi.storage.k8s.io/provisioner-secret-namespace"       = kubernetes_namespace_v1.system.metadata[0].name
     "csi.storage.k8s.io/controller-expand-secret-name"      = kubernetes_secret_v1.ceph_csi.metadata[0].name
@@ -115,3 +103,4 @@ resource "kubernetes_storage_class_v1" "ceph_rbd" {
     "csi.storage.k8s.io/node-stage-secret-namespace"        = kubernetes_namespace_v1.system.metadata[0].name
   }
 }
+

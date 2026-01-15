@@ -64,7 +64,6 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │   ├── Knative Serving (scale to zero)                                           │
 │   ├── Knative Eventing (event-driven)                                           │
 │   ├── Knative Functions (FaaS)                                                  │
-│   ├── Kubero (PaaS layer — replaces Dokku + Dokploy)                            │
 │   ├── OPA Gatekeeper (policy enforcement)                                       │
 │   ├── Secrets Store CSI (OpenBao secrets as files)                              │
 │   ├── cert-manager + step-ca issuer                                             │
@@ -269,38 +268,6 @@ Caddy (Gateway Stack VM)
 **Scale to zero is default** — deploy a Knative Service, it scales to zero after 60s idle. No config required.
 
 **Note:** Knative traditionally bundles Kourier (lightweight Envoy-based ingress), but Cilium's Gateway API implementation handles ingress routing, making Kourier redundant.
-
-### Kubero (PaaS Layer)
-
-Heroku/Vercel-style PaaS that replaces both Dokku and Dokploy:
-
-| Feature              | Dokku | Dokploy | Kubero              |
-| -------------------- | ----- | ------- | ------------------- |
-| Git push deploy      | ✅    | ✅      | ✅                  |
-| Web UI               | ❌    | ✅      | ✅                  |
-| Buildpacks           | ✅    | ❌      | ✅                  |
-| Scale to zero        | ❌    | ❌      | ✅ (KEDA)           |
-| Preview environments | ❌    | ❌      | ✅                  |
-| Add-ons (PG, Redis)  | ✅    | ✅      | ✅                  |
-| Docker Compose       | ❌    | ✅      | ⚠️ (templates/Helm) |
-
-```bash
-helm repo add kubero https://kubero-dev.github.io/kubero/
-helm install kubero kubero/kubero
-```
-
-**Peer workflow:**
-
-1. Login to Kubero UI (Keycloak SSO)
-2. Create app, connect Git repo
-3. Select buildpack or Dockerfile
-4. Deploy → scales to zero when idle
-
-**Migration approach:**
-
-- Dokku apps → Kubero (git push, buildpacks)
-- Dokploy apps with templates → Kubero templates
-- Complex Docker Compose apps → Helm charts or case-by-case
 
 ### OPA Gatekeeper (Policy Enforcement)
 
@@ -522,8 +489,8 @@ func deploy --registry ghcr.io/alice
 | Crossplane        | Tofu handles AWS/Cloudflare fine          |
 | GPU Operator      | GPU workloads stay on VM (passthrough)    |
 | Prometheus in k8s | Monitoring stays external                 |
-| Dokku             | Replaced by Kubero                        |
-| Dokploy           | Replaced by Kubero + Helm charts          |
+| Dokku             | Replaced by Knative Services              |
+| Dokploy           | Replaced by Knative Services + Helm       |
 
 ## Resource Summary
 
@@ -839,9 +806,8 @@ No SSH, no Ansible, no package managers. Just API calls.
 ### Phase 2: Platform Components
 
 - [x] Install Gateway API CRDs
-- [ ] Install Knative Serving (uses Cilium Gateway API for ingress)
+- [x] Install Knative Serving (uses Cilium Gateway API for ingress)
 - [ ] Install Knative Eventing
-- [ ] Install Kubero (PaaS layer)
 - [ ] Install OPA Gatekeeper
 - [ ] Install Secrets Store CSI + Vault provider
 - [ ] Install cert-manager + step-ca ClusterIssuer
@@ -849,8 +815,9 @@ No SSH, no Ansible, no package managers. Just API calls.
 
 ### Phase 3: Observability + Security Scanning
 
-- [ ] Deploy OTEL Collector DaemonSet
-- [ ] Configure export to Monitoring Stack
+- [x] Deploy OTEL Collector DaemonSet
+- [x] Configure export to Monitoring Stack
+- [x] Deploy OTEL Collector Deployment (cluster metrics, events)
 - [ ] Enable Cilium Hubble
 - [ ] Create k8s dashboards in Grafana
 - [ ] Deploy Nuclei CronJob (weekly vulnerability scans, see `network-security.md`)
@@ -867,8 +834,8 @@ No SSH, no Ansible, no package managers. Just API calls.
 Migration order (low risk → high complexity):
 
 1. [ ] **UPS Stack** — Simple, stateless UI (Peanut), validates platform
-2. [ ] **Dokku apps** — Move to Kubero, buildpack-based
-3. [ ] **Dokploy apps** — Move to Kubero or Helm charts
+2. [ ] **Dokku apps** — Move to Knative Services
+3. [ ] **Dokploy apps** — Move to Knative Services or Helm charts
 4. [ ] **AI Tool Stack** — LiteLLM, OpenWebUI, SearXNG, Firecrawl, Bytebot (scale-to-zero)
 5. [ ] **Media Stack** — Jellyfin, qBittorrent, \*arrs (rffmpeg → GPU Workstation)
 6. [ ] **Messaging Stack** — Synapse (stateful), Element (stateless)
@@ -901,7 +868,7 @@ Migration order (low risk → high complexity):
 | CNI          | Cilium                         | mTLS, L7 policies, Hubble                                          |
 | LB mode      | Cilium L2 Announcements        | Single VIP (10.0.3.19), HA failover, no BGP needed                 |
 | Ingress      | Gateway API + Caddy (external) | Gateway API is the new standard, keep Caddy as single entry point  |
-| PaaS         | Kubero                         | Replaces Dokku + Dokploy, git-push deploys, UI, scale-to-zero      |
+| PaaS         | Knative Serving                | Scale-to-zero, git-push via GitLab CI, replaces Dokku + Dokploy    |
 | GitOps       | GitLab CI + kubectl            | Already have GitLab, no need for ArgoCD                            |
 | Secrets      | Secrets Store CSI              | Secrets never in etcd                                              |
 | Policy       | OPA Gatekeeper                 | Rego is powerful, industry standard                                |

@@ -132,3 +132,22 @@ output "talos_machine_secrets" {
   value       = talos_machine_secrets.this.machine_secrets
   sensitive   = true
 }
+
+# =============================================================================
+# Kubernetes Module Outputs
+# =============================================================================
+
+output "k8s_storage_class" {
+  description = "Default Kubernetes storage class"
+  value       = module.kubernetes.storage_class
+}
+
+output "k8s_otel_endpoint" {
+  description = "OTLP endpoint for apps to send telemetry"
+  value       = module.kubernetes.otel_daemonset_service
+}
+
+output "knative_domain" {
+  description = "Domain for Knative services"
+  value       = module.kubernetes.knative_domain
+}
