@@ -83,6 +83,11 @@ terraform {
       source  = "hashicorp/helm"
       version = "3.1.1"
     }
+
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "1.18.0"
+    }
   }
 }
 
@@ -113,4 +118,12 @@ provider "helm" {
     client_key             = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_key), null)
     cluster_ca_certificate = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate), null)
   }
+}
+
+provider "kubectl" {
+  host                   = try(talos_cluster_kubeconfig.this.kubernetes_client_configuration.host, null)
+  client_certificate     = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_certificate), null)
+  client_key             = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_key), null)
+  cluster_ca_certificate = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate), null)
+  load_config_file       = false
 }
