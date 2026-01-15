@@ -104,7 +104,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
 
   # Talos ISO boot
   cdrom {
-    file_id   = local.talos_iso
+    file_id   = proxmox_virtual_environment_download_file.talos_iso.id
     interface = "ide2"
   }
 
@@ -374,7 +374,7 @@ resource "null_resource" "gateway_api_crds" {
   provisioner "local-exec" {
     command = <<-EOT
       echo '${talos_cluster_kubeconfig.this.kubeconfig_raw}' > /tmp/talos-kubeconfig
-      KUBECONFIG=/tmp/talos-kubeconfig kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${local.gateway_api_version}/standard-install.yaml
+      KUBECONFIG=/tmp/talos-kubeconfig kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${local.gateway_api_version}/experimental-install.yaml
       rm /tmp/talos-kubeconfig
     EOT
   }
@@ -440,5 +440,87 @@ resource "proxmox_virtual_environment_haresource" "talos" {
   group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
   max_restart  = 3
   max_relocate = 2
+}
+
+# =============================================================================
+# Headlamp - Kubernetes Dashboard
+# =============================================================================
+# Modern Kubernetes UI with OIDC authentication via Keycloak
+
+resource "helm_release" "headlamp" {
+  depends_on = [helm_release.cilium]
+
+  name             = "headlamp"
+  repository       = "https://kubernetes-sigs.github.io/headlamp/"
+  chart            = "headlamp"
+  namespace        = "headlamp"
+  create_namespace = true
+  version          = "0.39.0"
+  wait             = true
+  timeout          = 300
+
+  values = [yamlencode({
+    # OIDC authentication via Keycloak
+    config = {
+      oidc = {
+        clientID  = local.oidc_client_id # "kubernetes" - must match API server
+        issuerURL = local.oidc_issuer_url
+      }
+      # Force HTTPS callback URL (Gateway terminates TLS)
+      extraArgs = ["-oidc-callback-url", "https://headlamp.apps.home.shdr.ch/oidc-callback"]
+    }
+
+    # Service configuration
+    service = {
+      type = "ClusterIP"
+      port = 80
+    }
+
+    # Resource limits for small cluster
+    resources = {
+      requests = {
+        cpu    = "50m"
+        memory = "128Mi"
+      }
+      limits = {
+        cpu    = "200m"
+        memory = "256Mi"
+      }
+    }
+  })]
+}
+
+# HTTPRoute for Headlamp via Gateway API
+resource "kubernetes_manifest" "headlamp_route" {
+  depends_on = [kubernetes_manifest.main_gateway, helm_release.headlamp]
+
+  manifest = {
+    apiVersion = "gateway.networking.k8s.io/v1"
+    kind       = "HTTPRoute"
+    metadata = {
+      name      = "headlamp"
+      namespace = "headlamp"
+    }
+    spec = {
+      parentRefs = [{
+        name      = "main-gateway"
+        namespace = "default"
+      }]
+      hostnames = ["headlamp.apps.home.shdr.ch"]
+      rules = [{
+        matches = [{
+          path = {
+            type  = "PathPrefix"
+            value = "/"
+          }
+        }]
+        backendRefs = [{
+          kind = "Service"
+          name = "headlamp"
+          port = 80
+        }]
+      }]
+    }
+  }
 }
 

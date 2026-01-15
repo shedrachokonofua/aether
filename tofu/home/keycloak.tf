@@ -605,12 +605,17 @@ resource "keycloak_openid_client" "kubernetes" {
   # Device authorization grant for CLI auth (kubelogin)
   oauth2_device_authorization_grant_enabled = true
 
-  # kubelogin callback URLs
+  # kubelogin callback URLs + Headlamp
   valid_redirect_uris = [
     "http://localhost:8000/*",
     "http://localhost:18000/*",
     "http://127.0.0.1:8000/*",
     "http://127.0.0.1:18000/*",
+    "https://headlamp.apps.home.shdr.ch/oidc-callback",
+  ]
+
+  web_origins = [
+    "https://headlamp.apps.home.shdr.ch",
   ]
 }
 
@@ -637,4 +642,5 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "kubernetes_groups" {
   add_to_access_token = true
   add_to_userinfo     = true
 }
+
 
