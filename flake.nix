@@ -110,6 +110,7 @@
             
             # Cloud CLIs
             awscli2
+            rclone            # S3 CLI for AWS + Ceph RGW (MIT license)
             
             # Certificate management
             step-cli
@@ -137,6 +138,9 @@
             kubectl         # Kubernetes CLI
             cilium-cli      # Cilium CNI management
             kubernetes-helm # Helm charts
+            
+            # GitLab
+            glab            # GitLab CLI
           ];
 
           shellHook = ''

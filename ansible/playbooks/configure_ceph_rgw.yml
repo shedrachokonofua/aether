@@ -30,7 +30,9 @@
     rgw_sts_key: "{{ secrets.ceph.rgw_sts_key }}"
 
     rgw_oidc_provider_url: "https://auth.shdr.ch/realms/aether"
-    rgw_oidc_client_id: "ceph-rgw"
+    rgw_oidc_client_ids:
+      - "ceph-rgw"   # Direct S3 client
+      - "toolbox"    # CLI toolbox (login.sh)
     rgw_oidc_claim_prefix: "{{ rgw_oidc_provider_url | regex_replace('^https?://', '') }}"
     rgw_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ rgw_oidc_claim_prefix }}"
     rgw_oidc_required_role: "admin"
@@ -367,7 +369,7 @@
           aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:{{ rgw_port }}" \
             iam create-open-id-connect-provider \
             --url "{{ rgw_oidc_provider_url }}" \
-            --client-id-list "{{ rgw_oidc_client_id }}" \
+            --client-id-list {{ rgw_oidc_client_ids | join(' ') }} \
             --thumbprint-list "{{ keycloak_thumbprint.stdout }}"
       when: rgw_oidc_provider_arn not in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
       run_once: true

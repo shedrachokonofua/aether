@@ -7,12 +7,14 @@
 #   - SSH certificate (step-ca OIDC provisioner)
 #   - OpenBao (JWT auth backend)
 #   - AWS (STS AssumeRoleWithWebIdentity)
+#   - Ceph RGW (STS AssumeRoleWithWebIdentity)
 #
 # Usage:
-#   ./scripts/login.sh           # Full login (SSH + Bao + AWS)
+#   ./scripts/login.sh           # Full login (SSH + Bao + AWS + S3)
 #   ./scripts/login.sh --ssh     # SSH certificate only
 #   ./scripts/login.sh --bao     # OpenBao only
 #   ./scripts/login.sh --aws     # AWS only
+#   ./scripts/login.sh --s3      # Ceph S3 only
 #   ./scripts/login.sh --no-ssh  # Skip SSH even if agent available
 #   ./scripts/login.sh --status  # Check current auth status
 #
@@ -21,6 +23,12 @@
 #   AETHER_AWS_ROLE    - AWS role ARN to assume (default: auto-detect admin role)
 #   AETHER_AWS_REGION  - AWS region (default: us-east-1)
 #   SSH_AUTH_SOCK      - SSH agent socket (auto-detected for SSH cert exchange)
+#
+# S3 Usage (after login):
+#   rclone lsd ceph_rgw:                   # List Ceph RGW buckets
+#   rclone ls ceph_rgw:bucket-name         # List files in bucket
+#   rclone lsd aws:                    # List AWS S3 buckets
+#   rclone copy file.txt ceph_rgw:bucket/  # Upload to Ceph RGW
 
 set -euo pipefail
 
@@ -33,6 +41,8 @@ KEYCLOAK_REALM="aether"
 KEYCLOAK_CLIENT_ID="toolbox"
 OPENBAO_URL="https://bao.home.shdr.ch"
 STEP_CA_URL="https://ca.shdr.ch"
+CEPH_RGW_URL="https://s3.home.shdr.ch"
+CEPH_RGW_ROLE="arn:aws:iam:::role/rgw-admin"
 CACHE_DIR="${AETHER_CACHE_DIR:-$HOME/.aether-toolbox}"
 AWS_REGION="${AETHER_AWS_REGION:-us-east-1}"
 
@@ -245,6 +255,79 @@ EOF
   return 0
 }
 
+exchange_for_s3() {
+  local id_token="$1"
+
+  log_info "Exchanging token for Ceph S3 credentials..."
+
+  local response
+  response=$(aws --no-sign-request sts assume-role-with-web-identity \
+    --endpoint-url "$CEPH_RGW_URL" \
+    --role-arn "$CEPH_RGW_ROLE" \
+    --role-session-name "aether-toolbox-$(date +%s)" \
+    --web-identity-token "$id_token" \
+    2>&1) || {
+      log_error "Ceph S3 token exchange failed: $response"
+      return 1
+    }
+
+  local access_key secret_key session_token expiration
+  access_key=$(echo "$response" | jq -r '.Credentials.AccessKeyId')
+  secret_key=$(echo "$response" | jq -r '.Credentials.SecretAccessKey')
+  session_token=$(echo "$response" | jq -r '.Credentials.SessionToken')
+  expiration=$(echo "$response" | jq -r '.Credentials.Expiration')
+
+  # Write S3 credentials to env file
+  cat > "$CACHE_DIR/s3-env" <<EOF
+S3_ACCESS_KEY_ID=${access_key}
+S3_SECRET_ACCESS_KEY=${secret_key}
+S3_SESSION_TOKEN=${session_token}
+S3_ENDPOINT=${CEPH_RGW_URL}
+EOF
+  chmod 600 "$CACHE_DIR/s3-env"
+
+  # Configure rclone for Ceph RGW (named 'ceph')
+  mkdir -p "$HOME/.config/rclone"
+  local rclone_config="$HOME/.config/rclone/rclone.conf"
+
+  # Remove existing ceph_rgw section if present
+  if [[ -f "$rclone_config" ]]; then
+    sed -i '/^\[ceph\]$/,/^\[/{ /^\[ceph\]$/d; /^\[/!d; }' "$rclone_config" 2>/dev/null || true
+  fi
+
+  # Add ceph_rgw remote for Ceph RGW
+  cat >> "$rclone_config" <<EOF
+[ceph_rgw]
+type = s3
+provider = Ceph
+endpoint = ${CEPH_RGW_URL}
+access_key_id = ${access_key}
+secret_access_key = ${secret_key}
+session_token = ${session_token}
+EOF
+  chmod 600 "$rclone_config"
+
+  # Also configure 'aws' remote if AWS credentials exist
+  if [[ -f "$CACHE_DIR/aws-env" ]]; then
+    source "$CACHE_DIR/aws-env"
+    # Remove existing aws section if present
+    sed -i '/^\[aws\]$/,/^\[/{ /^\[aws\]$/d; /^\[/!d; }' "$rclone_config" 2>/dev/null || true
+    cat >> "$rclone_config" <<EOF
+[aws]
+type = s3
+provider = AWS
+region = ${AWS_REGION}
+access_key_id = ${AWS_ACCESS_KEY_ID}
+secret_access_key = ${AWS_SECRET_ACCESS_KEY}
+session_token = ${AWS_SESSION_TOKEN}
+EOF
+  fi
+
+  log_success "Ceph S3 credentials cached (expires: $expiration)"
+  log_info "  Use: rclone lsd ceph_rgw:"
+  return 0
+}
+
 exchange_for_bao() {
   local access_token="$1"
 
@@ -414,6 +497,21 @@ check_status() {
     log_warn "Not authenticated (no cached credentials)"
   fi
 
+  # Check Ceph S3
+  echo -e "\n${BLUE}Ceph S3:${NC}"
+  if [[ -f "$CACHE_DIR/s3-env" ]]; then
+    source "$CACHE_DIR/s3-env"
+    # Try a simple list operation to verify credentials work
+    if command -v rclone &>/dev/null && rclone lsd ceph_rgw: &>/dev/null; then
+      log_success "Authenticated (endpoint: $S3_ENDPOINT)"
+      log_info "  Use: rclone lsd ceph_rgw:"
+    else
+      log_warn "Credentials cached but may be expired"
+    fi
+  else
+    log_warn "Not authenticated (no cached credentials)"
+  fi
+
   echo ""
 }
 
@@ -424,6 +522,7 @@ check_status() {
 do_login() {
   local do_aws=true
   local do_bao=true
+  local do_s3=true
   local do_ssh=auto  # auto = try if SSH agent available
 
   # Parse args
@@ -431,17 +530,26 @@ do_login() {
     case "$1" in
       --aws)
         do_bao=false
+        do_s3=false
         do_ssh=false
         shift
         ;;
       --bao)
         do_aws=false
+        do_s3=false
+        do_ssh=false
+        shift
+        ;;
+      --s3)
+        do_aws=false
+        do_bao=false
         do_ssh=false
         shift
         ;;
       --ssh)
         do_aws=false
         do_bao=false
+        do_s3=false
         do_ssh=true
         shift
         ;;
@@ -454,14 +562,20 @@ do_login() {
         exit 0
         ;;
       --help|-h)
-        echo "Usage: $0 [--aws|--bao|--ssh|--no-ssh|--status]"
+        echo "Usage: $0 [--aws|--bao|--s3|--ssh|--no-ssh|--status]"
         echo ""
         echo "Options:"
         echo "  --aws     Only get AWS credentials"
         echo "  --bao     Only get OpenBao token"
+        echo "  --s3      Only get Ceph S3 credentials"
         echo "  --ssh     Only get SSH certificate"
         echo "  --no-ssh  Skip SSH certificate (even if agent available)"
         echo "  --status  Check current auth status"
+        echo ""
+        echo "S3 Usage (after login):"
+        echo "  rclone lsd ceph_rgw:        List Ceph RGW buckets"
+        echo "  rclone lsd aws:         List AWS S3 buckets"
+        echo "  rclone copy f.txt ceph_rgw:b/ Upload to Ceph"
         echo ""
         echo "Environment:"
         echo "  AETHER_CACHE_DIR   Token cache directory (default: ~/.aether-toolbox)"
@@ -521,11 +635,12 @@ do_login() {
   log_success "Authentication successful!"
   echo ""
 
-  # Exchange tokens (ordered by importance: SSH → Bao → AWS)
+  # Exchange tokens (ordered by importance: SSH → Bao → AWS → S3)
   local ssh_ok=true
   local ssh_skipped=false
   local bao_ok=true
   local aws_ok=true
+  local s3_ok=true
 
   # SSH: auto-detect or explicit (most used day-to-day)
   # Uses ID token (contains sub claim required by OIDC provisioner)
@@ -547,6 +662,10 @@ do_login() {
 
   if $do_aws; then
     exchange_for_aws "$id_token" || aws_ok=false
+  fi
+
+  if $do_s3; then
+    exchange_for_s3 "$id_token" || s3_ok=false
   fi
 
   # Summary (same order)
@@ -575,10 +694,17 @@ do_login() {
       log_error "AWS: Failed"
     fi
   fi
+  if $do_s3; then
+    if $s3_ok; then
+      log_success "S3:  Ready (rclone remotes: ceph_rgw, aws)"
+    else
+      log_error "S3:  Failed"
+    fi
+  fi
   echo ""
 
   # Only fail on explicit requests, not auto-detected SSH
-  if ! $bao_ok || ! $aws_ok; then
+  if ! $bao_ok || ! $aws_ok || ! $s3_ok; then
     exit 1
   fi
   if [[ "$do_ssh" == "true" ]] && ! $ssh_ok; then
