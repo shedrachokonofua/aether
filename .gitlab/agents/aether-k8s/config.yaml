@@ -1,0 +1,9 @@
+# GitLab Agent for Kubernetes - CI Access Configuration
+# Grants all projects under the "so" group full cluster access.
+# Namespace is derived from $CI_PROJECT_ROOT_NAMESPACE in CI jobs.
+
+ci_access:
+  groups:
+    - id: so
+      access_as:
+        agent: {}
