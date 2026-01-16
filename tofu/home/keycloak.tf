@@ -476,6 +476,60 @@ resource "keycloak_openid_audience_protocol_mapper" "openbao_audience" {
 }
 
 # =============================================================================
+# Ceph RGW OIDC Client (STS)
+# =============================================================================
+# Public client for device authorization + STS AssumeRoleWithWebIdentity
+
+resource "keycloak_openid_client" "ceph_rgw" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "ceph-rgw"
+  name      = "Ceph RGW"
+  enabled   = true
+
+  # PUBLIC client - device auth doesn't support client secrets
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = false
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  consent_required             = false
+
+  oauth2_device_authorization_grant_enabled = true
+}
+
+resource "keycloak_openid_client_default_scopes" "ceph_rgw_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.ceph_rgw.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "ceph_rgw_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.ceph_rgw.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "ceph_rgw_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.ceph_rgw.id
+  name      = "ceph-rgw-audience"
+
+  included_client_audience = keycloak_openid_client.ceph_rgw.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+# =============================================================================
 # Toolbox Client - Unified Developer Login
 # =============================================================================
 # Public client for device authorization grant (CLI login without browser redirect).

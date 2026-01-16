@@ -1,0 +1,381 @@
+---
+# Configure Ceph RGW (S3) with Keycloak OIDC + STS
+
+- name: Configure Ceph RGW with Keycloak OIDC + STS
+  hosts:
+    - trinity
+    - neo
+    - smith
+  become: true
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    rgw_admin_host: "trinity"
+
+    rgw_realm: "default"
+    rgw_zonegroup: "default"
+    rgw_zone: "default"
+
+    rgw_port: 7480
+    rgw_frontends: "beast port={{ rgw_port }}"
+    rgw_enable_apis: "s3, sts, admin, iam"
+
+    rgw_instance: "rgw.{{ inventory_hostname }}"
+    rgw_client: "client.rgw.{{ inventory_hostname }}"
+    rgw_keyring_path: "/etc/pve/priv/ceph.{{ rgw_client }}.keyring"
+
+    rgw_dns_name: "{{ secrets.ceph.rgw_dns_name | default('') }}"
+    rgw_s3_auth_use_sts: "true"
+    rgw_sts_key: "{{ secrets.ceph.rgw_sts_key }}"
+
+    rgw_oidc_provider_url: "https://auth.shdr.ch/realms/aether"
+    rgw_oidc_client_id: "ceph-rgw"
+    rgw_oidc_claim_prefix: "{{ rgw_oidc_provider_url | regex_replace('^https?://', '') }}"
+    rgw_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ rgw_oidc_claim_prefix }}"
+    rgw_oidc_required_role: "admin"
+
+    rgw_admin_role_name: "rgw-admin"
+    rgw_admin_role_policy_name: "rgw-admin-policy"
+
+    # Admin user for OIDC provider management (REST API)
+    rgw_api_admin_uid: "oidc-admin"
+    rgw_api_admin_display_name: "OIDC Admin"
+    rgw_api_admin_access_key: "{{ secrets.ceph.rgw_admin_access_key }}"
+    rgw_api_admin_secret_key: "{{ secrets.ceph.rgw_admin_secret_key }}"
+
+    rgw_assume_role_policy_json: >-
+      {"Version":"2012-10-17","Statement":[{"Effect":"Allow",
+      "Principal":{"Federated":"{{ rgw_oidc_provider_arn }}"},
+      "Action":"sts:AssumeRoleWithWebIdentity",
+      "Condition":{"ForAnyValue:StringEquals":
+      {"{{ rgw_oidc_claim_prefix }}:roles":"{{ rgw_oidc_required_role }}"}}}]}
+    rgw_admin_policy_json: >
+      {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"*"}]}
+
+  tasks:
+    # =========================================================================
+    # Install RGW
+    # =========================================================================
+    - name: Install RGW package
+      ansible.builtin.apt:
+        name:
+          - radosgw
+        state: present
+
+    # =========================================================================
+    # Bootstrap RGW realm/zone (run once)
+    # =========================================================================
+    - name: List RGW realms
+      ansible.builtin.command:
+        cmd: radosgw-admin realm list --format json
+      register: rgw_realm_list
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create RGW realm
+      ansible.builtin.command:
+        cmd: radosgw-admin realm create --rgw-realm "{{ rgw_realm }}" --default
+      when: rgw_realm not in ((rgw_realm_list.stdout | from_json).realms | default([]))
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: List RGW zonegroups
+      ansible.builtin.command:
+        cmd: radosgw-admin zonegroup list --format json
+      register: rgw_zonegroup_list
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create RGW zonegroup
+      ansible.builtin.command:
+        cmd: radosgw-admin zonegroup create --rgw-zonegroup "{{ rgw_zonegroup }}" --master --default
+      when: rgw_zonegroup not in ((rgw_zonegroup_list.stdout | from_json).zonegroups | default([]))
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: List RGW zones
+      ansible.builtin.command:
+        cmd: radosgw-admin zone list --format json
+      register: rgw_zone_list
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create RGW zone
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin zone create
+          --rgw-realm "{{ rgw_realm }}"
+          --rgw-zonegroup "{{ rgw_zonegroup }}"
+          --rgw-zone "{{ rgw_zone }}"
+          --master --default
+      when: rgw_zone not in ((rgw_zone_list.stdout | from_json).zones | default([]))
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Commit RGW period updates
+      ansible.builtin.command:
+        cmd: radosgw-admin period update --commit
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    # =========================================================================
+    # Create admin user for OIDC management (run once)
+    # =========================================================================
+    - name: Check for OIDC admin user
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid="{{ rgw_api_admin_uid }}"
+      register: rgw_api_admin_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create OIDC admin user
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --uid="{{ rgw_api_admin_uid }}"
+          --display-name="{{ rgw_api_admin_display_name }}"
+          --access-key="{{ rgw_api_admin_access_key }}"
+          --secret="{{ rgw_api_admin_secret_key }}"
+      when: rgw_api_admin_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Add oidc-provider caps to admin user
+      ansible.builtin.command:
+        cmd: radosgw-admin caps add --uid="{{ rgw_api_admin_uid }}" --caps="oidc-provider=*"
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      changed_when: false
+
+    # =========================================================================
+    # Create IAM role for STS (run once)
+    # =========================================================================
+    - name: Check for RGW admin role
+      ansible.builtin.command:
+        cmd: radosgw-admin role get --role-name "{{ rgw_admin_role_name }}" --format json
+      register: rgw_admin_role
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create RGW admin role
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin role create
+          --role-name="{{ rgw_admin_role_name }}"
+          --assume-role-policy-doc='{{ rgw_assume_role_policy_json }}'
+      when: rgw_admin_role.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Attach policy to RGW admin role
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin role policy put
+          --role-name="{{ rgw_admin_role_name }}"
+          --policy-name="{{ rgw_admin_role_policy_name }}"
+          --policy-doc='{{ rgw_admin_policy_json }}'
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    # =========================================================================
+    # RGW daemon configuration
+    # =========================================================================
+    - name: Create RGW keyring
+      ansible.builtin.command:
+        cmd: >
+          ceph auth get-or-create "{{ rgw_client }}"
+          mon "allow rw"
+          osd "allow rwx"
+          -o "{{ rgw_keyring_path }}"
+      args:
+        creates: "{{ rgw_keyring_path }}"
+
+    - name: Ensure RGW keyring permissions
+      ansible.builtin.file:
+        path: "{{ rgw_keyring_path }}"
+        mode: "0600"
+
+    - name: Read rgw_realm
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_realm
+      register: rgw_realm_current
+      changed_when: false
+      failed_when: false
+
+    - name: Set rgw_realm
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_realm "{{ rgw_realm }}"
+      when: rgw_realm_current.stdout != rgw_realm
+      notify: Restart RGW
+
+    - name: Read rgw_zonegroup
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_zonegroup
+      register: rgw_zonegroup_current
+      changed_when: false
+      failed_when: false
+
+    - name: Set rgw_zonegroup
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_zonegroup "{{ rgw_zonegroup }}"
+      when: rgw_zonegroup_current.stdout != rgw_zonegroup
+      notify: Restart RGW
+
+    - name: Read rgw_zone
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_zone
+      register: rgw_zone_current
+      changed_when: false
+      failed_when: false
+
+    - name: Set rgw_zone
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_zone "{{ rgw_zone }}"
+      when: rgw_zone_current.stdout != rgw_zone
+      notify: Restart RGW
+
+    - name: Read rgw_frontends
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_frontends
+      register: rgw_frontends_current
+      changed_when: false
+      failed_when: false
+
+    - name: Set rgw_frontends
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_frontends "{{ rgw_frontends }}"
+      when: rgw_frontends_current.stdout != rgw_frontends
+      notify: Restart RGW
+
+    - name: Read rgw_enable_apis
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_enable_apis
+      register: rgw_apis_current
+      changed_when: false
+      failed_when: false
+
+    - name: Set rgw_enable_apis
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_enable_apis "{{ rgw_enable_apis }}"
+      when: rgw_apis_current.stdout != rgw_enable_apis
+      notify: Restart RGW
+
+    - name: Read rgw_s3_auth_use_sts
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_s3_auth_use_sts
+      register: rgw_sts_current
+      changed_when: false
+      failed_when: false
+
+    - name: Set rgw_s3_auth_use_sts
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_s3_auth_use_sts "{{ rgw_s3_auth_use_sts }}"
+      when: rgw_sts_current.stdout != rgw_s3_auth_use_sts
+      notify: Restart RGW
+
+    - name: Read rgw_sts_key
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_sts_key
+      register: rgw_sts_key_current
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    - name: Set rgw_sts_key
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_sts_key "{{ rgw_sts_key }}"
+      when: rgw_sts_key_current.stdout != rgw_sts_key
+      notify: Restart RGW
+      no_log: true
+
+    - name: Read rgw_dns_name
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_dns_name
+      register: rgw_dns_current
+      changed_when: false
+      failed_when: false
+      when: rgw_dns_name | length > 0
+
+    - name: Set rgw_dns_name
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_dns_name "{{ rgw_dns_name }}"
+      when:
+        - rgw_dns_name | length > 0
+        - rgw_dns_current.stdout != rgw_dns_name
+      notify: Restart RGW
+
+    - name: Enable and start RGW service
+      ansible.builtin.systemd:
+        name: "ceph-radosgw@{{ rgw_instance }}"
+        state: started
+        enabled: true
+
+    - name: Wait for RGW to be ready
+      ansible.builtin.wait_for:
+        port: "{{ rgw_port }}"
+        timeout: 60
+
+    # =========================================================================
+    # Register OIDC provider via AWS CLI (run once, from localhost)
+    # =========================================================================
+    - name: Get Keycloak JWKS signing certificate thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          # Get the JWKS signing certificate (not TLS cert) - this is what Ceph RGW validates
+          JWKS=$(curl -s "{{ rgw_oidc_provider_url }}/protocol/openid-connect/certs")
+          X5C=$(echo "$JWKS" | jq -r '.keys[] | select(.use=="sig") | .x5c[0]')
+          echo "-----BEGIN CERTIFICATE-----" > /tmp/keycloak_jwks_signing.crt
+          echo "$X5C" | fold -w 64 >> /tmp/keycloak_jwks_signing.crt
+          echo "-----END CERTIFICATE-----" >> /tmp/keycloak_jwks_signing.crt
+          openssl x509 -in /tmp/keycloak_jwks_signing.crt -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          rm -f /tmp/keycloak_jwks_signing.crt
+      register: keycloak_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Check if OIDC provider exists
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ rgw_api_admin_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ rgw_api_admin_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:{{ rgw_port }}" \
+            iam list-open-id-connect-providers --output json 2>/dev/null || echo '{"OpenIDConnectProviderList":[]}'
+      register: oidc_provider_list
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Create OIDC provider
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ rgw_api_admin_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ rgw_api_admin_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:{{ rgw_port }}" \
+            iam create-open-id-connect-provider \
+            --url "{{ rgw_oidc_provider_url }}" \
+            --client-id-list "{{ rgw_oidc_client_id }}" \
+            --thumbprint-list "{{ keycloak_thumbprint.stdout }}"
+      when: rgw_oidc_provider_arn not in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+  handlers:
+    - name: Restart RGW
+      ansible.builtin.systemd:
+        name: "ceph-radosgw@{{ rgw_instance }}"
+        state: restarted

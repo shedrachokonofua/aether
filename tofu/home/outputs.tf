@@ -86,6 +86,15 @@ output "keycloak_gitlab_client_secret" {
   sensitive = true
 }
 
+output "keycloak_ceph_rgw_client_id" {
+  value = keycloak_openid_client.ceph_rgw.client_id
+}
+
+output "keycloak_realm_url" {
+  description = "Keycloak aether realm OIDC issuer URL"
+  value       = "https://auth.shdr.ch/realms/aether"
+}
+
 output "smallweb_password" {
   value     = random_password.smallweb_password.result
   sensitive = true

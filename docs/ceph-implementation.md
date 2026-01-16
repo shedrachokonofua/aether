@@ -530,6 +530,89 @@ tofu plan  # Should show no changes
 
 ---
 
+## Phase 11: S3 Object Storage (RADOS Gateway)
+
+Enable S3-compatible object storage via RADOS Gateway with Keycloak OIDC/STS authentication (no static keys required).
+
+### Prerequisites
+
+1. Terraform: Deploy Keycloak OIDC client
+
+```bash
+cd tofu/home
+tofu apply -target=keycloak_openid_client.ceph_rgw
+```
+
+2. Add secrets to `secrets/secrets.yml`:
+
+```yaml
+ceph:
+  rgw_sts_key: "<generate-random-64-char-string>"
+```
+
+### Deploy RGW
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/configure_ceph_rgw.yml
+```
+
+This playbook:
+
+- Installs `ceph-radosgw` on trinity/neo/smith
+- Creates default realm/zonegroup/zone
+- Registers Keycloak as OIDC provider for STS
+- Creates IAM admin role (accessible via OIDC)
+- Configures RGW to serve S3 API on port 7480
+
+### Verify
+
+```bash
+# Check RGW services
+ssh trinity 'systemctl status ceph-radosgw@rgw.trinity'
+
+# Test S3 endpoint
+curl http://192.168.2.202:7480
+# Should return: <?xml version="1.0"...
+```
+
+### Authenticate with Keycloak
+
+Users with the `admin` role can assume the RGW admin role via STS:
+
+```bash
+# Get OIDC token from Keycloak (device auth flow)
+OIDC_TOKEN=$(curl -X POST https://auth.shdr.ch/realms/aether/protocol/openid-connect/token \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:device_code" \
+  -d "client_id=ceph-rgw" \
+  -d "device_code=<code-from-device-flow>")
+
+# Assume RGW admin role
+aws sts assume-role-with-web-identity \
+  --endpoint-url http://192.168.2.202:7480 \
+  --role-arn "arn:aws:iam:::role/rgw-admin" \
+  --role-session-name "session-$(date +%s)" \
+  --web-identity-token "$OIDC_TOKEN"
+```
+
+Returns temporary S3 credentials (AccessKeyId, SecretAccessKey, SessionToken).
+
+### Usage
+
+```bash
+# Configure AWS CLI with temporary credentials
+export AWS_ACCESS_KEY_ID=<from-sts>
+export AWS_SECRET_ACCESS_KEY=<from-sts>
+export AWS_SESSION_TOKEN=<from-sts>
+
+# Create bucket
+aws --endpoint-url http://192.168.2.202:7480 s3 mb s3://test-bucket
+
+# Upload object
+aws --endpoint-url http://192.168.2.202:7480 s3 cp file.txt s3://test-bucket/
+```
+
+---
+
 ## Current Status
 
 | Component               | Status               |
@@ -544,6 +627,7 @@ tofu plan  # Should show no changes
 | Proxmox HA enabled      | ✅ (13 workload VMs) |
 | Smith OSDs              | ✅                   |
 | Smith bonding           | ⏳ Optional          |
+| RGW S3 (OIDC/STS)       | ⏳ Pending           |
 
 ---
 

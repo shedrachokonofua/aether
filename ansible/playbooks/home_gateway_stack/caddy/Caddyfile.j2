@@ -412,6 +412,19 @@ fleet.home.shdr.ch {
 }
 
 # =============================================================================
+# Ceph RGW (S3-compatible object storage)
+# =============================================================================
+# Load balances across RGW instances on Proxmox nodes
+
+s3.home.shdr.ch {
+  reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
+    lb_policy round_robin
+    health_uri /
+    health_interval 10s
+  }
+}
+
+# =============================================================================
 # Kubernetes Cluster (Talos + Cilium)
 # =============================================================================
 # Routes to Cilium L2 VIP (10.0.3.19) - Gateway API handles routing inside k8s
