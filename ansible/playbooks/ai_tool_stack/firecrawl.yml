@@ -1,18 +1,22 @@
 ---
+# Firecrawl architecture changed - now uses harness.js + RabbitMQ instead of separate workers
 - name: Deploy Firecrawl pod
   hosts: ai-tool-stack
   gather_facts: true
   roles:
     - common
   vars:
-    firecrawl_common_env: &firecrawl_env
+    firecrawl_env:
       HOST: "0.0.0.0"
       ENV: "local"
       NUM_WORKERS_PER_QUEUE: 8
       REDIS_URL: "redis://localhost:6379"
       REDIS_RATE_LIMIT_URL: "redis://localhost:6379"
       PLAYWRIGHT_MICROSERVICE_URL: "http://localhost:3000/scrape"
+      # Database - use connection string format
       NUQ_DATABASE_URL: "postgres://postgres:{{ secrets.firecrawl.database_password }}@localhost:5432/postgres"
+      # RabbitMQ - now required
+      NUQ_RABBITMQ_URL: "amqp://localhost:5672"
       USE_DB_AUTHENTICATION: "false"
       OPENAI_BASE_URL: "https://litellm.home.shdr.ch/v1"
       OPENAI_API_KEY: "{{ secrets.litellm.virtual_keys.firecrawl }}"
@@ -60,6 +64,19 @@
         volumes:
           - firecrawl_redis_data.volume:/data:Z
 
+    - name: Create rabbitmq container
+      containers.podman.podman_container:
+        name: firecrawl-rabbitmq
+        image: docker.io/rabbitmq:3-management
+        state: quadlet
+        pod: firecrawl.pod
+        command: ["rabbitmq-server"]
+        healthcheck: "rabbitmq-diagnostics -q check_running"
+        healthcheck_interval: 5s
+        healthcheck_timeout: 5s
+        healthcheck_retries: 3
+        healthcheck_start_period: 5s
+
     - name: Create postgres container
       containers.podman.podman_container:
         name: firecrawl-postgres
@@ -81,10 +98,12 @@
         pod: firecrawl.pod
         env:
           PORT: "3000"
+          MAX_CONCURRENT_PAGES: "10"
           PROXY_SERVER: "{{ secrets.firecrawl.proxy_server }}"
           PROXY_USERNAME: "{{ secrets.firecrawl.proxy_username }}"
           PROXY_PASSWORD: "{{ secrets.firecrawl.proxy_password }}"
 
+    # Single API container with harness.js - manages workers internally
     - name: Create api container
       containers.podman.podman_container:
         name: firecrawl-api
@@ -94,51 +113,14 @@
         pod: firecrawl.pod
         ulimits:
           - nofile=65535:65535
-        env:
-          <<: *firecrawl_env
-          PORT: "3002"
-          WORKER_PORT: "3005"
-          EXTRACT_WORKER_PORT: "3004"
+        env: "{{ firecrawl_env | combine({'PORT': '3002', 'EXTRACT_WORKER_PORT': '3004', 'WORKER_PORT': '3005'}) }}"
         command: ["node", "dist/src/index.js"]
+        quadlet_options:
+          - |
+            [Unit]
+            After=firecrawl-redis.service firecrawl-rabbitmq.service firecrawl-postgres.service firecrawl-playwright.service
 
-    - name: Create nuq worker container
-      containers.podman.podman_container:
-        name: firecrawl-nuq-worker
-        image: ghcr.io/firecrawl/firecrawl:latest
-        state: quadlet
-        pod: firecrawl.pod
-        ulimits:
-          - nofile=65535:65535
-        env:
-          <<: *firecrawl_env
-          PORT: "3006"
-        command: ["node", "dist/src/services/worker/nuq-worker.js"]
-
-    - name: Create queue worker container
-      containers.podman.podman_container:
-        name: firecrawl-queue-worker
-        image: ghcr.io/firecrawl/firecrawl:latest
-        state: quadlet
-        pod: firecrawl.pod
-        ulimits:
-          - nofile=65535:65535
-        env:
-          <<: *firecrawl_env
-          PORT: "3005"
-        command: ["node", "dist/src/services/queue-worker.js"]
-
-    - name: Create extract-worker container
-      containers.podman.podman_container:
-        name: firecrawl-extract-worker
-        image: ghcr.io/firecrawl/firecrawl:latest
-        state: quadlet
-        pod: firecrawl.pod
-        ulimits:
-          - nofile=65535:65535
-        env:
-          <<: *firecrawl_env
-          PORT: "3004"
-        command: ["node", "dist/src/services/extract-worker.js"]
+    # Old separate worker containers removed - harness.js handles this now
 
     - name: Create firecrawl-mcp container
       containers.podman.podman_container:
@@ -154,10 +136,32 @@
           FIRECRAWL_API_URL: "https://firecrawl.home.shdr.ch"
         command: ["npx", "-y", "firecrawl-mcp"]
 
+    - name: Remove old worker quadlets
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - ~/.config/containers/systemd/firecrawl-nuq-worker.container
+        - ~/.config/containers/systemd/firecrawl-queue-worker.container
+        - ~/.config/containers/systemd/firecrawl-extract-worker.container
+        - ~/.config/containers/systemd/firecrawl-worker.container
+
     - name: Reload systemd
       systemd:
         daemon_reload: yes
         scope: user
+
+    - name: Stop old worker services (ignore errors)
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+        scope: user
+      loop:
+        - firecrawl-nuq-worker
+        - firecrawl-queue-worker
+        - firecrawl-extract-worker
+        - firecrawl-worker
+      ignore_errors: true
 
     - name: Start firecrawl quadlet
       systemd:
