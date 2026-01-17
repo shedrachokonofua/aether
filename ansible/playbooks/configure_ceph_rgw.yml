@@ -1,7 +1,7 @@
 ---
-# Configure Ceph RGW (S3) with Keycloak OIDC + STS
+# Configure Ceph RGW (S3) with Keycloak OIDC + K8s OIDC + STS
 
-- name: Configure Ceph RGW with Keycloak OIDC + STS
+- name: Configure Ceph RGW with Keycloak OIDC + K8s OIDC + STS
   hosts:
     - trinity
     - neo
@@ -37,12 +37,19 @@
     rgw_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ rgw_oidc_claim_prefix }}"
     rgw_oidc_required_role: "admin"
 
-    rgw_admin_role_name: "admin"
-    rgw_admin_role_policy_name: "admin-policy"
+    rgw_admin_role_name: "rgw-admin"
+    rgw_admin_role_policy_name: "rgw-admin-policy"
+
+    # Kubernetes OIDC issuer (for workload identity / IRSA-style STS)
+    k8s_oidc_provider_url: "https://oidc.k8s.home.shdr.ch"
+    k8s_oidc_client_ids:
+      - "sts.amazonaws.com"
+    k8s_oidc_claim_prefix: "{{ k8s_oidc_provider_url | regex_replace('^https?://', '') }}"
+    k8s_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ k8s_oidc_claim_prefix }}"
 
     # Admin user for OIDC provider management (REST API)
     rgw_api_admin_uid: "admin"
-    rgw_api_admin_display_name: "OIDC Admin"
+    rgw_api_admin_display_name: "Admin"
     rgw_api_admin_access_key: "{{ secrets.ceph.rgw_admin_access_key }}"
     rgw_api_admin_secret_key: "{{ secrets.ceph.rgw_admin_secret_key }}"
 
@@ -150,9 +157,9 @@
       delegate_to: "{{ rgw_admin_host }}"
       no_log: true
 
-    - name: Add caps to admin user
+    - name: Add oidc-provider caps to admin user
       ansible.builtin.command:
-        cmd: radosgw-admin caps add --uid="{{ rgw_api_admin_uid }}" --caps="oidc-provider=*;buckets=*;users=*;usage=*;metadata=*"
+        cmd: radosgw-admin caps add --uid="{{ rgw_api_admin_uid }}" --caps="oidc-provider=*;roles=*"
       run_once: true
       delegate_to: "{{ rgw_admin_host }}"
       changed_when: false
@@ -372,6 +379,66 @@
             --client-id-list {{ rgw_oidc_client_ids | join(' ') }} \
             --thumbprint-list "{{ keycloak_thumbprint.stdout }}"
       when: rgw_oidc_provider_arn not in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Get Kubernetes OIDC signing certificate thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          OIDC_URL="{{ k8s_oidc_provider_url }}"
+          THUMBPRINT=""
+
+          # Prefer JWKS x5c (OIDC signing cert) when available
+          OIDC_CONFIG=$(curl -fsS "${OIDC_URL}/.well-known/openid-configuration" || true)
+          if [ -n "$OIDC_CONFIG" ]; then
+            JWKS_URL=$(echo "$OIDC_CONFIG" | jq -r '.jwks_uri' || true)
+            if [ -n "$JWKS_URL" ] && [ "$JWKS_URL" != "null" ]; then
+              JWKS=$(curl -fsS "$JWKS_URL" || true)
+              X5C=$(echo "$JWKS" | jq -r '.keys[] | select(.use=="sig") | .x5c[0]' | head -n1 || true)
+              if [ -n "$X5C" ] && [ "$X5C" != "null" ]; then
+                echo "-----BEGIN CERTIFICATE-----" > /tmp/k8s_oidc_jwks_signing.crt
+                echo "$X5C" | fold -w 64 >> /tmp/k8s_oidc_jwks_signing.crt
+                echo "-----END CERTIFICATE-----" >> /tmp/k8s_oidc_jwks_signing.crt
+                THUMBPRINT=$(openssl x509 -in /tmp/k8s_oidc_jwks_signing.crt -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
+                rm -f /tmp/k8s_oidc_jwks_signing.crt
+              fi
+            fi
+          fi
+
+          # Fallback: use TLS cert from the issuer host
+          if [ -z "$THUMBPRINT" ]; then
+            HOST=$(echo "$OIDC_URL" | sed -E 's#^https?://##' | sed -E 's#/.*##')
+            THUMBPRINT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
+          fi
+
+          if [ -z "$THUMBPRINT" ] || [ "${#THUMBPRINT}" -lt 40 ]; then
+            echo "Failed to derive OIDC thumbprint from ${OIDC_URL}" >&2
+            exit 1
+          fi
+
+          echo "$THUMBPRINT"
+      register: k8s_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Create Kubernetes OIDC provider
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ rgw_api_admin_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ rgw_api_admin_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:{{ rgw_port }}" \
+            iam create-open-id-connect-provider \
+            --url "{{ k8s_oidc_provider_url }}" \
+            --client-id-list {{ k8s_oidc_client_ids | join(' ') }} \
+            --thumbprint-list "{{ k8s_oidc_thumbprint.stdout }}"
+      when:
+        - k8s_oidc_thumbprint.stdout | length > 0
+        - k8s_oidc_provider_arn not in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
       run_once: true
       delegate_to: localhost
       become: false

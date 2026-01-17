@@ -11,6 +11,8 @@
 #   - OTEL Collectors (observability)
 #   - Metrics Server (resource metrics API)
 #   - Headlamp (dashboard)
+#   - GitLab Agent (CI/CD deployments)
+#   - Crossplane (infrastructure control plane)
 
 terraform {
   required_providers {

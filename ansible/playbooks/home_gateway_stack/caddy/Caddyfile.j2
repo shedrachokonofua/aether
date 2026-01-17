@@ -427,6 +427,23 @@ s3.home.shdr.ch {
 # =============================================================================
 # Kubernetes Cluster (Talos + Cilium)
 # =============================================================================
+# Expose Kubernetes OIDC discovery + JWKS (for RGW STS validation)
+oidc.k8s.home.shdr.ch {
+  @oidc path /.well-known/openid-configuration /openid/v1/jwks
+
+  handle @oidc {
+    reverse_proxy https://10.0.3.20:6443 {
+      transport http {
+        tls_insecure_skip_verify
+      }
+    }
+  }
+
+  handle {
+    respond "Not Found" 404
+  }
+}
+
 # Routes to Cilium L2 VIP (10.0.3.19) - Gateway API handles routing inside k8s
 
 *.apps.home.shdr.ch {

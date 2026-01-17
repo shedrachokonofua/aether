@@ -12,6 +12,7 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 4. **Service mesh** — Auto mTLS, identity-based authorization
 5. **Platform primitives** — CRDs, operators, declarative everything
 6. **Density** — Fewer VMs, fewer agents, better resource utilization
+7. **Infrastructure self-service** — S3, databases, auth clients via YAML
 
 ## Current State
 
@@ -24,6 +25,7 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 | Multi-tenancy            | ❌ Manual, no isolation      | Can't safely give peers access    |
 | FaaS                     | ❌ N/A                       | No serverless functions           |
 | Service-to-service authz | ❌ Trust network             | No identity-based policies        |
+| Infrastructure vending   | ❌ Admin edits Tofu          | No self-service for S3/DB/auth    |
 
 ## Proposed Architecture
 
@@ -64,6 +66,7 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │   ├── Knative Serving (scale to zero)                                           │
 │   ├── Knative Eventing (event-driven)                                           │
 │   ├── Knative Functions (FaaS)                                                  │
+│   ├── Crossplane (infrastructure self-service)                                  │
 │   ├── OPA Gatekeeper (policy enforcement)                                       │
 │   ├── Secrets Store CSI (OpenBao secrets as files)                              │
 │   ├── cert-manager + step-ca issuer                                             │
@@ -339,6 +342,132 @@ spec:
 
 Pod sees `/mnt/secrets/api-key` — fetched live from OpenBao, never in k8s etcd.
 
+### Crossplane (Infrastructure Self-Service)
+
+Turns Kubernetes into a universal control plane for external infrastructure. Apps request resources via YAML, Crossplane provisions them.
+
+| Feature           | Benefit                                           |
+| ----------------- | ------------------------------------------------- |
+| Managed Resources | S3 buckets, databases, DNS as k8s objects         |
+| Compositions      | Abstract complex stacks into simple claims        |
+| Self-healing      | Drift detection, automatic reconciliation         |
+| GitOps-native     | Infrastructure defined alongside app code         |
+| No static secrets | Credentials flow through k8s Secrets, not CI vars |
+
+**Why Crossplane over Tofu for app-layer resources:**
+
+| Tofu (Base Layer)            | Crossplane (Service Layer)        |
+| ---------------------------- | --------------------------------- |
+| Cluster, VMs, Ceph, Networks | S3 buckets, DBs, Keycloak clients |
+| Run manually or in CI        | Runs continuously in k8s          |
+| One-shot apply               | Reconciliation loop (self-heal)   |
+| Platform engineer            | Developer self-service            |
+
+**Providers:**
+
+| Provider            | Manages                            |
+| ------------------- | ---------------------------------- |
+| provider-aws-s3     | Ceph RGW (S3-compatible), real AWS |
+| provider-aws-iam    | Ceph RGW IAM roles/policies        |
+| provider-sql        | PostgreSQL/MySQL databases         |
+| provider-keycloak   | OIDC clients, realms, users        |
+| provider-cloudflare | DNS records                        |
+| provider-kubernetes | K8s resources (for compositions)   |
+
+**Example: Static Site with Auth + DB**
+
+Developer commits this to their app repo:
+
+```yaml
+# infra/bucket.yaml
+apiVersion: s3.aws.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: my-portfolio-assets
+spec:
+  forProvider:
+    acl: public-read
+  providerConfigRef:
+    name: ceph-rgw
+
+---
+# infra/keycloak-client.yaml
+apiVersion: keycloak.crossplane.io/v1alpha1
+kind: Client
+metadata:
+  name: my-portfolio-auth
+spec:
+  forProvider:
+    clientId: portfolio
+    realmId: aether
+    publicClient: true
+    standardFlowEnabled: true
+    rootUrl: "https://portfolio.shdr.ch"
+    validRedirectUris:
+      - "https://portfolio.shdr.ch/*"
+  providerConfigRef:
+    name: keycloak
+
+---
+# infra/database.yaml
+apiVersion: postgresql.sql.crossplane.io/v1alpha1
+kind: Database
+metadata:
+  name: portfolio-db
+spec:
+  forProvider:
+    owner: portfolio
+  providerConfigRef:
+    name: surrealdb
+  writeConnectionSecretToRef:
+    name: portfolio-db-creds
+    namespace: projects
+```
+
+**GitLab CI deploys it:**
+
+```yaml
+deploy-infra:
+  script:
+    - kubectl apply -f infra/
+    - kubectl wait --for=condition=Ready bucket/my-portfolio-assets
+```
+
+**Result:** S3 bucket, Keycloak client, and database provisioned. Connection details in k8s Secrets. No admin intervention, no static credentials in CI.
+
+**Trust Model Integration:**
+
+GitLab CI uses OIDC to authenticate to Ceph RGW for S3 uploads — Crossplane provisions the IAM role, GitLab CI assumes it via `AssumeRoleWithWebIdentity`. Zero static secrets.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              Trust Flow (No Static Secrets)                      │
+│                                                                                  │
+│   Developer                                                                      │
+│       │                                                                          │
+│       └── commits infra/*.yaml                                                  │
+│                │                                                                 │
+│                ▼                                                                 │
+│   GitLab CI (kubectl apply)                                                     │
+│       │                                                                          │
+│       └── Crossplane provisions:                                                │
+│               ├── S3 Bucket (Ceph RGW)                                          │
+│               ├── IAM Role (trusts GitLab OIDC)                                 │
+│               └── Keycloak Client (public, PKCE)                                │
+│                                                                                  │
+│   GitLab CI (next job)                                                          │
+│       │                                                                          │
+│       ├── Gets OIDC token from GitLab                                           │
+│       ├── Assumes IAM Role via STS (AssumeRoleWithWebIdentity)                  │
+│       └── Uploads to S3 with temp credentials                                   │
+│                                                                                  │
+│   Static App (browser)                                                          │
+│       │                                                                          │
+│       ├── Loads from S3 (public read)                                           │
+│       └── Authenticates via Keycloak (PKCE)                                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Multi-Tenancy Model
 
 ### GitLab Groups → K8s Namespaces
@@ -486,7 +615,6 @@ func deploy --registry ghcr.io/alice
 | Tool              | Why Not                                   |
 | ----------------- | ----------------------------------------- |
 | ArgoCD            | GitLab CI + `kubectl apply` is sufficient |
-| Crossplane        | Tofu handles AWS/Cloudflare fine          |
 | GPU Operator      | GPU workloads stay on VM (passthrough)    |
 | Prometheus in k8s | Monitoring stays external                 |
 | Dokku             | Replaced by Knative Services              |
@@ -808,6 +936,9 @@ No SSH, no Ansible, no package managers. Just API calls.
 - [x] Install Gateway API CRDs
 - [x] Install Knative Serving (uses Cilium Gateway API for ingress)
 - [ ] Install Knative Eventing
+- [x] Install Crossplane (Helm chart)
+- [ ] Install Crossplane Providers (AWS/S3, Keycloak, SQL)
+- [ ] Configure ProviderConfigs (Ceph RGW, Keycloak, SurrealDB)
 - [ ] Install OPA Gatekeeper
 - [ ] Install Secrets Store CSI + Vault provider
 - [ ] Install cert-manager + step-ca ClusterIssuer
@@ -818,13 +949,14 @@ No SSH, no Ansible, no package managers. Just API calls.
 - [x] Deploy OTEL Collector DaemonSet
 - [x] Configure export to Monitoring Stack
 - [x] Deploy OTEL Collector Deployment (cluster metrics, events)
-- [ ] Enable Cilium Hubble
+- [x] Enable Cilium Hubble
+- [x] Expose Hubble UI via Gateway API
 - [ ] Create k8s dashboards in Grafana
 - [ ] Deploy Nuclei CronJob (weekly vulnerability scans, see `network-security.md`)
 
 ### Phase 4: GitLab Integration
 
-- [ ] Register GitLab Agent
+- [x] Register GitLab Agent
 - [ ] Configure agent for group → namespace mapping
 - [ ] Create CI templates for Knative deploys
 - [ ] Test deploy from GitLab repo
@@ -874,6 +1006,7 @@ Migration order (low risk → high complexity):
 | Policy       | OPA Gatekeeper                 | Rego is powerful, industry standard                                |
 | Monitoring   | External (Niobe VM)            | Must work when k8s is down                                         |
 | Identity     | Keycloak OIDC                  | Already have it, native k8s support                                |
+| Infra vend   | Crossplane                     | Self-service S3/DB/Keycloak, no static secrets, self-healing       |
 
 ## Value Summary
 
@@ -887,6 +1020,7 @@ Migration order (low risk → high complexity):
 | Policy enforcement      | Manual review                 | OPA Gatekeeper (automated)        |
 | Secrets in etcd         | Yes (External Secrets)        | No (CSI mount)                    |
 | Agents per workload     | OTEL + Wazuh + osquery per VM | DaemonSets (3 total)              |
+| Infrastructure vending  | Admin edits Tofu              | Self-service via Crossplane       |
 
 ## Status
 
@@ -909,3 +1043,7 @@ Migration order (low risk → high complexity):
 - [Talos nocloud docs](https://docs.siderolabs.com/talos/v1.8/platform-specific-installations/cloud-platforms/nocloud/) — Cloud-init disk configuration
 - [Talos Proxmox guide](https://www.talos.dev/v1.11/talos-guides/install/virtualized-platforms/proxmox/) — Official Proxmox installation
 - [Talos Terraform provider](https://registry.terraform.io/providers/siderolabs/talos/latest/docs) — Tofu/Terraform provider
+- [Crossplane Docs](https://docs.crossplane.io/) — Universal control plane
+- [Upbound Marketplace](https://marketplace.upbound.io/) — Crossplane providers and configurations
+- [provider-aws](https://marketplace.upbound.io/providers/upbound/provider-aws/) — AWS/S3-compatible resources
+- [provider-keycloak](https://github.com/crossplane-contrib/provider-keycloak) — Keycloak clients, realms, users

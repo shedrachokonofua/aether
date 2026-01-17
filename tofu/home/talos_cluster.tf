@@ -27,6 +27,9 @@ locals {
   oidc_issuer_url = "https://auth.shdr.ch/realms/aether"
   oidc_client_id  = "kubernetes"
 
+  # Kubernetes service account issuer (for workload identity / IRSA-style STS)
+  k8s_serviceaccount_issuer = "https://oidc.k8s.home.shdr.ch"
+
   # Gateway API version
   gateway_api_version = "v1.2.1"
 }
@@ -136,10 +139,11 @@ resource "talos_machine_configuration_apply" "this" {
         proxy   = { disabled = true }
         apiServer = {
           extraArgs = {
-            "oidc-issuer-url"     = local.oidc_issuer_url
-            "oidc-client-id"      = local.oidc_client_id
-            "oidc-username-claim" = "preferred_username"
-            "oidc-groups-claim"   = "groups"
+            "oidc-issuer-url"        = local.oidc_issuer_url
+            "oidc-client-id"         = local.oidc_client_id
+            "oidc-username-claim"    = "preferred_username"
+            "oidc-groups-claim"      = "groups"
+            "service-account-issuer" = local.k8s_serviceaccount_issuer
           }
         }
       }
