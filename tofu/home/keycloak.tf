@@ -97,6 +97,106 @@ resource "keycloak_realm" "aether" {
   }
 }
 
+# User Profile configuration - defines which attributes appear in user forms
+resource "keycloak_realm_user_profile" "aether" {
+  realm_id = keycloak_realm.aether.id
+
+  attribute {
+    name         = "username"
+    display_name = "Username"
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin"]
+    }
+
+    validator {
+      name = "length"
+      config = {
+        min = 3
+        max = 255
+      }
+    }
+
+    validator {
+      name = "username-prohibited-characters"
+    }
+
+    validator {
+      name = "up-username-not-idn-homograph"
+    }
+  }
+
+  attribute {
+    name         = "email"
+    display_name = "Email"
+
+    required_for_roles = ["user"]
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+
+    validator {
+      name = "email"
+    }
+
+    validator {
+      name = "length"
+      config = {
+        max = 255
+      }
+    }
+  }
+
+  attribute {
+    name         = "firstName"
+    display_name = "First name"
+
+    required_for_roles = ["user"]
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+
+    validator {
+      name = "length"
+      config = {
+        max = 255
+      }
+    }
+
+    validator {
+      name = "person-name-prohibited-characters"
+    }
+  }
+
+  attribute {
+    name         = "lastName"
+    display_name = "Last name"
+
+    required_for_roles = ["user"]
+
+    permissions {
+      view = ["admin", "user"]
+      edit = ["admin", "user"]
+    }
+
+    validator {
+      name = "length"
+      config = {
+        max = 255
+      }
+    }
+
+    validator {
+      name = "person-name-prohibited-characters"
+    }
+  }
+}
+
 # =============================================================================
 # Aether Realm - MFA Configuration
 # =============================================================================
