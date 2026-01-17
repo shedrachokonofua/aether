@@ -487,6 +487,32 @@ oidc.k8s.home.shdr.ch {
     reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyfin }}
   }
 
+  @pdf host pdf.shdr.ch
+  handle @pdf {
+    # oauth2-proxy auth endpoints (callback, sign_in, sign_out)
+    @oauth2 path /oauth2/*
+    handle @oauth2 {
+      reverse_proxy localhost:{{ vm.home_gateway_stack.ports.oauth2_proxy }}
+    }
+
+    # Protected content - forward_auth checks authentication
+    handle {
+      forward_auth localhost:{{ vm.home_gateway_stack.ports.oauth2_proxy }} {
+        uri /oauth2/auth
+        header_up X-Real-IP {http.request.header.X-Real-IP}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Uri {uri}
+        copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Access-Token
+      }
+      reverse_proxy {{ vm.dokploy.ip }} {
+        header_up Host "bentopdf.d.home.shdr.ch"
+        header_up X-Real-IP {http.request.header.X-Real-IP}
+        header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+        header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+      }
+    }
+  }
+
   handle {
     respond "Not Found" 404
   }

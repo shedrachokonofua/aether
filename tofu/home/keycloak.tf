@@ -705,6 +705,43 @@ resource "keycloak_openid_audience_protocol_mapper" "toolbox_audience" {
 }
 
 # =============================================================================
+# oauth2-proxy OIDC Client (forward_auth for apps without built-in auth)
+# =============================================================================
+# Used by Caddy forward_auth to protect: BentoPDF, and future apps
+
+resource "keycloak_openid_client" "oauth2_proxy" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "oauth2-proxy"
+  name      = "OAuth2 Proxy"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  # Callback URLs for each protected domain
+  valid_redirect_uris = [
+    "https://pdf.shdr.ch/oauth2/callback",
+  ]
+
+  web_origins = [
+    "https://*.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "oauth2_proxy_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.oauth2_proxy.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# =============================================================================
 # Fleet SAML Client (osquery management)
 # =============================================================================
 # Fleet uses SAML (not OIDC) for SSO authentication.

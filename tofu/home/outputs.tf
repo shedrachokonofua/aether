@@ -86,6 +86,11 @@ output "keycloak_gitlab_client_secret" {
   sensitive = true
 }
 
+output "keycloak_oauth2_proxy_client_secret" {
+  value     = keycloak_openid_client.oauth2_proxy.client_secret
+  sensitive = true
+}
+
 output "keycloak_ceph_rgw_client_id" {
   value = keycloak_openid_client.ceph_rgw.client_id
 }

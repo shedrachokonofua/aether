@@ -58,6 +58,33 @@
           - /home/aether/caddy/data:/data:Z
           - /home/aether/caddy/config:/config:Z
 
+    # oauth2-proxy for protecting apps without built-in auth (e.g. BentoPDF)
+    - name: Create oauth2-proxy container
+      containers.podman.podman_container:
+        name: oauth2-proxy
+        image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        state: quadlet
+        pod: caddy.pod
+        env:
+          OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:{{ vm.home_gateway_stack.ports.oauth2_proxy }}"
+          OAUTH2_PROXY_PROVIDER: "keycloak-oidc"
+          OAUTH2_PROXY_OIDC_ISSUER_URL: "https://auth.shdr.ch/realms/aether"
+          OAUTH2_PROXY_CLIENT_ID: "oauth2-proxy"
+          OAUTH2_PROXY_CLIENT_SECRET: "{{ tf_outputs.keycloak_oauth2_proxy_client_secret.value }}"
+          OAUTH2_PROXY_COOKIE_SECRET: "{{ secrets.oauth2_proxy.cookie_secret }}"
+          OAUTH2_PROXY_COOKIE_SECURE: "true"
+          OAUTH2_PROXY_COOKIE_DOMAINS: ".shdr.ch"
+          OAUTH2_PROXY_WHITELIST_DOMAINS: ".shdr.ch"
+          OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+          OAUTH2_PROXY_REVERSE_PROXY: "true"
+          OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+          OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+          OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+        quadlet_options:
+          - |
+            [Unit]
+            After=caddy.service
+
     - name: Reload systemd
       systemd:
         daemon_reload: yes

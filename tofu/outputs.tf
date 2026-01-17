@@ -156,6 +156,11 @@ output "keycloak_gitlab_client_secret" {
   sensitive = true
 }
 
+output "keycloak_oauth2_proxy_client_secret" {
+  value     = module.home.keycloak_oauth2_proxy_client_secret
+  sensitive = true
+}
+
 # AWS OIDC Federation (for task login)
 output "keycloak_oidc_provider_arn" {
   description = "ARN of the Keycloak OIDC identity provider in AWS"

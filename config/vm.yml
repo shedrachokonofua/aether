@@ -40,6 +40,7 @@ home_gateway_stack:
     unifi_admin: 8443
     rotating_proxy: 1080
     rotating_proxy_metrics: 8404
+    oauth2_proxy: 4180
 
 monitoring_stack:
   id: 1003
