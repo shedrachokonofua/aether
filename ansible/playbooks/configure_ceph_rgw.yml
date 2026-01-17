@@ -47,6 +47,13 @@
     k8s_oidc_claim_prefix: "{{ k8s_oidc_provider_url | regex_replace('^https?://', '') }}"
     k8s_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ k8s_oidc_claim_prefix }}"
 
+    # GitLab OIDC issuer (for CI/CD S3 access)
+    gitlab_oidc_provider_url: "https://gitlab.home.shdr.ch"
+    gitlab_oidc_client_ids:
+      - "https://gitlab.home.shdr.ch"
+    gitlab_oidc_claim_prefix: "{{ gitlab_oidc_provider_url | regex_replace('^https?://', '') }}"
+    gitlab_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ gitlab_oidc_claim_prefix }}"
+
     # Admin user for OIDC provider management (REST API)
     rgw_api_admin_uid: "admin"
     rgw_api_admin_display_name: "Admin"
@@ -63,6 +70,21 @@
       {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:*","Resource":"*"}]}
 
   tasks:
+    # =========================================================================
+    # Network setup for OIDC (Proxmox hosts need to reach internal VLANs)
+    # =========================================================================
+    - name: Add route to internal networks via VyOS
+      ansible.builtin.command:
+        cmd: ip route replace 10.0.0.0/8 via 192.168.2.231
+      changed_when: false
+
+    - name: Ensure hosts entry for GitLab (via home gateway)
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^.*gitlab\.home\.shdr\.ch'
+        line: "10.0.2.2 gitlab.home.shdr.ch"
+        state: present
+
     # =========================================================================
     # Install RGW
     # =========================================================================
@@ -414,7 +436,7 @@
               | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
           fi
 
-          if [ -z "$THUMBPRINT" ] || [ "${#THUMBPRINT}" -lt 40 ]; then
+          if [ -z "$THUMBPRINT" ] || [ $(expr length "$THUMBPRINT") -lt 40 ]; then
             echo "Failed to derive OIDC thumbprint from ${OIDC_URL}" >&2
             exit 1
           fi
@@ -442,6 +464,98 @@
       run_once: true
       delegate_to: localhost
       become: false
+
+    # =========================================================================
+    # Register GitLab OIDC provider
+    # =========================================================================
+    - name: Get GitLab OIDC signing certificate thumbprint (intermediate CA)
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          OIDC_URL="{{ gitlab_oidc_provider_url }}"
+          HOST=$(echo "$OIDC_URL" | sed -E 's#^https?://##' | sed -E 's#/.*##')
+          THUMBPRINT=""
+
+          # GitLab JWKS doesn't include x5c certificates, so we use TLS cert chain.
+          # Use the INTERMEDIATE CA cert (2nd in chain) for stability across renewals.
+          # The leaf cert changes on every renewal, but intermediate CA is stable.
+          INTERMEDIATE_CERT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{if(/BEGIN/)n++;if(n==2)print}')
+
+          if [ -n "$INTERMEDIATE_CERT" ]; then
+            THUMBPRINT=$(echo "$INTERMEDIATE_CERT" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
+          fi
+
+          # Fallback to leaf cert if no intermediate (shouldn't happen with Let's Encrypt)
+          if [ -z "$THUMBPRINT" ] || [ ${#THUMBPRINT} -lt 40 ]; then
+            THUMBPRINT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
+          fi
+
+          if [ -z "$THUMBPRINT" ] || [ ${#THUMBPRINT} -lt 40 ]; then
+            echo "Failed to derive OIDC thumbprint from ${OIDC_URL}" >&2
+            exit 1
+          fi
+
+          echo "$THUMBPRINT"
+      register: gitlab_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Create GitLab OIDC provider
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ rgw_api_admin_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ rgw_api_admin_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:{{ rgw_port }}" \
+            iam create-open-id-connect-provider \
+            --url "{{ gitlab_oidc_provider_url }}" \
+            --client-id-list {{ gitlab_oidc_client_ids | join(' ') }} \
+            --thumbprint-list "{{ gitlab_oidc_thumbprint.stdout }}"
+      when:
+        - gitlab_oidc_thumbprint.stdout | length > 0
+        - gitlab_oidc_provider_arn not in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    # =========================================================================
+    # Create GitLab CI S3 role for static site deployments
+    # =========================================================================
+    - name: Check for GitLab CI S3 role
+      ansible.builtin.command:
+        cmd: radosgw-admin role get --role-name "gitlab-ci-s3" --format json
+      register: gitlab_ci_s3_role
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create GitLab CI S3 role
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin role create
+          --role-name="gitlab-ci-s3"
+          --assume-role-policy-doc='{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
+          "Principal":{"Federated":"{{ gitlab_oidc_provider_arn }}"},
+          "Action":"sts:AssumeRoleWithWebIdentity",
+          "Condition":{"StringEquals":{"{{ gitlab_oidc_claim_prefix }}:aud":"https://gitlab.home.shdr.ch"},
+          "StringLike":{"{{ gitlab_oidc_claim_prefix }}:sub":"project_path:so/*:*"}}}]}'
+      when: gitlab_ci_s3_role.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Attach S3 policy to GitLab CI role
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin role policy put
+          --role-name="gitlab-ci-s3"
+          --policy-name="gitlab-ci-s3-policy"
+          --policy-doc='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:ListAllMyBuckets","s3:GetBucketLocation"],"Resource":"*"},{"Effect":"Allow","Action":["s3:PutObject","s3:GetObject","s3:DeleteObject","s3:ListBucket"],"Resource":["arn:aws:s3:::*","arn:aws:s3:::*/*"]}]}'
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
 
   handlers:
     - name: Restart RGW
