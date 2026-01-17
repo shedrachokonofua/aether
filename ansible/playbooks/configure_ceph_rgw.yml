@@ -37,11 +37,11 @@
     rgw_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ rgw_oidc_claim_prefix }}"
     rgw_oidc_required_role: "admin"
 
-    rgw_admin_role_name: "rgw-admin"
-    rgw_admin_role_policy_name: "rgw-admin-policy"
+    rgw_admin_role_name: "admin"
+    rgw_admin_role_policy_name: "admin-policy"
 
     # Admin user for OIDC provider management (REST API)
-    rgw_api_admin_uid: "oidc-admin"
+    rgw_api_admin_uid: "admin"
     rgw_api_admin_display_name: "OIDC Admin"
     rgw_api_admin_access_key: "{{ secrets.ceph.rgw_admin_access_key }}"
     rgw_api_admin_secret_key: "{{ secrets.ceph.rgw_admin_secret_key }}"
@@ -150,9 +150,9 @@
       delegate_to: "{{ rgw_admin_host }}"
       no_log: true
 
-    - name: Add oidc-provider caps to admin user
+    - name: Add caps to admin user
       ansible.builtin.command:
-        cmd: radosgw-admin caps add --uid="{{ rgw_api_admin_uid }}" --caps="oidc-provider=*"
+        cmd: radosgw-admin caps add --uid="{{ rgw_api_admin_uid }}" --caps="oidc-provider=*;buckets=*;users=*;usage=*;metadata=*"
       run_once: true
       delegate_to: "{{ rgw_admin_host }}"
       changed_when: false

@@ -42,7 +42,7 @@ KEYCLOAK_CLIENT_ID="toolbox"
 OPENBAO_URL="https://bao.home.shdr.ch"
 STEP_CA_URL="https://ca.shdr.ch"
 CEPH_RGW_URL="https://s3.home.shdr.ch"
-CEPH_RGW_ROLE="arn:aws:iam:::role/rgw-admin"
+CEPH_RGW_ROLE="arn:aws:iam:::role/admin"
 CACHE_DIR="${AETHER_CACHE_DIR:-$HOME/.aether-toolbox}"
 AWS_REGION="${AETHER_AWS_REGION:-us-east-1}"
 
