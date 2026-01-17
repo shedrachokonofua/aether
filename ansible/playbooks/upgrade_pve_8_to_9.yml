@@ -1,0 +1,468 @@
+---
+# Proxmox VE 8 to 9 Upgrade Playbook
+#
+# Prerequisites:
+#   - Ceph must already be on Squid (19.x)
+#   - PBS should be upgraded to v4 first
+#   - All VMs backed up
+#
+# Usage:
+#   # Dry run (check mode)
+#   task ansible:playbook -- ./ansible/playbooks/upgrade_pve_8_to_9.yml --check
+#
+#   # Upgrade single node first (recommended)
+#   task ansible:playbook -- ./ansible/playbooks/upgrade_pve_8_to_9.yml --limit neo
+#
+#   # Upgrade all nodes (one at a time)
+#   task ansible:playbook -- ./ansible/playbooks/upgrade_pve_8_to_9.yml
+#
+# Node order: neo -> niobe -> trinity -> smith -> oracle
+# (Neo first to test GPU passthrough, Oracle last for critical infrastructure)
+
+- name: Upgrade Proxmox VE 8 to 9
+  hosts: neo,niobe,trinity,smith,oracle  # Explicit order
+  become: true
+  become_method: su
+  serial: 1  # One node at a time
+  max_fail_percentage: 0  # Stop on any failure
+
+  vars:
+    ceph_nodes:
+      - neo
+      - trinity
+      - smith
+
+    pve_target_version: "9"
+    debian_codename: "trixie"
+    ceph_version: "squid"
+
+  pre_tasks:
+    - name: Display upgrade start
+      debug:
+        msg: "Starting upgrade on {{ inventory_hostname }}"
+
+  tasks:
+    # =========================================================================
+    # PRE-FLIGHT CHECKS
+    # =========================================================================
+    - name: Pre-flight checks
+      tags: [preflight, always]
+      block:
+        - name: Get current PVE version
+          command: pveversion
+          register: pve_version_check
+          changed_when: false
+
+        - name: Display current version
+          debug:
+            msg: "Current version: {{ pve_version_check.stdout }}"
+
+        - name: Check if already on PVE 9
+          set_fact:
+            already_upgraded: "{{ 'pve-manager/9' in pve_version_check.stdout }}"
+
+        - name: Skip if already upgraded
+          debug:
+            msg: "Node {{ inventory_hostname }} is already on PVE 9, skipping"
+          when: already_upgraded
+
+        - name: Check if PVE needs update to 8.4
+          set_fact:
+            needs_pve8_update: "{{ 'pve-manager/8.4' not in pve_version_check.stdout }}"
+          when: not already_upgraded
+
+        - name: Update to latest PVE 8.x first
+          when:
+            - not already_upgraded
+            - needs_pve8_update | default(false)
+          block:
+            - name: Disable enterprise repo (no subscription)
+              file:
+                path: /etc/apt/sources.list.d/pve-enterprise.list
+                state: absent
+
+            - name: Add PVE 8 no-subscription repo
+              copy:
+                dest: /etc/apt/sources.list.d/pve-no-subscription.list
+                content: |
+                  deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
+                mode: '0644'
+
+            - name: Add Ceph Squid no-subscription repo (for Ceph nodes)
+              copy:
+                dest: /etc/apt/sources.list.d/ceph.list
+                content: |
+                  deb http://download.proxmox.com/debian/ceph-squid bookworm no-subscription
+                mode: '0644'
+              when: inventory_hostname in ceph_nodes
+
+            - name: Update apt cache
+              apt:
+                update_cache: yes
+
+            - name: Upgrade to latest PVE 8.x
+              apt:
+                upgrade: dist
+              register: pve8_upgrade
+
+            - name: Reboot if PVE 8.x upgrade changed packages
+              reboot:
+                reboot_timeout: 1200
+                msg: "Rebooting after PVE 8.x update"
+                post_reboot_delay: 30
+              when: pve8_upgrade.changed
+
+            - name: Re-check PVE version after upgrade
+              command: pveversion
+              register: pve_version_recheck
+              changed_when: false
+
+        - name: Get current PVE version for validation
+          command: pveversion
+          register: pve_version_final
+          changed_when: false
+          when: not already_upgraded
+
+        - name: Verify minimum PVE 8.4.1 version
+          assert:
+            that:
+              - "'pve-manager/8.4' in pve_version_final.stdout"
+            fail_msg: "PVE must be at least 8.4.1. Current: {{ pve_version_final.stdout }}. Run 'apt update && apt dist-upgrade' manually."
+          when: not already_upgraded
+
+        - name: Check Ceph version (on Ceph nodes)
+          command: ceph --version
+          register: ceph_version_check
+          changed_when: false
+          failed_when: false
+          when:
+            - not already_upgraded
+            - inventory_hostname in ceph_nodes
+
+        - name: Verify Ceph is on Squid
+          assert:
+            that:
+              - "'19.' in ceph_version_check.stdout"
+            fail_msg: "Ceph must be on Squid (19.x). Current: {{ ceph_version_check.stdout }}"
+          when:
+            - not already_upgraded
+            - inventory_hostname in ceph_nodes
+            - ceph_version_check.rc == 0
+
+        - name: Check cluster health
+          command: pvecm status
+          register: cluster_status
+          changed_when: false
+          failed_when: false
+          when: not already_upgraded
+
+        - name: Check Ceph health (on Ceph nodes)
+          command: ceph health
+          register: ceph_health
+          changed_when: false
+          failed_when: false
+          when:
+            - not already_upgraded
+            - inventory_hostname in ceph_nodes
+
+        - name: Warn if Ceph not healthy
+          debug:
+            msg: "WARNING: Ceph health is {{ ceph_health.stdout }}. Consider fixing before upgrade."
+          when:
+            - not already_upgraded
+            - inventory_hostname in ceph_nodes
+            - ceph_health.rc == 0
+            - "'HEALTH_OK' not in ceph_health.stdout"
+
+        - name: Run pve8to9 checklist
+          command: pve8to9
+          register: pve8to9_check
+          changed_when: false
+          failed_when: false
+          when: not already_upgraded
+
+        - name: Display pve8to9 results
+          debug:
+            msg: "{{ pve8to9_check.stdout_lines }}"
+          when:
+            - not already_upgraded
+            - pve8to9_check.stdout is defined
+
+        # =====================================================================
+        # AUTO-FIX KNOWN ISSUES
+        # =====================================================================
+        - name: Fix RBD storage keyring configuration
+          command: /usr/share/pve-manager/migrations/pve-rbd-storage-configure-keyring
+          when:
+            - not already_upgraded
+            - pve8to9_check.stdout is defined
+            - "'pve-rbd-storage-configure-keyring' in pve8to9_check.stdout"
+          changed_when: true
+
+        - name: Remove systemd-boot meta-package (causes upgrade issues)
+          apt:
+            name: systemd-boot
+            state: absent
+          when:
+            - not already_upgraded
+            - pve8to9_check.stdout is defined
+            - "'systemd-boot meta-package installed' in pve8to9_check.stdout"
+
+        - name: Start pvescheduler service
+          systemd:
+            name: pvescheduler.service
+            state: started
+            enabled: yes
+          when:
+            - not already_upgraded
+            - pve8to9_check.stdout is defined
+            - "'pvescheduler.service' in pve8to9_check.stdout and 'inactive' in pve8to9_check.stdout"
+
+        - name: Disable LVM autoactivation for guest volumes
+          command: /usr/share/pve-manager/migrations/pve-lvm-disable-autoactivation
+          when:
+            - not already_upgraded
+            - pve8to9_check.stdout is defined
+            - "'pve-lvm-disable-autoactivation' in pve8to9_check.stdout"
+          changed_when: true
+          failed_when: false
+
+        - name: Re-run pve8to9 after fixes
+          command: pve8to9
+          register: pve8to9_recheck
+          changed_when: false
+          failed_when: false
+          when: not already_upgraded
+
+        - name: Display pve8to9 recheck summary
+          debug:
+            msg: "{{ pve8to9_recheck.stdout_lines | select('search', 'TOTAL:|PASSED:|WARNINGS:|FAILURES:') | list }}"
+          when:
+            - not already_upgraded
+            - pve8to9_recheck.stdout is defined
+
+        - name: Check for remaining FAILURES in pve8to9
+          assert:
+            that:
+              - "'FAILURES: 0' in pve8to9_recheck.stdout"
+            fail_msg: "pve8to9 still reports failures. Check output above."
+          when:
+            - not already_upgraded
+            - pve8to9_recheck.stdout is defined
+
+    # =========================================================================
+    # UPDATE REPOSITORIES
+    # =========================================================================
+    - name: Update repositories
+      tags: [repos]
+      when: not already_upgraded
+      block:
+        - name: Update /etc/apt/sources.list to Trixie
+          replace:
+            path: /etc/apt/sources.list
+            regexp: 'bookworm'
+            replace: '{{ debian_codename }}'
+          register: sources_list_updated
+
+        - name: Create PVE 9 no-subscription repository (deb822)
+          copy:
+            dest: /etc/apt/sources.list.d/proxmox.sources
+            content: |
+              Types: deb
+              URIs: http://download.proxmox.com/debian/pve
+              Suites: {{ debian_codename }}
+              Components: pve-no-subscription
+              Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+            mode: '0644'
+
+        - name: Create Ceph Squid repository for Trixie (deb822)
+          copy:
+            dest: /etc/apt/sources.list.d/ceph.sources
+            content: |
+              Types: deb
+              URIs: http://download.proxmox.com/debian/ceph-{{ ceph_version }}
+              Suites: {{ debian_codename }}
+              Components: no-subscription
+              Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+            mode: '0644'
+          when: inventory_hostname in ceph_nodes
+
+        - name: Remove old pve-enterprise.list
+          file:
+            path: /etc/apt/sources.list.d/pve-enterprise.list
+            state: absent
+
+        - name: Remove old ceph.list
+          file:
+            path: /etc/apt/sources.list.d/ceph.list
+            state: absent
+
+        - name: Remove old pve-install-repo.list
+          file:
+            path: /etc/apt/sources.list.d/pve-install-repo.list
+            state: absent
+
+    # =========================================================================
+    # PERFORM UPGRADE
+    # =========================================================================
+    - name: Perform upgrade
+      tags: [upgrade]
+      when: not already_upgraded
+      block:
+        - name: Update apt cache
+          apt:
+            update_cache: yes
+
+        - name: Set Ceph noout flag before upgrade (on first Ceph node)
+          command: ceph osd set noout
+          when: inventory_hostname == 'neo'
+          changed_when: true
+
+        - name: Disable audit socket to reduce log spam during upgrade
+          systemd:
+            name: systemd-journald-audit.socket
+            state: stopped
+            enabled: no
+          failed_when: false
+
+        - name: Run dist-upgrade
+          apt:
+            upgrade: dist
+            autoremove: yes
+            autoclean: yes
+          environment:
+            DEBIAN_FRONTEND: noninteractive
+          async: 3600  # 1 hour timeout
+          poll: 30
+          register: upgrade_result
+
+        - name: Display upgrade result
+          debug:
+            msg: "Upgrade completed. Packages changed: {{ upgrade_result.changed }}"
+
+    # =========================================================================
+    # REBOOT AND VERIFY
+    # =========================================================================
+    - name: Reboot and verify
+      tags: [reboot]
+      when: not already_upgraded
+      block:
+        - name: Reboot the node
+          reboot:
+            reboot_timeout: 1200
+            msg: "Rebooting for PVE 9 upgrade"
+            post_reboot_delay: 30
+
+        - name: Wait for node to be fully ready
+          wait_for_connection:
+            delay: 10
+            timeout: 300
+
+        - name: Verify new PVE version
+          command: pveversion
+          register: new_pve_version
+          changed_when: false
+
+        - name: Display new version
+          debug:
+            msg: "New version: {{ new_pve_version.stdout }}"
+
+        - name: Verify upgrade succeeded
+          assert:
+            that:
+              - "'pve-manager/9' in new_pve_version.stdout"
+            fail_msg: "Upgrade verification failed! Expected PVE 9, got: {{ new_pve_version.stdout }}"
+
+        - name: Verify kernel version
+          command: uname -r
+          register: kernel_version
+          changed_when: false
+
+        - name: Display kernel version
+          debug:
+            msg: "Kernel: {{ kernel_version.stdout }}"
+
+        - name: Check cluster status after reboot
+          command: pvecm status
+          register: post_cluster_status
+          changed_when: false
+          failed_when: false
+
+        - name: Check Ceph status after reboot (on Ceph nodes)
+          command: ceph -s
+          register: post_ceph_status
+          changed_when: false
+          failed_when: false
+          when: inventory_hostname in ceph_nodes
+
+        - name: Display Ceph status
+          debug:
+            msg: "{{ post_ceph_status.stdout_lines }}"
+          when:
+            - inventory_hostname in ceph_nodes
+            - post_ceph_status.stdout is defined
+
+    # =========================================================================
+    # POST-UPGRADE CLEANUP
+    # =========================================================================
+    - name: Post-upgrade cleanup
+      tags: [cleanup]
+      when: not already_upgraded
+      block:
+        - name: Run pve8to9 final check
+          command: pve8to9 --full
+          register: final_check
+          changed_when: false
+          failed_when: false
+
+        - name: Display final check results
+          debug:
+            msg: "{{ final_check.stdout_lines }}"
+          when: final_check.stdout is defined
+
+  post_tasks:
+    - name: Summary
+      debug:
+        msg: |
+          ============================================
+          Node: {{ inventory_hostname }}
+          Status: {{ 'Already on PVE 9' if already_upgraded else 'Upgraded successfully' }}
+          ============================================
+
+# =========================================================================
+# FINAL CLUSTER-WIDE TASKS
+# =========================================================================
+- name: Final cluster-wide cleanup
+  hosts: trinity
+  become: true
+  become_method: su
+  tags: [final]
+
+  tasks:
+    - name: Unset Ceph noout flag
+      command: ceph osd unset noout
+      changed_when: true
+
+    - name: Final Ceph health check
+      command: ceph -s
+      register: final_ceph
+      changed_when: false
+
+    - name: Display final Ceph status
+      debug:
+        msg: "{{ final_ceph.stdout_lines }}"
+
+    - name: Cluster upgrade complete
+      debug:
+        msg: |
+          ============================================
+          PROXMOX VE 8 → 9 UPGRADE COMPLETE
+          ============================================
+
+          Next steps:
+          1. Clear browser cache (Ctrl+Shift+R) on web UI
+          2. Verify all VMs and containers are running
+          3. Test GPU passthrough on Neo and Smith
+          4. Run: apt modernize-sources (optional)
+
+          ============================================

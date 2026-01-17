@@ -311,6 +311,10 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/baseline_machines.yml]
   baseline:vms:
     cmds: [ansible-playbook ansible/playbooks/baseline_vms.yml]
+  upgrade:pve:
+    desc: Upgrade Proxmox VE 8 to 9 (serial, one node at a time)
+    cmds:
+      - ansible-playbook ansible/playbooks/upgrade_pve_8_to_9.yml {{.CLI_ARGS}}
 
   configure:all:
     cmds:
