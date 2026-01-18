@@ -521,42 +521,6 @@
       delegate_to: localhost
       become: false
 
-    # =========================================================================
-    # Create GitLab CI S3 role for static site deployments
-    # =========================================================================
-    - name: Check for GitLab CI S3 role
-      ansible.builtin.command:
-        cmd: radosgw-admin role get --role-name "gitlab-ci-s3" --format json
-      register: gitlab_ci_s3_role
-      failed_when: false
-      changed_when: false
-      run_once: true
-      delegate_to: "{{ rgw_admin_host }}"
-
-    - name: Create GitLab CI S3 role
-      ansible.builtin.command:
-        cmd: >
-          radosgw-admin role create
-          --role-name="gitlab-ci-s3"
-          --assume-role-policy-doc='{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
-          "Principal":{"Federated":"{{ gitlab_oidc_provider_arn }}"},
-          "Action":"sts:AssumeRoleWithWebIdentity",
-          "Condition":{"StringEquals":{"{{ gitlab_oidc_claim_prefix }}:aud":"https://gitlab.home.shdr.ch"},
-          "StringLike":{"{{ gitlab_oidc_claim_prefix }}:sub":"project_path:so/*:*"}}}]}'
-      when: gitlab_ci_s3_role.rc != 0
-      run_once: true
-      delegate_to: "{{ rgw_admin_host }}"
-
-    - name: Attach S3 policy to GitLab CI role
-      ansible.builtin.command:
-        cmd: >
-          radosgw-admin role policy put
-          --role-name="gitlab-ci-s3"
-          --policy-name="gitlab-ci-s3-policy"
-          --policy-doc='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:ListAllMyBuckets","s3:GetBucketLocation"],"Resource":"*"},{"Effect":"Allow","Action":["s3:PutObject","s3:GetObject","s3:DeleteObject","s3:ListBucket"],"Resource":["arn:aws:s3:::*","arn:aws:s3:::*/*"]}]}'
-      run_once: true
-      delegate_to: "{{ rgw_admin_host }}"
-
   handlers:
     - name: Restart RGW
       ansible.builtin.systemd:
