@@ -4,8 +4,8 @@
 # Installs Crossplane core and configures the AWS provider for S3 buckets.
 
 locals {
-  rgw_admin_access_key = var.secrets["ceph.rgw_admin_access_key"]
-  rgw_admin_secret_key = var.secrets["ceph.rgw_admin_secret_key"]
+  crossplane_access_key = var.secrets["ceph.crossplane_access_key"]
+  crossplane_secret_key = var.secrets["ceph.crossplane_secret_key"]
 }
 
 resource "helm_release" "crossplane" {
@@ -43,8 +43,8 @@ resource "kubernetes_secret_v1" "crossplane_aws_creds" {
   data = {
     creds = <<-EOT
       [default]
-      aws_access_key_id = ${local.rgw_admin_access_key}
-      aws_secret_access_key = ${local.rgw_admin_secret_key}
+      aws_access_key_id = ${local.crossplane_access_key}
+      aws_secret_access_key = ${local.crossplane_secret_key}
     EOT
   }
 }
