@@ -471,6 +471,11 @@ oidc.k8s.home.shdr.ch {
   }
 
   handle @auth {
+    # Block admin console and master realm from public internet
+    @admin_paths path /admin/* /realms/master/*
+    respond @admin_paths "Not Found" 404
+
+    # Allow public OIDC endpoints
     reverse_proxy {{ vm.keycloak.ip }}:{{ vm.keycloak.ports.http }}
   }
 
