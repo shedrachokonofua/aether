@@ -83,7 +83,14 @@
         features:
           - nesting=1
           - mount=nfs
+          - keyctl=1
         unprivileged: false
+
+    - name: Set AppArmor to unconfined for NFS server support
+      ansible.builtin.lineinfile:
+        path: "/etc/pve/lxc/{{ vm.nfs.id }}.conf"
+        line: "lxc.apparmor.profile = unconfined"
+        create: false
 
     - name: Start NFS LXC
       community.general.proxmox:
