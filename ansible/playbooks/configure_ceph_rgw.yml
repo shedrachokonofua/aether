@@ -187,6 +187,39 @@
       changed_when: false
 
     # =========================================================================
+    # Create Crossplane service account (run once)
+    # =========================================================================
+    # Crossplane needs full S3/bucket permissions to manage buckets via CRDs
+    - name: Check for Crossplane service account
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid="crossplane"
+      register: rgw_crossplane_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create Crossplane service account
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --uid="crossplane"
+          --display-name="Crossplane"
+          --access-key="{{ secrets.ceph.crossplane_access_key }}"
+          --secret="{{ secrets.ceph.crossplane_secret_key }}"
+      when: rgw_crossplane_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Add admin caps to Crossplane user
+      ansible.builtin.command:
+        cmd: radosgw-admin caps add --uid="crossplane" --caps="buckets=*;users=*"
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      changed_when: false
+
+    # =========================================================================
     # Create IAM role for STS (run once)
     # =========================================================================
     - name: Check for RGW admin role
@@ -345,6 +378,19 @@
         - rgw_dns_current.stdout != rgw_dns_name
       notify: Restart RGW
 
+    - name: Read rgw_enable_static_website
+      ansible.builtin.command:
+        cmd: ceph config get "{{ rgw_client }}" rgw_enable_static_website
+      register: rgw_static_website_current
+      changed_when: false
+      failed_when: false
+
+    - name: Enable rgw_enable_static_website
+      ansible.builtin.command:
+        cmd: ceph config set "{{ rgw_client }}" rgw_enable_static_website true
+      when: rgw_static_website_current.stdout != "true"
+      notify: Restart RGW
+
     - name: Enable and start RGW service
       ansible.builtin.systemd:
         name: "ceph-radosgw@{{ rgw_instance }}"
@@ -487,12 +533,12 @@
           fi
 
           # Fallback to leaf cert if no intermediate (shouldn't happen with Let's Encrypt)
-          if [ -z "$THUMBPRINT" ] || [ ${#THUMBPRINT} -lt 40 ]; then
+          if [ -z "$THUMBPRINT" ] || [ $(expr length "$THUMBPRINT") -lt 40 ]; then
             THUMBPRINT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
               | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
           fi
 
-          if [ -z "$THUMBPRINT" ] || [ ${#THUMBPRINT} -lt 40 ]; then
+          if [ -z "$THUMBPRINT" ] || [ $(expr length "$THUMBPRINT") -lt 40 ]; then
             echo "Failed to derive OIDC thumbprint from ${OIDC_URL}" >&2
             exit 1
           fi
