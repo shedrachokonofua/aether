@@ -56,6 +56,10 @@ model_list:
     litellm_params:
       model: "openai/gpt-oss:20b"
       litellm_credential_name: ollama_openai_credential
+  - model_name: "aether/glm-4.7-flash:q8_0"
+    litellm_params:
+      model: "openai/glm-4.7-flash:q8_0"
+      litellm_credential_name: ollama_openai_credential
 
   # OpenAI models
   - model_name: "openai/gpt-5.2-pro"

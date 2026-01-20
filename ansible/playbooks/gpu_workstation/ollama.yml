@@ -17,7 +17,7 @@
     - name: Create ollama container
       containers.podman.podman_container:
         name: ollama
-        image: docker.io/ollama/ollama:latest
+        image: docker.io/ollama/ollama:0.14.3-rc2
         pull: always
         state: quadlet
         restart_policy: on-failure
@@ -76,6 +76,7 @@
     - name: Pull default models
       command: podman exec ollama ollama pull {{ item }}
       loop:
+        - glm-4.7-flash:q8_0
         - mistral-small3.2:24b-instruct-2506-q8_0
         - qwen3:30b
         - gpt-oss:20b
