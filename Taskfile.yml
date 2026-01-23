@@ -80,7 +80,6 @@ tasks:
           echo "⏭️  No k8s cluster in state, skipping auth export"
         fi
 
-
   # ===========================================================================
   # Secrets (only needs Bao env vars - AWS uses ~/.aws/credentials, age uses .sops.yaml)
   # ===========================================================================
@@ -258,17 +257,30 @@ tasks:
   provision:adguard:
     desc: Provision AdGuard LXC from base image
     cmds: [ansible-playbook ansible/playbooks/adguard/site.yml]
-  configure:adguard:
-    desc: Deploy NixOS configuration to AdGuard LXC
+  # ===========================================================================
+  # NixOS Deploy Helper (internal)
+  # ===========================================================================
+  _nixos-deploy:
+    internal: true
+    desc: Internal helper for NixOS deployments
     vars:
-      ADGUARD_IP:
-        sh: yq '.adguard.ip' config/vm.yml
       STEP_CA_IP:
         sh: yq '.step_ca.ip' config/vm.yml
     cmds:
       - |
         SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
-        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#adguard --target-host root@{{.ADGUARD_IP}} --impure
+        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#{{.FLAKE_TARGET}} --target-host root@{{.TARGET_IP}} --impure
+
+  configure:adguard:
+    desc: Deploy NixOS configuration to AdGuard LXC
+    vars:
+      TARGET_IP:
+        sh: yq '.adguard.ip' config/vm.yml
+    cmds:
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: adguard
   deploy:adguard:
     desc: Full deploy - provision LXC + configure NixOS
     cmds:
@@ -276,20 +288,18 @@ tasks:
       - task: configure:adguard
   provision:ids-mirror-bridge:
     desc: Create isolated bridge for IDS mirror traffic (one-time)
-    cmds: [ansible-playbook ansible/playbooks/home_router/create_mirror_bridge.yml]
+    cmds:
+      [ansible-playbook ansible/playbooks/home_router/create_mirror_bridge.yml]
   configure:ids-stack:
     desc: Deploy NixOS configuration to IDS Stack VM
     vars:
-      IDS_STACK_IP:
+      TARGET_IP:
         sh: yq '.ids_stack.ip' config/vm.yml
-      STEP_CA_IP:
-        sh: yq '.step_ca.ip' config/vm.yml
     cmds:
-      - |
-        # Get SSH CA public key for SSH trust
-        SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
-        # Machine cert is pre-provisioned via Terraform (no provisioner password needed here)
-        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#ids-stack --target-host root@{{.IDS_STACK_IP}} --impure
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: ids-stack
   deploy:ids-stack:
     desc: Full deploy - provision VM + configure NixOS
     cmds:
@@ -297,6 +307,25 @@ tasks:
       - task: tofu:apply
         vars: { CLI_ARGS: "-target=proxmox_virtual_environment_vm.ids_stack" }
       - task: configure:ids-stack
+  configure:blockchain-stack:
+    desc: Deploy NixOS configuration to Blockchain Stack VM
+    vars:
+      TARGET_IP:
+        sh: yq '.blockchain_stack.ip' config/vm.yml
+    cmds:
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: blockchain-stack
+  deploy:blockchain-stack:
+    desc: Full deploy - provision VM + configure NixOS
+    cmds:
+      - task: tofu:apply
+        vars:
+          {
+            CLI_ARGS: "-target=proxmox_virtual_environment_vm.blockchain_stack",
+          }
+      - task: configure:blockchain-stack
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:

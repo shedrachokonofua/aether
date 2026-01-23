@@ -80,22 +80,6 @@ resource "vault_policy" "aether_secrets" {
 }
 
 # =============================================================================
-# Aether Secrets (synced from SOPS)
-# =============================================================================
-# Source of truth: secrets/secrets.yml
-
-resource "vault_kv_secret_v2" "wazuh" {
-  mount = vault_mount.kv.path
-  name  = "aether/wazuh"
-  
-  data_json = jsonencode({
-    indexer_password   = var.secrets["wazuh.indexer_password"]
-    api_password       = var.secrets["wazuh.api_password"]
-    dashboard_password = var.secrets["wazuh.dashboard_password"]
-  })
-}
-
-# =============================================================================
 # Outputs
 # =============================================================================
 

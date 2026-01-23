@@ -10,10 +10,16 @@
           - "10.0.2.0/24"
           - "10.0.3.0/24"
           - "10.0.4.0/24"
+      # Blockchain data for Bitcoin/Monero nodes
+      - path: /mnt/hdd/blockchain
+        options: "rw,sync,no_subtree_check,no_root_squash"
+        allowed_ips:
+          - "10.0.2.0/24"
+          - "10.0.3.0/24"
   roles:
     - common
-    - dnf
-    - vm_baseline
+    # - dnf
+    # - vm_baseline
   tasks:
     - name: Install required packages
       dnf:

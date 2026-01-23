@@ -77,6 +77,7 @@
           mp2: "/mnt/nvme/data,mp=/mnt/nvme/data"
           mp3: "/mnt/hdd/vm,mp=/mnt/hdd/vm"
           mp4: "/mnt/hdd/data,mp=/mnt/hdd/data"
+          mp5: "/mnt/hdd/blockchain,mp=/mnt/hdd/blockchain"
         netif:
           net0: "name=eth0,bridge=vmbr0,gw={{vm.nfs.gateway.gigahub}},ip={{vm.nfs.ip.gigahub}}/24"
           net1: "name=eth1,bridge=vmbr0,gw={{vm.nfs.gateway.vyos}},ip={{vm.nfs.ip.vyos}}/24,tag=2"

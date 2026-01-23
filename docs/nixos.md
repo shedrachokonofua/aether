@@ -210,7 +210,7 @@ sops-nix integrates seamlessly—secrets decrypt at activation time and never to
 | Rollback             | PBS snapshot or re-run  | `nixos-rebuild --rollback`        |
 | Reproducibility      | Best effort             | Guaranteed (flake.lock)           |
 | Partial failures     | Service half-configured | Atomic—all or nothing             |
-| Container management | docker_container module | quadlet-nix (declarative systemd) |
+| Container management | podman_pod/podman_container module | quadlet-nix (declarative systemd) |
 
 ## Related Documents
 

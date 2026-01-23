@@ -407,6 +407,27 @@ ids_stack:
     wazuh_registration: 1515
     wazuh_dashboard: 5601
 
+blockchain_stack:
+  id: 1029
+  name: "blockchain-stack"
+  node: "smith"
+  admin: "aether"
+  cores: 4
+  memory: 8192
+  disk_gb: 150
+  ip: "10.0.3.8"
+  gateway: "10.0.3.1"
+  ports:
+    bitcoin_p2p: 8333
+    bitcoin_rpc: 8332
+    monero_p2p: 18080
+    monero_rpc: 18081
+    electrum_tcp: 50001
+    electrum_ssl: 50002
+    lnd_p2p: 9735
+    lnd_grpc: 10009
+    thunderhub: 3000
+
 # =============================================================================
 # Talos Kubernetes Cluster
 # =============================================================================

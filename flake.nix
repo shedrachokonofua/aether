@@ -86,6 +86,16 @@
             sshCaModule
           ];
         };
+        blockchain-stack = nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = sharedSpecialArgs;
+          modules = [
+            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            quadlet-nix.nixosModules.quadlet
+            ./nix/hosts/smith/blockchain-stack
+            sshCaModule
+          ];
+        };
       };
     in
     # Per-system outputs (dev shells + packages)

@@ -26,14 +26,18 @@
 let
   cfg = config.aether.openbao-agent;
   
+  # Escape double quotes for HCL quoted strings
+  escapeHcl = s: builtins.replaceStrings [''"''] [''\"''] s;
+  
   # Build individual template blocks
+  # noNewline uses quoted string (no trailing \n), otherwise heredoc (has trailing \n)
   templateBlocks = lib.concatStringsSep "\n\n" (lib.mapAttrsToList (name: tmpl: ''
 template {
   destination = "/run/secrets/${name}"
   perms = "${tmpl.perms}"
-  contents = <<EOT
+${lib.optionalString (tmpl.user != null) "  user = \"${tmpl.user}\"\n"}${lib.optionalString (tmpl.group != null) "  group = \"${tmpl.group}\"\n"}${if tmpl.noNewline then "  contents = \"${escapeHcl tmpl.contents}\"" else ''  contents = <<EOT
 ${tmpl.contents}
-EOT
+EOT''}
 ${lib.optionalString (tmpl.restartServices != []) ''
   exec {
     command = ["${pkgs.systemd}/bin/systemctl", "restart", ${lib.concatMapStringsSep ", " (s: ''"${s}"'') tmpl.restartServices}]
@@ -76,6 +80,7 @@ ${lib.optionalString (tmpl.restartServices != []) ''
     # Keep running and re-render templates when secrets change
     template_config {
       exit_on_retry_failure = true
+      static_secret_render_interval = "1m"  # Poll KV secrets every minute
     }
   '';
 
@@ -138,6 +143,23 @@ in {
             default = "0600";
             description = "File permissions for rendered secret";
           };
+          user = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Owner user for rendered secret (null = root)";
+            example = "bitcoin";
+          };
+          group = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Owner group for rendered secret (null = root)";
+            example = "bitcoin";
+          };
+          noNewline = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "Don't add trailing newline (for passwords used in auth)";
+          };
           restartServices = lib.mkOption {
             type = lib.types.listOf lib.types.str;
             default = [];
@@ -161,8 +183,9 @@ in {
 
   config = lib.mkIf cfg.enable {
     # Create secrets and agent directories
+    # /run/secrets is 0755 to allow traversal; individual files have restrictive perms
     systemd.tmpfiles.rules = [
-      "d /run/secrets 0700 root root -"
+      "d /run/secrets 0755 root root -"
       "d /run/vault-agent 0700 root root -"
     ];
     

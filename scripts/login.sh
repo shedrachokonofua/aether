@@ -696,9 +696,9 @@ do_login() {
   fi
   if $do_s3; then
     if $s3_ok; then
-      log_success "S3:  Ready (rclone remotes: ceph_rgw, aws)"
+      log_success "Ceph RGW:  Ready (rclone remotes: ceph_rgw, aws)"
     else
-      log_error "S3:  Failed"
+      log_error "Ceph RGW:  Failed"
     fi
   fi
   echo ""

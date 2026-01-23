@@ -2,28 +2,12 @@
 - name: Setup ZFS Pools and Datasets
   hosts: smith
   vars:
-    nvme_pool_name: nvme
     hdd_pool_name: hdd
     # --- Datasets ---
     # - Use LZ4 compression on all datasets to balance space savings with minimal CPU overhead.
     # - Use smaller record size (16K) for VM disk images to reduce metadata overhead and improve random I/O performance.
     # - Disable atime to reduce write overhead and improve sequential I/O performance.
     datasets:
-      - name: "nvme/personal" # Personal data storage, backed up to google drive
-        mountpoint: "/mnt/nvme/personal"
-        compress: "lz4"
-        recordsize: "default"
-        atime: "off"
-      - name: "nvme/vm" # VM disk images
-        mountpoint: "/mnt/nvme/vm"
-        compress: "lz4"
-        recordsize: "16K"
-        atime: "off"
-      - name: "nvme/data" # Generic data storage
-        mountpoint: "/mnt/nvme/data"
-        compress: "lz4"
-        recordsize: "default"
-        atime: "off"
       - name: "hdd/vm" # VM disk images
         mountpoint: "/mnt/hdd/vm"
         compress: "lz4"
@@ -44,18 +28,13 @@
         compress: "lz4"
         recordsize: "default"
         atime: "off"
+      - name: "hdd/blockchain" # Bitcoin/Monero blockchain data
+        mountpoint: "/mnt/hdd/blockchain"
+        compress: "lz4"
+        recordsize: "default"
+        atime: "off"
   tasks:
     # --- Pool Creation Tasks ---
-    - name: Check if NVMe pool "{{ nvme_pool_name }}" exists
-      shell: "zpool list -H -o name | grep -w {{ nvme_pool_name }}"
-      register: nvme_pool_check
-      ignore_errors: true
-      changed_when: false
-
-    - name: Create NVMe pool "{{ nvme_pool_name }}" as striped pool if not exists
-      command: "zpool create {{ nvme_pool_name }} /dev/nvme0n1p1 /dev/nvme1n1p4"
-      when: nvme_pool_check.rc != 0
-
     - name: Check if HDD pool "{{ hdd_pool_name }}" exists
       shell: "zpool list -H -o name | grep -w {{ hdd_pool_name }}"
       register: hdd_pool_check
@@ -103,16 +82,6 @@
       loop: "{{ datasets }}"
       loop_control:
         loop_var: item
-
-    - name: Check if zfs-nvme-vm-dataset storage is added to proxmox
-      command: pvesm status --storage zfs-nvme-vm-dataset
-      register: nvme_pool_status
-      ignore_errors: yes
-      changed_when: false
-
-    - name: Add zfs-nvme-vm-dataset storage to proxmox if not exists
-      command: pvesm add zfspool zfs-nvme-vm-dataset --pool nvme/vm --sparse 1 --content images,rootdir --nodes smith
-      when: nvme_pool_status.rc != 0
 
     - name: Check if zfs-hdd-vm-dataset storage is added to proxmox
       command: pvesm status --storage zfs-hdd-vm-dataset

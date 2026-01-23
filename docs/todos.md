@@ -45,17 +45,27 @@
 ## P2
 
 - [ ] Deploy Kubernetes cluster ([exploration](exploration/kubernetes.md))
-  - [ ] Provision 3 Talos VMs via Tofu (Trinity, Niobe, Neo)
-  - [ ] Bootstrap Talos cluster
-  - [ ] Install Cilium, Gateway API, Knative, OPA Gatekeeper
-  - [ ] Install Kubero (replaces Dokku + Dokploy)
-  - [ ] Install Secrets Store CSI + cert-manager
-  - [ ] Configure OTEL Collector → external Monitoring Stack
-  - [ ] Register GitLab Agent
-  - [ ] Migrate AI Tool Stack, Messaging Stack, Lute Stack
+  - [x] Provision 3 Talos VMs via Tofu (Trinity, Niobe, Neo)
+  - [x] Bootstrap Talos cluster
+  - [x] Install Cilium CNI with L2 announcements + LoadBalancer VIP
+  - [x] Install Gateway API CRDs + main-gateway
+  - [x] Install Ceph CSI for persistent storage
+  - [x] Install Knative Serving (scale-to-zero)
+  - [ ] Install Knative Eventing
+  - [x] Install Crossplane + Ceph RGW/Keycloak providers
+  - [ ] Install OPA Gatekeeper (policy enforcement)
+  - [ ] Install Secrets Store CSI + Vault provider
+  - [ ] Install cert-manager + step-ca ClusterIssuer
+  - [ ] Install External Secrets Operator
+  - [x] Deploy OTEL Collectors (DaemonSet + Deployment) → Monitoring Stack
+  - [x] Enable Hubble UI via Gateway API
+  - [x] Deploy Headlamp dashboard with Keycloak OIDC
+  - [x] Register GitLab Agent
+  - [ ] Create k8s dashboards in Grafana
+  - [ ] Migrate AI Tool Stack, Messaging Stack to Knative
   - [ ] Migrate Media Stack (rffmpeg → GPU Workstation for transcoding)
-  - [ ] Migrate Dokku/Dokploy apps to Kubero
-  - [ ] Configure multi-tenancy (namespaces, quotas, Keycloak OIDC)
+  - [ ] Migrate Dokku/Dokploy apps to Knative Services
+  - [ ] Configure multi-tenancy (namespaces, quotas, Cilium NetworkPolicies)
 - [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))
   - [ ] Deploy WUD for container update visibility
   - [ ] Deploy Trivy for CVE scanning
@@ -102,6 +112,7 @@
   - [x] Dev shell (`nix develop`) - replaced Docker toolbox
   - [x] AdGuard LXC - DNS, OTEL, Prometheus exporter
   - [x] IDS Stack VM - Zeek via quadlet-nix
+  - [x] Blockchain Stack VM - bitcoind, monerod, Fulcrum (quadlet)
   - [ ] Migrate Gateway Stack (Caddy, Tailscale, HAProxy)
   - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao) via nixos-generators LXC
   - [ ] Migrate Monitoring Stack
@@ -117,3 +128,4 @@
   - [ ] Rename to Soren in docs, Ansible, Tailscale
   - [ ] Upgrade Lightsail instance to micro ($5/mo)
   - [ ] Add Uptime Kuma for external monitoring
+- [ ] Move Tofu state to Ceph RGW

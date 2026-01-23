@@ -13,44 +13,14 @@
 # After provisioning, deploy NixOS config:
 #   task configure:ids-stack
 
-# Request machine certificate from step-ca
-# Certificate is stored in Terraform state, injected via cloud-init
-module "ids_stack_cert" {
-  source = "./modules/step_ca_cert"
+# NixOS cloud-config with machine certificate for OpenBao cert auth
+module "ids_stack_cloud_config" {
+  source = "./modules/nixos_cloud_config"
 
-  hostname             = "ids-stack.home.shdr.ch"
+  name                 = local.vm.ids_stack.name
   ip_addresses         = [local.vm.ids_stack.ip]
+  node_name            = local.vm.ids_stack.node
   provisioner_password = var.secrets["step_ca.provisioner_password"]
-}
-
-resource "proxmox_virtual_environment_file" "ids_stack_cloud_config" {
-  content_type = "snippets"
-  datastore_id = "local"
-  node_name    = local.vm.ids_stack.node
-
-  source_raw {
-    file_name = "${local.vm.ids_stack.name}-cloud-config.yml"
-    data      = <<-EOF
-      #cloud-config
-      hostname: ${local.vm.ids_stack.name}
-      write_files:
-        # Machine certificate for OpenBao cert auth
-        - path: /etc/ssl/certs/machine.crt
-          encoding: b64
-          content: ${base64encode(module.ids_stack_cert.cert_pem)}
-          permissions: '0644'
-        # Private key (restricted permissions)
-        - path: /etc/ssl/private/machine.key
-          encoding: b64
-          content: ${base64encode(module.ids_stack_cert.key_pem)}
-          permissions: '0600'
-        # step-ca root certificate for TLS verification
-        - path: /etc/ssl/certs/step-ca-root.crt
-          encoding: b64
-          content: ${base64encode(module.ids_stack_cert.ca_cert_pem)}
-          permissions: '0644'
-    EOF
-  }
 }
 
 resource "proxmox_virtual_environment_vm" "ids_stack" {
@@ -104,11 +74,27 @@ resource "proxmox_virtual_environment_vm" "ids_stack" {
       servers = [local.vm.ids_stack.gateway]
     }
 
-    user_data_file_id = proxmox_virtual_environment_file.ids_stack_cloud_config.id
+    user_data_file_id = module.ids_stack_cloud_config.file_id
   }
 
   lifecycle {
     prevent_destroy = true
     ignore_changes  = [disk[0].file_id, initialization[0].user_data_file_id]
   }
+}
+
+# =============================================================================
+# OpenBao Secrets
+# =============================================================================
+# Synced from SOPS → OpenBao KV → vault-agent on VM
+
+resource "vault_kv_secret_v2" "wazuh" {
+  mount = vault_mount.kv.path
+  name  = "aether/wazuh"
+
+  data_json = jsonencode({
+    indexer_password   = var.secrets["wazuh.indexer_password"]
+    api_password       = var.secrets["wazuh.api_password"]
+    dashboard_password = var.secrets["wazuh.dashboard_password"]
+  })
 }

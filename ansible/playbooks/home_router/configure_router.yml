@@ -417,6 +417,12 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 destination port {{ vm.monitoring_stack.ports.otel_grpc }},{{ vm.monitoring_stack.ports.otel_http }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 destination address {{ vm.monitoring_stack.ip }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 22 description 'Allow OTEL to Monitoring Stack'
+          # OpenBao - secrets management (vault-agent auth)
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 destination port {{ vm.openbao.ports.https }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 destination address {{ vm.openbao.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 description 'Allow HTTPS to OpenBao'
           - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
           - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
           - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept

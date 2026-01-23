@@ -35,20 +35,24 @@ Establish sovereign cryptocurrency infrastructure that:
 │                                    │                                         │
 │                                    ▼                                         │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                    Blockchain Node VM                                │   │
-│   │                    4 vCPU, 12GB RAM, 1TB HDD                        │   │
+│   │                    NixOS VM (Blockchain Node)                        │   │
+│   │                    4 vCPU, 12GB RAM                                  │   │
+│   │                                                                      │   │
+│   │   Storage:                                                           │   │
+│   │   ├── NVMe (Ceph RBD): OS, LND, Fulcrum (~150GB)                   │   │
+│   │   └── HDD (Smith pool): Bitcoin, Monero chains (~800GB)            │   │
 │   │                                                                      │   │
 │   │   ┌──────────┐     ┌──────────┐     ┌──────────┐                   │   │
 │   │   │ bitcoind │────▶│ Fulcrum  │────▶│  Wallet  │                   │   │
 │   │   │  (BTC)   │     │(Electrum)│     │(Sparrow) │                   │   │
-│   │   │  600GB   │     │  100GB   │     │          │                   │   │
+│   │   │ 600GB HDD│     │100GB NVMe│     │          │                   │   │
 │   │   └──────────┘     └──────────┘     └──────────┘                   │   │
 │   │        │                                                             │   │
 │   │        ▼                                                             │   │
 │   │   ┌──────────┐                      ┌──────────┐                   │   │
 │   │   │   LND    │                      │ monerod  │────▶ Feather      │   │
 │   │   │(Lightning)────▶ ThunderHub      │  (XMR)   │      Wallet       │   │
-│   │   │   20GB   │                      │  200GB   │                   │   │
+│   │   │ 20GB NVMe│                      │ 200GB HDD│                   │   │
 │   │   └──────────┘                      └──────────┘                   │   │
 │   │                                                                      │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
@@ -92,7 +96,7 @@ Full validation of the Bitcoin blockchain. Verifies every transaction since 2009
 **Note:** Full node required for Electrum server. Pruned won't work.
 
 ```yaml
-# docker-compose.yml
+# Reference config (actual deployment via NixOS quadlet containers)
 services:
   bitcoind:
     image: kylemanna/bitcoind
@@ -278,42 +282,63 @@ bao kv put secret/bitcoin/multisig-key-2 \
 5. Transfer small amount from exchange to test
 6. Verify can receive, then withdraw rest
 
-### Phase 2: Blockchain Node VM
+### Phase 2: NixOS VM Setup
 
-1. Create VM on Smith: 4 vCPU, 12GB RAM
-2. Create ZFS dataset: `hdd/blockchain` (~1TB)
-3. Deploy docker-compose with bitcoind + monerod
-4. Start sync (3-5 days for both chains on HDD)
-5. Limit CPU with `-par=2` / `--max-concurrency=2`
+1. Add VM config to `config/vm.yml` (4 vCPU, 12GB RAM)
+2. Create Tofu resources:
+   - Primary disk on Ceph RBD (~150GB NVMe) for OS, LND, Fulcrum
+   - Secondary disk on Smith HDD pool (~800GB) for blockchain data
+3. Create NixOS configuration in `nix/hosts/smith/blockchain-stack/`
+4. Add to `flake.nix` nixosConfigurations
+5. Deploy with `nixos-rebuild switch --target-host`
 
-### Phase 3: Electrum Server
+### Phase 3: Blockchain Sync
+
+1. Deploy bitcoind + monerod (via quadlet containers or native services)
+2. Mount HDD disk to `/var/lib/blockchain`
+3. Start sync (3-5 days for both chains on HDD)
+4. Limit CPU with `-par=2` / `--max-concurrency=2`
+
+### Phase 4: Electrum Server
 
 1. Wait for bitcoind to fully sync
-2. Add Fulcrum to docker-compose
+2. Deploy Fulcrum (stores index on NVMe root)
 3. Initial index build: 12-24 hours
 4. Configure Sparrow wallet to use your server
 
-### Phase 4: Lightning
+### Phase 5: Lightning
 
-1. Add LND + ThunderHub to docker-compose
-2. Create wallet, backup seed
+1. Deploy LND + ThunderHub (stores on NVMe root)
+2. Create wallet, backup seed to OpenBao
 3. Fund on-chain wallet
 4. Open 2-3 channels to well-connected nodes
 5. Test with small payment
 
 ## Resource Requirements
 
-| Component       | vCPU | RAM  | Disk  | Notes               |
-| --------------- | ---- | ---- | ----- | ------------------- |
-| Bitcoin Node    | 2    | 4GB  | 600GB | HDD fine after sync |
-| Monero Node     | 1    | 4GB  | 200GB | HDD fine after sync |
-| Electrum Server | 1    | 2GB  | 100GB | Index size          |
-| Lightning (LND) | 1    | 2GB  | 20GB  | HDD acceptable      |
-| **Total**       | 5    | 12GB | 920GB |                     |
+| Component       | vCPU | RAM  | Disk  | Storage | Notes                              |
+| --------------- | ---- | ---- | ----- | ------- | ---------------------------------- |
+| Bitcoin Node    | 2    | 4GB  | 600GB | HDD     | Bulk data, sequential after sync   |
+| Monero Node     | 1    | 4GB  | 200GB | HDD     | Bulk data, sequential after sync   |
+| Electrum Server | 1    | 2GB  | 100GB | NVMe    | Index queries are latency-sensitive |
+| Lightning (LND) | 1    | 2GB  | 20GB  | NVMe    | Channel DB needs fast writes       |
+| OS + misc       | -    | -    | 30GB  | NVMe    | Root filesystem                    |
+| **Total**       | 5    | 12GB | 950GB |         |                                    |
 
-**Host:** Smith (has 28TB HDD RAID10, plenty of capacity)
+### Hybrid Storage Layout
 
-**Storage:** Use `hdd/blockchain` dataset. Initial sync takes longer on HDD (~3-5 days for both chains) but performs fine afterward.
+| Storage Type    | Contents                  | Size   | Proxmox Datastore |
+| --------------- | ------------------------- | ------ | ----------------- |
+| NVMe (Ceph RBD) | OS, LND, Fulcrum index    | ~150GB | ceph-vm-disks     |
+| HDD (Smith)     | Bitcoin, Monero chains    | ~800GB | local-hdd         |
+
+**Why hybrid:**
+
+- **LND on NVMe** — Channel state DB (bbolt) needs fast, reliable writes. Slow writes risk channel force-closes.
+- **Fulcrum on NVMe** — Wallet queries hit the index constantly. HDD = 100-500ms latency, NVMe = <5ms.
+- **Blockchain data on HDD** — After initial sync, it's mostly sequential reads. 800GB on NVMe is wasteful.
+
+**Host:** Smith (has 28TB HDD RAID10 + Ceph NVMe pool)
 
 ## Costs
 
@@ -325,6 +350,36 @@ bao kv put secret/bitcoin/multisig-key-2 \
 | Storage (1TB)     | -         | Existing HDD pool     |
 | Electricity       | -         | Negligible            |
 | **Total**         | **~$180** | ~$0                   |
+
+## Why NixOS (Not Kubernetes)
+
+### Why Not Kubernetes
+
+The blockchain stack is a poor fit for K8s:
+
+| K8s Benefit       | Blockchain Fit                                   |
+| ----------------- | ------------------------------------------------ |
+| Scale to zero     | ❌ Must stay synced 24/7                         |
+| Quick startup     | ❌ Days to sync if restarted cold                |
+| Horizontal scale  | ❌ You don't run 3 Bitcoin replicas              |
+| Service mesh      | ❌ P2P protocols, not HTTP                       |
+| Multi-tenancy     | ❌ Personal node, single user                    |
+| Ephemeral pods    | ❌ 1TB of state you can't lose                   |
+| Storage locality  | ❌ K8s abstracts away NVMe vs HDD distinction    |
+
+K8s excels at scale-to-zero HTTP services (LiteLLM, OpenWebUI). Blockchain is always-on, P2P, storage-heavy — the opposite pattern.
+
+### Why NixOS
+
+| Factor              | NixOS Benefit                                      |
+| ------------------- | -------------------------------------------------- |
+| Atomic rollbacks    | LND update breaks channels? Rollback in seconds    |
+| Declarative config  | Entire stack is code — reproducible from git       |
+| Long-lived          | No drift over years — config IS the truth          |
+| Existing pattern    | Same tooling as IDS Stack, AdGuard                 |
+| Hybrid storage      | Mount HDD + NVMe explicitly in filesystem config   |
+
+The blockchain stack will run for **years** with minimal changes. NixOS's declarative model is ideal for stable, long-lived, stateful infrastructure where you want rollback safety (critical for Lightning channels).
 
 ## Decision Factors
 
@@ -340,8 +395,8 @@ bao kv put secret/bitcoin/multisig-key-2 \
 ### Cons
 
 - Responsibility (lose seed = lose funds)
-- Operational overhead (another VM to maintain)
-- Storage requirements (~1TB)
+- Operational overhead (mitigated by NixOS declarative config)
+- Storage requirements (~1TB hybrid NVMe + HDD)
 - Initial sync time (days)
 - Lightning requires attention (channel management)
 
@@ -363,11 +418,25 @@ bao kv put secret/bitcoin/multisig-key-2 \
 
 ## Status
 
-**Exploration phase.** Hardware wallet is the immediate action item. Node infrastructure can follow once self-custody is established.
+**Implementation in progress.** Hardware wallet acquired. Infrastructure created:
+
+- [x] `config/vm.yml` - VM definition (ID 1029, 10.0.3.8, 4 vCPU, 8GB RAM)
+- [x] `tofu/home/blockchain_stack.tf` - Proxmox VM + HA resource
+- [x] `nix/hosts/smith/blockchain-stack/` - NixOS configuration
+- [x] `flake.nix` - Added to nixosConfigurations
+
+**Next steps:**
+1. Create ZFS dataset on Smith: `zfs create -o compression=lz4 hdd/blockchain`
+2. Add NFS export for the dataset
+3. Apply Tofu: `task tofu:apply`
+4. Deploy NixOS: `task configure:blockchain-stack`
+5. Wait 3-5 days for sync, then enable LND
 
 ## Related Documents
 
+- `kubernetes.md` — Why blockchain stays as VM (not K8s)
 - `../secrets.md` — OpenBao for encrypted key backup
 - `../monitoring.md` — Grafana dashboards for node metrics
 - `../backups.md` — Offsite backup for Lightning channel state
 - `../storage.md` — Smith HDD pool for blockchain data
+- `../nixos.md` — NixOS patterns used for this VM
