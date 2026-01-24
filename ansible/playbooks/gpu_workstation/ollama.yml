@@ -17,7 +17,7 @@
     - name: Create ollama container
       containers.podman.podman_container:
         name: ollama
-        image: docker.io/ollama/ollama:0.14.3-rc2
+        image: docker.io/ollama/ollama:latest
         pull: always
         state: quadlet
         restart_policy: on-failure
