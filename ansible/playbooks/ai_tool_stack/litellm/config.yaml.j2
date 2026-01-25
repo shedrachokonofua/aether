@@ -147,3 +147,7 @@ mcp_servers:
     args: ["mcp-server-time", "--local-timezone=America/Toronto"]
   firecrawl:
     url: "https://mcp.firecrawl.home.shdr.ch/mcp"
+  financial_datasets:
+    url: "https://mcp.financialdatasets.ai/api"
+    static_headers:
+      "X-API-KEY": "{{ secrets.financial_datasets_api_key }}"

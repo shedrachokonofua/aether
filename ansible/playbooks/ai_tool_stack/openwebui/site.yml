@@ -64,6 +64,7 @@
         pull: always
         state: quadlet
         pod: openwebui.pod
+        # Supported environment variables: https://raw.githubusercontent.com/open-webui/docs/refs/heads/main/docs/getting-started/env-configuration.mdx
         env:
           ENABLE_PERSISTENT_CONFIG: "false"
           WEBUI_SECRET_KEY: "{{ secrets.openwebui.secret_key }}"
@@ -94,7 +95,7 @@
           CODE_EXECUTION_JUPYTER_URL: "https://jupyter.home.shdr.ch"
           CODE_INTERPRETER_ENGINE: "jupyter"
           CODE_INTERPRETER_JUPYTER_URL: "https://jupyter.home.shdr.ch"
-          TOOL_SERVER_CONNECTIONS: "'{{ tool_server_connections | to_json }}'"
+          TOOL_SERVER_CONNECTIONS: "{{ tool_server_connections | to_json }}"
           WEBUI_URL: "https://ai.shdr.ch"
           ENABLE_LOGIN_FORM: "false"
           ENABLE_OAUTH_SIGNUP: "true"
