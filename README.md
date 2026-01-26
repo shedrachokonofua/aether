@@ -2,6 +2,8 @@
 
 IaC for my private cloud.
 
+<img src="docs/rack.jpg" alt="Home server rack" width="400">
+
 ## Features
 
 - **Infrastructure as Code**: Provisioning and configuration with Ansible, OpenTofu, and Nix
