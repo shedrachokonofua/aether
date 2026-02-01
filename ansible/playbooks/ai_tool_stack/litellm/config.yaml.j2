@@ -142,10 +142,12 @@ general_settings:
 
 mcp_servers:
   time:
-    transport: "stdio"
-    command: "uvx"
-    args: ["mcp-server-time", "--local-timezone=America/Toronto"]
+    url: "http://localhost:8003/mcp"
   firecrawl:
     url: "https://mcp.firecrawl.home.shdr.ch/mcp"
   alpha_vantage:
     url: "https://mcp.alphavantage.co/mcp?apikey={{ secrets.alphavantage_api_key }}"
+  coingecko:
+    url: "http://localhost:8002/"
+  finviz:
+    url: "http://localhost:8000/mcp"

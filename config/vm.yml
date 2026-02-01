@@ -260,6 +260,9 @@ ai_tool_stack:
     searxng: 8081
     firecrawl: 3002
     firecrawl_mcp: 3007
+    finviz_mcp: 8000
+    coingecko_mcp: 8002
+    time_mcp: 8003
     bytebot_desktop: 9990
     bytebot_agent: 9991
     bytebot_ui: 9992
@@ -412,9 +415,9 @@ blockchain_stack:
   name: "blockchain-stack"
   node: "smith"
   admin: "aether"
-  cores: 4
-  memory: 8192
-  disk_gb: 150
+  cores: 8
+  memory: 16384
+  disk_gb: 256
   ip: "10.0.3.8"
   gateway: "10.0.3.1"
   ports:

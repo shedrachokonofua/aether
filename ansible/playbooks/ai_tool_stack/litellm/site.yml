@@ -25,6 +25,9 @@
         recreate: true
         ports:
           - "{{ vm.ai_tool_stack.ports.litellm }}:4000"
+          - "{{ vm.ai_tool_stack.ports.finviz_mcp }}:8000"
+          - "{{ vm.ai_tool_stack.ports.coingecko_mcp }}:8002"
+          - "{{ vm.ai_tool_stack.ports.time_mcp }}:8003"
         quadlet_options:
           - |
             [Install]
@@ -64,6 +67,51 @@
         volumes:
           - /home/aether/litellm/config/config.yaml:/app/config.yaml:Z
         command: ["--config", "/app/config.yaml", "--detailed_debug"]
+
+    - name: Create finviz-mcp-server container
+      containers.podman.podman_container:
+        name: finviz-mcp-server
+        image: registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest
+        pull: always
+        state: quadlet
+        pod: litellm.pod
+        env:
+          MCP_TRANSPORT: streamable-http
+          MCP_HOST: "0.0.0.0"
+          MCP_PORT: "8000"
+          FINVIZ_API_KEY: "{{ secrets.finviz_api_key }}"
+
+    - name: Create coingecko-mcp-server container
+      containers.podman.podman_container:
+        name: coingecko-mcp-server
+        image: docker.io/node:22-slim
+        pull: always
+        state: quadlet
+        pod: litellm.pod
+        env:
+          COINGECKO_PRO_API_KEY: "{{ secrets.coingecko_api_key }}"
+          COINGECKO_ENVIRONMENT: "pro"
+        command:
+          - npx
+          - -y
+          - "@coingecko/coingecko-mcp"
+          - --transport
+          - http
+          - --port
+          - "8002"
+
+    - name: Create time-mcp-server container
+      containers.podman.podman_container:
+        name: time-mcp-server
+        image: docker.io/theo01/mcp-time:latest
+        pull: always
+        state: quadlet
+        pod: litellm.pod
+        command:
+          - --transport
+          - stream
+          - --address
+          - "http://0.0.0.0:8003/mcp"
 
     - name: Reload systemd
       systemd:
