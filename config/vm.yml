@@ -266,6 +266,7 @@ ai_tool_stack:
     bytebot_desktop: 9990
     bytebot_agent: 9991
     bytebot_ui: 9992
+    microsandbox: 5555
 
 ups_management_stack:
   id: 1019

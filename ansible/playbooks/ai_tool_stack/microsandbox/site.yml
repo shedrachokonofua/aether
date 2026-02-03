@@ -1,0 +1,144 @@
+---
+# MicroSandbox - KVM-based secure sandbox for AI agent code execution
+# Provides hardware-isolated VMs for running untrusted code safely
+# MCP endpoint: http://localhost:5555/mcp
+- name: Deploy MicroSandbox pod
+  hosts: ai-tool-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create microsandbox build directory
+      file:
+        path: ./microsandbox/build
+        state: directory
+        mode: "0755"
+
+    - name: Copy Dockerfile
+      copy:
+        src: ./Dockerfile
+        dest: ./microsandbox/build/Dockerfile
+        mode: "0644"
+
+    - name: Build microsandbox image
+      containers.podman.podman_image:
+        name: localhost/microsandbox
+        tag: latest
+        path: ./microsandbox/build
+        build:
+          format: docker
+        force: true
+      register: build_result
+
+    - name: Show build result
+      debug:
+        var: build_result
+        verbosity: 1
+
+    - name: Create MicroSandbox pod
+      containers.podman.podman_pod:
+        name: microsandbox
+        state: quadlet
+        restart_policy: unless-stopped
+        recreate: true
+        ports:
+          - "{{ vm.ai_tool_stack.ports.microsandbox }}:5555"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Create microsandbox namespaces volume
+      containers.podman.podman_volume:
+        name: microsandbox_namespaces
+        state: quadlet
+
+    - name: Create microsandbox workspace volume
+      containers.podman.podman_volume:
+        name: microsandbox_workspace
+        state: quadlet
+
+    - name: Create microsandbox container
+      containers.podman.podman_container:
+        name: microsandbox
+        image: localhost/microsandbox:latest
+        state: quadlet
+        pod: microsandbox.pod
+        # Privileged mode required for KVM access
+        # Code execution happens inside isolated VMs with hardware-enforced boundaries
+        privileged: true
+        security_opt:
+          - apparmor=unconfined
+          - seccomp=unconfined
+        device:
+          # KVM device for hardware-accelerated virtualization
+          - /dev/kvm:/dev/kvm
+          # TUN device for network tunneling (TAP/TUN interfaces)
+          - /dev/net/tun:/dev/net/tun
+        env:
+          TZ: "America/New_York"
+          MICROSANDBOX_HOME: /root/.microsandbox
+        volumes:
+          - microsandbox_namespaces.volume:/root/.microsandbox/namespaces:Z
+          - microsandbox_workspace.volume:/workspace:Z
+        command:
+          - server
+          - start
+          - --host
+          - "0.0.0.0"
+          - --port
+          - "5555"
+          - --dev
+        working_dir: /workspace
+        healthcheck: "msb --version || exit 1"
+        healthcheck_interval: 30s
+        healthcheck_timeout: 10s
+        healthcheck_retries: 3
+        healthcheck_start_period: 30s
+        quadlet_options:
+          - |
+            [Service]
+            # Resource limits
+            CPUQuota=400%
+            MemoryMax=4G
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start microsandbox quadlet
+      systemd:
+        name: microsandbox-pod
+        state: restarted
+        scope: user
+
+    - name: Wait for microsandbox to start
+      wait_for:
+        port: "{{ vm.ai_tool_stack.ports.microsandbox }}"
+        host: 127.0.0.1
+        timeout: 120
+
+    - name: Check microsandbox MCP endpoint
+      uri:
+        url: http://localhost:{{ vm.ai_tool_stack.ports.microsandbox }}/mcp
+        method: POST
+        body_format: json
+        body:
+          jsonrpc: "2.0"
+          method: "initialize"
+          params:
+            protocolVersion: "2024-11-05"
+            capabilities: {}
+            clientInfo:
+              name: "ansible-health-check"
+              version: "1.0.0"
+          id: 1
+        headers:
+          Content-Type: "application/json"
+        status_code: [200]
+      register: microsandbox_health
+      retries: 5
+      delay: 10
+      until: microsandbox_health.status == 200
+      ignore_errors: true
