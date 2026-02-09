@@ -25,9 +25,6 @@
       BULL_AUTH_KEY: "{{ secrets.firecrawl.bull_auth_key }}"
       TEST_API_KEY: "{{ secrets.firecrawl.api_key }}"
       LOGGING_LEVEL: "debug"
-      PROXY_SERVER: "{{ secrets.firecrawl.proxy_server }}"
-      PROXY_USERNAME: "{{ secrets.firecrawl.proxy_username }}"
-      PROXY_PASSWORD: "{{ secrets.firecrawl.proxy_password }}"
       SEARXNG_ENDPOINT: "https://searxng.home.shdr.ch"
   tasks:
     - name: Create Firecrawl pod
@@ -99,9 +96,7 @@
         env:
           PORT: "3000"
           MAX_CONCURRENT_PAGES: "10"
-          PROXY_SERVER: "{{ secrets.firecrawl.proxy_server }}"
-          PROXY_USERNAME: "{{ secrets.firecrawl.proxy_username }}"
-          PROXY_PASSWORD: "{{ secrets.firecrawl.proxy_password }}"
+          PROXY_SERVER: "socks5://proxy.home.shdr.ch:1080"
 
     # Single API container with harness.js - manages workers internally
     - name: Create api container
@@ -136,32 +131,10 @@
           FIRECRAWL_API_URL: "https://firecrawl.home.shdr.ch"
         command: ["npx", "-y", "firecrawl-mcp"]
 
-    - name: Remove old worker quadlets
-      file:
-        path: "{{ item }}"
-        state: absent
-      loop:
-        - ~/.config/containers/systemd/firecrawl-nuq-worker.container
-        - ~/.config/containers/systemd/firecrawl-queue-worker.container
-        - ~/.config/containers/systemd/firecrawl-extract-worker.container
-        - ~/.config/containers/systemd/firecrawl-worker.container
-
     - name: Reload systemd
       systemd:
         daemon_reload: yes
         scope: user
-
-    - name: Stop old worker services (ignore errors)
-      systemd:
-        name: "{{ item }}"
-        state: stopped
-        scope: user
-      loop:
-        - firecrawl-nuq-worker
-        - firecrawl-queue-worker
-        - firecrawl-extract-worker
-        - firecrawl-worker
-      ignore_errors: true
 
     - name: Start firecrawl quadlet
       systemd:
