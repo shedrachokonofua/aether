@@ -83,6 +83,20 @@
         opts: name=admin,secretfile=/etc/ceph/ceph.client.admin.secret,_netdev,noatime
         state: mounted
 
+    # Create media directories accessible to all users/containers
+    - name: Create media subdirectories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0777"
+      loop:
+        - /nvme/data/media/downloads
+        - /nvme/data/media/downloads/incomplete
+        - /nvme/data/media/downloads/complete
+        - /nvme/data/media/movies
+        - /nvme/data/media/tv
+        - /nvme/data/media/music
+
     # Mount NFS for cold HDD data
     - name: Mount NFS share for hdd/data
       ansible.posix.mount:

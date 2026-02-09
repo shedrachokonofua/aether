@@ -46,6 +46,8 @@
         volume:
           - "{{ sabnzbd_config_dir }}:/config:Z"
           - "{{ sabnzbd_downloads_dir }}:/downloads"
+        security_opt:
+          - "label=disable"
         quadlet_options:
           - |
             [Install]
