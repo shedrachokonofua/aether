@@ -89,8 +89,8 @@
         state: quadlet
         pod: litellm.pod
         env:
-          COINGECKO_PRO_API_KEY: "{{ secrets.coingecko_api_key }}"
-          COINGECKO_ENVIRONMENT: "pro"
+          COINGECKO_DEMO_API_KEY: "{{ secrets.coingecko_api_key }}"
+          COINGECKO_ENVIRONMENT: "demo"
         command:
           - npx
           - -y
