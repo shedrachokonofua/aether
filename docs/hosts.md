@@ -28,7 +28,6 @@ Storage and backup host. Houses all shared storage arrays and backup infrastruct
 
 - Network File Server (NFS/SMB)
 - Proxmox Backup Server
-- Lute Stack
 - Gaming Server (GPU passthrough)
 
 ### Neo

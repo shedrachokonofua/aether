@@ -7,7 +7,6 @@
     - gateway-stack
     - gitlab
     - iot-management-stack
-    - lute
     - messaging-stack
     - gpu-workstation
     - ai-tool-stack

@@ -23,20 +23,6 @@ output "dev_workstation_password" {
   sensitive = true
 }
 
-output "lute_password" {
-  value     = random_password.lute_password.result
-  sensitive = true
-}
-
-output "lute_public_key" {
-  value = tls_private_key.lute_ssh_key.public_key_openssh
-}
-
-output "lute_private_key" {
-  value     = tls_private_key.lute_ssh_key.private_key_openssh
-  sensitive = true
-}
-
 output "cockpit_password" {
   value     = random_password.cockpit_password.result
   sensitive = true
@@ -89,6 +75,17 @@ output "keycloak_gitlab_client_secret" {
 output "keycloak_oauth2_proxy_client_secret" {
   value     = keycloak_openid_client.oauth2_proxy.client_secret
   sensitive = true
+}
+
+output "keycloak_crossplane_client_id" {
+  description = "Crossplane service account client ID (for Keycloak provider)"
+  value       = keycloak_openid_client.crossplane.client_id
+}
+
+output "keycloak_crossplane_client_secret" {
+  description = "Crossplane service account client secret (for Keycloak provider)"
+  value       = keycloak_openid_client.crossplane.client_secret
+  sensitive   = true
 }
 
 output "keycloak_ceph_rgw_client_id" {

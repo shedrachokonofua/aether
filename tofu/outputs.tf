@@ -41,15 +41,6 @@ output "home_gpu_workstation_private_key" {
   sensitive = true
 }
 
-output "home_lute_public_key" {
-  value = module.home.lute_public_key
-}
-
-output "home_lute_private_key" {
-  value     = module.home.lute_private_key
-  sensitive = true
-}
-
 output "home_cockpit_public_key" {
   value = local.home.cockpit.public_key
 }

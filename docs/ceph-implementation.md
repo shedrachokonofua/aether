@@ -244,7 +244,6 @@ pct move_volume <vmid> rootfs ceph-vm-disks --delete
 | 1006 | gitlab          | 128GB | ✅     |
 | 1009 | iot-management  | 32GB  | ✅     |
 | 1010 | dev-workstation | 256GB | ✅     |
-| 1011 | lute            | 256GB | ✅     |
 | 1014 | game-server     | 256GB | ✅     |
 | 1015 | cockpit         | 32GB  | ✅     |
 | 1016 | messaging-stack | 64GB  | ✅     |

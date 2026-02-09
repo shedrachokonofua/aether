@@ -25,14 +25,14 @@ Enable automatic VM recovery when a Proxmox node fails. Instead of manual PBS re
 
 ### VM Storage Distribution
 
-| Tier  | Storage          | VMs                                                                   | HA Status            |
-| ----- | ---------------- | --------------------------------------------------------------------- | -------------------- |
-| Ceph  | ceph-vm-disks    | gitlab, dokploy, ai-tool-stack, dokku, messaging, media, smallweb etc | ✅ Configured (11)   |
-| Ceph  | ceph-vm-disks    | iot-management, game-server                                           | ❌ Hardware pinned   |
-| Local | Oracle local-lvm | vyos-router, home-gateway-stack, keycloak, step-ca, openbao           | ❌ Needs ZFS         |
-| Local | Niobe local-lvm  | monitoring-stack                                                      | ❌ Needs ZFS         |
-| Local | Neo local        | gpu-workstation                                                       | ❌ GPU pinned        |
-| Local | Smith local-lvm  | backup-stack                                                          | N/A                  |
+| Tier  | Storage          | VMs                                                                   | HA Status          |
+| ----- | ---------------- | --------------------------------------------------------------------- | ------------------ |
+| Ceph  | ceph-vm-disks    | gitlab, dokploy, ai-tool-stack, dokku, messaging, media, smallweb etc | ✅ Configured (11) |
+| Ceph  | ceph-vm-disks    | iot-management, game-server                                           | ❌ Hardware pinned |
+| Local | Oracle local-lvm | vyos-router, home-gateway-stack, keycloak, step-ca, openbao           | ❌ Needs ZFS       |
+| Local | Niobe local-lvm  | monitoring-stack                                                      | ❌ Needs ZFS       |
+| Local | Neo local        | gpu-workstation                                                       | ❌ GPU pinned      |
+| Local | Smith local-lvm  | backup-stack                                                          | N/A                |
 
 ## Why HA Matters
 
@@ -91,7 +91,6 @@ VMs on Ceph distributed storage with automatic HA:
 | 1005 | dokploy         | 256GB | ✅            |
 | 1006 | gitlab          | 128GB | ✅            |
 | 1010 | dev-workstation | 256GB | ✅            |
-| 1011 | lute            | 256GB | ✅            |
 | 1015 | cockpit         | 32GB  | ✅            |
 | 1016 | messaging-stack | 64GB  | ✅            |
 | 1018 | ai-tool-stack   | 128GB | ✅            |
@@ -136,7 +135,7 @@ resource "proxmox_virtual_environment_haresource" "gitlab" {
 }
 ```
 
-**Configured:** 11 VMs (dokploy, gitlab, dev-workstation, lute, cockpit, messaging-stack, ai-tool-stack, ups-management, media-stack, dokku, smallweb)
+**Configured:** 11 VMs (dokploy, gitlab, dev-workstation, cockpit, messaging-stack, ai-tool-stack, ups-management, media-stack, dokku, smallweb)
 
 **Excluded:** `iot-management` (USB passthrough), `game-server` (not in Tofu)
 
@@ -302,14 +301,14 @@ When the failed node returns:
 
 ## Remaining Work
 
-| Item                    | Hardware | Time    | Downtime                   |
-| ----------------------- | -------- | ------- | -------------------------- |
-| ~~Ceph HA config~~      | ~~$0~~   | ~~Done~~| ~~None~~                   |
-| Trinity reinstall       | $0       | ~20 min | None (Ceph VMs unaffected) |
-| Oracle reinstall        | $0       | ~45 min | ~30 min (critical VMs)     |
-| Niobe reinstall         | $0       | ~30 min | ~20 min (monitoring)       |
-| Replication + HA config | $0       | ~30 min | None                       |
-| **Total remaining**     | **$0**   | **~2h** | **~50 min across windows** |
+| Item                    | Hardware | Time     | Downtime                   |
+| ----------------------- | -------- | -------- | -------------------------- |
+| ~~Ceph HA config~~      | ~~$0~~   | ~~Done~~ | ~~None~~                   |
+| Trinity reinstall       | $0       | ~20 min  | None (Ceph VMs unaffected) |
+| Oracle reinstall        | $0       | ~45 min  | ~30 min (critical VMs)     |
+| Niobe reinstall         | $0       | ~30 min  | ~20 min (monitoring)       |
+| Replication + HA config | $0       | ~30 min  | None                       |
+| **Total remaining**     | **$0**   | **~2h**  | **~50 min across windows** |
 
 ## Decision Factors
 

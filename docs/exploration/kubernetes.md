@@ -95,7 +95,6 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 | GitLab       | Trinity (VM)                    | Helm (StatefulSet) | ❌ (needs to receive webhooks) |
 | Synapse      | Niobe (Messaging VM)            | Helm (StatefulSet) | ❌ (needs federation)          |
 | Element      | Niobe (Messaging VM)            | Knative Service    | ✅                             |
-| Lute         | Smith (VM)                      | **Stays as VM**    | N/A (needs rewrite first)      |
 | NUT Server   | Niobe (UPS VM)                  | Deployment         | ❌                             |
 | Peanut       | Niobe (UPS VM)                  | Deployment         | ❌                             |
 | Smallweb     | Trinity (LXC)                   | **Decommission**   | N/A (move to dev workstation)  |
@@ -111,7 +110,6 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 
 **Notes:**
 
-- Lute stays as VM (40GB RAM for Redis vector index, needs rewrite)
 - Smallweb decommissioned (move to folder on dev workstation)
 
 ## What Stays as VMs
@@ -136,7 +134,6 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 | PBS              | Smith         | Backup infrastructure               |
 | SeaweedFS        | Smith         | S3 storage infrastructure           |
 | Blockchain Stack | Smith         | Always-on, ~1TB storage             |
-| Lute             | Smith         | 40GB RAM for Redis, needs rewrite   |
 
 ## Platform Components
 
@@ -647,7 +644,6 @@ func deploy --registry ghcr.io/alice
 
 **Notes:**
 
-- Lute stays as VM (40GB RAM for Redis vector index, needs rewrite)
 - Smallweb decommissioned (folder on dev workstation, not k8s)
 
 ## Talos Provisioning
@@ -975,7 +971,6 @@ Migration order (low risk → high complexity):
 
 **Deferred:**
 
-- Lute stays as VM (needs rewrite)
 - Smallweb decommissioned (move to dev workstation folder)
 - GitLab migrates after messaging (most complex)
 

@@ -138,22 +138,6 @@ watchtower.d.home.shdr.ch {
   reverse_proxy {{ vm.dokploy.ip }}:{{ vm.dokploy.ports.watchtower }}
 }
 
-core.lute.home.shdr.ch  {
-  reverse_proxy {{ vm.lute.ip }}:{{ vm.lute.ports.core }} {
-    transport http {
-      versions h2c
-    }
-  }
-}
-
-lute.home.shdr.ch, *.lute.home.shdr.ch, *.dev.lute.home.shdr.ch  {
-  reverse_proxy {{ vm.lute.ip }}
-}
-
-traefik.lute.home.shdr.ch {
-  reverse_proxy {{ vm.lute.ip }}:{{ vm.lute.ports.traefik }}
-}
-
 gitlab.home.shdr.ch {
   reverse_proxy {{ vm.gitlab.ip }}
 }

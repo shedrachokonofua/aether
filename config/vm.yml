@@ -147,20 +147,6 @@ dev_workstation:
   ip: "10.0.3.10"
   gateway: "10.0.3.1"
 
-lute:
-  id: 1011
-  name: "lute"
-  node: "smith"
-  admin: "root"
-  cores: 8
-  memory: 40960
-  disk_gb: 256
-  ip: "10.0.3.11"
-  gateway: "10.0.3.1"
-  ports:
-    traefik: 8080
-    core: 22000
-
 bazzite_builder:
   id: 1013
   name: "bazzite-builder"
