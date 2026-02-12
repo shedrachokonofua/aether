@@ -1,0 +1,66 @@
+---
+- name: Deploy Tuliprox
+  hosts: media-stack
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    tuliprox_config_dir: /home/{{ vm.media_stack.admin }}/tuliprox
+    tuliprox_port: "{{ vm.media_stack.ports.tuliprox }}"
+
+  tasks:
+    - name: Create Tuliprox directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ tuliprox_config_dir }}"
+        - "{{ tuliprox_config_dir }}/config"
+        - "{{ tuliprox_config_dir }}/data"
+
+    - name: Template Tuliprox config files
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "{{ tuliprox_config_dir }}/config/{{ item }}"
+        mode: "0644"
+      loop:
+        - config.yml
+        - source.yml
+        - api-proxy.yml
+        - mapping.yml
+      notify: Restart Tuliprox
+
+    - name: Deploy Tuliprox container
+      containers.podman.podman_container:
+        name: tuliprox
+        image: ghcr.io/euzu/tuliprox:latest
+        state: quadlet
+        restart_policy: on-failure
+        ports:
+          - "{{ tuliprox_port }}:8901"
+        volume:
+          - "{{ tuliprox_config_dir }}/config:/app/config:Z"
+          - "{{ tuliprox_config_dir }}/data:/app/data:Z"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Start Tuliprox quadlet
+      ansible.builtin.systemd:
+        name: tuliprox
+        state: restarted
+        scope: user
+
+  handlers:
+    - name: Restart Tuliprox
+      ansible.builtin.systemd:
+        name: tuliprox
+        state: restarted
+        scope: user

@@ -1,0 +1,10 @@
+api:
+  host: 0.0.0.0
+  port: {{ tuliprox_port }}
+  web_root: /app/web
+working_dir: /app/data
+update_on_boot: true
+proxy:
+  url: socks5://{{ vm.home_gateway_stack.ip }}:{{ vm.home_gateway_stack.ports.rotating_proxy }}
+web_ui:
+  enabled: true

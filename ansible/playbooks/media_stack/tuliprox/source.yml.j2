@@ -1,0 +1,32 @@
+templates:
+  - name: ALL_CHAN
+    value: 'Group ~ ".*"'
+
+sources:
+  - inputs:
+{% set primary = secrets.tuliprox.accounts[0] %}
+      - name: {{ primary.username }}
+        type: xtream
+        url: {{ primary.url }}
+        username: {{ primary.username }}
+        password: {{ primary.password }}
+        epg:
+          sources:
+            - url: "{{ primary.url }}/xmltv.php?username={{ primary.username }}&password={{ primary.password }}"
+{% if secrets.tuliprox.accounts | length > 1 %}
+        aliases:
+{% for account in secrets.tuliprox.accounts[1:] %}
+          - name: {{ account.username }}
+            url: {{ account.url }}
+            username: {{ account.username }}
+            password: {{ account.password }}
+{% endfor %}
+{% endif %}
+    targets:
+      - name: all_channels
+        use_memory_cache: true
+        output:
+          - type: xtream
+          - type: m3u
+            filename: playlist.m3u
+        filter: "!ALL_CHAN!"
