@@ -230,8 +230,14 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/gpu_workstation/site.yml]
   configure:ai-tools:
     cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/site.yml]
+  configure:litellm:
+    cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/litellm/site.yml]
+  configure:firecrawl:
+    cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/firecrawl.yml]
   configure:media-stack:
     cmds: [ansible-playbook ansible/playbooks/media_stack/site.yml]
+  configure:tuliprox:
+    cmds: [ansible-playbook ansible/playbooks/media_stack/tuliprox/site.yml]
   configure:messaging-stack:
     cmds: [ansible-playbook ansible/playbooks/messaging_stack/site.yml]
   configure:ups-management-stack:
@@ -326,6 +332,25 @@ tasks:
             CLI_ARGS: "-target=proxmox_virtual_environment_vm.blockchain_stack",
           }
       - task: configure:blockchain-stack
+  configure:openclaw:
+    desc: Deploy NixOS configuration to OpenClaw VM
+    vars:
+      TARGET_IP:
+        sh: yq '.openclaw.ip' config/vm.yml
+    cmds:
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: openclaw
+  deploy:openclaw:
+    desc: Full deploy - provision VM + configure NixOS
+    cmds:
+      - task: tofu:apply
+        vars:
+          {
+            CLI_ARGS: "-target=proxmox_virtual_environment_vm.openclaw",
+          }
+      - task: configure:openclaw
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:

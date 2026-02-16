@@ -6,5 +6,11 @@ working_dir: /app/data
 update_on_boot: true
 proxy:
   url: socks5://{{ vm.home_gateway_stack.ip }}:{{ vm.home_gateway_stack.ports.rotating_proxy }}
+reverse_proxy:
+  stream:
+    retry: true
+    buffer:
+      enabled: true
+      size: 1024
 web_ui:
   enabled: true

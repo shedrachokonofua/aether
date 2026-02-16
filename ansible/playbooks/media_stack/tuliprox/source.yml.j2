@@ -4,24 +4,31 @@ templates:
 
 sources:
   - inputs:
-{% set primary = secrets.tuliprox.accounts[0] %}
+{% for provider in secrets.tuliprox.providers %}
+{% set primary = provider.accounts[0] %}
       - name: {{ primary.username }}
         type: xtream
-        url: {{ primary.url }}
+        url: {{ provider.url }}
         username: {{ primary.username }}
         password: {{ primary.password }}
+        max_connections: {{ primary.max_connections }}
+        options:
+          xtream_skip_vod: true
+          xtream_skip_series: true
         epg:
           sources:
-            - url: "{{ primary.url }}/xmltv.php?username={{ primary.username }}&password={{ primary.password }}"
-{% if secrets.tuliprox.accounts | length > 1 %}
+            - url: "{{ provider.url }}/xmltv.php?username={{ primary.username }}&password={{ primary.password }}"
+{% if provider.accounts | length > 1 %}
         aliases:
-{% for account in secrets.tuliprox.accounts[1:] %}
+{% for account in provider.accounts[1:] %}
           - name: {{ account.username }}
-            url: {{ account.url }}
+            url: {{ provider.url }}
             username: {{ account.username }}
             password: {{ account.password }}
+            max_connections: {{ account.max_connections }}
 {% endfor %}
 {% endif %}
+{% endfor %}
     targets:
       - name: all_channels
         use_memory_cache: true
