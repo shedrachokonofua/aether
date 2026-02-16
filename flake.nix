@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgsUnstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
@@ -19,7 +20,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, nixos-generators, disko, quadlet-nix, sops-nix }:
+  outputs = { self, nixpkgs, nixpkgsUnstable, flake-utils, nixos-generators, disko, quadlet-nix, sops-nix }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -96,12 +97,23 @@
             sshCaModule
           ];
         };
+        openclaw = nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = sharedSpecialArgs;
+          modules = [
+            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            quadlet-nix.nixosModules.quadlet
+            ./nix/hosts/trinity/openclaw
+            sshCaModule
+          ];
+        };
       };
     in
     # Per-system outputs (dev shells + packages)
     flake-utils.lib.eachDefaultSystem (sys:
       let
         pkgs = nixpkgs.legacyPackages.${sys};
+        pkgsUnstable = nixpkgsUnstable.legacyPackages.${sys};
       in
       {
         # Dev shell - replaces Docker toolbox
@@ -119,7 +131,7 @@
             age
             
             # Cloud CLIs
-            awscli2
+            pkgsUnstable.awscli2
             rclone            # S3 CLI for AWS + Ceph RGW (MIT license)
             
             # Certificate management
