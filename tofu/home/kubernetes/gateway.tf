@@ -66,4 +66,3 @@ resource "kubernetes_manifest" "main_gateway" {
     }
   }
 }
-

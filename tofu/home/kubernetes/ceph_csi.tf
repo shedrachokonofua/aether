@@ -103,4 +103,3 @@ resource "kubernetes_storage_class_v1" "ceph_rbd" {
     "csi.storage.k8s.io/node-stage-secret-namespace"        = kubernetes_namespace_v1.system.metadata[0].name
   }
 }
-

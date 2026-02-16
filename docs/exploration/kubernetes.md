@@ -969,6 +969,13 @@ Migration order (low risk → high complexity):
 6. [ ] **Messaging Stack** — Synapse (stateful), Element (stateless)
 7. [ ] Delete old VMs
 
+OpenWebUI migration notes:
+
+- [x] OpenWebUI + MCPO migrated to Kubernetes (`tofu/home/kubernetes/openwebui.tf`)
+- [x] Gateway API route: `openwebui.apps.home.shdr.ch`
+- [x] Initial performance tuning for 4+ concurrent users (cache, streaming batch, thread pool, timeout tuning)
+- [x] Data-plane upgrade: PostgreSQL + PGVector (single backend, no separate vector DB service)
+
 **Deferred:**
 
 - Smallweb decommissioned (move to dev workstation folder)

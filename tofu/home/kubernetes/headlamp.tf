@@ -69,4 +69,3 @@ resource "kubernetes_manifest" "headlamp_route" {
     }
   }
 }
-

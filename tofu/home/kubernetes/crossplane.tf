@@ -1,7 +1,9 @@
 # =============================================================================
 # Crossplane - Infrastructure Control Plane
 # =============================================================================
-# Installs Crossplane core and configures the AWS provider for S3 buckets.
+# Installs Crossplane core and configures providers for self-service infrastructure:
+#   - AWS provider: Ceph RGW (S3-compatible) buckets
+#   - Keycloak provider: OIDC clients, realms, users
 
 locals {
   crossplane_access_key = var.secrets["ceph.crossplane_access_key"]
@@ -122,6 +124,82 @@ resource "kubectl_manifest" "crossplane_providerconfig_ceph_rgw" {
       skip_metadata_api_check     = true
       skip_region_validation      = true
       s3_use_path_style           = true
+    }
+  })
+}
+
+# =============================================================================
+# Crossplane Keycloak Provider
+# =============================================================================
+# Enables self-service OIDC client creation via Kubernetes CRDs.
+# Developers can request Keycloak clients by applying YAML manifests.
+
+# Credentials secret in JSON format (provider-keycloak format)
+# Uses service account client credentials grant (no username/password needed)
+resource "kubernetes_secret_v1" "crossplane_keycloak_creds" {
+  depends_on = [helm_release.crossplane]
+
+  metadata {
+    name      = "crossplane-keycloak-creds"
+    namespace = "crossplane-system"
+  }
+
+  data = {
+    credentials = jsonencode({
+      client_id     = var.keycloak_client_id
+      client_secret = var.keycloak_client_secret
+      url           = var.keycloak_url
+      realm         = "master"
+    })
+  }
+
+  type = "Opaque"
+}
+
+resource "kubernetes_manifest" "crossplane_provider_keycloak" {
+  depends_on = [helm_release.crossplane]
+
+  manifest = {
+    apiVersion = "pkg.crossplane.io/v1"
+    kind       = "Provider"
+    metadata = {
+      name = "provider-keycloak"
+    }
+    spec = {
+      package = "xpkg.upbound.io/crossplane-contrib/provider-keycloak:v2.7.2"
+    }
+  }
+}
+
+# Wait for Keycloak provider CRDs to be installed
+resource "time_sleep" "wait_for_keycloak_provider_crds" {
+  depends_on = [kubernetes_manifest.crossplane_provider_keycloak]
+
+  create_duration = "120s"
+}
+
+# ProviderConfig for Keycloak - connects to auth.shdr.ch
+resource "kubectl_manifest" "crossplane_providerconfig_keycloak" {
+  depends_on = [
+    kubernetes_secret_v1.crossplane_keycloak_creds,
+    time_sleep.wait_for_keycloak_provider_crds,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "keycloak.crossplane.io/v1beta1"
+    kind       = "ProviderConfig"
+    metadata = {
+      name = "keycloak"
+    }
+    spec = {
+      credentials = {
+        source = "Secret"
+        secretRef = {
+          namespace = "crossplane-system"
+          name      = kubernetes_secret_v1.crossplane_keycloak_creds.metadata[0].name
+          key       = "credentials"
+        }
+      }
     }
   })
 }

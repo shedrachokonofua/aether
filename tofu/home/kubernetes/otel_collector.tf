@@ -137,4 +137,3 @@ resource "helm_release" "otel_collector_deployment" {
     ports     = { otlp = { enabled = false }, otlp-http = { enabled = false } }
   })]
 }
-

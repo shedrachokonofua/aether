@@ -114,4 +114,3 @@ resource "kubernetes_cluster_role_binding_v1" "oidc_admin" {
     api_group = "rbac.authorization.k8s.io"
   }
 }
-

@@ -162,3 +162,8 @@ output "knative_domain" {
   description = "Domain for Knative services"
   value       = module.kubernetes.knative_domain
 }
+
+output "openwebui_k8s_url" {
+  description = "OpenWebUI URL running in Kubernetes"
+  value       = module.kubernetes.openwebui_url
+}

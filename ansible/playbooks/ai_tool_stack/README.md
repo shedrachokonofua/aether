@@ -5,9 +5,8 @@ This playbook will configure the AI tool stack virtual machine. The AI tool stac
 - LiteLLM: Unified LLM API proxy
 - SearXNG: Private metasearch engine
 - Firecrawl: Web scraping and crawling API with MCP server
-- OpenWebUI: Chat interface with web search, RAG, and tool integrations
-- MCPO: MCP-to-OpenAPI bridge for tool server connections
 - Bytebot: AI desktop agent with containerized Linux environment
+- MicroSandbox: KVM-based secure sandbox for AI agent code execution via MCP
 
 ## Usage
 
@@ -35,16 +34,17 @@ task ansible:playbook -- ./ansible/playbooks/ai_tool_stack/searxng/site.yml
 task ansible:playbook -- ./ansible/playbooks/ai_tool_stack/firecrawl.yml
 ```
 
-### Deploy OpenWebUI
-
-Deploys OpenWebUI and MCPO.
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/ai_tool_stack/openwebui/site.yml
-```
-
 ### Deploy Bytebot
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/ai_tool_stack/bytebot.yml
+```
+
+### Deploy MicroSandbox
+
+KVM-based sandbox for secure code execution. Requires nested virtualization (VM must have `/dev/kvm` available).
+Builds the image locally from the official install script.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/ai_tool_stack/microsandbox/site.yml
 ```

@@ -113,4 +113,3 @@ resource "kubectl_manifest" "knative_serving" {
 
   yaml_body = yamlencode(local.knative_serving_manifest)
 }
-

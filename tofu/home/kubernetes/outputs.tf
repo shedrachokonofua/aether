@@ -42,3 +42,7 @@ output "metrics_server_version" {
   value       = helm_release.metrics_server.version
 }
 
+output "openwebui_url" {
+  description = "OpenWebUI public URL via Gateway API"
+  value       = "https://${local.openwebui_host}"
+}

@@ -32,6 +32,10 @@ terraform {
       source  = "hashicorp/null"
       version = ">= 3.0.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.6.0"
+    }
   }
 }
 
@@ -75,6 +79,41 @@ variable "secrets" {
   type        = map(string)
   sensitive   = true
   description = "SOPS secrets map (for Ceph credentials)"
+}
+
+# =============================================================================
+# Crossplane Keycloak Provider
+# =============================================================================
+
+variable "keycloak_url" {
+  type        = string
+  description = "Keycloak base URL for Crossplane provider"
+}
+
+variable "keycloak_client_id" {
+  type        = string
+  description = "Keycloak service account client ID for Crossplane"
+}
+
+variable "keycloak_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Keycloak service account client secret for Crossplane"
+}
+
+# =============================================================================
+# OpenWebUI OIDC
+# =============================================================================
+
+variable "openwebui_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "OpenWebUI Keycloak OIDC client secret"
+}
+
+variable "litellm_mcp_url" {
+  type        = string
+  description = "LiteLLM MCP endpoint URL used by MCPO"
 }
 
 # =============================================================================
