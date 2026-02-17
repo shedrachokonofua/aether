@@ -52,17 +52,30 @@ resource "kubernetes_manifest" "main_gateway" {
     }
     spec = {
       gatewayClassName = "cilium"
-      listeners = [{
-        name     = "http"
-        protocol = "HTTP"
-        port     = 80
-        hostname = "*.apps.home.shdr.ch"
-        allowedRoutes = {
-          namespaces = {
-            from = "All"
+      listeners = [
+        {
+          name     = "http"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "*.apps.home.shdr.ch"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
           }
-        }
-      }]
+        },
+        {
+          name     = "seven30"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "*.seven30.xyz"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
+          }
+        },
+      ]
     }
   }
 }

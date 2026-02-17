@@ -43,6 +43,10 @@ locals {
     api_token  = data.sops_file.secrets.data["cloudflare_dns_api_key"]
   }
 
+  cloudflare_seven30 = {
+    account_id = data.sops_file.secrets.data["seven30.cloudflare_account_id"]
+  }
+
   home = {
     proxmox = {
       endpoint = data.sops_file.secrets.data["proxmox.cluster_endpoint"]

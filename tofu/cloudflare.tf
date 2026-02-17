@@ -22,6 +22,33 @@ resource "cloudflare_zone_setting" "shdrch_always_use_https" {
   value      = "on"
 }
 
+resource "cloudflare_zone" "seven30_domain" {
+  provider = cloudflare.seven30
+  account = {
+    id = local.cloudflare_seven30.account_id
+  }
+  name = "seven30.xyz"
+  type = "full"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "cloudflare_zone_setting" "seven30_ssl" {
+  provider   = cloudflare.seven30
+  zone_id    = cloudflare_zone.seven30_domain.id
+  setting_id = "ssl"
+  value      = "strict"
+}
+
+resource "cloudflare_zone_setting" "seven30_always_use_https" {
+  provider   = cloudflare.seven30
+  zone_id    = cloudflare_zone.seven30_domain.id
+  setting_id = "always_use_https"
+  value      = "on"
+}
+
 resource "cloudflare_dns_record" "aether_public_gateway_root" {
   name    = "@"
   content = module.aws.public_gateway_ip
@@ -57,6 +84,30 @@ resource "cloudflare_dns_record" "aether_public_gateway_tv" {
   zone_id = cloudflare_zone.shdrch_domain.id
   proxied = false
   ttl     = 300
+}
+
+resource "cloudflare_dns_record" "aether_public_gateway_seven30_root" {
+  provider = cloudflare.seven30
+  name    = "@"
+  content = module.aws.public_gateway_ip
+  type    = "A"
+  zone_id = cloudflare_zone.seven30_domain.id
+  proxied = true
+  ttl     = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "cloudflare_dns_record" "aether_public_gateway_seven30_wildcard" {
+  provider = cloudflare.seven30
+  name    = "*"
+  content = module.aws.public_gateway_ip
+  type    = "A"
+  zone_id = cloudflare_zone.seven30_domain.id
+  proxied = true
+  ttl     = 1
 }
 
 resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail" {

@@ -37,6 +37,23 @@ tv.shdr.ch {
   }
 }
 
+seven30.xyz, *.seven30.xyz {
+  # Block direct access: must come through Cloudflare proxy
+  @direct_access `{http.request.remote.host} == {client_ip}`
+  respond @direct_access "Access denied" 403
+
+  route {
+    crowdsec
+    appsec
+    reverse_proxy 10.0.2.2:9443 {
+      header_up Host {host}
+      header_up X-Real-IP {client_ip}
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Forwarded-Proto {scheme}
+    }
+  }
+}
+
 # All other *.shdr.ch traffic - Must come through Cloudflare
 # Uses trusted_proxies IP verification to detect direct access attempts
 shdr.ch, *.shdr.ch {

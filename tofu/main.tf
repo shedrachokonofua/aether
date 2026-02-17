@@ -33,6 +33,11 @@ provider "cloudflare" {
   api_token = local.cloudflare.api_token
 }
 
+provider "cloudflare" {
+  alias     = "seven30"
+  api_token = local.cloudflare.api_token
+}
+
 module "home" {
   source                           = "./home"
   secrets                          = data.sops_file.secrets.data

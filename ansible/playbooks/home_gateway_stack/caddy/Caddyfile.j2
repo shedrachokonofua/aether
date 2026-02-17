@@ -483,6 +483,8 @@ oidc.k8s.home.shdr.ch {
   @auth host auth.shdr.ch
   @ai host ai.shdr.ch
   @tv host tv.shdr.ch
+  @seven30 host seven30.xyz
+  @seven30_apps host *.seven30.xyz
 
   handle @shdrch {
     reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.http }} {
@@ -514,6 +516,20 @@ oidc.k8s.home.shdr.ch {
 
   handle @tv {
     reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyfin }}
+  }
+
+  handle @seven30 {
+    root * /srv/seven30
+    file_server
+  }
+
+  handle @seven30_apps {
+    reverse_proxy 10.0.3.19 {
+      header_up Host {http.request.host}
+      header_up X-Real-IP {http.request.header.X-Real-IP}
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+      header_up X-Forwarded-Proto https
+    }
   }
 
   @pdf host pdf.shdr.ch
