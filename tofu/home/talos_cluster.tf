@@ -135,8 +135,8 @@ resource "talos_machine_configuration_apply" "this" {
     yamlencode({
       cluster = {
         allowSchedulingOnControlPlanes = true
-        network = { cni = { name = "none" } }
-        proxy   = { disabled = true }
+        network                        = { cni = { name = "none" } }
+        proxy                          = { disabled = true }
         apiServer = {
           extraArgs = {
             "oidc-issuer-url"        = local.oidc_issuer_url
@@ -232,6 +232,13 @@ module "kubernetes" {
   gateway_api_version = local.gateway_api_version
   kubeconfig_raw      = talos_cluster_kubeconfig.this.kubeconfig_raw
   secrets             = var.secrets
+
+  # Crossplane Keycloak provider credentials
+  keycloak_url                  = "https://auth.shdr.ch"
+  keycloak_client_id            = keycloak_openid_client.crossplane.client_id
+  keycloak_client_secret        = keycloak_openid_client.crossplane.client_secret
+  openwebui_oauth_client_secret = keycloak_openid_client.openwebui.client_secret
+  litellm_mcp_url               = "http://${local.vm.ai_tool_stack.ip}:${local.vm.ai_tool_stack.ports.litellm}/mcp"
 
   depends_on = [talos_cluster_kubeconfig.this]
 }

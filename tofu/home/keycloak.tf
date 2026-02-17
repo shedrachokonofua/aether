@@ -60,6 +60,30 @@ resource "keycloak_openid_client_service_account_realm_role" "gitlab_ci_admin" {
   role                    = "admin"
 }
 
+# =============================================================================
+# Crossplane Service Account - for Keycloak provider
+# =============================================================================
+# Service account in master realm with admin privileges.
+# Used by Crossplane provider-keycloak to manage OIDC clients, realms, users.
+
+resource "keycloak_openid_client" "crossplane" {
+  realm_id  = "master"
+  client_id = "crossplane"
+  name      = "Crossplane Service Account"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
+  direct_access_grants_enabled = false
+}
+
+resource "keycloak_openid_client_service_account_realm_role" "crossplane_admin" {
+  realm_id                = "master"
+  service_account_user_id = keycloak_openid_client.crossplane.service_account_user_id
+  role                    = "admin"
+}
+
 resource "keycloak_realm" "aether" {
   realm   = "aether"
   enabled = true
@@ -328,17 +352,19 @@ resource "keycloak_openid_client" "openwebui" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://openwebui.home.shdr.ch"
-  base_url  = "https://openwebui.home.shdr.ch"
-  admin_url = "https://openwebui.home.shdr.ch"
+  root_url  = "https://openwebui.apps.home.shdr.ch"
+  base_url  = "https://openwebui.apps.home.shdr.ch"
+  admin_url = "https://openwebui.apps.home.shdr.ch"
 
   valid_redirect_uris = [
     "https://openwebui.home.shdr.ch/oauth/oidc/callback",
+    "https://openwebui.apps.home.shdr.ch/oauth/oidc/callback",
     "https://ai.shdr.ch/oauth/oidc/callback",
   ]
 
   web_origins = [
     "https://openwebui.home.shdr.ch",
+    "https://openwebui.apps.home.shdr.ch",
     "https://ai.shdr.ch",
   ]
 }
@@ -723,6 +749,7 @@ resource "keycloak_openid_client" "oauth2_proxy" {
   # Callback URLs for each protected domain
   valid_redirect_uris = [
     "https://pdf.shdr.ch/oauth2/callback",
+    "https://openclaw.home.shdr.ch/oauth2/callback",
   ]
 
   web_origins = [
@@ -757,14 +784,14 @@ resource "keycloak_saml_client" "fleet" {
   sign_assertions         = true
   include_authn_statement = true
 
-  signature_algorithm    = "RSA_SHA256"
-  signature_key_name     = "KEY_ID"
+  signature_algorithm     = "RSA_SHA256"
+  signature_key_name      = "KEY_ID"
   canonicalization_method = "EXCLUSIVE"
 
   name_id_format = "email"
 
-  root_url            = "https://fleet.home.shdr.ch"
-  base_url            = "https://fleet.home.shdr.ch"
+  root_url                   = "https://fleet.home.shdr.ch"
+  base_url                   = "https://fleet.home.shdr.ch"
   master_saml_processing_url = "https://fleet.home.shdr.ch/api/v1/fleet/sso"
 
   valid_redirect_uris = [
