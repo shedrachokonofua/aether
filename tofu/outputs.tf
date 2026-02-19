@@ -101,6 +101,11 @@ output "tailscale_public_gateway_oauth_client_secret" {
   sensitive = true
 }
 
+output "home_gateway_tailscale_ip" {
+  description = "Home gateway Tailscale IP (for co-founder MagicDNS and Caddy bind)"
+  value       = data.tailscale_device.home_gateway.addresses[0]
+}
+
 output "aws_ses_smtp_username" {
   value = module.aws.ses_smtp_username
 }

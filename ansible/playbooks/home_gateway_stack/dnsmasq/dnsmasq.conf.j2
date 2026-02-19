@@ -1,0 +1,25 @@
+# Split DNS for peer tailnets with shared access to the home gateway.
+# Authoritative-only: responds to configured domains, NXDOMAIN for all else.
+#
+# Peers configure Tailscale split DNS in their own tailnet:
+#   home.shdr.ch    → {{ tf_outputs.home_gateway_tailscale_ip.value }}
+#   k8s.seven30.xyz → {{ tf_outputs.home_gateway_tailscale_ip.value }}
+
+listen-address={{ tf_outputs.home_gateway_tailscale_ip.value }}
+bind-dynamic
+port=53
+
+no-resolv
+no-hosts
+
+# *.home.shdr.ch → home gateway (Caddy on Tailscale interface)
+address=/home.shdr.ch/{{ tf_outputs.home_gateway_tailscale_ip.value }}
+
+# k8s.seven30.xyz → home gateway (vcluster API via Caddy)
+address=/k8s.seven30.xyz/{{ tf_outputs.home_gateway_tailscale_ip.value }}
+
+# mars.seven30.xyz → home gateway (LAN-only vcluster route via Caddy)
+address=/mars.seven30.xyz/{{ tf_outputs.home_gateway_tailscale_ip.value }}
+
+log-queries
+log-facility=-

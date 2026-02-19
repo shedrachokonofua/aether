@@ -332,9 +332,24 @@ resource "kubernetes_deployment_v1" "openwebui" {
       }
 
       spec {
+        security_context {
+          run_as_non_root = true
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
         container {
           name  = "openwebui"
           image = local.openwebui_image
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+            run_as_non_root = true
+          }
 
           port {
             container_port = 8080
@@ -655,6 +670,14 @@ resource "kubernetes_deployment_v1" "openwebui" {
         container {
           name  = "mcpo"
           image = local.mcpo_image
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+            run_as_non_root = true
+          }
 
           command = ["/bin/sh", "-c"]
           args = [

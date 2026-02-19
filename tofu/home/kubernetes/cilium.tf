@@ -84,10 +84,16 @@ resource "kubernetes_manifest" "cilium_ip_pool" {
       name = "ingress-pool"
     }
     spec = {
-      blocks = [{
-        start = var.workload_vip
-        stop  = var.workload_vip
-      }]
+      blocks = [
+        {
+          start = var.workload_vip
+          stop  = var.workload_vip
+        },
+        {
+          start = var.vcluster_vip
+          stop  = var.vcluster_vip
+        },
+      ]
     }
   }
 }

@@ -25,8 +25,11 @@
 - name: Deploy caddy pod
   import_playbook: caddy/site.yml
 
-- name: Deploy tailscale pod
+- name: Deploy tailscale (rootful)
   import_playbook: tailscale/site.yml
+
+- name: Deploy dnsmasq (split DNS for peer tailnets)
+  import_playbook: dnsmasq/site.yml
 
 - name: Deploy rotating-proxy pod
   import_playbook: rotating-proxy/site.yml

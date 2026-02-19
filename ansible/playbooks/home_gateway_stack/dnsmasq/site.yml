@@ -1,0 +1,59 @@
+---
+- name: Deploy dnsmasq (split DNS for peer tailnets)
+  hosts: home-gateway-stack
+  gather_facts: true
+  roles:
+    - common
+  tasks:
+    - name: Create dnsmasq config directory
+      file:
+        path: /etc/dnsmasq
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Template dnsmasq config
+      template:
+        src: ./dnsmasq.conf.j2
+        dest: /etc/dnsmasq/dnsmasq.conf
+        mode: "0644"
+      become: true
+
+    - name: Create dnsmasq pod (rootful)
+      containers.podman.podman_pod:
+        name: dnsmasq
+        state: quadlet
+        network: host
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Unit]
+            After=tailscale-pod.service
+
+            [Install]
+            WantedBy=multi-user.target
+      become: true
+
+    - name: Create dnsmasq container (rootful)
+      containers.podman.podman_container:
+        name: dnsmasq
+        image: docker.io/4km3/dnsmasq:latest
+        state: quadlet
+        pod: dnsmasq.pod
+        volumes:
+          - /etc/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf:Z,ro
+      become: true
+
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: system
+      become: true
+
+    - name: Start dnsmasq quadlet
+      ansible.builtin.systemd:
+        name: dnsmasq-pod
+        state: restarted
+        scope: system
+      become: true

@@ -19,6 +19,7 @@ locals {
   talos_cluster_name = "aether-k8s"
   talos_api_vip      = "10.0.3.20" # Talos native VIP for API server (kubectl)
   talos_workload_vip = "10.0.3.19" # Cilium L2 VIP for workload traffic (Gateway)
+  talos_vcluster_vip = "10.0.3.21" # Cilium L2 VIP for Seven30 vcluster API
 
   # Cluster endpoint uses the API VIP for HA kubectl access
   talos_cluster_endpoint = "https://${local.talos_api_vip}:6443"
@@ -227,6 +228,7 @@ module "kubernetes" {
   cluster_name        = local.talos_cluster_name
   api_vip             = local.talos_api_vip
   workload_vip        = local.talos_workload_vip
+  vcluster_vip        = local.talos_vcluster_vip
   oidc_issuer_url     = local.oidc_issuer_url
   oidc_client_id      = local.oidc_client_id
   gateway_api_version = local.gateway_api_version

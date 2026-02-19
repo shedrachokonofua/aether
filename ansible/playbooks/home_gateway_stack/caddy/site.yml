@@ -14,7 +14,6 @@
         - ./caddy/conf
         - ./caddy/data
         - ./caddy/config
-        - ./caddy/www/seven30
 
     - name: Copy Caddyfile
       template:
@@ -27,12 +26,6 @@
         src: Dockerfile
         dest: ./caddy/Dockerfile
         mode: "0755"
-
-    - name: Copy seven30 homepage
-      copy:
-        src: ./files/seven30/index.html
-        dest: ./caddy/www/seven30/index.html
-        mode: "0644"
 
     - name: Create caddy pod
       containers.podman.podman_pod:

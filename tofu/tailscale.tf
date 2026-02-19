@@ -1,3 +1,9 @@
+# Look up the home gateway device to get its stable Tailscale IP
+data "tailscale_device" "home_gateway" {
+  hostname = "aether-home-gateway"
+  wait_for = "30s"
+}
+
 resource "tailscale_acl" "tailnet_acl" {
   acl = jsonencode({
     groups : {
@@ -8,11 +14,21 @@ resource "tailscale_acl" "tailnet_acl" {
       "tag:public-gateway" : ["group:admin"],
     },
     acls : [
-      // Admin can access everything
+      // Admin can access own infrastructure and own devices only
       {
         action : "accept",
         src : ["group:admin"],
-        dst : ["*:*"],
+        dst : [
+          "tag:home-gateway:*",
+          "tag:public-gateway:*",
+          "autogroup:self:*",
+        ],
+      },
+      // Shared users (co-founders via node sharing): HTTPS, DNS, GitLab SSH
+      {
+        action : "accept",
+        src : ["autogroup:shared"],
+        dst : ["tag:home-gateway:443,53,2222"],
       },
       // Home gateway can access internal networks
       {

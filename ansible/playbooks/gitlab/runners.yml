@@ -44,8 +44,13 @@
     - name: Link personal access token to root gitlab user
       containers.podman.podman_container_exec:
         name: gitlab
-        command: |
-          gitlab-rails runner "token = User.find_by_username('shdrch').personal_access_tokens.create(scopes: ['create_runner'], name: 'create_runner_pat', expires_at: 1.days.from_now); token.set_token('{{ gitlab_runner_setup_pat.stdout }}'); token.save!"
+        command: >-
+          gitlab-rails runner
+          "token = User.find_by_username('shdrch').personal_access_tokens.create(
+          scopes: ['create_runner'], name: 'create_runner_pat',
+          expires_at: 1.days.from_now);
+          token.set_token('{{ gitlab_runner_setup_pat.stdout }}');
+          token.save!"
       register: gitlab_runner_setup_pat_response
 
     - name: Create runner authentication token
@@ -86,23 +91,62 @@
         daemon_reload: yes
         scope: user
 
-    - name: Start podman socket service
+    - name: Create podman group for socket access
+      become: yes
+      group:
+        name: podman
+        state: present
+
+    - name: Add aether user to podman group
+      become: yes
+      user:
+        name: aether
+        groups: podman
+        append: yes
+
+    - name: Ensure override directory exists
+      become: yes
+      file:
+        path: /etc/systemd/system/podman.socket.d
+        state: directory
+        mode: "0755"
+
+    - name: Configure system podman socket to use podman group
+      become: yes
+      copy:
+        dest: /etc/systemd/system/podman.socket.d/override.conf
+        content: |
+          [Socket]
+          SocketGroup=podman
+          SocketMode=0666
+        mode: "0644"
+
+    - name: Reload systemd daemon
+      become: yes
+      systemd:
+        daemon_reload: yes
+        scope: system
+
+    - name: Enable and restart system podman socket
+      become: yes
       systemd:
         name: podman.socket
         state: restarted
-        scope: user
+        scope: system
         enabled: true
 
-    - name: Wait for podman socket to be created
+    - name: Wait for system podman socket to be created
+      become: yes
       wait_for:
-        path: /run/user/1000/podman/podman.sock
+        path: /var/run/podman/podman.sock
         state: present
         timeout: 30
 
-    - name: Set podman socket permissions
+    - name: Ensure podman socket directory is accessible
+      become: yes
       file:
-        path: /run/user/1000/podman/podman.sock
-        mode: "0666"
+        path: /var/run/podman
+        mode: "0755"
 
     - name: Deploy GitLab Runner
       containers.podman.podman_container:
@@ -112,12 +156,14 @@
         pod: gitlab-runner.pod
         user: "0:0"
         privileged: true
+        security_opt:
+          - label=disable
         env:
           CI_SERVER_URL: https://gitlab.home.shdr.ch/
         volumes:
           - /home/aether/gitlab-runner/config:/etc/gitlab-runner:Z
           - gitlab-runner-docker-certs:/certs/client:ro
-          - /run/user/1000/podman/podman.sock:/var/run/docker.sock:Z
+          - /var/run/podman/podman.sock:/var/run/docker.sock
 
     - name: Create runner configuration
       copy:

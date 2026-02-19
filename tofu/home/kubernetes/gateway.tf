@@ -75,6 +75,17 @@ resource "kubernetes_manifest" "main_gateway" {
             }
           }
         },
+        {
+          name     = "seven30-root"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "seven30.xyz"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
+          }
+        },
       ]
     }
   }

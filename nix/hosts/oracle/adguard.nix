@@ -157,6 +157,9 @@ in
           { domain = "ssh.gitlab.home.shdr.ch"; answer = "10.0.3.7"; }
           { domain = "smtp.home.shdr.ch"; answer = "10.0.3.4"; }
           { domain = "ids.home.shdr.ch"; answer = "10.0.2.7"; }
+          { domain = "k8s.seven30.xyz"; answer = "10.0.2.2"; }
+          { domain = "mars.seven30.xyz"; answer = "10.0.2.2"; }
+          { domain = "*.mars.seven30.xyz"; answer = "10.0.2.2"; }
         ];
       };
 

@@ -54,6 +54,11 @@ variable "workload_vip" {
   description = "Cilium L2 VIP for LoadBalancer services"
 }
 
+variable "vcluster_vip" {
+  type        = string
+  description = "Cilium L2 VIP for Seven30 vcluster API server"
+}
+
 variable "oidc_issuer_url" {
   type        = string
   description = "OIDC issuer URL for authentication"

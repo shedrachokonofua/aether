@@ -1,5 +1,5 @@
 ---
-- name: Deploy tailscale subnet router pod
+- name: Deploy tailscale subnet router (rootful)
   hosts: home-gateway-stack
   gather_facts: true
   roles:
@@ -15,15 +15,43 @@
         - net.ipv4.ip_forward
         - net.ipv6.conf.all.forwarding
 
-    - name: Create required directories
+    - name: Create state directory
       file:
-        path: "{{ item }}"
+        path: /var/lib/tailscale
         state: directory
-        mode: "0755"
-      loop:
-        - ./tailscale/data
+        mode: "0700"
+      become: true
 
-    - name: Create tailscale pod
+    - name: Migrate state from old rootless container
+      ansible.builtin.copy:
+        src: /home/aether/tailscale/data/
+        dest: /var/lib/tailscale/
+        remote_src: true
+        mode: preserve
+      become: true
+      ignore_errors: true
+
+    - name: Stop old rootless tailscale pod
+      ansible.builtin.systemd:
+        name: tailscale-pod
+        state: stopped
+        scope: user
+      ignore_errors: true
+
+    - name: Remove old rootless quadlet files
+      ansible.builtin.file:
+        path: "/home/aether/.config/containers/systemd/{{ item }}"
+        state: absent
+      loop:
+        - tailscale.container
+        - tailscale.pod
+
+    - name: Reload user systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: user
+
+    - name: Create tailscale pod (rootful)
       containers.podman.podman_pod:
         name: tailscale
         state: quadlet
@@ -33,9 +61,10 @@
         quadlet_options:
           - |
             [Install]
-            WantedBy=default.target
+            WantedBy=multi-user.target
+      become: true
 
-    - name: Create tailscale container
+    - name: Create tailscale container (rootful)
       containers.podman.podman_container:
         name: tailscale
         image: docker.io/tailscale/tailscale:latest
@@ -46,24 +75,51 @@
           - NET_RAW
         env:
           TS_AUTHKEY: "{{ secrets.tailscale_oauth_client_secret }}?ephemeral=false"
+          TS_USERSPACE: "false"
           TS_ROUTES: "10.0.0.0/8,192.168.0.0/16"
           TS_ACCEPT_DNS: "false"
           TS_HOSTNAME: "aether-home-gateway"
           TS_EXTRA_ARGS: "--advertise-tags=tag:home-gateway"
           TS_STATE_DIR: "/var/lib/tailscale"
         volumes:
-          - /home/aether/tailscale/data:/var/lib/tailscale:Z
+          - /var/lib/tailscale:/var/lib/tailscale:Z
           - /dev/net/tun:/dev/net/tun
         security_opt:
           - label=disable
+      become: true
 
-    - name: Reload systemd daemon for user
+    - name: Create GitLab SSH forward container (rootful)
+      containers.podman.podman_container:
+        name: gitlab-ssh-forward
+        image: docker.io/alpine/socat:latest
+        state: quadlet
+        network: host
+        command: "TCP-LISTEN:2222,bind={{ tf_outputs.home_gateway_tailscale_ip.value }},fork,reuseaddr TCP:{{ vm.gitlab.ip }}:2222"
+        quadlet_options:
+          - |
+            [Unit]
+            After=tailscale-pod.service
+
+            [Install]
+            WantedBy=multi-user.target
+      become: true
+
+    - name: Reload systemd daemon
       ansible.builtin.systemd:
         daemon_reload: yes
-        scope: user
+        scope: system
+      become: true
 
     - name: Start tailscale quadlet
       ansible.builtin.systemd:
         name: tailscale-pod
         state: restarted
-        scope: user
+        scope: system
+      become: true
+
+    - name: Start GitLab SSH forward
+      ansible.builtin.systemd:
+        name: gitlab-ssh-forward
+        state: restarted
+        scope: system
+      become: true

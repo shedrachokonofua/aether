@@ -94,7 +94,7 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: max by(id, name) (pve_cpu_usage_ratio{id=~"qemu/.*"} * on(id) group_left(name) max by(id, name) (pve_guest_info)) * 100
+              expr: max by(id, name) (pve_cpu_usage_ratio{id=~"qemu/.*"} * on(id) group_left(name) max by(id, name) (pve_guest_info{name!=""})) * 100
               refId: A
           - refId: B
             datasourceUid: __expr__

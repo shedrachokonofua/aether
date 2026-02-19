@@ -1,6 +1,6 @@
 external_url 'https://gitlab.home.shdr.ch'
 gitlab_rails['gitlab_shell_ssh_port'] = 2222
-gitlab_rails['initial_root_password'] = "{{ secrets.gitlab_root_password }}"
+gitlab_rails['initial_root_password'] = "{{ secrets.gitlab.root_password }}"
 nginx['listen_port'] = 80
 nginx['listen_https'] = false
 letsencrypt['enable'] = false
@@ -54,7 +54,8 @@ gitlab_rails['omniauth_providers'] = [
         secret: "{{ tf_outputs.keycloak_gitlab_client_secret.value }}",
         redirect_uri: "https://gitlab.home.shdr.ch/users/auth/openid_connect/callback"
       },
-      admin_groups: ["admin"]
+      admin_groups: ["admin"],
+      required_groups: ["gitlab-user", "admin"]
     }
   }
 ]

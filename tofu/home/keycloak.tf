@@ -467,6 +467,12 @@ resource "keycloak_openid_client_default_scopes" "gitlab_default_scopes" {
   ]
 }
 
+resource "keycloak_role" "gitlab_user" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "gitlab-user"
+  description = "Allowed to access GitLab"
+}
+
 resource "keycloak_openid_user_realm_role_protocol_mapper" "gitlab_groups" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.gitlab.id
@@ -852,6 +858,62 @@ resource "keycloak_openid_client_default_scopes" "kubernetes_default_scopes" {
 resource "keycloak_openid_user_realm_role_protocol_mapper" "kubernetes_groups" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.kubernetes.id
+  name      = "groups"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+# =============================================================================
+# Seven30 vcluster OIDC Client
+# =============================================================================
+# Public client for kubectl authentication to the Seven30 vcluster.
+# Co-founders use kubelogin (kubectl oidc-login) with device authorization grant.
+
+resource "keycloak_role" "seven30_developer" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "seven30-developer"
+  description = "Seven30 studio co-founder — full access to Seven30 vcluster"
+}
+
+resource "keycloak_openid_client" "seven30_kubernetes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "seven30-kubernetes"
+  name      = "Seven30 Kubernetes"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+
+  oauth2_device_authorization_grant_enabled = true
+
+  valid_redirect_uris = [
+    "http://localhost:8000/*",
+    "http://localhost:18000/*",
+    "http://127.0.0.1:8000/*",
+    "http://127.0.0.1:18000/*",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "seven30_kubernetes_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.seven30_kubernetes.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_kubernetes_groups" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.seven30_kubernetes.id
   name      = "groups"
 
   claim_name          = "groups"

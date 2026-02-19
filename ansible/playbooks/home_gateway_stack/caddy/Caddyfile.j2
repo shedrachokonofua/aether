@@ -7,6 +7,10 @@
   admin :2019 {
     origins caddy.home.shdr.ch
   }
+  # Bind all routes to LAN IP only by default.
+  # Studio routes (GitLab etc.) explicitly bind to both LAN + Tailscale
+  # so shared co-founders can reach them, while everything else stays LAN-only.
+  default_bind 10.0.2.2
 }
 
 home.shdr.ch {
@@ -138,16 +142,57 @@ watchtower.d.home.shdr.ch {
   reverse_proxy {{ vm.dokploy.ip }}:{{ vm.dokploy.ports.watchtower }}
 }
 
+# Studio services: bind to both LAN and Tailscale IP so co-founders
+# with shared node access can reach them via Tailscale
 gitlab.home.shdr.ch {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}
 }
 
 registry.gitlab.home.shdr.ch {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_registry }}
 }
 
 pages.gitlab.home.shdr.ch {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_pages }}
+}
+
+# vcluster API: LAN + Tailscale for co-founders (OIDC/cert auth on API server)
+k8s.seven30.xyz {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
+  reverse_proxy https://10.0.3.21 {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
+}
+
+mars.seven30.xyz, *.mars.seven30.xyz {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+seven30.xyz, *.seven30.xyz {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Catch-all for the Tailscale listener: reject anything that isn't a studio route
+:443 {
+  bind {{ tf_outputs.home_gateway_tailscale_ip.value }}
+  respond 403
 }
 
 ha.home.shdr.ch {
@@ -383,6 +428,7 @@ auth.shdr.ch {
 }
 
 bao.home.shdr.ch {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.openbao.ip }}:{{ vm.openbao.ports.https }} {
     transport http {
       tls
@@ -483,8 +529,13 @@ oidc.k8s.home.shdr.ch {
   @auth host auth.shdr.ch
   @ai host ai.shdr.ch
   @tv host tv.shdr.ch
+  @mars host mars.seven30.xyz
   @seven30 host seven30.xyz
   @seven30_apps host *.seven30.xyz
+
+  handle @mars {
+    respond 404
+  }
 
   handle @shdrch {
     reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.http }} {
@@ -519,8 +570,12 @@ oidc.k8s.home.shdr.ch {
   }
 
   handle @seven30 {
-    root * /srv/seven30
-    file_server
+    reverse_proxy 10.0.3.19 {
+      header_up Host {http.request.host}
+      header_up X-Real-IP {http.request.header.X-Real-IP}
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+      header_up X-Forwarded-Proto https
+    }
   }
 
   handle @seven30_apps {

@@ -46,3 +46,13 @@ output "openwebui_url" {
   description = "OpenWebUI public URL via Gateway API"
   value       = "https://${local.openwebui_host}"
 }
+
+output "vcluster_seven30_version" {
+  description = "Installed vcluster version for Seven30 studio"
+  value       = helm_release.vcluster_seven30.version
+}
+
+output "vcluster_seven30_namespace" {
+  description = "Host namespace for Seven30 vcluster"
+  value       = local.vcluster_namespace
+}
