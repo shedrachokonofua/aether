@@ -76,9 +76,9 @@ model_list:
     litellm_params:
       model: "anthropic/claude-opus-4-6"
       litellm_credential_name: anthropic_credential
-  - model_name: "anthropic/claude-sonnet-4-5"
+  - model_name: "anthropic/claude-sonnet-4.6"
     litellm_params:
-      model: "anthropic/claude-sonnet-4-5"
+      model: "anthropic/claude-sonnet-4-6"
       litellm_credential_name: anthropic_credential
 
   # Reranker via TEI
@@ -96,9 +96,13 @@ model_list:
     litellm_params:
       model: "openai/x-ai/grok-4"
       litellm_credential_name: openrouter_credential
-  - model_name: "openrouter/gemini-3-pro-preview"
+  - model_name: "openrouter/gemini-3.1-pro-preview"
     litellm_params:
-      model: "openai/google/gemini-3-pro-preview"
+      model: "openai/google/gemini-3.1-pro-preview"
+      litellm_credential_name: openrouter_credential
+  - model_name: "openrouter/gemini-3-flash-preview"
+    litellm_params:
+      model: "openai/google/gemini-3-flash-preview"
       litellm_credential_name: openrouter_credential
 
 credential_list:
@@ -147,8 +151,8 @@ mcp_servers:
     url: "https://mcp.firecrawl.home.shdr.ch/mcp"
   alpha_vantage:
     url: "https://mcp.alphavantage.co/mcp?apikey={{ secrets.alphavantage_api_key }}"
-  coingecko:
-    url: "http://localhost:8002/"
+  # coingecko:
+  #   url: "http://localhost:8002/"
   finviz:
     url: "http://localhost:8000/mcp"
   microsandbox:
