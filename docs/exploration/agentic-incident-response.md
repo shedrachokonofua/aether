@@ -1,17 +1,17 @@
 # Agentic Incident Response Exploration
 
-AI-assisted diagnosis and remediation triggered by infrastructure alerts, with policy-as-code guardrails and human-in-the-loop approval.
+AI-assisted diagnosis triggered by infrastructure alerts, with human-in-the-loop for all actions.
 
 ## Goal
 
 Transform alerts from "something is wrong" into "here's what's wrong and how to fix it":
 
 1. **Alert triggers flow** — Grafana fires webhook, Kestra flow starts
-2. **Agent diagnoses** — AIAgent queries Prometheus/Loki via MCP, correlates data
-3. **Agent proposes fix** — Generates remediation with reasoning
-4. **Policy validates** — OPA checks if action is allowed
-5. **Human approves** — Admin reviews in Matrix or Kestra UI, approves/rejects
-6. **Flow executes** — If approved, runs remediation sub-flow with audit trail
+2. **Agent investigates** — AIAgent queries Prometheus, Loki, and Fleet (osquery)
+3. **Agent explains** — Diagnosis with evidence posted to Matrix
+4. **Human fixes** — Admin takes manual action based on diagnosis
+
+No automated remediation. The agent investigates and explains; humans decide and act.
 
 ## Architecture
 
@@ -27,20 +27,23 @@ Transform alerts from "something is wrong" into "here's what's wrong and how to 
 │   └──────────────────────────────────────┼───────────────────────────────────┘   │
 │                                          ▼                                       │
 │   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │                         Agent Orchestration                              │   │
+│   │                         Agent Investigation                              │   │
 │   │                                                                          │   │
-│   │   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐            │   │
-│   │   │   Context    │     │   AIAgent    │     │   Policy     │            │   │
-│   │   │   Tasks      │────►│   (Claude)   │────►│   Engine     │            │   │
-│   │   │              │     │              │     │   (OPA)      │            │   │
-│   │   └──────────────┘     └──────────────┘     └──────────────┘            │   │
-│   │         │                     │                    │                     │   │
-│   │         ▼                     ▼                    ▼                     │   │
-│   │   ┌──────────────────────────────────────────────────────────────────┐  │   │
-│   │   │                     MCP Tool Access                              │  │   │
-│   │   │                                                                   │  │   │
-│   │   │   Grafana MCP (Prometheus, Loki) · KestraFlow (Ansible)          │  │   │
-│   │   └──────────────────────────────────────────────────────────────────┘  │   │
+│   │                      ┌──────────────┐                                    │   │
+│   │                      │   AIAgent    │                                    │   │
+│   │                      │   (Claude)   │                                    │   │
+│   │                      └──────┬───────┘                                    │   │
+│   │                             │                                            │   │
+│   │         ┌───────────────────┼───────────────────┐                       │   │
+│   │         ▼                   ▼                   ▼                       │   │
+│   │   ┌───────────┐      ┌───────────┐      ┌───────────┐                   │   │
+│   │   │ Grafana   │      │ Grafana   │      │  Fleet    │                   │   │
+│   │   │ MCP       │      │ MCP       │      │  API      │                   │   │
+│   │   │(Prometheus)│     │ (Loki)    │      │ (osquery) │                   │   │
+│   │   └───────────┘      └───────────┘      └───────────┘                   │   │
+│   │                                                                          │   │
+│   │   Metrics            Logs               System State                     │   │
+│   │   "when/how much"    "what happened"    "what's running now"            │   │
 │   │                                                                          │   │
 │   └──────────────────────────────────────────────────────────────────────────┘   │
 │                                          │                                       │
@@ -48,17 +51,21 @@ Transform alerts from "something is wrong" into "here's what's wrong and how to 
 │   ┌─────────────────────────────────────────────────────────────────────────┐   │
 │   │                      Human-in-the-Loop                                   │   │
 │   │                                                                          │   │
-│   │   Matrix Bot ◄─────────── Pause Task ───────────► Kestra UI             │   │
-│   │       │                       │                        │                 │   │
-│   │       └───────── Resume API (approve/reject) ──────────┘                │   │
+│   │   ┌─────────────────────────────────────────────────────────────────┐   │   │
+│   │   │  Matrix #incidents                                               │   │   │
+│   │   │                                                                   │   │   │
+│   │   │  🔍 Diagnosis: High CPU on gitlab-runner-01                      │   │   │
+│   │   │                                                                   │   │   │
+│   │   │  Evidence:                                                        │   │   │
+│   │   │  • osquery: process 'runner' at 98% CPU for 12 min               │   │   │
+│   │   │  • Loki: "build loop detected" in job #4521 logs                 │   │   │
+│   │   │  • Prometheus: CPU spike started 14 min ago                      │   │   │
+│   │   │                                                                   │   │   │
+│   │   │  Suggested fix: Cancel job #4521, restart runner service         │   │   │
+│   │   │                                                                   │   │   │
+│   │   └─────────────────────────────────────────────────────────────────┘   │   │
 │   │                                                                          │   │
-│   └──────────────────────────────────────────────────────────────────────────┘   │
-│                                          │                                       │
-│                                          ▼                                       │
-│   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │                         Execution + Audit                                │   │
-│   │                                                                          │   │
-│   │   Kestra Logs ──► Loki       KestraFlow ──► Ansible ──► Target          │   │
+│   │   Human reads diagnosis → Human takes action manually                   │   │
 │   │                                                                          │   │
 │   └──────────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -68,29 +75,27 @@ Transform alerts from "something is wrong" into "here's what's wrong and how to 
 
 Kestra provides all the primitives needed for this workflow, configured declaratively:
 
-| Requirement           | Kestra Solution                     |
-| --------------------- | ----------------------------------- |
-| Alert webhook trigger | Native `Webhook` trigger            |
-| AI agent with tools   | `AIAgent` task with MCP support     |
-| Query Prometheus/Loki | MCP client → Grafana MCP server     |
-| Human approval        | `Pause` task with `onResume` inputs |
-| Execute remediation   | `KestraFlow` triggers sub-flows     |
-| Policy checks         | HTTP task → OPA API                 |
-| Audit logging         | Native execution logs → Loki        |
-| IaC deployment        | Official Terraform provider         |
+| Requirement           | Kestra Solution                 |
+| --------------------- | ------------------------------- |
+| Alert webhook trigger | Native `Webhook` trigger        |
+| AI agent with tools   | `AIAgent` task with MCP support |
+| Query Prometheus/Loki | MCP client → Grafana MCP server |
+| Query system state    | HTTP task → Fleet API           |
+| Notifications         | Slack/webhook → Matrix          |
+| Audit logging         | Native execution logs → Loki    |
+| IaC deployment        | Official Terraform provider     |
 
 ### Comparison with Temporal
 
-| Aspect             | Temporal                   | Kestra                       |
-| ------------------ | -------------------------- | ---------------------------- |
-| Config style       | Code-first (Go/Python SDK) | YAML-first                   |
-| Terraform provider | ❌ None                    | ✅ Official                  |
-| AI agent support   | DIY                        | ✅ Native `AIAgent`          |
-| MCP integration    | DIY                        | ✅ Built-in MCP clients      |
-| Human tasks        | Signal-based (code)        | ✅ `Pause` with typed inputs |
-| Prometheus/Loki    | DIY clients                | ✅ Via Grafana MCP           |
-| Learning curve     | High                       | Low                          |
-| Workers needed     | Yes (per language)         | No (built-in)                |
+| Aspect             | Temporal                   | Kestra                     |
+| ------------------ | -------------------------- | -------------------------- |
+| Config style       | Code-first (Go/Python SDK) | YAML-first                 |
+| Terraform provider | ❌ None                    | ✅ Official                |
+| AI agent support   | DIY                        | ✅ Native `AIAgent`        |
+| MCP integration    | DIY                        | ✅ Built-in MCP clients    |
+| Prometheus/Loki    | DIY clients                | ✅ Via Grafana MCP         |
+| Learning curve     | High                       | Low                        |
+| Workers needed     | Yes (per language)         | No (built-in)              |
 
 ## Components
 
@@ -99,7 +104,7 @@ Kestra provides all the primitives needed for this workflow, configured declarat
 The [Kestra AI plugin](https://github.com/kestra-io/plugin-ai) provides an `AIAgent` task that orchestrates tool usage dynamically:
 
 ```yaml
-- id: diagnose
+- id: investigate
   type: io.kestra.plugin.ai.agent.AIAgent
   provider:
     type: anthropic
@@ -109,237 +114,187 @@ The [Kestra AI plugin](https://github.com/kestra-io/plugin-ai) provides an `AIAg
     You are an SRE assistant for Aether homelab infrastructure.
 
     Your role:
-    1. Diagnose infrastructure issues using provided tools
-    2. Propose specific, minimal remediation actions
-    3. Explain your reasoning clearly for human review
+    1. Investigate infrastructure issues using provided tools
+    2. Gather evidence from metrics, logs, and system state
+    3. Explain what's wrong and suggest fixes for the human to execute
+
+    You have access to:
+    - Prometheus (metrics): CPU, memory, disk, network, service health
+    - Loki (logs): Application logs, system logs, error messages
+    - Fleet/osquery (system state): Processes, ports, packages, users, files
 
     Guidelines:
-    - Query systems to gather facts, don't assume
-    - Prefer non-destructive actions when possible
-    - Propose ONE focused fix, not multiple changes
-    - Always explain what could go wrong
+    - Query multiple sources to build a complete picture
+    - Be specific about what you found and where
+    - Suggest concrete actions the human can take
+    - You CANNOT execute fixes - only investigate and explain
   tools:
-    # Grafana MCP for observability queries
+    # Grafana MCP for Prometheus and Loki
     - type: io.kestra.plugin.ai.mcp.SseMcpClient
       url: "{{ vars.grafana_mcp_url }}"
-    # Trigger remediation sub-flows
-    - type: io.kestra.plugin.ai.KestraFlow
-      namespace: platform.remediation
-      allowedFlows:
-        - restart-service
-        - rollback-config
-        - scale-deployment
   prompt: |
     Alert: {{ inputs.alertname }}
     Instance: {{ inputs.instance }}
     Severity: {{ inputs.severity }}
     Summary: {{ inputs.summary }}
 
-    Diagnose this issue and propose a remediation.
+    Investigate this issue. Query metrics, logs, and system state to understand what's happening.
 ```
 
-**Agent capabilities:**
+**Agent data sources:**
 
-| Tool Type              | Purpose                            | Pre-approval       |
-| ---------------------- | ---------------------------------- | ------------------ |
-| MCP (Grafana)          | Query Prometheus, Loki, dashboards | ✅                 |
-| KestraFlow (read-only) | Dry-run Ansible playbooks          | ✅                 |
-| KestraFlow (apply)     | Execute remediation                | ❌ (post-approval) |
+| Source     | What it provides                          | How accessed           |
+| ---------- | ----------------------------------------- | ---------------------- |
+| Prometheus | Time-series metrics, alerting context     | Grafana MCP            |
+| Loki       | Logs, errors, stack traces                | Grafana MCP            |
+| Fleet      | System state (processes, ports, packages) | HTTP task              |
+| Wazuh      | Security events, FIM (file changed)       | Loki (alerts shipped)  |
+
+If these aren't enough (e.g., need file contents), the agent requests the human to retrieve it.
+
+The agent is read-only — it investigates and explains, but cannot execute any changes. If it needs information it can't access (file contents, etc.), it tells the human what to run.
 
 ### Grafana MCP Server
 
 The existing Grafana MCP server provides tool access to:
 
-- `query_prometheus` — PromQL queries
-- `query_loki_logs` — LogQL queries
+- `query_prometheus` — PromQL queries for metrics
+- `query_loki_logs` — LogQL queries for logs
 - `get_dashboard_by_uid` — Dashboard context
-- `list_alert_rules` — Related alerts
+- `list_alert_rules` — See what else is firing
 - `search_dashboards` — Find relevant dashboards
 
-The agent uses these tools to gather diagnostic context before proposing a fix.
+### Fleet API (osquery)
 
-### Policy Engine (OPA)
-
-Open Policy Agent validates proposed actions before human review:
-
-```rego
-# policy/incident-response.rego
-
-package aether.incident_response
-
-import rego.v1
-
-# Default deny
-default allow := false
-
-# Allow read-only actions always
-allow if {
-    input.action.type in ["query", "check", "get", "dry-run"]
-}
-
-# Allow service restarts for non-critical services
-allow if {
-    input.action.type == "restart-service"
-    not input.action.target in critical_services
-    input.alert.severity != "critical"
-}
-
-# Block destructive actions on infrastructure
-deny[msg] if {
-    input.action.type in ["delete", "destroy", "purge"]
-    input.action.target_type == "vm"
-    msg := "Cannot delete VMs via automated response"
-}
-
-# Require human approval for any state changes
-require_approval if {
-    input.action.type in ["restart-service", "rollback-config", "scale-deployment"]
-}
-
-# Rate limiting: max 5 auto-remediations per hour per service
-deny[msg] if {
-    count(recent_remediations[input.action.target]) > 5
-    msg := sprintf("Rate limit exceeded for %s", [input.action.target])
-}
-
-# Critical services that always require human approval
-critical_services := {
-    "openbao",
-    "step-ca",
-    "keycloak",
-    "postgresql",
-    "monitoring-stack"
-}
-```
-
-**Policy check as Kestra task:**
+Fleet provides SQL-based queries across all hosts. The agent uses HTTP tasks to query Fleet before investigation:
 
 ```yaml
-- id: policy-check
+- id: query-fleet
   type: io.kestra.plugin.core.http.Request
-  uri: "{{ vars.opa_url }}/v1/data/aether/incident_response"
+  uri: "{{ vars.fleet_url }}/api/v1/fleet/queries/run"
   method: POST
+  headers:
+    Authorization: "Bearer {{ secret('FLEET_API_TOKEN') }}"
   contentType: application/json
   body: |
     {
-      "input": {
-        "action": {{ outputs.diagnose.proposedAction | json }},
-        "alert": {
-          "name": "{{ inputs.alertname }}",
-          "severity": "{{ inputs.severity }}",
-          "instance": "{{ inputs.instance }}"
-        }
+      "query": "SELECT pid, name, cmdline, resident_size, cpu_time FROM processes ORDER BY cpu_time DESC LIMIT 10",
+      "selected": {
+        "hosts": ["{{ inputs.instance }}"]
       }
     }
 ```
 
+**Useful osquery tables for investigation:**
+
+| Query                                                           | Purpose                    |
+| --------------------------------------------------------------- | -------------------------- |
+| `SELECT * FROM processes ORDER BY cpu_time DESC LIMIT 10`       | Top CPU consumers          |
+| `SELECT * FROM listening_ports`                                 | What's listening where     |
+| `SELECT * FROM rpm_packages WHERE name LIKE '%openssl%'`        | Package versions           |
+| `SELECT * FROM file WHERE path = '/etc/caddy/Caddyfile'`        | File metadata (not content)|
+| `SELECT * FROM logged_in_users`                                 | Who's logged in            |
+| `SELECT * FROM last WHERE type = 7`                             | Recent logins              |
+
+Fleet is read-only by design — perfect for investigation without risk.
+
 ### Human-in-the-Loop
 
-Two approval interfaces, same Kestra Resume API:
+The agent posts diagnosis to Matrix. Human reads and acts manually — no automated execution.
 
-#### Kestra UI (Primary)
-
-The `Pause` task with `onResume` inputs creates a native approval interface:
-
-```yaml
-- id: wait-for-approval
-  type: io.kestra.plugin.core.flow.Pause
-  onResume:
-    - id: approved
-      description: "Approve the proposed remediation?"
-      type: BOOLEAN
-      defaults: false
-    - id: reason
-      description: "Reason for decision"
-      type: STRING
-      defaults: ""
-    - id: modifications
-      description: "Modifications to proposed action (JSON)"
-      type: STRING
-      defaults: "{}"
-```
-
-When paused, the execution shows in Kestra UI with a Resume button that prompts for the typed inputs.
-
-#### Matrix Bot
-
-For mobile/async approval, a Matrix bot monitors the `#incidents` room:
+#### Matrix Notification
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ #incidents                                                       │
 ├─────────────────────────────────────────────────────────────────┤
-│ 🚨 Aether Bot                                        10:34 AM   │
+│ 🔍 Aether Bot                                        10:34 AM   │
 │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
-│ INCIDENT: High CPU on gitlab-runner-01                          │
+│ INVESTIGATION: High CPU on gitlab-runner-01                     │
 │                                                                  │
-│ 📊 Context:                                                      │
-│ • CPU at 98% for 12 minutes                                     │
-│ • 3 stuck CI jobs in project infra/deploy                       │
-│ • Last deploy: 47 minutes ago                                   │
+│ 📊 Evidence:                                                     │
+│ • Prometheus: CPU at 98% for 12 min (spike started 10:22)       │
+│ • osquery: process 'gitlab-runner' using 95% CPU                │
+│ • osquery: 47 child processes spawned by runner                 │
+│ • Loki: "build loop detected" in job #4521 logs                 │
 │                                                                  │
 │ 🔍 Diagnosis:                                                    │
-│ Runner process consuming excessive CPU due to a build           │
-│ loop in job #4521. The .gitlab-ci.yml has a recursive           │
-│ script that's spawning processes indefinitely.                  │
+│ Runner process in build loop. Job #4521 has a recursive         │
+│ script spawning processes indefinitely. Started after           │
+│ commit abc123 to infra/deploy 14 minutes ago.                   │
 │                                                                  │
-│ 💡 Proposed Fix:                                                 │
-│ 1. Cancel job #4521 via GitLab API                              │
-│ 2. Restart gitlab-runner service                                │
+│ 💡 Suggested fix:                                                │
+│ 1. Cancel job #4521: gitlab-ci cancel 4521                      │
+│ 2. Restart runner: systemctl restart gitlab-runner              │
+│ 3. Review commit abc123 in infra/deploy                         │
 │                                                                  │
-│ ⚠️  Risk: In-progress jobs will be terminated                   │
-│                                                                  │
-│ [✅ Approve] [❌ Reject] [🔗 View in Kestra]                     │
-│                                                                  │
-│ Flow: incident-response • Execution: abc123 • Timeout: 30m      │
+│ 🔗 Kestra: https://kestra.home.shdr.ch/ui/exec/abc123           │
+│ 📊 Dashboard: https://grafana.home.shdr.ch/d/gitlab-runner      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-The bot calls Kestra's Resume API:
+No approval buttons, no automated execution. Human reads diagnosis, decides what to do, and does it themselves via SSH/Cockpit/UI.
 
-```bash
-# Resume with approval
-curl -X POST "https://kestra.home.shdr.ch/api/v1/executions/{executionId}/resume" \
-  -H "Content-Type: application/json" \
-  -d '{"approved": true, "reason": "Looks correct", "modifications": "{}"}'
+#### Escalation Pattern
+
+When the agent needs information it can't access (e.g., file contents), it requests help:
+
+```
+🔍 INVESTIGATION: ServiceDown on gateway-stack
+
+## Diagnosis (75% confidence)
+Config change likely caused Caddy crash.
+
+## Evidence
+- Loki: "parse error at line 47"
+- osquery: caddy not running, was running 15 min ago
+- Wazuh: /etc/caddy/Caddyfile modified 14 min ago (hash changed)
+
+## Suggested Fix
+Review and fix Caddyfile syntax error at line 47.
+
+## ⚠️ Additional Info Needed
+To confirm root cause, I need to see the actual config.
+Run: ssh gateway-stack "sed -n '45,50p' /etc/caddy/Caddyfile"
 ```
 
-### Execution + Audit
+The agent does 90% of the investigation with read-only access. Human fills gaps when needed.
 
-All executions logged natively by Kestra, shipped to Loki:
+### Audit Trail
+
+All investigations logged to Loki via Kestra's native logging:
 
 ```yaml
-# Kestra internal storage → Loki
 - id: audit-log
   type: io.kestra.plugin.core.log.Log
+  level: INFO
   message: |
-    {
+    INCIDENT_INVESTIGATION: {
       "execution_id": "{{ execution.id }}",
-      "flow": "{{ flow.id }}",
       "alert": {
         "name": "{{ inputs.alertname }}",
         "instance": "{{ inputs.instance }}",
         "severity": "{{ inputs.severity }}"
       },
-      "diagnosis": {{ outputs.diagnose.response | json }},
-      "policy_decision": {{ outputs['policy-check'].body | json }},
-      "approval": {
-        "approved": {{ outputs['wait-for-approval'].onResume.approved }},
-        "reason": "{{ outputs['wait-for-approval'].onResume.reason }}"
-      },
-      "remediation": {
-        "flow": "{{ outputs.diagnose.proposedFlow }}",
-        "status": "{{ outputs['execute-remediation'].state }}"
-      }
+      "investigation": {{ outputs.investigate.response | json }},
+      "notified": true
     }
 ```
 
+The audit trail shows:
+- What alert triggered investigation
+- What the agent queried
+- What diagnosis was produced
+- When notification was sent
+
+Human actions taken after notification are tracked in their respective systems (Cockpit, GitLab, etc.).
+
 ## Complete Workflow
 
-### Main Incident Response Flow
+### Incident Investigation Flow
 
-````yaml
-id: incident-response
+```yaml
+id: incident-investigation
 namespace: platform.incidents
 
 inputs:
@@ -359,11 +314,11 @@ inputs:
 
 variables:
   grafana_mcp_url: "http://grafana-mcp.monitoring-stack.svc:8080/sse"
-  opa_url: "http://opa.platform.svc:8181"
+  fleet_url: "http://fleet.monitoring-stack.svc:8080"
   matrix_webhook: "{{ secret('MATRIX_INCIDENT_WEBHOOK') }}"
 
 tasks:
-  # 1. Notify that incident is being processed
+  # 1. Notify that investigation is starting
   - id: notify-start
     type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
     url: "{{ vars.matrix_webhook }}"
@@ -372,8 +327,39 @@ tasks:
         "text": "🔍 Investigating: {{ inputs.alertname }} on {{ inputs.instance }}"
       }
 
-  # 2. AI Agent diagnoses the issue
-  - id: diagnose
+  # 2. Gather system state from Fleet/osquery
+  - id: query-fleet-processes
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.fleet_url }}/api/v1/fleet/queries/run"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ secret('FLEET_API_TOKEN') }}"
+    contentType: application/json
+    body: |
+      {
+        "query": "SELECT pid, name, cmdline, resident_size, cpu_time FROM processes ORDER BY cpu_time DESC LIMIT 15",
+        "selected": {
+          "hosts": ["{{ inputs.instance }}"]
+        }
+      }
+
+  - id: query-fleet-ports
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ vars.fleet_url }}/api/v1/fleet/queries/run"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ secret('FLEET_API_TOKEN') }}"
+    contentType: application/json
+    body: |
+      {
+        "query": "SELECT p.name, p.pid, l.port, l.address, l.protocol FROM processes p JOIN listening_ports l ON p.pid = l.pid",
+        "selected": {
+          "hosts": ["{{ inputs.instance }}"]
+        }
+      }
+
+  # 3. AI Agent investigates using all data sources
+  - id: investigate
     type: io.kestra.plugin.ai.agent.AIAgent
     provider:
       type: anthropic
@@ -383,32 +369,39 @@ tasks:
       You are an SRE assistant for Aether homelab infrastructure.
 
       Your role:
-      1. Diagnose infrastructure issues using the Grafana MCP tools
-      2. Propose a specific, minimal remediation action
-      3. Explain your reasoning clearly for human review
+      1. Investigate infrastructure issues using provided tools and context
+      2. Gather evidence from metrics (Prometheus), logs (Loki), and system state (osquery)
+      3. Explain what's wrong and suggest fixes for the human to execute
 
-      Available remediation flows:
-      - restart-service: Restart a systemd service
-      - rollback-config: Rollback to previous config version
-      - scale-deployment: Scale a deployment up/down
-      - clear-disk-space: Clean up disk space on a host
+      You have pre-gathered osquery data:
+      - Top processes by CPU: {{ outputs['query-fleet-processes'].body | json }}
+      - Listening ports: {{ outputs['query-fleet-ports'].body | json }}
+
+      Use the Grafana MCP tools to query Prometheus metrics and Loki logs.
 
       Guidelines:
-      - Query Prometheus metrics and Loki logs to understand the issue
-      - Check related dashboards for context
-      - Prefer non-destructive actions
-      - Propose ONE focused fix
-      - Output a JSON block with your proposed action:
-        ```json
-        {
-          "diagnosis": "summary of what's wrong",
-          "evidence": ["list of findings"],
-          "proposedFlow": "flow-name",
-          "proposedInputs": {"key": "value"},
-          "risk": "what could go wrong",
-          "confidence": 0.0-1.0
-        }
-        ```
+      - Query multiple sources to build a complete picture
+      - Be specific about what you found and where
+      - Suggest concrete actions the human can take (commands, UI actions)
+      - Include relevant links (dashboards, runbooks)
+      - You CANNOT execute fixes - only investigate and explain
+
+      Output format (use this structure):
+      ```
+      ## Diagnosis
+      [1-2 sentence summary]
+
+      ## Evidence
+      - [source]: [finding]
+      - [source]: [finding]
+
+      ## Suggested Fix
+      1. [specific action with command if applicable]
+      2. [specific action with command if applicable]
+
+      ## Links
+      - [relevant dashboard/runbook URLs]
+      ```
     tools:
       - type: io.kestra.plugin.ai.mcp.SseMcpClient
         url: "{{ vars.grafana_mcp_url }}"
@@ -419,105 +412,30 @@ tasks:
       Summary: {{ inputs.summary }}
       Runbook: {{ inputs.runbook_url }}
 
-      Diagnose this issue and propose a remediation.
+      Investigate this issue using Prometheus metrics and Loki logs.
+      I've already gathered osquery data for processes and ports.
 
-  # 3. Check policy
-  - id: policy-check
-    type: io.kestra.plugin.core.http.Request
-    uri: "{{ vars.opa_url }}/v1/data/aether/incident_response"
-    method: POST
-    contentType: application/json
-    body: |
-      {
-        "input": {
-          "action": {{ outputs.diagnose.proposedAction | json }},
-          "alert": {
-            "name": "{{ inputs.alertname }}",
-            "severity": "{{ inputs.severity }}",
-            "instance": "{{ inputs.instance }}"
-          }
-        }
-      }
-
-  # 4. Check if policy allows (with or without approval)
-  - id: check-policy-result
-    type: io.kestra.plugin.core.flow.If
-    condition: "{{ outputs['policy-check'].body.result.deny | length > 0 }}"
-    then:
-      - id: policy-denied
-        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
-        url: "{{ vars.matrix_webhook }}"
-        payload: |
-          {
-            "text": "❌ Policy denied action for {{ inputs.alertname }}:\n{{ outputs['policy-check'].body.result.deny | join('\n') }}"
-          }
-      - id: fail-policy
-        type: io.kestra.plugin.core.execution.Fail
-        message: "Policy denied: {{ outputs['policy-check'].body.result.deny }}"
-
-  # 5. Send approval request to Matrix
-  - id: request-approval
+  # 4. Post diagnosis to Matrix
+  - id: notify-diagnosis
     type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
     url: "{{ vars.matrix_webhook }}"
     payload: |
       {
-        "text": "🚨 *INCIDENT: {{ inputs.alertname }}*\n\n📊 *Context:*\n{{ outputs.diagnose.evidence | join('\n• ') }}\n\n🔍 *Diagnosis:*\n{{ outputs.diagnose.diagnosis }}\n\n💡 *Proposed Fix:*\nFlow: `{{ outputs.diagnose.proposedFlow }}`\nInputs: `{{ outputs.diagnose.proposedInputs | json }}`\n\n⚠️ *Risk:* {{ outputs.diagnose.risk }}\n\n🔗 [Approve/Reject in Kestra](https://kestra.home.shdr.ch/ui/executions/platform.incidents/incident-response/{{ execution.id }})\n\nExecution: {{ execution.id }} • Timeout: 30m"
+        "text": "🔍 *INVESTIGATION: {{ inputs.alertname }} on {{ inputs.instance }}*\n\n{{ outputs.investigate.response }}\n\n🔗 Kestra: https://kestra.home.shdr.ch/ui/executions/platform.incidents/incident-investigation/{{ execution.id }}"
       }
 
-  # 6. Wait for human approval
-  - id: wait-for-approval
-    type: io.kestra.plugin.core.flow.Pause
-    timeout: PT30M
-    onResume:
-      - id: approved
-        description: "Approve the proposed remediation?"
-        type: BOOLEAN
-        defaults: false
-      - id: reason
-        description: "Reason for decision"
-        type: STRING
-        defaults: ""
-
-  # 7. Execute or skip based on approval
-  - id: handle-approval
-    type: io.kestra.plugin.core.flow.If
-    condition: "{{ outputs['wait-for-approval'].onResume.approved }}"
-    then:
-      - id: execute-remediation
-        type: io.kestra.plugin.core.flow.Subflow
-        flowId: "{{ outputs.diagnose.proposedFlow }}"
-        namespace: platform.remediation
-        inputs: "{{ outputs.diagnose.proposedInputs }}"
-        wait: true
-      - id: notify-success
-        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
-        url: "{{ vars.matrix_webhook }}"
-        payload: |
-          {
-            "text": "✅ Remediation complete for {{ inputs.alertname }}\nExecution: {{ execution.id }}"
-          }
-    else:
-      - id: notify-rejected
-        type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
-        url: "{{ vars.matrix_webhook }}"
-        payload: |
-          {
-            "text": "⏭️ Remediation rejected for {{ inputs.alertname }}\nReason: {{ outputs['wait-for-approval'].onResume.reason }}"
-          }
-
-  # 8. Audit log
+  # 5. Audit log
   - id: audit-log
     type: io.kestra.plugin.core.log.Log
     level: INFO
     message: |
-      INCIDENT_AUDIT: {
+      INCIDENT_INVESTIGATION: {
         "execution_id": "{{ execution.id }}",
         "alert": "{{ inputs.alertname }}",
         "instance": "{{ inputs.instance }}",
-        "diagnosis": "{{ outputs.diagnose.diagnosis }}",
-        "proposed_flow": "{{ outputs.diagnose.proposedFlow }}",
-        "approved": {{ outputs['wait-for-approval'].onResume.approved }},
-        "reason": "{{ outputs['wait-for-approval'].onResume.reason }}"
+        "severity": "{{ inputs.severity }}",
+        "investigation": "completed",
+        "notified": true
       }
 
 triggers:
@@ -531,62 +449,11 @@ errors:
     url: "{{ vars.matrix_webhook }}"
     payload: |
       {
-        "text": "❌ Incident response failed for {{ inputs.alertname }}\nExecution: {{ execution.id }}\nError: {{ error.message }}"
+        "text": "❌ Investigation failed for {{ inputs.alertname }}\nExecution: {{ execution.id }}\nError: {{ error.message }}"
       }
-````
-
-### Remediation Sub-Flows
-
-```yaml
-# platform.remediation/restart-service
-id: restart-service
-namespace: platform.remediation
-
-inputs:
-  - id: host
-    type: STRING
-  - id: service
-    type: STRING
-
-tasks:
-  - id: restart
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner:
-      type: io.kestra.plugin.kubernetes.runner.Kubernetes
-      namespace: jobs
-    commands:
-      - |
-        ansible -i "{{ inputs.host }}," -m systemd \
-          -a "name={{ inputs.service }} state=restarted" \
-          --become
 ```
 
-```yaml
-# platform.remediation/rollback-config
-id: rollback-config
-namespace: platform.remediation
-
-inputs:
-  - id: host
-    type: STRING
-  - id: config_path
-    type: STRING
-  - id: service
-    type: STRING
-
-tasks:
-  - id: rollback
-    type: io.kestra.plugin.scripts.shell.Commands
-    taskRunner:
-      type: io.kestra.plugin.kubernetes.runner.Kubernetes
-      namespace: jobs
-    commands:
-      - |
-        ansible-playbook -i "{{ inputs.host }}," \
-          playbooks/common/rollback-config.yml \
-          -e "config_path={{ inputs.config_path }}" \
-          -e "service={{ inputs.service }}"
-```
+That's it. No remediation flows, no approval gates, no OPA. The agent investigates and reports; you act.
 
 ## Tofu Configuration
 
@@ -615,43 +482,23 @@ provider "kestra" {
 ```hcl
 resource "kestra_namespace" "incidents" {
   namespace_id = "platform.incidents"
-  description  = "Incident response workflows"
-}
-
-resource "kestra_namespace" "remediation" {
-  namespace_id = "platform.remediation"
-  description  = "Remediation sub-flows"
+  description  = "Incident investigation workflows"
 }
 ```
 
 ### Flow Deployment
 
 ```hcl
-resource "kestra_flow" "incident_response" {
+resource "kestra_flow" "incident_investigation" {
   namespace = kestra_namespace.incidents.namespace_id
-  flow_id   = "incident-response"
-  content   = file("${path.module}/flows/incident-response.yml")
-}
-
-resource "kestra_flow" "restart_service" {
-  namespace = kestra_namespace.remediation.namespace_id
-  flow_id   = "restart-service"
-  content   = file("${path.module}/flows/remediation/restart-service.yml")
-}
-
-resource "kestra_flow" "rollback_config" {
-  namespace = kestra_namespace.remediation.namespace_id
-  flow_id   = "rollback-config"
-  content   = file("${path.module}/flows/remediation/rollback-config.yml")
+  flow_id   = "incident-investigation"
+  content   = file("${path.module}/flows/incident-investigation.yml")
 }
 ```
 
-### Secrets (via External Secrets → Kestra)
+### Secrets
 
 ```hcl
-# Kestra reads secrets from K8s secrets mounted as env vars
-# ESO syncs from OpenBao → K8s Secret → Kestra pod
-
 resource "kestra_kv" "anthropic_key" {
   namespace = "platform"
   key       = "ANTHROPIC_API_KEY"
@@ -665,6 +512,13 @@ resource "kestra_kv" "incident_webhook_key" {
   value     = random_password.webhook_key.result
   type      = "SECRET"
 }
+
+resource "kestra_kv" "fleet_api_token" {
+  namespace = "platform"
+  key       = "FLEET_API_TOKEN"
+  value     = data.vault_generic_secret.kestra.data["fleet_api_token"]
+  type      = "SECRET"
+}
 ```
 
 ### Grafana Contact Point
@@ -673,19 +527,20 @@ resource "kestra_kv" "incident_webhook_key" {
 # Configure Grafana to send alerts to Kestra webhook
 
 resource "grafana_contact_point" "kestra_incidents" {
-  name = "kestra-incident-response"
+  name = "kestra-incident-investigation"
 
   webhook {
-    url = "https://kestra.home.shdr.ch/api/v1/executions/webhook/platform.incidents/incident-response/${random_password.webhook_key.result}"
+    url = "https://kestra.home.shdr.ch/api/v1/executions/webhook/platform.incidents/incident-investigation/${random_password.webhook_key.result}"
 
     http_method = "POST"
 
     # Map Grafana alert labels to Kestra inputs
     settings = jsonencode({
-      alertname = "{{ .Labels.alertname }}"
-      instance  = "{{ .Labels.instance }}"
-      severity  = "{{ .Labels.severity }}"
-      summary   = "{{ .Annotations.summary }}"
+      alertname   = "{{ .Labels.alertname }}"
+      instance    = "{{ .Labels.instance }}"
+      severity    = "{{ .Labels.severity }}"
+      summary     = "{{ .Annotations.summary }}"
+      runbook_url = "{{ .Annotations.runbook_url }}"
     })
   }
 }
@@ -696,60 +551,54 @@ resource "grafana_contact_point" "kestra_incidents" {
 ### Alert → Kestra Flow
 
 ```yaml
-# Grafana alerting rule with agentic label
+# Grafana alerting rule routed to investigation
 - alert: HighCPU
   expr: avg(rate(node_cpu_seconds_total{mode!="idle"}[5m])) by (instance) > 0.9
   for: 5m
   labels:
     severity: warning
-    agentic: "true" # Route to Kestra
   annotations:
     summary: "High CPU on {{ $labels.instance }}"
     runbook_url: "https://docs.home.shdr.ch/runbooks/high-cpu"
 ```
 
+Route these alerts to the `kestra-incident-investigation` contact point.
+
 ### Agent → Grafana MCP
 
-The Grafana MCP server (already configured in `.cursor/mcp.json`) exposes:
+The Grafana MCP server exposes:
 
 - `mcp_grafana_query_prometheus` — PromQL instant/range queries
 - `mcp_grafana_query_loki_logs` — LogQL queries
-- `mcp_grafana_list_alert_rules` — See firing alerts
+- `mcp_grafana_list_alert_rules` — See what else is firing
 - `mcp_grafana_get_dashboard_by_uid` — Get dashboard context
+- `mcp_grafana_search_dashboards` — Find relevant dashboards
 
-The AIAgent connects via `SseMcpClient` to query these tools during diagnosis.
+### Agent → Fleet API
 
-### Approval → Matrix
+Fleet's REST API allows osquery queries. The flow pre-queries common data (processes, ports) and passes results to the AIAgent as context. The agent can request additional queries if needed.
 
-Matrix bot polls Kestra API for paused executions:
+Key endpoints:
+- `POST /api/v1/fleet/queries/run` — Run live query against hosts
+- `GET /api/v1/fleet/hosts` — List hosts and their status
+- `GET /api/v1/fleet/hosts/{id}` — Get host details including software inventory
 
-```python
-async def check_pending_approvals():
-    """Poll Kestra for paused incident-response executions."""
-    resp = await kestra.get("/api/v1/executions", params={
-        "namespace": "platform.incidents",
-        "flowId": "incident-response",
-        "state": "PAUSED"
-    })
+### Notification → Matrix
 
-    for execution in resp.json():
-        # Format and post to Matrix if not already notified
-        if execution["id"] not in notified:
-            await matrix.send_approval_request(execution)
-            notified.add(execution["id"])
+The flow posts investigation results directly to Matrix via webhook. No approval mechanism needed — the human reads the diagnosis and decides what to do.
 
-async def handle_reaction(event):
-    """Handle Matrix reaction to approve/reject."""
-    if event.content.relates_to.key == "✅":
-        await kestra.post(f"/api/v1/executions/{execution_id}/resume", json={
-            "approved": True,
-            "reason": f"Approved by {event.sender}"
-        })
-    elif event.content.relates_to.key == "❌":
-        await kestra.post(f"/api/v1/executions/{execution_id}/resume", json={
-            "approved": False,
-            "reason": f"Rejected by {event.sender}"
-        })
+For ntfy push notifications on mobile, add a parallel notification task:
+
+```yaml
+- id: notify-ntfy
+  type: io.kestra.plugin.core.http.Request
+  uri: "https://ntfy.home.shdr.ch/incidents"
+  method: POST
+  headers:
+    Title: "{{ inputs.alertname }} on {{ inputs.instance }}"
+    Priority: "{{ inputs.severity == 'critical' ? 'urgent' : 'default' }}"
+    Tags: "warning,investigation"
+  body: "Investigation complete. Check Matrix for details."
 ```
 
 ## Example Scenarios
@@ -759,30 +608,35 @@ async def handle_reaction(event):
 ```
 Alert: DiskSpaceLow on media-stack (12% free)
 
-Agent queries via MCP:
-- query_prometheus: node_filesystem_avail_bytes{instance="media-stack"}
-- query_loki_logs: {job="media-stack"} |= "disk" | json
+Agent queries:
+- Prometheus: node_filesystem_avail_bytes{instance="media-stack"}
+- Loki: {job="media-stack"} |= "disk"
+- osquery: SELECT path, size FROM file WHERE directory = '/var/lib/containers'
 
-Diagnosis:
-"Container storage filled by completed downloads. The qBittorrent
-download directory is on container storage instead of NFS mount."
+Matrix notification:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 INVESTIGATION: DiskSpaceLow on media-stack
 
-Proposed:
-{
-  "proposedFlow": "clear-disk-space",
-  "proposedInputs": {
-    "host": "media-stack",
-    "paths": ["/var/lib/containers/storage/downloads"],
-    "min_age_days": 7
-  },
-  "risk": "May delete files not yet moved to NFS",
-  "confidence": 0.85
-}
+## Diagnosis
+Container storage filled by completed downloads sitting in
+/var/lib/containers/storage/downloads instead of NFS mount.
 
-Policy: Allowed (file operations, non-critical service)
-Approval: Required (state change)
-Human: Approved
-Result: 15GB freed, alert resolved
+## Evidence
+- Prometheus: disk usage 88%, climbing 2%/hour for 6 hours
+- osquery: downloads/ contains 47GB, oldest file 12 days
+- Loki: no errors, qBittorrent healthy
+
+## Suggested Fix
+1. Move completed downloads to NFS:
+   mv /var/lib/containers/storage/downloads/* /mnt/media/downloads/
+2. Fix qBittorrent config to use NFS path directly
+3. Consider cron job to prevent recurrence
+
+## Links
+- Dashboard: https://grafana.home.shdr.ch/d/media-stack
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Human action: SSH to media-stack, move files, update config
 ```
 
 ### Scenario 2: Security Alert
@@ -790,76 +644,102 @@ Result: 15GB freed, alert resolved
 ```
 Alert: SuricataHighSeverityAlert (severity 1)
 
-Agent queries via MCP:
-- query_loki_logs: {job="suricata"} | json | severity=1
-- query_prometheus: suricata_alerts_total{severity="1"}
+Agent queries:
+- Loki: {job="suricata"} | json | severity=1
+- Prometheus: suricata_alerts_total{severity="1"}
+- osquery: SELECT * FROM listening_ports on affected host
 
-Diagnosis:
-"ET EXPLOIT attempt from 10.0.4.15 (IoT VLAN) targeting internal service.
-Source is smart-plug-03, which shouldn't have HTTP client capabilities."
+Matrix notification:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 INVESTIGATION: SuricataHighSeverityAlert
 
-Proposed:
-{
-  "proposedFlow": "block-host",
-  "proposedInputs": {
-    "ip": "10.0.4.15",
-    "reason": "Suspected compromised IoT device",
-    "duration": "24h"
-  },
-  "risk": "Smart plug will be unreachable",
-  "confidence": 0.92
-}
+## Diagnosis
+ET EXPLOIT attempt from 10.0.4.15 (IoT VLAN) targeting
+internal service on port 8080. Source is smart-plug-03.
 
-Policy: Allowed (security response)
-Approval: Required (firewall modification)
-Human: Approved with note "Also capture traffic first"
-Result: Host blocked, incident logged for follow-up
+## Evidence
+- Suricata: 23 alerts in 5 minutes, signature ET EXPLOIT
+- Source MAC: aa:bb:cc:dd:ee:ff (TP-Link Smart Plug)
+- osquery: No unexpected processes on target host
+- Target service (caddy) responding normally
+
+## Suggested Fix
+1. Block source temporarily:
+   ssh router "nft add rule inet filter input ip saddr 10.0.4.15 drop"
+2. Capture traffic for analysis:
+   tcpdump -i br0 host 10.0.4.15 -w /tmp/iot-capture.pcap
+3. Factory reset smart-plug-03 if confirmed compromised
+
+## Links
+- Suricata dashboard: https://grafana.home.shdr.ch/d/suricata
+- IoT device inventory: https://fleet.home.shdr.ch/hosts?label=iot
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Human action: Block IP, capture traffic, investigate device
 ```
 
-### Scenario 3: Auto-Remediation (Policy Allows Skip Approval)
+### Scenario 3: Service Crash (with escalation)
 
 ```
 Alert: ServiceDown on caddy (gateway-stack)
 
-Agent queries via MCP:
-- query_loki_logs: {job="caddy"} |= "error"
-- query_prometheus: up{job="caddy"}
+Agent queries:
+- Prometheus: up{job="caddy"}
+- Loki: {job="caddy"} |= "error" | last 30m
+- osquery: SELECT * FROM processes WHERE name = 'caddy'
+- Wazuh (via Loki): {log_source="wazuh"} |= "Caddyfile"
 
-Diagnosis:
-"Caddy failed due to config syntax error at line 47.
-Git shows config change 12 minutes ago."
+Matrix notification:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 INVESTIGATION: ServiceDown on gateway-stack
 
-Proposed:
-{
-  "proposedFlow": "rollback-config",
-  "proposedInputs": {
-    "host": "gateway-stack",
-    "config_path": "/etc/caddy/Caddyfile",
-    "service": "caddy"
-  },
-  "risk": "Reverts to previous config state",
-  "confidence": 0.95
-}
+## Diagnosis (85% confidence)
+Caddy crashed due to config syntax error at line 47.
+Config was modified 12 minutes ago.
 
-Policy: Allowed WITHOUT approval (config rollback to known-good state)
-Action: Executed automatically
-Result: Caddy restored, admin notified
+## Evidence
+- Prometheus: up=0 since 10:34, was up=1 continuously before
+- Loki: "Error: parsing /etc/caddy/Caddyfile:47: unexpected token"
+- osquery: caddy process not running
+- Wazuh FIM: /etc/caddy/Caddyfile modified at 10:33 (hash changed)
+
+## Suggested Fix
+1. Fix the syntax error at line 47
+2. Restart caddy: systemctl restart caddy
+
+## ⚠️ Additional Info Needed
+To see the actual error, run:
+  ssh gateway-stack "sed -n '45,50p' /etc/caddy/Caddyfile"
+
+Or validate the config:
+  ssh gateway-stack "caddy validate --config /etc/caddy/Caddyfile"
+
+## Links
+- Caddy logs: https://grafana.home.shdr.ch/explore?datasource=loki&query={job="caddy"}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Human action: 
+- Runs the suggested ssh command to see line 47
+- Sees typo, fixes it
+- Restarts caddy
+- Alert resolves
 ```
 
 ## Deployment
 
-### New Components
+### Components
 
-| Component   | Location              | Resources       | Notes                                        |
-| ----------- | --------------------- | --------------- | -------------------------------------------- |
-| Kestra      | K8s cluster           | 2GB RAM, 2 vCPU | Already planned in workflow-orchestration.md |
-| OPA         | Sidecar or standalone | 256MB RAM       | Policy evaluation                            |
-| Matrix Bot  | Messaging Stack       | 128MB RAM       | Approval interface (optional)                |
-| Grafana MCP | Monitoring Stack      | 256MB RAM       | Already available                            |
+| Component   | Location         | Resources       | Status            |
+| ----------- | ---------------- | --------------- | ----------------- |
+| Fleet       | Monitoring Stack | Already running | ✅ Deployed       |
+| Grafana MCP | Monitoring Stack | 256MB RAM       | ✅ Available      |
+| Kestra      | TBD              | 2GB RAM, 2 vCPU | Planned           |
+
+No OPA, no remediation flows, no Matrix bot needed for this approach.
 
 ### Kestra Deployment
 
-See `workflow-orchestration.md` for full Kestra deployment. Key additions for incident response:
+See `workflow-orchestration.md` for full Kestra deployment. Key additions for incident investigation:
 
 ```yaml
 # Helm values additions
@@ -878,97 +758,106 @@ kestra:
           api-key: "${ANTHROPIC_API_KEY}"
 ```
 
+### Fleet API Token
+
+Generate a Fleet API token for Kestra to query osquery data:
+
+```bash
+# In Fleet UI: Settings → Users → Create API-only user
+# Or via fleetctl:
+fleetctl login
+fleetctl user create --email kestra@aether.local --name "Kestra" --api-only
+```
+
+Store the token in OpenBao at `secret/kestra/fleet_api_token`.
+
 ## Costs
 
-| Item             | One-Time        | Ongoing                  |
-| ---------------- | --------------- | ------------------------ |
-| Kestra setup     | Already planned | Part of platform         |
-| OPA policies     | 2-4 hours       | Evolves with stack       |
-| Matrix bot       | 2-4 hours       | Minimal                  |
-| Flow development | 4-8 hours       | Iterative                |
-| Claude API       | —               | ~$0.01-0.05 per incident |
+| Item             | One-Time          | Ongoing                  |
+| ---------------- | ----------------- | ------------------------ |
+| Kestra setup     | Part of platform  | Already planned          |
+| Fleet setup      | Already deployed  | Running on monitoring VM |
+| Flow development | 2-4 hours         | Iterative                |
+| Claude API       | —                 | ~$0.01-0.05 per incident |
+
+Simpler than before: no OPA to write policies for, no remediation flows to maintain, no Matrix bot to develop.
 
 ## Decision Factors
 
 ### Pros
 
-- **Declarative** — Entire workflow defined in YAML, managed via Tofu
-- **No custom code** — AIAgent + MCP handles agent logic
-- **Unified platform** — Same system for all automation (see workflow-orchestration.md)
-- **Native observability** — Kestra logs → Loki, metrics → Prometheus
-- **Audit trail** — Full execution history in Kestra UI
-- **Faster iteration** — Change YAML, redeploy via Tofu
+- **Simple** — Investigation only, no execution complexity
+- **Safe** — Read-only by design, can't break anything
+- **Declarative** — Entire workflow in YAML, managed via Tofu
+- **No custom code** — AIAgent + MCP + HTTP tasks
+- **Human judgment** — You decide what actions to take
+- **Audit trail** — Full investigation history in Kestra
 
 ### Cons
 
-- **Kestra dependency** — Another platform component (but already planned)
+- **No automation** — Still need human to execute fixes
+- **Kestra dependency** — Another platform component
 - **MCP maturity** — Kestra MCP support is newer
 - **Claude costs** — API usage per incident
-- **Agent quality** — Diagnosis depends on prompt engineering
+- **Investigation quality** — Depends on prompt engineering
 
 ### When to Use
 
-- Recurring incidents with diagnosable patterns
-- After-hours monitoring with async approval
-- Security incidents requiring fast triage
-- When you want IaC-managed incident response
+- You want better signal-to-noise on alerts
+- "What's wrong?" takes time to figure out manually
+- After-hours triage while you decide if it needs immediate action
+- Learning how AI agents perform before trusting execution
 
 ### When to Skip
 
-- Very simple alerting is sufficient
-- Don't trust AI-proposed changes
-- Manual runbooks work well enough
+- Alerts are already clear enough
+- You enjoy investigating manually
+- Don't want to pay for Claude API calls
 
 ## Open Questions
 
 1. **MCP reliability** — Is Kestra's MCP client stable enough for production?
-2. **Context window** — How much Prometheus/Loki data before hitting token limits?
-3. **Feedback loop** — Track diagnosis accuracy for improvement?
-4. **Escalation** — No approval in 30m → escalate how? (ntfy push?)
-5. **Multi-approver** — Require 2 approvals for critical actions?
-6. **Dry-run mode** — Diagnose-only for calibration period?
+2. **Context window** — How much Prometheus/Loki/osquery data before hitting token limits?
+3. **Fleet query performance** — Live queries add latency; pre-query common data or query on-demand?
+4. **Investigation quality** — How to track and improve diagnosis accuracy?
+5. **Alert fatigue** — Which alerts should trigger investigation vs just notify?
 
 ## Related Documents
 
-- `workflow-orchestration.md` — Kestra deployment and platform automation
+- `osquery.md` — Fleet deployment and osquery tables
+- `workflow-orchestration.md` — Kestra deployment
 - `network-security.md` — Suricata/Wazuh for security context
 - `../monitoring.md` — Grafana alerting stack
 - `../communication.md` — Matrix/ntfy for notifications
-- `../trust-model.md` — Identity for agent auth
 
 ## Status
 
-**Exploration phase.** Depends on Kestra deployment from workflow-orchestration.md. Start with diagnosis-only (no execution) to calibrate agent quality.
+**Exploration phase.** Depends on Kestra deployment from workflow-orchestration.md. Fleet already deployed.
 
-## Implementation Phases
+## Implementation
 
-### Phase 0: Diagnosis Only (Recommended Start)
+### Prerequisites
 
 1. Deploy Kestra (per workflow-orchestration.md)
-2. Create incident-response flow with AIAgent
-3. Configure Grafana MCP connection
-4. Trigger on alerts, generate diagnosis
-5. Post to Matrix for human review
-6. **No execution** — human takes manual action
-7. Collect feedback on diagnosis quality
+2. Verify Fleet is accessible from Kestra (already deployed)
+3. Verify Grafana MCP server is accessible
 
-### Phase 1: Human-Approved Execution
+### Steps
 
-1. Add OPA policy engine
-2. Add `Pause` task for approval
-3. Create remediation sub-flows
-4. Enable execution after approval
-5. Full audit logging
+1. Create `platform.incidents` namespace in Kestra
+2. Deploy `incident-investigation` flow via Tofu
+3. Create Fleet API token, store in OpenBao
+4. Configure Grafana contact point to trigger flow
+5. Test with a manual alert trigger
+6. Iterate on prompt based on investigation quality
 
-### Phase 2: Auto-Remediation
+### Future Options
 
-1. Identify safe auto-remediation patterns
-2. Add OPA rules for auto-approval
-3. Enable for specific alert types (config rollback, service restart)
-4. Monitor for false positives
+If you later want automated execution:
 
-### Phase 3: Advanced
+1. Add remediation sub-flows (restart-service, rollback-config, etc.)
+2. Add `Pause` task for approval before execution
+3. Optionally add OPA for policy guardrails
+4. Start with explicit approval for everything, relax over time
 
-1. RAG pipeline for runbook context (Kestra AI plugin supports this)
-2. Learn from past incidents (vector store)
-3. Multi-agent for complex scenarios
+But start simple: investigate and notify. The human loop is the safest guardrail.
