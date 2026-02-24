@@ -50,6 +50,9 @@ resource "kubernetes_manifest" "seven30_egress_policy" {
               "litellm.home.shdr.ch",
               "gitlab.home.shdr.ch",
               "auth.shdr.ch",
+              "s3.home.shdr.ch",
+              "otel.home.shdr.ch",
+              "grafana.home.shdr.ch",
             ]
             ports = [
               { port = "443", protocol = "TCP" },
@@ -62,6 +65,16 @@ resource "kubernetes_manifest" "seven30_egress_policy" {
           toFQDNs = [
             { matchName = "ssh.gitlab.home.shdr.ch" },
           ]
+          toPorts = [{
+            ports = [
+              { port = "2222", protocol = "TCP" },
+            ]
+          }]
+        },
+
+        # Gitlab SSH
+        {
+          toCIDR = ["10.0.3.7/32"]
           toPorts = [{
             ports = [
               { port = "2222", protocol = "TCP" },

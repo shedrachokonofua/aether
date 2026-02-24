@@ -26,6 +26,8 @@ processors:
           - set(attributes["container_name"], resource.attributes["container.name"]) where resource.attributes["container.name"] != nil
           - set(attributes["container_image_name"], resource.attributes["container.image.name"]) where resource.attributes["container.image.name"] != nil
           - set(attributes["container_id"], resource.attributes["container.id"]) where resource.attributes["container.id"] != nil
+          # Tenant scoping
+          - set(attributes["service_namespace"], resource.attributes["service.namespace"]) where resource.attributes["service.namespace"] != nil
 
 connectors:
   # Route logs based on source - single decision point
@@ -39,6 +41,17 @@ connectors:
       - context: resource
         condition: attributes["log.source"] == "suricata"
         pipelines: [logs/clickhouse/suricata]
+
+  # Route traces by tenant for Tempo multi-tenancy
+  routing/traces:
+    default_pipelines: [traces/default]
+    error_mode: ignore
+    table:
+{% for tenant in tenants %}
+      - context: resource
+        condition: attributes["service.namespace"] == "{{ tenant.name }}"
+        pipelines: [traces/{{ tenant.name }}]
+{% endfor %}
 
 exporters:
   prometheus:
@@ -56,6 +69,17 @@ exporters:
     endpoint: "localhost:24317"
     tls:
       insecure: true
+    headers:
+      X-Scope-OrgID: aether
+
+{% for tenant in tenants %}
+  otlp/tempo-{{ tenant.name }}:
+    endpoint: "localhost:24317"
+    tls:
+      insecure: true
+    headers:
+      X-Scope-OrgID: "{{ tenant.name }}"
+{% endfor %}
 
   clickhouse/zeek:
     endpoint: tcp://localhost:9000
@@ -120,4 +144,14 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
+      exporters: [routing/traces]
+
+    traces/default:
+      receivers: [routing/traces]
       exporters: [otlp/tempo]
+
+{% for tenant in tenants %}
+    traces/{{ tenant.name }}:
+      receivers: [routing/traces]
+      exporters: [otlp/tempo-{{ tenant.name }}]
+{% endfor %}

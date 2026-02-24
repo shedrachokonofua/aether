@@ -1,0 +1,4 @@
+tenants:
+  - id: 1
+    name: seven30
+    keycloak_role: seven30-developer

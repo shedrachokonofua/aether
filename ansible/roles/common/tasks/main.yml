@@ -4,6 +4,11 @@
     name: vm
   tags: [always]
 
+- name: Load tenant config
+  include_vars:
+    file: "{{ aether_root }}/config/tenants.yml"
+  tags: [always]
+
 - name: Load secrets
   community.sops.load_vars:
     file: "{{ aether_root }}/secrets/secrets.yml"

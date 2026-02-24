@@ -54,6 +54,14 @@
     gitlab_oidc_claim_prefix: "{{ gitlab_oidc_provider_url | regex_replace('^https?://', '') }}"
     gitlab_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ gitlab_oidc_claim_prefix }}"
 
+    # Seven30 vcluster OIDC issuer (for pod workload identity via STS)
+    seven30_oidc_provider_url: "https://k8s.seven30.xyz"
+    seven30_oidc_client_ids:
+      - "sts.amazonaws.com"
+    seven30_oidc_claim_prefix: "{{ seven30_oidc_provider_url | regex_replace('^https?://', '') }}"
+    seven30_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ seven30_oidc_claim_prefix }}"
+    seven30_vcluster_vip: "10.0.3.21"
+
     # Admin user for OIDC provider management (REST API)
     rgw_api_admin_uid: "admin"
     rgw_api_admin_display_name: "Admin"
@@ -83,6 +91,13 @@
         path: /etc/hosts
         regexp: '^.*gitlab\.home\.shdr\.ch'
         line: "10.0.2.2 gitlab.home.shdr.ch"
+        state: present
+
+    - name: Ensure hosts entry for Seven30 vcluster (via VIP)
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^.*k8s\.seven30\.xyz'
+        line: "{{ seven30_vcluster_vip }} k8s.seven30.xyz"
         state: present
 
     # =========================================================================
@@ -215,6 +230,42 @@
     - name: Add admin caps to Crossplane user
       ansible.builtin.command:
         cmd: radosgw-admin caps add --uid="crossplane" --caps="buckets=*;users=*"
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      changed_when: false
+
+    # =========================================================================
+    # Seven30 tenanted Crossplane user (run once)
+    # =========================================================================
+    # Separate tenanted user so seven30's Crossplane can only manage buckets
+    # within the seven30 RGW tenant — caps are scoped by RGW tenant isolation.
+
+    - name: Check for Seven30 Crossplane service account
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid='seven30$crossplane'
+      register: rgw_seven30_crossplane_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create Seven30 Crossplane service account (tenanted)
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --tenant="seven30"
+          --uid="crossplane"
+          --display-name="Seven30 Crossplane"
+          --access-key="{{ secrets.ceph.seven30_crossplane_access_key }}"
+          --secret="{{ secrets.ceph.seven30_crossplane_secret_key }}"
+      when: rgw_seven30_crossplane_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Add admin caps to Seven30 Crossplane user
+      ansible.builtin.command:
+        cmd: radosgw-admin caps add --uid='seven30$crossplane' --caps='buckets=*;users=*'
       run_once: true
       delegate_to: "{{ rgw_admin_host }}"
       changed_when: false
@@ -451,6 +502,20 @@
       delegate_to: localhost
       become: false
 
+    - name: Update OIDC provider thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ rgw_api_admin_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ rgw_api_admin_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:{{ rgw_port }}" \
+            iam update-open-id-connect-provider-thumbprint \
+            --open-id-connect-provider-arn "{{ rgw_oidc_provider_arn }}" \
+            --thumbprint-list "{{ keycloak_thumbprint.stdout }}"
+      when: rgw_oidc_provider_arn in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
+      run_once: true
+      delegate_to: localhost
+      become: false
+
     - name: Get Kubernetes OIDC signing certificate thumbprint
       ansible.builtin.shell:
         cmd: |
@@ -563,6 +628,52 @@
       when:
         - gitlab_oidc_thumbprint.stdout | length > 0
         - gitlab_oidc_provider_arn not in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    # =========================================================================
+    # Register Seven30 vcluster OIDC provider
+    # =========================================================================
+    - name: Get Seven30 vcluster OIDC thumbprint (via VIP, matching RGW's view)
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          # Connect to the vcluster VIP directly — this is the same cert RGW
+          # will see via the /etc/hosts entry, so the thumbprint stays consistent.
+          # The vcluster API server's self-signed cert is stable for the cluster's
+          # lifetime (no Let's Encrypt rotation to worry about).
+          VIP="{{ seven30_vcluster_vip }}"
+          HOST="k8s.seven30.xyz"
+
+          THUMBPRINT=$(echo | openssl s_client -servername "$HOST" -connect "${VIP}:443" 2>/dev/null \
+            | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
+
+          if [ -z "$THUMBPRINT" ] || [ $(expr length "$THUMBPRINT") -lt 40 ]; then
+            echo "Failed to derive OIDC thumbprint from ${VIP} (SNI: ${HOST})" >&2
+            exit 1
+          fi
+
+          echo "$THUMBPRINT"
+      register: seven30_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      become: false
+
+    - name: Create Seven30 vcluster OIDC provider
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ rgw_api_admin_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ rgw_api_admin_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:{{ rgw_port }}" \
+            iam create-open-id-connect-provider \
+            --url "{{ seven30_oidc_provider_url }}" \
+            --client-id-list {{ seven30_oidc_client_ids | join(' ') }} \
+            --thumbprint-list "{{ seven30_oidc_thumbprint.stdout }}"
+      when:
+        - seven30_oidc_thumbprint.stdout | length > 0
+        - seven30_oidc_provider_arn not in (oidc_provider_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list
       run_once: true
       delegate_to: localhost
       become: false

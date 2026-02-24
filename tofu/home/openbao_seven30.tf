@@ -81,6 +81,11 @@ resource "vault_policy" "seven30_secrets" {
 resource "vault_policy" "seven30_developer" {
   name   = "seven30-developer"
   policy = <<-EOT
+    # Vault/OpenBao Terraform provider creates limited child tokens per resource
+    path "auth/token/create" {
+      capabilities = ["update"]
+    }
+
     # Seven30 developers can manage their own secrets
     path "kv/data/seven30/*" {
       capabilities = ["create", "read", "update", "delete"]
@@ -94,10 +99,18 @@ resource "vault_policy" "seven30_developer" {
       capabilities = ["update"]
     }
 
+    # CI manages seven30's own transit/secrets mounts
+    path "sys/mounts/seven30/*" {
+      capabilities = ["create", "read", "update", "delete"]
+    }
+    path "sys/mounts" {
+      capabilities = ["read"]
+    }
+
     # SOPS transit encryption
     # Transit encryption (all mounts under seven30/)
     path "seven30/+/keys/*" {
-      capabilities = ["create", "read", "update"]
+      capabilities = ["create", "read", "update", "list"]
     }
 
     path "seven30/+/keys" {
@@ -149,7 +162,7 @@ resource "vault_jwt_auth_backend_role" "cli_seven30_developer" {
 # =============================================================================
 # JWT Auth Backend — trusts GitLab CI OIDC tokens
 # =============================================================================
-# Enables seven30/infra GitLab CI to authenticate with OpenBao using
+# Enables seven30/* GitLab CI to authenticate with OpenBao using
 # short-lived OIDC tokens (id_tokens). Used for:
 #   - SOPS Transit decryption (data "sops_file" in Tofu)
 #   - Writing app secrets to kv/data/seven30/* (vault_kv_secret_v2 in Tofu)
@@ -180,9 +193,10 @@ resource "vault_jwt_auth_backend_role" "gitlab_seven30_ci" {
 
   user_claim = "user_email"
 
-  # Only seven30/infra CI jobs can assume this role
+  # Any project under the seven30 group can assume this role
+  bound_claims_type = "glob"
   bound_claims = {
-    "project_path" = "seven30/infra"
+    "project_path" = "seven30/*"
   }
 
   bound_audiences = ["https://bao.home.shdr.ch"]
@@ -200,11 +214,10 @@ resource "vault_policy" "seven30_ci" {
       capabilities = ["update"]
     }
 
-    # SOPS Transit decrypt (seven30/infra encrypts with seven30/sops/keys/infra)
-    path "seven30/sops/decrypt/infra" {
+    path "seven30/sops/decrypt/*" {
       capabilities = ["update"]
     }
-    path "seven30/sops/keys/infra" {
+    path "seven30/sops/keys/*" {
       capabilities = ["read"]
     }
 

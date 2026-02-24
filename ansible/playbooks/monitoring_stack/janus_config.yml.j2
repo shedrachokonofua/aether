@@ -1,0 +1,69 @@
+admin:
+  labels:
+    - "*"
+  header:
+    - X-Scope-OrgID: aether
+  cluster-wide: []
+
+thanos:
+  tenant-header-constraints:
+{% for tenant in tenants %}
+    {{ tenant.keycloak_role }}:
+      header:
+        - X-Scope-OrgID: {{ tenant.name }}
+{% endfor %}
+  user-label-constraints:
+{% for tenant in tenants %}
+    {{ tenant.keycloak_role }}:
+      labels:
+        - "*"
+      service_namespace:
+        - "{{ tenant.name }}"
+{% endfor %}
+    admin:
+      labels:
+        - "*"
+      service_namespace:
+        - "*"
+
+loki:
+  tenant-header-constraints:
+{% for tenant in tenants %}
+    {{ tenant.keycloak_role }}:
+      header:
+        - X-Scope-OrgID: {{ tenant.name }}
+{% endfor %}
+  user-label-constraints:
+{% for tenant in tenants %}
+    {{ tenant.keycloak_role }}:
+      labels:
+        - "*"
+      service_namespace:
+        - "{{ tenant.name }}"
+{% endfor %}
+    admin:
+      labels:
+        - "*"
+      service_namespace:
+        - "*"
+
+tempo:
+  tenant-header-constraints:
+{% for tenant in tenants %}
+    {{ tenant.keycloak_role }}:
+      header:
+        - X-Scope-OrgID: {{ tenant.name }}
+{% endfor %}
+  user-label-constraints:
+{% for tenant in tenants %}
+    {{ tenant.keycloak_role }}:
+      labels:
+        - "*"
+      resource.service.namespace:
+        - "{{ tenant.name }}"
+{% endfor %}
+    admin:
+      labels:
+        - "*"
+      resource.service.namespace:
+        - "*"

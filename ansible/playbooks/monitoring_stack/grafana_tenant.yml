@@ -1,0 +1,257 @@
+---
+- name: "Check if Grafana org exists: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/orgs/name/{{ tenant.name }}"
+    method: GET
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: org_check
+
+- name: "Create Grafana org: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/orgs"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: "{{ tenant.name }}"
+    status_code: [200]
+  when: org_check.status == 404
+  register: org_create
+
+- name: Resolve Grafana org ID for tenant
+  set_fact:
+    tenant_org_id: "{{ org_check.json.id if org_check.status == 200 else org_create.json.orgId }}"
+
+- name: "Ensure admin user is member of org {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/orgs/{{ tenant_org_id }}/users"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      loginOrEmail: "{{ secrets.grafana.username | default('shdrch') }}"
+      role: Admin
+    status_code: [200, 409]
+
+- name: "Switch API user context to org {{ tenant_org_id }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/user/using/{{ tenant_org_id }}"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    status_code: [200]
+
+- name: "Check tenant Prometheus datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/name/Prometheus"
+    method: GET
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: prometheus_ds_check
+
+- name: "Create tenant Prometheus datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: Prometheus
+      type: prometheus
+      access: proxy
+      url: "http://localhost:8080"
+      isDefault: true
+      editable: false
+      jsonData:
+        oauthPassThru: true
+    status_code: [200]
+  when: prometheus_ds_check.status == 404
+
+- name: "Update tenant Prometheus datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/{{ prometheus_ds_check.json.id }}"
+    method: PUT
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      id: "{{ prometheus_ds_check.json.id }}"
+      orgId: "{{ tenant_org_id }}"
+      name: Prometheus
+      type: prometheus
+      access: proxy
+      url: "http://localhost:8080"
+      isDefault: true
+      editable: false
+      jsonData:
+        oauthPassThru: true
+    status_code: [200]
+  when: prometheus_ds_check.status == 200
+
+- name: "Check tenant Loki datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/name/Loki"
+    method: GET
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: loki_ds_check
+
+- name: "Create tenant Loki datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: Loki
+      type: loki
+      access: proxy
+      url: "http://localhost:8080"
+      editable: false
+      jsonData:
+        oauthPassThru: true
+    status_code: [200]
+  when: loki_ds_check.status == 404
+
+- name: "Update tenant Loki datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/{{ loki_ds_check.json.id }}"
+    method: PUT
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      id: "{{ loki_ds_check.json.id }}"
+      orgId: "{{ tenant_org_id }}"
+      name: Loki
+      type: loki
+      access: proxy
+      url: "http://localhost:8080"
+      editable: false
+      jsonData:
+        oauthPassThru: true
+    status_code: [200]
+  when: loki_ds_check.status == 200
+
+- name: "Check tenant Tempo datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/name/Tempo"
+    method: GET
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    status_code: [200, 404]
+  register: tempo_ds_check
+
+- name: "Create tenant Tempo datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: Tempo
+      type: tempo
+      access: proxy
+      url: "http://localhost:8080/tempo"
+      editable: false
+      jsonData:
+        oauthPassThru: true
+    status_code: [200]
+  when: tempo_ds_check.status == 404
+
+- name: "Update tenant Tempo datasource: {{ tenant.name }}"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/{{ tempo_ds_check.json.id }}"
+    method: PUT
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      id: "{{ tempo_ds_check.json.id }}"
+      orgId: "{{ tenant_org_id }}"
+      name: Tempo
+      type: tempo
+      access: proxy
+      url: "http://localhost:8080/tempo"
+      editable: false
+      jsonData:
+        oauthPassThru: true
+    status_code: [200]
+  when: tempo_ds_check.status == 200
+
+- name: "Create Grafana service account: {{ tenant.name }}-admin"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: "{{ tenant.name }}-admin"
+      role: Admin
+    status_code: [200, 201, 400, 409]
+  register: sa_create
+
+- name: "Look up service account: {{ tenant.name }}-admin"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts/search?query={{ tenant.name }}-admin"
+    method: GET
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+  register: sa_lookup
+
+- name: "Create Grafana SA token: {{ tenant.name }}-admin"
+  uri:
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts/{{ sa_lookup.json.serviceAccounts[0].id }}/tokens"
+    method: POST
+    user: "{{ secrets.grafana.username | default('shdrch') }}"
+    password: "{{ secrets.grafana_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: "{{ tenant.name }}-admin-token"
+    status_code: [200, 400, 409]
+  register: sa_token
+  when: sa_lookup.json.serviceAccounts | length > 0
+
+- name: "Write Grafana token to OpenBao: kv/{{ tenant.name }}/grafana"
+  uri:
+    url: "https://bao.home.shdr.ch/v1/kv/data/{{ tenant.name }}/grafana"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ lookup('file', lookup('env', 'HOME') + '/.aether-toolbox/bao/token') | trim }}"
+    body_format: json
+    body:
+      data:
+        api_token: "{{ sa_token.json.key }}"
+        org_id: "{{ tenant_org_id }}"
+        url: "https://grafana.home.shdr.ch"
+    status_code: [200]
+  when: sa_token.json.key is defined
+  delegate_to: localhost
+  become: false
+  no_log: true

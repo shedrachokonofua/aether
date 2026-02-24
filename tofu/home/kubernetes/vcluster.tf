@@ -141,6 +141,111 @@ locals {
         name     = "system:unauthenticated"
       }]
     }),
+
+    # OTel gateway — stamps service.namespace for tenant telemetry
+    yamlencode({
+      apiVersion = "v1"
+      kind       = "ConfigMap"
+      metadata = {
+        name      = "otel-gateway"
+        namespace = "default"
+      }
+      data = {
+        "config.yaml" = <<-OTELCONFIG
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: "0.0.0.0:4317"
+                http:
+                  endpoint: "0.0.0.0:4318"
+          processors:
+            resource/tenant:
+              attributes:
+                - key: service.namespace
+                  value: seven30
+                  action: upsert
+            batch:
+              timeout: 10s
+          exporters:
+            otlphttp:
+              endpoint: https://otel.home.shdr.ch
+          service:
+            pipelines:
+              metrics:
+                receivers: [otlp]
+                processors: [resource/tenant, batch]
+                exporters: [otlphttp]
+              logs:
+                receivers: [otlp]
+                processors: [resource/tenant, batch]
+                exporters: [otlphttp]
+              traces:
+                receivers: [otlp]
+                processors: [resource/tenant, batch]
+                exporters: [otlphttp]
+        OTELCONFIG
+      }
+    }),
+
+    yamlencode({
+      apiVersion = "apps/v1"
+      kind       = "Deployment"
+      metadata = {
+        name      = "otel-gateway"
+        namespace = "default"
+        annotations = {
+          "reloader.stakater.com/auto" = "true"
+        }
+      }
+      spec = {
+        replicas = 1
+        selector = { matchLabels = { app = "otel-gateway" } }
+        template = {
+          metadata = { labels = { app = "otel-gateway" } }
+          spec = {
+            containers = [{
+              name  = "collector"
+              image = "otel/opentelemetry-collector-contrib:latest"
+              args  = ["--config=/etc/otelcol/config.yaml"]
+              ports = [
+                { containerPort = 4317, name = "otlp-grpc" },
+                { containerPort = 4318, name = "otlp-http" },
+              ]
+              volumeMounts = [{
+                name      = "config"
+                mountPath = "/etc/otelcol/config.yaml"
+                subPath   = "config.yaml"
+              }]
+              resources = {
+                requests = { cpu = "50m", memory = "64Mi" }
+                limits   = { memory = "256Mi" }
+              }
+            }]
+            volumes = [{
+              name      = "config"
+              configMap = { name = "otel-gateway" }
+            }]
+          }
+        }
+      }
+    }),
+
+    yamlencode({
+      apiVersion = "v1"
+      kind       = "Service"
+      metadata = {
+        name      = "otel-gateway"
+        namespace = "default"
+      }
+      spec = {
+        selector = { app = "otel-gateway" }
+        ports = [
+          { port = 4317, targetPort = 4317, name = "otlp-grpc" },
+          { port = 4318, targetPort = 4318, name = "otlp-http" },
+        ]
+      }
+    }),
   ])
 }
 
@@ -190,6 +295,9 @@ resource "helm_release" "vcluster_seven30" {
               "--oidc-client-id=${local.seven30_oidc_client}",
               "--oidc-username-claim=preferred_username",
               "--oidc-groups-claim=groups",
+              "--service-account-issuer=https://k8s.seven30.xyz",
+              "--service-account-issuer=https://kubernetes.default.svc.cluster.local",
+              "--service-account-jwks-uri=https://k8s.seven30.xyz/openid/v1/jwks",
             ]
           }
         }

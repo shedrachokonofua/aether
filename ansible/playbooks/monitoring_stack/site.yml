@@ -52,6 +52,16 @@
         group: aether
       tags: [otel]
 
+    - name: Create janus directory
+      become: true
+      file:
+        path: ./janus
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [janus, tenant-proxy]
+
     - name: Create grafana directory
       become: true
       file:
@@ -124,6 +134,13 @@
         mode: "0755"
       tags: [otel]
 
+    - name: Create Janus config
+      template:
+        src: ./janus_config.yml.j2
+        dest: ./janus/config.yml
+        mode: "0644"
+      tags: [janus, tenant-proxy]
+
     - name: Create grafana config
       template:
         src: ./grafana/grafana.ini.j2
@@ -180,6 +197,7 @@
         name: monitoring-stack
         ports:
           - "{{ vm.monitoring_stack.ports.grafana }}:3000"
+          - "{{ vm.monitoring_stack.ports.janus }}:8080"
           - "{{ vm.monitoring_stack.ports.prometheus }}:9090"
           - "{{ vm.monitoring_stack.ports.loki }}:3100"
           - "{{ vm.monitoring_stack.ports.otel_grpc }}:4317"
@@ -202,6 +220,7 @@
           loki,
           tempo,
           otel,
+          janus,
           grafana,
           clickhouse,
           pve-exporter,
@@ -299,6 +318,28 @@
           GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
       tags: [grafana]
 
+    # === Tenant Query Proxy (Janus) ===
+    - name: Start Janus multi-service proxy
+      containers.podman.podman_container:
+        name: janus
+        pod: monitoring-stack.pod
+        image: ghcr.io/evoila/janus:latest
+        pull: always
+        state: quadlet
+        env:
+          SPRING_PROFILES_ACTIVE: all
+          LOKI_URL: http://localhost:3100
+          THANOS_URL: http://localhost:9090
+          TEMPO_URL: http://localhost:3200
+          MANAGEMENT_SERVER_PORT: "18080"
+          LABEL_STORE_TYPE: configmap
+          LABEL_STORE_CONFIGMAP_PATH: /etc/janus/config.yml
+          OAUTH2_ISSUER_URI: https://auth.shdr.ch/realms/aether
+          OAUTH2_JWK_SET_URI: https://auth.shdr.ch/realms/aether/protocol/openid-connect/certs
+        volumes:
+          - /home/aether/janus/config.yml:/etc/janus/config.yml:Z
+      tags: [janus, tenant-proxy]
+
     - name: Start PVE exporter
       containers.podman.podman_container:
         name: pve_exporter
@@ -353,10 +394,12 @@
           loki,
           tempo,
           otel,
+          janus,
           grafana,
           clickhouse,
           pve-exporter,
           pbs-exporter,
+          tenant-proxy,
           systemd,
         ]
 
@@ -371,12 +414,67 @@
           loki,
           tempo,
           otel,
+          janus,
           grafana,
           clickhouse,
           pve-exporter,
           pbs-exporter,
+          tenant-proxy,
           monitoring-pod,
         ]
+
+    # === Grafana Tenant Orgs ===
+    - name: Wait for Grafana to be ready
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/health"
+        method: GET
+        status_code: 200
+      register: grafana_health
+      until: grafana_health.status == 200
+      retries: 30
+      delay: 5
+      tags: [grafana-tenants]
+
+    - name: Read Grafana effective settings
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/admin/settings"
+        method: GET
+        user: "{{ secrets.grafana.username | default('shdrch') }}"
+        password: "{{ secrets.grafana_password }}"
+        force_basic_auth: true
+        status_code: 200
+      register: grafana_settings
+      tags: [grafana-tenants]
+
+    - name: Assert Generic OAuth org mapping config is active
+      assert:
+        that:
+          - grafana_settings.json["auth.generic_oauth"]["org_attribute_path"] == "realm_access.roles"
+        fail_msg: >-
+          Grafana effective auth config is missing org_attribute_path=realm_access.roles.
+          Check mounted /home/aether/grafana/grafana.ini and restart Grafana.
+      tags: [grafana-tenants]
+
+    - name: Provision Grafana tenants
+      include_tasks:
+        file: grafana_tenant.yml
+        apply:
+          tags:
+            - grafana-tenants
+      loop: "{{ tenants }}"
+      loop_control:
+        loop_var: tenant
+      tags: [grafana-tenants]
+
+    - name: Switch API user context back to main org
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/user/using/1"
+        method: POST
+        user: "{{ secrets.grafana.username | default('shdrch') }}"
+        password: "{{ secrets.grafana_password }}"
+        force_basic_auth: true
+        status_code: [200]
+      tags: [grafana-tenants]
 
 - name: Deploy Fleet
   import_playbook: fleet.yml

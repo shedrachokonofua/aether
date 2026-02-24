@@ -6,19 +6,24 @@ root_url = https://grafana.home.shdr.ch
 
 [users]
 default_theme = light
+auto_assign_org = false
 
 [auth.generic_oauth]
 enabled = true
 name = Aether
 allow_sign_up = true
 auto_login = true
+allow_assign_grafana_admin = true
 client_id = grafana
 client_secret = {{ tf_outputs.keycloak_grafana_client_secret.value }}
 scopes = openid email profile roles
 email_attribute_path = email
 login_attribute_path = preferred_username
 name_attribute_path = name
+groups_attribute_path = realm_access.roles
+org_attribute_path = realm_access.roles
 auth_url = https://auth.shdr.ch/realms/aether/protocol/openid-connect/auth
 token_url = https://auth.shdr.ch/realms/aether/protocol/openid-connect/token
 api_url = https://auth.shdr.ch/realms/aether/protocol/openid-connect/userinfo
-role_attribute_path = contains(realm_access.roles[*], 'admin') && 'Admin' || contains(realm_access.roles[*], 'grafana-editor') && 'Editor' || 'Viewer'
+role_attribute_path = contains(realm_access.roles[*], 'admin') && 'GrafanaAdmin' || contains(realm_access.roles[*], 'grafana-editor') && 'Editor' || 'Viewer'
+org_mapping = admin:1:Admin{% for t in tenants %} {{ t.keycloak_role }}:{{ t.name }}:{{ t.grafana_role | default('Editor') }} admin:{{ t.name }}:Admin{% endfor %}
