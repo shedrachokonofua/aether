@@ -52,3 +52,6 @@
 
 - name: Deploy StremThru
   import_playbook: stremthru.yml
+
+- name: Deploy Tuliprox
+  import_playbook: tuliprox/site.yml
