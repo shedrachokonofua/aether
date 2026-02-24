@@ -309,7 +309,7 @@ fleet_enroll_secret: "{{ secrets.fleet_enroll_secret }}"
 
 ## Status
 
-**Planned.** Fleet server on Monitoring Stack, osquery agents on all VMs via `vm_monitoring_agent` role.
+**Implemented.** Fleet server deployed on Monitoring Stack via `ansible/playbooks/monitoring_stack/site.yml`. osquery agents pending on VMs via `vm_monitoring_agent` role.
 
 ## Related Documents
 

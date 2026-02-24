@@ -250,11 +250,11 @@ wazuh_agent_groups: ["linux", "fedora"]
 
 OTEL Collector routes logs based on source:
 
-| Source   | Destination | Reason                                           |
-| -------- | ----------- | ------------------------------------------------ |
-| Suricata | Loki        | Alert-focused, works well with LogQL             |
+| Source   | Destination | Reason                                            |
+| -------- | ----------- | ------------------------------------------------- |
+| Suricata | Loki        | Alert-focused, works well with LogQL              |
 | Zeek     | ClickHouse  | High-volume protocol logs, SQL analytics at scale |
-| Wazuh    | Loki        | Host alerts alongside other system logs          |
+| Wazuh    | Loki        | Host alerts alongside other system logs           |
 
 **Zeek → ClickHouse:** Uses routing connector in OTEL config to detect `log.source=zeek` resource attribute and route to ClickHouse exporter. Typed tables + materialized views auto-transform raw JSON into queryable columns.
 
@@ -275,13 +275,13 @@ exporters:
 
 ### Grafana Dashboards
 
-| Dashboard       | Data Source            | Shows                                |
-| --------------- | ---------------------- | ------------------------------------ |
+| Dashboard       | Data Source            | Shows                                     |
+| --------------- | ---------------------- | ----------------------------------------- |
 | IDS Monitoring  | Loki + ClickHouse      | Combined Suricata alerts + Zeek analytics |
-| Suricata Alerts | Loki                   | Alert timeline, severity, signatures |
-| Zeek Analytics  | ClickHouse             | Connections, DNS, HTTP, SSL, SSH, files |
-| Threat Intel    | Suricata + intel feeds | Matched IOCs, blocked IPs            |
-| Scan Results    | Nuclei                 | Vulnerabilities by host, severity    |
+| Suricata Alerts | Loki                   | Alert timeline, severity, signatures      |
+| Zeek Analytics  | ClickHouse             | Connections, DNS, HTTP, SSL, SSH, files   |
+| Threat Intel    | Suricata + intel feeds | Matched IOCs, blocked IPs                 |
+| Scan Results    | Nuclei                 | Vulnerabilities by host, severity         |
 
 ### Alerting
 
@@ -301,25 +301,25 @@ Route high-severity Suricata alerts to ntfy:
 
 Each tool answers different questions:
 
-| Tool     | Question                                      | Data Store  |
-| -------- | --------------------------------------------- | ----------- |
-| Zeek     | "Who's talking to whom? What protocols/data?" | ClickHouse  |
-| Suricata | "Is that traffic malicious?"                  | Loki        |
-| Wazuh    | "What's happening on the hosts themselves?"   | Loki        |
+| Tool     | Question                                      | Data Store |
+| -------- | --------------------------------------------- | ---------- |
+| Zeek     | "Who's talking to whom? What protocols/data?" | ClickHouse |
+| Suricata | "Is that traffic malicious?"                  | Loki       |
+| Wazuh    | "What's happening on the hosts themselves?"   | Loki       |
 
 ## Deployment Plan
 
-### Phase 1: IDS Stack VM
+### Phase 1: IDS Stack VM ✅
 
-1. Create IDS Stack VM (Infrastructure VLAN, 4GB RAM — can bump later)
-2. Configure VyOS port mirror to span port
-3. Install Suricata with ET Open rules
-4. Install Zeek
-5. Install Wazuh Manager
-6. Configure EVE JSON logging + Zeek logs + Wazuh alerts
-7. Ship logs to Loki via OTEL Collector
-8. Create Grafana dashboards (Suricata + Zeek + Wazuh)
-9. Configure alerts for severity 1-2
+1. ✅ Create IDS Stack VM (Infrastructure VLAN, 4GB RAM)
+2. ✅ Configure VyOS port mirror to span port
+3. ✅ Install Suricata with ET Open rules (on VyOS router)
+4. ✅ Install Zeek (quadlet container)
+5. ✅ Install Wazuh Manager (quadlet container)
+6. ✅ Configure EVE JSON logging + Zeek logs + Wazuh alerts
+7. ✅ Ship logs via OTEL (Zeek/Suricata → ClickHouse, Wazuh → Loki)
+8. ✅ Create Grafana dashboards (IDS Monitoring)
+9. ⏳ Configure alerts for severity 1-2
 
 ### Phase 2: Wazuh Agents
 
@@ -353,10 +353,10 @@ See `kubernetes.md` for K8s deployment details.
 
 ### Proposed VM Allocation
 
-| Name      | Host   | Type    | RAM | Storage | Storage Location | vCPU | On By Default | Notes                                  | Status  |
-| --------- | ------ | ------- | --- | ------- | ---------------- | ---- | ------------- | -------------------------------------- | ------- |
-| IDS Stack | Oracle | VM      | 4GB | 128GB   | Node             | 4    | Yes           | Suricata + Zeek + Wazuh Manager + OTEL | PLANNED |
-| Nuclei    | K8s    | CronJob | —   | —       | —                | —    | —             | Scales to zero between scans           | PLANNED |
+| Name      | Host   | Type    | RAM | Storage | Storage Location | vCPU | On By Default | Notes                                  | Status   |
+| --------- | ------ | ------- | --- | ------- | ---------------- | ---- | ------------- | -------------------------------------- | -------- |
+| IDS Stack | Oracle | VM      | 4GB | 128GB   | Node             | 4    | Yes           | Suricata + Zeek + Wazuh Manager + OTEL | DEPLOYED |
+| Nuclei    | K8s    | CronJob | —   | —       | —                | —    | —             | Scales to zero between scans           | PLANNED  |
 
 **Oracle current allocation (16GB host):**
 
@@ -440,23 +440,23 @@ net1: virtio,bridge=vmbr1,firewall=0
 
 ### Integration Points
 
-| Component     | Integrates With  | How                                       |
-| ------------- | ---------------- | ----------------------------------------- |
-| IDS Stack     | Router           | Receives mirrored traffic (internal vmbr) |
-| IDS Stack     | Monitoring Stack | OTEL Collector → Loki, Prometheus         |
-| Wazuh Manager | All VMs          | Agents connect to manager (1514)          |
-| Wazuh Manager | Grafana          | Wazuh exporter → Prometheus               |
+| Component     | Integrates With  | How                                        |
+| ------------- | ---------------- | ------------------------------------------ |
+| IDS Stack     | Router           | Receives mirrored traffic (internal vmbr)  |
+| IDS Stack     | Monitoring Stack | OTEL Collector → ClickHouse + Loki         |
+| Wazuh Manager | All VMs          | Agents connect to manager (1514) — pending |
+| Wazuh Manager | Grafana          | Alerts via Loki (JSON logs)                |
 
 ## Maintenance
 
-| Component    | Location | Ongoing                            |
-| ------------ | -------- | ---------------------------------- |
-| Suricata     | VM       | Rule updates (automated via cron)  |
-| Zeek         | VM       | Minimal                            |
-| Wazuh        | VM       | Rule tuning, FIM path adjustments  |
-| Wazuh agents | VMs      | Part of `vm_monitoring_agent` role |
-| Nuclei       | K8s      | Template updates (automated)       |
-| Dashboards   | —        | Evolves with stack                 |
+| Component    | Location    | Ongoing                                  |
+| ------------ | ----------- | ---------------------------------------- |
+| Suricata     | VyOS Router | Rule updates (automated via cron)        |
+| Zeek         | IDS Stack   | Minimal (container auto-updates)         |
+| Wazuh        | IDS Stack   | Rule tuning, FIM path adjustments        |
+| Wazuh agents | VMs         | Part of `vm_monitoring_agent` role (TBD) |
+| Nuclei       | K8s         | Template updates (automated)             |
+| Dashboards   | Grafana     | Evolves with stack                       |
 
 ## Decision Factors
 
@@ -535,10 +535,17 @@ Enterprise vulnerability scanner.
 
 ## Status
 
-**Phase 1 implemented.** IDS Stack VM deployed on Oracle with Suricata (on VyOS router) and Zeek (via quadlet-nix). Zeek logs route to ClickHouse for SQL analytics, Suricata EVE JSON to Loki. IDS Monitoring dashboard provides unified view. See [ClickHouse exploration](clickhouse.md) for implementation details.
+**Phase 1 complete.** IDS Stack VM deployed on Oracle with:
+
+- **Suricata** — Running on VyOS router, EVE JSON to ClickHouse
+- **Zeek** — Container on IDS Stack, protocol logs to ClickHouse
+- **Wazuh Manager** — Container on IDS Stack, alerts to Loki
+
+Logs route via OTEL: Zeek/Suricata → ClickHouse, Wazuh → Loki. IDS Monitoring dashboard provides unified view. See [ClickHouse exploration](clickhouse.md) for implementation details.
 
 **Remaining:**
-- Phase 2: Wazuh agents to VMs
+
+- Phase 2: Wazuh agents to VMs (not yet deployed)
 - Phase 3: Nuclei on K8s
 - Phase 4: Tuning + scale
 
