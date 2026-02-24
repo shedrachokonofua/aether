@@ -52,7 +52,7 @@
 
     - name: Login to gitlab registry
       shell: |
-        podman login registry.gitlab.home.shdr.ch -u {{ secrets.gitlab_root_email }} -p "{{ secrets.gitlab_root_password }}"
+        podman login registry.gitlab.home.shdr.ch -u {{ secrets.gitlab.root_email }} -p "{{ secrets.gitlab.root_password }}"
 
     - name: Create bytebot-agent container
       containers.podman.podman_container:
