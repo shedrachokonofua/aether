@@ -28,6 +28,13 @@ tasks:
     cmds:
       - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh --status
 
+  bao:
+    desc: OpenBao CLI
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        bao {{.CLI_ARGS}}
+
   # ===========================================================================
   # Tofu (only compound operations)
   # ===========================================================================
@@ -60,6 +67,13 @@ tasks:
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
         tofu -chdir=tofu refresh {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
+
+  tofu:import:
+    desc: Import existing resource into state
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        tofu -chdir=tofu import {{.CLI_ARGS}}
 
   tofu:unlock:
     desc: Unlock state
@@ -206,6 +220,8 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/home_gateway_stack/site.yml]
   configure:caddy:
     cmds: [ansible-playbook ansible/playbooks/home_gateway_stack/caddy/site.yml]
+  configure:dnsmasq:
+    cmds: [ansible-playbook ansible/playbooks/home_gateway_stack/dnsmasq/site.yml]
   configure:monitoring:
     cmds: [ansible-playbook ansible/playbooks/monitoring_stack/site.yml]
   configure:dokploy:
@@ -240,6 +256,8 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/media_stack/tuliprox/site.yml]
   configure:messaging-stack:
     cmds: [ansible-playbook ansible/playbooks/messaging_stack/site.yml]
+  configure:messaging:
+    cmds: [ansible-playbook ansible/playbooks/messaging_stack/postfix.yml]
   configure:ups-management-stack:
     cmds: [ansible-playbook ansible/playbooks/ups_management_stack/site.yml]
   configure:dokku:

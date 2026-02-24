@@ -17,4 +17,3 @@
   # Hostname placeholder (set by pct create --hostname)
   networking.hostName = lib.mkDefault "nixos";
 }
-
