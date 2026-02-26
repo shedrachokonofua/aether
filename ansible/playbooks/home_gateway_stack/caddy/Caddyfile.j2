@@ -76,6 +76,7 @@ ap.home.shdr.ch {
 }
 
 grafana.home.shdr.ch {
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}
 }
 
