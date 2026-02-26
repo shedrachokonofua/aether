@@ -60,6 +60,22 @@ model_list:
     litellm_params:
       model: "openai/glm-4.7-flash:q8_0"
       litellm_credential_name: ollama_openai_credential
+  - model_name: "aether/ministral-3:8b"
+    litellm_params:
+      model: "openai/ministral-3:8b-instruct-2512-q8_0"
+      litellm_credential_name: ollama_openai_credential
+  - model_name: "aether/qwen3.5:27b"
+    litellm_params:
+      model: "openai/qwen3.5:27b-q4_K_M"
+      litellm_credential_name: ollama_openai_credential
+  - model_name: "aether/qwen3.5:35b"
+    litellm_params:
+      model: "openai/qwen3.5:35b-a3b-q4_K_M"
+      litellm_credential_name: ollama_openai_credential
+  - model_name: "aether/qwen3.5:122b"
+    litellm_params:
+      model: "openai/qwen3.5:122b-a10b-q4_K_M"
+      litellm_credential_name: ollama_openai_credential
 
   # OpenAI models
   - model_name: "openai/gpt-5.2-pro"
@@ -69,6 +85,14 @@ model_list:
   - model_name: "openai/gpt-5.2"
     litellm_params:
       model: "openai/gpt-5.2"
+      litellm_credential_name: openai_credential
+  - model_name: "openai/gpt-5-mini"
+    litellm_params:
+      model: "openai/gpt-5-mini"
+      litellm_credential_name: openai_credential
+  - model_name: "openai/gpt-5-nano"
+    litellm_params:
+      model: "openai/gpt-5-nano"
       litellm_credential_name: openai_credential
 
   # Anthropic models
@@ -103,6 +127,14 @@ model_list:
   - model_name: "openrouter/gemini-3-flash-preview"
     litellm_params:
       model: "openai/google/gemini-3-flash-preview"
+      litellm_credential_name: openrouter_credential
+  - model_name: "openrouter/moonshotai-kimi-k2.5"
+    litellm_params:
+      model: "openai/moonshotai/kimi-k2.5"
+      litellm_credential_name: openrouter_credential
+  - model_name: "openrouter/stepfun-step-3.5-flash"
+    litellm_params:
+      model: "openai/stepfun/step-3.5-flash:free"
       litellm_credential_name: openrouter_credential
 
 credential_list:

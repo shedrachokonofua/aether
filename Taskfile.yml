@@ -244,6 +244,8 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/cockpit/site.yml]
   configure:gpu-workstation:
     cmds: [ansible-playbook ansible/playbooks/gpu_workstation/site.yml]
+  configure:ollama:
+    cmds: [ansible-playbook ansible/playbooks/gpu_workstation/ollama.yml]
   configure:ai-tools:
     cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/site.yml]
   configure:litellm:

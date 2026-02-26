@@ -91,6 +91,10 @@
         - qwen3-coder:30b-a3b-fp16
         - devstral-small-2:24b-instruct-2512-fp16
         - hf.co/Trilogix1/Hugston-microsoft-Fara-7B:F16
+        - ministral-3:8b-instruct-2512-q8_0
+        - qwen3.5:27b-q4_K_M
+        - qwen3.5:35b-a3b-q4_K_M
+        - qwen3.5:122b-a10b-q4_K_M
       register: model_pull
       changed_when: "'pulling' in model_pull.stdout"
       ignore_errors: yes

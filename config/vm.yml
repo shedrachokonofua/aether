@@ -101,7 +101,7 @@ gitlab:
   admin: "aether"
   cores: 8
   memory: 8192
-  disk_gb: 128
+  disk_gb: 256
   ip: "10.0.3.7"
   gateway: "10.0.3.1"
   ports:
