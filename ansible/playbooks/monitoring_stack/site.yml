@@ -323,7 +323,7 @@
       containers.podman.podman_container:
         name: janus
         pod: monitoring-stack.pod
-        image: ghcr.io/evoila/janus:latest
+        image: registry.gitlab.home.shdr.ch/so/aether/janus/main:latest
         pull: always
         state: quadlet
         env:

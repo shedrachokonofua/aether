@@ -11,6 +11,10 @@ locals {
   otel_k8s_label_statements = [
     "set(attributes[\"host.name\"], attributes[\"k8s.node.name\"]) where attributes[\"host.name\"] == nil and attributes[\"k8s.node.name\"] != nil",
     "set(attributes[\"service.name\"], Concat([attributes[\"k8s.namespace.name\"], attributes[\"k8s.pod.name\"]], \"/\")) where attributes[\"service.name\"] == nil and attributes[\"k8s.namespace.name\"] != nil and attributes[\"k8s.pod.name\"] != nil",
+    # Keep namespace on all k8s telemetry so central Janus can enforce tenant scoping.
+    "set(attributes[\"service.namespace\"], attributes[\"k8s.namespace.name\"]) where attributes[\"service.namespace\"] == nil and attributes[\"k8s.namespace.name\"] != nil",
+    # Host-side seven30 vcluster namespaces should map to canonical tenant namespace.
+    "set(attributes[\"service.namespace\"], \"seven30\") where IsMatch(attributes[\"k8s.namespace.name\"], \"^vc-seven30($|-).*\")",
   ]
 
   otel_processors = {
@@ -58,6 +62,24 @@ resource "helm_release" "otel_collector_daemonset" {
   values = [yamlencode({
     image = { repository = "otel/opentelemetry-collector-k8s" }
     mode  = "daemonset"
+    extraEnvs = [
+      {
+        name = "K8S_NODE_NAME"
+        valueFrom = {
+          fieldRef = {
+            fieldPath = "spec.nodeName"
+          }
+        }
+      },
+      {
+        name = "K8S_NODE_IP"
+        valueFrom = {
+          fieldRef = {
+            fieldPath = "status.hostIP"
+          }
+        }
+      }
+    ]
 
     presets = {
       logsCollection       = { enabled = true, includeCollectorLogs = false }
@@ -73,6 +95,14 @@ resource "helm_release" "otel_collector_daemonset" {
             grpc = { endpoint = "0.0.0.0:4317" }
             http = { endpoint = "0.0.0.0:4318" }
           }
+        }
+        # Explicit kubelet receiver config so container/node CPU usage metrics are always collected.
+        kubeletstats = {
+          collection_interval = "20s"
+          auth_type           = "serviceAccount"
+          endpoint            = "https://$${env:K8S_NODE_IP}:10250"
+          insecure_skip_verify = true
+          metric_groups       = ["node", "pod", "container"]
         }
       }
       processors = local.otel_processors

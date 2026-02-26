@@ -16,15 +16,10 @@ thanos:
 {% for tenant in tenants %}
     {{ tenant.keycloak_role }}:
       labels:
-        - "*"
+        - service_namespace
       service_namespace:
         - "{{ tenant.name }}"
 {% endfor %}
-    admin:
-      labels:
-        - "*"
-      service_namespace:
-        - "*"
 
 loki:
   tenant-header-constraints:
@@ -37,15 +32,13 @@ loki:
 {% for tenant in tenants %}
     {{ tenant.keycloak_role }}:
       labels:
-        - "*"
+        - service_namespace
+        - service_name
       service_namespace:
         - "{{ tenant.name }}"
+      service_name:
+        - "vc-{{ tenant.name }}/*"
 {% endfor %}
-    admin:
-      labels:
-        - "*"
-      service_namespace:
-        - "*"
 
 tempo:
   tenant-header-constraints:
@@ -62,8 +55,3 @@ tempo:
       resource.service.namespace:
         - "{{ tenant.name }}"
 {% endfor %}
-    admin:
-      labels:
-        - "*"
-      resource.service.namespace:
-        - "*"
