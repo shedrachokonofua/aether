@@ -237,8 +237,8 @@
     # =========================================================================
     # Seven30 tenanted Crossplane user (run once)
     # =========================================================================
-    # Separate tenanted user so seven30's Crossplane can only manage buckets
-    # within the seven30 RGW tenant — caps are scoped by RGW tenant isolation.
+    # Separate tenanted user so seven30's Crossplane can manage buckets, IAM
+    # roles, and OIDC providers within the seven30 RGW tenant only.
 
     - name: Check for Seven30 Crossplane service account
       ansible.builtin.command:
@@ -265,7 +265,7 @@
 
     - name: Add admin caps to Seven30 Crossplane user
       ansible.builtin.command:
-        cmd: radosgw-admin caps add --uid='seven30$crossplane' --caps='buckets=*;users=*'
+        cmd: radosgw-admin caps add --uid='seven30$crossplane' --caps='buckets=*;users=*;roles=*;oidc-provider=*'
       run_once: true
       delegate_to: "{{ rgw_admin_host }}"
       changed_when: false
