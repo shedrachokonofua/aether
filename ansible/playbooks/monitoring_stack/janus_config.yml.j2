@@ -16,7 +16,7 @@ thanos:
 {% for tenant in tenants %}
     {{ tenant.keycloak_role }}:
       labels:
-        - service_namespace
+        - "*"
       service_namespace:
         - "{{ tenant.name }}"
 {% endfor %}
@@ -32,8 +32,7 @@ loki:
 {% for tenant in tenants %}
     {{ tenant.keycloak_role }}:
       labels:
-        - service_namespace
-        - service_name
+        - "*"
       service_namespace:
         - "{{ tenant.name }}"
       service_name:

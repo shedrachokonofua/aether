@@ -282,7 +282,7 @@
     - name: Start tempo
       containers.podman.podman_container:
         name: tempo
-        image: docker.io/grafana/tempo:latest
+        image: docker.io/grafana/tempo:2.10.1
         pod: monitoring-stack.pod
         pull: always
         command:
