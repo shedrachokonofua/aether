@@ -1,0 +1,287 @@
+---
+# Create a dedicated Seven30 RGW IAM account with a fresh non-tenanted user.
+#
+# Why: Ceph RGW's ListAttachedRolePolicies (and other managed-policy APIs)
+#      only work for roles created under an IAM account. The old tenanted user
+#      "seven30$crossplane" creates non-account roles, which causes
+#      Crossplane's provider-aws-iam to fail with 405 MethodNotAllowed.
+#
+# What this does:
+#   1. Creates a non-tenanted "seven30" RGW account (idempotent)
+#   2. Creates an account root user with SOPS credentials
+#   3. Registers OIDC providers (GitLab, vcluster) under the account
+#   4. Writes the account_id + creds to OpenBao (kv/seven30/ceph-rgw)
+#
+# The old tenanted user (seven30$crossplane) is left untouched — it still
+# owns buckets and cannot be removed without --purge-data.
+#
+# After running:
+#   - Force-refresh the ExternalSecret (or wait 1h)
+#   - Delete vcluster IAM role/policy CRs so Crossplane recreates them
+#     under the new account context
+
+- name: Create Seven30 RGW IAM account
+  hosts: trinity
+  become: true
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    rgw_admin_host: "trinity"
+    seven30_account_name: "seven30"
+    seven30_root_user_uid: "seven30-root"
+    seven30_root_user_display: "Seven30Root"
+    openbao_addr: "https://bao.home.shdr.ch"
+    openbao_secret_path: "kv/data/seven30/ceph-rgw"
+
+  tasks:
+    # =======================================================================
+    # 1. Create the seven30 RGW account (non-tenanted)
+    # =======================================================================
+
+    - name: Check for existing seven30 account
+      ansible.builtin.command:
+        cmd: radosgw-admin account get --account-name={{ seven30_account_name }}
+      register: rgw_account_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create seven30 RGW account
+      ansible.builtin.command:
+        cmd: radosgw-admin account create --account-name={{ seven30_account_name }}
+      register: rgw_account_create
+      when: rgw_account_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Set account info from existing account
+      ansible.builtin.set_fact:
+        seven30_account: "{{ rgw_account_check.stdout | from_json }}"
+      when: rgw_account_check.rc == 0
+      run_once: true
+
+    - name: Set account info from newly created account
+      ansible.builtin.set_fact:
+        seven30_account: "{{ rgw_account_create.stdout | from_json }}"
+      when: rgw_account_check.rc != 0
+      run_once: true
+
+    - name: Display account ID
+      ansible.builtin.debug:
+        msg: "Seven30 RGW account ID: {{ seven30_account.id }}"
+      run_once: true
+
+    # =======================================================================
+    # 2. Create account root user with generated credentials
+    # =======================================================================
+    # The old tenanted user (seven30$crossplane) still exists with buckets.
+    # We leave it alone and create a fresh non-tenanted user in the account.
+
+    - name: Check if account root user already exists
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid={{ seven30_root_user_uid }}
+      register: rgw_root_user_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create account root user
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --uid={{ seven30_root_user_uid }}
+          --display-name={{ seven30_root_user_display }}
+          --account-id={{ seven30_account.id }}
+          --account-root
+          --access-key={{ secrets.ceph.seven30_account_access_key }}
+          --secret={{ secrets.ceph.seven30_account_secret_key }}
+      register: rgw_root_user_create
+      when: rgw_root_user_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Set user info from existing user
+      ansible.builtin.set_fact:
+        root_user: "{{ rgw_root_user_check.stdout | from_json }}"
+      when: rgw_root_user_check.rc == 0
+      run_once: true
+
+    - name: Set user info from newly created user
+      ansible.builtin.set_fact:
+        root_user: "{{ rgw_root_user_create.stdout | from_json }}"
+      when: rgw_root_user_check.rc != 0
+      run_once: true
+
+    - name: Confirm account root user
+      ansible.builtin.debug:
+        msg: "Account root user: {{ seven30_root_user_uid }} (account {{ root_user.account_id | default('pending') }})"
+      run_once: true
+
+    # =======================================================================
+    # 3. Register OIDC providers under the seven30 account
+    # =======================================================================
+    # The global OIDC providers (registered by the admin user) aren't visible
+    # to account users. We re-register them under the account so STS
+    # AssumeRoleWithWebIdentity works for account roles.
+
+    - name: List existing OIDC providers (account-scoped)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam list-open-id-connect-providers
+      register: account_oidc_list
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Set OIDC provider ARN list
+      ansible.builtin.set_fact:
+        account_oidc_arns: "{{ (account_oidc_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list }}"
+      run_once: true
+
+    # --- GitLab OIDC ---
+    - name: Get GitLab OIDC thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          HOST="gitlab.home.shdr.ch"
+          INTERMEDIATE_CERT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{if(/BEGIN/)n++;if(n==2)print}')
+          if [ -n "$INTERMEDIATE_CERT" ]; then
+            echo "$INTERMEDIATE_CERT" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          else
+            echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          fi
+      register: gitlab_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register GitLab OIDC provider in seven30 account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://gitlab.home.shdr.ch" \
+            --client-id-list "https://gitlab.home.shdr.ch" \
+            --thumbprint-list "{{ gitlab_oidc_thumbprint.stdout }}"
+      when:
+        - gitlab_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/gitlab.home.shdr.ch' not in account_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # --- Seven30 vcluster OIDC ---
+    - name: Get Seven30 vcluster OIDC thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          VIP="10.0.3.21"
+          HOST="k8s.seven30.xyz"
+          THUMBPRINT=$(echo | openssl s_client -servername "$HOST" -connect "${VIP}:443" 2>/dev/null \
+            | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2)
+          if [ -z "$THUMBPRINT" ] || [ $(expr length "$THUMBPRINT") -lt 40 ]; then
+            echo "Failed to derive OIDC thumbprint from ${VIP} (SNI: ${HOST})" >&2
+            exit 1
+          fi
+          echo "$THUMBPRINT"
+      register: seven30_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      become: false
+
+    - name: Register Seven30 vcluster OIDC provider in seven30 account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://k8s.seven30.xyz" \
+            --client-id-list "sts.amazonaws.com" \
+            --thumbprint-list "{{ seven30_oidc_thumbprint.stdout }}"
+      when:
+        - seven30_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/k8s.seven30.xyz' not in account_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # =======================================================================
+    # 4. Write account_id + creds to OpenBao (if not already done)
+    # =======================================================================
+
+    - name: Build AWS credentials file
+      ansible.builtin.set_fact:
+        aws_creds_content: "[default]\naws_access_key_id = {{ secrets.ceph.seven30_account_access_key }}\naws_secret_access_key = {{ secrets.ceph.seven30_account_secret_key }}\n"
+      run_once: true
+      no_log: true
+
+    - name: Write account_id and creds to OpenBao
+      ansible.builtin.uri:
+        url: "{{ openbao_addr }}/v1/{{ openbao_secret_path }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ lookup('ansible.builtin.env', 'VAULT_TOKEN') }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          data:
+            account_id: "{{ seven30_account.id }}"
+            creds: "{{ aws_creds_content }}"
+        status_code: [200, 204]
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: lookup('ansible.builtin.env', 'VAULT_TOKEN') | length > 0
+      no_log: true
+
+    - name: OpenBao update skipped (no VAULT_TOKEN)
+      ansible.builtin.debug:
+        msg: >-
+          VAULT_TOKEN not set — re-run with VAULT_TOKEN or update manually.
+      run_once: true
+      when: lookup('ansible.builtin.env', 'VAULT_TOKEN') | length == 0
+
+    # =======================================================================
+    # 5. Summary
+    # =======================================================================
+
+    - name: Migration summary
+      ansible.builtin.debug:
+        msg: |
+          Account:   {{ seven30_account_name }} ({{ seven30_account.id }})
+          Root user: {{ seven30_root_user_uid }}
+          Creds:     new (generated, written to OpenBao)
+
+          Next steps:
+            1. Force ESO refresh (or wait 1h):
+               KUBECONFIG=./kubeconfig.yaml kubectl annotate externalsecret crossplane-ceph-rgw-creds \
+                 -n crossplane-system force-sync=$(date +%s) --overwrite
+
+            2. Delete vcluster IAM CRs so Crossplane recreates them under the account:
+               KUBECONFIG=./kubeconfig.yaml kubectl delete roles.iam.aws.upbound.io --all
+               KUBECONFIG=./kubeconfig.yaml kubectl delete rolepolicies.iam.aws.upbound.io --all
+
+            3. Re-apply via tofu to recreate the CRs:
+               cd demo && task tofu:apply
+
+            4. Update infra/tofu/openbao_secrets.tf account_id to: {{ seven30_account.id }}
+               Then: cd infra && tofu state rm vault_kv_secret_v2.ceph_rgw && task tofu:apply
+      run_once: true
