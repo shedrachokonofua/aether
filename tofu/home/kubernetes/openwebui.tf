@@ -334,6 +334,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
       spec {
         security_context {
           run_as_non_root = true
+          fs_group        = 1000
           seccomp_profile {
             type = "RuntimeDefault"
           }
@@ -349,6 +350,8 @@ resource "kubernetes_deployment_v1" "openwebui" {
               drop = ["ALL"]
             }
             run_as_non_root = true
+            run_as_user     = 1000
+            run_as_group    = 1000
           }
 
           port {
@@ -677,6 +680,8 @@ resource "kubernetes_deployment_v1" "openwebui" {
               drop = ["ALL"]
             }
             run_as_non_root = true
+            run_as_user     = 1000
+            run_as_group    = 1000
           }
 
           command = ["/bin/sh", "-c"]
