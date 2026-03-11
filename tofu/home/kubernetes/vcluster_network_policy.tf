@@ -60,6 +60,16 @@ resource "kubernetes_manifest" "seven30_egress_policy" {
           }]
         },
 
+        # Rotating SOCKS5 proxy (same VM as Caddy, plain TCP)
+        {
+          toCIDR = ["10.0.2.2/32"]
+          toPorts = [{
+            ports = [
+              { port = "1080", protocol = "TCP" },
+            ]
+          }]
+        },
+
         # GitLab SSH (not proxied by Caddy, separate IP)
         {
           toFQDNs = [
@@ -110,3 +120,11 @@ resource "kubernetes_manifest" "seven30_egress_policy" {
     }
   }
 }
+
+
+curl -s -H "x-api-key: " \
+  https://metabase.mars.seven30.xyz/api/database | python3 -c "
+import sys, json
+for d in json.load(sys.stdin)['data']:
+    print(f\"{d['id']}: {d['name']}\")
+"
