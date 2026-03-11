@@ -223,7 +223,8 @@ tasks:
   configure:dnsmasq:
     cmds: [ansible-playbook ansible/playbooks/home_gateway_stack/dnsmasq/site.yml]
   configure:monitoring:
-    cmds: [ansible-playbook ansible/playbooks/monitoring_stack/site.yml]
+    cmds:
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml {{.CLI_ARGS}}
   configure:dokploy:
     cmds: [ansible-playbook ansible/playbooks/dokploy/site.yml]
   configure:gitlab:
@@ -246,6 +247,8 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/gpu_workstation/site.yml]
   configure:ollama:
     cmds: [ansible-playbook ansible/playbooks/gpu_workstation/ollama.yml]
+  configure:vllm:
+    cmds: [ansible-playbook ansible/playbooks/gpu_workstation/vllm.yml]
   configure:ai-tools:
     cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/site.yml]
   configure:litellm:
