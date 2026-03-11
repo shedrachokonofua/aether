@@ -3,6 +3,7 @@
 This playbook is for configuring the GPU workstation virtual machine. The GPU workstation hosts GPU-accelerated AI/ML services for local inference, image generation, document processing, and MLOps. It is a fedora vm that hosts the following applications deployed as podman quadlets:
 
 - Ollama: Local LLM inference with GPU acceleration
+- vLLM: OpenAI-compatible high-throughput model serving
 - ComfyUI: Stable Diffusion UI for AI image generation
 - SwarmUI: Simplified Stable Diffusion WebUI with ComfyUI backend API integration
 - Docling: Document parsing and conversion service
@@ -33,6 +34,20 @@ Deploys Ollama with GPU support and pulls default LLM models.
 
 ```bash
 task ansible:playbook -- ./ansible/playbooks/gpu_workstation/ollama.yml
+```
+
+### Deploy vLLM
+
+Deploys vLLM and starts:
+
+```bash
+vllm serve "Qwen/Qwen3.5-27B"
+```
+
+via a GPU-enabled podman quadlet.
+
+```bash
+task ansible:playbook -- ./ansible/playbooks/gpu_workstation/vllm.yml
 ```
 
 ### Deploy ComfyUI

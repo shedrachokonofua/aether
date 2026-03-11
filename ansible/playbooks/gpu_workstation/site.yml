@@ -24,6 +24,9 @@
 - name: Deploy Ollama and LLMs
   import_playbook: ollama.yml
 
+- name: Deploy vLLM OpenAI-compatible API
+  import_playbook: vllm.yml
+
 - name: Deploy ComfyUI
   import_playbook: comfyui.yml
 
