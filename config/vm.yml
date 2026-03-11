@@ -140,7 +140,7 @@ iot_management_stack:
 dev_workstation:
   id: 1010
   name: "dev-workstation"
-  node: "trinity"
+  node: "neo"
   admin: "shdrch"
   cores: 16
   memory: 16384
@@ -220,6 +220,7 @@ gpu_workstation:
   gateway: "10.0.3.1"
   ports:
     ollama: 11434
+    vllm: 8000
     comfyui: 8188
     docling: 5001
     jupyter: 8890
