@@ -102,6 +102,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
     file_format  = "raw"
   }
 
+
   dynamic "hostpci" {
     for_each = try(each.value.gpu, false) ? [1] : []
     content {

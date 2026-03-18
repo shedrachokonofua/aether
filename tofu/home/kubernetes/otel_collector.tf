@@ -188,6 +188,13 @@ resource "helm_release" "otel_collector_deployment" {
                   },
                 ]
               },
+              {
+                job_name        = "dcgm-exporter"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["dcgm-exporter.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:9400"]
+                }]
+              },
             ]
           }
         }

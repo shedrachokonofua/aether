@@ -3,6 +3,7 @@ resource "proxmox_virtual_environment_vm" "gpu_workstation" {
   name            = local.vm.gpu_workstation.name
   node_name       = local.vm.gpu_workstation.node
   description     = "GPU Workstation"
+  started         = false
   stop_on_destroy = true
 
   machine = "q35"
@@ -28,15 +29,7 @@ resource "proxmox_virtual_environment_vm" "gpu_workstation" {
     size         = local.vm.gpu_workstation.disk_gb
     interface    = "virtio0"
   }
-
-  hostpci {
-    device   = "hostpci0"
-    id       = "0000:01:00.0"
-    xvga     = true
-    pcie     = true
-    rom_file = "rtx6000.rom"
-  }
-
+  
   efi_disk {
     datastore_id      = "local-lvm"
     file_format       = "raw"
