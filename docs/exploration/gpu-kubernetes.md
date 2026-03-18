@@ -286,34 +286,37 @@ Existing GPU alert rules need metric name updates: `nvidia_smi_*` → `dcgm_*`.
 
 ## Implementation Phases
 
-### Phase 1: Talos NVIDIA Image
+### Phase 1: Talos NVIDIA Image ✅
 
-- [ ] Generate NVIDIA schematic via Image Factory API
-- [ ] Add `talos_nvidia_schematic` to `cloud_images.tf`
-- [ ] Download NVIDIA-enabled Talos ISO for Neo
+- [x] Generate NVIDIA schematic via Image Factory API
+- [x] Add `talos_nvidia_schematic` to `cloud_images.tf`
+- [x] Download NVIDIA-enabled Talos ISO for Neo
 
-### Phase 2: Rebuild talos-neo
+### Phase 2: Rebuild talos-neo ✅
 
-- [ ] Update `config/vm.yml` — increase talos-neo cores, memory, add disk
-- [ ] Update `talos_cluster.tf` — add GPU passthrough conditionals, UEFI, efi_disk
-- [ ] Add NVIDIA machine config patch (kernel modules)
-- [ ] Drain talos-neo, destroy VM, `tofu apply` to recreate
-- [ ] Verify node rejoins cluster, GPU visible via `nvidia-smi`
+- [x] Update `config/vm.yml` — increase talos-neo cores, memory
+- [x] Update `talos_cluster.tf` — add GPU passthrough conditionals, UEFI, efi_disk
+- [x] Add NVIDIA machine config patch (kernel modules)
+- [x] Drain talos-neo, destroy VM, `tofu apply` to recreate
+- [x] Verify node rejoins cluster, GPU visible via `nvidia-smi`
 
-### Phase 3: K8s GPU Platform
+### Phase 3: K8s GPU Platform ✅
 
-- [ ] Deploy NVIDIA device plugin DaemonSet
-- [ ] Configure time-slicing (8 replicas)
-- [ ] Deploy dcgm-exporter DaemonSet
-- [ ] Verify OTEL Collector scrapes GPU metrics
-- [ ] Create local NVMe PV for model storage
+- [x] Deploy NVIDIA device plugin DaemonSet
+- [x] Configure time-slicing (8 replicas)
+- [x] Deploy dcgm-exporter DaemonSet
+- [x] Verify OTEL Collector scrapes GPU metrics
+- [ ] Create local NVMe PV for model storage — deferred to Phase 6
 
-### Phase 4: llama-swap + LiteLLM
+### Phase 4: llama-swap + LiteLLM ✅
 
-- [ ] Deploy llama-swap Deployment with GPU and model volume
-- [ ] Configure model profiles (migrate from Ollama model list)
-- [ ] Update LiteLLM config — point `aether/*` routes to llama-swap K8s service
-- [ ] Verify inference through LiteLLM → llama-swap → llama-server
+- [x] Deploy llama-swap Deployment with GPU + Ceph PVC (`llama_swap.tf`)
+- [x] Configure Qwen3.5-27B Q8_0 + Qwen3.5-9B Q8_0 model profiles
+- [x] Configure model variants via `setParamsByID` filters (`:code`, `:think`)
+- [x] Expose via Gateway API (`llama-swap.apps.home.shdr.ch`)
+- [x] Update LiteLLM config — all `aether/*` models → llama-swap credential
+- [x] Remove all Ollama models and credentials from LiteLLM
+- [x] Verify inference end-to-end (OpenWebUI → LiteLLM → llama-swap → llama-server)
 
 ### Phase 5: Remaining Workloads
 
