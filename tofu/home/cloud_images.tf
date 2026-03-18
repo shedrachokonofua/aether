@@ -75,9 +75,14 @@ locals {
 
 locals {
   talos_version = "v1.12.1"
-  # Schematic with qemu-guest-agent extension
+
+  # Standard schematic: qemu-guest-agent
   # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&platform=nocloud
   talos_schematic = "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
+
+  # GPU schematic: qemu-guest-agent + nvidia-open-gpu-kernel-modules + nvidia-container-toolkit
+  # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&extensions=siderolabs%2Fnvidia-open-gpu-kernel-modules&extensions=siderolabs%2Fnvidia-container-toolkit&platform=nocloud
+  talos_nvidia_schematic = "4b4a20194a021d632958bfdcbc0528fb7b62f9ca52f5cabdc35730d512f3a392"
 }
 
 # Talos ISO for Proxmox boot (nocloud platform)
@@ -87,5 +92,15 @@ resource "proxmox_virtual_environment_download_file" "talos_iso" {
   node_name           = "smith"
   url                 = "https://factory.talos.dev/image/${local.talos_schematic}/${local.talos_version}/nocloud-amd64.iso"
   file_name           = "talos-${local.talos_version}-nocloud.iso"
+  overwrite_unmanaged = true
+}
+
+# Talos ISO with NVIDIA extensions for GPU node (talos-neo)
+resource "proxmox_virtual_environment_download_file" "talos_nvidia_iso" {
+  content_type        = "iso"
+  datastore_id        = "cephfs"
+  node_name           = "smith"
+  url                 = "https://factory.talos.dev/image/${local.talos_nvidia_schematic}/${local.talos_version}/nocloud-amd64.iso"
+  file_name           = "talos-${local.talos_version}-nvidia-nocloud.iso"
   overwrite_unmanaged = true
 }

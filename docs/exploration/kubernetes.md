@@ -41,9 +41,8 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │   ├── OpenBao          └── Blockchain      └── Dev Workstation                  │
 │   ├── AdGuard                                                                    │
 │   └── IDS Stack        Neo:                Trinity:                              │
-│                        └── GPU Workstation ├── Desktop VM (iGPU, Sunshine)      │
-│                           (Ollama,ComfyUI, └── IoT Stack (USB)                  │
-│                            rffmpeg)                                             │
+│                        (no VMs — GPU in    ├── Desktop VM (iGPU, Sunshine)      │
+│                         K8s via talos-neo) └── IoT Stack (USB)                  │
 │                                                                                  │
 │   ────────────────────── Identity + Observability Layer ─────────────────────   │
 └───────────────────────────────────────────────────────────────────────────┬─────┘
@@ -54,14 +53,15 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │                          KUBERNETES (3-node Talos on Ceph)                       │
 │                                                                                  │
 │   Nodes:                                                                         │
-│   ├── talos-trinity — 16GB RAM, 8 vCPU, Control + Worker, 10.0.3.16            │
-│   ├── talos-neo     — 16GB RAM, 8 vCPU, Control + Worker, 10.0.3.17            │
-│   └── talos-niobe   — 16GB RAM, 8 vCPU, Control + Worker, 10.0.3.18            │
+│   ├── talos-trinity — 24GB RAM, 8 vCPU, Control + Worker, 10.0.3.16            │
+│   ├── talos-neo     — 24GB RAM, 32+ vCPU, GPU, Control + Worker, 10.0.3.17    │
+│   └── talos-niobe   — 24GB RAM, 8 vCPU, Control + Worker, 10.0.3.18           │
 │                                                                                  │
 │   Load Balancer VIP: 10.0.3.19 (Cilium L2, HA failover)                         │
 │                                                                                  │
 │   Platform Components:                                                           │
 │   ├── Cilium (CNI, Gateway API, L7 policies, Hubble)                             │
+│   ├── NVIDIA device plugin + dcgm-exporter (GPU on talos-neo)                    │
 │   ├── Istio Ambient (sidecar-less mTLS via ztunnel, SPIFFE identity)             │
 │   ├── Gateway API (next-gen ingress)                                            │
 │   ├── Knative Serving (scale to zero)                                           │
@@ -102,12 +102,12 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 | Coupe apps   | Niobe (VM)                      | Knative Services   | ✅                             |
 | Dokku apps   | Neo (VM)                        | Knative Services   | ✅                             |
 | Dokploy apps | Trinity (VM)                    | Knative Services   | ✅                             |
-| Jellyfin     | Trinity (Media Stack)           | Deployment         | ❌ (rffmpeg → GPU Workstation) |
+| Jellyfin     | Trinity (Media Stack)           | Deployment         | ❌ (GPU transcoding via talos-neo) |
 | MediaManager | Trinity (Media Stack)           | Knative Service    | ✅                             |
 | qBittorrent  | Trinity (Media Stack)           | Deployment         | ❌ (SOCKS5 → rotating-proxy)   |
 | Nuclei       | (new — see network-security.md) | CronJob            | ✅ (runs weekly)               |
 
-**VMs eliminated:** AI Tool Stack, GitLab, Messaging Stack, UPS Stack, Coupe Sandbox, Dokku, Dokploy, Media Stack
+**VMs eliminated:** AI Tool Stack, GPU Workstation, GitLab, Messaging Stack, UPS Stack, Coupe Sandbox, Dokku, Dokploy, Media Stack
 
 **Notes:**
 
@@ -127,7 +127,7 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 | Monitoring Stack | Niobe         | Must alert when k8s is down         |
 | Cockpit          | Niobe         | Manages Proxmox hosts               |
 | Dev Workstation  | Trinity/Niobe | Better as VM for IDE                |
-| GPU Workstation  | Neo           | GPU passthrough                     |
+| ~~GPU Workstation~~ | ~~Neo~~    | Eliminated — GPU moved to talos-neo (see `gpu-kubernetes.md`) |
 | Gaming Server    | Smith         | GPU passthrough                     |
 | Desktop VM       | Trinity       | iGPU passthrough for Sunshine       |
 | IoT Stack        | Niobe         | USB passthrough for Z-Wave/Thread   |
@@ -633,7 +633,7 @@ func deploy --registry ghcr.io/alice
 | Tool              | Why Not                                   |
 | ----------------- | ----------------------------------------- |
 | ArgoCD            | GitLab CI + `kubectl apply` is sufficient |
-| GPU Operator      | GPU workloads stay on VM (passthrough)    |
+| GPU Operator      | Talos NVIDIA extensions + device plugin instead (see `gpu-kubernetes.md`) |
 | Prometheus in k8s | Monitoring stays external                 |
 | Dokku             | Replaced by Knative Services              |
 | Dokploy           | Replaced by Knative Services + Helm       |
@@ -642,18 +642,20 @@ func deploy --registry ghcr.io/alice
 
 ### K8s Cluster
 
-| Resource   | Allocation              |
-| ---------- | ----------------------- |
-| Nodes      | 3 (Trinity, Niobe, Neo) |
-| Total RAM  | 48GB (16 + 16 + 16)     |
-| Total vCPU | 24 (8 + 8 + 8)          |
-| Storage    | Ceph RBD                |
+| Resource   | Allocation                        |
+| ---------- | --------------------------------- |
+| Nodes      | 3 (Trinity, Niobe, Neo)           |
+| Total RAM  | 72GB (24 + 24 + 24)              |
+| Total vCPU | ~48 (8 + 8 + 32)                 |
+| GPU        | RTX Pro 6000 (96GB VRAM) on Neo   |
+| Storage    | Ceph RBD + local NVMe (Neo)       |
 
 ### VMs Eliminated
 
 | VM              | RAM Freed |
 | --------------- | --------- |
 | AI Tool Stack   | 8GB       |
+| GPU Workstation | 64GB      |
 | GitLab          | 8GB       |
 | Messaging Stack | 2GB       |
 | UPS Stack       | 1GB       |
@@ -661,7 +663,7 @@ func deploy --registry ghcr.io/alice
 | Dokku           | 8GB       |
 | Dokploy         | 16GB      |
 | Media Stack     | 4GB       |
-| **Total**       | **~51GB** |
+| **Total**       | **~115GB** |
 
 **Notes:**
 
@@ -713,7 +715,7 @@ talos_trinity:
   name: "talos-trinity"
   node: "trinity"
   cores: 8
-  memory: 16384
+  memory: 24576
   disk_gb: 100
   ip: "10.0.3.16"
   gateway: "10.0.3.1"
@@ -722,8 +724,8 @@ talos_neo:
   id: 1031
   name: "talos-neo"
   node: "neo"
-  cores: 8
-  memory: 16384
+  cores: 32
+  memory: 24576
   disk_gb: 100
   ip: "10.0.3.17"
   gateway: "10.0.3.1"
@@ -733,7 +735,7 @@ talos_niobe:
   name: "talos-niobe"
   node: "niobe"
   cores: 8
-  memory: 16384
+  memory: 24576
   disk_gb: 100
   ip: "10.0.3.18"
   gateway: "10.0.3.1"
@@ -987,9 +989,10 @@ Migration order (low risk → high complexity):
 2. [ ] **Dokku apps** — Move to Knative Services
 3. [ ] **Dokploy apps** — Move to Knative Services or Helm charts
 4. [ ] **AI Tool Stack** — LiteLLM, OpenWebUI, SearXNG, Firecrawl, Bytebot (scale-to-zero)
-5. [ ] **Media Stack** — Jellyfin, qBittorrent, \*arrs (rffmpeg → GPU Workstation)
-6. [ ] **Messaging Stack** — Synapse (stateful), Element (stateless)
-7. [ ] Delete old VMs
+5. [ ] **GPU Workstation** — llama-swap, ComfyUI, Docling, JupyterLab, TEI reranker (see `gpu-kubernetes.md`)
+6. [ ] **Media Stack** — Jellyfin, qBittorrent, \*arrs (GPU transcoding via talos-neo)
+7. [ ] **Messaging Stack** — Synapse (stateful), Element (stateless)
+8. [ ] Delete old VMs
 
 OpenWebUI migration notes:
 
@@ -1001,6 +1004,7 @@ OpenWebUI migration notes:
 **Deferred:**
 
 - Smallweb decommissioned (move to dev workstation folder)
+- GPU Workstation migration detailed in `gpu-kubernetes.md`
 - GitLab migrates after messaging (most complex)
 
 ### Phase 6: Multi-Tenancy
@@ -1033,12 +1037,13 @@ OpenWebUI migration notes:
 | Monitoring   | External (Niobe VM)            | Must work when k8s is down                                         |
 | Identity     | Keycloak OIDC                  | Already have it, native k8s support                                |
 | Infra vend   | Crossplane                     | Self-service S3/DB/Keycloak, no static secrets, self-healing       |
+| GPU          | Talos NVIDIA extensions         | Baked into image, no GPU Operator; see `gpu-kubernetes.md`         |
 
 ## Value Summary
 
 | Capability              | Before                        | After                             |
 | ----------------------- | ----------------------------- | --------------------------------- |
-| Idle app resources      | ~51GB RAM always used         | ~0GB (scale to zero)              |
+| Idle app resources      | ~115GB RAM always used        | ~0GB (scale to zero)              |
 | Peer access             | Manual, no isolation          | Self-service, isolated namespaces |
 | Service-to-service auth | Trust network                 | Istio Ambient mTLS + AuthorizationPolicy |
 | Functions               | N/A                           | Knative Functions                 |
@@ -1054,6 +1059,7 @@ OpenWebUI migration notes:
 
 ## Related Documents
 
+- `gpu-kubernetes.md` — GPU Workstation elimination, llama-swap, NVIDIA in Talos
 - `proxmox-ha.md` — Prerequisite HA setup
 - `ceph.md` — Prerequisite distributed storage
 - `nixos.md` — NixOS for foundational VMs (complementary)

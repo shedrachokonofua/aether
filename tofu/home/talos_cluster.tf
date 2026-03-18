@@ -6,7 +6,7 @@
 #
 # Architecture:
 #   - talos-trinity (10.0.3.16) - Control plane + Worker
-#   - talos-neo     (10.0.3.17) - Control plane + Worker
+#   - talos-neo     (10.0.3.17) - Control plane + Worker + GPU (RTX Pro 6000)
 #   - talos-niobe   (10.0.3.18) - Control plane + Worker
 #   - API VIP       (10.0.3.20) - Talos native VIP for kubectl/API server
 #   - Workload VIP  (10.0.3.19) - Cilium L2 announced LoadBalancer IP
@@ -75,6 +75,10 @@ resource "proxmox_virtual_environment_vm" "talos" {
   tags        = ["kubernetes", "talos"]
   started     = true
 
+  # GPU nodes require q35 + OVMF for PCIe passthrough
+  machine = try(each.value.gpu, false) ? "q35" : null
+  bios    = try(each.value.gpu, false) ? "ovmf" : "seabios"
+
   cpu {
     cores = each.value.cores
     type  = "host"
@@ -98,13 +102,33 @@ resource "proxmox_virtual_environment_vm" "talos" {
     file_format  = "raw"
   }
 
+  dynamic "hostpci" {
+    for_each = try(each.value.gpu, false) ? [1] : []
+    content {
+      device   = "hostpci0"
+      id       = "0000:01:00.0"
+      xvga     = true
+      pcie     = true
+      rom_file = "rtx6000.rom"
+    }
+  }
+
+  dynamic "efi_disk" {
+    for_each = try(each.value.gpu, false) ? [1] : []
+    content {
+      datastore_id      = "local-lvm"
+      file_format       = "raw"
+      type              = "4m"
+      pre_enrolled_keys = false
+    }
+  }
+
   cdrom {
-    file_id   = proxmox_virtual_environment_download_file.talos_iso.id
+    file_id   = try(each.value.gpu, false) ? proxmox_virtual_environment_download_file.talos_nvidia_iso.id : proxmox_virtual_environment_download_file.talos_iso.id
     interface = "ide2"
   }
 
   boot_order = ["virtio0", "ide2"]
-  bios       = "seabios"
 
   operating_system {
     type = "l26"
@@ -132,49 +156,64 @@ resource "talos_machine_configuration_apply" "this" {
   endpoint                    = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
   node                        = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
 
-  config_patches = [
-    yamlencode({
-      cluster = {
-        allowSchedulingOnControlPlanes = true
-        network                        = { cni = { name = "none" } }
-        proxy                          = { disabled = true }
-        apiServer = {
-          extraArgs = {
-            "oidc-issuer-url"        = local.oidc_issuer_url
-            "oidc-client-id"         = local.oidc_client_id
-            "oidc-username-claim"    = "preferred_username"
-            "oidc-groups-claim"      = "groups"
-            "service-account-issuer" = local.k8s_serviceaccount_issuer
+  config_patches = concat(
+    [
+      yamlencode({
+        cluster = {
+          allowSchedulingOnControlPlanes = true
+          network                        = { cni = { name = "none" } }
+          proxy                          = { disabled = true }
+          apiServer = {
+            extraArgs = {
+              "oidc-issuer-url"        = local.oidc_issuer_url
+              "oidc-client-id"         = local.oidc_client_id
+              "oidc-username-claim"    = "preferred_username"
+              "oidc-groups-claim"      = "groups"
+              "service-account-issuer" = local.k8s_serviceaccount_issuer
+            }
           }
         }
-      }
-    }),
-    yamlencode({
+      }),
+      yamlencode({
+        machine = {
+          install = {
+            disk = "/dev/vda"
+            image = try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
+          }
+          network = {
+            interfaces = [{
+              interface = "ens18"
+              addresses = ["${each.value.ip}/24"]
+              routes    = [{ network = "0.0.0.0/0", gateway = each.value.gateway }]
+              vip       = { ip = local.talos_api_vip }
+            }]
+            nameservers = ["10.0.0.1"]
+          }
+          time = { servers = ["time.cloudflare.com"] }
+          sysctls = {
+            "net.core.bpf_jit_enable"         = "1"
+            "net.ipv4.conf.all.forwarding"    = "1"
+            "net.ipv6.conf.all.forwarding"    = "1"
+            "net.ipv4.conf.all.rp_filter"     = "0"
+            "net.ipv4.conf.default.rp_filter" = "0"
+          }
+        }
+      }),
+    ],
+    # NVIDIA kernel modules for GPU nodes
+    try(each.value.gpu, false) ? [yamlencode({
       machine = {
-        install = {
-          disk  = "/dev/vda"
-          image = "factory.talos.dev/installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.12.1"
-        }
-        network = {
-          interfaces = [{
-            interface = "ens18"
-            addresses = ["${each.value.ip}/24"]
-            routes    = [{ network = "0.0.0.0/0", gateway = each.value.gateway }]
-            vip       = { ip = local.talos_api_vip }
-          }]
-          nameservers = ["10.0.0.1"]
-        }
-        time = { servers = ["time.cloudflare.com"] }
-        sysctls = {
-          "net.core.bpf_jit_enable"         = "1"
-          "net.ipv4.conf.all.forwarding"    = "1"
-          "net.ipv6.conf.all.forwarding"    = "1"
-          "net.ipv4.conf.all.rp_filter"     = "0"
-          "net.ipv4.conf.default.rp_filter" = "0"
+        kernel = {
+          modules = [
+            { name = "nvidia" },
+            { name = "nvidia_uvm" },
+            { name = "nvidia_drm" },
+            { name = "nvidia_modeset" },
+          ]
         }
       }
-    }),
-  ]
+    })] : [],
+  )
 }
 
 resource "talos_machine_bootstrap" "this" {
@@ -215,7 +254,7 @@ resource "proxmox_virtual_environment_haresource" "talos" {
   state        = "started"
   group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
   max_restart  = 3
-  max_relocate = 2
+  max_relocate = try(local.talos_nodes[each.key].gpu, false) ? 0 : 2
 }
 
 # =============================================================================
