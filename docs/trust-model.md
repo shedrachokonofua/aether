@@ -19,7 +19,7 @@ The system separates human and machine identity into distinct planes, each with 
 | -------- | ------------------ | ---------------------- | ------------------------ |
 | Human    | Keycloak           | Users, admins          | OIDC, passwords, MFA     |
 | Machine  | step-ca (PKI)      | Services, runners, VMs | X.509 certificates       |
-| Workload | Istio Ambient (istiod) | K8s pods           | SPIFFE mTLS (ztunnel)    |
+| Workload | Istio Ambient (istiod via step-ca) | K8s pods | SPIFFE mTLS (ztunnel) |
 
 ## Trust Hierarchy
 
@@ -30,6 +30,7 @@ flowchart TB
     StepCA --> Keycloak
     StepCA --> AWS
     StepCA --> GitLab
+    StepCA --> Istio
 
     subgraph Human["Human Plane"]
         Keycloak["Keycloak<br/><i>Human IdP</i>"]
@@ -47,12 +48,11 @@ flowchart TB
     end
 
     subgraph Workload["Workload Plane"]
-        Istio["Istio Ambient<br/><i>istiod (SPIFFE CA)</i>"]
+        Istio["Istio Ambient<br/><i>cert-manager + istio-csr</i>"]
         Istio --> Pods["K8s pods<br/>→ mTLS via ztunnel"]
     end
 
     style StepCA fill:#d4f0e7,stroke:#6ac4a0
-    style Istio fill:#e0e7ff,stroke:#818cf8
 ```
 
 step-ca is the root of trust for the entire infrastructure:
@@ -60,12 +60,13 @@ step-ca is the root of trust for the entire infrastructure:
 - **Keycloak** — Human identity provider, issues OIDC tokens for users
 - **AWS IAM Roles Anywhere** — Trusts step-ca certs for machine-to-cloud auth
 - **GitLab** — Platform identity for CI jobs (JWT), step-ca trusts directly
+- **Istio Ambient** — Workload identity for Kubernetes pods, certs issued via cert-manager + step-issuer
 
-**Istio Ambient** manages a separate workload identity plane within Kubernetes. istiod acts as a SPIFFE CA, issuing short-lived mTLS certificates to pods via ztunnel. This identity is independent of step-ca — it's scoped to in-cluster pod-to-pod communication and enforced by `AuthorizationPolicy` resources.
+All workload mTLS certificates chain back to step-ca's root. The cert path is: step-ca → step-issuer → cert-manager → istio-csr → ztunnel → pods. istiod's built-in CA is disabled.
 
-All systems either use step-ca certificates directly or sit behind TLS-terminating proxies. In-cluster workloads additionally get SPIFFE identity from Istio.
+All systems either use step-ca certificates directly or sit behind TLS-terminating proxies.
 
-**Keycloak is for humans only.** Machine/service flows use certificates or platform JWTs. Workload-to-workload flows use SPIFFE mTLS.
+**Keycloak is for humans only.** Machine/service flows use certificates or platform JWTs. Workload-to-workload flows use SPIFFE mTLS backed by step-ca.
 
 Note: Keycloak currently runs HTTP behind Caddy (TLS terminated at proxy). Direct step-ca TLS for Keycloak is planned.
 
@@ -99,13 +100,15 @@ Machines authenticate using X.509 certificates issued by step-ca. Certificates a
 
 ## Workload Identity (Kubernetes)
 
-Kubernetes pods get cryptographic identity via Istio Ambient. istiod acts as a SPIFFE-compliant CA, issuing short-lived X.509 certificates (SVIDs) to each workload based on its Kubernetes service account.
+Kubernetes pods get cryptographic identity via Istio Ambient, backed by step-ca as the root CA. istiod's built-in CA is disabled; certificate issuance is delegated to cert-manager via istio-csr and step-issuer.
 
-| Component | Role                                                |
-| --------- | --------------------------------------------------- |
-| istiod    | SPIFFE CA — issues and rotates workload certificates |
-| ztunnel   | DaemonSet — terminates/originates mTLS per pod      |
-| istio-cni | Sets up iptables redirect so traffic flows through ztunnel |
+| Component    | Role                                                       |
+| ------------ | ---------------------------------------------------------- |
+| cert-manager | Certificate lifecycle manager                              |
+| step-issuer  | Fulfills CertificateRequests via step-ca API               |
+| istio-csr    | Replaces istiod CA — serves SPIFFE certs to istiod/ztunnel |
+| ztunnel      | DaemonSet — terminates/originates mTLS per pod             |
+| istio-cni    | Sets up iptables redirect so traffic flows through ztunnel |
 
 ### Identity Format
 
@@ -121,7 +124,7 @@ Namespaces are enrolled by labeling with `istio.io/dataplane-mode=ambient`. No p
 
 ### Relationship to step-ca
 
-Istio's CA is independent of step-ca. step-ca handles machine identity (VMs, runners, external services), while istiod handles workload identity (pods). The two don't overlap — step-ca certs are for infrastructure outside the cluster, SPIFFE certs are for pod-to-pod communication inside it.
+Workload certificates chain back to step-ca's root via: step-ca → step-issuer → cert-manager → istio-csr → ztunnel. This makes step-ca the single root of trust for both machine identity (VMs, runners) and workload identity (pods). step-ca handles the signing, cert-manager handles the lifecycle, and istio-csr serves as the bridge between cert-manager and the Istio control plane.
 
 ### Authorization
 

@@ -2,6 +2,7 @@
 # Istio Ambient Mesh
 # =============================================================================
 # Sidecar-less L4 mTLS via ztunnel. Cilium remains CNI and Gateway controller.
+# CA delegated to cert-manager via istio-csr → step-issuer → step-ca.
 # Enrolled namespaces: vc-seven30 (labeled with istio.io/dataplane-mode=ambient)
 
 locals {
@@ -34,7 +35,7 @@ resource "helm_release" "istio_base" {
 }
 
 resource "helm_release" "istiod" {
-  depends_on = [helm_release.istio_base]
+  depends_on = [helm_release.istio_base, helm_release.istio_csr]
 
   name             = "istiod"
   repository       = "https://istio-release.storage.googleapis.com/charts"
@@ -47,6 +48,14 @@ resource "helm_release" "istiod" {
 
   values = [yamlencode({
     profile = "ambient"
+    pilot = {
+      env = {
+        ENABLE_CA_SERVER = "false"
+      }
+    }
+    global = {
+      caAddress = local.istio_csr_service
+    }
   })]
 }
 
@@ -80,4 +89,8 @@ resource "helm_release" "ztunnel" {
   version          = local.istio_version
   wait             = true
   timeout          = 300
+
+  values = [yamlencode({
+    caAddress = local.istio_csr_service
+  })]
 }

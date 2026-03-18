@@ -154,7 +154,7 @@ Cilium owns networking and network-level policy. mTLS and workload identity are 
 
 ### Istio Ambient (Service Mesh — mTLS + Identity)
 
-Sidecar-less L4 mTLS via ztunnel. Cilium remains CNI and Gateway controller.
+Sidecar-less L4 mTLS via ztunnel. Cilium remains CNI and Gateway controller. CA delegated to cert-manager via istio-csr + step-issuer, so all workload certs chain back to step-ca.
 
 | Feature                | Benefit                                                    |
 | ---------------------- | ---------------------------------------------------------- |
@@ -162,10 +162,13 @@ Sidecar-less L4 mTLS via ztunnel. Cilium remains CNI and Gateway controller.
 | SPIFFE workload identity | Cryptographic identity per pod (service account-based)   |
 | AuthorizationPolicy    | Identity-based "who can talk to who" at L4                 |
 | Optional L7 waypoints  | Deploy per-service L7 proxy only where needed              |
+| step-ca root of trust  | Workload certs chain to same root as all machine certs     |
 
 **Two-layer security model:** Cilium handles network boundaries (what IPs/FQDNs traffic can reach), Istio handles workload identity (which service account can talk to which). A compromised pod can't spoof its identity — SPIFFE certs are cryptographically bound.
 
 **No sidecars** — ztunnel runs as a DaemonSet, not injected per-pod. Lower resource overhead, no restart to enroll (label namespace with `istio.io/dataplane-mode=ambient`).
+
+**Single root of trust** — istiod's built-in CA is disabled. cert-manager + step-issuer issues workload certs via step-ca (ca.shdr.ch). istio-csr bridges cert-manager to the Istio control plane.
 
 ### Cilium L2 Load Balancing
 
@@ -956,7 +959,7 @@ No SSH, no Ansible, no package managers. Just API calls.
 - [ ] Configure ProviderConfigs (Ceph RGW, Keycloak, SurrealDB)
 - [ ] Install OPA Gatekeeper
 - [ ] Install Secrets Store CSI + Vault provider
-- [ ] Install cert-manager + step-ca ClusterIssuer
+- [x] Install cert-manager + step-issuer (step-ca integration for Istio CA)
 - [ ] Install External Secrets Operator
 
 ### Phase 3: Observability + Security Scanning
@@ -1020,6 +1023,7 @@ OpenWebUI migration notes:
 | IP mgmt      | Static IP in Talos config      | Cloud-init disk includes network config, no DHCP needed            |
 | CNI          | Cilium                         | eBPF, L7 policies, Gateway API, Hubble                             |
 | Service Mesh | Istio Ambient                  | Sidecar-less mTLS (ztunnel), SPIFFE identity, AuthorizationPolicy  |
+| Mesh CA      | cert-manager + step-issuer     | Workload certs chain to step-ca root, single root of trust         |
 | LB mode      | Cilium L2 Announcements        | Single VIP (10.0.3.19), HA failover, no BGP needed                 |
 | Ingress      | Gateway API + Caddy (external) | Gateway API is the new standard, keep Caddy as single entry point  |
 | PaaS         | Knative Serving                | Scale-to-zero, git-push via GitLab CI, replaces Dokku + Dokploy    |

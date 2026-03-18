@@ -5,7 +5,8 @@
 #
 # This module manages:
 #   - Cilium CNI (networking, L2 announcements, Gateway API)
-#   - Istio Ambient (service mesh)
+#   - cert-manager + step-issuer + istio-csr (certificate management via step-ca)
+#   - Istio Ambient (service mesh, CA delegated to cert-manager)
 #   - Gateway API (ingress)
 #   - Ceph CSI (storage)
 #   - Knative Serving (serverless)
