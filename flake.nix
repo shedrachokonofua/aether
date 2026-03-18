@@ -159,6 +159,7 @@
             talosctl        # Talos cluster management
             kubectl         # Kubernetes CLI
             cilium-cli      # Cilium CNI management
+            istioctl        # Istio service mesh CLI
             kubernetes-helm # Helm charts
             
             # GitLab

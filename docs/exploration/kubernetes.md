@@ -61,7 +61,8 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │   Load Balancer VIP: 10.0.3.19 (Cilium L2, HA failover)                         │
 │                                                                                  │
 │   Platform Components:                                                           │
-│   ├── Cilium (CNI, mTLS, L7 policies, Hubble)                                   │
+│   ├── Cilium (CNI, Gateway API, L7 policies, Hubble)                             │
+│   ├── Istio Ambient (sidecar-less mTLS via ztunnel, SPIFFE identity)             │
 │   ├── Gateway API (next-gen ingress)                                            │
 │   ├── Knative Serving (scale to zero)                                           │
 │   ├── Knative Eventing (event-driven)                                           │
@@ -137,19 +138,34 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 
 ## Platform Components
 
-### Cilium (Networking + Service Mesh)
+### Cilium (CNI + Network Policy + Gateway)
 
 Replaces kube-proxy and provides:
 
-| Feature             | Benefit                                          |
-| ------------------- | ------------------------------------------------ |
-| eBPF-based CNI      | High performance, kernel-level                   |
-| Automatic mTLS      | All pod-to-pod traffic encrypted, no app changes |
-| L7 Network Policies | HTTP path/method-aware rules                     |
-| AuthorizationPolicy | Identity-based "who can talk to who"             |
-| Hubble              | Real-time network flow visualization             |
+| Feature             | Benefit                                  |
+| ------------------- | ---------------------------------------- |
+| eBPF-based CNI      | High performance, kernel-level           |
+| L7 Network Policies | HTTP path/method-aware rules             |
+| Gateway API         | Next-gen ingress routing                 |
+| Hubble              | Real-time network flow visualization     |
+| L2 Load Balancing   | Single VIP with HA failover, no BGP      |
 
-**No app changes needed** — Cilium handles mTLS transparently. Apps like OpenWebUI and LiteLLM think they're speaking plain HTTP while the wire is encrypted.
+Cilium owns networking and network-level policy. mTLS and workload identity are handled by Istio Ambient (see below).
+
+### Istio Ambient (Service Mesh — mTLS + Identity)
+
+Sidecar-less L4 mTLS via ztunnel. Cilium remains CNI and Gateway controller.
+
+| Feature                | Benefit                                                    |
+| ---------------------- | ---------------------------------------------------------- |
+| ztunnel (L4 mTLS)     | All pod-to-pod traffic encrypted, no sidecars, no app changes |
+| SPIFFE workload identity | Cryptographic identity per pod (service account-based)   |
+| AuthorizationPolicy    | Identity-based "who can talk to who" at L4                 |
+| Optional L7 waypoints  | Deploy per-service L7 proxy only where needed              |
+
+**Two-layer security model:** Cilium handles network boundaries (what IPs/FQDNs traffic can reach), Istio handles workload identity (which service account can talk to which). A compromised pod can't spoof its identity — SPIFFE certs are cryptographically bound.
+
+**No sidecars** — ztunnel runs as a DaemonSet, not injected per-pod. Lower resource overhead, no restart to enroll (label namespace with `istio.io/dataplane-mode=ambient`).
 
 ### Cilium L2 Load Balancing
 
@@ -515,6 +531,8 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: ingress
 ```
+
+Cilium NetworkPolicy handles network-level isolation (L3/L4). For workload-level identity enforcement, Istio `AuthorizationPolicy` can further restrict which service accounts can communicate — backed by cryptographic SPIFFE identity rather than label selectors.
 
 ### Peer Access via Keycloak OIDC
 
@@ -930,6 +948,7 @@ No SSH, no Ansible, no package managers. Just API calls.
 ### Phase 2: Platform Components
 
 - [x] Install Gateway API CRDs
+- [x] Install Istio Ambient (base, istiod, istio-cni, ztunnel)
 - [x] Install Knative Serving (uses Cilium Gateway API for ingress)
 - [ ] Install Knative Eventing
 - [x] Install Crossplane (Helm chart)
@@ -999,7 +1018,8 @@ OpenWebUI migration notes:
 | Provisioning | Tofu + Talos provider          | Same pattern as Fedora VMs, cloud-init disk with Talos config      |
 | Node type    | Combined CP + Worker           | 3-node homelab doesn't need separate worker VMs                    |
 | IP mgmt      | Static IP in Talos config      | Cloud-init disk includes network config, no DHCP needed            |
-| CNI          | Cilium                         | mTLS, L7 policies, Hubble                                          |
+| CNI          | Cilium                         | eBPF, L7 policies, Gateway API, Hubble                             |
+| Service Mesh | Istio Ambient                  | Sidecar-less mTLS (ztunnel), SPIFFE identity, AuthorizationPolicy  |
 | LB mode      | Cilium L2 Announcements        | Single VIP (10.0.3.19), HA failover, no BGP needed                 |
 | Ingress      | Gateway API + Caddy (external) | Gateway API is the new standard, keep Caddy as single entry point  |
 | PaaS         | Knative Serving                | Scale-to-zero, git-push via GitLab CI, replaces Dokku + Dokploy    |
@@ -1016,7 +1036,7 @@ OpenWebUI migration notes:
 | ----------------------- | ----------------------------- | --------------------------------- |
 | Idle app resources      | ~51GB RAM always used         | ~0GB (scale to zero)              |
 | Peer access             | Manual, no isolation          | Self-service, isolated namespaces |
-| Service-to-service auth | Trust network                 | mTLS + AuthorizationPolicy        |
+| Service-to-service auth | Trust network                 | Istio Ambient mTLS + AuthorizationPolicy |
 | Functions               | N/A                           | Knative Functions                 |
 | Event-driven            | N/A                           | Knative Eventing                  |
 | Policy enforcement      | Manual review                 | OPA Gatekeeper (automated)        |

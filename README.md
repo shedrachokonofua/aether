@@ -9,12 +9,13 @@ IaC for my private cloud.
 - **Infrastructure as Code**: Provisioning and configuration with Ansible, OpenTofu, and Nix
 - **Compute**: Proxmox VE cluster (5 nodes, 400GB RAM, 100 vCPUs) with HA failover for Ceph-backed VMs
 - **Application Containers**: Rootless Podman Quadlets (systemd-native), Docker only for where Podman is not feasible
+- **Kubernetes**: 3-node Talos cluster with Cilium CNI, Istio Ambient mesh (sidecar-less mTLS), Knative scale-to-zero, Gateway API, vcluster multi-tenancy
 - **Networking**: VyOS router with zone-based firewall, 3Gbps symmetric WAN, 10Gbps backbone, VLAN segmentation, AdGuard DNS, Tailscale mesh, rotating VPN SOCKS5 proxy
 - **Public Gateway**: Selective internet exposure via Cloudflare DNS/CDN, AWS Lightsail DMZ + CrowdSec WAF, proxied home via Tailscale mesh
 - **Intrusion Detection**: Suricata IDS on VyOS router, Zeek network analysis, events analyzed via ClickHouse
 - **Storage**: ZFS + Ceph with NFS/SMB/CephFS, 3-2-1 backups via Restic to Glacier
 - **Identity & Credentials**: Private PKI (step-ca), Keycloak SSO, mTLS, OpenBao secrets, SOPS with multi-key encryption
-- **DevOps**: GitLab (VCS, CI/CD, registries, Terraform state), Dokku/Dokploy/Smallweb PaaS, Coder workspaces
+- **DevOps**: GitLab (VCS, CI/CD, registries, Terraform state)
 - **AI & ML**: Private LLM inference (Ollama, LiteLLM, OpenWebUI), Stable Diffusion (ComfyUI, SwarmUI) on RTX Pro 6000 Max-Q
 - **Observability**: OpenTelemetry-native setup with Prometheus, Grafana, Loki, Tempo, ClickHouse, OTEL Collector, NUT
 - **Communications**: Matrix homeserver with bridges, ntfy/Apprise notifications, Postfix relay via SES

@@ -5,6 +5,7 @@
 #
 # This module manages:
 #   - Cilium CNI (networking, L2 announcements, Gateway API)
+#   - Istio Ambient (service mesh)
 #   - Gateway API (ingress)
 #   - Ceph CSI (storage)
 #   - Knative Serving (serverless)

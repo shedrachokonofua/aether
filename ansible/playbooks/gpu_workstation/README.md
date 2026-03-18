@@ -25,7 +25,7 @@ task configure:home:gpu-workstation
 Installs NVIDIA drivers, container toolkit, and configures GPU devices for container access.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gpu_workstation/nvidia.yml
+task ansible:playbook -- ./gpu_workstation/nvidia.yml
 ```
 
 ### Deploy Ollama
@@ -33,7 +33,7 @@ task ansible:playbook -- ./ansible/playbooks/gpu_workstation/nvidia.yml
 Deploys Ollama with GPU support and pulls default LLM models.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gpu_workstation/ollama.yml
+task ansible:playbook -- ./gpu_workstation/ollama.yml
 ```
 
 ### Deploy vLLM
@@ -55,7 +55,7 @@ task ansible:playbook -- ./ansible/playbooks/gpu_workstation/vllm.yml
 Deploys ComfyUI for stable diffusion and AI image generation workflows.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gpu_workstation/comfyui.yml
+task ansible:playbook -- ./gpu_workstation/comfyui.yml
 ```
 
 ### Deploy Docling
@@ -63,7 +63,7 @@ task ansible:playbook -- ./ansible/playbooks/gpu_workstation/comfyui.yml
 Deploys Docling service for document parsing and conversion with GPU acceleration.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gpu_workstation/docling.yml
+task ansible:playbook -- ./gpu_workstation/docling.yml
 ```
 
 ### Deploy JupyterLab
@@ -71,7 +71,7 @@ task ansible:playbook -- ./ansible/playbooks/gpu_workstation/docling.yml
 Deploys JupyterLab with PyTorch, CUDA support, and GPU acceleration for interactive ML/AI development.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gpu_workstation/jupyter/site.yml
+task ansible:playbook -- ./gpu_workstation/jupyter/site.yml
 ```
 
 ### Deploy SwarmUI
@@ -79,7 +79,7 @@ task ansible:playbook -- ./ansible/playbooks/gpu_workstation/jupyter/site.yml
 Deploys SwarmUI, a simplified Stable Diffusion WebUI with ComfyUI backend API integration.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gpu_workstation/swarmui.yml
+task ansible:playbook -- ./gpu_workstation/swarmui.yml
 ```
 
 To update SwarmUI, simply rerun the playbook - it will pull the latest changes and rebuild the container.
@@ -89,5 +89,5 @@ To update SwarmUI, simply rerun the playbook - it will pull the latest changes a
 Deploys ClearML MLOps platform with GPU-enabled agent for experiment tracking, training orchestration, and model serving.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gpu_workstation/clearml.yml
+task ansible:playbook -- ./gpu_workstation/clearml.yml
 ```

@@ -20,7 +20,7 @@ aws cloudformation deploy \
 echo "Tofu backend deployed."
 
 echo "Creating Tofu state config..."
-task tofu:create-state-config
+sh ./scripts/create-tofu-state-config.sh
 
 echo "Initializing Tofu..."
 task tofu:init

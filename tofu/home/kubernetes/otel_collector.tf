@@ -24,8 +24,18 @@ locals {
       ]
     }
     "transform/k8s_labels" = {
-      metric_statements = [{ context = "resource", statements = local.otel_k8s_label_statements }]
-      log_statements    = [{ context = "resource", statements = local.otel_k8s_label_statements }]
+      metric_statements = [
+        { context = "resource", statements = local.otel_k8s_label_statements },
+        # Istio Ambient: map vc-seven30 workload namespaces to canonical tenant for Janus scoping
+        {
+          context   = "datapoint"
+          statements = [
+            "set(resource.attributes[\"service.namespace\"], \"seven30\") where attributes[\"destination_workload_namespace\"] == \"vc-seven30\"",
+            "set(resource.attributes[\"service.namespace\"], \"seven30\") where attributes[\"source_workload_namespace\"] == \"vc-seven30\"",
+          ]
+        },
+      ]
+      log_statements = [{ context = "resource", statements = local.otel_k8s_label_statements }]
     }
     memory_limiter = {
       check_interval         = "5s"
@@ -130,7 +140,7 @@ resource "helm_release" "otel_collector_daemonset" {
 # =============================================================================
 
 resource "helm_release" "otel_collector_deployment" {
-  depends_on = [helm_release.cilium]
+  depends_on = [helm_release.cilium, helm_release.ztunnel]
 
   name             = "otel-cluster"
   repository       = "https://open-telemetry.github.io/opentelemetry-helm-charts"
@@ -152,13 +162,43 @@ resource "helm_release" "otel_collector_deployment" {
     }
 
     config = {
+      receivers = {
+        prometheus = {
+          config = {
+            scrape_configs = [
+              {
+                job_name        = "istiod"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["istiod.istio-system.svc.cluster.local:15014"]
+                }]
+              },
+              {
+                job_name        = "ztunnel"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role          = "endpoints"
+                  namespaces    = { names = ["istio-system"] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = "ztunnel"
+                  },
+                ]
+              },
+            ]
+          }
+        }
+      }
       processors = local.otel_processors
       exporters  = local.otel_exporters
       service = {
         telemetry = { logs = { level = "warn" } }
         pipelines = {
           logs    = { receivers = ["k8sobjects"], processors = local.otel_processor_chain, exporters = ["otlphttp"] }
-          metrics = { receivers = ["k8s_cluster"], processors = local.otel_processor_chain, exporters = ["otlphttp"] }
+          metrics = { receivers = ["k8s_cluster", "prometheus"], processors = local.otel_processor_chain, exporters = ["otlphttp"] }
         }
       }
     }

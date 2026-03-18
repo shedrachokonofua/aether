@@ -15,6 +15,22 @@ env:
 
 tasks:
   # ===========================================================================
+  # Bootstrap
+  # ===========================================================================
+  bootstrap:
+    desc: Bootstrap the project
+    cmds:
+      - chmod +x ./bootstrap/bootstrap.sh
+      - ./bootstrap/bootstrap.sh {{.CLI_ARGS}}
+
+  bootstrap:sops:
+    desc: Bootstrap SOPS
+    cmds:
+      - task: age-keygen
+        vars:
+          CLI_ARGS: -o config/age-key.txt
+
+  # ===========================================================================
   # Auth (multi-step flows worth wrapping)
   # ===========================================================================
   login:
@@ -43,6 +59,11 @@ tasks:
     cmds:
       - sh ./scripts/create-tofu-state-config.sh
       - tofu -chdir=tofu init -backend-config=../config/tofu-state.config -upgrade -reconfigure
+
+  tofu:write-outputs:
+    desc: Write outputs to secrets/tf-outputs.json
+    cmds:
+      - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
 
   tofu:apply:
     desc: Apply + write outputs + export k8s auth

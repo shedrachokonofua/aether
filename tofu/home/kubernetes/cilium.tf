@@ -36,6 +36,9 @@ resource "helm_release" "cilium" {
     # IPAM mode
     ipam = { mode = "kubernetes" }
 
+    # Allow Istio CNI to chain (required for Istio Ambient)
+    cni = { exclusive = false }
+
     # Operator replicas (single replica for small cluster)
     operator = { replicas = 1 }
 
