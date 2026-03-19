@@ -90,6 +90,25 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --cache-type-k q8_0
             --cache-type-v q8_0
           ttl: 300
+
+        "bge-reranker-v2-m3":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf pyarn/bge-reranker-v2-m3-Q8_0-GGUF
+            -ngl 99
+            --reranking
+          ttl: 120
+
+        "qwen3-embedding-4b":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf Qwen/Qwen3-Embedding-4B-GGUF:Q8_0
+            -ngl 99
+            --embedding
+            --pooling last
+          ttl: 120
     YAML
   }
 }

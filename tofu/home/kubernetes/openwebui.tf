@@ -436,7 +436,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "DOCLING_SERVER_URL"
-            value = "https://docling.home.shdr.ch"
+            value = "http://docling.${local.docling_ns}.svc.cluster.local:${local.docling_port}"
           }
           env {
             name  = "RAG_EMBEDDING_ENGINE"
@@ -457,7 +457,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "RAG_EMBEDDING_MODEL"
-            value = "aether/qwen3-embedding:4b"
+            value = "aether/qwen3-embedding-4b"
           }
           env {
             name  = "ENABLE_RAG_HYBRID_SEARCH"
@@ -469,7 +469,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "RAG_RERANKING_MODEL"
-            value = "aether/bge-reranker-large"
+            value = "aether/bge-reranker-v2-m3"
           }
           env {
             name  = "RAG_RERANKING_ENGINE"
@@ -510,7 +510,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "CODE_EXECUTION_JUPYTER_URL"
-            value = "https://jupyter.home.shdr.ch"
+            value = "http://jupyter.${local.jupyter_ns}.svc.cluster.local:${local.jupyter_port}"
           }
           env {
             name  = "CODE_INTERPRETER_ENGINE"
@@ -518,7 +518,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "CODE_INTERPRETER_JUPYTER_URL"
-            value = "https://jupyter.home.shdr.ch"
+            value = "http://jupyter.${local.jupyter_ns}.svc.cluster.local:${local.jupyter_port}"
           }
           env {
             name = "TOOL_SERVER_CONNECTIONS"
