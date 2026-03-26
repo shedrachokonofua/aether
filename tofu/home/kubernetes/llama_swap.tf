@@ -63,6 +63,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --port $${PORT}
             -hf unsloth/Qwen3.5-27B-GGUF:Q8_0
             -ngl 99
+            --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
           ttl: 300
@@ -183,6 +184,7 @@ resource "kubernetes_deployment_v1" "llama_swap" {
               "nvidia.com/gpu" = "1"
             }
             limits = {
+              memory           = "32Gi"
               "nvidia.com/gpu" = "1"
             }
           }

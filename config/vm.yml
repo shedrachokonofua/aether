@@ -455,7 +455,7 @@ talos_neo:
   name: "talos-neo"
   node: "neo"
   cores: 32
-  memory: 24576
+  memory: 49152
   disk_gb: 64
   gpu: true
   ip: "10.0.3.17"

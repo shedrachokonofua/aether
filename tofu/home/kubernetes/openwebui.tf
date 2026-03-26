@@ -457,7 +457,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "RAG_EMBEDDING_MODEL"
-            value = "aether/qwen3-embedding-4b"
+            value = "aether/qwen3-embedding:4b"
           }
           env {
             name  = "ENABLE_RAG_HYBRID_SEARCH"

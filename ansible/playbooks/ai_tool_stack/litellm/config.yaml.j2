@@ -18,21 +18,17 @@ model_list:
       litellm_credential_name: llama_swap_credential
 
   # OpenAI models
-  - model_name: "openai/gpt-5.2-pro"
+  - model_name: "openai/gpt-5.4"
     litellm_params:
-      model: "openai/gpt-5.2-pro"
+      model: "openai/gpt-5.4"
       litellm_credential_name: openai_credential
-  - model_name: "openai/gpt-5.2"
+  - model_name: "openai/gpt-5.4-mini"
     litellm_params:
-      model: "openai/gpt-5.2"
+      model: "openai/gpt-5.4-mini"
       litellm_credential_name: openai_credential
-  - model_name: "openai/gpt-5-mini"
+  - model_name: "openai/gpt-5.4-nano"
     litellm_params:
-      model: "openai/gpt-5-mini"
-      litellm_credential_name: openai_credential
-  - model_name: "openai/gpt-5-nano"
-    litellm_params:
-      model: "openai/gpt-5-nano"
+      model: "openai/gpt-5.4-nano"
       litellm_credential_name: openai_credential
 
   # Anthropic models
@@ -50,16 +46,12 @@ model_list:
     litellm_params:
       model: "openai/bge-reranker-v2-m3"
       litellm_credential_name: llama_swap_credential
-  - model_name: "aether/qwen3-embedding-4b"
+  - model_name: "aether/qwen3-embedding:4b"
     litellm_params:
       model: "openai/qwen3-embedding-4b"
       litellm_credential_name: llama_swap_credential
 
   # OpenRouter models
-  - model_name: "openrouter/glm-4.6"
-    litellm_params:
-      model: "openai/z-ai/glm-4.6"
-      litellm_credential_name: openrouter_credential
   - model_name: "openrouter/grok-4"
     litellm_params:
       model: "openai/x-ai/grok-4"
