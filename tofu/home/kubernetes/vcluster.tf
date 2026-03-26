@@ -314,13 +314,21 @@ resource "helm_release" "vcluster_seven30" {
       }
 
       statefulSet = {
+        probes = {
+          livenessProbe = {
+            enabled          = true
+            failureThreshold = 120
+            periodSeconds    = 3
+            timeoutSeconds   = 5
+          }
+        }
         resources = {
           limits = {
-            memory = "2Gi"
+            memory = "4Gi"
           }
           requests = {
-            cpu    = "200m"
-            memory = "512Mi"
+            cpu    = "1"
+            memory = "1Gi"
           }
         }
       }
