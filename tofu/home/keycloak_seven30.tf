@@ -31,7 +31,7 @@ resource "keycloak_realm" "seven30" {
 
   sso_session_idle_timeout = "2h"
   sso_session_max_lifespan = "12h"
-  access_token_lifespan    = "5m"
+  access_token_lifespan    = "1d"
   refresh_token_max_reuse  = 0
 
   smtp_server {
