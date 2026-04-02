@@ -175,6 +175,33 @@ resource "keycloak_custom_identity_provider_mapper" "seven30_access_filter" {
 }
 
 # =============================================================================
+# s30 CLI — token exchange client
+# =============================================================================
+# `s30 login` authenticates via aether device flow (toolbox client), then
+# silently exchanges the aether token for a seven30 token (RFC 8693).
+# One user approval, two cached tokens (infra = aether, app = seven30).
+
+resource "keycloak_openid_client" "seven30_cli" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = "seven30-cli"
+  name      = "s30 CLI"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = false
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+}
+
+resource "keycloak_identity_provider_token_exchange_scope_permission" "aether_token_exchange" {
+  realm_id       = keycloak_realm.seven30.id
+  provider_alias = keycloak_oidc_identity_provider.aether.alias
+
+  policy_type = "client"
+  clients     = [keycloak_openid_client.seven30_cli.id]
+}
+
+# =============================================================================
 # Crossplane Service Account — master realm for provider init compatibility
 # =============================================================================
 # The Terraform Keycloak provider requires master realm auth for its
