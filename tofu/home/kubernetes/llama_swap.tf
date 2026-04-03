@@ -8,7 +8,7 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v198-cuda-b8390"
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v199-cuda-b8606"
   llama_swap_host    = "llama-swap.apps.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = kubernetes_namespace_v1.infra.metadata[0].name
@@ -101,6 +101,17 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --reranking
           ttl: 120
 
+        "gemma-4-31b":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf unsloth/gemma-4-31B-it-GGUF:Q8_0
+            -ngl 99
+            --no-mmap
+            --cache-type-k q8_0
+            --cache-type-v q8_0
+          ttl: 300
+
         "qwen3-embedding-4b":
           cmd: >
             llama-server
@@ -150,6 +161,17 @@ resource "kubernetes_deployment_v1" "llama_swap" {
         runtime_class_name = "nvidia"
 
         node_selector = local.gpu_node_selector
+
+        init_container {
+          name  = "fix-permissions"
+          image = "busybox:latest"
+          command = ["sh", "-c", "chmod -R 777 /models"]
+
+          volume_mount {
+            name       = "models"
+            mount_path = "/models"
+          }
+        }
 
         container {
           name  = "llama-swap"

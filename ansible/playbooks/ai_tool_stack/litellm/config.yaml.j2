@@ -41,6 +41,20 @@ model_list:
       model: "anthropic/claude-sonnet-4-6"
       litellm_credential_name: anthropic_credential
 
+  # Speaches STT/TTS (K8s)
+  - model_name: "aether/whisper-large-v3"
+    litellm_params:
+      model: "openai/Systran/faster-whisper-large-v3"
+      litellm_credential_name: speaches_credential
+  - model_name: "aether/distil-whisper-large-v3"
+    litellm_params:
+      model: "openai/Systran/faster-distil-whisper-large-v3"
+      litellm_credential_name: speaches_credential
+  - model_name: "aether/kokoro-tts"
+    litellm_params:
+      model: "openai/speaches-ai/Kokoro-82M-v1.0-ONNX"
+      litellm_credential_name: speaches_credential
+
   # Reranker + Embeddings via llama-swap (K8s)
   - model_name: "aether/bge-reranker-v2-m3"
     litellm_params:
@@ -84,6 +98,12 @@ credential_list:
       api_key: none
     credential_info:
       description: "llama-swap on K8s (via Gateway)"
+  - credential_name: speaches_credential
+    credential_values:
+      api_base: https://speaches.apps.home.shdr.ch/v1
+      api_key: none
+    credential_info:
+      description: "Speaches STT/TTS on K8s (via Gateway)"
   - credential_name: openai_credential
     credential_values:
       api_key: os.environ/OPENAI_API_KEY

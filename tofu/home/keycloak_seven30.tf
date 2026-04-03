@@ -31,7 +31,7 @@ resource "keycloak_realm" "seven30" {
 
   sso_session_idle_timeout = "2h"
   sso_session_max_lifespan = "12h"
-  access_token_lifespan    = "1d"
+  access_token_lifespan    = "24h"
   refresh_token_max_reuse  = 0
 
   smtp_server {
@@ -204,10 +204,9 @@ resource "keycloak_identity_provider_token_exchange_scope_permission" "aether_to
 # =============================================================================
 # Crossplane Service Account — master realm for provider init compatibility
 # =============================================================================
-# The Terraform Keycloak provider requires master realm auth for its
-# initialization (server version check). The service account gets admin
-# access via the master realm, scoped to managing seven30 realm resources
-# by convention in the Crossplane ProviderConfig.
+# The client lives in master (Keycloak provider requires master realm auth for
+# initialization). Actual permissions are scoped to the seven30 realm only via
+# realm-management client roles — no master admin access.
 
 resource "keycloak_openid_client" "seven30_crossplane" {
   realm_id  = "master"
@@ -221,8 +220,30 @@ resource "keycloak_openid_client" "seven30_crossplane" {
   direct_access_grants_enabled = false
 }
 
-resource "keycloak_openid_client_service_account_realm_role" "seven30_crossplane_admin" {
+# In master realm, Keycloak auto-creates a client named after each child realm
+# with admin roles for that realm.
+data "keycloak_openid_client" "seven30_realm_client" {
+  realm_id  = "master"
+  client_id = "seven30-realm"
+}
+
+locals {
+  # Minimum roles for Crossplane to manage OIDC clients, scopes, permissions,
+  # and token exchange in the seven30 realm.
+  crossplane_roles = [
+    "manage-clients",
+    "manage-users",
+    "manage-realm",
+    "manage-identity-providers",
+    "manage-authorization",
+  ]
+}
+
+resource "keycloak_openid_client_service_account_role" "seven30_crossplane" {
+  for_each = toset(local.crossplane_roles)
+
   realm_id                = "master"
   service_account_user_id = keycloak_openid_client.seven30_crossplane.service_account_user_id
-  role                    = "admin"
+  client_id               = data.keycloak_openid_client.seven30_realm_client.id
+  role                    = each.value
 }

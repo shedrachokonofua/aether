@@ -5,7 +5,7 @@
   roles:
     - common
   vars:
-    keycloak_version: "26.4.7"
+    keycloak_version: "26.5.7"
     keycloak_download_url: "https://github.com/keycloak/keycloak/releases/download/{{ keycloak_version }}/keycloak-{{ keycloak_version }}.tar.gz"
     keycloak_install_root: "/opt/keycloak"
     keycloak_install_dir: "{{ keycloak_install_root }}/{{ keycloak_version }}"

@@ -637,6 +637,34 @@ resource "kubernetes_deployment_v1" "openwebui" {
             value = "15"
           }
 
+          # STT — Speaches (faster-whisper)
+          env {
+            name  = "AUDIO_STT_ENGINE"
+            value = "openai"
+          }
+          env {
+            name  = "AUDIO_STT_OPENAI_API_BASE_URL"
+            value = "http://speaches.${local.speaches_ns}.svc.cluster.local:${local.speaches_port}/v1"
+          }
+          env {
+            name  = "AUDIO_STT_MODEL"
+            value = "Systran/faster-distil-whisper-large-v3"
+          }
+
+          # TTS — Speaches (Kokoro)
+          env {
+            name  = "AUDIO_TTS_ENGINE"
+            value = "openai"
+          }
+          env {
+            name  = "AUDIO_TTS_OPENAI_API_BASE_URL"
+            value = "http://speaches.${local.speaches_ns}.svc.cluster.local:${local.speaches_port}/v1"
+          }
+          env {
+            name  = "AUDIO_TTS_MODEL"
+            value = "kokoro"
+          }
+
           readiness_probe {
             tcp_socket {
               port = 8080
