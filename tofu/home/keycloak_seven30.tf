@@ -158,19 +158,54 @@ resource "keycloak_oidc_identity_provider" "aether" {
 }
 
 # =============================================================================
-# Access Control — only aether users with seven30-developer role can broker in
+# Role Mapping — aether roles → seven30 realm roles
 # =============================================================================
+# Apps check seven30 realm roles (admin/developer/member) for authorization.
+# The roles themselves are Crossplane-managed in the infra repo. These mappers
+# assign them based on the aether groups claim on every login (FORCE sync).
+#
+# No broker-level access gate — if an aether user without a seven30 role
+# brokers in, they get no realm role and apps deny access.
 
-resource "keycloak_custom_identity_provider_mapper" "seven30_access_filter" {
+resource "keycloak_custom_identity_provider_mapper" "seven30_role_admin" {
   realm                    = keycloak_realm.seven30.id
-  name                     = "require-seven30-developer"
+  name                     = "aether-admin-to-seven30-admin"
   identity_provider_alias  = keycloak_oidc_identity_provider.aether.alias
-  identity_provider_mapper = "oidc-advanced-group-idp-mapper"
+  identity_provider_mapper = "oidc-role-idp-mapper"
 
   extra_config = {
-    syncMode = "FORCE"
-    claims   = jsonencode([{ key = "groups", value = "seven30-developer" }])
-    are      = "PRESENT"
+    syncMode      = "FORCE"
+    claim         = "groups"
+    "claim.value" = "admin"
+    role          = "admin"
+  }
+}
+
+resource "keycloak_custom_identity_provider_mapper" "seven30_role_developer" {
+  realm                    = keycloak_realm.seven30.id
+  name                     = "aether-developer-to-seven30-developer"
+  identity_provider_alias  = keycloak_oidc_identity_provider.aether.alias
+  identity_provider_mapper = "oidc-role-idp-mapper"
+
+  extra_config = {
+    syncMode      = "FORCE"
+    claim         = "groups"
+    "claim.value" = "seven30-developer"
+    role          = "developer"
+  }
+}
+
+resource "keycloak_custom_identity_provider_mapper" "seven30_role_member" {
+  realm                    = keycloak_realm.seven30.id
+  name                     = "aether-member-to-seven30-member"
+  identity_provider_alias  = keycloak_oidc_identity_provider.aether.alias
+  identity_provider_mapper = "oidc-role-idp-mapper"
+
+  extra_config = {
+    syncMode      = "FORCE"
+    claim         = "groups"
+    "claim.value" = "seven30-member"
+    role          = "member"
   }
 }
 

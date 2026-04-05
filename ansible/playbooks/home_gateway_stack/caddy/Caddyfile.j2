@@ -490,6 +490,20 @@ openclaw.home.shdr.ch {
 # Load balances across RGW instances on Proxmox nodes
 
 s3.home.shdr.ch {
+  # Handle CORS preflight at the edge — RGW rejects OPTIONS on presigned
+  # URLs that contain X-Amz-Security-Token query params (STS temp creds).
+  @preflight method OPTIONS
+
+  handle @preflight {
+    header Access-Control-Allow-Origin "{http.request.header.Origin}"
+    header Access-Control-Allow-Methods "GET, HEAD, PUT, POST, DELETE"
+    header Access-Control-Allow-Headers "*"
+    header Access-Control-Expose-Headers "ETag"
+    header Access-Control-Max-Age "3600"
+    header Vary "Origin"
+    respond 204
+  }
+
   reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
     lb_policy round_robin
     health_uri /

@@ -879,6 +879,12 @@ resource "keycloak_role" "seven30_developer" {
   description = "Seven30 studio co-founder — full access to Seven30 vcluster"
 }
 
+resource "keycloak_role" "seven30_member" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "seven30-member"
+  description = "Seven30 studio member — broker access to the Seven30 realm"
+}
+
 resource "keycloak_openid_client" "seven30_kubernetes" {
   realm_id  = keycloak_realm.aether.id
   client_id = "seven30-kubernetes"
