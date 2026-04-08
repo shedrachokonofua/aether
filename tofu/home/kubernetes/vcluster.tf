@@ -272,6 +272,27 @@ resource "helm_release" "vcluster_seven30" {
 
   values = [yamlencode({
     # -----------------------------------------------------------------
+    # Sync from host
+    # -----------------------------------------------------------------
+    # Real host nodes (with labels + allocatable extended resources like
+    # nvidia.com/gpu) and the host's RuntimeClasses are surfaced inside
+    # the vcluster so workloads (e.g. crucible-linkedin-desktop) can
+    # request GPUs and the "nvidia" runtime class.
+    sync = {
+      fromHost = {
+        nodes = {
+          enabled = true
+          selector = {
+            all = true
+          }
+        }
+        runtimeClasses = {
+          enabled = true
+        }
+      }
+    }
+
+    # -----------------------------------------------------------------
     # Control Plane
     # -----------------------------------------------------------------
     controlPlane = {

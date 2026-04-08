@@ -122,7 +122,7 @@
 
     - name: Build Keycloak
       ansible.builtin.command:
-        cmd: "{{ keycloak_bin }}/kc.sh build --features=token-exchange:v1,admin-fine-grained-authz:v1"
+        cmd: "{{ keycloak_bin }}/kc.sh build --features=token-exchange:v1,admin-fine-grained-authz:v1,client-auth-federated:v1,kubernetes-service-accounts:v1"
         chdir: "{{ keycloak_install_dir }}"
       register: build_result
       changed_when: "'Build' in build_result.stdout"

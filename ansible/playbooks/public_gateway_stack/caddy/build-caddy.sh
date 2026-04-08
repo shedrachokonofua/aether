@@ -10,7 +10,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "Building Caddy with plugins..."
 echo "Output directory: $SCRIPT_DIR"
 
+# Run builder image natively (host arch); cross-compile to linux/amd64.
+# Avoids qemu user-mode emulation bugs (SIGSEGV in go runtime) on Apple Silicon.
 docker run --rm \
+  -e GOOS=linux -e GOARCH=amd64 -e CGO_ENABLED=0 \
   -v "${SCRIPT_DIR}:/output" \
   caddy:builder \
   xcaddy build "$CADDY_VERSION" \

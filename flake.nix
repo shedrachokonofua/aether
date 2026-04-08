@@ -164,11 +164,22 @@
             
             # GitLab
             glab            # GitLab CLI
+
+            # Containers
+            docker
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            colima          # Provides a Linux VM + docker daemon on macOS
           ];
 
           shellHook = ''
             echo "🚀 Aether dev shell loaded"
             echo ""
+          '' + pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+            if ! colima status >/dev/null 2>&1; then
+              echo "🐳 Starting colima (docker daemon for macOS)..."
+              colima start --cpu 4 --memory 4
+            fi
+            export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
           '';
         };
       }
