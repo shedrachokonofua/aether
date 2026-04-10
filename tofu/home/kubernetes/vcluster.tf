@@ -23,7 +23,7 @@ locals {
 
   seven30_gitlab_agent_token = var.secrets["seven30.gitlab_agent_token"]
 
-  seven30_oidc_issuer = "https://auth.shdr.ch/realms/aether"
+  seven30_oidc_issuer = "https://auth.shdr.ch/realms/seven30"
   seven30_oidc_client = "seven30-kubernetes"
 
   # Caddy ingress + RBAC bootstrapped inside the vcluster.
@@ -101,7 +101,7 @@ locals {
       }
     }),
 
-    # RBAC: co-founders + admin get cluster-admin
+    # RBAC: developer + admin roles in the seven30 realm get cluster-admin
     yamlencode({
       apiVersion = "rbac.authorization.k8s.io/v1"
       kind       = "ClusterRoleBinding"
@@ -115,7 +115,7 @@ locals {
         {
           apiGroup = "rbac.authorization.k8s.io"
           kind     = "Group"
-          name     = "seven30-developer"
+          name     = "developer"
         },
         {
           apiGroup = "rbac.authorization.k8s.io"

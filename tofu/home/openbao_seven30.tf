@@ -144,19 +144,59 @@ resource "vault_jwt_auth_backend_role" "seven30_developer" {
   ]
 }
 
-# CLI role — token exchange (task bao:login style)
+# Seven30 JWT backend — accepts Seven30-issued CLI and agent tokens directly.
+resource "vault_jwt_auth_backend" "seven30_cli" {
+  path               = "jwt-seven30-cli"
+  type               = "jwt"
+  oidc_discovery_url = "https://auth.shdr.ch/realms/seven30"
+  default_role       = "cli-seven30-developer"
+
+  tune {
+    default_lease_ttl = "12h"
+    max_lease_ttl     = "12h"
+    token_type        = "default-service"
+  }
+}
+
+# CLI role — direct Seven30 token login (s30 login style)
 resource "vault_jwt_auth_backend_role" "cli_seven30_developer" {
-  backend        = vault_jwt_auth_backend.jwt.path
+  backend        = vault_jwt_auth_backend.seven30_cli.path
   role_name      = "cli-seven30-developer"
   role_type      = "jwt"
   token_policies = ["default", vault_policy.seven30_developer.name]
 
-  user_claim   = "preferred_username"
-  bound_claims = { "roles" = "admin,seven30-developer" }
-  bound_audiences = [
-    keycloak_openid_client.toolbox.client_id,
-    keycloak_openid_client.openbao.client_id,
-  ]
+  user_claim        = "preferred_username"
+  bound_claims_type = "glob"
+  bound_claims      = { roles = "admin,developer" }
+  bound_audiences   = [keycloak_openid_client.seven30_cli.client_id]
+}
+
+# Read-only policy for machine agents operating inside Seven30.
+resource "vault_policy" "seven30_agent_readonly" {
+  name   = "seven30-agent-readonly"
+  policy = <<-EOT
+    path "kv/data/seven30/*" {
+      capabilities = ["read"]
+    }
+
+    path "kv/metadata/seven30/*" {
+      capabilities = ["read", "list"]
+    }
+  EOT
+}
+
+resource "vault_jwt_auth_backend_role" "cli_seven30_agent_readonly" {
+  backend        = vault_jwt_auth_backend.seven30_cli.path
+  role_name      = "cli-seven30-agent-readonly"
+  role_type      = "jwt"
+  token_policies = ["default", vault_policy.seven30_agent_readonly.name]
+
+  user_claim = "preferred_username"
+  bound_claims = {
+    "roles" = "agent-readonly"
+    "azp"   = "system:serviceaccount:default:hermes"
+  }
+  bound_audiences = ["system:serviceaccount:default:hermes"]
 }
 
 # =============================================================================

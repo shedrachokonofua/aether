@@ -1,17 +1,15 @@
 # =============================================================================
-# Seven30 Keycloak Realm — isolated tenant for Seven30 studio applications
+# Seven30 Keycloak Realm — isolated tenant for Seven30 studio runtime identity
 # =============================================================================
-# Seven30 gets its own realm for application OIDC clients (Vaultwarden, etc.).
-# Identity is brokered from the aether realm — co-founders click "Login with
-# Aether" and authenticate against their existing aether identity. No duplicate
-# accounts, no local passwords in the seven30 realm.
-#
-# Infrastructure auth (kubectl, OpenBao) stays on the aether realm.
-# This realm is for application-level SSO only.
+# Seven30 gets its own runtime realm for studio applications, developer
+# tooling, and machine identities. Identity is brokered from the aether realm —
+# co-founders click "Login with Aether" and authenticate against their existing
+# aether identity. No duplicate accounts, no local passwords in the seven30
+# realm.
 #
 # Architecture:
 #   aether realm (identity source)
-#     ← OIDC broker ← seven30 realm (app clients)
+#     ← OIDC broker ← seven30 realm (apps + tooling + agents)
 #                        ↑ managed by Crossplane (scoped admin)
 
 # =============================================================================
@@ -210,11 +208,10 @@ resource "keycloak_custom_identity_provider_mapper" "seven30_role_member" {
 }
 
 # =============================================================================
-# s30 CLI — token exchange client
+# s30 CLI — primary runtime client
 # =============================================================================
-# `s30 login` authenticates via aether device flow (toolbox client), then
-# silently exchanges the aether token for a seven30 token (RFC 8693).
-# One user approval, two cached tokens (infra = aether, app = seven30).
+# `s30 login` authenticates directly against the seven30 realm. Audience-scoped
+# service tokens are still obtained via token exchange when needed.
 
 resource "keycloak_openid_client" "seven30_cli" {
   realm_id  = keycloak_realm.seven30.id
@@ -226,6 +223,42 @@ resource "keycloak_openid_client" "seven30_cli" {
   standard_flow_enabled        = false
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
+  consent_required             = false
+
+  oauth2_device_authorization_grant_enabled = true
+}
+
+resource "keycloak_openid_client_default_scopes" "seven30_cli_default_scopes" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_cli.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_cli_roles" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_cli.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "seven30_cli_self_audience" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_cli.id
+  name      = "seven30-cli-audience"
+
+  included_client_audience = keycloak_openid_client.seven30_cli.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
 }
 
 resource "keycloak_identity_provider_token_exchange_scope_permission" "aether_token_exchange" {
@@ -234,6 +267,56 @@ resource "keycloak_identity_provider_token_exchange_scope_permission" "aether_to
 
   policy_type = "client"
   clients     = [keycloak_openid_client.seven30_cli.id]
+}
+
+# =============================================================================
+# Seven30 vcluster kubectl client
+# =============================================================================
+# Public client for kubectl authentication to the Seven30 vcluster. Tokens come
+# from the seven30 realm even though the cluster itself is hosted by Aether.
+
+resource "keycloak_openid_client" "seven30_kubernetes_runtime" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = "seven30-kubernetes"
+  name      = "Seven30 Kubernetes"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+
+  oauth2_device_authorization_grant_enabled = true
+
+  valid_redirect_uris = [
+    "http://localhost:8000/*",
+    "http://localhost:18000/*",
+    "http://127.0.0.1:8000/*",
+    "http://127.0.0.1:18000/*",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "seven30_kubernetes_runtime_default_scopes" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_kubernetes_runtime.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_kubernetes_runtime_groups" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_kubernetes_runtime.id
+  name      = "groups"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 
 # =============================================================================

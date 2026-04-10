@@ -9,7 +9,7 @@ resource "helm_release" "cilium" {
   chart            = "cilium"
   namespace        = "kube-system"
   create_namespace = false
-  version          = "1.17.0"
+  version          = "1.19.2"
   wait             = true
   timeout          = 600
 
@@ -81,7 +81,7 @@ resource "kubernetes_manifest" "cilium_ip_pool" {
   depends_on = [helm_release.cilium]
 
   manifest = {
-    apiVersion = "cilium.io/v2alpha1"
+    apiVersion = "cilium.io/v2"
     kind       = "CiliumLoadBalancerIPPool"
     metadata = {
       name = "ingress-pool"

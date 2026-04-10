@@ -488,7 +488,6 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "gitlab_groups" {
 # =============================================================================
 # Jellyfin OIDC Client (jellyfin-plugin-sso)
 # =============================================================================
-
 resource "keycloak_role" "jellyfin_user" {
   realm_id    = keycloak_realm.aether.id
   name        = "jellyfin-user"
@@ -928,5 +927,3 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_kubernetes_g
   add_to_access_token = true
   add_to_userinfo     = true
 }
-
-
