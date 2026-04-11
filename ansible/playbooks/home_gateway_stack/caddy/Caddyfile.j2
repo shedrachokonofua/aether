@@ -363,8 +363,14 @@ files.home.shdr.ch {
   reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.filestash }}
 }
 
-jellyfin.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyfin }}
+tv.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host jellyfin.apps.home.shdr.ch
+    header_up X-Forwarded-Host tv.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 jellyseerr.home.shdr.ch {
@@ -392,14 +398,21 @@ stremthru.home.shdr.ch {
 }
 
 nzbdav.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.nzbdav }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host nzbdav.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 tuliprox.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.tuliprox }} {
+  reverse_proxy 10.0.3.19 {
+    header_up Host tuliprox.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
     flush_interval -1
-    header_up X-Real-IP {remote_host}
-    header_up X-Forwarded-For {remote_host}
   }
 }
 
@@ -584,7 +597,13 @@ oidc.k8s.home.shdr.ch {
   }
 
   handle @tv {
-    reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyfin }}
+    reverse_proxy 10.0.3.19 {
+      header_up Host jellyfin.apps.home.shdr.ch
+      header_up X-Forwarded-Host tv.shdr.ch
+      header_up X-Real-IP {http.request.header.X-Real-IP}
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+      header_up X-Forwarded-Proto https
+    }
   }
 
   handle @seven30 {

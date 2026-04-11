@@ -505,19 +505,23 @@ resource "keycloak_openid_client" "jellyfin" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://jellyfin.home.shdr.ch"
-  base_url  = "https://jellyfin.home.shdr.ch"
-  admin_url = "https://jellyfin.home.shdr.ch"
+  root_url  = "https://tv.shdr.ch"
+  base_url  = "https://tv.shdr.ch"
+  admin_url = "https://tv.shdr.ch"
 
   valid_redirect_uris = [
-    "https://jellyfin.home.shdr.ch/sso/OID/redirect/aether",
     "https://tv.shdr.ch/sso/OID/redirect/aether",
+    "https://jellyfin.apps.home.shdr.ch/sso/OID/redirect/aether",
   ]
 
   web_origins = [
-    "https://jellyfin.home.shdr.ch",
     "https://tv.shdr.ch",
+    "https://jellyfin.apps.home.shdr.ch",
   ]
+
+  extra_config = {
+    "require.pushed.authorization.requests" = "false"
+  }
 }
 
 resource "keycloak_openid_client_default_scopes" "jellyfin_default_scopes" {

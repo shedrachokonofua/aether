@@ -124,6 +124,29 @@ variable "litellm_mcp_url" {
 }
 
 # =============================================================================
+# NFS Storage
+# =============================================================================
+
+variable "nfs_server_ip" {
+  type        = string
+  description = "NFS server IP (smith NFS LXC on vyos network)"
+}
+
+# =============================================================================
+# Media Stack
+# =============================================================================
+
+variable "media_stack_ip" {
+  type        = string
+  description = "Media stack VM IP (for rclone sidecar nzbdav access during transition)"
+}
+
+variable "rotating_proxy_addr" {
+  type        = string
+  description = "SOCKS5 rotating proxy address for tuliprox (host:port)"
+}
+
+# =============================================================================
 # Shared Locals
 # =============================================================================
 

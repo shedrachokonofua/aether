@@ -29,11 +29,7 @@
 - name: Deploy Filestash
   import_playbook: filestash.yml
 
-- name: Deploy NZBDav
-  import_playbook: nzbdav.yml
-
-- name: Deploy Jellyfin
-  import_playbook: jellyfin.yml
+# NZBDav, Jellyfin, and Tuliprox migrated to Kubernetes (media namespace)
 
 - name: Deploy Jellyseerr
   import_playbook: jellyseerr.yml
@@ -53,5 +49,3 @@
 - name: Deploy StremThru
   import_playbook: stremthru.yml
 
-- name: Deploy Tuliprox
-  import_playbook: tuliprox/site.yml

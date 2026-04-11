@@ -1,0 +1,130 @@
+---
+# One-shot playbook: stop and export jellyfin, nzbdav, tuliprox from the
+# media-stack VM so their state can be restored in Kubernetes PVCs.
+#
+# After running this playbook, manually load the tarballs into the k8s PVCs:
+#
+#   # Jellyfin config
+#   kubectl -n media cp /tmp/media-stack-export/jellyfin-config.tar.gz jellyfin-<POD>:/tmp/
+#   kubectl -n media exec jellyfin-<POD> -- tar xzf /tmp/jellyfin-config.tar.gz -C /config --strip-components=1
+#   kubectl -n media rollout restart deploy/jellyfin
+#
+#   # NZBDav config + data
+#   kubectl -n media cp /tmp/media-stack-export/nzbdav-config.tar.gz nzbdav-<POD>:/tmp/
+#   kubectl -n media exec nzbdav-<POD> -- tar xzf /tmp/nzbdav-config.tar.gz -C /config --strip-components=1
+#   kubectl -n media cp /tmp/media-stack-export/nzbdav-data.tar.gz nzbdav-<POD>:/tmp/
+#   kubectl -n media exec nzbdav-<POD> -- tar xzf /tmp/nzbdav-data.tar.gz -C /data --strip-components=1
+#   kubectl -n media rollout restart deploy/nzbdav
+#
+#   # Tuliprox data (config is rendered from secrets in TF, only runtime data needs restoring)
+#   kubectl -n media cp /tmp/media-stack-export/tuliprox-data.tar.gz tuliprox-<POD>:/tmp/
+#   kubectl -n media exec tuliprox-<POD> -- tar xzf /tmp/tuliprox-data.tar.gz -C /app/data --strip-components=1
+#   kubectl -n media rollout restart deploy/tuliprox
+
+- name: Decommission Jellyfin, NZBDav, and Tuliprox from media-stack VM
+  hosts: media-stack
+  gather_facts: false
+  vars:
+    admin_user: aether
+    export_dir: /tmp/media-stack-export
+
+  tasks:
+    # =========================================================================
+    # Stop services
+    # =========================================================================
+
+    - name: Stop rclone-nzbdav mount (system scope)
+      become: true
+      ansible.builtin.systemd:
+        name: rclone-nzbdav
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Stop user-scope quadlets
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        scope: user
+      loop:
+        - jellyfin
+        - nzbdav
+        - tuliprox
+      ignore_errors: true
+
+    # =========================================================================
+    # Export state
+    # =========================================================================
+
+    - name: Create local export directory
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ export_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: directory
+        mode: "0755"
+
+    - name: Archive Jellyfin config
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/jellyfin-config.tar.gz -C /home/{{ admin_user }}/jellyfin config
+      changed_when: true
+
+    - name: Archive NZBDav config
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/nzbdav-config.tar.gz -C /home/{{ admin_user }}/nzbdav config
+      changed_when: true
+
+    - name: Archive NZBDav data
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/nzbdav-data.tar.gz -C /home/{{ admin_user }}/nzbdav data
+      changed_when: true
+
+    - name: Archive Tuliprox data
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/tuliprox-data.tar.gz -C /home/{{ admin_user }}/tuliprox data
+      changed_when: true
+
+    - name: Fetch tarballs to control node
+      ansible.builtin.fetch:
+        src: "/home/{{ admin_user }}/export/{{ item }}"
+        dest: "{{ export_dir }}/{{ item }}"
+        flat: true
+      loop:
+        - jellyfin-config.tar.gz
+        - nzbdav-config.tar.gz
+        - nzbdav-data.tar.gz
+        - tuliprox-data.tar.gz
+
+    # =========================================================================
+    # Disable and clean up
+    # =========================================================================
+
+    - name: Disable user-scope quadlets
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        scope: user
+      loop:
+        - jellyfin
+        - nzbdav
+        - tuliprox
+      ignore_errors: true
+
+    - name: Remove application directories
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/{{ item }}"
+        state: absent
+      loop:
+        - jellyfin
+        - nzbdav
+        - tuliprox
+
+    - name: Clean up remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: absent

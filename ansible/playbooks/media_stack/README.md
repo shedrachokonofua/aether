@@ -72,7 +72,7 @@ task ansible:playbook -- ./ansible/playbooks/media_stack/filestash.yml
 
 ### Deploy Jellyfin
 
-Deploys Jellyfin media server. Access at https://jellyfin.home.shdr.ch
+Deploys Jellyfin media server. Access at https://tv.shdr.ch
 
 Media libraries mounted at:
 

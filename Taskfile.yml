@@ -278,8 +278,9 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/firecrawl.yml]
   configure:media-stack:
     cmds: [ansible-playbook ansible/playbooks/media_stack/site.yml]
-  configure:tuliprox:
-    cmds: [ansible-playbook ansible/playbooks/media_stack/tuliprox/site.yml]
+  decommission:media-k8s:
+    desc: Export jellyfin/nzbdav/tuliprox state from media-stack VM for k8s migration
+    cmds: [ansible-playbook ansible/playbooks/media_stack/decommission_jellyfin_nzbdav_tuliprox.yml]
   configure:messaging-stack:
     cmds: [ansible-playbook ansible/playbooks/messaging_stack/site.yml]
   configure:messaging:

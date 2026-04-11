@@ -282,5 +282,10 @@ module "kubernetes" {
   openwebui_oauth_client_secret = keycloak_openid_client.openwebui.client_secret
   litellm_mcp_url               = "http://${local.vm.ai_tool_stack.ip}:${local.vm.ai_tool_stack.ports.litellm}/mcp"
 
+  # Media stack migration
+  nfs_server_ip       = local.vm.nfs.ip.vyos
+  media_stack_ip      = local.vm.media_stack.ip
+  rotating_proxy_addr = "${local.vm.home_gateway_stack.ip}:${local.vm.home_gateway_stack.ports.rotating_proxy}"
+
   depends_on = [talos_cluster_kubeconfig.this]
 }
