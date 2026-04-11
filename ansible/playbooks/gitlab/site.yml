@@ -8,6 +8,3 @@
 
 - name: Deploy GitLab
   import_playbook: gitlab.yml
-
-- name: Deploy GitLab runners
-  import_playbook: runners.yml

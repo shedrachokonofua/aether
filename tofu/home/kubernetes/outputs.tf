@@ -56,3 +56,8 @@ output "vcluster_seven30_namespace" {
   description = "Host namespace for Seven30 vcluster"
   value       = local.vcluster_namespace
 }
+
+output "gitlab_runner_namespace" {
+  description = "Namespace hosting the Kubernetes GitLab runner"
+  value       = kubernetes_namespace_v1.gitlab_runner.metadata[0].name
+}

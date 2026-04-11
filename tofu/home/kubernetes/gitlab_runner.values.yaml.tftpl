@@ -1,0 +1,26 @@
+gitlabUrl: ${gitlab_url}
+concurrent: 8
+checkInterval: 3
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: ${service_account_name}
+
+resources: {}
+
+runners:
+  secret: ${runner_secret_name}
+  config: |
+    [[runners]]
+      executor = "kubernetes"
+      environment = ["FF_NETWORK_PER_BUILD=1"]
+
+      [runners.kubernetes]
+        namespace = "${namespace}"
+        image = "alpine:3.20"
+        privileged = true
+        poll_timeout = 1800
+        pull_policy = "if-not-present"
