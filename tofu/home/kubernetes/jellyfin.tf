@@ -400,7 +400,7 @@ resource "kubernetes_manifest" "jellyfin_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = [local.jellyfin_gateway_hostname]
+      hostnames = [local.jellyfin_gateway_hostname, "tv.shdr.ch"]
       rules = [{
         matches = [{
           path = {

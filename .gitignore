@@ -62,3 +62,4 @@ terraform.rc
 # Built binaries
 aether-public-gateway-caddy
 
+backups/

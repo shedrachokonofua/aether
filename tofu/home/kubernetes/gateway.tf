@@ -86,6 +86,17 @@ resource "kubernetes_manifest" "main_gateway" {
             }
           }
         },
+        {
+          name     = "tv"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "tv.shdr.ch"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
+          }
+        },
       ]
     }
   }

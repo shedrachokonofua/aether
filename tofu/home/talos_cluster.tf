@@ -178,7 +178,7 @@ resource "talos_machine_configuration_apply" "this" {
       yamlencode({
         machine = {
           install = {
-            disk = "/dev/vda"
+            disk  = "/dev/vda"
             image = try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
           }
           network = {

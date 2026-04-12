@@ -511,12 +511,10 @@ resource "keycloak_openid_client" "jellyfin" {
 
   valid_redirect_uris = [
     "https://tv.shdr.ch/sso/OID/redirect/aether",
-    "https://jellyfin.apps.home.shdr.ch/sso/OID/redirect/aether",
   ]
 
   web_origins = [
     "https://tv.shdr.ch",
-    "https://jellyfin.apps.home.shdr.ch",
   ]
 
   extra_config = {
