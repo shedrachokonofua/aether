@@ -3,7 +3,7 @@
 # =============================================================================
 # Dedicated runner for container image builds that should move off the VM-based
 # Podman runner first. The instance runner itself must be created in GitLab with:
-#   - run untagged jobs: disabled
+#   - run untagged jobs: enabled
 #   - tag list: buildah
 # This release only consumes the runner authentication token.
 

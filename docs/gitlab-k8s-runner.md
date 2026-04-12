@@ -6,8 +6,8 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
 ## Target State
 
 - Runner scope: instance runner
-- Runner tag: `buildah`
-- `runUntagged`: `false`
+- Runner tag: `buildah` (optional selector only)
+- `runUntagged`: `true`
 - Executor: Kubernetes
 - Job pod mode: privileged
 - Job resource requests/limits: none
@@ -22,7 +22,7 @@ UI with:
 
 - Description: `k8s-runner`
 - Tags: `buildah`
-- Run untagged jobs: disabled
+- Run untagged jobs: enabled
 - Protected runner: disabled unless you explicitly want protected refs only
 
 Copy the resulting runner authentication token (`glrt-...`) into
@@ -56,14 +56,12 @@ This creates:
 Move only Buildah jobs first. Leave test and tofu jobs on the existing runner
 until the image-build path is stable.
 
-Minimal `.gitlab-ci.yml` example:
+Minimal `.gitlab-ci.yml` example without a tag requirement:
 
 ```yaml
 image-build:
   image: quay.io/buildah/stable
   stage: build
-  tags:
-    - buildah
   variables:
     STORAGE_DRIVER: vfs
   script:
@@ -72,12 +70,19 @@ image-build:
     - buildah push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
 ```
 
+If you still want to pin a job to this runner explicitly, you can keep:
+
+```yaml
+tags:
+  - buildah
+```
+
 ## Verification
 
 For the first rollout, verify all of the following in one low-risk repo:
 
 1. The runner shows `online` in the target GitLab group.
-2. Only jobs tagged `buildah` are picked up by the new runner.
+2. Untagged Buildah jobs are picked up by the new runner.
 3. `buildah bud` succeeds with `STORAGE_DRIVER=vfs`.
 4. Pushes to `registry.gitlab.home.shdr.ch` succeed.
 5. Build time and cache behavior are acceptable.

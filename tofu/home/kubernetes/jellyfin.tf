@@ -246,6 +246,7 @@ resource "kubernetes_deployment_v1" "jellyfin" {
 
           command = ["rclone", "mount", "nzb-dav:", "/mnt/nzbdav",
             "--config=/config/rclone.conf",
+            "--cache-dir=/vfs-cache",
             "--vfs-cache-mode=full",
             "--buffer-size=1024M",
             "--dir-cache-time=1s",
@@ -265,6 +266,11 @@ resource "kubernetes_deployment_v1" "jellyfin" {
             name              = "nzbdav"
             mount_path        = "/mnt/nzbdav"
             mount_propagation = "Bidirectional"
+          }
+
+          volume_mount {
+            name       = "rclone-vfs-cache"
+            mount_path = "/vfs-cache"
           }
 
           volume_mount {
@@ -308,7 +314,16 @@ resource "kubernetes_deployment_v1" "jellyfin" {
 
         volume {
           name = "nzbdav"
-          empty_dir {}
+          empty_dir {
+            size_limit = "10Gi"
+          }
+        }
+
+        volume {
+          name = "rclone-vfs-cache"
+          empty_dir {
+            size_limit = "6Gi"
+          }
         }
 
         volume {
