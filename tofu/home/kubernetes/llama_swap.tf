@@ -8,7 +8,7 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v199-cuda-b8606"
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v202-cuda-b8808"
   llama_swap_host    = "llama-swap.apps.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = kubernetes_namespace_v1.infra.metadata[0].name
@@ -57,40 +57,31 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
       globalTTL: 300
 
       models:
-        "qwen3.5-27b":
+        "qwen3.6-35b-a3b":
           cmd: >
             llama-server
             --port $${PORT}
-            -hf unsloth/Qwen3.5-27B-GGUF:Q8_0
+            -hf unsloth/Qwen3.6-35B-A3B-GGUF:Q8_0
             -ngl 99
             --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
-          ttl: 300
+            --ctx-size 131072
+          ttl: 900
           filters:
             setParamsByID:
-              "qwen3.5-27b":
+              "qwen3.6-35b-a3b":
                 chat_template_kwargs:
                   enable_thinking: false
-              "qwen3.5-27b:code":
+              "qwen3.6-35b-a3b:code":
                 chat_template_kwargs:
                   enable_thinking: true
                 temperature: 0.6
                 top_p: 0.95
                 top_k: 20
-              "qwen3.5-27b:think":
+              "qwen3.6-35b-a3b:think":
                 chat_template_kwargs:
                   enable_thinking: true
-
-        "qwen3.5-9b":
-          cmd: >
-            llama-server
-            --port $${PORT}
-            -hf unsloth/Qwen3.5-9B-GGUF:Q8_0
-            -ngl 99
-            --cache-type-k q8_0
-            --cache-type-v q8_0
-          ttl: 300
 
         "bge-reranker-v2-m3":
           cmd: >
@@ -110,7 +101,8 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
-          ttl: 300
+            --ctx-size 131072
+          ttl: 900
 
         "qwen3-embedding-4b":
           cmd: >
@@ -121,6 +113,15 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --embedding
             --pooling last
           ttl: 120
+
+      matrix:
+        vars:
+          q36: "qwen3.6-35b-a3b"
+          g31: "gemma-4-31b"
+          emb: "qwen3-embedding-4b"
+          rr: "bge-reranker-v2-m3"
+        sets:
+          full: "q36 & g31 & emb & rr"
     YAML
   }
 }
