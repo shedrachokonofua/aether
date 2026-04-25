@@ -8,11 +8,11 @@
 # This release only consumes the runner authentication token.
 
 locals {
-  gitlab_runner_namespace             = "gitlab-runner"
-  gitlab_runner_release_name          = "gitlab-runner-k8s"
-  gitlab_runner_secret_name           = "gitlab-runner-k8s-auth"
-  gitlab_runner_auth_token            = var.secrets["gitlab.runner_k8s_token"]
-  gitlab_runner_service_account       = "gitlab-runner-k8s"
+  gitlab_runner_namespace       = "gitlab-runner"
+  gitlab_runner_release_name    = "gitlab-runner-k8s"
+  gitlab_runner_secret_name     = "gitlab-runner-k8s-auth"
+  gitlab_runner_auth_token      = var.secrets["gitlab.runner_k8s_token"]
+  gitlab_runner_service_account = "gitlab-runner-k8s"
 }
 
 resource "kubernetes_namespace_v1" "gitlab_runner" {
@@ -57,5 +57,6 @@ resource "helm_release" "gitlab_runner" {
     namespace            = kubernetes_namespace_v1.gitlab_runner.metadata[0].name
     runner_secret_name   = kubernetes_secret_v1.gitlab_runner_auth.metadata[0].name
     service_account_name = local.gitlab_runner_service_account
+    runner_app_label     = local.gitlab_runner_release_name
   })]
 }

@@ -10,9 +10,13 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
 - `runUntagged`: `true`
 - Executor: Kubernetes
 - Job pod mode: privileged
-- Job resource requests/limits: none
-- Manager pod requests/limits: none
-- Build job variable: `STORAGE_DRIVER=vfs`
+- Manager replicas: `3`
+- Max concurrent jobs: `1` per manager, `3` total
+- Manager pod requests/limits: `100m`/`500m` CPU, `128Mi`/`512Mi` memory
+- Build container requests/limits: `2`/`2` CPU, `2Gi`/`4Gi` memory,
+  `8Gi`/`32Gi` ephemeral storage
+- Helper and service container requests/limits: small bounded defaults
+- Default build storage driver: `STORAGE_DRIVER=overlay`
 
 ## Manual GitLab Step
 
@@ -51,6 +55,12 @@ This creates:
 - secret `gitlab-runner-k8s-auth`
 - Helm release `gitlab-runner-k8s`
 
+For targeted rollout after changing only runner settings:
+
+```bash
+task tofu:apply:gitlab-runner
+```
+
 ## First Repo Patch
 
 Move only Buildah jobs first. Leave test and tofu jobs on the existing runner
@@ -62,8 +72,6 @@ Minimal `.gitlab-ci.yml` example without a tag requirement:
 image-build:
   image: quay.io/buildah/stable
   stage: build
-  variables:
-    STORAGE_DRIVER: vfs
   script:
     - buildah login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - buildah bud -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" .
@@ -83,7 +91,7 @@ For the first rollout, verify all of the following in one low-risk repo:
 
 1. The runner shows `online` in the target GitLab group.
 2. Untagged Buildah jobs are picked up by the new runner.
-3. `buildah bud` succeeds with `STORAGE_DRIVER=vfs`.
+3. `buildah bud` succeeds with `STORAGE_DRIVER=overlay`.
 4. Pushes to `registry.gitlab.home.shdr.ch` succeed.
 5. Build time and cache behavior are acceptable.
 
@@ -91,5 +99,14 @@ For the first rollout, verify all of the following in one low-risk repo:
 
 - This intentionally does not introduce Docker-in-Docker.
 - This intentionally does not move test or OpenTofu jobs yet.
+- Existing jobs that explicitly set `STORAGE_DRIVER=vfs` must remove that
+  override or change it to `overlay`; job-level variables can override the
+  runner default.
+- The runner is intentionally capped below the observed cluster pain point of
+  6-7 concurrent jobs. With three manager replicas and a per-runner limit of
+  one job, this release should run at most three builds at a time.
+- Build jobs can request more resources with Kubernetes executor variables, but
+  the runner caps overrides at `4` CPU, `8Gi` memory, and `64Gi` ephemeral
+  storage.
 - If the runner manager cannot trust `gitlab.home.shdr.ch`, add a custom CA
   secret and set `certsSecretName` in the Helm values template.

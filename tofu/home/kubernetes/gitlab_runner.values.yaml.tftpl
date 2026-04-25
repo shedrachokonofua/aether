@@ -1,6 +1,16 @@
 gitlabUrl: ${gitlab_url}
-concurrent: 8
+replicas: 3
+concurrent: 1
 checkInterval: 3
+
+# Prefer different nodes for manager pods; ScheduleAnyway still allows 2+ on one node if the scheduler must
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: ${runner_app_label}
 
 rbac:
   create: true
@@ -9,21 +19,50 @@ serviceAccount:
   create: true
   name: ${service_account_name}
 
-resources: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
 
 runners:
   secret: ${runner_secret_name}
   config: |
     [[runners]]
       executor = "kubernetes"
-      environment = ["FF_NETWORK_PER_BUILD=1"]
+      limit = 1
+      request_concurrency = 1
+      environment = ["FF_NETWORK_PER_BUILD=1", "STORAGE_DRIVER=overlay"]
 
       [runners.kubernetes]
         namespace = "${namespace}"
         image = "alpine:3.20"
         privileged = true
-        ephemeral_storage_request = "4Gi"
+        cpu_request = "2"
+        memory_request = "2Gi"
+        ephemeral_storage_request = "8Gi"
+        cpu_limit = "2"
+        memory_limit = "4Gi"
+        ephemeral_storage_limit = "32Gi"
+        helper_cpu_request = "100m"
+        helper_memory_request = "128Mi"
         helper_ephemeral_storage_request = "512Mi"
+        helper_cpu_limit = "500m"
+        helper_memory_limit = "512Mi"
+        helper_ephemeral_storage_limit = "1Gi"
+        service_cpu_request = "100m"
+        service_memory_request = "128Mi"
         service_ephemeral_storage_request = "512Mi"
+        service_cpu_limit = "500m"
+        service_memory_limit = "512Mi"
+        service_ephemeral_storage_limit = "1Gi"
+        cpu_request_overwrite_max_allowed = "2"
+        memory_request_overwrite_max_allowed = "4Gi"
+        ephemeral_storage_request_overwrite_max_allowed = "16Gi"
+        cpu_limit_overwrite_max_allowed = "4"
+        memory_limit_overwrite_max_allowed = "8Gi"
+        ephemeral_storage_limit_overwrite_max_allowed = "64Gi"
         poll_timeout = 1800
         pull_policy = "if-not-present"
