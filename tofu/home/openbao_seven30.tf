@@ -92,7 +92,7 @@ resource "vault_policy" "seven30_developer" {
     }
 
     path "kv/metadata/seven30/*" {
-      capabilities = ["read", "list", "delete"]
+      capabilities = ["create", "read", "update", "list", "delete"]
     }
 
     path "kv/delete/seven30/*" {
