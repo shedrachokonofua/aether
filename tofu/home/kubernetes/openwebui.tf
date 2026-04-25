@@ -13,7 +13,7 @@ locals {
   postgres_db         = "openwebui"
   postgres_user       = "openwebui"
   postgres_port       = 5432
-  postgres_url        = "postgresql://${local.postgres_user}:${random_password.openwebui_postgres_password.result}@${local.postgres_service}.${local.openwebui_namespace}.svc.cluster.local:${local.postgres_port}/${local.postgres_db}"
+  postgres_url        = "postgresql://${local.postgres_user}:${random_password.openwebui_postgres_password.result}@${local.postgres_service}.${local.openwebui_namespace}.svc.cluster.local:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
 
   openwebui_tool_server_connections = jsonencode([{
     type      = "openapi"
