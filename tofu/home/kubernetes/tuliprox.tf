@@ -104,34 +104,10 @@ resource "kubernetes_secret_v1" "tuliprox_config" {
               username: "${var.secrets["tuliprox.providers.0.accounts.2.username"]}"
               password: "${var.secrets["tuliprox.providers.0.accounts.2.password"]}"
               max_connections: ${var.secrets["tuliprox.providers.0.accounts.2.max_connections"]}
-        - name: "${var.secrets["tuliprox.providers.1.accounts.0.username"]}"
-          type: xtream
-          url: "${var.secrets["tuliprox.providers.1.url"]}"
-          username: "${var.secrets["tuliprox.providers.1.accounts.0.username"]}"
-          password: "${var.secrets["tuliprox.providers.1.accounts.0.password"]}"
-          max_connections: ${var.secrets["tuliprox.providers.1.accounts.0.max_connections"]}
-          options:
-            xtream_skip_vod: true
-            xtream_skip_series: true
-          epg:
-            sources:
-              - url: "${var.secrets["tuliprox.providers.1.url"]}/xmltv.php?username=${var.secrets["tuliprox.providers.1.accounts.0.username"]}&password=${var.secrets["tuliprox.providers.1.accounts.0.password"]}"
-          aliases:
-            - name: "${var.secrets["tuliprox.providers.1.accounts.1.username"]}"
-              url: "${var.secrets["tuliprox.providers.1.url"]}"
-              username: "${var.secrets["tuliprox.providers.1.accounts.1.username"]}"
-              password: "${var.secrets["tuliprox.providers.1.accounts.1.password"]}"
-              max_connections: ${var.secrets["tuliprox.providers.1.accounts.1.max_connections"]}
-            - name: "${var.secrets["tuliprox.providers.1.accounts.2.username"]}"
-              url: "${var.secrets["tuliprox.providers.1.url"]}"
-              username: "${var.secrets["tuliprox.providers.1.accounts.2.username"]}"
-              password: "${var.secrets["tuliprox.providers.1.accounts.2.password"]}"
-              max_connections: ${var.secrets["tuliprox.providers.1.accounts.2.max_connections"]}
 
       sources:
         - inputs:
             - "${var.secrets["tuliprox.providers.0.accounts.0.username"]}"
-            - "${var.secrets["tuliprox.providers.1.accounts.0.username"]}"
           targets:
             - name: all_channels
               use_memory_cache: true
