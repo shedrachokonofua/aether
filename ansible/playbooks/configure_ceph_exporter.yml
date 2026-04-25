@@ -1,0 +1,107 @@
+---
+# Install ceph-exporter on each Ceph host for Prometheus scraping.
+#
+# Why not the mgr prometheus module:
+#   Ceph 19.2 / 20.2 mgr prometheus module crashes under Python 3.13
+#   ("not all arguments converted during string formatting"), so only the
+#   active mgr ever works and it fails module init entirely.
+#   ceph-exporter is a C++ daemon — no Python, no bug.
+#
+# Each host runs its own exporter on port 9926 and exposes local daemon
+# perf counters via the admin sockets in /var/run/ceph. Prometheus scrapes
+# all three hosts.
+
+- name: Install and configure ceph-exporter
+  hosts:
+    - trinity
+    - neo
+    - smith
+  become: true
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    ceph_exporter_port: 9926
+    ceph_exporter_client: "client.ceph-exporter.{{ inventory_hostname }}"
+    ceph_exporter_keyring: "/etc/ceph/ceph.client.ceph-exporter.{{ inventory_hostname }}.keyring"
+
+  tasks:
+    - name: Install ceph-exporter package
+      ansible.builtin.apt:
+        name: ceph-exporter
+        state: present
+
+    # Keyring must live outside /etc/pve — that FUSE mount isn't readable by
+    # the ceph user, and ceph-exporter drops privileges before reading it
+    # (unlike radosgw).
+    - name: Create ceph-exporter cephx user
+      ansible.builtin.command:
+        cmd: >
+          ceph auth get-or-create {{ ceph_exporter_client }}
+          mon "allow r" mgr "allow r" osd "allow r" mds "allow r"
+          -o {{ ceph_exporter_keyring }}
+      args:
+        creates: "{{ ceph_exporter_keyring }}"
+
+    - name: Ensure ceph-exporter keyring permissions
+      ansible.builtin.file:
+        path: "{{ ceph_exporter_keyring }}"
+        owner: root
+        group: ceph
+        mode: "0640"
+
+    # Drop-in is needed because:
+    #   - Packaged unit's ExecStart uses "--id %i" but the unit isn't templated,
+    #     so %i is always empty, leaving the daemon unable to find its keyring.
+    #   - Proxmox's ceph.conf hardcodes keyring path to /etc/pve/priv/, which
+    #     ceph user can't read — we point at /etc/ceph explicitly.
+    - name: Ensure ceph-exporter systemd drop-in dir
+      ansible.builtin.file:
+        path: /etc/systemd/system/ceph-exporter.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Write ceph-exporter systemd drop-in
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/ceph-exporter.service.d/override.conf
+        mode: "0644"
+        content: |
+          [Service]
+          ExecStart=
+          ExecStart=/usr/bin/ceph-exporter -f \
+            --id ceph-exporter.{{ inventory_hostname }} \
+            --keyring {{ ceph_exporter_keyring }} \
+            --port {{ ceph_exporter_port }} \
+            --setuser ceph --setgroup ceph
+      notify:
+        - Reload systemd
+        - Restart ceph-exporter
+
+    - name: Flush handlers before starting service
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start ceph-exporter
+      ansible.builtin.systemd:
+        name: ceph-exporter.service
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Verify ceph-exporter metrics endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ ceph_exporter_port }}/metrics"
+        return_content: false
+      register: ceph_exporter_check
+      retries: 6
+      delay: 5
+      until: ceph_exporter_check.status == 200
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart ceph-exporter
+      ansible.builtin.systemd:
+        name: ceph-exporter.service
+        state: restarted

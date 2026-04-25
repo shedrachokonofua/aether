@@ -44,6 +44,12 @@ flowchart TB
 | ceph-vm-disks | RBD    | VM disks (HA-enabled)                |
 | cephfs        | CephFS | Runtime mounts, shared data, backups |
 
+### Notes
+
+- **Trinity drive constraint.** Trinity's NVMes are Lexar EQ790 4TB (consumer DRAM-less, SLC-cached). Under sustained Ceph writes they show elevated commit latency and periodic `aio_submit` retries. Neo's WD Blue SN5000 and Smith's drives do not. The MS-01 chassis also forces only one drive per host onto the single PCIe 4.0 x4 slot; the other sits in a PCIe 3.0 x4 slot.
+- **Primary-affinity mitigation.** `osd.0` and `osd.1` (trinity) run with `primary-affinity=0` so all PG primaries land on neo/smith. Trinity remains in the acting set as a replica — durability is unchanged (size=3, min_size=2) — but client commits no longer block on trinity's slower disks. Revert with `ceph osd primary-affinity osd.{0,1} 1` once trinity's drives are replaced.
+- **Scrubs disabled.** `noscrub,nodeep-scrub` flags are set while trinity is constrained. Re-enable after drives are replaced.
+
 ### CephFS Mounts
 
 VMs that mount CephFS for shared data access:
@@ -114,6 +120,8 @@ Critical infrastructure uses node-local storage to remain independent of Ceph/NF
 | Smith  | Backup Stack                                | Must work if Ceph fails                              |
 
 **Note:** Most workload VMs (GitLab, Dokku, Dokploy, messaging, media, etc.) now run on Ceph for HA capability.
+
+**Gap:** The Talos Kubernetes control-plane VMs (`talos-trinity`, `talos-neo`, `talos-niobe`) currently boot from `ceph-vm-disks`. Their etcd disks therefore share fate with the Ceph pool — Ceph write latency translates directly to etcd fsync stalls → API/scheduler flaps → workload impact. (Ceph itself runs on the Proxmox hosts and is independent of Kubernetes; the dependency is one-way: CP VMs → Ceph.) Planned migration: move CP boot disks to node-local storage (or redistribute CP VMs to hosts that already have local storage capacity).
 
 ## NFS Storage
 

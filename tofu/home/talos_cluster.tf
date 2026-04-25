@@ -173,6 +173,34 @@ resource "talos_machine_configuration_apply" "this" {
               "service-account-issuer" = local.k8s_serviceaccount_issuer
             }
           }
+          # Raised from defaults (100/1000) to absorb Ceph fsync stalls on the
+          # CP etcd disks (they're backed by ceph-vm-disks; trinity's Lexars
+          # spike AIO wait to 60-100ms). Defaults cause leader elections on
+          # every stall. Ratio of 10x preserved as etcd requires.
+          etcd = {
+            extraArgs = {
+              "heartbeat-interval" = "500"
+              "election-timeout"   = "5000"
+            }
+          }
+          # Defaults (15s/10s/2s) can't ride out Ceph-driven etcd stalls — CM
+          # and scheduler lose their lease and CrashLoopBackOff every few
+          # minutes. 60s/40s/10s lets the leader tolerate longer stalls
+          # without triggering re-election.
+          controllerManager = {
+            extraArgs = {
+              "leader-elect-lease-duration" = "60s"
+              "leader-elect-renew-deadline" = "40s"
+              "leader-elect-retry-period"   = "10s"
+            }
+          }
+          scheduler = {
+            extraArgs = {
+              "leader-elect-lease-duration" = "60s"
+              "leader-elect-renew-deadline" = "40s"
+              "leader-elect-retry-period"   = "10s"
+            }
+          }
         }
       }),
       yamlencode({

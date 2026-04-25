@@ -68,3 +68,16 @@ scrape_configs:
       - targets: ["localhost:10019"]
         labels:
           instance_type: "pbs"
+
+  # Ceph cluster - standalone ceph-exporter daemon (one per host, port 9926).
+  # Avoids the mgr prometheus module, which crashes under Python 3.13 on
+  # Ceph 19.2/20.2. Deploy with: task configure:ceph-exporter
+  - job_name: "ceph"
+    honor_labels: true
+    static_configs:
+      - targets:
+          - "192.168.2.202:9926" # Trinity
+          - "192.168.2.204:9926" # Smith
+          - "192.168.2.205:9926" # Neo
+        labels:
+          instance_type: "ceph"

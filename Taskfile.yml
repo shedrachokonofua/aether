@@ -255,6 +255,8 @@ tasks:
   configure:monitoring:
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml {{.CLI_ARGS}}
+  configure:ceph-exporter:
+    cmds: [ansible-playbook ansible/playbooks/configure_ceph_exporter.yml]
   configure:dokploy:
     cmds: [ansible-playbook ansible/playbooks/dokploy/site.yml]
   configure:gitlab:

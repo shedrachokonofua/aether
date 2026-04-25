@@ -1,0 +1,1874 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Talos Kubernetes cluster health across every compute dimension: nodes, workloads, CPU/memory saturation, network, storage, GPUs, and control plane. Metrics via OTEL kubeletstats + k8sclusterreceiver + DCGM + istiod.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "Cluster Health",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Nodes reporting Ready=1 out of total nodes in the cluster.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 3 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_node_condition_ready == 1)", "legendFormat": "Ready", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_node_condition_ready)", "legendFormat": "Total", "refId": "B" }
+      ],
+      "title": "Nodes Ready",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Pods in phase Running (k8s_pod_phase == 2).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2)", "refId": "A" }
+      ],
+      "title": "Running Pods",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Pods in phase Pending (k8s_pod_phase == 1). Stuck scheduling, image pull, or PVC bind.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 1) or vector(0)", "refId": "A" }
+      ],
+      "title": "Pending Pods",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Pods in phase Failed (k8s_pod_phase == 4). Investigate restart policy / exit codes.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 4) or vector(0)", "refId": "A" }
+      ],
+      "title": "Failed Pods",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Total CPU cores in use across the cluster (sum of per-node kubelet CPU usage). Node capacity isn't exported by kubeletstats, so this is absolute cores, not a percentage.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_node_cpu_utilization{host_name=~\"$node\"})", "legendFormat": "cores used", "refId": "A" }
+      ],
+      "title": "Cluster CPU",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Memory used / (used + available) averaged across nodes.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.75 },
+              { "color": "red", "value": 0.9 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "id": 6,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg(k8s_node_memory_usage{host_name=~\"$node\"} / (k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"}))", "refId": "A" }
+      ],
+      "title": "Cluster Memory",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Average GPU utilization across all DCGM-reporting GPUs.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 20 },
+              { "color": "yellow", "value": 85 },
+              { "color": "red", "value": 98 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "id": 7,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg(DCGM_FI_DEV_GPU_UTIL) or vector(0)", "refId": "A" }
+      ],
+      "title": "Cluster GPU",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "New container restarts in the last hour (increase on k8s_container_restarts).",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(increase(k8s_container_restarts{service_namespace=~\"$namespace\"}[1h])) or vector(0)", "refId": "A" }
+      ],
+      "title": "Restarts (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Sum of available deployment replicas across namespaces. Drop below desired = rollout stalled.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 5 },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_deployment_available{service_namespace=~\"$namespace\"})", "legendFormat": "Available", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_deployment_desired{service_namespace=~\"$namespace\"})", "legendFormat": "Desired", "refId": "B" }
+      ],
+      "title": "Deployments",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "StatefulSet pods ready vs desired.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 5 },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_statefulset_ready_pods{service_namespace=~\"$namespace\"})", "legendFormat": "Ready", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_statefulset_desired_pods{service_namespace=~\"$namespace\"})", "legendFormat": "Desired", "refId": "B" }
+      ],
+      "title": "StatefulSets",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "DaemonSet nodes ready vs desired. Misscheduled > 0 flags a problem.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 5 },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_daemonset_ready_nodes{service_namespace=~\"$namespace\"})", "legendFormat": "Ready", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_daemonset_desired_scheduled_nodes{service_namespace=~\"$namespace\"})", "legendFormat": "Desired", "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_daemonset_misscheduled_nodes{service_namespace=~\"$namespace\"}) or vector(0)", "legendFormat": "Misschd", "refId": "C" }
+      ],
+      "title": "DaemonSets",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Active jobs, plus failed job pods — investigate any non-zero failure count.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Active" },
+            "properties": [{ "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 5 },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_job_active_pods{service_namespace=~\"$namespace\"}) or vector(0)", "legendFormat": "Active", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(k8s_job_failed_pods{service_namespace=~\"$namespace\"}) or vector(0)", "legendFormat": "Failed", "refId": "B" }
+      ],
+      "title": "Jobs",
+      "type": "stat"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Running pod distribution across namespaces.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "id": 13,
+      "options": {
+        "displayLabels": ["percent"],
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] },
+        "pieType": "donut",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2) by (service_namespace)", "legendFormat": "{{service_namespace}}", "refId": "A" }
+      ],
+      "title": "Running Pods by Namespace",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "All pods grouped by lifecycle phase (Pending/Running/Succeeded/Failed/Unknown).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Running" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "Pending" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "Failed" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "Succeeded" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "Unknown" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "id": 14,
+      "options": {
+        "displayLabels": ["value"],
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value"] },
+        "pieType": "pie",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 1) or vector(0)", "legendFormat": "Pending", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2) or vector(0)", "legendFormat": "Running", "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 3) or vector(0)", "legendFormat": "Succeeded", "refId": "C" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 4) or vector(0)", "legendFormat": "Failed", "refId": "D" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 5) or vector(0)", "legendFormat": "Unknown", "refId": "E" }
+      ],
+      "title": "Pods by Phase",
+      "type": "piechart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "id": 101,
+      "panels": [],
+      "title": "Nodes",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Per-node health snapshot: readiness, CPU, memory, filesystem, pod density. One row per node.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Ready" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } },
+              { "id": "mappings", "value": [{ "options": { "0": { "text": "NotReady", "color": "red" }, "1": { "text": "Ready", "color": "green" } }, "type": "value" }] }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "CPU (cores)" },
+            "properties": [
+              { "id": "unit", "value": "short" },
+              { "id": "decimals", "value": 2 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 4 }, { "color": "red", "value": 12 }] } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Memory %" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "max", "value": 1 }, { "id": "min", "value": 0 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.75 }, { "color": "red", "value": 0.9 }] } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Disk %" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "max", "value": 1 }, { "id": "min", "value": 0 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.75 }, { "color": "red", "value": 0.9 }] } }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "Memory (GiB)" }, "properties": [{ "id": "unit", "value": "bytes" }, { "id": "decimals", "value": 1 }] },
+          { "matcher": { "id": "byName", "options": "Disk (GiB)" }, "properties": [{ "id": "unit", "value": "bytes" }, { "id": "decimals", "value": 1 }] },
+          { "matcher": { "id": "byName", "options": "Pods" }, "properties": [{ "id": "unit", "value": "short" }] },
+          { "matcher": { "id": "byName", "options": "GPUs" }, "properties": [{ "id": "unit", "value": "short" }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+      "id": 15,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "CPU (cores)" }]
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_condition_ready{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_cpu_utilization{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_usage{host_name=~\"$node\"} / (k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})", "format": "table", "instant": true, "refId": "C" },
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "D" },
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_filesystem_usage{host_name=~\"$node\"} / k8s_node_filesystem_capacity{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "E" },
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_filesystem_capacity{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "F" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count by (host_name) (k8s_pod_phase{host_name=~\"$node\"} == 2)", "format": "table", "instant": true, "refId": "G" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count by (host_name) (label_replace(DCGM_FI_DEV_GPU_UTIL, \"host_name\", \"$1\", \"Hostname\", \"(.*)\"))", "format": "table", "instant": true, "refId": "H" }
+      ],
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "host_name", "mode": "outer" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true, "Time 6": true, "Time 7": true, "Time 8": true,
+              "instance 1": true, "instance 2": true, "instance 3": true, "instance 4": true, "instance 5": true, "instance 6": true,
+              "job 1": true, "job 2": true, "job 3": true, "job 4": true, "job 5": true, "job 6": true,
+              "otel_scope_name 1": true, "otel_scope_name 2": true, "otel_scope_name 3": true, "otel_scope_name 4": true, "otel_scope_name 5": true, "otel_scope_name 6": true,
+              "otel_scope_version 1": true, "otel_scope_version 2": true, "otel_scope_version 3": true, "otel_scope_version 4": true, "otel_scope_version 5": true, "otel_scope_version 6": true,
+              "__name__ 1": true, "__name__ 2": true, "__name__ 3": true, "__name__ 4": true, "__name__ 5": true, "__name__ 6": true
+            },
+            "indexByName": {
+              "host_name": 0, "Value #A": 1, "Value #B": 2, "Value #C": 3, "Value #D": 4, "Value #E": 5, "Value #F": 6, "Value #G": 7, "Value #H": 8
+            },
+            "renameByName": {
+              "host_name": "Node",
+              "Value #A": "Ready",
+              "Value #B": "CPU (cores)",
+              "Value #C": "Memory %",
+              "Value #D": "Memory (GiB)",
+              "Value #E": "Disk %",
+              "Value #F": "Disk (GiB)",
+              "Value #G": "Pods",
+              "Value #H": "GPUs"
+            }
+          }
+        }
+      ],
+      "title": "Nodes Overview",
+      "type": "table"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Per-node CPU cores in use (kubelet CPU usage).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "cores", "axisPlacement": "auto",
+            "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [], "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "id": 16,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_cpu_utilization{host_name=~\"$node\"}", "legendFormat": "{{host_name}}", "refId": "A" }
+      ],
+      "title": "Node CPU (cores used)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Per-node memory used / total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto",
+            "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [], "max": 1, "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "id": 17,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_usage{host_name=~\"$node\"} / (k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})", "legendFormat": "{{host_name}}", "refId": "A" }
+      ],
+      "title": "Node Memory Utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Per-node root filesystem usage as percent of capacity.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [], "max": 1, "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.75 },
+              { "color": "red", "value": 0.9 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "id": 18,
+      "options": {
+        "displayMode": "lcd",
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false },
+        "maxVizHeight": 300, "minVizHeight": 16, "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_filesystem_usage{host_name=~\"$node\"} / k8s_node_filesystem_capacity{host_name=~\"$node\"}", "instant": true, "legendFormat": "{{host_name}}", "refId": "A" }
+      ],
+      "title": "Node Filesystem %",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Aggregate pod network throughput rolled up per node (rx + tx).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto",
+            "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "Bps"
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*tx" }, "properties": [{ "id": "custom.transform", "value": "negative-Y" }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "id": 19,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (host_name) (rate(k8s_pod_network_io{direction=\"receive\",host_name=~\"$node\"}[$__rate_interval]))", "legendFormat": "{{host_name}} rx", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (host_name) (rate(k8s_pod_network_io{direction=\"transmit\",host_name=~\"$node\"}[$__rate_interval]))", "legendFormat": "{{host_name}} tx", "refId": "B" }
+      ],
+      "title": "Node Network (pod aggregate)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
+      "id": 102,
+      "panels": [],
+      "title": "Workloads",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Count of pods in each phase over time. Running should dominate; Pending/Failed spikes indicate scheduling or crash issues.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 25,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "stepAfter", "lineWidth": 1,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Running" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "Pending" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "Failed" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "Succeeded" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "Unknown" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "id": 20,
+      "options": {
+        "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 1) or vector(0)", "legendFormat": "Pending", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2) or vector(0)", "legendFormat": "Running", "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 3) or vector(0)", "legendFormat": "Succeeded", "refId": "C" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 4) or vector(0)", "legendFormat": "Failed", "refId": "D" },
+        { "datasource": { "uid": "$datasource" }, "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 5) or vector(0)", "legendFormat": "Unknown", "refId": "E" }
+      ],
+      "title": "Pods by Phase (over time)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Containers with the most restarts in the last hour. Hot spots for crash loops and OOMs.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Restarts (1h)" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } },
+              { "id": "unit", "value": "short" },
+              { "id": "decimals", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Total Restarts" },
+            "properties": [{ "id": "unit", "value": "short" }, { "id": "decimals", "value": 0 }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "id": 21,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Restarts (1h)" }]
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk(15, sum by (service_name, service_namespace, host_name) (increase(k8s_container_restarts{service_namespace=~\"$namespace\"}[1h])) > 0)", "format": "table", "instant": true, "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_name, service_namespace, host_name) (k8s_container_restarts{service_namespace=~\"$namespace\"})", "format": "table", "instant": true, "refId": "B" }
+      ],
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "service_name", "mode": "inner" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true, "Time 2": true,
+              "service_namespace 2": true, "host_name 2": true
+            },
+            "indexByName": {
+              "service_name": 0, "service_namespace 1": 1, "host_name 1": 2, "Value #A": 3, "Value #B": 4
+            },
+            "renameByName": {
+              "service_name": "Pod",
+              "service_namespace 1": "Namespace",
+              "host_name 1": "Node",
+              "Value #A": "Restarts (1h)",
+              "Value #B": "Total Restarts"
+            }
+          }
+        }
+      ],
+      "title": "Top Restarting Containers (1h)",
+      "type": "table"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Deployment available vs desired per namespace. Gap > 0 means at least one deployment is under-replicated.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Gap" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
+      "id": 22,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": true },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Gap" }]
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_deployment_desired{service_namespace=~\"$namespace\"}) - sum by (service_namespace) (k8s_deployment_available{service_namespace=~\"$namespace\"})", "format": "table", "instant": true, "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_deployment_desired{service_namespace=~\"$namespace\"})", "format": "table", "instant": true, "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_deployment_available{service_namespace=~\"$namespace\"})", "format": "table", "instant": true, "refId": "C" }
+      ],
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "service_namespace", "mode": "outer" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time 1": true, "Time 2": true, "Time 3": true },
+            "indexByName": { "service_namespace": 0, "Value #B": 1, "Value #C": 2, "Value #A": 3 },
+            "renameByName": {
+              "service_namespace": "Namespace",
+              "Value #A": "Gap",
+              "Value #B": "Desired",
+              "Value #C": "Available"
+            }
+          }
+        }
+      ],
+      "title": "Deployments — Desired vs Available",
+      "type": "table"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "HorizontalPodAutoscaler current vs desired replicas by namespace. Persistent mismatch = throttled or waiting on pods.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "stepAfter", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
+      "id": 23,
+      "options": {
+        "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_hpa_current_replicas{service_namespace=~\"$namespace\"})", "legendFormat": "{{service_namespace}} current", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_hpa_desired_replicas{service_namespace=~\"$namespace\"})", "legendFormat": "{{service_namespace}} desired", "refId": "B" }
+      ],
+      "title": "HPA — Current vs Desired Replicas",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 },
+      "id": 103,
+      "panels": [],
+      "title": "CPU & Memory Saturation",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Top N pods by CPU usage (cores used).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "cores",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 61 },
+      "id": 24,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_cpu_utilization{service_namespace=~\"$namespace\"}))", "legendFormat": "{{service_name}}", "refId": "A" }
+      ],
+      "title": "Top Pods — CPU",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Top N pods by memory usage (bytes).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 61 },
+      "id": 25,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"}))", "legendFormat": "{{service_name}}", "refId": "A" }
+      ],
+      "title": "Top Pods — Memory (working set)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Containers using >70% of their memory limit — OOMKill candidates.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Usage / Limit" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.8 }, { "color": "red", "value": 0.95 }] } },
+              { "id": "max", "value": 1 }, { "id": "min", "value": 0 }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "Usage" }, "properties": [{ "id": "unit", "value": "bytes" }] },
+          { "matcher": { "id": "byName", "options": "Limit" }, "properties": [{ "id": "unit", "value": "bytes" }] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 71 },
+      "id": 26,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Usage / Limit" }]
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"}) / on (service_name, service_namespace) group_left() sum by (service_name, service_namespace) (k8s_container_memory_limit{service_namespace=~\"$namespace\"}) > 0.5)", "format": "table", "instant": true, "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_name, service_namespace) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"})", "format": "table", "instant": true, "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_name, service_namespace) (k8s_container_memory_limit{service_namespace=~\"$namespace\"})", "format": "table", "instant": true, "refId": "C" }
+      ],
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "service_name", "mode": "inner" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time 1": true, "Time 2": true, "Time 3": true, "service_namespace 2": true, "service_namespace 3": true },
+            "indexByName": { "service_name": 0, "service_namespace 1": 1, "Value #B": 2, "Value #C": 3, "Value #A": 4 },
+            "renameByName": {
+              "service_name": "Pod",
+              "service_namespace 1": "Namespace",
+              "Value #A": "Usage / Limit",
+              "Value #B": "Usage",
+              "Value #C": "Limit"
+            }
+          }
+        }
+      ],
+      "title": "Memory Pressure — Pods Near Limit",
+      "type": "table"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "CPU cores requested vs used per namespace. Large gaps = over-reserved capacity.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "cores",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 80 },
+      "id": 27,
+      "options": {
+        "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_pod_cpu_utilization{service_namespace=~\"$namespace\"})", "legendFormat": "{{service_namespace}} used", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_container_cpu_request{service_namespace=~\"$namespace\"})", "legendFormat": "{{service_namespace}} requested", "refId": "B" }
+      ],
+      "title": "CPU: Used vs Requested (per namespace)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Memory working-set vs requested bytes per namespace.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 80 },
+      "id": 28,
+      "options": {
+        "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"})", "legendFormat": "{{service_namespace}} used", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (service_namespace) (k8s_container_memory_request{service_namespace=~\"$namespace\"})", "legendFormat": "{{service_namespace}} requested", "refId": "B" }
+      ],
+      "title": "Memory: Used vs Requested (per namespace)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 88 },
+      "id": 104,
+      "panels": [],
+      "title": "Network",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Top pods by ingress (receive) rate.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 89 },
+      "id": 29,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io{service_namespace=~\"$namespace\", direction=\"receive\"}[$__rate_interval])))", "legendFormat": "{{service_name}}", "refId": "A" }
+      ],
+      "title": "Top Pods — Network RX",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Top pods by egress (transmit) rate.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 89 },
+      "id": 30,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io{service_namespace=~\"$namespace\", direction=\"transmit\"}[$__rate_interval])))", "legendFormat": "{{service_name}}", "refId": "A" }
+      ],
+      "title": "Top Pods — Network TX",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Pods with non-zero network error rate (rx+tx errors). Healthy baseline is 0.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "errors/s",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 97 },
+      "id": 31,
+      "options": {
+        "legend": { "calcs": ["max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk(10, sum by (service_name, direction) (rate(k8s_pod_network_errors{service_namespace=~\"$namespace\"}[$__rate_interval])) > 0)", "legendFormat": "{{service_name}} {{direction}}", "refId": "A" }
+      ],
+      "title": "Pod Network Errors",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 104 },
+      "id": 105,
+      "panels": [],
+      "title": "Storage",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Top pods by ephemeral filesystem bytes used. Growing rapidly = log rot / missing rotation / leak.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Usage" }, "properties": [{ "id": "unit", "value": "bytes" }] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 105 },
+      "id": 32,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Usage" }]
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_filesystem_usage{service_namespace=~\"$namespace\"}))", "format": "table", "instant": true, "refId": "A" }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "indexByName": { "service_name": 0, "service_namespace": 1, "Value": 2 },
+            "renameByName": {
+              "service_name": "Pod",
+              "service_namespace": "Namespace",
+              "Value": "Usage"
+            }
+          }
+        }
+      ],
+      "title": "Top Pods — Ephemeral Filesystem",
+      "type": "table"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Node filesystem usage trend. Trajectory matters more than the value.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [], "max": 1, "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 105 },
+      "id": 33,
+      "options": {
+        "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_filesystem_usage{host_name=~\"$node\"} / k8s_node_filesystem_capacity{host_name=~\"$node\"}", "legendFormat": "{{host_name}}", "refId": "A" }
+      ],
+      "title": "Node Filesystem — Trend",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 114 },
+      "id": 106,
+      "panels": [],
+      "title": "GPU (DCGM)",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Per-GPU SM utilization. Sustained high means the GPU is the bottleneck; idle means capacity to schedule more work.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "%",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [], "max": 100, "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 115 },
+      "id": 34,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_GPU_UTIL)", "legendFormat": "{{Hostname}} gpu{{gpu}}", "refId": "A" }
+      ],
+      "title": "GPU Utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Framebuffer memory used per GPU (MiB).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "decmbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 115 },
+      "id": 35,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_FB_USED)", "legendFormat": "{{Hostname}} gpu{{gpu}} used", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)", "legendFormat": "{{Hostname}} gpu{{gpu}} total", "refId": "B" }
+      ],
+      "title": "GPU Memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "GPU die temperature. NVIDIA thermal throttle typically starts ~87°C.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "°C",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 123 },
+      "id": 36,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_GPU_TEMP)", "legendFormat": "{{Hostname}} gpu{{gpu}}", "refId": "A" }
+      ],
+      "title": "GPU Temperature",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Instantaneous GPU power draw in watts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "W",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 123 },
+      "id": 37,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_POWER_USAGE)", "legendFormat": "{{Hostname}} gpu{{gpu}}", "refId": "A" }
+      ],
+      "title": "GPU Power",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Workload intensity: tensor-core and SM pipelines active fraction. Tensor active correlates with FP16/BF16/FP8 matmul heavy workloads.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "%",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [], "max": 1, "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 123 },
+      "id": 38,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_PROF_GR_ENGINE_ACTIVE)", "legendFormat": "{{Hostname}} gpu{{gpu}} SM", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_PROF_PIPE_TENSOR_ACTIVE)", "legendFormat": "{{Hostname}} gpu{{gpu}} tensor", "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu) (DCGM_FI_PROF_DRAM_ACTIVE)", "legendFormat": "{{Hostname}} gpu{{gpu}} DRAM", "refId": "C" }
+      ],
+      "title": "GPU Compute Pipeline Activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Pods currently scheduled on each GPU. Memory figures are per-GPU totals, not per-pod.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "GPU Mem (MiB)" }, "properties": [{ "id": "unit", "value": "decmbytes" }] },
+          { "matcher": { "id": "byName", "options": "GPU Util %" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "max", "value": 100 }, { "id": "min", "value": 0 }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 131 },
+      "id": 39,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "GPU Util %" }]
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu, pod, namespace) (DCGM_FI_DEV_GPU_UTIL)", "format": "table", "instant": true, "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "avg by (Hostname, gpu, pod, namespace) (DCGM_FI_DEV_FB_USED)", "format": "table", "instant": true, "refId": "B" }
+      ],
+      "transformations": [
+        { "id": "joinByField", "options": { "byField": "pod", "mode": "inner" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true, "Time 2": true,
+              "Hostname 2": true, "gpu 2": true, "namespace 2": true
+            },
+            "indexByName": { "namespace 1": 0, "pod": 1, "Hostname 1": 2, "gpu 1": 3, "Value #A": 4, "Value #B": 5 },
+            "renameByName": {
+              "namespace 1": "Namespace",
+              "pod": "Pod",
+              "Hostname 1": "Node",
+              "gpu 1": "GPU",
+              "Value #A": "GPU Util %",
+              "Value #B": "GPU Mem (MiB)"
+            }
+          }
+        }
+      ],
+      "title": "Pods on GPU",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 139 },
+      "id": 107,
+      "panels": [],
+      "title": "Service Mesh (Istio Control Plane)",
+      "type": "row"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "xDS pushes per second by type. Sustained high = churn in config/endpoints.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "pushes/s",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 140 },
+      "id": 40,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum by (type) (rate(pilot_xds_pushes[$__rate_interval]))", "legendFormat": "{{type}}", "refId": "A" }
+      ],
+      "title": "xDS Pushes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "p50 / p95 / p99 proxy convergence time. Spikes mean data plane is slow to pick up config.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 140 },
+      "id": 41,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "histogram_quantile(0.50, sum by (le) (rate(pilot_proxy_convergence_time_bucket[$__rate_interval])))", "legendFormat": "p50", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(pilot_proxy_convergence_time_bucket[$__rate_interval])))", "legendFormat": "p95", "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "histogram_quantile(0.99, sum by (le) (rate(pilot_proxy_convergence_time_bucket[$__rate_interval])))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "title": "Proxy Convergence Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Pilot discovery state: registered services, virtual services, and managed clusters.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "stepAfter", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 148 },
+      "id": 42,
+      "options": {
+        "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "pilot_services", "legendFormat": "services", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "pilot_virt_services", "legendFormat": "virtual services", "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "istiod_managed_clusters", "legendFormat": "managed clusters", "refId": "C" }
+      ],
+      "title": "Istio Discovery",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "uid": "$datasource" },
+      "description": "Pilot discovery / k8s config events and any endpoint/EDS issues.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "events/s",
+            "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10,
+            "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2,
+            "pointSize": 5, "scaleDistribution": { "type": "linear" },
+            "showPoints": "never", "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 148 },
+      "id": 43,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(rate(pilot_k8s_cfg_events[$__rate_interval]))", "legendFormat": "k8s cfg events", "refId": "A" },
+        { "datasource": { "uid": "$datasource" }, "expr": "sum(rate(pilot_k8s_reg_events[$__rate_interval]))", "legendFormat": "k8s reg events", "refId": "B" },
+        { "datasource": { "uid": "$datasource" }, "expr": "pilot_endpoint_not_ready", "legendFormat": "endpoint not ready", "refId": "C" },
+        { "datasource": { "uid": "$datasource" }, "expr": "pilot_eds_no_instances", "legendFormat": "EDS no instances", "refId": "D" }
+      ],
+      "title": "Istio Config / Endpoint Events",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 40,
+  "tags": ["kubernetes", "k8s", "talos", "compute", "infrastructure", "monitoring"],
+  "templating": {
+    "list": [
+      {
+        "current": { "text": "Prometheus", "value": "Prometheus" },
+        "includeAll": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
+        "current": { "text": "All", "value": "$__all" },
+        "datasource": { "uid": "$datasource" },
+        "definition": "label_values(k8s_pod_phase, service_namespace)",
+        "description": "Filter by Kubernetes namespace",
+        "includeAll": true,
+        "label": "Namespace",
+        "multi": true,
+        "name": "namespace",
+        "options": [],
+        "query": {
+          "query": "label_values(k8s_pod_phase, service_namespace)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": "All", "value": "$__all" },
+        "datasource": { "uid": "$datasource" },
+        "definition": "label_values(k8s_node_condition_ready, host_name)",
+        "description": "Filter by node",
+        "includeAll": true,
+        "label": "Node",
+        "multi": true,
+        "name": "node",
+        "options": [],
+        "query": {
+          "query": "label_values(k8s_node_condition_ready, host_name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": "10", "value": "10" },
+        "description": "Top-N rank for pod rollups",
+        "includeAll": false,
+        "label": "Top N",
+        "multi": false,
+        "name": "topN",
+        "options": [
+          { "selected": false, "text": "5", "value": "5" },
+          { "selected": true, "text": "10", "value": "10" },
+          { "selected": false, "text": "20", "value": "20" },
+          { "selected": false, "text": "50", "value": "50" }
+        ],
+        "query": "5,10,20,50",
+        "queryValue": "",
+        "refresh": 0,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kubernetes",
+  "uid": "kubernetes-main",
+  "version": 1,
+  "weekStart": ""
+}
