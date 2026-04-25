@@ -1,20 +1,32 @@
 model_list:
   # llama-swap (K8s)
-  - model_name: "aether/qwen3.5-27b"
+  - model_name: "aether/qwen3.6-27b"
     litellm_params:
-      model: "openai/qwen3.5-27b"
+      model: "openai/qwen3.6-27b"
       litellm_credential_name: llama_swap_credential
-  - model_name: "aether/qwen3.5-27b:code"
+  - model_name: "aether/qwen3.6-27b:code"
     litellm_params:
-      model: "openai/qwen3.5-27b:code"
+      model: "openai/qwen3.6-27b:code"
       litellm_credential_name: llama_swap_credential
-  - model_name: "aether/qwen3.5-27b:think"
+  - model_name: "aether/qwen3.6-27b:think"
     litellm_params:
-      model: "openai/qwen3.5-27b:think"
+      model: "openai/qwen3.6-27b:think"
       litellm_credential_name: llama_swap_credential
-  - model_name: "aether/qwen3.5-9b"
+  - model_name: "aether/qwen3.6-35b-a3b"
     litellm_params:
-      model: "openai/qwen3.5-9b"
+      model: "openai/qwen3.6-35b-a3b"
+      litellm_credential_name: llama_swap_credential
+  - model_name: "aether/qwen3.6-35b-a3b:code"
+    litellm_params:
+      model: "openai/qwen3.6-35b-a3b:code"
+      litellm_credential_name: llama_swap_credential
+  - model_name: "aether/qwen3.6-35b-a3b:think"
+    litellm_params:
+      model: "openai/qwen3.6-35b-a3b:think"
+      litellm_credential_name: llama_swap_credential
+  - model_name: "aether/gemma-4-31b"
+    litellm_params:
+      model: "openai/gemma-4-31b"
       litellm_credential_name: llama_swap_credential
 
   # OpenAI models
@@ -32,9 +44,9 @@ model_list:
       litellm_credential_name: openai_credential
 
   # Anthropic models
-  - model_name: "anthropic/claude-opus-4.6"
+  - model_name: "anthropic/claude-opus-4.7"
     litellm_params:
-      model: "anthropic/claude-opus-4-6"
+      model: "anthropic/claude-opus-4-7"
       litellm_credential_name: anthropic_credential
   - model_name: "anthropic/claude-sonnet-4.6"
     litellm_params:

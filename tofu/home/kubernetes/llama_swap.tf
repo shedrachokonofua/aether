@@ -57,6 +57,32 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
       globalTTL: 300
 
       models:
+        "qwen3.6-27b":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf unsloth/Qwen3.6-27B-GGUF:Q8_0
+            -ngl 99
+            --no-mmap
+            --cache-type-k q8_0
+            --cache-type-v q8_0
+            --ctx-size 131072
+          ttl: 900
+          filters:
+            setParamsByID:
+              "qwen3.6-27b":
+                chat_template_kwargs:
+                  enable_thinking: false
+              "qwen3.6-27b:code":
+                chat_template_kwargs:
+                  enable_thinking: true
+                temperature: 0.6
+                top_p: 0.95
+                top_k: 20
+              "qwen3.6-27b:think":
+                chat_template_kwargs:
+                  enable_thinking: true
+
         "qwen3.6-35b-a3b":
           cmd: >
             llama-server
@@ -116,12 +142,13 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
 
       matrix:
         vars:
+          q3627: "qwen3.6-27b"
           q36: "qwen3.6-35b-a3b"
           g31: "gemma-4-31b"
           emb: "qwen3-embedding-4b"
           rr: "bge-reranker-v2-m3"
         sets:
-          full: "q36 & g31 & emb & rr"
+          full: "q3627 & q36 & g31 & emb & rr"
     YAML
   }
 }
