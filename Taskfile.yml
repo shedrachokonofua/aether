@@ -296,8 +296,6 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/messaging_stack/site.yml]
   configure:messaging:
     cmds: [ansible-playbook ansible/playbooks/messaging_stack/postfix.yml]
-  configure:ups-management-stack:
-    cmds: [ansible-playbook ansible/playbooks/ups_management_stack/site.yml]
   configure:dokku:
     cmds: [ansible-playbook ansible/playbooks/dokku/site.yml]
   configure:smallweb:

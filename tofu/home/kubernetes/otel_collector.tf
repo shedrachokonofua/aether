@@ -28,7 +28,7 @@ locals {
         { context = "resource", statements = local.otel_k8s_label_statements },
         # Istio Ambient: map vc-seven30 workload namespaces to canonical tenant for Janus scoping
         {
-          context   = "datapoint"
+          context = "datapoint"
           statements = [
             "set(resource.attributes[\"service.namespace\"], \"seven30\") where attributes[\"destination_workload_namespace\"] == \"vc-seven30\"",
             "set(resource.attributes[\"service.namespace\"], \"seven30\") where attributes[\"source_workload_namespace\"] == \"vc-seven30\"",
@@ -61,13 +61,13 @@ locals {
 resource "helm_release" "otel_collector_daemonset" {
   depends_on = [helm_release.cilium]
 
-  name             = "otel-daemonset"
-  repository       = "https://open-telemetry.github.io/opentelemetry-helm-charts"
-  chart            = "opentelemetry-collector"
-  namespace        = kubernetes_namespace_v1.system.metadata[0].name
-  version          = local.otel_chart_version
-  wait             = true
-  timeout          = 600
+  name       = "otel-daemonset"
+  repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  chart      = "opentelemetry-collector"
+  namespace  = kubernetes_namespace_v1.system.metadata[0].name
+  version    = local.otel_chart_version
+  wait       = true
+  timeout    = 600
 
   values = [yamlencode({
     image = { repository = "otel/opentelemetry-collector-k8s" }
@@ -108,11 +108,11 @@ resource "helm_release" "otel_collector_daemonset" {
         }
         # Explicit kubelet receiver config so container/node CPU usage metrics are always collected.
         kubeletstats = {
-          collection_interval = "20s"
-          auth_type           = "serviceAccount"
-          endpoint            = "https://$${env:K8S_NODE_IP}:10250"
+          collection_interval  = "20s"
+          auth_type            = "serviceAccount"
+          endpoint             = "https://$${env:K8S_NODE_IP}:10250"
           insecure_skip_verify = true
-          metric_groups       = ["node", "pod", "container"]
+          metric_groups        = ["node", "pod", "container"]
         }
       }
       processors = local.otel_processors
@@ -142,13 +142,13 @@ resource "helm_release" "otel_collector_daemonset" {
 resource "helm_release" "otel_collector_deployment" {
   depends_on = [helm_release.cilium, helm_release.ztunnel]
 
-  name             = "otel-cluster"
-  repository       = "https://open-telemetry.github.io/opentelemetry-helm-charts"
-  chart            = "opentelemetry-collector"
-  namespace        = kubernetes_namespace_v1.system.metadata[0].name
-  version          = local.otel_chart_version
-  wait             = true
-  timeout          = 600
+  name       = "otel-cluster"
+  repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  chart      = "opentelemetry-collector"
+  namespace  = kubernetes_namespace_v1.system.metadata[0].name
+  version    = local.otel_chart_version
+  wait       = true
+  timeout    = 600
 
   values = [yamlencode({
     image        = { repository = "otel/opentelemetry-collector-k8s" }
@@ -177,8 +177,8 @@ resource "helm_release" "otel_collector_deployment" {
                 job_name        = "ztunnel"
                 scrape_interval = "30s"
                 kubernetes_sd_configs = [{
-                  role          = "endpoints"
-                  namespaces    = { names = ["istio-system"] }
+                  role       = "endpoints"
+                  namespaces = { names = ["istio-system"] }
                 }]
                 relabel_configs = [
                   {
@@ -193,6 +193,15 @@ resource "helm_release" "otel_collector_deployment" {
                 scrape_interval = "30s"
                 static_configs = [{
                   targets = ["dcgm-exporter.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:9400"]
+                }]
+              },
+              {
+                job_name        = "nut_exporter"
+                scrape_interval = "30s"
+                metrics_path    = "/ups_metrics"
+                params          = { ups = ["ups"] }
+                static_configs = [{
+                  targets = ["${kubernetes_service_v1.ups_management.metadata[0].name}.${local.ups_namespace}.svc.cluster.local:${local.ups_exporter_port}"]
                 }]
               },
             ]

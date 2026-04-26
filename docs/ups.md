@@ -12,11 +12,11 @@ CyberPower UPS connected via USB to the rack switch for network monitoring.
 | ----------------- | ---------------------------- |
 | Network UPS Tools | UPS monitoring daemon (upsd) |
 | Peanut            | Web dashboard for NUT        |
-| SNMP Exporter     | Prometheus metrics via SNMP  |
+| NUT Exporter      | Prometheus metrics for NUT   |
 
 ## Network Configuration
 
-The UPS is connected to the rack switch on port 4 (VLAN 1, Gigahub network) for SNMP access. NUT runs on the UPS Management Stack VM (Niobe) and communicates over the network.
+The UPS is connected to the rack switch on port 4 (VLAN 1, Gigahub network) for network monitoring. NUT runs in Kubernetes as `infra/ups-management` and reaches the UPS management card through the Services-to-MGMT router rule.
 
 ## Monitoring
 

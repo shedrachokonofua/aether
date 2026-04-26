@@ -54,6 +54,5 @@ Lightweight services host. Runs low-resource services and monitoring:
 
 - Monitoring Stack
 - IoT Management Stack
-- UPS Management Stack
 - Messaging Stack
 - Cockpit

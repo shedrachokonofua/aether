@@ -2,7 +2,6 @@
 - name: Upgrade Fedora VMs
   hosts:
     - cockpit
-    - ups-management-stack
     - dev-workstation
     - gpu-workstation
     - messaging-stack
@@ -15,4 +14,3 @@
   gather_facts: true
   roles:
     - dnf
-

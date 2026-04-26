@@ -985,7 +985,7 @@ No SSH, no Ansible, no package managers. Just API calls.
 
 Migration order (low risk → high complexity):
 
-1. [ ] **UPS Stack** — Simple, stateless UI (Peanut), validates platform
+1. [x] **UPS Stack** — Simple, stateless UI (Peanut), validates platform
 2. [ ] **Dokku apps** — Move to Knative Services
 3. [ ] **Dokploy apps** — Move to Knative Services or Helm charts
 4. [ ] **AI Tool Stack** — LiteLLM, OpenWebUI, SearXNG, Firecrawl, Bytebot (scale-to-zero)

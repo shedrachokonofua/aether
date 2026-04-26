@@ -381,6 +381,11 @@
           - set firewall ipv4 name SERVICES-to-MGMT rule 33 destination port 3300,6789,6800-7300
           - set firewall ipv4 name SERVICES-to-MGMT rule 33 destination address 192.168.2.205/32
           - set firewall ipv4 name SERVICES-to-MGMT rule 33 description 'Allow Ceph to Neo'
+          - set firewall ipv4 name SERVICES-to-MGMT rule 40 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 40 protocol tcp_udp
+          - set firewall ipv4 name SERVICES-to-MGMT rule 40 destination port 80,161
+          - set firewall ipv4 name SERVICES-to-MGMT rule 40 destination address 192.168.2.223
+          - set firewall ipv4 name SERVICES-to-MGMT rule 40 description 'Allow UPS monitoring from Services'
 
           # Configure media zone restrictions
           - set firewall ipv4 name MEDIA-to-TRUSTED default-action drop

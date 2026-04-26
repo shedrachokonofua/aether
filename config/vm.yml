@@ -257,21 +257,6 @@ ai_tool_stack:
     bytebot_ui: 9992
     microsandbox: 5555
 
-ups_management_stack:
-  id: 1019
-  name: "ups-management-stack"
-  node: "niobe"
-  admin: "aether"
-  cores: 1
-  memory: 1024
-  disk_gb: 32
-  ip: "10.0.2.6"
-  gateway: "10.0.2.1"
-  ports:
-    peanut: 8080
-    nut_server: 3493
-    nut_exporter: 9199
-
 media_stack:
   id: 1020
   name: "media-stack"

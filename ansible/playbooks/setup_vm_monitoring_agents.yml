@@ -10,7 +10,6 @@
     - messaging-stack
     - gpu-workstation
     - ai-tool-stack
-    - ups-management-stack
     - home-gateway-stack
     - monitoring-stack
     - router
