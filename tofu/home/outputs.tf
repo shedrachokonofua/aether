@@ -167,3 +167,13 @@ output "openwebui_k8s_url" {
   description = "OpenWebUI URL running in Kubernetes"
   value       = module.kubernetes.openwebui_url
 }
+
+output "hermes_k8s_urls" {
+  description = "Hermes Agent URLs running in Kubernetes"
+  value       = module.kubernetes.hermes_urls
+}
+
+output "hermes_k8s_dashboard_urls" {
+  description = "Hermes Agent dashboard URLs running in Kubernetes"
+  value       = module.kubernetes.hermes_dashboard_urls
+}

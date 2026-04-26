@@ -47,6 +47,16 @@ output "openwebui_url" {
   value       = "https://${local.openwebui_host}"
 }
 
+output "hermes_urls" {
+  description = "Hermes Agent public URLs via Gateway API"
+  value       = { for name, agent in local.hermes_agents : name => "https://${agent.host}" }
+}
+
+output "hermes_dashboard_urls" {
+  description = "Hermes Agent dashboard URLs via Gateway API"
+  value       = { for name, agent in local.hermes_agents : name => "https://${agent.dashboard_host}" }
+}
+
 output "vcluster_seven30_version" {
   description = "Installed vcluster version for Seven30 studio"
   value       = helm_release.vcluster_seven30.version

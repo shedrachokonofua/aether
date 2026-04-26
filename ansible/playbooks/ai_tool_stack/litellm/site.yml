@@ -64,6 +64,7 @@
           OPENAI_API_KEY: "{{ secrets.litellm.openai_api_key }}"
           ANTHROPIC_API_KEY: "{{ secrets.litellm.anthropic_api_key }}"
           OPENROUTER_API_KEY: "{{ secrets.litellm.openrouter_api_key }}"
+          OLLAMA_API_KEY: "{{ secrets.litellm.ollama_cloud_api_key }}"
         volumes:
           - /home/aether/litellm/config/config.yaml:/app/config.yaml:Z
         command: ["--config", "/app/config.yaml", "--detailed_debug"]
