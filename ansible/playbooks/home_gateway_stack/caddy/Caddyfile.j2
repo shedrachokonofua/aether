@@ -207,6 +207,13 @@ z.ha.home.shdr.ch {
   reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.zwavejs }}
 }
 
+m.ha.home.shdr.ch {
+  reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.matter_server }} {
+    header_up Upgrade {http.request.header.Upgrade}
+    header_up Connection {http.request.header.Connection}
+  }
+}
+
 sunshine.game.home.shdr.ch {
   reverse_proxy {{ vm.game_server.ip }}:{{ vm.game_server.ports.sunshine }} {
     transport http {

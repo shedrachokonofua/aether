@@ -162,6 +162,30 @@
           SESSION_SECRET: "{{ secrets.zwave.session_secret }}"
         state: quadlet
 
+    - name: Create matter-server data directory
+      ansible.builtin.file:
+        path: /home/aether/matter-server
+        state: directory
+        mode: "0755"
+
+    - name: Start Matter Server container
+      containers.podman.podman_container:
+        name: matter-server
+        image: ghcr.io/home-assistant-libs/python-matter-server:stable
+        pod: iot-management-stack.pod
+        # keep-groups gives the container aether's bluetooth GID so it can
+        # commission Matter devices over BLE via host BlueZ.
+        group_add:
+          - keep-groups
+        volumes:
+          - /home/aether/matter-server:/data:Z
+          - /run/dbus:/run/dbus:ro
+        command: >-
+          --storage-path /data
+          --paa-root-cert-dir /data/credentials
+          --port {{ vm.iot_management_stack.ports.matter_server }}
+        state: quadlet
+
     - name: Reload systemd user configuration
       ansible.builtin.systemd:
         daemon_reload: yes

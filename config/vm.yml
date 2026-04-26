@@ -136,6 +136,7 @@ iot_management_stack:
   ports:
     home_assistant: 8123
     zwavejs: 8091
+    matter_server: 5580
 
 dev_workstation:
   id: 1010
