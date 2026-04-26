@@ -1,0 +1,36 @@
+---
+- name: Register Hermes Matrix bot accounts
+  hosts: messaging-stack
+  gather_facts: false
+  roles:
+    - common
+  tasks:
+    - name: Create beryl bot user
+      command: >
+        podman exec synapse
+        register_new_matrix_user
+        -c /data/homeserver.yaml
+        -u "{{ secrets.matrix.beryl_bot_user }}"
+        -p "{{ secrets.matrix.beryl_bot_password }}"
+        --no-admin
+        --exists-ok
+      register: beryl_register
+      until: not beryl_register.failed
+      retries: 5
+      delay: 5
+      changed_when: false
+
+    - name: Create tungsten bot user
+      command: >
+        podman exec synapse
+        register_new_matrix_user
+        -c /data/homeserver.yaml
+        -u "{{ secrets.matrix.tungsten_bot_user }}"
+        -p "{{ secrets.matrix.tungsten_bot_password }}"
+        --no-admin
+        --exists-ok
+      register: tungsten_register
+      until: not tungsten_register.failed
+      retries: 5
+      delay: 5
+      changed_when: false

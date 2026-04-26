@@ -14,15 +14,24 @@ locals {
   hermes_dashboard_port = 9119
   hermes_litellm        = "https://litellm.home.shdr.ch/v1"
   hermes_local_llm      = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.hermes_namespace}.svc.cluster.local:${local.llama_swap_port}/v1"
+  hermes_firecrawl_url  = "https://firecrawl.home.shdr.ch"
+  hermes_matrix_server  = "https://matrix.home.shdr.ch"
+  hermes_matrix_owner   = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
 
   hermes_agents = {
     beryl = {
       host           = "hermes-beryl.apps.home.shdr.ch"
       dashboard_host = "hermes-beryl-dashboard.apps.home.shdr.ch"
       env = {
-        OPENAI_BASE_URL = local.hermes_local_llm
+        OPENAI_BASE_URL        = local.hermes_local_llm
+        FIRECRAWL_API_URL      = local.hermes_firecrawl_url
+        MATRIX_HOMESERVER      = local.hermes_matrix_server
+        MATRIX_USER_ID         = "@${var.secrets["matrix.beryl_bot_user"]}:matrix.home.shdr.ch"
+        MATRIX_ALLOWED_USERS   = local.hermes_matrix_owner
+        MATRIX_REQUIRE_MENTION = "true"
+        MATRIX_AUTO_THREAD     = "true"
       }
-      secret_env_keys = ["API_SERVER_KEY"]
+      secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "MATRIX_PASSWORD"]
       config = yamlencode({
         model = {
           provider       = "custom"
@@ -65,9 +74,15 @@ locals {
       host           = "hermes-tungsten.apps.home.shdr.ch"
       dashboard_host = "hermes-tungsten-dashboard.apps.home.shdr.ch"
       env = {
-        OPENAI_BASE_URL = local.hermes_litellm
+        OPENAI_BASE_URL        = local.hermes_litellm
+        FIRECRAWL_API_URL      = local.hermes_firecrawl_url
+        MATRIX_HOMESERVER      = local.hermes_matrix_server
+        MATRIX_USER_ID         = "@${var.secrets["matrix.tungsten_bot_user"]}:matrix.home.shdr.ch"
+        MATRIX_ALLOWED_USERS   = local.hermes_matrix_owner
+        MATRIX_REQUIRE_MENTION = "true"
+        MATRIX_AUTO_THREAD     = "true"
       }
-      secret_env_keys = ["API_SERVER_KEY", "OPENAI_API_KEY"]
+      secret_env_keys = ["API_SERVER_KEY", "OPENAI_API_KEY", "FIRECRAWL_API_KEY", "MATRIX_PASSWORD"]
       config = yamlencode({
         model = {
           provider       = "custom"
@@ -128,7 +143,9 @@ resource "kubernetes_secret_v1" "hermes_env" {
 
   data = merge(
     {
-      API_SERVER_KEY = random_password.hermes_api_server_key[each.key].result
+      API_SERVER_KEY    = random_password.hermes_api_server_key[each.key].result
+      FIRECRAWL_API_KEY = var.secrets["firecrawl.api_key"]
+      MATRIX_PASSWORD   = var.secrets["matrix.${each.key}_bot_password"]
     },
     each.key == "tungsten" ? {
       OPENAI_API_KEY = var.secrets["litellm.virtual_keys.hermes_tungsten"]
