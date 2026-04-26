@@ -254,8 +254,12 @@ resource "talos_machine_configuration_apply" "this" {
       }),
     ],
     # GPU-storage disk: partition /dev/vdc and mount at /var/mnt/gpu-storage,
-    # plus bind-mount /var/mnt into kubelet's namespace (rshared/rw) so
-    # local-PVs and hostPath volumes can resolve under that path.
+    # plus recursively bind-mount /var/mnt into kubelet's namespace so the
+    # /dev/vdc1 submount is visible to kubelet (and to local-PV-mounted Pods).
+    # `rbind` is critical — non-recursive `bind` only captures the top-level
+    # /var/mnt and silently misses submounts, so kubelet sees an empty
+    # directory on /dev/vda4 instead of the actual GPU storage. `rshared` is
+    # for forward propagation of any later mounts under /var/mnt.
     try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({
       machine = {
         disks = [{
@@ -269,7 +273,7 @@ resource "talos_machine_configuration_apply" "this" {
             destination = "/var/mnt"
             type        = "bind"
             source      = "/var/mnt"
-            options     = ["bind", "rshared", "rw"]
+            options     = ["rbind", "rshared", "rw"]
           }]
         }
       }
