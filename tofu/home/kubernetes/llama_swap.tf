@@ -12,14 +12,17 @@ locals {
   llama_swap_host    = "llama-swap.apps.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = kubernetes_namespace_v1.infra.metadata[0].name
+  llama_swap_subpath = "llama-swap/models"
   llama_swap_labels  = { app = "llama-swap" }
 }
 
 # =============================================================================
-# PVC — Model Cache (Ceph RBD)
+# PVC — Legacy Ceph RBD model cache (kept for rollback)
 # =============================================================================
-# Stores downloaded GGUFs. First model request triggers a HuggingFace download;
-# subsequent starts load from this cache.
+# Models now live on the shared `gpu-model-storage` local-NVMe PV (sub_path
+# llama-swap/models), but the old Ceph RBD PVC is retained until the new
+# storage path is proven stable, in case of rollback.
+# TODO: remove once we've confirmed a few weeks of stable operation.
 
 resource "kubernetes_persistent_volume_claim_v1" "llama_swap_models" {
   depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
@@ -160,7 +163,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
 resource "kubernetes_deployment_v1" "llama_swap" {
   depends_on = [
     helm_release.nvidia_device_plugin,
-    kubernetes_persistent_volume_claim_v1.llama_swap_models,
+    kubernetes_persistent_volume_claim_v1.gpu_model_storage,
   ]
 
   metadata {
@@ -191,13 +194,17 @@ resource "kubernetes_deployment_v1" "llama_swap" {
         node_selector = local.gpu_node_selector
 
         init_container {
-          name  = "fix-permissions"
+          name  = "init-storage"
           image = "busybox:latest"
-          command = ["sh", "-c", "chmod -R 777 /models"]
+          # Idempotent: mount the PVC root (no sub_path) and only ensure the
+          # sub-path exists + is world-writable. Must NOT chmod -R the
+          # populated tree — it's 170+ GB of GGUFs and would re-walk on every
+          # restart.
+          command = ["sh", "-c", "mkdir -p /gpu-storage/${local.llama_swap_subpath} && chmod 777 /gpu-storage/${local.llama_swap_subpath}"]
 
           volume_mount {
             name       = "models"
-            mount_path = "/models"
+            mount_path = "/gpu-storage"
           }
         }
 
@@ -225,6 +232,7 @@ resource "kubernetes_deployment_v1" "llama_swap" {
           volume_mount {
             name       = "models"
             mount_path = "/models"
+            sub_path   = local.llama_swap_subpath
           }
 
           resources {
@@ -269,7 +277,7 @@ resource "kubernetes_deployment_v1" "llama_swap" {
         volume {
           name = "models"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.llama_swap_models.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.gpu_model_storage.metadata[0].name
           }
         }
       }
