@@ -271,7 +271,7 @@ graph LR
 | 2    | Ethernet | Access Point                                          | 2             | -                | 2.5Gbps |
 | 3    | Ethernet | Niobe                                                 | 1             | 2, 3, 4, 5, 6, 7 | 2.5Gbps |
 | 4    | Ethernet | UPS                                                   | 1             | -                | 100Mbps |
-| 5    | Ethernet | Office Switch                                         | 1             | 4, 5             | 2.5Gbps |
+| 5    | Ethernet | Office Switch                                         | 1             | 3, 4, 5          | 2.5Gbps |
 | 6    | Ethernet | JetKVM                                                | 1             | -                | 1Gbps   |
 | 7    | Ethernet | MoCA Adapter (Uplink to unmanaged living room switch) | 5             | -                | 2.5Gbps |
 | 9    | SFP+     | Oracle                                                | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
@@ -293,10 +293,29 @@ graph LR
 | Port | Type     | Device             | VLAN Untagged | VLAN Tagged | Speed   |
 | ---- | -------- | ------------------ | ------------- | ----------- | ------- |
 | 1    | Ethernet | Google TV Streamer | 5             | -           | 1Gbps   |
-| 2    | Ethernet | Raspberry Pi 5     | 4             | -           | 1Gbps   |
+| 2    | Ethernet | Mac Mini     | 4             | -           | 1Gbps   |
 | 3    | Ethernet | Laptop Dock        | 4             | -           | 2.5Gbps |
-| 4    | Ethernet | Raspberry Pi 5     | 4             | -           | 1Gbps   |
-| 9    | SFP+     | Rack Switch        | 1             | 4, 5        | 10Gbps  |
+| 6    | Ethernet | talos-tank         | 3             | -           | 1Gbps   |
+| 7    | Ethernet | talos-dozer        | 3             | -           | 1Gbps   |
+| 8    | Ethernet | talos-mouse        | 3             | -           | 1Gbps   |
+| 9    | SFP+     | Rack Switch        | 1             | 3, 4, 5     | 10Gbps  |
+
+Static VLAN/PVID configuration:
+
+| Port | Mode   | PVID | VLAN 1 | VLAN 3 | VLAN 4 | VLAN 5 |
+| ---- | ------ | ---- | ------ | ------ | ------ | ------ |
+| 1    | Access | 5    | -      | -      | -      | U      |
+| 2    | Access | 4    | -      | -      | U      | -      |
+| 3    | Access | 4    | -      | -      | U      | -      |
+| 4    | Access | 4    | -      | -      | U      | -      |
+| 6    | Access | 3    | -      | U      | -      | -      |
+| 7    | Access | 3    | -      | U      | -      | -      |
+| 8    | Access | 3    | -      | U      | -      | -      |
+| 9    | Trunk  | 1    | U      | T      | T      | T      |
+
+Legend: `U` = untagged member, `T` = tagged member. Pi Talos nodes use untagged VLAN 3 on ports 6-8; the SFP+ uplink to the rack carries VLAN 3 tagged.
+
+This office-switch Pi placement is temporary staging while the nodes are being installed and joined. The final placement is the main rack; update this table when the Pi ports move there.
 
 ### Access Point
 

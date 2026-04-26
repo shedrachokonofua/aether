@@ -496,3 +496,48 @@ talos_smith:
   gpu_rom_file: "gtx1660super.rom"
   ip: "10.0.3.22"
   gateway: "10.0.3.1"
+
+talos_mouse:
+  name: "talos-mouse"
+  role: "worker"
+  platform: "baremetal"
+  arch: "arm64"
+  hardware: "rpi"
+  pool: "arm"
+  model: "raspberry-pi-4"
+  install_disk: "/dev/mmcblk0"
+  network_interface: "end0"
+  ip: "10.0.3.25"
+  gateway: "10.0.3.1"
+  nameservers:
+    - "10.0.3.1"
+
+talos_dozer:
+  name: "talos-dozer"
+  role: "worker"
+  platform: "baremetal"
+  arch: "arm64"
+  hardware: "rpi"
+  pool: "arm"
+  model: "raspberry-pi-5"
+  install_disk: "/dev/mmcblk0"
+  network_interface: "end0"
+  ip: "10.0.3.24"
+  gateway: "10.0.3.1"
+  nameservers:
+    - "10.0.3.1"
+
+talos_tank:
+  name: "talos-tank"
+  role: "worker"
+  platform: "baremetal"
+  arch: "arm64"
+  hardware: "rpi"
+  pool: "arm"
+  model: "raspberry-pi-5"
+  install_disk: "/dev/mmcblk0"
+  network_interface: "end0"
+  ip: "10.0.3.23"
+  gateway: "10.0.3.1"
+  nameservers:
+    - "10.0.3.1"

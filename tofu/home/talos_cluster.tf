@@ -9,12 +9,21 @@
 #   - talos-neo     (10.0.3.17) - Control plane + Worker + GPU (RTX Pro 6000)
 #   - talos-niobe   (10.0.3.18) - Control plane + Worker
 #   - talos-smith   (10.0.3.22) - Worker + GPU (GTX 1660 Super)
+#   - talos-mouse   (10.0.3.25) - ARM Worker (Raspberry Pi 4)
 #   - API VIP       (10.0.3.20) - Talos native VIP for kubectl/API server
 #   - Workload VIP  (10.0.3.19) - Cilium L2 announced LoadBalancer IP
 
 locals {
   # Talos roles are explicit so worker-only nodes do not accidentally join etcd.
   talos_nodes = { for k, v in local.vm : k => v if startswith(k, "talos_") }
+  talos_vm_nodes = {
+    for k, v in local.talos_nodes : k => v
+    if try(v.platform, "proxmox") == "proxmox"
+  }
+  talos_baremetal_nodes = {
+    for k, v in local.talos_nodes : k => v
+    if try(v.platform, "proxmox") == "baremetal"
+  }
   talos_controlplane_nodes = {
     for k, v in local.talos_nodes : k => v
     if try(v.role, "controlplane") == "controlplane"
@@ -84,7 +93,7 @@ data "talos_client_configuration" "this" {
 # =============================================================================
 
 resource "proxmox_virtual_environment_vm" "talos" {
-  for_each = local.talos_nodes
+  for_each = local.talos_vm_nodes
 
   vm_id       = each.value.id
   name        = each.value.name
@@ -202,6 +211,8 @@ resource "proxmox_virtual_environment_vm" "talos" {
 resource "talos_machine_configuration_apply" "this" {
   for_each = local.talos_nodes
 
+  depends_on = [proxmox_virtual_environment_vm.talos]
+
   client_configuration = talos_machine_secrets.this.client_configuration
   # Strip the HostnameConfig sibling doc that the data source emits by
   # default (auto: stable). It conflicts with our static network.hostname
@@ -215,8 +226,8 @@ resource "talos_machine_configuration_apply" "this" {
     "/\n---\napiVersion: v1alpha1\nkind: HostnameConfig\nauto: stable\\s*\n*/",
     "\n"
   )
-  endpoint = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
-  node     = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
+  endpoint = try(each.value.bootstrap_ip, each.value.ip)
+  node     = try(each.value.bootstrap_ip, each.value.ip)
 
   config_patches = concat(
     [
@@ -242,47 +253,62 @@ resource "talos_machine_configuration_apply" "this" {
         }
       }),
       yamlencode({
-        machine = {
-          install = {
-            disk  = "/dev/vda"
-            image = try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
-          }
-          # Pin a stable, human-readable hostname instead of Talos's default
-          # machine-id-derived name (talos-4d9-xcj etc.). Required setup:
-          #   1) features.stableHostname = false  (don't auto-generate one)
-          #   2) Manually strip the existing HostnameConfig sibling doc that
-          #      was already materialized at bootstrap (one-time, via
-          #      talosctl apply-config — see runbook). Step 1 alone doesn't
-          #      remove the persisted sibling doc.
-          #   3) Set network.hostname here (the legacy v1alpha1 way).
-          features = {
-            stableHostname = false
-          }
-          network = {
-            hostname = each.value.name
-            interfaces = [
-              merge(
-                {
-                  interface = "ens18"
-                  addresses = ["${each.value.ip}/24"]
-                  routes    = [{ network = "0.0.0.0/0", gateway = each.value.gateway }]
-                },
-                contains(keys(local.talos_controlplane_nodes), each.key) ? {
-                  vip = { ip = local.talos_api_vip }
-                } : {}
+        machine = merge(
+          {
+            install = {
+              disk = try(each.value.install_disk, "/dev/vda")
+              image = try(
+                each.value.install_image,
+                try(each.value.hardware, "") == "rpi" ? "factory.talos.dev/installer/${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_schematic : local.talos_rpi_schematic}:v1.12.7" : try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
               )
-            ]
-            nameservers = ["10.0.0.1"]
-          }
-          time = { servers = ["time.cloudflare.com"] }
-          sysctls = {
-            "net.core.bpf_jit_enable"         = "1"
-            "net.ipv4.conf.all.forwarding"    = "1"
-            "net.ipv6.conf.all.forwarding"    = "1"
-            "net.ipv4.conf.all.rp_filter"     = "0"
-            "net.ipv4.conf.default.rp_filter" = "0"
-          }
-        }
+            }
+            # Pin a stable, human-readable hostname instead of Talos's default
+            # machine-id-derived name (talos-4d9-xcj etc.). Required setup:
+            #   1) features.stableHostname = false  (don't auto-generate one)
+            #   2) Manually strip the existing HostnameConfig sibling doc that
+            #      was already materialized at bootstrap (one-time, via
+            #      talosctl apply-config — see runbook). Step 1 alone doesn't
+            #      remove the persisted sibling doc.
+            #   3) Set network.hostname here (the legacy v1alpha1 way).
+            features = {
+              stableHostname = false
+            }
+            network = {
+              hostname = each.value.name
+              interfaces = [
+                merge(
+                  {
+                    interface = try(each.value.network_interface, "ens18")
+                    addresses = ["${each.value.ip}/24"]
+                    routes    = [{ network = "0.0.0.0/0", gateway = each.value.gateway }]
+                  },
+                  contains(keys(local.talos_controlplane_nodes), each.key) ? {
+                    vip = { ip = local.talos_api_vip }
+                  } : {}
+                )
+              ]
+              nameservers = try(each.value.nameservers, ["10.0.0.1"])
+            }
+            time = { servers = ["time.cloudflare.com"] }
+            sysctls = {
+              "net.core.bpf_jit_enable"         = "1"
+              "net.ipv4.conf.all.forwarding"    = "1"
+              "net.ipv6.conf.all.forwarding"    = "1"
+              "net.ipv4.conf.all.rp_filter"     = "0"
+              "net.ipv4.conf.default.rp_filter" = "0"
+            }
+          },
+          try(each.value.pool, null) != null || try(each.value.hardware, null) != null ? {
+            kubelet = {
+              extraArgs = {
+                "node-labels" = join(",", compact([
+                  try(each.value.pool, null) != null ? "aether.sh/node-pool=${each.value.pool}" : "",
+                  try(each.value.hardware, null) != null ? "aether.sh/hardware=${each.value.hardware}" : "",
+                ]))
+              }
+            }
+          } : {}
+        )
       }),
     ],
     # GPU-storage disk: partition /dev/vdc and mount at /var/mnt/gpu-storage,

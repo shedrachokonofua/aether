@@ -80,6 +80,12 @@ locals {
   # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&platform=nocloud
   talos_schematic = "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
 
+  # Raspberry Pi schematic: no VM-specific extensions.
+  talos_rpi_schematic = "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
+
+  # Raspberry Pi 5 schematic: official sbc-raspberrypi rpi_5 overlay.
+  talos_rpi5_schematic = "a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4"
+
   # GPU schematic: qemu-guest-agent + NVIDIA open kernel modules LTS + NVIDIA container toolkit LTS.
   # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&extensions=siderolabs%2Fnvidia-open-gpu-kernel-modules-lts&extensions=siderolabs%2Fnvidia-container-toolkit-lts&platform=nocloud
   talos_nvidia_schematic = "2e186944edfff6a15572ad75ec2b6f26b35e2542566d640dfcd2ad7c52a2df55"
