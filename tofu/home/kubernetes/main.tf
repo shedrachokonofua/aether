@@ -12,6 +12,7 @@
 #   - Knative Serving (serverless)
 #   - OTEL Collectors (observability)
 #   - Metrics Server (resource metrics API)
+#   - Kyverno (policy guardrails)
 #   - Headlamp (dashboard)
 #   - GitLab Agent (CI/CD deployments)
 #   - Crossplane (infrastructure control plane)
@@ -154,4 +155,3 @@ locals {
   # Cilium creates a service for the Gateway
   cilium_gateway_service = "cilium-gateway-main-gateway.default.svc.cluster.local"
 }
-
