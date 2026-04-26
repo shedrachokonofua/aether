@@ -131,10 +131,13 @@
         name: homeassistant
         image: ghcr.io/home-assistant/home-assistant:stable
         pod: iot-management-stack.pod
-        # keep-groups passes aether's supplementary groups (incl. bluetooth)
-        # into the container so HA can talk to BlueZ over the system DBus.
+        # keep-groups passes aether's supplementary groups into the container.
+        # label=disable lets HA traverse the SELinux-labeled host DBus socket
+        # at /run/dbus so the BlueZ integration can drive Bluetooth.
         group_add:
           - keep-groups
+        security_opt:
+          - label=disable
         volumes:
           - "{{ ha_config_dir }}:/config:Z"
           - /run/dbus:/run/dbus:ro
@@ -173,10 +176,13 @@
         name: matter-server
         image: ghcr.io/home-assistant-libs/python-matter-server:stable
         pod: iot-management-stack.pod
-        # keep-groups gives the container aether's bluetooth GID so it can
-        # commission Matter devices over BLE via host BlueZ.
+        # keep-groups passes supplementary groups; label=disable is needed so
+        # the SELinux-labeled host DBus socket at /run/dbus is traversable
+        # (BLE Matter commissioning runs through BlueZ on the system bus).
         group_add:
           - keep-groups
+        security_opt:
+          - label=disable
         volumes:
           - /home/aether/matter-server:/data:Z
           - /run/dbus:/run/dbus:ro
