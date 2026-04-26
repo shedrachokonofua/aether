@@ -79,6 +79,19 @@ locals {
       high-availability = {
         replicas = 3
       }
+      # Operator default minAvailable=80% on 3 replicas leaves 0 allowed
+      # disruptions (ceil(3*0.8)=3 must be available), which blocks every
+      # node drain. 60% allows 1 disruption (ceil(3*0.6)=2 available).
+      podDisruptionBudgets = [
+        {
+          name           = "activator-pdb"
+          minAvailable   = "60%"
+        },
+        {
+          name           = "webhook-pdb"
+          minAvailable   = "60%"
+        },
+      ]
       config = {
         network = {
           "ingress-class" = "gateway-api.ingress.networking.knative.dev"
