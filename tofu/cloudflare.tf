@@ -88,12 +88,12 @@ resource "cloudflare_dns_record" "aether_public_gateway_tv" {
 
 resource "cloudflare_dns_record" "aether_public_gateway_seven30_root" {
   provider = cloudflare.seven30
-  name    = "@"
-  content = module.aws.public_gateway_ip
-  type    = "A"
-  zone_id = cloudflare_zone.seven30_domain.id
-  proxied = true
-  ttl     = 1
+  name     = "@"
+  content  = module.aws.public_gateway_ip
+  type     = "A"
+  zone_id  = cloudflare_zone.seven30_domain.id
+  proxied  = true
+  ttl      = 1
 
   lifecycle {
     prevent_destroy = true
@@ -102,12 +102,12 @@ resource "cloudflare_dns_record" "aether_public_gateway_seven30_root" {
 
 resource "cloudflare_dns_record" "aether_public_gateway_seven30_wildcard" {
   provider = cloudflare.seven30
-  name    = "*"
-  content = module.aws.public_gateway_ip
-  type    = "A"
-  zone_id = cloudflare_zone.seven30_domain.id
-  proxied = true
-  ttl     = 1
+  name     = "*"
+  content  = module.aws.public_gateway_ip
+  type     = "A"
+  zone_id  = cloudflare_zone.seven30_domain.id
+  proxied  = true
+  ttl      = 1
 }
 
 resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail" {
