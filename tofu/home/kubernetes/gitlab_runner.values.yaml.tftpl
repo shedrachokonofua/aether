@@ -1,5 +1,5 @@
 gitlabUrl: ${gitlab_url}
-replicas: 3
+replicas: 4
 concurrent: 1
 checkInterval: 3
 
@@ -11,6 +11,17 @@ topologySpreadConstraints:
     labelSelector:
       matchLabels:
         app: ${runner_app_label}
+
+# Keep manager pods off Raspberry Pi nodes (no buildah/arm64 build workloads on Pis)
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: aether.sh/hardware
+              operator: NotIn
+              values:
+                - rpi
 
 rbac:
   create: true
@@ -66,3 +77,12 @@ runners:
         ephemeral_storage_limit_overwrite_max_allowed = "64Gi"
         poll_timeout = 1800
         pull_policy = "if-not-present"
+
+        [runners.kubernetes.affinity]
+          [runners.kubernetes.affinity.node_affinity]
+            [runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution]
+              [[runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms]]
+                [[runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms.match_expressions]]
+                  key = "aether.sh/hardware"
+                  operator = "NotIn"
+                  values = ["rpi"]
