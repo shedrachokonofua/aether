@@ -5,6 +5,11 @@
   vars:
     ha_config_dir: "/home/aether/homeassistant/config"
     home_assistant_timezone: "America/Toronto"
+    zwave_device_serial: "32753a4f5dbcea11987e94e368aed703"
+    zwave_device_by_id: "/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_{{ zwave_device_serial }}-if00-port0"
+    thread_device_by_id: "/dev/serial/by-id/usb-SMLIGHT_SMLIGHT_SLZB-07_2e0e5e02db18f0119fc76a7db887153e-if00-port0"
+    otbr_data_dir: /var/lib/otbr
+    otbr_quadlet_dir: /etc/containers/systemd
   roles:
     - common
     - vm_baseline
@@ -25,28 +30,65 @@
       dnf:
         name:
           - usbutils
+          - bluez
+          - bluez-tools
         state: present
 
-    - name: Ensure Z-Wave device is initialized
-      block:
-        - name: Check if Z-Wave device exists
-          stat:
-            path: /dev/ttyUSB0
-          register: zwave_device
-
-        - name: Initialize Z-Wave device if needed
-          shell: echo "10c4 ea60" > /sys/bus/usb-serial/drivers/generic/new_id
-          become: true
-          when: not zwave_device.stat.exists
-
-    - name: Ensure proper permissions on Z-Wave device
+    - name: Ensure system bluetooth.service is started and enabled
       become: true
-      file:
-        path: /dev/ttyUSB0
-        owner: "{{ ansible_user_id }}"
-        group: "{{ ansible_user_id }}"
-        mode: "0666"
-      when: zwave_device.stat.exists
+      ansible.builtin.systemd:
+        name: bluetooth.service
+        state: started
+        enabled: yes
+        scope: system
+
+    # Fedora's BlueZ uses DBus policy (not a posix group) to gate access to
+    # org.bluez. By default only root and at_console users can talk to it;
+    # rootless HA runs as aether (UID 1000) and gets denied. Install a small
+    # system DBus policy that lets aether call BlueZ interfaces, then reload
+    # bluetooth.service so it picks up the policy.
+    - name: Allow aether to access BlueZ via system DBus
+      become: true
+      ansible.builtin.template:
+        src: ./aether-bluetooth.conf.j2
+        dest: /etc/dbus-1/system.d/aether-bluetooth.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart bluetooth and home assistant
+
+    - name: Check Z-Wave stick is present (by serial)
+      ansible.builtin.stat:
+        path: "{{ zwave_device_by_id }}"
+      register: zwave_device
+
+    - name: Fail if Z-Wave stick not detected
+      ansible.builtin.fail:
+        msg: "Z-Wave CP2102N stick not visible to VM at {{ zwave_device_by_id }} -- check Proxmox USB passthrough"
+      when: not zwave_device.stat.exists
+
+    # Make the Z-Wave stick world-rw so rootless zwavejs-ui (running as aether,
+    # who is not in `dialout`) can open it. Targeted to the Z-Wave serial only;
+    # the SLZB-07 keeps its default 0660 since OTBR runs rootful.
+    - name: Install Z-Wave udev rule
+      become: true
+      ansible.builtin.template:
+        src: ./99-zwave.rules.j2
+        dest: /etc/udev/rules.d/99-zwave.rules
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reload udev and re-trigger zwave
+
+    - name: Check Thread/SLZB-07 stick is present (by serial)
+      ansible.builtin.stat:
+        path: "{{ thread_device_by_id }}"
+      register: thread_device
+
+    - name: Fail if Thread stick not detected
+      ansible.builtin.fail:
+        msg: "SLZB-07 Thread stick not visible to VM at {{ thread_device_by_id }} -- check Proxmox USB passthrough"
+      when: not thread_device.stat.exists
 
     - name: Create required directories
       file:
@@ -89,6 +131,10 @@
         name: homeassistant
         image: ghcr.io/home-assistant/home-assistant:stable
         pod: iot-management-stack.pod
+        # keep-groups passes aether's supplementary groups (incl. bluetooth)
+        # into the container so HA can talk to BlueZ over the system DBus.
+        group_add:
+          - keep-groups
         volumes:
           - "{{ ha_config_dir }}:/config:Z"
           - /run/dbus:/run/dbus:ro
@@ -110,7 +156,7 @@
         privileged: true
         volumes:
           - /home/aether/zwavejs:/usr/src/app/store:Z
-          - /dev/ttyUSB0:/dev/zwave:Z
+          - "{{ zwave_device_by_id }}:/dev/zwave"
         tty: true
         env:
           SESSION_SECRET: "{{ secrets.zwave.session_secret }}"
@@ -137,3 +183,135 @@
       shell: |
         podman exec homeassistant bash -c "wget -O - https://get.hacs.xyz | bash -"
       when: not hacs_installed.stat.exists
+
+    # OpenThread Border Router runs rootful: it needs CAP_NET_ADMIN against the
+    # host network namespace to create wpan0, which rootless podman cannot grant.
+    - name: Ensure OTBR data directory exists
+      become: true
+      ansible.builtin.file:
+        path: "{{ otbr_data_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Render home-automation-stack pod quadlet
+      become: true
+      ansible.builtin.template:
+        src: ./home-automation-stack.pod.j2
+        dest: "{{ otbr_quadlet_dir }}/home-automation-stack.pod"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart home-automation-stack pod and otbr
+
+    - name: Render OTBR container quadlet
+      become: true
+      ansible.builtin.template:
+        src: ./otbr.container.j2
+        dest: "{{ otbr_quadlet_dir }}/otbr.container"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart otbr only
+
+    - name: Reload system systemd so quadlets are picked up on first run
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: system
+
+    - name: Ensure home-automation-stack pod service is started and enabled
+      become: true
+      ansible.builtin.systemd:
+        name: home-automation-stack-pod.service
+        state: started
+        enabled: yes
+        scope: system
+
+    - name: Ensure otbr service is started and enabled
+      become: true
+      ansible.builtin.systemd:
+        name: otbr.service
+        state: started
+        enabled: yes
+        scope: system
+
+  handlers:
+    - name: restart bluetooth.service
+      listen: restart bluetooth and home assistant
+      become: true
+      ansible.builtin.systemd:
+        name: bluetooth.service
+        state: restarted
+        scope: system
+
+    - name: restart home assistant container to pick up bluetooth GIDs
+      listen: restart bluetooth and home assistant
+      ansible.builtin.systemd:
+        name: homeassistant.service
+        state: restarted
+        scope: user
+
+    - name: reload udev rules
+      listen: reload udev and re-trigger zwave
+      become: true
+      ansible.builtin.command: udevadm control --reload-rules
+
+    - name: re-trigger Z-Wave device for new perms
+      listen: reload udev and re-trigger zwave
+      become: true
+      ansible.builtin.command: udevadm trigger --action=change --subsystem-match=tty
+
+    # Two handler chains, picked by what changed. Restarting the pod and OTBR
+    # in the same play step deadlocks: systemd sees the pod mid-restart and
+    # refuses to start OTBR ("Bound to ... but unit isn't active"). So when
+    # the pod template changes, we restart the pod (which kills OTBR with it)
+    # and then bring OTBR back up; when only OTBR's quadlet changes, we touch
+    # OTBR alone and leave the pod running.
+
+    - name: daemon-reload (pod path)
+      listen: restart home-automation-stack pod and otbr
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: system
+
+    - name: stop otbr before pod restart
+      listen: restart home-automation-stack pod and otbr
+      become: true
+      ansible.builtin.systemd:
+        name: otbr.service
+        state: stopped
+        scope: system
+
+    - name: restart home-automation-stack pod
+      listen: restart home-automation-stack pod and otbr
+      become: true
+      ansible.builtin.systemd:
+        name: home-automation-stack-pod.service
+        state: restarted
+        scope: system
+
+    - name: start otbr after pod is up
+      listen: restart home-automation-stack pod and otbr
+      become: true
+      ansible.builtin.systemd:
+        name: otbr.service
+        state: started
+        scope: system
+
+    - name: daemon-reload (otbr path)
+      listen: restart otbr only
+      become: true
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        scope: system
+
+    - name: restart only otbr
+      listen: restart otbr only
+      become: true
+      ansible.builtin.systemd:
+        name: otbr.service
+        state: restarted
+        scope: system

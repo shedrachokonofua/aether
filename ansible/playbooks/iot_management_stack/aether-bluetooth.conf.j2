@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <policy user="aether">
+    <allow send_destination="org.bluez"/>
+    <allow send_interface="org.bluez.Adapter1"/>
+    <allow send_interface="org.bluez.Device1"/>
+    <allow send_interface="org.bluez.GattService1"/>
+    <allow send_interface="org.bluez.GattCharacteristic1"/>
+    <allow send_interface="org.bluez.GattDescriptor1"/>
+    <allow send_interface="org.bluez.AgentManager1"/>
+    <allow send_interface="org.bluez.ProfileManager1"/>
+    <allow send_interface="org.freedesktop.DBus.Introspectable"/>
+    <allow send_interface="org.freedesktop.DBus.Properties"/>
+    <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
+  </policy>
+</busconfig>

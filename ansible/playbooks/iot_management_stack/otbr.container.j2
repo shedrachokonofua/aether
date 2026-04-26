@@ -1,0 +1,27 @@
+[Container]
+ContainerName=otbr
+Image=docker.io/openthread/border-router:latest
+Pod=home-automation-stack.pod
+
+AddCapability=NET_ADMIN NET_RAW
+AddDevice={{ thread_device_by_id }}:/dev/zigbee
+AddDevice=/dev/net/tun:/dev/net/tun
+
+Environment=OT_RCP_DEVICE=spinel+hdlc+uart:///dev/zigbee?uart-baudrate=460800
+Environment=OT_INFRA_IF={{ ansible_default_ipv4.interface }}
+Environment=OT_THREAD_IF=wpan0
+Environment=OT_LOG_LEVEL=7
+Environment=WEB_GUI=1
+Environment=REST_API=1
+Environment=BACKBONE_ROUTER=0
+Environment=OTBR_DOCKER_SKIP_FIREWALL=1
+Environment=OTBR_DOCKER_SKIP_NAT64=1
+
+Volume=/var/lib/otbr:/data:Z
+Volume=/lib/modules:/lib/modules:ro
+
+PodmanArgs=--privileged
+PodmanArgs=--security-opt label=disable
+
+[Install]
+WantedBy=default.target
