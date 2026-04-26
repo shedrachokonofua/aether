@@ -2,7 +2,7 @@
 # NVIDIA GPU Platform
 # =============================================================================
 # Device plugin (with time-slicing), dcgm-exporter, and RuntimeClass
-# for talos-neo GPU node.
+# for Talos GPU nodes.
 
 locals {
   nvidia_device_plugin_version = "v0.19.0"
@@ -10,6 +10,18 @@ locals {
 
   gpu_node_selector = {
     "extensions.talos.dev/nvidia-container-toolkit-lts" = "580.105.08-v1.18.1"
+  }
+
+  gpu_device_plugin_config_label = "nvidia.com/device-plugin.config"
+  gpu_device_plugin_configs = {
+    # Neo's Blackwell card has enough VRAM for broad opportunistic sharing.
+    blackwell = 8
+    # Smith's GTX 1660 Super is a 6GB Turing card; keep scheduling conservative.
+    turing = 2
+  }
+  gpu_node_device_plugin_configs = {
+    talos-neo   = "blackwell"
+    talos-smith = "turing"
   }
 }
 
@@ -33,11 +45,30 @@ resource "kubernetes_manifest" "nvidia_runtime_class" {
 # =============================================================================
 # NVIDIA Device Plugin
 # =============================================================================
-# Advertises nvidia.com/gpu resources. Time-slicing configured for 8 replicas
-# so multiple pods can share the single physical GPU concurrently.
+# Advertises nvidia.com/gpu resources. Time-slicing is selected per node by
+# nvidia.com/device-plugin.config so smaller GPUs do not get overpacked.
+
+resource "kubernetes_labels" "gpu_device_plugin_config" {
+  for_each = local.gpu_node_device_plugin_configs
+
+  api_version = "v1"
+  kind        = "Node"
+
+  metadata {
+    name = each.key
+  }
+
+  labels = {
+    (local.gpu_device_plugin_config_label) = each.value
+  }
+}
 
 resource "helm_release" "nvidia_device_plugin" {
-  depends_on = [helm_release.cilium, kubernetes_manifest.nvidia_runtime_class]
+  depends_on = [
+    helm_release.cilium,
+    kubernetes_labels.gpu_device_plugin_config,
+    kubernetes_manifest.nvidia_runtime_class,
+  ]
 
   name       = "nvidia-device-plugin"
   repository = "https://nvidia.github.io/k8s-device-plugin"
@@ -49,9 +80,9 @@ resource "helm_release" "nvidia_device_plugin" {
 
   values = [yamlencode({
     config = {
-      default = "default"
+      default = "blackwell"
       map = {
-        default = yamlencode({
+        for name, replicas in local.gpu_device_plugin_configs : name => yamlencode({
           version = "v1"
           sharing = {
             timeSlicing = {
@@ -109,8 +140,8 @@ resource "helm_release" "dcgm_exporter" {
     serviceMonitor = { enabled = false }
 
     resources = {
-      requests = { cpu = "100m", memory = "128Mi" }
-      limits   = { cpu = "500m", memory = "256Mi" }
+      requests = { cpu = "100m", memory = "256Mi" }
+      limits   = { cpu = "500m", memory = "1Gi" }
     }
   })]
 }

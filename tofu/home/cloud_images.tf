@@ -80,9 +80,9 @@ locals {
   # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&platform=nocloud
   talos_schematic = "ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515"
 
-  # GPU schematic: qemu-guest-agent + nvidia-open-gpu-kernel-modules + nvidia-container-toolkit
-  # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&extensions=siderolabs%2Fnvidia-open-gpu-kernel-modules&extensions=siderolabs%2Fnvidia-container-toolkit&platform=nocloud
-  talos_nvidia_schematic = "4b4a20194a021d632958bfdcbc0528fb7b62f9ca52f5cabdc35730d512f3a392"
+  # GPU schematic: qemu-guest-agent + NVIDIA open kernel modules LTS + NVIDIA container toolkit LTS.
+  # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fqemu-guest-agent&extensions=siderolabs%2Fnvidia-open-gpu-kernel-modules-lts&extensions=siderolabs%2Fnvidia-container-toolkit-lts&platform=nocloud
+  talos_nvidia_schematic = "2e186944edfff6a15572ad75ec2b6f26b35e2542566d640dfcd2ad7c52a2df55"
 }
 
 # Talos ISO for Proxmox boot (nocloud platform)

@@ -1,19 +1,28 @@
 # =============================================================================
 # Talos Kubernetes Cluster
 # =============================================================================
-# 3-node cluster with combined control plane + worker roles
+# 3-node control plane with additional worker-only nodes
 # Cilium CNI with L2 announcements for LoadBalancer VIP
 #
 # Architecture:
 #   - talos-trinity (10.0.3.16) - Control plane + Worker
 #   - talos-neo     (10.0.3.17) - Control plane + Worker + GPU (RTX Pro 6000)
 #   - talos-niobe   (10.0.3.18) - Control plane + Worker
+#   - talos-smith   (10.0.3.22) - Worker + GPU (GTX 1660 Super)
 #   - API VIP       (10.0.3.20) - Talos native VIP for kubectl/API server
 #   - Workload VIP  (10.0.3.19) - Cilium L2 announced LoadBalancer IP
 
 locals {
-  # Filter Talos nodes from VM config
+  # Talos roles are explicit so worker-only nodes do not accidentally join etcd.
   talos_nodes = { for k, v in local.vm : k => v if startswith(k, "talos_") }
+  talos_controlplane_nodes = {
+    for k, v in local.talos_nodes : k => v
+    if try(v.role, "controlplane") == "controlplane"
+  }
+  talos_worker_nodes = {
+    for k, v in local.talos_nodes : k => v
+    if try(v.role, "controlplane") == "worker"
+  }
 
   # Cluster configuration
   talos_cluster_name = "aether-k8s"
@@ -46,7 +55,7 @@ resource "talos_machine_secrets" "this" {}
 # =============================================================================
 
 data "talos_machine_configuration" "controlplane" {
-  for_each = local.talos_nodes
+  for_each = local.talos_controlplane_nodes
 
   cluster_name     = local.talos_cluster_name
   cluster_endpoint = local.talos_cluster_endpoint
@@ -54,10 +63,19 @@ data "talos_machine_configuration" "controlplane" {
   machine_secrets  = talos_machine_secrets.this.machine_secrets
 }
 
+data "talos_machine_configuration" "worker" {
+  for_each = local.talos_worker_nodes
+
+  cluster_name     = local.talos_cluster_name
+  cluster_endpoint = local.talos_cluster_endpoint
+  machine_type     = "worker"
+  machine_secrets  = talos_machine_secrets.this.machine_secrets
+}
+
 data "talos_client_configuration" "this" {
   cluster_name         = local.talos_cluster_name
   client_configuration = talos_machine_secrets.this.client_configuration
-  endpoints            = [for node in local.talos_nodes : node.ip]
+  endpoints            = [for node in local.talos_controlplane_nodes : node.ip]
   nodes                = [for node in local.talos_nodes : node.ip]
 }
 
@@ -94,7 +112,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
   }
 
   disk {
-    datastore_id = "ceph-vm-disks"
+    datastore_id = try(each.value.disk_datastore, "ceph-vm-disks")
     size         = each.value.disk_gb
     interface    = "virtio0"
     iothread     = true
@@ -139,10 +157,10 @@ resource "proxmox_virtual_environment_vm" "talos" {
     for_each = try(each.value.gpu, false) ? [1] : []
     content {
       device   = "hostpci0"
-      id       = "0000:01:00.0"
-      xvga     = true
-      pcie     = true
-      rom_file = "rtx6000.rom"
+      id       = each.value.gpu_hostpci_id
+      xvga     = try(each.value.gpu_xvga, true)
+      pcie     = try(each.value.gpu_pcie, true)
+      rom_file = try(each.value.gpu_rom_file, null)
     }
   }
 
@@ -190,7 +208,10 @@ resource "talos_machine_configuration_apply" "this" {
   # below, and the talos provider's strategic merge can't remove fields,
   # only add them. Leaves the rest of the baseline untouched.
   machine_configuration_input = replace(
-    data.talos_machine_configuration.controlplane[each.key].machine_configuration,
+    try(
+      data.talos_machine_configuration.controlplane[each.key].machine_configuration,
+      data.talos_machine_configuration.worker[each.key].machine_configuration,
+    ),
     "/\n---\napiVersion: v1alpha1\nkind: HostnameConfig\nauto: stable\\s*\n*/",
     "\n"
   )
@@ -199,7 +220,7 @@ resource "talos_machine_configuration_apply" "this" {
 
   config_patches = concat(
     [
-      yamlencode({
+      contains(keys(local.talos_controlplane_nodes), each.key) ? yamlencode({
         cluster = {
           allowSchedulingOnControlPlanes = true
           network                        = { cni = { name = "none" } }
@@ -213,6 +234,11 @@ resource "talos_machine_configuration_apply" "this" {
               "service-account-issuer" = local.k8s_serviceaccount_issuer
             }
           }
+        }
+        }) : yamlencode({
+        cluster = {
+          network = { cni = { name = "none" } }
+          proxy   = { disabled = true }
         }
       }),
       yamlencode({
@@ -234,12 +260,18 @@ resource "talos_machine_configuration_apply" "this" {
           }
           network = {
             hostname = each.value.name
-            interfaces = [{
-              interface = "ens18"
-              addresses = ["${each.value.ip}/24"]
-              routes    = [{ network = "0.0.0.0/0", gateway = each.value.gateway }]
-              vip       = { ip = local.talos_api_vip }
-            }]
+            interfaces = [
+              merge(
+                {
+                  interface = "ens18"
+                  addresses = ["${each.value.ip}/24"]
+                  routes    = [{ network = "0.0.0.0/0", gateway = each.value.gateway }]
+                },
+                contains(keys(local.talos_controlplane_nodes), each.key) ? {
+                  vip = { ip = local.talos_api_vip }
+                } : {}
+              )
+            ]
             nameservers = ["10.0.0.1"]
           }
           time = { servers = ["time.cloudflare.com"] }
@@ -325,8 +357,9 @@ data "talos_cluster_health" "this" {
   depends_on = [talos_machine_bootstrap.this]
 
   client_configuration   = talos_machine_secrets.this.client_configuration
-  endpoints              = [for node in local.talos_nodes : node.ip]
-  control_plane_nodes    = [for node in local.talos_nodes : node.ip]
+  endpoints              = [for node in local.talos_controlplane_nodes : node.ip]
+  control_plane_nodes    = [for node in local.talos_controlplane_nodes : node.ip]
+  worker_nodes           = [for node in local.talos_worker_nodes : node.ip]
   skip_kubernetes_checks = true
 
   timeouts = { read = "10m" }

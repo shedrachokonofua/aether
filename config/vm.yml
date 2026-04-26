@@ -443,6 +443,7 @@ openclaw:
 talos_trinity:
   id: 1030
   name: "talos-trinity"
+  role: "controlplane"
   node: "trinity"
   cores: 8
   memory: 24576
@@ -457,6 +458,7 @@ talos_trinity:
 talos_neo:
   id: 1031
   name: "talos-neo"
+  role: "controlplane"
   node: "neo"
   cores: 32
   memory: 49152
@@ -465,6 +467,10 @@ talos_neo:
   # layers + container writable layers room without provoking eviction.
   disk_gb: 256
   gpu: true
+  gpu_pool: "blackwell"
+  gpu_class: "rtx-pro-6000-blackwell"
+  gpu_hostpci_id: "0000:01:00.0"
+  gpu_rom_file: "rtx6000.rom"
   # Local NVMe (local-lvm on neo) for GPU model/state storage. Mounted on the
   # Talos node at /var/mnt/gpu-storage and exposed to k8s via a static local PV.
   gpu_storage_disk_gb: 500
@@ -476,6 +482,7 @@ talos_neo:
 talos_niobe:
   id: 1032
   name: "talos-niobe"
+  role: "controlplane"
   node: "niobe"
   cores: 8
   memory: 24576
@@ -486,4 +493,20 @@ talos_niobe:
   etcd_disk_gb: 32
   etcd_disk_datastore: "local-fast"
   ip: "10.0.3.18"
+  gateway: "10.0.3.1"
+
+talos_smith:
+  id: 1034
+  name: "talos-smith"
+  role: "worker"
+  node: "smith"
+  cores: 12
+  memory: 32768
+  disk_gb: 128
+  gpu: true
+  gpu_pool: "turing"
+  gpu_class: "gtx-1660-super"
+  gpu_hostpci_id: "0000:0a:00.0"
+  gpu_rom_file: "gtx1660super.rom"
+  ip: "10.0.3.22"
   gateway: "10.0.3.1"
