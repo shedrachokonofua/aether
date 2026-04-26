@@ -102,6 +102,22 @@ resource "proxmox_virtual_environment_vm" "talos" {
     file_format  = "raw"
   }
 
+  # Optional dedicated local-NVMe disk for etcd dataDir (per-node). Pulls etcd
+  # off the Ceph-backed root volume to eliminate fsync stalls.
+  # Placed at virtio1 (-> /dev/vdb) so the device path is uniform across all
+  # nodes regardless of whether they also have a virtio2 (e.g. gpu-storage on
+  # neo, which lives at virtio2 -> /dev/vdc).
+  dynamic "disk" {
+    for_each = try(each.value.etcd_disk_gb, null) != null ? [1] : []
+    content {
+      datastore_id = try(each.value.etcd_disk_datastore, "local-lvm")
+      size         = each.value.etcd_disk_gb
+      interface    = "virtio1"
+      iothread     = true
+      discard      = "on"
+      file_format  = "raw"
+    }
+  }
 
   dynamic "hostpci" {
     for_each = try(each.value.gpu, false) ? [1] : []
@@ -152,10 +168,18 @@ resource "proxmox_virtual_environment_vm" "talos" {
 resource "talos_machine_configuration_apply" "this" {
   for_each = local.talos_nodes
 
-  client_configuration        = talos_machine_secrets.this.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.controlplane[each.key].machine_configuration
-  endpoint                    = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
-  node                        = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
+  client_configuration = talos_machine_secrets.this.client_configuration
+  # Strip the HostnameConfig sibling doc that the data source emits by
+  # default (auto: stable). It conflicts with our static network.hostname
+  # below, and the talos provider's strategic merge can't remove fields,
+  # only add them. Leaves the rest of the baseline untouched.
+  machine_configuration_input = replace(
+    data.talos_machine_configuration.controlplane[each.key].machine_configuration,
+    "/\n---\napiVersion: v1alpha1\nkind: HostnameConfig\nauto: stable\\s*\n*/",
+    "\n"
+  )
+  endpoint = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
+  node     = proxmox_virtual_environment_vm.talos[each.key].ipv4_addresses[7][0]
 
   config_patches = concat(
     [
@@ -173,34 +197,6 @@ resource "talos_machine_configuration_apply" "this" {
               "service-account-issuer" = local.k8s_serviceaccount_issuer
             }
           }
-          # Raised from defaults (100/1000) to absorb Ceph fsync stalls on the
-          # CP etcd disks (they're backed by ceph-vm-disks; trinity's Lexars
-          # spike AIO wait to 60-100ms). Defaults cause leader elections on
-          # every stall. Ratio of 10x preserved as etcd requires.
-          etcd = {
-            extraArgs = {
-              "heartbeat-interval" = "500"
-              "election-timeout"   = "5000"
-            }
-          }
-          # Defaults (15s/10s/2s) can't ride out Ceph-driven etcd stalls — CM
-          # and scheduler lose their lease and CrashLoopBackOff every few
-          # minutes. 60s/40s/10s lets the leader tolerate longer stalls
-          # without triggering re-election.
-          controllerManager = {
-            extraArgs = {
-              "leader-elect-lease-duration" = "60s"
-              "leader-elect-renew-deadline" = "40s"
-              "leader-elect-retry-period"   = "10s"
-            }
-          }
-          scheduler = {
-            extraArgs = {
-              "leader-elect-lease-duration" = "60s"
-              "leader-elect-renew-deadline" = "40s"
-              "leader-elect-retry-period"   = "10s"
-            }
-          }
         }
       }),
       yamlencode({
@@ -209,7 +205,19 @@ resource "talos_machine_configuration_apply" "this" {
             disk  = "/dev/vda"
             image = try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
           }
+          # Pin a stable, human-readable hostname instead of Talos's default
+          # machine-id-derived name (talos-4d9-xcj etc.). Required setup:
+          #   1) features.stableHostname = false  (don't auto-generate one)
+          #   2) Manually strip the existing HostnameConfig sibling doc that
+          #      was already materialized at bootstrap (one-time, via
+          #      talosctl apply-config — see runbook). Step 1 alone doesn't
+          #      remove the persisted sibling doc.
+          #   3) Set network.hostname here (the legacy v1alpha1 way).
+          features = {
+            stableHostname = false
+          }
           network = {
+            hostname = each.value.name
             interfaces = [{
               interface = "ens18"
               addresses = ["${each.value.ip}/24"]
@@ -229,6 +237,24 @@ resource "talos_machine_configuration_apply" "this" {
         }
       }),
     ],
+    # Dedicated etcd disk: partition /dev/vdb and mount it at /var/lib/etcd
+    # so Talos's etcd service writes there transparently (etcd's data dir is
+    # hardcoded to /var/lib/etcd, so we shadow that path with the new disk
+    # rather than reconfiguring etcd). Talos formats on first boot; existing
+    # /var/lib/etcd contents on EPHEMERAL are shadowed (the member is removed
+    # via `talosctl etcd remove-member` before each rolling apply, and the
+    # node rejoins as a fresh learner from peers).
+    try(each.value.etcd_disk_gb, null) != null ? [yamlencode({
+      machine = {
+        disks = [{
+          device = "/dev/vdb"
+          partitions = [{
+            mountpoint = "/var/lib/etcd"
+          }]
+        }]
+      }
+    })] : [],
+
     # NVIDIA kernel modules for GPU nodes
     try(each.value.gpu, false) ? [yamlencode({
       machine = {

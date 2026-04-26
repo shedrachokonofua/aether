@@ -214,7 +214,7 @@ gpu_workstation:
   node: "neo"
   admin: "aether"
   cores: 32
-  memory: 65536
+  memory: 8192
   disk_gb: 1024
   ip: "10.0.3.2"
   gateway: "10.0.3.1"
@@ -447,6 +447,10 @@ talos_trinity:
   cores: 8
   memory: 24576
   disk_gb: 64
+  # Local NVMe disk for etcd dataDir, isolating it from the Ceph-backed root
+  # to eliminate fsync stalls (the workaround in talos_cluster.tf raised
+  # heartbeat-interval to 500ms because of those stalls).
+  etcd_disk_gb: 32
   ip: "10.0.3.16"
   gateway: "10.0.3.1"
 
@@ -458,6 +462,11 @@ talos_neo:
   memory: 49152
   disk_gb: 128
   gpu: true
+  # Local NVMe (local-lvm on neo) for GPU model/state storage. Mounted on the
+  # Talos node at /var/mnt/gpu-storage and exposed to k8s via a static local PV.
+  gpu_storage_disk_gb: 500
+  # Dedicated local NVMe for etcd dataDir; see talos_trinity comment.
+  etcd_disk_gb: 32
   ip: "10.0.3.17"
   gateway: "10.0.3.1"
 
@@ -468,5 +477,10 @@ talos_niobe:
   cores: 8
   memory: 24576
   disk_gb: 64
+  # Dedicated local NVMe for etcd dataDir; see talos_trinity comment.
+  # On niobe the disk lives on `local-fast` (the new 4TB Lexar pool) since
+  # niobe's existing local-lvm is constrained.
+  etcd_disk_gb: 32
+  etcd_disk_datastore: "local-fast"
   ip: "10.0.3.18"
   gateway: "10.0.3.1"
