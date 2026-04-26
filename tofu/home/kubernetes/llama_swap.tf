@@ -17,32 +17,6 @@ locals {
 }
 
 # =============================================================================
-# PVC — Legacy Ceph RBD model cache (kept for rollback)
-# =============================================================================
-# Models now live on the shared `gpu-model-storage` local-NVMe PV (sub_path
-# llama-swap/models), but the old Ceph RBD PVC is retained until the new
-# storage path is proven stable, in case of rollback.
-# TODO: remove once we've confirmed a few weeks of stable operation.
-
-resource "kubernetes_persistent_volume_claim_v1" "llama_swap_models" {
-  depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
-
-  metadata {
-    name      = "llama-swap-models"
-    namespace = local.llama_swap_ns
-  }
-
-  spec {
-    access_modes       = ["ReadWriteOnce"]
-    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
-
-    resources {
-      requests = { storage = "200Gi" }
-    }
-  }
-}
-
-# =============================================================================
 # ConfigMap — llama-swap config
 # =============================================================================
 
