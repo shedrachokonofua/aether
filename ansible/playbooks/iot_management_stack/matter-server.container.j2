@@ -1,0 +1,17 @@
+[Container]
+ContainerName=matter-server
+Image=ghcr.io/home-assistant-libs/python-matter-server:stable
+Pod=iot-management-stack.pod
+
+# NET_ADMIN for BLE adapter management during Matter commissioning.
+AddCapability=NET_ADMIN NET_RAW
+
+Exec=--storage-path /data --paa-root-cert-dir /data/credentials --port {{ vm.iot_management_stack.ports.matter_server }}
+
+Volume=/home/aether/matter-server:/data:Z
+Volume=/run/dbus:/run/dbus:ro
+
+PodmanArgs=--security-opt label=disable
+
+[Install]
+WantedBy=default.target

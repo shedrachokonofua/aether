@@ -1,0 +1,15 @@
+[Container]
+ContainerName=zwavejs-ui
+Image=docker.io/zwavejs/zwave-js-ui:latest
+Pod=iot-management-stack.pod
+
+Environment=SESSION_SECRET={{ secrets.zwave.session_secret }}
+
+Volume=/home/aether/zwavejs:/usr/src/app/store:Z
+Volume={{ zwave_device_by_id }}:/dev/zwave
+
+PodmanArgs=--privileged
+PodmanArgs=--tty
+
+[Install]
+WantedBy=default.target

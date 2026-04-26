@@ -1,0 +1,18 @@
+[Container]
+ContainerName=homeassistant
+Image=ghcr.io/home-assistant/home-assistant:stable
+Pod=iot-management-stack.pod
+
+# NET_ADMIN/NET_RAW let HA's bluetooth integration manage the hci0 adapter
+# (RFKill, scanning, automatic adapter recovery via mgmt API).
+AddCapability=NET_ADMIN NET_RAW
+
+Environment=TZ={{ home_assistant_timezone }}
+
+Volume={{ ha_config_dir }}:/config:Z
+Volume=/run/dbus:/run/dbus:ro
+
+PodmanArgs=--security-opt label=disable
+
+[Install]
+WantedBy=default.target
