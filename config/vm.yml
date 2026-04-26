@@ -460,7 +460,10 @@ talos_neo:
   node: "neo"
   cores: 32
   memory: 49152
-  disk_gb: 128
+  # 128 GB ran into DiskPressure with the GPU node's full workload (ComfyUI,
+  # llama-swap, Jellyfin, Jupyter, Speaches, Hermes, etc.) — 256 gives image
+  # layers + container writable layers room without provoking eviction.
+  disk_gb: 256
   gpu: true
   # Local NVMe (local-lvm on neo) for GPU model/state storage. Mounted on the
   # Talos node at /var/mnt/gpu-storage and exposed to k8s via a static local PV.

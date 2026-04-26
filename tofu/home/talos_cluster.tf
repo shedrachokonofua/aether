@@ -119,6 +119,22 @@ resource "proxmox_virtual_environment_vm" "talos" {
     }
   }
 
+  # Optional GPU model/state storage disk (neo-only). Mounted on the node at
+  # /var/mnt/gpu-storage and exposed to k8s via a static local PV so ComfyUI
+  # and llama-swap can co-locate their large weights with the GPU instead of
+  # paying Ceph RBD round-trip latency on every model load.
+  dynamic "disk" {
+    for_each = try(each.value.gpu_storage_disk_gb, null) != null ? [1] : []
+    content {
+      datastore_id = "local-lvm"
+      size         = each.value.gpu_storage_disk_gb
+      interface    = "virtio2"
+      iothread     = true
+      discard      = "on"
+      file_format  = "raw"
+    }
+  }
+
   dynamic "hostpci" {
     for_each = try(each.value.gpu, false) ? [1] : []
     content {
@@ -237,6 +253,28 @@ resource "talos_machine_configuration_apply" "this" {
         }
       }),
     ],
+    # GPU-storage disk: partition /dev/vdc and mount at /var/mnt/gpu-storage,
+    # plus bind-mount /var/mnt into kubelet's namespace (rshared/rw) so
+    # local-PVs and hostPath volumes can resolve under that path.
+    try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({
+      machine = {
+        disks = [{
+          device = "/dev/vdc"
+          partitions = [{
+            mountpoint = "/var/mnt/gpu-storage"
+          }]
+        }]
+        kubelet = {
+          extraMounts = [{
+            destination = "/var/mnt"
+            type        = "bind"
+            source      = "/var/mnt"
+            options     = ["bind", "rshared", "rw"]
+          }]
+        }
+      }
+    })] : [],
+
     # Dedicated etcd disk: partition /dev/vdb and mount it at /var/lib/etcd
     # so Talos's etcd service writes there transparently (etcd's data dir is
     # hardcoded to /var/lib/etcd, so we shadow that path with the new disk
