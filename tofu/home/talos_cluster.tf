@@ -444,8 +444,6 @@ module "kubernetes" {
   openwebui_oauth_client_secret = keycloak_openid_client.openwebui.client_secret
   immich_oauth_client_secret    = keycloak_openid_client.immich.client_secret
   nextcloud_oauth_client_secret = keycloak_openid_client.nextcloud.client_secret
-  nextcloud_s3_access_key       = var.secrets["ceph.nextcloud_s3_access_key"]
-  nextcloud_s3_secret_key       = var.secrets["ceph.nextcloud_s3_secret_key"]
   litellm_mcp_url               = "http://litellm.infra.svc.cluster.local:4000/mcp"
 
   # Media stack migration

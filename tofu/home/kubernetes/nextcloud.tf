@@ -1,5 +1,5 @@
 # =============================================================================
-# Nextcloud — Self-hosted Drive (S3-backed)
+# Nextcloud — Self-hosted Drive (NFS-backed)
 # =============================================================================
 # Stack:
 #   - nextcloud-server   (Apache + PHP-FPM, Apache image)
@@ -7,17 +7,16 @@
 #   - postgres           (StatefulSet, RBD-backed)
 #   - redis              (Deployment, no persistence; file lock + cache)
 # Storage:
-#   - user files       -> Ceph RGW S3 (bucket: nextcloud) via objectstore primary
+#   - user files       -> NFS (/mnt/hdd/data/nextcloud on smith) — real filenames
 #   - postgres data    -> ceph-rbd (20Gi)
-#   - app dir (/var/www/html: php code, custom_apps, skeleton, config)
+#   - app dir (/var/www/html: php code, custom_apps, skeleton)
 #                      -> ceph-rbd (5Gi)
 #
-# Required out-of-band setup (see ./README-nextcloud.md):
-#   1. Create RGW account/user with creds matching var.nextcloud_s3_*
-#   2. Create bucket `nextcloud` under that account
-#   3. After first deploy: kubectl exec into nextcloud-server and run
-#      `occ user_oidc:provider create ...` to register Keycloak
-#      (post-install Job below tries to do this, but must succeed only once)
+# Required out-of-band setup:
+#   1. Create /mnt/hdd/data/nextcloud on the smith NFS host and export it
+#      (same pattern as /mnt/hdd/data/immich)
+#   2. After first deploy: the nextcloud-oidc-bootstrap Job registers Keycloak
+#      as a user_oidc provider automatically
 #
 # Logs: errorlog stream -> stdout, captured by Loki via the OTel collector
 # pattern that already runs on the cluster.
@@ -37,8 +36,7 @@ locals {
   nextcloud_db_name = "nextcloud"
   nextcloud_db_user = "nextcloud"
 
-  nextcloud_s3_bucket   = "nextcloud"
-  nextcloud_s3_hostname = "s3.home.shdr.ch"
+  nextcloud_nfs_share = "/mnt/hdd/data/nextcloud"
 
   nextcloud_oidc_provider_id = "keycloak"
 
@@ -131,17 +129,13 @@ resource "kubernetes_secret_v1" "nextcloud_config" {
 
   data = {
     "config.php" = templatefile("${path.module}/nextcloud_config.php.tftpl", {
-      host          = local.nextcloud_host
-      namespace     = local.nextcloud_namespace
-      pg_port       = local.nextcloud_postgres_port
-      pg_db         = local.nextcloud_db_name
-      pg_user       = local.nextcloud_db_user
-      pg_password   = random_password.nextcloud_postgres_password.result
-      redis_port    = local.nextcloud_redis_port
-      s3_bucket     = local.nextcloud_s3_bucket
-      s3_hostname   = local.nextcloud_s3_hostname
-      s3_access_key = var.nextcloud_s3_access_key
-      s3_secret_key = var.nextcloud_s3_secret_key
+      host        = local.nextcloud_host
+      namespace   = local.nextcloud_namespace
+      pg_port     = local.nextcloud_postgres_port
+      pg_db       = local.nextcloud_db_name
+      pg_user     = local.nextcloud_db_user
+      pg_password = random_password.nextcloud_postgres_password.result
+      redis_port  = local.nextcloud_redis_port
     })
   }
 
@@ -193,9 +187,9 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_postgres_data" {
   }
 }
 
-# /var/www/html holds the PHP code, installed apps, custom_apps, and a small
-# `data/` dir for skeleton + the .ocdata sentinel. User files are NOT here —
-# those go to RGW S3 via the objectstore config.
+# /var/www/html holds the PHP code, installed apps, custom_apps, and config.
+# The data/ subdir is overlaid by the NFS mount below; only the PHP skeleton
+# and .ocdata sentinel land here.
 resource "kubernetes_persistent_volume_claim_v1" "nextcloud_app" {
   depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.ceph_rbd]
 
@@ -210,6 +204,58 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_app" {
 
     resources {
       requests = { storage = "5Gi" }
+    }
+  }
+}
+
+# NFS-backed data directory — user files stored at real paths so the share is
+# browsable directly from any NFS client (same pattern as immich_library).
+# Create /mnt/hdd/data/nextcloud on smith before first apply.
+resource "kubernetes_persistent_volume_v1" "nextcloud_data" {
+  depends_on = [helm_release.csi_driver_nfs]
+
+  metadata {
+    name = "nextcloud-data"
+  }
+
+  spec {
+    capacity = { storage = "2Ti" }
+
+    access_modes                     = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+
+    persistent_volume_source {
+      csi {
+        driver        = "nfs.csi.k8s.io"
+        volume_handle = "nextcloud-data"
+        read_only     = false
+        volume_attributes = {
+          server = var.nfs_server_ip
+          share  = local.nextcloud_nfs_share
+        }
+      }
+    }
+
+    mount_options = ["nfsvers=4.1", "hard", "nointr"]
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "nextcloud_data" {
+  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_persistent_volume_v1.nextcloud_data]
+
+  metadata {
+    name      = "nextcloud-data"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+    volume_name        = kubernetes_persistent_volume_v1.nextcloud_data.metadata[0].name
+
+    resources {
+      requests = { storage = "2Ti" }
     }
   }
 }
@@ -457,7 +503,6 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
       }
 
       spec {
-        # Long-lived TCP keepalive to RGW for big uploads.
         termination_grace_period_seconds = 120
 
         container {
@@ -519,6 +564,11 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
           }
 
           volume_mount {
+            name       = "data"
+            mount_path = "/var/www/html/data"
+          }
+
+          volume_mount {
             name       = "config"
             mount_path = "/var/www/html/config/config.php"
             sub_path   = "config.php"
@@ -569,6 +619,13 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
           name = "app"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_data.metadata[0].name
           }
         }
 
@@ -672,6 +729,11 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
           }
 
           volume_mount {
+            name       = "data"
+            mount_path = "/var/www/html/data"
+          }
+
+          volume_mount {
             name       = "config"
             mount_path = "/var/www/html/config/config.php"
             sub_path   = "config.php"
@@ -694,6 +756,13 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
           name = "app"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_data.metadata[0].name
           }
         }
 
@@ -802,6 +871,11 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
           }
 
           volume_mount {
+            name       = "data"
+            mount_path = "/var/www/html/data"
+          }
+
+          volume_mount {
             name       = "config"
             mount_path = "/var/www/html/config/config.php"
             sub_path   = "config.php"
@@ -813,6 +887,13 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
           name = "app"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_data.metadata[0].name
           }
         }
 

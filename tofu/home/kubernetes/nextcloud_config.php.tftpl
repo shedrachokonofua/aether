@@ -6,7 +6,6 @@ $CONFIG = array (
     array ('path'=> '/var/www/html/custom_apps',  'url' => '/custom_apps','writable' => true),
   ),
 
-  // Trust the LAN host + the cluster-internal SVC for occ commands.
   'trusted_domains' => array (
     0 => '${host}',
     1 => 'localhost',
@@ -38,24 +37,6 @@ $CONFIG = array (
     'timeout'  => 1.5,
   ),
 
-  // Primary object storage on Ceph RGW.
-  // Files stored as opaque urn:oid:<id> objects keyed by the Nextcloud DB.
-  // Bucket must exist before first start (see runbook).
-  'objectstore' => array (
-    'class' => '\\OC\\Files\\ObjectStore\\S3',
-    'arguments' => array (
-      'bucket'         => '${s3_bucket}',
-      'autocreate'     => false,
-      'key'            => '${s3_access_key}',
-      'secret'         => '${s3_secret_key}',
-      'hostname'       => '${s3_hostname}',
-      'port'           => 443,
-      'use_ssl'        => true,
-      'use_path_style' => false,
-      'region'         => 'us-east-1',
-    ),
-  ),
-
   // Operational
   'log_type'                => 'errorlog',
   'loglevel'                => 2,
@@ -63,9 +44,6 @@ $CONFIG = array (
   'default_phone_region'    => 'CA',
   'mail_smtpmode'           => 'smtp',
   'htaccess.RewriteBase'    => '/',
-  'check_data_directory_for_files' => false,
-
-  // Nextcloud will refuse to install over a filled apps dir; this is benign on first run.
   'updater.release.channel' => 'stable',
   'upgrade.disable-web'     => true,
 );

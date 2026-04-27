@@ -131,18 +131,6 @@ variable "nextcloud_oauth_client_secret" {
   description = "Nextcloud Keycloak OIDC client secret (registered as user_oidc provider after install)"
 }
 
-variable "nextcloud_s3_access_key" {
-  type        = string
-  sensitive   = true
-  description = "Ceph RGW access key for Nextcloud's primary objectstore (bucket: nextcloud)"
-}
-
-variable "nextcloud_s3_secret_key" {
-  type        = string
-  sensitive   = true
-  description = "Ceph RGW secret key matching nextcloud_s3_access_key"
-}
-
 variable "litellm_mcp_url" {
   type        = string
   description = "LiteLLM MCP endpoint URL used by MCPO"
