@@ -70,7 +70,7 @@
     - [x] Provision talos-mouse (Pi 4) — flashed, joined, labeled
     - [x] Provision talos-dozer (Pi 5) — flashed, joined, labeled
     - [x] Provision talos-tank (Pi 5) — flashed, joined, labeled
-    - [ ] Provision talos-sparks (CM4 / uConsole) — confirm SKU, source carrier
+    - [x] Provision talos-sparks (CM4 Lite / Mini Base) — flashed, joined, labeled
     - [ ] Move Pi nodes from office switch to main rack
     - [ ] Land Kyverno `arm-pool-guardrails` ClusterPolicy (memory/CPU caps on `aether.sh/node-pool=arm`)
 - [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))

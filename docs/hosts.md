@@ -1,56 +1,28 @@
 # Hosts
 
-Five Proxmox VE hosts form the home compute cluster. All hosts run Proxmox VE and are members of a unified cluster for VM/LXC migration and shared storage.
+Physical host inventory for the lab. This page tracks machines and boards, not VM placements.
 
-| Host    | RAM   | Storage                             | CPU                  | GPU                      | Cores | Threads | vCPUs | Network | Model            | Gigahub IP    |
-| ------- | ----- | ----------------------------------- | -------------------- | ------------------------ | ----- | ------- | ----- | ------- | ---------------- | ------------- |
-| Niobe   | 64GB  | 512GB MVME                          | AMD Ryzen 9 6900HX   | AMD Radeon 680M          | 8     | 16      | 16    | 2.5Gbps | Beelink Ser6 Max | 192.168.2.201 |
-| Trinity | 64GB  | 9TB NVME (4TB x2 + 1TB boot)        | Intel Core i9-13900H | Intel Iris Xe            | 14    | 20      | 20    | 10Gbps  | Minisforum MS-01 | 192.168.2.202 |
-| Oracle  | 16GB  | 1TB NVME                            | Intel Core i5-12600H | Intel Iris Xe            | 12    | 16      | 16    | 10Gbps  | Minisforum MS-01 | 192.168.2.203 |
-| Smith   | 128GB | 8TB NVME(4TB x2), 56TB HDD(14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super    | 8     | 16      | 16    | 10Gbps  | Custom           | 192.168.2.204 |
-| Neo     | 128GB | 10TB NVME (4TB x2 + 2TB boot)       | AMD Ryzen 9 9950X    | Nvidia RTX Pro 6000 MaxQ | 16    | 32      | 32    | 10Gbps  | Custom           | 192.168.2.205 |
+Host count: 9 physical systems: 5 x86 Proxmox hosts and 4 ARM Talos boards.
 
-## Host Roles
+## Inventory
 
-### Oracle
+| Host           | Type         | OS          | Physical role      | RAM   | Storage                               | CPU / SoC            | GPU                      | Cores / Threads | Network | Model / Board       | Primary IP    |
+| -------------- | ------------ | ----------- | ------------------ | ----- | ------------------------------------- | -------------------- | ------------------------ | --------------- | ------- | ------------------- | ------------- |
+| `niobe`        | x86 host     | Proxmox VE  | Compute            | 64GB  | 512GB NVME                            | AMD Ryzen 9 6900HX   | AMD Radeon 680M          | 8 / 16          | 2.5Gbps | Beelink SER6 Max    | 192.168.2.201 |
+| `trinity`      | x86 host     | Proxmox VE  | Compute            | 64GB  | 9TB NVME (4TB x2 + 1TB boot)          | Intel Core i9-13900H | Intel Iris Xe            | 14 / 20         | 10Gbps  | Minisforum MS-01    | 192.168.2.202 |
+| `oracle`       | x86 host     | Proxmox VE  | Core infra / edge  | 16GB  | 1TB NVME                              | Intel Core i5-12600H | Intel Iris Xe            | 12 / 16         | 10Gbps  | Minisforum MS-01    | 192.168.2.203 |
+| `smith`        | x86 host     | Proxmox VE  | Storage / GPU      | 128GB | 8TB NVME (4TB x2), 56TB HDD (14TB x4) | AMD Ryzen 7 3700X    | Nvidia RTX 1660 Super    | 8 / 16          | 10Gbps  | Custom              | 192.168.2.204 |
+| `neo`          | x86 host     | Proxmox VE  | GPU compute        | 128GB | 10TB NVME (4TB x2 + 2TB boot)         | AMD Ryzen 9 9950X    | Nvidia RTX Pro 6000 MaxQ | 16 / 32         | 10Gbps  | Custom              | 192.168.2.205 |
+| `talos-tank`   | ARM board    | Talos Linux | Kubernetes worker  | 4GB   | microSD                               | Raspberry Pi 5       | VideoCore VII            | 4 / 4           | 1Gbps   | Raspberry Pi 5      | 10.0.3.23     |
+| `talos-dozer`  | ARM board    | Talos Linux | Kubernetes worker  | 4GB   | microSD                               | Raspberry Pi 5       | VideoCore VII            | 4 / 4           | 1Gbps   | Raspberry Pi 5      | 10.0.3.24     |
+| `talos-mouse`  | ARM board    | Talos Linux | Kubernetes worker  | 4GB   | microSD                               | Raspberry Pi 4       | VideoCore VI             | 4 / 4           | 1Gbps   | Raspberry Pi 4      | 10.0.3.25     |
+| `talos-sparks` | ARM board    | Talos Linux | Kubernetes worker  | 4GB   | microSD                               | Raspberry Pi CM4     | VideoCore VI             | 4 / 4           | 1Gbps   | CM4 Lite / Mini Base | 10.0.3.26     |
 
-Core infrastructure host. Runs essential services that must remain stable and always-on:
+## Notes
 
-- VyOS Router
-- Home Gateway Stack (Caddy, AdGuard, Tailscale, UniFi)
-- Keycloak (Identity Provider)
-- step-ca (Certificate Authority)
-- OpenBao (Secrets Management)
-
-### Smith
-
-Storage and backup host. Houses all shared storage arrays and backup infrastructure:
-
-- Network File Server (NFS/SMB)
-- Proxmox Backup Server
-- Gaming Server (GPU passthrough)
-
-### Neo
-
-GPU compute host. Dedicated to AI/ML workloads with high-end GPU:
-
-- AI Tool Stack (LiteLLM, SearXNG, Firecrawl, OpenWebUI)
-- Dokku (PaaS)
-
-### Trinity
-
-Application host. Runs general-purpose application workloads:
-
-- Development Workstation
-- GitLab
-- Dokploy
-- Media Stack
-
-### Niobe
-
-Lightweight services host. Runs low-resource services and monitoring:
-
-- Monitoring Stack
-- IoT Management Stack
-- Messaging Stack
-- Cockpit
+- The five x86 hosts are Proxmox VE cluster members.
+- `oracle` is the physical home for edge and core infrastructure workloads.
+- `smith` provides bulk storage and the RTX 1660 Super GPU.
+- `neo` provides the RTX Pro 6000 Blackwell GPU used by the Kubernetes GPU node.
+- The four ARM boards are bare-metal Talos Kubernetes workers on VLAN 3.
+- VM and application placement lives in `config/vm.yml`; Kubernetes platform details live in `docs/paas.md` and the Talos exploration docs.

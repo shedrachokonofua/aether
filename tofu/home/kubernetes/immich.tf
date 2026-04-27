@@ -589,12 +589,12 @@ resource "kubernetes_deployment_v1" "immich_ml" {
           resources {
             requests = {
               cpu              = "250m"
-              memory           = "1Gi"
+              memory           = "4Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {
               cpu              = "2"
-              memory           = "4Gi"
+              memory           = "12Gi"
               "nvidia.com/gpu" = "1"
             }
           }

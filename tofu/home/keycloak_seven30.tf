@@ -128,10 +128,10 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_broker_group
 
 # Identity provider in the seven30 realm pointing to aether
 resource "keycloak_oidc_identity_provider" "aether" {
-  realm             = keycloak_realm.seven30.id
-  alias             = "aether"
-  display_name      = "Login with Aether"
-  enabled           = true
+  realm        = keycloak_realm.seven30.id
+  alias        = "aether"
+  display_name = "Login with Aether"
+  enabled      = true
 
   authorization_url = "https://auth.shdr.ch/realms/aether/protocol/openid-connect/auth"
   token_url         = "https://auth.shdr.ch/realms/aether/protocol/openid-connect/token"

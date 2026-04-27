@@ -10,13 +10,13 @@
 resource "helm_release" "metrics_server" {
   depends_on = [helm_release.cilium]
 
-  name             = "metrics-server"
-  repository       = "https://kubernetes-sigs.github.io/metrics-server/"
-  chart            = "metrics-server"
-  namespace        = "kube-system"
-  version          = "3.12.2"
-  wait             = true
-  timeout          = 300
+  name       = "metrics-server"
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart      = "metrics-server"
+  namespace  = "kube-system"
+  version    = "3.12.2"
+  wait       = true
+  timeout    = 300
 
   values = [yamlencode({
     args = [

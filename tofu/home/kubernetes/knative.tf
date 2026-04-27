@@ -84,12 +84,12 @@ locals {
       # node drain. 60% allows 1 disruption (ceil(3*0.6)=2 available).
       podDisruptionBudgets = [
         {
-          name           = "activator-pdb"
-          minAvailable   = "60%"
+          name         = "activator-pdb"
+          minAvailable = "60%"
         },
         {
-          name           = "webhook-pdb"
-          minAvailable   = "60%"
+          name         = "webhook-pdb"
+          minAvailable = "60%"
         },
       ]
       config = {

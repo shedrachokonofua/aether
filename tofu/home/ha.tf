@@ -8,12 +8,12 @@ resource "proxmox_virtual_environment_hagroup" "ceph_workloads" {
 
   # Priority order (higher = preferred)
   nodes = {
-    trinity = 5  # High capacity, OSD node
-    neo     = 4  # High capacity, OSD node
-    smith   = 3  # Storage host, OSD node
-    niobe   = 2  # Lightweight services
+    trinity = 5 # High capacity, OSD node
+    neo     = 4 # High capacity, OSD node
+    smith   = 3 # Storage host, OSD node
+    niobe   = 2 # Lightweight services
   }
 
-  restricted  = true  # VMs can only run on these nodes
-  no_failback = true  # Don't auto-migrate back after recovery
+  restricted  = true # VMs can only run on these nodes
+  no_failback = true # Don't auto-migrate back after recovery
 }

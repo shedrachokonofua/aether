@@ -17,7 +17,7 @@
 }
 
 home.shdr.ch {
-  respond "Welcome home"
+  redir https://grafana.home.shdr.ch/d/home/home 302
 }
 
 caddy.home.shdr.ch {
@@ -81,6 +81,66 @@ ap.home.shdr.ch {
 grafana.home.shdr.ch {
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}
+}
+
+# CORS-stripping feed proxy for the Grafana home dashboard.
+# Lets the news panel fetch feeds whose origins don't send CORS headers.
+feeds.home.shdr.ch {
+  header {
+    Access-Control-Allow-Origin "https://grafana.home.shdr.ch"
+    Access-Control-Allow-Methods "GET, OPTIONS"
+    Access-Control-Allow-Headers "Content-Type"
+  }
+
+  @hn path /hn
+  handle @hn {
+    rewrite * /frontpage
+    reverse_proxy https://hnrss.org {
+      header_up Host hnrss.org
+    }
+  }
+
+  @lobsters path /lobsters
+  handle @lobsters {
+    rewrite * /rss
+    reverse_proxy https://lobste.rs {
+      header_up Host lobste.rs
+    }
+  }
+
+  @ars path /ars
+  handle @ars {
+    rewrite * /arstechnica/index
+    reverse_proxy https://feeds.arstechnica.com {
+      header_up Host feeds.arstechnica.com
+    }
+  }
+
+  @verge path /verge
+  handle @verge {
+    rewrite * /rss/index.xml
+    reverse_proxy https://www.theverge.com {
+      header_up Host www.theverge.com
+    }
+  }
+
+  # YouTube channel feed: /yt/<channel_id>  →  youtube.com/feeds/videos.xml?channel_id=<id>
+  @yt path_regexp ytch ^/yt/(UC[A-Za-z0-9_-]+)$
+  handle @yt {
+    rewrite * /feeds/videos.xml?channel_id={re.ytch.1}
+    reverse_proxy https://www.youtube.com {
+      header_up Host www.youtube.com
+    }
+  }
+
+  # YouTube playlist feed: /yt/playlist/<list_id>
+  @ytpl path_regexp ytpl ^/yt/playlist/([A-Za-z0-9_-]+)$
+  handle @ytpl {
+    rewrite * /feeds/videos.xml?playlist_id={re.ytpl.1}
+    reverse_proxy https://www.youtube.com {
+      header_up Host www.youtube.com
+    }
+  }
 }
 
 
@@ -495,6 +555,15 @@ s3.home.shdr.ch {
     lb_policy round_robin
     health_uri /
     health_interval 10s
+  }
+}
+
+shdr.ch {
+  reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
+    header_up Host shdrch.s3.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
   }
 }
 

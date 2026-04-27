@@ -268,6 +268,18 @@ resource "keycloak_role" "openwebui_user" {
   description = "Open WebUI User"
 }
 
+resource "keycloak_role" "immich_user" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "immich-user"
+  description = "Immich User"
+}
+
+resource "keycloak_role" "nextcloud_user" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "nextcloud-user"
+  description = "Nextcloud User"
+}
+
 # =============================================================================
 # Aether Realm - Application Users
 # =============================================================================
@@ -383,6 +395,110 @@ resource "keycloak_openid_client_default_scopes" "openwebui_default_scopes" {
 resource "keycloak_openid_user_realm_role_protocol_mapper" "openwebui_roles" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.openwebui.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_client" "immich" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "immich"
+  name      = "Immich"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://immich.apps.home.shdr.ch"
+  base_url  = "https://immich.apps.home.shdr.ch"
+  admin_url = "https://immich.apps.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://immich.apps.home.shdr.ch/auth/login",
+    "https://immich.apps.home.shdr.ch/user-settings",
+    "app.immich:///oauth-callback",
+  ]
+
+  web_origins = [
+    "https://immich.apps.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "immich_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.immich.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "immich_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.immich.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+# =============================================================================
+# Nextcloud OIDC Client (user_oidc app)
+# =============================================================================
+# Browser flow for the web UI + the official mobile/desktop apps.
+# Mobile login uses Login Flow v2 which redirects through the same callback.
+
+resource "keycloak_openid_client" "nextcloud" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "nextcloud"
+  name      = "Nextcloud"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://cloud.apps.home.shdr.ch"
+  base_url  = "https://cloud.apps.home.shdr.ch"
+  admin_url = "https://cloud.apps.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://cloud.apps.home.shdr.ch/apps/user_oidc/code",
+    # Login Flow v2 final redirect for the iOS/Android app
+    "nc://login/server:https://cloud.apps.home.shdr.ch",
+  ]
+
+  web_origins = [
+    "https://cloud.apps.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "nextcloud_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.nextcloud.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "nextcloud_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.nextcloud.id
   name      = "realm-roles"
 
   claim_name          = "roles"

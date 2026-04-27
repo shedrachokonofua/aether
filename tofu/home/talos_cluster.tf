@@ -238,18 +238,18 @@ resource "talos_machine_configuration_apply" "this" {
           proxy                          = { disabled = true }
           apiServer = {
             extraArgs = {
-              "oidc-issuer-url"            = local.oidc_issuer_url
-              "oidc-client-id"             = local.oidc_client_id
-              "oidc-username-claim"        = "preferred_username"
-              "oidc-groups-claim"          = "groups"
-              "service-account-issuer"     = local.k8s_serviceaccount_issuer
-              "service-account-jwks-uri"   = "${local.k8s_serviceaccount_issuer}/openid/v1/jwks"
+              "oidc-issuer-url"          = local.oidc_issuer_url
+              "oidc-client-id"           = local.oidc_client_id
+              "oidc-username-claim"      = "preferred_username"
+              "oidc-groups-claim"        = "groups"
+              "service-account-issuer"   = local.k8s_serviceaccount_issuer
+              "service-account-jwks-uri" = "${local.k8s_serviceaccount_issuer}/openid/v1/jwks"
               # Enables IRSA-style flows: lets external verifiers (RGW STS)
               # fetch /.well-known/openid-configuration + /openid/v1/jwks
               # without an Authorization header. RBAC still gates everything
               # else; the `oidc-discovery-public` ClusterRoleBinding scopes
               # what unauthenticated callers can actually read.
-              "anonymous-auth"             = "true"
+              "anonymous-auth" = "true"
             }
           }
         }
@@ -442,6 +442,10 @@ module "kubernetes" {
   keycloak_client_id            = keycloak_openid_client.crossplane.client_id
   keycloak_client_secret        = keycloak_openid_client.crossplane.client_secret
   openwebui_oauth_client_secret = keycloak_openid_client.openwebui.client_secret
+  immich_oauth_client_secret    = keycloak_openid_client.immich.client_secret
+  nextcloud_oauth_client_secret = keycloak_openid_client.nextcloud.client_secret
+  nextcloud_s3_access_key       = var.secrets["ceph.nextcloud_s3_access_key"]
+  nextcloud_s3_secret_key       = var.secrets["ceph.nextcloud_s3_secret_key"]
   litellm_mcp_url               = "http://litellm.infra.svc.cluster.local:4000/mcp"
 
   # Media stack migration

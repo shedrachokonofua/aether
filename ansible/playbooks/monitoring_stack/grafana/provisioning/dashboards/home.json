@@ -1,0 +1,4225 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Aether home: clock, links, graphs. News at the bottom.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "title": "Home Assistant",
+      "type": "link",
+      "url": "https://ha.home.shdr.ch",
+      "asDropdown": false,
+      "targetBlank": true,
+      "icon": "external link"
+    },
+    {
+      "title": "Kubernetes",
+      "type": "dashboards",
+      "tags": [
+        "kubernetes"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "VMs",
+      "type": "dashboards",
+      "tags": [
+        "vm"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Ceph",
+      "type": "dashboards",
+      "tags": [
+        "ceph"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "type": "grafana-clock-panel",
+      "id": 50,
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "time",
+        "clockType": "24 hour",
+        "timezone": "America/Toronto",
+        "fontSize": "60px",
+        "fontWeight": "normal",
+        "bgColor": "",
+        "dateSettings": {
+          "showDate": true,
+          "dateFormat": "dddd, MMMM D",
+          "fontSize": "16px",
+          "fontWeight": "normal",
+          "locale": "en"
+        },
+        "timeSettings": {
+          "fontSize": "60px",
+          "fontWeight": "normal",
+          "customFormat": "HH:mm"
+        },
+        "refresh": "sec"
+      },
+      "pluginVersion": "3.2.2"
+    },
+    {
+      "type": "stat",
+      "id": 30,
+      "title": "Lights on",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 8
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "count(light_state == 1) or vector(0)",
+          "legendFormat": "On",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 31,
+      "title": "Open",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "(count(cover_state == 1) or vector(0)) + (count(binary_sensor_state{entity=~\".*door.*|.*window.*\"} == 1) or vector(0))",
+          "legendFormat": "Doors/Windows",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 33,
+      "title": "Home",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "count(device_tracker_state == 1) or vector(0)",
+          "legendFormat": "People",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 34,
+      "title": "Temp",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "celsius",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 19
+              },
+              {
+                "color": "yellow",
+                "value": 24
+              },
+              {
+                "color": "red",
+                "value": 28
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "avg(sensor_temperature_celsius)",
+          "legendFormat": "House",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 35,
+      "title": "Humidity",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 35
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 70
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "avg(sensor_humidity_percent)",
+          "legendFormat": "House",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 36,
+      "title": "Battery",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 20
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "min(battery_level_percent or sensor_battery_percent)",
+          "legendFormat": "Lowest",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "lework-lenav-panel",
+      "id": 60,
+      "title": "Apps",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "options": {
+        "showLinkIcon": true,
+        "showGroupName": true,
+        "navTitleSize": 14,
+        "navTheme": "default",
+        "navWidth": 140,
+        "groupSorting": {},
+        "navData": [
+          {
+            "group": "Personal",
+            "icon": "lock",
+            "title": "Vaultwarden",
+            "url": "https://vaultwarden.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "hdd",
+            "title": "Nextcloud",
+            "url": "https://cloud.apps.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "bookmark",
+            "title": "Karakeep",
+            "url": "https://karakeep.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "file-alt",
+            "title": "Affine",
+            "url": "https://affine.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "code",
+            "title": "Hoppscotch",
+            "url": "https://hoppscotch.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "map-marker",
+            "title": "Dawarich",
+            "url": "https://dawarich.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "music",
+            "title": "Your Spotify",
+            "url": "https://your-spotify.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "file-pdf",
+            "title": "BentoPDF",
+            "url": "https://bentopdf.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "search",
+            "title": "Perplexica",
+            "url": "https://perplexica.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "sticky-note",
+            "title": "Memos",
+            "url": "https://memos.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "compress",
+            "title": "Mazanoke",
+            "url": "https://mazanoke.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "rocket",
+            "title": "Open WebUI",
+            "url": "https://openwebui.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "exchange-alt",
+            "title": "LiteLLM",
+            "url": "https://litellm.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "sync",
+            "title": "llama-swap",
+            "url": "https://llama-swap.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "palette",
+            "title": "ComfyUI",
+            "url": "https://comfyui.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "book",
+            "title": "Jupyter",
+            "url": "https://jupyter.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "comment-alt",
+            "title": "Speaches",
+            "url": "https://speaches.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "file-alt",
+            "title": "Docling",
+            "url": "https://docling.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "AI / ML",
+            "icon": "globe",
+            "title": "Firecrawl",
+            "url": "https://firecrawl.apps.home.shdr.ch",
+            "color": "#7B61FF",
+            "targetBlank": true
+          },
+          {
+            "group": "Media",
+            "icon": "play",
+            "title": "Jellyfin",
+            "url": "https://tv.shdr.ch",
+            "color": "#E91E63",
+            "targetBlank": true
+          },
+          {
+            "group": "Media",
+            "icon": "camera",
+            "title": "Immich",
+            "url": "https://immich.apps.home.shdr.ch",
+            "color": "#E91E63",
+            "targetBlank": true
+          },
+          {
+            "group": "Media",
+            "icon": "tv",
+            "title": "TulipRox",
+            "url": "https://tuliprox.apps.home.shdr.ch",
+            "color": "#E91E63",
+            "targetBlank": true
+          },
+          {
+            "group": "Media",
+            "icon": "download-alt",
+            "title": "NZBDav",
+            "url": "https://nzbdav.apps.home.shdr.ch",
+            "color": "#E91E63",
+            "targetBlank": true
+          },
+          {
+            "group": "Media",
+            "icon": "list-ui-alt",
+            "title": "Peanut",
+            "url": "https://peanut.apps.home.shdr.ch",
+            "color": "#E91E63",
+            "targetBlank": true
+          },
+          {
+            "group": "Home",
+            "icon": "home-alt",
+            "title": "Home Assistant",
+            "url": "https://ha.home.shdr.ch",
+            "color": "#03A9F4",
+            "targetBlank": true
+          },
+          {
+            "group": "Home",
+            "icon": "wifi",
+            "title": "Z-Wave JS",
+            "url": "https://z.ha.home.shdr.ch",
+            "color": "#03A9F4",
+            "targetBlank": true
+          },
+          {
+            "group": "Home",
+            "icon": "signal",
+            "title": "Matter",
+            "url": "https://m.ha.home.shdr.ch",
+            "color": "#03A9F4",
+            "targetBlank": true
+          },
+          {
+            "group": "Infra",
+            "icon": "monitor",
+            "title": "Headlamp",
+            "url": "https://headlamp.apps.home.shdr.ch",
+            "color": "#4CAF50",
+            "targetBlank": true
+          },
+          {
+            "group": "Infra",
+            "icon": "sitemap",
+            "title": "Hubble",
+            "url": "https://hubble.apps.home.shdr.ch",
+            "color": "#4CAF50",
+            "targetBlank": true
+          },
+          {
+            "group": "Infra",
+            "icon": "user",
+            "title": "Keycloak",
+            "url": "https://auth.shdr.ch",
+            "color": "#4CAF50",
+            "targetBlank": true
+          },
+          {
+            "group": "Infra",
+            "icon": "lock",
+            "title": "OpenBao",
+            "url": "https://bao.home.shdr.ch",
+            "color": "#4CAF50",
+            "targetBlank": true
+          },
+          {
+            "group": "Infra",
+            "icon": "code-branch",
+            "title": "GitLab",
+            "url": "https://gitlab.home.shdr.ch",
+            "color": "#4CAF50",
+            "targetBlank": true
+          },
+          {
+            "group": "Infra",
+            "icon": "database",
+            "title": "S3 RGW",
+            "url": "https://s3.home.shdr.ch",
+            "color": "#4CAF50",
+            "targetBlank": true
+          },
+          {
+            "group": "Infra",
+            "icon": "shield",
+            "title": "IDS",
+            "url": "https://ids-stack.home.shdr.ch",
+            "color": "#4CAF50",
+            "targetBlank": true
+          },
+          {
+            "group": "Tools",
+            "icon": "search",
+            "title": "SearXNG",
+            "url": "https://searxng.apps.home.shdr.ch",
+            "color": "#FF9800",
+            "targetBlank": true
+          },
+          {
+            "group": "Tools",
+            "icon": "graph-bar",
+            "title": "Hermes Beryl",
+            "url": "https://hermes-beryl-dashboard.apps.home.shdr.ch",
+            "color": "#FF9800",
+            "targetBlank": true
+          },
+          {
+            "group": "Tools",
+            "icon": "graph-bar",
+            "title": "Hermes Tungsten",
+            "url": "https://hermes-tungsten-dashboard.apps.home.shdr.ch",
+            "color": "#FF9800",
+            "targetBlank": true
+          }
+        ]
+      },
+      "pluginVersion": "1.1.0"
+    },
+    {
+      "type": "timeseries",
+      "id": 40,
+      "title": "Temperature by room",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity"
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sensor_temperature_celsius",
+          "legendFormat": "{{friendly_name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 41,
+      "title": "Humidity by room",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity"
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sensor_humidity_percent",
+          "legendFormat": "{{friendly_name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 15,
+      "title": "Cluster CPU & Memory",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity"
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "avg(k8s_node_cpu_utilization)",
+          "legendFormat": "CPU",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(k8s_node_memory_working_set) / (sum(k8s_node_memory_working_set) + sum(k8s_node_memory_available))",
+          "legendFormat": "Mem",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 16,
+      "title": "GPU utilization",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity"
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_GPU_UTIL)",
+          "legendFormat": "{{Hostname}} gpu{{gpu}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 19,
+      "title": "Ceph throughput",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "showPoints": "never",
+            "spanNulls": true,
+            "gradientMode": "opacity"
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(ceph_osd_op_in_bytes[$__rate_interval]))",
+          "legendFormat": "write",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(ceph_osd_op_out_bytes[$__rate_interval]))",
+          "legendFormat": "read",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "id": 17,
+      "title": "Top namespaces \u2014 CPU",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 4
+              },
+              {
+                "color": "red",
+                "value": 12
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "displayMode": "lcd",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "topk(10, sum by (service_namespace) (k8s_pod_cpu_utilization))",
+          "legendFormat": "{{service_namespace}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "id": 18,
+      "title": "Top namespaces \u2014 Memory",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 8589934592
+              },
+              {
+                "color": "red",
+                "value": 34359738368
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "displayMode": "lcd",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "topk(10, sum by (service_namespace) (k8s_pod_memory_working_set))",
+          "legendFormat": "{{service_namespace}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 1,
+      "title": "Nodes",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(k8s_node_condition_ready == 1)",
+          "legendFormat": "Ready",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Unhealthy pods",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "(count(k8s_pod_phase == 1) or vector(0)) + (count(k8s_pod_phase == 4) or vector(0))",
+          "legendFormat": "Bad",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Alerts",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "legendFormat": "Firing",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "CPU",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "avg(k8s_node_cpu_utilization)",
+          "legendFormat": "Cluster",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 7,
+      "title": "GPU",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 5
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "avg(DCGM_FI_DEV_GPU_UTIL) or vector(0)",
+          "legendFormat": "Avg",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 8,
+      "title": "Ceph OSDs",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 3
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "count(ceph_osd_numpg) or vector(0)",
+          "legendFormat": "Up",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 90,
+      "title": "Dokploy traffic - click a tile to open the app",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 100,
+      "title": "Vaultwarden",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Vaultwarden",
+              "url": "https://vaultwarden.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"vaultwarden\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 101,
+      "title": "Karakeep",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Karakeep",
+              "url": "https://karakeep.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"karakeep\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 102,
+      "title": "BentoPDF",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open BentoPDF",
+              "url": "https://bentopdf.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"bentopdf\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 103,
+      "title": "Hoppscotch",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Hoppscotch",
+              "url": "https://hoppscotch.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"(hoppscotch|proxyscotch)\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 104,
+      "title": "Perplexica",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Perplexica",
+              "url": "https://perplexica.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"perplexica\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 105,
+      "title": "Affine",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Affine",
+              "url": "https://affine.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"affine\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 106,
+      "title": "Dawarich",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Dawarich",
+              "url": "https://dawarich.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"dawarich\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 107,
+      "title": "Your Spotify",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Your Spotify",
+              "url": "https://your-spotify.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"your-spotify(-api)?\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 108,
+      "title": "Memos",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Memos",
+              "url": "https://memos.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"memos\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 109,
+      "title": "Mazanoke",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Mazanoke",
+              "url": "https://mazanoke.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"mazanoke\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Keep",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 110,
+      "title": "Homarr",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Homarr",
+              "url": "https://h.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"h\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 111,
+      "title": "SilverBullet",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open SilverBullet",
+              "url": "https://notes.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"notes(-mcp)?\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 112,
+      "title": "FreshRSS",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open FreshRSS",
+              "url": "https://rss.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"rss\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 113,
+      "title": "Mermaid",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Mermaid",
+              "url": "https://mermaid.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"mermaid\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 114,
+      "title": "IT Tools",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open IT Tools",
+              "url": "https://it-tools.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"it-tools\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 115,
+      "title": "Speedtest",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Speedtest",
+              "url": "https://speedtest-tracker.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"speedtest-tracker\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 116,
+      "title": "LibreChat",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open LibreChat",
+              "url": "https://chat.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"chat\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 117,
+      "title": "n8n",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open n8n",
+              "url": "https://n8n.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"n8n\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 118,
+      "title": "Windmill",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Windmill",
+              "url": "https://windmill.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"windmill\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 119,
+      "title": "Baserow",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Baserow",
+              "url": "https://baserow.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"baserow\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 120,
+      "title": "Huly",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Huly",
+              "url": "https://huly.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"huly\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 121,
+      "title": "Plane",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Plane",
+              "url": "https://plane.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"plane\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 122,
+      "title": "Dify",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Dify",
+              "url": "https://dify.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"dify\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 123,
+      "title": "Drawio",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Drawio",
+              "url": "https://draw.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"draw\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 124,
+      "title": "OnlyOffice",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open OnlyOffice",
+              "url": "https://onlyoffice.apps.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"onlyoffice\\.apps\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 125,
+      "title": "Old Nextcloud",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Old Nextcloud",
+              "url": "https://nextcloud.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"nextcloud\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 126,
+      "title": "Coder",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Coder",
+              "url": "https://coder.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"coder\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 127,
+      "title": "OpenHands",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open OpenHands",
+              "url": "https://openhands.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"openhands\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 128,
+      "title": "SurrealDB",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open SurrealDB",
+              "url": "https://surrealdb.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"surrealdb\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 129,
+      "title": "Jellyfin old",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 46
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Jellyfin old",
+              "url": "https://jelly.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"jelly\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 130,
+      "title": "Threadfin",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Threadfin",
+              "url": "https://threadfin.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"threadfin\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 131,
+      "title": "TVHeadend",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open TVHeadend",
+              "url": "https://tvheadend.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"tvheadend\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 132,
+      "title": "M3UProxy",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open M3UProxy",
+              "url": "https://m3u.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"m3u\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 133,
+      "title": "Seafile",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Seafile",
+              "url": "https://seafile.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"seafile\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Kill",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 134,
+      "title": "OEFarms",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open OEFarms",
+              "url": "https://osemu-and-ehis-farms.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-yellow",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"osemu-and-ehis-farms\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Review",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 135,
+      "title": "OEFarms Garage",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open OEFarms Garage",
+              "url": "https://oefarms-garage-web.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-yellow",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"oefarms-garage(-web)?\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Review",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 136,
+      "title": "Kestra",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Kestra",
+              "url": "https://kestra.d.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-yellow",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"kestra\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Review",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "news",
+      "id": 13,
+      "title": "Hacker News",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "options": {
+        "feedUrl": "https://feeds.home.shdr.ch/hn",
+        "showImage": false
+      }
+    },
+    {
+      "type": "news",
+      "id": 21,
+      "title": "Ars Technica",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "options": {
+        "feedUrl": "https://feeds.home.shdr.ch/ars",
+        "showImage": true
+      }
+    },
+    {
+      "type": "stat",
+      "id": 137,
+      "title": "Nextcloud",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Nextcloud",
+              "url": "https://cloud.apps.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"cloud\\.apps\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Nextcloud",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 138,
+      "title": "Immich k8s",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Immich k8s",
+              "url": "https://immich.apps.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"immich\\.apps\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Immich k8s",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 41,
+  "tags": [
+    "home",
+    "overview"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "includeAll": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Home",
+  "uid": "home",
+  "version": 7,
+  "weekStart": ""
+}
