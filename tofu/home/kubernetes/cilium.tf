@@ -69,7 +69,7 @@ resource "kubernetes_manifest" "cilium_l2_policy" {
       name = "cluster-ingress"
     }
     spec = {
-      interfaces      = ["^ens[0-9]+"]
+      interfaces      = ["^ens[0-9]+", "^end[0-9]+"]
       externalIPs     = true
       loadBalancerIPs = true
     }
