@@ -470,18 +470,18 @@ resource "keycloak_openid_client" "nextcloud" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://cloud.apps.home.shdr.ch"
-  base_url  = "https://cloud.apps.home.shdr.ch"
-  admin_url = "https://cloud.apps.home.shdr.ch"
+  root_url  = "https://nextcloud.home.shdr.ch"
+  base_url  = "https://nextcloud.home.shdr.ch"
+  admin_url = "https://nextcloud.home.shdr.ch"
 
   valid_redirect_uris = [
-    "https://cloud.apps.home.shdr.ch/apps/user_oidc/code",
+    "https://nextcloud.home.shdr.ch/apps/user_oidc/code",
     # Login Flow v2 final redirect for the iOS/Android app
-    "nc://login/server:https://cloud.apps.home.shdr.ch",
+    "nc://login/server:https://nextcloud.home.shdr.ch",
   ]
 
   web_origins = [
-    "https://cloud.apps.home.shdr.ch",
+    "https://nextcloud.home.shdr.ch",
   ]
 }
 
@@ -999,6 +999,57 @@ resource "keycloak_role" "seven30_member" {
   realm_id    = keycloak_realm.aether.id
   name        = "seven30-member"
   description = "Seven30 studio member — broker access to the Seven30 realm"
+}
+
+# =============================================================================
+# Coder OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "coder" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "coder"
+  name      = "Coder"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://coder.apps.home.shdr.ch"
+  base_url  = "https://coder.apps.home.shdr.ch"
+  admin_url = "https://coder.apps.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://coder.apps.home.shdr.ch/api/v2/users/oidc/callback",
+  ]
+
+  web_origins = [
+    "https://coder.apps.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "coder_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.coder.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "coder_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.coder.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 
 resource "keycloak_openid_client" "seven30_kubernetes" {

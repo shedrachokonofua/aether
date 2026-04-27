@@ -513,7 +513,7 @@
             "group": "Personal",
             "icon": "hdd",
             "title": "Nextcloud",
-            "url": "https://cloud.apps.home.shdr.ch",
+            "url": "https://nextcloud.home.shdr.ch",
             "color": "#26A69A",
             "targetBlank": true
           },
@@ -4076,7 +4076,7 @@
           "links": [
             {
               "title": "Open Nextcloud",
-              "url": "https://cloud.apps.home.shdr.ch",
+              "url": "https://nextcloud.home.shdr.ch",
               "targetBlank": true
             }
           ],
@@ -4116,7 +4116,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"cloud\\.apps\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"nextcloud\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "Nextcloud",
           "refId": "A"
         }

@@ -23,7 +23,7 @@
 
 locals {
   nextcloud_namespace = "nextcloud"
-  nextcloud_host      = "cloud.apps.home.shdr.ch"
+  nextcloud_host      = "nextcloud.home.shdr.ch"
 
   nextcloud_server_image   = "nextcloud:32-apache"
   nextcloud_postgres_image = "postgres:16-alpine"
@@ -565,6 +565,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
           volume_mount {
             name       = "config"
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
+            sub_path   = "nextcloud-k8s.config.php"
           }
 
           readiness_probe {
@@ -728,6 +729,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
           volume_mount {
             name       = "config"
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
+            sub_path   = "nextcloud-k8s.config.php"
           }
 
           resources {
@@ -868,6 +870,7 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
           volume_mount {
             name       = "config"
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
+            sub_path   = "nextcloud-k8s.config.php"
           }
         }
 
