@@ -113,8 +113,8 @@ resource "kubernetes_secret_v1" "nextcloud_admin" {
   }
 }
 
-# Nextcloud config.php — primary storage + redis + DB.
-# Mounted at /var/www/html/config/config.php; overrides Nextcloud's own
+# Supplemental Nextcloud config — merged at runtime as nextcloud-k8s.config.php.
+
 # auto-generated config so settings stay declarative across image upgrades.
 resource "kubernetes_secret_v1" "nextcloud_config" {
   depends_on = [
@@ -128,14 +128,8 @@ resource "kubernetes_secret_v1" "nextcloud_config" {
   }
 
   data = {
-    "config.php" = templatefile("${path.module}/nextcloud_config.php.tftpl", {
-      host        = local.nextcloud_host
-      namespace   = local.nextcloud_namespace
-      pg_port     = local.nextcloud_postgres_port
-      pg_db       = local.nextcloud_db_name
-      pg_user     = local.nextcloud_db_user
-      pg_password = random_password.nextcloud_postgres_password.result
-      redis_port  = local.nextcloud_redis_port
+    "nextcloud-k8s.config.php" = templatefile("${path.module}/nextcloud_config.php.tftpl", {
+      host = local.nextcloud_host
     })
   }
 
@@ -570,9 +564,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
 
           volume_mount {
             name       = "config"
-            mount_path = "/var/www/html/config/config.php"
-            sub_path   = "config.php"
-            read_only  = true
+            mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
           }
 
           readiness_probe {
@@ -634,8 +626,8 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
           secret {
             secret_name = kubernetes_secret_v1.nextcloud_config.metadata[0].name
             items {
-              key  = "config.php"
-              path = "config.php"
+              key  = "nextcloud-k8s.config.php"
+              path = "nextcloud-k8s.config.php"
             }
           }
         }
@@ -735,9 +727,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
 
           volume_mount {
             name       = "config"
-            mount_path = "/var/www/html/config/config.php"
-            sub_path   = "config.php"
-            read_only  = true
+            mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
           }
 
           resources {
@@ -771,8 +761,8 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
           secret {
             secret_name = kubernetes_secret_v1.nextcloud_config.metadata[0].name
             items {
-              key  = "config.php"
-              path = "config.php"
+              key  = "nextcloud-k8s.config.php"
+              path = "nextcloud-k8s.config.php"
             }
           }
         }
@@ -877,9 +867,7 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
 
           volume_mount {
             name       = "config"
-            mount_path = "/var/www/html/config/config.php"
-            sub_path   = "config.php"
-            read_only  = true
+            mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
           }
         }
 
@@ -902,8 +890,8 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
           secret {
             secret_name = kubernetes_secret_v1.nextcloud_config.metadata[0].name
             items {
-              key  = "config.php"
-              path = "config.php"
+              key  = "nextcloud-k8s.config.php"
+              path = "nextcloud-k8s.config.php"
             }
           }
         }

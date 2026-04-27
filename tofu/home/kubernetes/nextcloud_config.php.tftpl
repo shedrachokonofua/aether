@@ -1,49 +1,17 @@
 <?php
+// Supplemental config — merged with the image-generated config.php at runtime.
+// Nextcloud merges all *.config.php files in the config directory.
+// DB, Redis memcache, and trusted_domains are handled by the image via env vars;
+// only settings the image doesn't cover natively go here.
 $CONFIG = array (
-  'datadirectory' => '/var/www/html/data',
-  'apps_paths' => array (
-    array ('path'=> '/var/www/html/apps',         'url' => '/apps',       'writable' => false),
-    array ('path'=> '/var/www/html/custom_apps',  'url' => '/custom_apps','writable' => true),
-  ),
-
-  'trusted_domains' => array (
-    0 => '${host}',
-    1 => 'localhost',
-    2 => 'nextcloud',
-  ),
-  'trusted_proxies' => array (
-    0 => '0.0.0.0/0',
-  ),
+  'trusted_proxies' => array (0 => '0.0.0.0/0'),
   'overwriteprotocol' => 'https',
   'overwritehost'     => '${host}',
   'overwrite.cli.url' => 'https://${host}',
 
-  // Database
-  'dbtype'     => 'pgsql',
-  'dbhost'     => 'nextcloud-postgres.${namespace}.svc.cluster.local',
-  'dbport'     => '${pg_port}',
-  'dbname'     => '${pg_db}',
-  'dbuser'     => '${pg_user}',
-  'dbpassword' => '${pg_password}',
-
-  // Redis: file lock + distributed cache + local APCu inside PHP
-  'memcache.local'       => '\\OC\\Memcache\\APCu',
-  'memcache.distributed' => '\\OC\\Memcache\\Redis',
-  'memcache.locking'     => '\\OC\\Memcache\\Redis',
-  'redis' => array (
-    'host'     => 'nextcloud-redis.${namespace}.svc.cluster.local',
-    'port'     => ${redis_port},
-    'dbindex'  => 0,
-    'timeout'  => 1.5,
-  ),
-
-  // Operational
   'log_type'                => 'errorlog',
   'loglevel'                => 2,
   'maintenance_window_start'=> 1,
   'default_phone_region'    => 'CA',
-  'mail_smtpmode'           => 'smtp',
-  'htaccess.RewriteBase'    => '/',
-  'updater.release.channel' => 'stable',
   'upgrade.disable-web'     => true,
 );
