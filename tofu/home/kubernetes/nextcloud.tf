@@ -130,7 +130,8 @@ resource "kubernetes_secret_v1" "nextcloud_config" {
 
   data = {
     "nextcloud-k8s.config.php" = templatefile("${path.module}/nextcloud_config.php.tftpl", {
-      host = local.nextcloud_host
+      host         = local.nextcloud_host
+      gateway_host = local.nextcloud_gateway_host
     })
   }
 

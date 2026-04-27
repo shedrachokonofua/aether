@@ -4,6 +4,11 @@
 // DB, Redis memcache, and trusted_domains are handled by the image via env vars;
 // only settings the image doesn't cover natively go here.
 $CONFIG = array (
+  'trusted_domains' => array (
+    0 => 'localhost',
+    1 => '${host}',
+    2 => '${gateway_host}',
+  ),
   'trusted_proxies' => array (0 => '0.0.0.0/0'),
   'overwriteprotocol' => 'https',
   'overwritehost'     => '${host}',
