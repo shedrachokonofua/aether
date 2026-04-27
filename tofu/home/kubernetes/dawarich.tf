@@ -53,8 +53,9 @@ locals {
     SECRET_KEY_BASE   = random_password.dawarich_secret_key_base.result
     APPLICATION_HOSTS = "localhost,${local.dawarich_host},${local.dawarich_gateway_host}"
     TIME_ZONE         = "America/Toronto"
-    APPLICATION_PROTOCOL = "https"
-    SELF_HOSTED       = "true"
+    APPLICATION_PROTOCOL  = "https"
+    RAILS_FORCE_SSL       = "0"
+    SELF_HOSTED           = "true"
     STORE_GEODATA     = "true"
     MIN_MINUTES_SPENT_IN_CITY = "60"
   }
@@ -285,8 +286,7 @@ resource "kubernetes_deployment_v1" "dawarich" {
           }
 
           readiness_probe {
-            http_get {
-              path = "/api/v1/health"
+            tcp_socket {
               port = local.dawarich_port
             }
             initial_delay_seconds = 60
