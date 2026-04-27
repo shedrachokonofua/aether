@@ -1,6 +1,6 @@
 # Raspberry Pi Kubernetes Workers
 
-Plan for adding three Raspberry Pis to the existing Talos Kubernetes cluster as small ARM64 worker nodes.
+Plan for adding Raspberry Pis and CM4-based boards to the existing Talos Kubernetes cluster as small ARM64 worker nodes.
 
 ## Goal
 
@@ -15,11 +15,11 @@ The Pis are not control-plane nodes, not Ceph storage nodes, and not a replaceme
 | `talos-tank`   | Pi 5           | 4GB | ARM worker           | 10.0.3.23 |
 | `talos-dozer`  | Pi 5           | 4GB | ARM worker           | 10.0.3.24 |
 | `talos-mouse`  | Pi 4           | 4GB | ARM worker           | 10.0.3.25 |
-| `talos-sparks` | CM4 (uConsole) | TBD | ARM worker (planned) | 10.0.3.26 |
+| `talos-sparks` | CM4 Lite / Mini Base | 4GB | ARM worker | 10.0.3.26 |
 
-`talos-sparks` is a Raspberry Pi CM4 sourced from a ClockworkPi uConsole kit. The uConsole mainboard works as a CM4 carrier (USB-A ethernet, microSD, optional LTE) and is the bring-up carrier; longer-term, swap to a proper CM4 carrier (Waveshare Mini Base Board B or similar) when the Pi shelf goes into the main rack. CM4 PCIe is Gen2 x1 (~400MB/s ceiling), so storage stays modest: microSD or a small 2242 NVMe. Per the storage policy, this node is Ceph end-to-end and holds no local persistent state. Confirm CM4 SKU (RAM, eMMC, WiFi variant) from the module sticker before ordering carrier or storage.
+`talos-sparks` is a Raspberry Pi CM4 SKU `CM4104000`: 4GB RAM, Lite/no eMMC, with wireless. It is currently on a Mini Base carrier and boots from microSD. Longer-term, swap to a proper CM4 carrier (Waveshare Mini Base Board B or similar) when the Pi shelf goes into the main rack. CM4 PCIe is Gen2 x1 (~400MB/s ceiling), so storage stays modest: microSD or a small 2242 NVMe. Per the storage policy, this node is Ceph end-to-end and holds no local persistent state.
 
-All three live on the Services VLAN:
+All ARM workers live on the Services VLAN:
 
 | Setting | Value      |
 | ------- | ---------- |
@@ -170,6 +170,17 @@ Tank was first discovered on DHCP as `10.0.3.247`, then configured as:
 ```text
 hostname: talos-tank
 static IP: 10.0.3.23/24
+gateway: 10.0.3.1
+DNS: 10.0.3.1
+interface: end0
+install disk: /dev/mmcblk0
+```
+
+Sparks was first discovered on DHCP as `10.0.3.248`, then configured as:
+
+```text
+hostname: talos-sparks
+static IP: 10.0.3.26/24
 gateway: 10.0.3.1
 DNS: 10.0.3.1
 interface: end0

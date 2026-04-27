@@ -466,3 +466,18 @@ talos_tank:
   gateway: "10.0.3.1"
   nameservers:
     - "10.0.3.1"
+
+talos_sparks:
+  name: "talos-sparks"
+  role: "worker"
+  platform: "baremetal"
+  arch: "arm64"
+  hardware: "rpi"
+  pool: "arm"
+  model: "raspberry-pi-4"
+  install_disk: "/dev/mmcblk0"
+  network_interface: "end0"
+  ip: "10.0.3.26"
+  gateway: "10.0.3.1"
+  nameservers:
+    - "10.0.3.1"
