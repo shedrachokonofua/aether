@@ -50,15 +50,27 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
               "qwen3.6-27b":
                 chat_template_kwargs:
                   enable_thinking: false
+                temperature: 0.7
+                top_p: 0.8
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 1.5
               "qwen3.6-27b:code":
                 chat_template_kwargs:
                   enable_thinking: true
                 temperature: 0.6
                 top_p: 0.95
                 top_k: 20
+                min_p: 0.0
+                presence_penalty: 0.0
               "qwen3.6-27b:think":
                 chat_template_kwargs:
                   enable_thinking: true
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 1.5
 
         "qwen3.6-35b-a3b":
           cmd: >
@@ -76,15 +88,57 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
               "qwen3.6-35b-a3b":
                 chat_template_kwargs:
                   enable_thinking: false
+                temperature: 0.7
+                top_p: 0.8
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 1.5
               "qwen3.6-35b-a3b:code":
                 chat_template_kwargs:
                   enable_thinking: true
                 temperature: 0.6
                 top_p: 0.95
                 top_k: 20
+                min_p: 0.0
+                presence_penalty: 0.0
               "qwen3.6-35b-a3b:think":
                 chat_template_kwargs:
                   enable_thinking: true
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 1.5
+
+        "qwen3.5-9b":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf unsloth/Qwen3.5-9B-GGUF:Q8_0
+            -ngl 99
+            --no-mmap
+            --cache-type-k q8_0
+            --cache-type-v q8_0
+            --ctx-size 131072
+          ttl: 900
+          filters:
+            setParamsByID:
+              "qwen3.5-9b":
+                chat_template_kwargs:
+                  enable_thinking: false
+                temperature: 0.7
+                top_p: 0.8
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 1.5
+              "qwen3.5-9b:think":
+                chat_template_kwargs:
+                  enable_thinking: true
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 1.5
 
         "bge-reranker-v2-m3":
           cmd: >
@@ -106,6 +160,46 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --cache-type-v q8_0
             --ctx-size 131072
           ttl: 900
+          filters:
+            setParamsByID:
+              "gemma-4-31b":
+                chat_template_kwargs:
+                  enable_thinking: false
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 64
+              "gemma-4-31b:think":
+                chat_template_kwargs:
+                  enable_thinking: true
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 64
+
+        "gemma-4-26b-a4b":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q8_0
+            -ngl 99
+            --no-mmap
+            --cache-type-k q8_0
+            --cache-type-v q8_0
+            --ctx-size 131072
+          ttl: 900
+          filters:
+            setParamsByID:
+              "gemma-4-26b-a4b":
+                chat_template_kwargs:
+                  enable_thinking: false
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 64
+              "gemma-4-26b-a4b:think":
+                chat_template_kwargs:
+                  enable_thinking: true
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 64
 
         "qwen3-embedding-4b":
           cmd: >
