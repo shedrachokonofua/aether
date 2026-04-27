@@ -178,8 +178,8 @@ resource "kubernetes_deployment_v1" "tuliprox" {
 
       spec {
         init_container {
-          name  = "copy-config"
-          image = "busybox:latest"
+          name    = "copy-config"
+          image   = "busybox:latest"
           command = ["sh", "-c", "cp /secret-config/* /app/config/"]
 
           volume_mount {

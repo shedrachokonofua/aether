@@ -53,9 +53,9 @@ resource "aws_iam_role_policy" "offsite_backup" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowListBucket"
-        Effect = "Allow"
-        Action = ["s3:ListBucket"]
+        Sid      = "AllowListBucket"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
         Resource = [aws_s3_bucket.offsite_backup.arn]
       },
       {

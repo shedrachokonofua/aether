@@ -148,7 +148,7 @@ resource "vault_jwt_auth_backend_role" "cli_admin" {
   role_type      = "jwt"
   token_policies = ["admin", "sops"]
 
-  user_claim   = "preferred_username"
-  bound_claims = { "roles" = "admin" }
+  user_claim      = "preferred_username"
+  bound_claims    = { "roles" = "admin" }
   bound_audiences = [keycloak_openid_client.toolbox.client_id, keycloak_openid_client.openbao.client_id]
 }

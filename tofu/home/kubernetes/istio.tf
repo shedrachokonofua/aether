@@ -72,8 +72,8 @@ resource "helm_release" "istio_cni" {
   timeout          = 300
 
   values = [yamlencode({
-    profile = "ambient"
-    cniBinDir = "/opt/cni/bin"
+    profile    = "ambient"
+    cniBinDir  = "/opt/cni/bin"
     cniConfDir = "/etc/cni/net.d"
   })]
 }

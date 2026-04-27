@@ -41,7 +41,7 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
   }
 
   operating_system {
-    template_file_id = "cephfs:vztmpl/debian-12.tar.zst"  # File already exists
+    template_file_id = "cephfs:vztmpl/debian-12.tar.zst" # File already exists
     type             = "debian"
   }
 

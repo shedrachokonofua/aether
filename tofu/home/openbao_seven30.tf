@@ -18,10 +18,10 @@
 # =============================================================================
 
 resource "vault_jwt_auth_backend" "seven30" {
-  path               = "jwt-seven30"
-  type               = "jwt"
-  jwks_url           = "https://k8s.seven30.xyz/openid/v1/jwks"
-  default_role       = "external-secrets"
+  path         = "jwt-seven30"
+  type         = "jwt"
+  jwks_url     = "https://k8s.seven30.xyz/openid/v1/jwks"
+  default_role = "external-secrets"
 
   # No bound_issuer set — vcluster SA issuer varies; signature-only validation
 
@@ -42,7 +42,7 @@ resource "vault_jwt_auth_backend_role" "seven30_external_secrets" {
   role_type = "jwt"
 
   token_policies = [vault_policy.seven30_secrets.name]
-  token_ttl      = 3600  # 1 hour
+  token_ttl      = 3600 # 1 hour
 
   user_claim = "sub"
 

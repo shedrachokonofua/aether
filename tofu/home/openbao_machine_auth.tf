@@ -20,7 +20,7 @@
 
 data "http" "step_ca_root" {
   url      = "https://ca.shdr.ch/roots.pem"
-  insecure = true  # step-ca uses self-signed root
+  insecure = true # step-ca uses self-signed root
 }
 
 # =============================================================================
@@ -33,7 +33,7 @@ resource "vault_auth_backend" "cert" {
   type        = "cert"
   path        = "cert"
   description = "Machine authentication via step-ca certificates"
-  
+
   tune {
     default_lease_ttl = "1h"
     max_lease_ttl     = "24h"
@@ -45,12 +45,12 @@ resource "vault_cert_auth_backend_role" "aether_machine" {
   name           = "aether-machine"
   certificate    = data.http.step_ca_root.response_body
   token_policies = [vault_policy.aether_secrets.name]
-  
+
   # Any machine with CN *.home.shdr.ch can authenticate
   allowed_common_names = ["*.home.shdr.ch"]
-  
-  token_ttl     = 3600   # 1 hour
-  token_max_ttl = 86400  # 24 hours
+
+  token_ttl     = 3600  # 1 hour
+  token_max_ttl = 86400 # 24 hours
 }
 
 # =============================================================================
