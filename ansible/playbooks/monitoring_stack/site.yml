@@ -315,7 +315,7 @@
           - /home/aether/grafana/provisioning:/etc/grafana/provisioning:Z
           - grafana_storage.volume:/var/lib/grafana:Z
         env:
-          GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+          GF_INSTALL_PLUGINS: grafana-clickhouse-datasource,yesoreyeram-infinity-datasource,marcusolsson-calendar-panel,marcusolsson-dynamictext-panel,volkovlabs-image-panel,volkovlabs-form-panel,grafana-clock-panel,lework-lenav-panel
       tags: [grafana]
 
     # === Tenant Query Proxy (Janus) ===
