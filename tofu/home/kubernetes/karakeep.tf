@@ -163,7 +163,7 @@ resource "kubernetes_deployment_v1" "karakeep_chrome" {
         container {
           name    = "chrome"
           image   = local.karakeep_chrome_image
-          command = [
+          args = [
             "--no-sandbox",
             "--disable-gpu",
             "--disable-dev-shm-usage",

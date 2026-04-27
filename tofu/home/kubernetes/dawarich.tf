@@ -255,7 +255,7 @@ resource "kubernetes_deployment_v1" "dawarich" {
         container {
           name       = "dawarich"
           image      = local.dawarich_image
-          command    = ["/bin/sh", "-c", "bundle exec rails server -p ${local.dawarich_port} -b '::'"]
+          args = ["bin/rails", "server", "-p", "3000", "-b", "::"]
 
           dynamic "env" {
             for_each = local.dawarich_db_env
@@ -341,7 +341,7 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
         container {
           name    = "sidekiq"
           image   = local.dawarich_image
-          command = ["/bin/sh", "-c", "bundle exec sidekiq"]
+          args = ["sidekiq"]
 
           dynamic "env" {
             for_each = local.dawarich_db_env

@@ -182,8 +182,49 @@ resource "kubernetes_service_v1" "hoppscotch_postgres" {
   }
 }
 
-resource "kubernetes_deployment_v1" "hoppscotch" {
+# Migration job — runs prisma db push before the server starts; idempotent
+resource "kubernetes_job_v1" "hoppscotch_migration" {
   depends_on = [kubernetes_service_v1.hoppscotch_postgres, kubernetes_secret_v1.hoppscotch_env]
+
+  metadata {
+    name      = "hoppscotch-migration"
+    namespace = local.hoppscotch_ns
+  }
+
+  spec {
+    backoff_limit              = 4
+    ttl_seconds_after_finished = 86400
+
+    template {
+      metadata { labels = { app = "hoppscotch-migration" } }
+      spec {
+        restart_policy = "OnFailure"
+        container {
+          name  = "migrate"
+          image = local.hoppscotch_image
+
+          command = ["/bin/sh", "-c", "cd /dist/backend && npx prisma migrate deploy --schema prisma/schema.prisma"]
+
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.hoppscotch_env.metadata[0].name
+            }
+          }
+
+          resources {
+            requests = { cpu = "100m", memory = "256Mi" }
+            limits   = { cpu = "500m", memory = "512Mi" }
+          }
+        }
+      }
+    }
+  }
+
+  lifecycle { ignore_changes = [spec[0].template] }
+}
+
+resource "kubernetes_deployment_v1" "hoppscotch" {
+  depends_on = [kubernetes_job_v1.hoppscotch_migration, kubernetes_secret_v1.hoppscotch_env]
   metadata {
     name      = "hoppscotch"
     namespace = local.hoppscotch_ns
