@@ -52,7 +52,7 @@ Most VMs  Boot from NFS
 │    MON + MGR          MON + MGR          MON + MGR                 │
 │                                                                    │
 │    Workload VMs: gitlab, dokploy, dokku,                           │
-│                  messaging, iot, smallweb, dev-workstation, etc.   │
+│                  messaging, iot, dev-workstation, etc.             │
 └────────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────────────────┐
@@ -93,7 +93,7 @@ For VMs that benefit from HA and can tolerate Ceph dependency:
 | messaging-stack          | HA good                    |
 | iot-management-stack     | HA good                    |
 | dev-workstation          | HA good                    |
-| smallweb, cockpit, coupe | Small, HA nice             |
+| cockpit, coupe           | Small, HA nice             |
 
 ### Local Tier (Critical Infrastructure)
 
@@ -142,7 +142,7 @@ Data that doesn't need HA:
 
 | VMs                                                                                                   | Total Disk |
 | ----------------------------------------------------------------------------------------------------- | ---------- |
-| gitlab, dokploy, dokku, messaging, iot, dev-workstation, smallweb, cockpit, coupe, ups | ~1.4TB     |
+| gitlab, dokploy, dokku, messaging, iot, dev-workstation, cockpit, coupe, ups | ~1.4TB     |
 
 **Headroom:** 6.5-10.5TB free for growth, snapshots, and buffer.
 

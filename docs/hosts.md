@@ -45,7 +45,6 @@ Application host. Runs general-purpose application workloads:
 - GitLab
 - Dokploy
 - Media Stack
-- Smallweb
 
 ### Niobe
 

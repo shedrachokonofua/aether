@@ -467,10 +467,6 @@ backrest.home.shdr.ch {
   reverse_proxy {{ vm.backup_stack.ip }}:{{ vm.backup_stack.ports.backrest }}
 }
 
-small.home.shdr.ch, *.small.home.shdr.ch {
-  reverse_proxy {{ vm.smallweb.ip }}:{{ vm.smallweb.ports.http }}
-}
-
 fleet.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.fleet }}
 }

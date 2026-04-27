@@ -87,11 +87,6 @@ output "keycloak_realm_url" {
   value       = "https://auth.shdr.ch/realms/aether"
 }
 
-output "smallweb_password" {
-  value     = random_password.smallweb_password.result
-  sensitive = true
-}
-
 output "keycloak_shdrch_user_id" {
   description = "Keycloak shdrch user subject ID (for AWS OIDC sub claim)"
   value       = keycloak_user.shdrch_aether.id

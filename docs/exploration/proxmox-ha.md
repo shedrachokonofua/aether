@@ -27,7 +27,7 @@ Enable automatic VM recovery when a Proxmox node fails. Instead of manual PBS re
 
 | Tier  | Storage          | VMs                                                                   | HA Status          |
 | ----- | ---------------- | --------------------------------------------------------------------- | ------------------ |
-| Ceph  | ceph-vm-disks    | gitlab, dokploy, dokku, messaging, media, smallweb etc                | ✅ Configured (10) |
+| Ceph  | ceph-vm-disks    | gitlab, dokploy, dokku, messaging, media etc                          | ✅ Configured (9)  |
 | Ceph  | ceph-vm-disks    | iot-management, game-server                                           | ❌ Hardware pinned |
 | Local | Oracle local-lvm | vyos-router, home-gateway-stack, keycloak, step-ca, openbao           | ❌ Needs ZFS       |
 | Local | Niobe local-lvm  | monitoring-stack                                                      | ❌ Needs ZFS       |
@@ -97,7 +97,7 @@ VMs on Ceph distributed storage with automatic HA:
 | 1019 | ups-management  | 32GB  | ✅            |
 | 1020 | media-stack     | 128GB | ✅            |
 | 1021 | dokku           | 256GB | ✅            |
-| 1024 | smallweb        | 16GB  | ✅            |
+| 1024 | smallweb        | 16GB  | Removed      |
 
 **HA configured:** 11 VMs have HA resources in Tofu and will auto-failover on node failure.
 
@@ -135,7 +135,7 @@ resource "proxmox_virtual_environment_haresource" "gitlab" {
 }
 ```
 
-**Configured:** 10 VMs (dokploy, gitlab, dev-workstation, cockpit, messaging-stack, ups-management, media-stack, dokku, smallweb)
+**Configured:** 9 VMs (dokploy, gitlab, dev-workstation, cockpit, messaging-stack, ups-management, media-stack, dokku)
 
 **Excluded:** `iot-management` (USB passthrough), `game-server` (not in Tofu)
 

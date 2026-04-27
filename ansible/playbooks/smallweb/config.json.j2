@@ -1,8 +1,0 @@
-{
-  "domain": "{{ smallweb_domain }}",
-  "oidc": {
-    "issuer": "https://auth.shdr.ch/realms/aether"
-  },
-  "authorizedEmails": {{ smallweb_authorized_emails | default([]) | to_json }}
-}
-

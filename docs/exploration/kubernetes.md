@@ -98,7 +98,7 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 | Element      | Niobe (Messaging VM)            | Knative Service    | ✅                             |
 | NUT Server   | Niobe (UPS VM)                  | Deployment         | ❌                             |
 | Peanut       | Niobe (UPS VM)                  | Deployment         | ❌                             |
-| Smallweb     | Trinity (LXC)                   | **Decommission**   | N/A (move to dev workstation)  |
+| Smallweb     | Trinity (LXC)                   | **Removed**        | Decommissioned                 |
 | Coupe apps   | Niobe (VM)                      | Knative Services   | ✅                             |
 | Dokku apps   | Neo (VM)                        | Knative Services   | ✅                             |
 | Dokploy apps | Trinity (VM)                    | Knative Services   | ✅                             |
@@ -107,11 +107,11 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 | qBittorrent  | Trinity (Media Stack)           | Deployment         | ❌ (SOCKS5 → rotating-proxy)   |
 | Nuclei       | (new — see network-security.md) | CronJob            | ✅ (runs weekly)               |
 
-**VMs eliminated:** AI Tool Stack, GPU Workstation, GitLab, Messaging Stack, UPS Stack, Coupe Sandbox, Dokku, Dokploy, Media Stack
+**VMs eliminated:** AI Tool Stack, GPU Workstation, Smallweb, GitLab, Messaging Stack, UPS Stack, Coupe Sandbox, Dokku, Dokploy, Media Stack
 
 **Notes:**
 
-- Smallweb decommissioned (move to folder on dev workstation)
+- Smallweb decommissioned and removed.
 
 ## What Stays as VMs
 
@@ -667,7 +667,7 @@ func deploy --registry ghcr.io/alice
 
 **Notes:**
 
-- Smallweb decommissioned (folder on dev workstation, not k8s)
+- Smallweb decommissioned and removed.
 
 ## Talos Provisioning
 
@@ -1003,7 +1003,7 @@ OpenWebUI migration notes:
 
 **Deferred:**
 
-- Smallweb decommissioned (move to dev workstation folder)
+- Smallweb decommissioned and removed.
 - GPU Workstation migration detailed in `gpu-kubernetes.md`
 - GitLab migrates after messaging (most complex)
 

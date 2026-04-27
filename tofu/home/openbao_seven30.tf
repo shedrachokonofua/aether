@@ -283,7 +283,7 @@ resource "vault_policy" "seven30_ci" {
 # Seed Secrets — aether-managed, ESO syncs to K8s
 # =============================================================================
 # Only secrets that reference aether-managed resources stay here.
-# App secrets (OpenClaw, Vaultwarden, etc.) are managed via SOPS in seven30/infra.
+# App secrets such as Vaultwarden are managed via SOPS in seven30/infra.
 
 resource "vault_kv_secret_v2" "seven30_crossplane_keycloak" {
   mount = vault_mount.kv.path

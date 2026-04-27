@@ -77,17 +77,3 @@ GUI-based PaaS running on Trinity. Provides a visual interface for deploying app
 ### Access
 
 - Web: `dokploy.home.shdr.ch`
-
-## Smallweb
-
-Lightweight file-based personal cloud running on Trinity. Designed for simple static sites and lightweight applications.
-
-### Features
-
-- File-based deployment
-- Automatic HTTPS
-- Minimal resource footprint
-
-### Access
-
-- Web: `*.smallweb.home.shdr.ch`

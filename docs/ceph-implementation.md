@@ -251,7 +251,7 @@ pct move_volume <vmid> rootfs ceph-vm-disks --delete
 | 1019 | ups-management  | 32GB  | ✅     |
 | 1020 | media-stack     | 128GB | ✅     |
 | 1021 | dokku           | 256GB | ✅     |
-| 1024 | smallweb        | 16GB  | ✅     |
+| 1024 | smallweb        | 16GB  | Removed |
 
 ### VMs NOT on Ceph (by design)
 
