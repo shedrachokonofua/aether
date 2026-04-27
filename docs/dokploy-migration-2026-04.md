@@ -239,7 +239,7 @@ Do these **in order** before `task tofu:apply`:
 | Plane | `default-plane-hxnauo` | 74 MB. You decided to skip backup. |
 | Dify | `default-dify-kbixfx` | 794 MB plugin storage. You decided to skip backup. |
 | Drawio | `default-drawio-w9njeh` | Font volume only — stateless effectively. |
-| OnlyOffice Document Server | `default-onlyoficedocumentserver-cfopky` | Stateless. Delete after Collabora is up on Nextcloud. |
+| OnlyOffice Document Server | `default-onlyoficedocumentserver-cfopky` | Stateless. Delete after k8s OnlyOffice is verified with Nextcloud. |
 | Existing Nextcloud | `default-nextcloudaio-yuyvls` | User files exported to `~/nextcloud-export/`. **Delete only after new k8s Nextcloud is verified.** |
 | Coder | `default-coder-spjt46` | Workspace home archived at `~/dokploy-archive/coder-workspace.tgz`. |
 | OpenHands | `default-openhands-dktjmf` | 16 KB. No data worth saving. |
@@ -295,8 +295,10 @@ whenever you next redeploy the affected app:
 5. **Your-Spotify** — `SPOTIFY_PUBLIC` and `SPOTIFY_SECRET` embedded inline in
    `docker-compose.yml`. Move to `.env`.
 
-6. **OnlyOffice** — `JWT_SECRET=aG0afpTMkjgfXaIXj7q5U3L8itP8s9TB` hardcoded
-   inline. Rotate if you keep DocSpace; moot if you delete it.
+6. **OnlyOffice** — old Dokploy stack has
+   `JWT_SECRET=aG0afpTMkjgfXaIXj7q5U3L8itP8s9TB` hardcoded inline. The k8s
+   replacement generates a new Tofu-managed JWT secret; delete the old stack
+   only after Nextcloud Office is verified.
 
 ---
 
@@ -304,19 +306,19 @@ whenever you next redeploy the affected app:
 
 ### High priority
 
-- [ ] **Collabora Online** (`tofu/home/kubernetes/collabora.tf`) — office editing
-  inside Nextcloud. Add after Nextcloud is healthy. Runs as a separate
-  Deployment (`collabora/code` image), connects to Nextcloud via the `richdocuments`
-  app + `COLLABORA_URL` config. HTTPRoute at `collabora.apps.home.shdr.ch`.
+- [x] **OnlyOffice Document Server** (`tofu/home/kubernetes/onlyoffice.tf`) —
+  office editing inside Nextcloud. Run as a separate Deployment in the
+  `nextcloud` namespace, expose `onlyoffice.apps.home.shdr.ch`, and configure
+  Nextcloud with the `onlyoffice` connector app + JWT.
 
-- [ ] **Grafana home dashboard** (`ansible/playbooks/monitoring_stack/grafana/
-  provisioning/dashboards/home.json`) — already started in your WIP. Needs:
-  stat panels per Dokploy app keyed by `caddy_http_response_size_bytes_sum{host=~"..."}`,
-  data-link overrides opening each app, sparklines. UID `home`.
+- [x] **Grafana home dashboard** (`ansible/playbooks/monitoring_stack/grafana/
+  provisioning/dashboards/home.json`) — Dokploy traffic tiles added for each
+  audited app host. Tiles query
+  `caddy_http_response_size_bytes_sum{host=~"..."}`, show sparklines, and link
+  directly to the app.
 
-- [ ] **Caddy `home.shdr.ch` route** — your WIP Caddyfile.j2 already has
-  changes. The route should point to `monitoring_stack.ip:grafana` at `/d/home/home`.
-  Current route (`respond "Welcome home"`) gets replaced.
+- [x] **Caddy `home.shdr.ch` route** — placeholder response replaced with a
+  redirect to `https://grafana.home.shdr.ch/d/home/home`.
 
 ### Medium priority (keep-app data backups before any redeploy)
 
@@ -360,6 +362,7 @@ Same RBD snapshot method used this session works. Volumes to capture:
 | Loki | `10.0.2.3:3100` (LAN only, monitoring-stack VM) | none (no auth_enabled) |
 | Prometheus | `10.0.2.3:9090` (LAN only) | none |
 | New Nextcloud | `cloud.apps.home.shdr.ch` (after apply) | Keycloak SSO |
+| New OnlyOffice | `onlyoffice.apps.home.shdr.ch` (after apply) | Nextcloud connector + JWT |
 
 ### Key cluster facts
 
@@ -383,6 +386,7 @@ main
 Your WIP changes (unstaged on this branch, not committed by me):
 - `tofu/home/kubernetes/immich.tf` — Immich k8s migration
 - `tofu/home/kubernetes/oidc_discovery.tf` — k8s OIDC public discovery
+- `tofu/home/kubernetes/onlyoffice.tf` — OnlyOffice Document Server for Nextcloud Office
 - `ansible/playbooks/monitoring_stack/grafana/provisioning/dashboards/home.json` — Grafana home WIP
 - `ansible/playbooks/home_gateway_stack/caddy/Caddyfile.j2` — new routes WIP
 - `ansible/playbooks/monitoring_stack/site.yml` — monitoring changes
@@ -394,9 +398,9 @@ These are yours — commit them separately when ready.
 
 ## Suggested Order of Operations
 
-1. **Now**: Add sops secrets, run RGW Ansible play, `tofu apply` → Nextcloud live
+1. **Now**: Add/confirm sops secrets, run RGW Ansible play, `tofu apply` → Nextcloud + OnlyOffice live
 2. **After Nextcloud verified**: Kill old `default-nextcloudaio-yuyvls` from Dokploy
-3. **After Nextcloud mobile tested**: Add Collabora (`collabora.tf`)
+3. **After Nextcloud mobile tested**: Verify Nextcloud Office can create/edit docs via OnlyOffice
 4. **In parallel**: Commit your Immich + Grafana home WIP, apply, test
 5. **After Grafana home live**: Kill Homarr (`default-homarr-1xh33s`)
 6. **Then**: Work through the kill list — stateless apps first (mermaid, it-tools,
