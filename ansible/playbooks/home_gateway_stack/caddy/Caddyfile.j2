@@ -523,6 +523,118 @@ bao.home.shdr.ch {
   }
 }
 
+# =============================================================================
+# Personal apps — each rewrites Host to *.apps.home.shdr.ch for Gateway routing
+# =============================================================================
+
+mazanoke.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host mazanoke.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+bentopdf.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host bentopdf.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+memos.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host memos.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+perplexica.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host perplexica.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+vaultwarden.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host vaultwarden.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+your-spotify.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host your-spotify.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+your-spotify-api.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host your-spotify-api.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+hoppscotch.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host hoppscotch.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+proxyscotch.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host proxyscotch.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+karakeep.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host karakeep.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+dawarich.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host dawarich.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+affine.home.shdr.ch {
+  reverse_proxy 10.0.3.19 {
+    header_up Host affine.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
 nextcloud.home.shdr.ch {
   reverse_proxy 10.0.3.19 {
     header_up Host nextcloud.apps.home.shdr.ch
