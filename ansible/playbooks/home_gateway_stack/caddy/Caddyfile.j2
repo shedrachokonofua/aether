@@ -247,46 +247,41 @@ apprise.home.shdr.ch {
   reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.apprise }}
 }
 
+# Legacy Ollama hostname → llama-swap (OpenAI-compatible) on Kubernetes
 ollama.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.ollama }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host llama-swap.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 comfyui.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.comfyui }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host comfyui.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 docling.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.docling }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host docling.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 jupyter.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.jupyter }}
-}
-
-swarmui.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.swarmui }}
-}
-
-clearml.home.shdr.ch {
-  handle /api/* {
-    uri strip_prefix /api
-    reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_api }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host jupyter.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
   }
-  handle {
-    reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_web }}
-  }
-}
-
-api.clearml.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_api }}
-}
-
-files.clearml.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_files }}
-}
-
-serving.clearml.home.shdr.ch {
-  reverse_proxy {{ vm.gpu_workstation.ip }}:{{ vm.gpu_workstation.ports.clearml_serving }}
 }
 
 litellm.home.shdr.ch {
@@ -307,27 +302,30 @@ mcpo.home.shdr.ch {
 }
 
 searxng.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.searxng }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host searxng.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 firecrawl.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.firecrawl }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host firecrawl.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 mcp.firecrawl.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.firecrawl_mcp }}
-}
-
-bytebot.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.bytebot_ui }}
-}
-
-desktop.bytebot.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.bytebot_desktop }}
-}
-
-agent.bytebot.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.bytebot_agent }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host firecrawl-mcp.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 ups.home.shdr.ch {
@@ -480,32 +478,6 @@ small.home.shdr.ch, *.small.home.shdr.ch {
 
 fleet.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.fleet }}
-}
-
-openclaw.home.shdr.ch {
-  # oauth2-proxy auth endpoints
-  @oauth2 path /oauth2/*
-  handle @oauth2 {
-    reverse_proxy localhost:{{ vm.home_gateway_stack.ports.oauth2_proxy }}
-  }
-
-  # Protected — forward_auth checks Keycloak session
-  handle {
-    forward_auth localhost:{{ vm.home_gateway_stack.ports.oauth2_proxy }} {
-      uri /oauth2/auth
-      header_up X-Real-IP {http.request.remote}
-      header_up X-Forwarded-Host {host}
-      header_up X-Forwarded-Uri {uri}
-      copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Access-Token
-    }
-    reverse_proxy {{ vm.openclaw.ip }}:{{ vm.openclaw.ports.gateway }} {
-      header_up Host {http.request.host}
-      header_up X-Real-IP {http.request.remote}
-      header_up X-Forwarded-For {http.request.remote}
-      header_up Upgrade {http.request.header.Upgrade}
-      header_up Connection {http.request.header.Connection}
-    }
-  }
 }
 
 # =============================================================================

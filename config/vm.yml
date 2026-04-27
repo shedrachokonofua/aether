@@ -209,29 +209,6 @@ messaging_stack:
     postfix_metrics: 9154
     apprise: 8000
 
-gpu_workstation:
-  id: 1017
-  name: "gpu-workstation"
-  node: "neo"
-  admin: "aether"
-  cores: 32
-  memory: 8192
-  disk_gb: 1024
-  ip: "10.0.3.2"
-  gateway: "10.0.3.1"
-  ports:
-    ollama: 11434
-    vllm: 8000
-    comfyui: 8188
-    docling: 5001
-    jupyter: 8890
-    swarmui: 7801
-    clearml_web: 8085
-    clearml_api: 8008
-    clearml_files: 8081
-    clearml_serving: 8086
-    reranker: 8009
-
 ai_tool_stack:
   id: 1018
   name: "ai-tool-stack"
@@ -406,19 +383,6 @@ blockchain_stack:
     lnd_p2p: 9735
     lnd_grpc: 10009
     thunderhub: 3000
-
-openclaw:
-  id: 1033
-  name: "openclaw"
-  node: "trinity"
-  admin: "aether"
-  cores: 4
-  memory: 4096
-  disk_gb: 20
-  ip: "10.0.3.12"
-  gateway: "10.0.3.1"
-  ports:
-    gateway: 18789
 
 # =============================================================================
 # Talos Kubernetes Cluster
