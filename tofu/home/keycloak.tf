@@ -476,6 +476,7 @@ resource "keycloak_openid_client" "nextcloud" {
 
   valid_redirect_uris = [
     "https://nextcloud.home.shdr.ch/apps/user_oidc/code",
+    "https://nextcloud.home.shdr.ch/index.php/apps/user_oidc/code",
     # Login Flow v2 final redirect for the iOS/Android app
     "nc://login/server:https://nextcloud.home.shdr.ch",
   ]
