@@ -17,6 +17,9 @@ config/tofu-state.config
 secrets/tf-outputs.json
 secrets/aws/
 
+# Local-only dokploy compose snapshot (migration reference)
+.dokploy-ref/
+
 # Local .terraform directories
 **/.terraform/*
 

@@ -185,6 +185,49 @@
       become: false
       no_log: true
 
+    # --- Home K8s cluster OIDC ---
+    # The home Talos cluster's --service-account-issuer is
+    # https://oidc.k8s.home.shdr.ch (see tofu/home/talos_cluster.tf).
+    # Caddy proxies the discovery paths to the API server VIP; the
+    # `oidc-discovery-public` ClusterRoleBinding (tofu/home/kubernetes/
+    # oidc_discovery.tf) grants anonymous read on those paths.
+    - name: Get Home K8s OIDC thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          HOST="oidc.k8s.home.shdr.ch"
+          INTERMEDIATE_CERT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{if(/BEGIN/)n++;if(n==2)print}')
+          if [ -n "$INTERMEDIATE_CERT" ]; then
+            echo "$INTERMEDIATE_CERT" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          else
+            echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          fi
+      register: home_k8s_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register Home K8s OIDC provider in seven30 account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://oidc.k8s.home.shdr.ch" \
+            --client-id-list "sts.amazonaws.com" \
+            --thumbprint-list "{{ home_k8s_oidc_thumbprint.stdout }}"
+      when:
+        - home_k8s_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/oidc.k8s.home.shdr.ch' not in account_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
     # --- Seven30 vcluster OIDC ---
     - name: Get Seven30 vcluster OIDC thumbprint
       ansible.builtin.shell:
@@ -284,4 +327,96 @@
 
             4. Update infra/tofu/openbao_secrets.tf account_id to: {{ seven30_account.id }}
                Then: cd infra && tofu state rm vault_kv_secret_v2.ceph_rgw && task tofu:apply
+      run_once: true
+
+# =============================================================================
+# Nextcloud RGW user + bucket
+# =============================================================================
+# Creates a dedicated RGW user for Nextcloud's S3 primary objectstore and
+# ensures the nextcloud bucket exists. The generated access/secret keys must
+# be added to secrets.yml under ceph.nextcloud_s3_access_key and
+# ceph.nextcloud_s3_secret_key, then `task tofu:apply` will pick them up.
+#
+# Run this play once before applying the Nextcloud Tofu stack:
+#   task ansible:run -- playbooks/configure_ceph_rgw_accounts.yml --tags nextcloud
+#
+# The user is non-tenanted and lives in the default (admin) account context.
+
+- name: Provision Nextcloud RGW user and bucket
+  hosts: trinity
+  become: true
+  gather_facts: false
+  roles:
+    - common
+  tags:
+    - nextcloud
+  vars:
+    rgw_admin_host: "trinity"
+    nextcloud_rgw_uid: "nextcloud"
+    nextcloud_rgw_display: "Nextcloud Primary Objectstore"
+    nextcloud_bucket: "nextcloud"
+
+  tasks:
+    - name: Check if nextcloud RGW user already exists
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid={{ nextcloud_rgw_uid }}
+      register: rgw_nc_user_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create nextcloud RGW user
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --uid={{ nextcloud_rgw_uid }}
+          --display-name="{{ nextcloud_rgw_display }}"
+          --access-key={{ secrets.ceph.nextcloud_s3_access_key }}
+          --secret={{ secrets.ceph.nextcloud_s3_secret_key }}
+      register: rgw_nc_user_create
+      when: rgw_nc_user_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Set quota — no global max, but allow large uploads
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin quota set
+          --quota-scope=user
+          --uid={{ nextcloud_rgw_uid }}
+          --max-size=-1
+          --max-objects=-1
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      when: rgw_nc_user_check.rc != 0
+
+    - name: Create nextcloud bucket (idempotent via AWS CLI)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.nextcloud_s3_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.nextcloud_s3_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            s3 mb s3://{{ nextcloud_bucket }} 2>&1 || true
+      register: bucket_result
+      changed_when: "'make_bucket' in bucket_result.stdout"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          Nextcloud RGW user: {{ nextcloud_rgw_uid }}
+          Bucket:             {{ nextcloud_bucket }}
+          Status:             {{ 'already existed' if rgw_nc_user_check.rc == 0 else 'created' }}
+
+          Add these to secrets.yml (sops edit secrets/secrets.yml):
+            ceph:
+              nextcloud_s3_access_key: <value from secrets>
+              nextcloud_s3_secret_key: <value from secrets>
+
+          Then commit secrets.yml and run: task tofu:apply
       run_once: true
