@@ -502,6 +502,94 @@
         "groupSorting": {},
         "navData": [
           {
+            "group": "Personal",
+            "icon": "lock",
+            "title": "Vaultwarden",
+            "url": "https://vaultwarden.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "hdd",
+            "title": "Nextcloud",
+            "url": "https://cloud.apps.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "bookmark",
+            "title": "Karakeep",
+            "url": "https://karakeep.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "file-alt",
+            "title": "Affine",
+            "url": "https://affine.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "code",
+            "title": "Hoppscotch",
+            "url": "https://hoppscotch.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "map-marker",
+            "title": "Dawarich",
+            "url": "https://dawarich.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "music",
+            "title": "Your Spotify",
+            "url": "https://your-spotify.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "file-pdf",
+            "title": "BentoPDF",
+            "url": "https://bentopdf.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "search",
+            "title": "Perplexica",
+            "url": "https://perplexica.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "sticky-note",
+            "title": "Memos",
+            "url": "https://memos.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
+            "group": "Personal",
+            "icon": "compress",
+            "title": "Mazanoke",
+            "url": "https://mazanoke.d.home.shdr.ch",
+            "color": "#26A69A",
+            "targetBlank": true
+          },
+          {
             "group": "AI / ML",
             "icon": "rocket",
             "title": "Open WebUI",
@@ -3100,7 +3188,7 @@
           "links": [
             {
               "title": "Open OnlyOffice",
-              "url": "https://onlyoffice.d.home.shdr.ch",
+              "url": "https://onlyoffice.apps.home.shdr.ch",
               "targetBlank": true
             }
           ],
@@ -3108,11 +3196,11 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "dark-red",
+                "color": "dark-green",
                 "value": null
               },
               {
-                "color": "red",
+                "color": "green",
                 "value": 1
               }
             ]
@@ -3140,7 +3228,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"onlyoffice\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"onlyoffice\\.apps\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "Kill",
           "refId": "A"
         }
@@ -3967,6 +4055,138 @@
         "feedUrl": "https://feeds.home.shdr.ch/ars",
         "showImage": true
       }
+    },
+    {
+      "type": "stat",
+      "id": 137,
+      "title": "Nextcloud",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Nextcloud",
+              "url": "https://cloud.apps.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"cloud\\.apps\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Nextcloud",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 138,
+      "title": "Immich k8s",
+      "datasource": {
+        "uid": "$datasource"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "Bps",
+          "links": [
+            {
+              "title": "Open Immich k8s",
+              "url": "https://immich.apps.home.shdr.ch",
+              "targetBlank": true
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "uid": "$datasource"
+          },
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"immich\\.apps\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Immich k8s",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "1m",
