@@ -23,7 +23,8 @@
 
 locals {
   nextcloud_namespace = "nextcloud"
-  nextcloud_host      = "nextcloud.home.shdr.ch"
+  nextcloud_host         = "nextcloud.home.shdr.ch"       # user-facing (Caddy TLS edge)
+  nextcloud_gateway_host = "nextcloud.apps.home.shdr.ch"  # k8s Gateway routing (*.apps wildcard)
 
   nextcloud_server_image   = "nextcloud:32-apache"
   nextcloud_postgres_image = "postgres:16-alpine"
@@ -692,6 +693,21 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
       }
 
       spec {
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
         container {
           name  = "cron"
           image = local.nextcloud_server_image
@@ -804,12 +820,38 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
       spec {
         restart_policy = "OnFailure"
 
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
         # The Job needs the same code volume as the server because `occ` is
         # in /var/www/html. We mount the existing PVC RWO, so the Job is
         # serialized after the server pod is healthy.
         container {
           name  = "occ"
           image = local.nextcloud_server_image
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "1"
+              memory = "1Gi"
+            }
+          }
 
           # Wait for /status.php to report installed=true, then run the occ
           # commands. Uses the in-cluster Service to avoid host loops.
@@ -826,13 +868,13 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
               sleep 5
             done
             cd /var/www/html
-            php occ status
+            runuser -u www-data -- php occ status
 
-            php occ app:install user_oidc || php occ app:enable user_oidc
-            if php occ user_oidc:provider | grep -q "$${PROVIDER_ID}"; then
+            runuser -u www-data -- php occ app:install user_oidc || runuser -u www-data -- php occ app:enable user_oidc
+            if runuser -u www-data -- php occ user_oidc:provider | grep -q "$${PROVIDER_ID}"; then
               echo "user_oidc provider $${PROVIDER_ID} already exists, skipping create"
             else
-              php occ user_oidc:provider \
+              runuser -u www-data -- php occ user_oidc:provider \
                 --clientid="$${CLIENT_ID}" \
                 --clientsecret="$${CLIENT_SECRET}" \
                 --discoveryuri="$${DISCOVERY_URL}" \
@@ -928,11 +970,8 @@ resource "kubernetes_manifest" "nextcloud_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = [local.nextcloud_host]
+      hostnames = [local.nextcloud_gateway_host]
       rules = [
-        # Nextcloud's WebDAV/CalDAV/CardDAV mobile clients hit /.well-known
-        # paths that must redirect to /remote.php/dav/. The image ships an
-        # Apache rewrite rule but it only applies via the canonical host.
         {
           matches = [{
             path = {
