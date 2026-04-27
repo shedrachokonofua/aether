@@ -1,7 +1,7 @@
 # =============================================================================
 # Firecrawl - Web Crawling + MCP
 # =============================================================================
-# Migrated from ai_tool_stack podman quadlet to Kubernetes.
+# Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
   firecrawl_image            = "ghcr.io/firecrawl/firecrawl:latest"

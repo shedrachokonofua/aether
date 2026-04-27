@@ -104,16 +104,16 @@ model_list:
 credential_list:
   - credential_name: llama_swap_credential
     credential_values:
-      api_base: https://llama-swap.apps.home.shdr.ch/v1
+      api_base: http://llama-swap.infra.svc.cluster.local:8080/v1
       api_key: none
     credential_info:
-      description: "llama-swap on K8s (via Gateway)"
+      description: "llama-swap on K8s"
   - credential_name: speaches_credential
     credential_values:
-      api_base: https://speaches.apps.home.shdr.ch/v1
+      api_base: http://speaches.infra.svc.cluster.local:8000/v1
       api_key: none
     credential_info:
-      description: "Speaches STT/TTS on K8s (via Gateway)"
+      description: "Speaches STT/TTS on K8s"
   - credential_name: ollama_cloud_credential
     credential_values:
       api_base: https://ollama.com/v1
@@ -151,12 +151,10 @@ mcp_servers:
   time:
     url: "http://localhost:8003/mcp"
   firecrawl:
-    url: "https://mcp.firecrawl.home.shdr.ch/mcp"
+    url: "http://firecrawl.infra.svc.cluster.local:3007/mcp"
   alpha_vantage:
-    url: "https://mcp.alphavantage.co/mcp?apikey={{ secrets.alphavantage_api_key }}"
+    url: "https://mcp.alphavantage.co/mcp?apikey=${alphavantage_api_key}"
   # coingecko:
   #   url: "http://localhost:8002/"
   finviz:
     url: "http://localhost:8000/mcp"
-  microsandbox:
-    url: "http://host.containers.internal:{{ vm.ai_tool_stack.ports.microsandbox }}/mcp"

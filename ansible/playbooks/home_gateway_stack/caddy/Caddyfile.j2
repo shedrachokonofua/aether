@@ -275,7 +275,16 @@ jupyter.home.shdr.ch {
 }
 
 litellm.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.litellm }}
+  redir /ui /ui/ 308
+  redir /ui/login /ui/login/ 308
+  redir /mcp /mcp/ 308
+
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 openwebui.home.shdr.ch {
@@ -285,10 +294,6 @@ openwebui.home.shdr.ch {
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto https
   }
-}
-
-mcpo.home.shdr.ch {
-  reverse_proxy {{ vm.ai_tool_stack.ip }}:{{ vm.ai_tool_stack.ports.mcpo }}
 }
 
 searxng.home.shdr.ch {

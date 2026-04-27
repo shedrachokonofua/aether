@@ -97,6 +97,17 @@ resource "kubernetes_manifest" "main_gateway" {
             }
           }
         },
+        {
+          name     = "litellm-home"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "litellm.home.shdr.ch"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
+          }
+        },
       ]
     }
   }

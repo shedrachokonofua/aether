@@ -19,14 +19,13 @@ Image generation features (SDXL, Flux, Qwen-Image, ControlNet, LoRAs, etc.) foll
 
 **Not migrated to K8s in-repo:** SwarmUI and ClearML previously ran on the GPU VM; Caddy routes for those hostnames were removed. Re-introduce them when/if you deploy replacements.
 
-## AI Tool Stack (VM + K8s)
+## AI Tool Stack (K8s)
 
-LiteLLM and MCPO stay on the **ai-tool-stack** VM; chat, search, crawl, and GPU services are reached via the cluster Gateway.
+LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gateway. The old **ai-tool-stack** VM has been removed.
 
 | Component | Purpose                           |
 | --------- | --------------------------------- |
 | LiteLLM   | LLM gateway and proxy             |
-| MCPO      | MCP over HTTP                     |
 | OpenWebUI | Chat UI (K8s)                     |
 | SearXNG   | Metasearch (K8s)                  |
 | Firecrawl | Crawl + MCP (K8s)                 |
@@ -69,7 +68,7 @@ flowchart LR
     style Cloud fill:#f0e4d4,stroke:#c4a06a
 ```
 
-See [`ai_tool_stack/litellm/config.yaml.j2`](../ansible/playbooks/ai_tool_stack/litellm/config.yaml.j2) for the live model list and credentials.
+See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl) for the live model list and credentials.
 
 ### OpenWebUI
 

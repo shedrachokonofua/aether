@@ -1,7 +1,7 @@
 # =============================================================================
 # OpenWebUI + MCPO
 # =============================================================================
-# Migrated from ai_tool_stack podman quadlets to Kubernetes.
+# Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
   openwebui_namespace = "infra"

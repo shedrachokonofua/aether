@@ -275,10 +275,6 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/dev_workstation/site.yml]
   configure:cockpit:
     cmds: [ansible-playbook ansible/playbooks/cockpit/site.yml]
-  configure:ai-tools:
-    cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/site.yml]
-  configure:litellm:
-    cmds: [ansible-playbook ansible/playbooks/ai_tool_stack/litellm/site.yml]
   configure:media-stack:
     cmds: [ansible-playbook ansible/playbooks/media_stack/site.yml]
   decommission:media-k8s:

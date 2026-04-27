@@ -1,7 +1,7 @@
 # =============================================================================
 # SearXNG - Private Metasearch
 # =============================================================================
-# Migrated from ai_tool_stack podman quadlet to Kubernetes.
+# Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
   searxng_image  = "docker.io/searxng/searxng:latest"

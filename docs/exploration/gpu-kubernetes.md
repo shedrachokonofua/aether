@@ -18,7 +18,7 @@
 | GPU | Nvidia RTX Pro 6000 — passthrough to **talos-neo** Talos VM |
 | talos-neo | K8s control plane + GPU worker on Neo (see `config/vm.yml`) |
 | Inference | **llama-swap** in-cluster (replaces Ollama + vLLM) |
-| Management | Tofu K8s manifests under `tofu/home/kubernetes/`; LiteLLM remains on ai-tool-stack VM |
+| Management | Tofu K8s manifests under `tofu/home/kubernetes/`; LiteLLM runs in Kubernetes |
 
 Workloads on **talos-neo** (Kubernetes):
 
@@ -341,6 +341,6 @@ Apply **`tofu destroy` / `tofu apply`** in your environment to drop the Proxmox 
 
 - `kubernetes.md` — K8s cluster architecture and workload migration plan
 - `workflow-orchestration.md` — GPU batch job patterns (Kestra + ComfyUI)
-- `../ai-ml.md` — Current AI/ML architecture (Kubernetes + ai-tool-stack)
+- `../ai-ml.md` — Current AI/ML architecture on Kubernetes
 - `../monitoring.md` — Observability architecture (GPU metrics)
 - `../hosts.md` — Neo hardware specs

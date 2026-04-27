@@ -238,11 +238,18 @@ resource "talos_machine_configuration_apply" "this" {
           proxy                          = { disabled = true }
           apiServer = {
             extraArgs = {
-              "oidc-issuer-url"        = local.oidc_issuer_url
-              "oidc-client-id"         = local.oidc_client_id
-              "oidc-username-claim"    = "preferred_username"
-              "oidc-groups-claim"      = "groups"
-              "service-account-issuer" = local.k8s_serviceaccount_issuer
+              "oidc-issuer-url"            = local.oidc_issuer_url
+              "oidc-client-id"             = local.oidc_client_id
+              "oidc-username-claim"        = "preferred_username"
+              "oidc-groups-claim"          = "groups"
+              "service-account-issuer"     = local.k8s_serviceaccount_issuer
+              "service-account-jwks-uri"   = "${local.k8s_serviceaccount_issuer}/openid/v1/jwks"
+              # Enables IRSA-style flows: lets external verifiers (RGW STS)
+              # fetch /.well-known/openid-configuration + /openid/v1/jwks
+              # without an Authorization header. RBAC still gates everything
+              # else; the `oidc-discovery-public` ClusterRoleBinding scopes
+              # what unauthenticated callers can actually read.
+              "anonymous-auth"             = "true"
             }
           }
         }
@@ -435,7 +442,7 @@ module "kubernetes" {
   keycloak_client_id            = keycloak_openid_client.crossplane.client_id
   keycloak_client_secret        = keycloak_openid_client.crossplane.client_secret
   openwebui_oauth_client_secret = keycloak_openid_client.openwebui.client_secret
-  litellm_mcp_url               = "http://${local.vm.ai_tool_stack.ip}:${local.vm.ai_tool_stack.ports.litellm}/mcp"
+  litellm_mcp_url               = "http://litellm.infra.svc.cluster.local:4000/mcp"
 
   # Media stack migration
   nfs_server_ip       = local.vm.nfs.ip.vyos

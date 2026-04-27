@@ -85,9 +85,8 @@ resource "helm_release" "wasmcloud" {
 # also wired into the chart's global.image.pullSecrets so the operator and
 # host images themselves can be pulled from a mirror if ever needed.
 #
-# Currently uses the GitLab root account, mirroring the Ansible pattern in
-# ansible/playbooks/ai_tool_stack/bytebot.yml. Migrate to a scoped GitLab
-# deploy token with `read_registry` scope once one is provisioned.
+# Currently uses the GitLab root account. Migrate to a scoped GitLab deploy
+# token with `read_registry` scope once one is provisioned.
 
 locals {
   wasmcloud_registry_host     = "registry.gitlab.home.shdr.ch"

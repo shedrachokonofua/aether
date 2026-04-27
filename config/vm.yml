@@ -209,31 +209,6 @@ messaging_stack:
     postfix_metrics: 9154
     apprise: 8000
 
-ai_tool_stack:
-  id: 1018
-  name: "ai-tool-stack"
-  node: "neo"
-  admin: "aether"
-  cores: 4
-  memory: 8192
-  disk_gb: 128
-  ip: "10.0.3.3"
-  gateway: "10.0.3.1"
-  ports:
-    litellm: 4000
-    openwebui: 8080
-    mcpo: 8001
-    searxng: 8081
-    firecrawl: 3002
-    firecrawl_mcp: 3007
-    finviz_mcp: 8000
-    coingecko_mcp: 8002
-    time_mcp: 8003
-    bytebot_desktop: 9990
-    bytebot_agent: 9991
-    bytebot_ui: 9992
-    microsandbox: 5555
-
 media_stack:
   id: 1020
   name: "media-stack"

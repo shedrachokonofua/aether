@@ -51,7 +51,7 @@ Most VMs  Boot from NFS
 │    └─────┘                                                         │
 │    MON + MGR          MON + MGR          MON + MGR                 │
 │                                                                    │
-│    Workload VMs: gitlab, dokploy, ai-tool-stack, dokku,            │
+│    Workload VMs: gitlab, dokploy, dokku,                           │
 │                  messaging, iot, smallweb, dev-workstation, etc.   │
 └────────────────────────────────────────────────────────────────────┘
 
@@ -89,7 +89,6 @@ For VMs that benefit from HA and can tolerate Ceph dependency:
 | ------------------------ | -------------------------- |
 | gitlab                   | HA good, not critical path |
 | dokploy                  | HA good                    |
-| ai-tool-stack            | HA good                    |
 | dokku                    | HA good                    |
 | messaging-stack          | HA good                    |
 | iot-management-stack     | HA good                    |
@@ -143,7 +142,7 @@ Data that doesn't need HA:
 
 | VMs                                                                                                   | Total Disk |
 | ----------------------------------------------------------------------------------------------------- | ---------- |
-| gitlab, dokploy, ai-tool-stack, dokku, messaging, iot, dev-workstation, smallweb, cockpit, coupe, ups | ~1.5TB     |
+| gitlab, dokploy, dokku, messaging, iot, dev-workstation, smallweb, cockpit, coupe, ups | ~1.4TB     |
 
 **Headroom:** 6.5-10.5TB free for growth, snapshots, and buffer.
 

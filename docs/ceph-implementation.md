@@ -247,7 +247,7 @@ pct move_volume <vmid> rootfs ceph-vm-disks --delete
 | 1014 | game-server     | 256GB | ✅     |
 | 1015 | cockpit         | 32GB  | ✅     |
 | 1016 | messaging-stack | 64GB  | ✅     |
-| 1018 | ai-tool-stack   | 128GB | ✅     |
+| 1018 | ai-tool-stack   | 128GB | Removed after K8s migration |
 | 1019 | ups-management  | 32GB  | ✅     |
 | 1020 | media-stack     | 128GB | ✅     |
 | 1021 | dokku           | 256GB | ✅     |

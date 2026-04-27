@@ -27,7 +27,7 @@ Enable automatic VM recovery when a Proxmox node fails. Instead of manual PBS re
 
 | Tier  | Storage          | VMs                                                                   | HA Status          |
 | ----- | ---------------- | --------------------------------------------------------------------- | ------------------ |
-| Ceph  | ceph-vm-disks    | gitlab, dokploy, ai-tool-stack, dokku, messaging, media, smallweb etc | ✅ Configured (11) |
+| Ceph  | ceph-vm-disks    | gitlab, dokploy, dokku, messaging, media, smallweb etc                | ✅ Configured (10) |
 | Ceph  | ceph-vm-disks    | iot-management, game-server                                           | ❌ Hardware pinned |
 | Local | Oracle local-lvm | vyos-router, home-gateway-stack, keycloak, step-ca, openbao           | ❌ Needs ZFS       |
 | Local | Niobe local-lvm  | monitoring-stack                                                      | ❌ Needs ZFS       |
@@ -93,7 +93,7 @@ VMs on Ceph distributed storage with automatic HA:
 | 1010 | dev-workstation | 256GB | ✅            |
 | 1015 | cockpit         | 32GB  | ✅            |
 | 1016 | messaging-stack | 64GB  | ✅            |
-| 1018 | ai-tool-stack   | 128GB | ✅            |
+| 1018 | ai-tool-stack   | 128GB | Removed      |
 | 1019 | ups-management  | 32GB  | ✅            |
 | 1020 | media-stack     | 128GB | ✅            |
 | 1021 | dokku           | 256GB | ✅            |
@@ -135,7 +135,7 @@ resource "proxmox_virtual_environment_haresource" "gitlab" {
 }
 ```
 
-**Configured:** 11 VMs (dokploy, gitlab, dev-workstation, cockpit, messaging-stack, ai-tool-stack, ups-management, media-stack, dokku, smallweb)
+**Configured:** 10 VMs (dokploy, gitlab, dev-workstation, cockpit, messaging-stack, ups-management, media-stack, dokku, smallweb)
 
 **Excluded:** `iot-management` (USB passthrough), `game-server` (not in Tofu)
 
