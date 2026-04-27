@@ -326,7 +326,7 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: nvidia_smi_temperature_gpu
+              expr: DCGM_FI_DEV_GPU_TEMP
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -351,7 +351,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "High GPU temperature on {{ $labels.host_name }}"
+          summary: "High GPU temperature on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
           description: 'GPU temperature is {{ $values.B.Value | printf "%.0f" }}°C'
 
       - uid: gpu-high-memory
@@ -364,7 +364,7 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: (nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes) * 100
+              expr: (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)) * 100
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -389,11 +389,11 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "High GPU memory usage on {{ $labels.host_name }}"
-          description: 'GPU memory usage is {{ $values.B.Value | printf "%.1f" }}%'
+          summary: "High GPU memory usage on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
+          description: 'GPU framebuffer usage is {{ $values.B.Value | printf "%.1f" }}%'
 
       - uid: gpu-thermal-throttling
-        title: GPU Thermal Throttling
+        title: GPU XID / driver fault
         condition: C
         data:
           - refId: A
@@ -402,7 +402,7 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: nvidia_smi_clocks_event_reasons_hw_thermal_slowdown
+              expr: DCGM_FI_DEV_XID_ERRORS
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -427,5 +427,5 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "GPU thermal throttling on {{ $labels.host_name }}"
-          description: "GPU is throttling due to high temperature"
+          summary: "GPU XID error on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
+          description: "DCGM reported a non-zero XID error count — check dmesg / GPU health"

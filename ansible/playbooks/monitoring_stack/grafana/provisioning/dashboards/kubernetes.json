@@ -200,7 +200,7 @@
     },
     {
       "datasource": { "uid": "$datasource" },
-      "description": "Memory used / (used + available) averaged across nodes.",
+      "description": "Working set / (working set + available) averaged across nodes. Matches kubelet's eviction view of node memory.",
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
@@ -232,7 +232,7 @@
       },
       "pluginVersion": "11.5.2",
       "targets": [
-        { "datasource": { "uid": "$datasource" }, "expr": "avg(k8s_node_memory_usage{host_name=~\"$node\"} / (k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"}))", "refId": "A" }
+        { "datasource": { "uid": "$datasource" }, "expr": "avg(k8s_node_memory_working_set{host_name=~\"$node\"} / (k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"}))", "refId": "A" }
       ],
       "title": "Cluster Memory",
       "type": "gauge"
@@ -585,8 +585,8 @@
       "targets": [
         { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_condition_ready{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "A" },
         { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_cpu_utilization{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "B" },
-        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_usage{host_name=~\"$node\"} / (k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})", "format": "table", "instant": true, "refId": "C" },
-        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "D" },
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_working_set{host_name=~\"$node\"} / (k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})", "format": "table", "instant": true, "refId": "C" },
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "D" },
         { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_filesystem_usage{host_name=~\"$node\"} / k8s_node_filesystem_capacity{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "E" },
         { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_filesystem_capacity{host_name=~\"$node\"}", "format": "table", "instant": true, "refId": "F" },
         { "datasource": { "uid": "$datasource" }, "expr": "count by (host_name) (k8s_pod_phase{host_name=~\"$node\"} == 2)", "format": "table", "instant": true, "refId": "G" },
@@ -690,7 +690,7 @@
       },
       "pluginVersion": "11.5.2",
       "targets": [
-        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_usage{host_name=~\"$node\"} / (k8s_node_memory_usage{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})", "legendFormat": "{{host_name}}", "refId": "A" }
+        { "datasource": { "uid": "$datasource" }, "expr": "k8s_node_memory_working_set{host_name=~\"$node\"} / (k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})", "legendFormat": "{{host_name}}", "refId": "A" }
       ],
       "title": "Node Memory Utilization",
       "type": "timeseries"

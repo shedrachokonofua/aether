@@ -53,19 +53,26 @@
   - [x] Install Knative Serving (scale-to-zero)
   - [ ] Install Knative Eventing
   - [x] Install Crossplane + Ceph RGW/Keycloak providers
-  - [ ] Install OPA Gatekeeper (policy enforcement)
-  - [ ] Install Secrets Store CSI + Vault provider
-  - [ ] Install cert-manager + step-ca ClusterIssuer
-  - [ ] Install External Secrets Operator
+  - [x] Install Kyverno (policy enforcement; ARM-pool guardrails)
+  - [x] Install cert-manager + step-ca StepIssuer (via step-issuer + istio-csr)
   - [x] Deploy OTEL Collectors (DaemonSet + Deployment) → Monitoring Stack
   - [x] Enable Hubble UI via Gateway API
   - [x] Deploy Headlamp dashboard with Keycloak OIDC
   - [x] Register GitLab Agent
-  - [ ] Create k8s dashboards in Grafana
+  - [x] Create k8s dashboards in Grafana
   - [ ] Migrate AI Tool Stack, Messaging Stack to Knative
   - [ ] Migrate Media Stack (rffmpeg → GPU Workstation for transcoding)
   - [ ] Migrate Dokku/Dokploy apps to Knative Services
   - [ ] Configure multi-tenancy (namespaces, quotas, Cilium NetworkPolicies)
+  - [ ] Add ARM worker pool from Raspberry Pis ([exploration](exploration/raspberry-pi.md))
+    - [x] Wire baremetal Talos node support in Tofu (`platform: baremetal`, per-arch schematics)
+    - [x] Add Pi 4/5 Talos schematics (generic + `rpi_5` overlay)
+    - [x] Provision talos-mouse (Pi 4) — flashed, joined, labeled
+    - [x] Provision talos-dozer (Pi 5) — flashed, joined, labeled
+    - [x] Provision talos-tank (Pi 5) — flashed, joined, labeled
+    - [ ] Provision talos-sparks (CM4 / uConsole) — confirm SKU, source carrier
+    - [ ] Move Pi nodes from office switch to main rack
+    - [ ] Land Kyverno `arm-pool-guardrails` ClusterPolicy (memory/CPU caps on `aether.sh/node-pool=arm`)
 - [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))
   - [ ] Deploy WUD for container update visibility
   - [ ] Deploy Trivy for CVE scanning
@@ -103,8 +110,7 @@
   - [ ] Homarr
 - [ ] Deploy rffmpeg server on GPU Workstation (Jellyfin remote transcoding)
 - [ ] Add TTS/STT inference to GPU Workstation
-- [ ] Integrate Matter/Thread border router into IoT stack
-- [ ] Deploy wasmCloud LXC
+- [x] Integrate Matter/Thread border router into IoT stack (OTBR + python-matter-server on iot-management-stack)
 
 ## P3
 

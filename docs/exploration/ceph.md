@@ -66,7 +66,7 @@ Most VMs  Boot from NFS
 │    Niobe:  monitoring-stack                                        │
 │            → Replicate to Trinity                                  │
 │                                                                    │
-│    Neo:    gpu-workstation (local, no replication, can't HA)       │
+│    Neo:    talos-neo + local NVMe (GPU / models, not on Ceph root) │
 │                                                                    │
 └────────────────────────────────────────────────────────────────────┘
 
@@ -108,7 +108,7 @@ VMs that must survive Ceph problems:
 | step-ca            | PKI must boot without cluster dependencies  |
 | openbao            | Secrets manager is critical path            |
 | monitoring-stack   | Must alert WHEN Ceph has problems           |
-| gpu-workstation    | 1TB disk, can't HA anyway (GPU passthrough) |
+| talos-neo (GPU PV) | Local NVMe for models; GPU passthrough       |
 
 ### Cold Tier (Bulk Storage)
 

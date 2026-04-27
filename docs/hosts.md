@@ -34,7 +34,6 @@ Storage and backup host. Houses all shared storage arrays and backup infrastruct
 
 GPU compute host. Dedicated to AI/ML workloads with high-end GPU:
 
-- GPU Workstation (Ollama, ComfyUI, JupyterLab, SwarmUI, ClearML, Docling)
 - AI Tool Stack (LiteLLM, SearXNG, Firecrawl, OpenWebUI)
 - Dokku (PaaS)
 

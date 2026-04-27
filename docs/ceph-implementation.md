@@ -261,7 +261,6 @@ pct move_volume <vmid> rootfs ceph-vm-disks --delete
 | 1002 | gateway-stack    | Oracle local    | Critical infrastructure         |
 | 1003 | monitoring-stack | Niobe local     | Must alert when Ceph is down    |
 | 1007 | backup-stack     | Smith local-lvm | Backups must work if Ceph fails |
-| 1017 | gpu-workstation  | Neo local       | GPU passthrough, can't HA       |
 | 1023 | keycloak         | Oracle local    | Critical infrastructure         |
 | 1025 | step-ca          | Oracle local    | Critical infrastructure         |
 | 1026 | openbao          | Oracle local    | Critical infrastructure         |

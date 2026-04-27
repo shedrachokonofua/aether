@@ -116,7 +116,7 @@ Monitors running containers for available updates.
 ```yaml
 # Example watcher config for multiple hosts
 WUD_WATCHER_LOCAL_SOCKET: /run/podman/podman.sock
-WUD_WATCHER_GPU_HOST: tcp://gpu-workstation:2375
+WUD_WATCHER_AI_TOOL_STACK_HOST: tcp://ai-tool-stack:2375
 WUD_WATCHER_GATEWAY_HOST: tcp://home-gateway:2375
 ```
 

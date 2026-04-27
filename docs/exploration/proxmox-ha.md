@@ -31,7 +31,7 @@ Enable automatic VM recovery when a Proxmox node fails. Instead of manual PBS re
 | Ceph  | ceph-vm-disks    | iot-management, game-server                                           | ❌ Hardware pinned |
 | Local | Oracle local-lvm | vyos-router, home-gateway-stack, keycloak, step-ca, openbao           | ❌ Needs ZFS       |
 | Local | Niobe local-lvm  | monitoring-stack                                                      | ❌ Needs ZFS       |
-| Local | Neo local        | gpu-workstation                                                       | ❌ GPU pinned      |
+| Local | Neo local        | talos-neo (GPU)                                                       | ❌ GPU pinned      |
 | Local | Smith local-lvm  | backup-stack                                                          | N/A                |
 
 ## Why HA Matters
@@ -105,7 +105,7 @@ VMs on Ceph distributed storage with automatic HA:
 
 | VM              | Reason                                    |
 | --------------- | ----------------------------------------- |
-| gpu-workstation | GPU passthrough pins it to Neo            |
+| talos-neo | GPU passthrough pins it to Neo            |
 | iot-management  | USB passthrough (Z-Wave) pins it to Niobe |
 | game-server     | Not managed by Tofu                       |
 | backup-stack    | Must work if Ceph fails                   |

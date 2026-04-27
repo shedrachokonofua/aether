@@ -948,45 +948,7 @@
           },
           "unit": "percent"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "gpu-workstation - Real Used (Applications)"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "gpu-workstation - Total Used (Including Cache)"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "yellow",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [10, 10],
-                  "fill": "dash"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 8,

@@ -57,7 +57,7 @@ VMs that mount CephFS for shared data access:
 | VM              | Mount Point | Use Case                  |
 | --------------- | ----------- | ------------------------- |
 | dev-workstation | /mnt/cephfs | Projects, shared data     |
-| gpu-workstation | /mnt/cephfs | Checkpoints, outputs      |
+| talos-neo (GPU PV) | local NVMe (`gpu-model-storage`) | Model weights, ComfyUI state |
 | media-stack     | /mnt/cephfs | Media files               |
 | game-server     | /mnt/cephfs | Game saves, configuration |
 | backup-stack    | /mnt/cephfs | Offsite backup source     |

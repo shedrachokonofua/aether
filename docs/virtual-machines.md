@@ -10,8 +10,7 @@ All VMs and LXCs run on Proxmox VE across the five-host cluster. Storage is eith
 | Gateway Stack           | Oracle  | VM   | 4GB   | 128GB                        | Node             | 8    | None        | PLANNED - ZFS | UniFi Network Server, Caddy, AdGuard, Tailscale subnet router, HAProxy, WireProxy               | LIVE        |
 | Development Workstation | Trinity | VM   | 16GB  | 256GB                        | Ceph             | 8    | None        | LIVE - Ceph   | Coder Server                                                                                    | LIVE        |
 | Gaming Server           | Smith   | VM   | 16GB  | 256GB                        | Node - NVME      | 12   | Passthrough | N/A           | Bazzite VM: Steam, PS, PS2, PS3 simulation                                                      | LIVE        |
-| GPU Workstation         | Neo     | VM   | 48GB  | 1TB                          | Node             | 32   | Passthrough | N/A           | Ollama + Models, Docling, ComfyUI, JupyterLab, SwarmUI, ClearML                                 | LIVE        |
-| AI Tool Stack           | Neo     | VM   | 8GB   | 128GB                        | Ceph             | 4    | None        | LIVE - Ceph   | LiteLLM, SearXNG, Firecrawl, OpenWebUI, LibreChat, Bytebot                                      | LIVE        |
+| AI Tool Stack           | Neo     | VM   | 8GB   | 128GB                        | Ceph             | 4    | None        | LIVE - Ceph   | LiteLLM, MCPO; OpenWebUI / search / crawl on K8s                                                | LIVE        |
 | Monitoring Stack        | Niobe   | VM   | 4GB   | 128GB                        | Node             | 4    | None        | PLANNED - ZFS | Prometheus, Grafana, Loki, Tempo, Otel Collector                                                | LIVE        |
 | Gitlab                  | Trinity | VM   | 8GB   | 128GB                        | Ceph             | 8    | None        | LIVE - Ceph   | VCS, CI/CD, Package Registry                                                                    | LIVE        |
 | Dokku                   | Neo     | VM   | 8GB   | 256GB                        | Ceph             | 8    | None        | LIVE - Ceph   | Multi-tenant PaaS with Terraform support, Infisical                                             | LIVE        |
@@ -23,7 +22,6 @@ All VMs and LXCs run on Proxmox VE across the five-host cluster. Storage is eith
 | Keycloak                | Oracle  | LXC  | 2GB   | 32GB                         | Node             | 2    | None        | PLANNED - ZFS | Identity Provider: OAuth2/OIDC, user management, service accounts                               | LIVE        |
 | Messaging Stack         | Niobe   | VM   | 2GB   | 64GB                         | Ceph             | 2    | None        | LIVE - Ceph   | Postfix, Element, Synapse, Matrix Bridges(WhatsApp, Discord, Signal, Telegram, Google Messages) | LIVE        |
 | Cockpit                 | Niobe   | VM   | 1GB   | 32GB                         | Ceph             | 1    | None        | LIVE - Ceph   | Cockpit                                                                                         | LIVE        |
-| Wasm Cloud              | Trinity | LXC  | 2GB   | 32GB                         | Ceph             | 2    | None        | PLANNED - ZFS | wasmCloud Host, NATS                                                                            | PLANNED     |
 | Smallweb                | Trinity | LXC  | 1GB   | 16GB                         | Ceph             | 2    | None        | LIVE - Ceph   | File-based personal cloud for lightweight apps                                                  | LIVE        |
 | step-ca                 | Oracle  | LXC  | 1GB   | 16GB                         | Node             | 2    | None        | PLANNED - ZFS | Private CA: SSH certs, X.509, OIDC/JWK provisioners                                             | LIVE        |
 | OpenBao                 | Oracle  | LXC  | 2GB   | 32GB                         | Node             | 2    | None        | PLANNED - ZFS | Secrets management: KV, dynamic credentials, Keycloak OIDC auth                                 | LIVE        |
@@ -35,5 +33,5 @@ All VMs and LXCs run on Proxmox VE across the five-host cluster. Storage is eith
 
 | Metric | Allocated | Available |
 | ------ | --------- | --------- |
-| RAM    | 194GB     | 400GB     |
-| vCPU   | 137       | 100       |
+| RAM    | 144GB     | 400GB     |
+| vCPU   | 103       | 100       |

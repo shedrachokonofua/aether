@@ -278,7 +278,7 @@ tasks:
           import requests
           # Call ComfyUI API on GPU workstation
           response = requests.post(
-              "http://gpu-workstation.home.shdr.ch:8188/prompt",
+              "https://comfyui.home.shdr.ch/prompt",
               json={"prompt": "{{ taskrun.value }}"}
           )
           print(f"Generated: {response.json()}")

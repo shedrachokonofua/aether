@@ -1,50 +1,39 @@
 # AI/ML
 
-GPU-accelerated inference and development infrastructure running on Neo.
+GPU-accelerated inference runs on **Talos Kubernetes** (`talos-neo`, RTX Pro 6000 Blackwell).
 
-## GPU Workstation
+## Kubernetes GPU stack
 
-Primary AI/ML compute VM with full GPU passthrough. Runs on Neo with Nvidia RTX Pro 6000 Max-Q (48GB VRAM).
+| Workload    | Role                                      | Terraform / notes |
+| ----------- | ----------------------------------------- | ----------------- |
+| llama-swap  | Local GGUF inference (`aether/*` models)  | `tofu/home/kubernetes/llama_swap.tf` |
+| ComfyUI     | Stable Diffusion workflows                | `tofu/home/kubernetes/comfyui.tf` |
+| Docling     | Document parsing for RAG                  | `tofu/home/kubernetes/docling.tf` |
+| JupyterLab  | Notebooks (OpenWebUI code execution)      | `tofu/home/kubernetes/jupyter.tf` |
+| Speaches    | STT/TTS                                   | `tofu/home/kubernetes/speaches.tf` |
+| OpenWebUI   | Chat UI                                   | `tofu/home/kubernetes/openwebui.tf` |
 
-| Component  | Purpose                                      |
-| ---------- | -------------------------------------------- |
-| Ollama     | Local LLM inference server                   |
-| ComfyUI    | Node-based Stable Diffusion interface        |
-| SwarmUI    | Alternative Stable Diffusion interface       |
-| JupyterLab | Interactive notebook environment             |
-| Docling    | Document parsing and extraction              |
-| ClearML    | MLOps platform (experiment tracking, queues) |
+Model weights and ComfyUI state live on the **local NVMe** PV mounted on `talos-neo` (`gpu_model_storage.tf`).
 
-### Ollama Models
+Image generation features (SDXL, Flux, Qwen-Image, ControlNet, LoRAs, etc.) follow upstream ComfyUI; manage models on the GPU PV / ComfyUI paths.
 
-Models are stored locally on the VM's 1TB NVME. Ollama serves as the primary inference backend for all LLM requests. See [`gpu_workstation/ollama.yml`](../ansible/playbooks/gpu_workstation/ollama.yml) for the current model list.
+**Not migrated to K8s in-repo:** SwarmUI and ClearML previously ran on the GPU VM; Caddy routes for those hostnames were removed. Re-introduce them when/if you deploy replacements.
 
-### Image Generation
+## AI Tool Stack (VM + K8s)
 
-ComfyUI provides node-based Stable Diffusion workflows. SwarmUI offers a more user-friendly interface using ComfyUI as its backend (shared model directory). See [`gpu_workstation/comfyui.yml`](../ansible/playbooks/gpu_workstation/comfyui.yml) for the current model list.
-
-Supported features:
-
-- SDXL, SD 1.5, Flux, Qwen-Image models
-- ControlNet, IP-Adapter
-- Custom LoRAs and embeddings
-
-## AI Tool Stack
-
-Frontend and orchestration layer running on Neo (separate VM, no GPU passthrough). Provides user-facing AI interfaces backed by the GPU Workstation.
+LiteLLM and MCPO stay on the **ai-tool-stack** VM; chat, search, crawl, and GPU services are reached via the cluster Gateway.
 
 | Component | Purpose                           |
 | --------- | --------------------------------- |
 | LiteLLM   | LLM gateway and proxy             |
-| OpenWebUI | ChatGPT-like web interface        |
-| LibreChat | Alternative chat interface        |
-| SearXNG   | Privacy-focused metasearch engine |
-| Firecrawl | Web scraping and crawling         |
-| Bytebot   | Browser automation                |
+| MCPO      | MCP over HTTP                     |
+| OpenWebUI | Chat UI (K8s)                     |
+| SearXNG   | Metasearch (K8s)                  |
+| Firecrawl | Crawl + MCP (K8s)                 |
 
 ### LiteLLM
 
-Unified API gateway proxying requests to multiple LLM backends:
+Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, plus cloud providers and MCP tools.
 
 ```mermaid
 flowchart LR
@@ -53,11 +42,11 @@ flowchart LR
         API[API Clients]
     end
 
-    LLM[LiteLLM<br/>OpenAI-compatible API]
+    LLM[LiteLLM]
 
-    subgraph Local["GPU Workstation"]
-        OL[Ollama<br/><i>aether/*</i>]
-        RR[Reranker TEI]
+    subgraph K8s["Kubernetes (talos-neo)"]
+        LS[llama-swap<br/><i>aether/*</i>]
+        RR[Rerank / embed]
     end
 
     subgraph Cloud["Cloud Providers"]
@@ -72,60 +61,29 @@ flowchart LR
     end
 
     OWUI & API --> LLM
-    LLM --> OL & RR
+    LLM --> LS & RR
     LLM --> OAI & ANT & OR
     LLM --> TIME & FC
 
-    style Local fill:#d4f0e7,stroke:#6ac4a0
+    style K8s fill:#d4f0e7,stroke:#6ac4a0
     style Cloud fill:#f0e4d4,stroke:#c4a06a
 ```
 
-| Provider   | Models                                   |
-| ---------- | ---------------------------------------- |
-| Ollama     | Local models (`aether/*` prefix)         |
-| OpenAI     | GPT-5.2, GPT-5.2-Pro                     |
-| Anthropic  | Claude Opus 4.5, Claude Sonnet 4.5       |
-| OpenRouter | Gemini 3 Pro, Grok 4, GLM-4.6            |
-| TEI        | BGE reranker (routed to GPU Workstation) |
-
-Also provides:
-
-- MCP tool servers (time, Firecrawl)
-- Virtual API keys for consumer services
-
-See [`ai_tool_stack/litellm/config.yaml.j2`](../ansible/playbooks/ai_tool_stack/litellm/config.yaml.j2) for the model list.
+See [`ai_tool_stack/litellm/config.yaml.j2`](../ansible/playbooks/ai_tool_stack/litellm/config.yaml.j2) for the live model list and credentials.
 
 ### OpenWebUI
 
-Primary chat interface with:
+Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (Docling + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
 
-- Multi-model support via LiteLLM
-- RAG with hybrid search (Qwen3 embeddings + BGE reranker)
-- Document extraction via Docling
-- Web search via SearXNG
-- Code execution via JupyterLab
-- Tool integrations via MCPO (MCP over HTTP)
-- OAuth via Keycloak
+### Access (via Caddy on gateway)
 
-See [`ai_tool_stack/openwebui/`](../ansible/playbooks/ai_tool_stack/openwebui/) for configuration.
+- LiteLLM: `https://litellm.home.shdr.ch`
+- OpenWebUI: `https://openwebui.home.shdr.ch`
+- llama-swap (OpenAI-compatible): `https://llama-swap.apps.home.shdr.ch`
+- ComfyUI: `https://comfyui.home.shdr.ch`
+- Docling: `https://docling.home.shdr.ch`
+- Jupyter: `https://jupyter.home.shdr.ch`
 
-### Search and Retrieval
+## Reranker and embeddings
 
-SearXNG provides privacy-focused web search aggregation. Firecrawl handles web page extraction for RAG pipelines.
-
-### Access
-
-- LiteLLM: `litellm.home.shdr.ch`
-- OpenWebUI: `openwebui.home.shdr.ch`
-- SearXNG: `search.home.shdr.ch`
-
-## Reranker
-
-Cross-encoder reranking service for RAG pipelines. Runs on the GPU Workstation via [Text Embeddings Inference (TEI)](https://github.com/huggingface/text-embeddings-inference).
-
-| Setting | Value                     |
-| ------- | ------------------------- |
-| Model   | `BAAI/bge-reranker-large` |
-| Runtime | TEI with CUDA             |
-
-See [`gpu_workstation/reranker.yml`](../ansible/playbooks/gpu_workstation/reranker.yml) for configuration.
+Cross-encoder reranking and Qwen3 embeddings are served through **llama-swap** on the cluster (same `llama_swap_credential` as chat models in LiteLLM), not a separate TEI VM.

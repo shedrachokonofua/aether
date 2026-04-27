@@ -7,9 +7,9 @@ IaC for my private cloud.
 ## Features
 
 - **Infrastructure as Code**: Provisioning and configuration with Ansible, OpenTofu, and Nix
-- **Compute**: Proxmox VE cluster (5 nodes, 400GB RAM, 100 vCPUs) with HA failover for Ceph-backed VMs
+- **Compute**: Proxmox VE cluster (5 nodes, 400GB RAM, 100 vCPUs) with HA failover for Ceph-backed VMs, plus a bare-metal ARM Talos pool (2× Raspberry Pi 4 + 2× Raspberry Pi 5, 16GB RAM, 16 ARM cores combined)
 - **Application Containers**: Rootless Podman Quadlets (systemd-native), Docker only for where Podman is not feasible
-- **Kubernetes**: 3-node Talos cluster with Cilium CNI, Istio Ambient mesh (sidecar-less mTLS), Knative scale-to-zero, Gateway API, vcluster multi-tenancy
+- **Kubernetes**: Mixed amd64/arm64 Talos cluster — 3 amd64 control plane (also schedulable), 1 amd64 worker, 4 bare-metal ARM Pi workers — with Cilium CNI, Istio Ambient mesh (sidecar-less mTLS), Knative scale-to-zero, Gateway API, vcluster multi-tenancy, wasmCloud v2 runtime-operator for Wasm components
 - **Networking**: VyOS router with zone-based firewall, 3Gbps symmetric WAN, 10Gbps backbone, VLAN segmentation, AdGuard DNS, Tailscale mesh, rotating VPN SOCKS5 proxy
 - **Public Gateway**: Selective internet exposure via Cloudflare DNS/CDN, AWS Lightsail DMZ + CrowdSec WAF, proxied home via Tailscale mesh
 - **Intrusion Detection**: Suricata IDS on VyOS router, Zeek network analysis, events analyzed via ClickHouse

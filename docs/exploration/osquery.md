@@ -50,7 +50,7 @@ osquery alone runs per-host. For centralized querying, add Fleet:
 │            ▼                       ▼                       ▼            │
 │   ┌──────────────┐        ┌──────────────┐        ┌──────────────┐     │
 │   │   osquery    │        │   osquery    │        │   osquery    │     │
-│   │ gpu-workstation │     │   gitlab     │        │   dokploy    │     │
+│   │ talos-neo       │     │   gitlab     │        │   dokploy    │     │
 │   └──────────────┘        └──────────────┘        └──────────────┘     │
 │                                                                          │
 │   Results aggregated: All hosts, all packages, one view                 │

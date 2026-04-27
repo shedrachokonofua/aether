@@ -1,6 +1,6 @@
 # GPU Kubernetes Migration
 
-Eliminate the GPU Workstation VM by moving all GPU workloads into the Kubernetes cluster via talos-neo.
+**Status:** Phase 6 cleanup is applied in Git — the GPU Workstation VM, its Ansible playbooks, and Tofu module are removed; GPU workloads run on **talos-neo** in Kubernetes.
 
 ## Goal
 
@@ -14,24 +14,24 @@ Eliminate the GPU Workstation VM by moving all GPU workloads into the Kubernetes
 
 | Component | Details |
 | --------- | ------- |
-| GPU Workstation | Fedora VM on Neo, 32 cores, 64GB RAM, 1TB NVMe (local-lvm) |
-| GPU | Nvidia RTX Pro 6000 (96GB VRAM), PCIe passthrough to GPU Workstation |
-| talos-neo | K8s node on Neo, 8 cores, 16GB RAM, 64GB Ceph, no GPU (GPU Workstation averaged 11% RAM usage) |
-| Inference | Ollama (Podman quadlet, 18 models) + vLLM (systemd, Qwen3.5-27B) |
-| Management | Ansible (`gpu_workstation/`) + Tofu (`gpu_workstation.tf`) |
+| GPU Workstation | **Removed** (Phase 6) |
+| GPU | Nvidia RTX Pro 6000 — passthrough to **talos-neo** Talos VM |
+| talos-neo | K8s control plane + GPU worker on Neo (see `config/vm.yml`) |
+| Inference | **llama-swap** in-cluster (replaces Ollama + vLLM) |
+| Management | Tofu K8s manifests under `tofu/home/kubernetes/`; LiteLLM remains on ai-tool-stack VM |
 
-Current workloads on GPU Workstation:
+Workloads on **talos-neo** (Kubernetes):
 
 | Workload | Runtime | GPU |
 | -------- | ------- | --- |
-| Ollama | Podman quadlet | yes |
-| vLLM | systemd user unit (Python venv) | yes |
-| ComfyUI | Podman quadlet | yes |
-| SwarmUI | Podman quadlet | yes |
-| Docling | Podman quadlet | yes |
-| JupyterLab | Podman quadlet | yes |
-| ClearML | Podman quadlet | no |
-| TEI reranker | Podman quadlet | yes |
+| llama-swap | Deployment | yes |
+| ComfyUI | Deployment | yes |
+| Docling | Deployment | yes |
+| JupyterLab | Deployment | yes |
+| Speaches | Deployment | yes |
+| OpenWebUI, SearXNG, Firecrawl, … | Deployments | varies |
+
+**Removed:** SwarmUI, ClearML, Fedora gpu-workstation VM (and Caddy routes for those hostnames).
 
 ## Architecture
 
@@ -258,31 +258,23 @@ OTEL Gateway (Monitoring Stack VM, Niobe)
 Prometheus → Grafana
 ```
 
-Metrics: `dcgm_gpu_utilization`, `dcgm_fb_used`/`dcgm_fb_free` (VRAM), `dcgm_gpu_temp`, `dcgm_power_usage`, per-pod GPU metrics.
+Metrics from **dcgm-exporter** use Prometheus names such as `DCGM_FI_DEV_GPU_TEMP`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_GPU_UTIL`, etc. (scraped via the in-cluster OTEL Collector).
 
-Existing GPU alert rules need metric name updates: `nvidia_smi_*` → `dcgm_*`.
+Grafana alert rules in `ansible/playbooks/monitoring_stack/grafana/provisioning/alerting/rules.yml` use these DCGM metrics instead of the old `nvidia_smi_*` VM exporter series.
 
-## What Gets Deleted
+## Removed in Phase 6 (complete)
 
 | Item | Path |
 | ---- | ---- |
-| GPU Workstation VM | `tofu/home/gpu_workstation.tf` |
-| GPU Workstation SSH key | `tofu/variables.tf` (partial) |
-| GPU Workstation outputs | `tofu/outputs.tf`, `tofu/home/outputs.tf` (partial) |
-| NVIDIA drivers playbook | `ansible/playbooks/gpu_workstation/nvidia.yml` |
-| Ollama playbook | `ansible/playbooks/gpu_workstation/ollama.yml` |
-| vLLM playbook | `ansible/playbooks/gpu_workstation/vllm.yml` |
-| ComfyUI playbook | `ansible/playbooks/gpu_workstation/comfyui.yml` |
-| SwarmUI playbook | `ansible/playbooks/gpu_workstation/swarmui.yml` |
-| Docling playbook | `ansible/playbooks/gpu_workstation/docling.yml` |
-| JupyterLab playbook | `ansible/playbooks/gpu_workstation/jupyter/` |
-| ClearML playbook | `ansible/playbooks/gpu_workstation/clearml.yml` |
-| Reranker playbook | `ansible/playbooks/gpu_workstation/reranker.yml` |
-| Site playbook | `ansible/playbooks/gpu_workstation/site.yml` |
-| VM config entry | `config/vm.yml` (gpu_workstation section) |
-| Caddy reverse proxy | GPU Workstation routes in Caddyfile |
-| Monitoring | `nvidia_gpu_exporter` on GPU Workstation |
-| Neo Fedora image | `tofu/home/cloud_images.tf` (if no other Neo VMs need it) |
+| GPU Workstation VM | `tofu/home/gpu_workstation.tf` (deleted) |
+| GPU Workstation SSH key / outputs | `tofu/variables.tf`, `tofu/outputs.tf`, `tofu/home/outputs.tf` |
+| Ansible playbooks | `ansible/playbooks/gpu_workstation/` (deleted) |
+| VM config | `config/vm.yml` `gpu_workstation` block |
+| Caddy | Direct `vm.gpu_workstation` upstreams; legacy `ollama` / ComfyUI / Docling / Jupyter → Gateway VIP; SwarmUI + ClearML blocks removed |
+| Grafana VM dashboard overrides | Legend overrides that targeted `gpu-workstation` memory series |
+| Docs | `docs/ai-ml.md` rewritten for K8s |
+
+Apply **`tofu destroy` / `tofu apply`** in your environment to drop the Proxmox VM and refresh state after pulling these changes.
 
 ## Implementation Phases
 
@@ -306,7 +298,7 @@ Existing GPU alert rules need metric name updates: `nvidia_smi_*` → `dcgm_*`.
 - [x] Configure time-slicing (8 replicas)
 - [x] Deploy dcgm-exporter DaemonSet
 - [x] Verify OTEL Collector scrapes GPU metrics
-- [ ] Create local NVMe PV for model storage — deferred to Phase 6
+- [x] Local NVMe PV for model weights — `tofu/home/kubernetes/gpu_model_storage.tf`
 
 ### Phase 4: llama-swap + LiteLLM ✅
 
@@ -320,20 +312,19 @@ Existing GPU alert rules need metric name updates: `nvidia_smi_*` → `dcgm_*`.
 
 ### Phase 5: Remaining Workloads
 
-- [ ] Deploy TEI reranker Deployment
-- [ ] Deploy Docling Deployment
-- [ ] Deploy ComfyUI Knative Service (with SD models from local NVMe PV)
-- [ ] Deploy JupyterLab Knative Service (with PVC for workspace)
-- [ ] Verify all workloads functional
+- [x] Docling, ComfyUI, Jupyter — Terraform Deployments (`docling.tf`, `comfyui.tf`, `jupyter.tf`)
+- [x] Reranker / embeddings — via llama-swap + LiteLLM (no separate TEI Deployment)
+- [ ] Optional: Knative scale-to-zero migration for ComfyUI/Jupyter (currently always-on Deployments)
+- [ ] Verify end-to-end for your model set
 
 ### Phase 6: Cleanup
 
-- [ ] Delete GPU Workstation VM
-- [ ] Delete `tofu/home/gpu_workstation.tf` and related resources
-- [ ] Delete `ansible/playbooks/gpu_workstation/`
-- [ ] Remove GPU Workstation from `config/vm.yml`, Caddy, monitoring config
-- [ ] Update GPU alert rules (`nvidia_smi_*` → `dcgm_*`)
-- [ ] Update `docs/ai-ml.md` to reflect new architecture
+- [x] Delete GPU Workstation VM (remove from Tofu; run apply/destroy in Proxmox)
+- [x] Delete `tofu/home/gpu_workstation.tf` and related resources
+- [x] Delete `ansible/playbooks/gpu_workstation/`
+- [x] Remove GPU Workstation from `config/vm.yml`, Caddy, inventory, Taskfile
+- [x] Update GPU alert rules to DCGM (`DCGM_FI_DEV_*` in Grafana provisioning)
+- [x] Update `docs/ai-ml.md`
 
 ## Key Decisions
 
@@ -350,6 +341,6 @@ Existing GPU alert rules need metric name updates: `nvidia_smi_*` → `dcgm_*`.
 
 - `kubernetes.md` — K8s cluster architecture and workload migration plan
 - `workflow-orchestration.md` — GPU batch job patterns (Kestra + ComfyUI)
-- `../ai-ml.md` — Current AI/ML architecture (to be updated)
+- `../ai-ml.md` — Current AI/ML architecture (Kubernetes + ai-tool-stack)
 - `../monitoring.md` — Observability architecture (GPU metrics)
 - `../hosts.md` — Neo hardware specs

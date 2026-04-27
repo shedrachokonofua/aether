@@ -1,11 +1,6 @@
 # =============================================================================
 # ComfyUI — GPU Image Generation Workbench
 # =============================================================================
-# Migrates the GPU Workstation Podman quadlet to Kubernetes. Backed by the
-# shared `gpu-model-storage` local PV on talos-neo (sub_path "comfyui/root").
-# Existing VM state at /home/aether/comfyui/storage on the gpu-workstation VM
-# is copied into /var/mnt/gpu-storage/comfyui/root before this Deployment is
-# cut live.
 
 locals {
   comfyui_image   = "docker.io/yanwk/comfyui-boot:cu129-slim"

@@ -8,7 +8,6 @@
     - gitlab
     - iot-management-stack
     - messaging-stack
-    - gpu-workstation
     - ai-tool-stack
     - home-gateway-stack
     - monitoring-stack
