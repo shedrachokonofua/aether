@@ -47,10 +47,71 @@ JSON, re-export with "password-protected JSON" and delete the unencrypted file.
 
 ### Reference stash (in repo, gitignored)
 
-`.dokploy-ref/` — 39 stack compose YAMLs + redacted `.env` files captured from
-`/etc/dokploy/compose/` on the live VM. Use as reference for settings when
-redeploying kept apps. Secrets are redacted; the full `.env` values are still
-live on the dokploy VM.
+`.dokploy-ref/` contains 39 stack compose YAMLs + partially redacted `.env`
+files, captured from `/etc/dokploy/compose/` on the live VM. Directory layout:
+
+```
+.dokploy-ref/
+  README.md                         ← inventory + capture timestamp
+  default-affine-ghfpkn/
+    docker-compose.yml              ← full compose (no secrets)
+    .env.redacted                   ← env with PASSWORD/KEY/TOKEN values replaced
+    files/                          ← bind-mounted config files (e.g. config.json)
+  default-hoarder-xlt9m2/
+    docker-compose.yml
+    .env.redacted
+  ... (one dir per stack)
+```
+
+**What's redacted**: any env line whose key matches `PASSWORD|SECRET|KEY|TOKEN|
+API|DSN|PASS|AUTH|CRED|SALT|HASH` has its value replaced with `***REDACTED***`.
+
+**Getting the real values** — three options, in order of preference:
+
+1. **Fix SSH first (fastest once done):** add your Mac pubkey to `aether@10.0.3.6`
+   via the Proxmox console (`qm terminal 1005` on trinity), then:
+   ```bash
+   ssh aether@10.0.3.6 'sudo cat /etc/dokploy/compose/<stack>/code/.env'
+   ```
+
+2. **RBD snapshot (no SSH required):** the method used throughout this session.
+   Run this on trinity as root — it mounts the live disk read-only without
+   touching the VM:
+   ```bash
+   SNAP=read-$(date +%s)
+   rbd snap create vm-disks/vm-1005-disk-0@${SNAP}
+   rbd snap protect vm-disks/vm-1005-disk-0@${SNAP}
+   CLONE=vm-1005-clone-$(date +%s)
+   rbd clone vm-disks/vm-1005-disk-0@$SNAP vm-disks/$CLONE
+   DEV=$(rbd map vm-disks/$CLONE)
+   mkdir -p /tmp/dokploy-ro && mount -t btrfs ${DEV}p4 /tmp/dokploy-ro
+   # Read what you need, e.g.:
+   cat /tmp/dokploy-ro/root/etc/dokploy/compose/<stack>/code/.env
+   # Then clean up:
+   umount /tmp/dokploy-ro && rmdir /tmp/dokploy-ro
+   rbd unmap $DEV
+   rbd rm vm-disks/$CLONE
+   rbd snap unprotect vm-disks/vm-1005-disk-0@$SNAP
+   rbd snap rm vm-disks/vm-1005-disk-0@$SNAP
+   ```
+
+3. **Dokploy web UI:** `d.home.shdr.ch` → open the app → Environment tab shows
+   the current env values in plaintext (authenticated Dokploy session required).
+
+**On-disk layout on the VM** (for reference):
+```
+/etc/dokploy/compose/<stack-name>/
+  code/
+    docker-compose.yml    ← the compose file Dokploy manages
+    .env                  ← env file Dokploy injects
+  files/                  ← extra bind-mounts (configs, seeds, etc.)
+  <app-name>/             ← bind-mounted data dirs (e.g. silverbullet-2, postgres_data)
+```
+
+Docker named volumes (for image-managed data like sqlite, postgres data dirs)
+live at `/var/lib/docker/volumes/<project-name>_<volume-name>/_data` on the VM,
+which sits on the btrfs `var` subvolume — accessible via the RBD snapshot method
+above (option 2).
 
 ### IaC built and committed (`migration/nextcloud-k8s` branch, commit `554735a`)
 
