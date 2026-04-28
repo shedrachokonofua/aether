@@ -318,6 +318,10 @@ resource "kubernetes_deployment_v1" "openwebui" {
   spec {
     replicas = 1
 
+    strategy {
+      type = "Recreate"
+    }
+
     selector {
       match_labels = {
         app = "openwebui"

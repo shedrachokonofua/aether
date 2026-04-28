@@ -8,11 +8,13 @@ $CONFIG = array (
     0 => 'localhost',
     1 => '${host}',
     2 => '${gateway_host}',
+    3 => '${service_host}',
   ),
   'trusted_proxies' => array (0 => '0.0.0.0/0'),
   'overwriteprotocol' => 'https',
   'overwritehost'     => '${host}',
   'overwrite.cli.url' => 'https://${host}',
+  'allow_local_remote_servers' => true,
 
   'log_type'                => 'errorlog',
   'loglevel'                => 2,

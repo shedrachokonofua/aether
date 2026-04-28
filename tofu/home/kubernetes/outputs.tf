@@ -71,3 +71,8 @@ output "gitlab_runner_namespace" {
   description = "Namespace hosting the Kubernetes GitLab runner"
   value       = kubernetes_namespace_v1.gitlab_runner.metadata[0].name
 }
+
+output "coder_url" {
+  description = "Coder public URL via Gateway API"
+  value       = "https://${local.coder_host}"
+}

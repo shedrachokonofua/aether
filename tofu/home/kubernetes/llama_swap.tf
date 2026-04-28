@@ -211,6 +211,15 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --pooling last
           ttl: 120
 
+      groups:
+        "affine":
+          swap: false
+          exclusive: false
+          persistent: true
+          members:
+            - "gemma-4-26b-a4b"
+            - "qwen3.5-9b"
+
       matrix:
         vars:
           q3627: "qwen3.6-27b"

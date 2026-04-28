@@ -22,6 +22,8 @@ resource "tailscale_acl" "tailnet_acl" {
           "tag:home-gateway:*",
           "tag:public-gateway:*",
           "autogroup:self:*",
+          "10.0.0.0/8:*",
+          "192.168.0.0/16:*",
         ],
       },
       // Shared users (co-founders via node sharing): HTTPS, DNS, GitLab SSH
@@ -58,7 +60,7 @@ resource "tailscale_acl" "tailnet_acl" {
 
 resource "tailscale_dns_nameservers" "tailnet_nameservers" {
   nameservers = [
-    "10.0.0.1",
+    data.tailscale_device.home_gateway.addresses[0],
   ]
 }
 

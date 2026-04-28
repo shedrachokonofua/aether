@@ -24,6 +24,18 @@ resource "random_password" "dawarich_secret_key_base" {
   length  = 64
   special = false
 }
+resource "random_password" "dawarich_otp_encryption_primary_key" {
+  length  = 64
+  special = false
+}
+resource "random_password" "dawarich_otp_encryption_deterministic_key" {
+  length  = 64
+  special = false
+}
+resource "random_password" "dawarich_otp_encryption_key_derivation_salt" {
+  length  = 64
+  special = false
+}
 
 locals {
   dawarich_image       = "freikin/dawarich:latest"
@@ -51,6 +63,9 @@ locals {
     DATABASE_NAME     = "dawarich_production"
     REDIS_URL         = "redis://dawarich-redis.dawarich.svc.cluster.local:${local.dawarich_redis_port}"
     SECRET_KEY_BASE   = random_password.dawarich_secret_key_base.result
+    OTP_ENCRYPTION_PRIMARY_KEY = random_password.dawarich_otp_encryption_primary_key.result
+    OTP_ENCRYPTION_DETERMINISTIC_KEY = random_password.dawarich_otp_encryption_deterministic_key.result
+    OTP_ENCRYPTION_KEY_DERIVATION_SALT = random_password.dawarich_otp_encryption_key_derivation_salt.result
     APPLICATION_HOSTS = "localhost,${local.dawarich_host},${local.dawarich_gateway_host}"
     TIME_ZONE         = "America/Toronto"
     APPLICATION_PROTOCOL  = "https"
@@ -256,6 +271,7 @@ resource "kubernetes_deployment_v1" "dawarich" {
         container {
           name       = "dawarich"
           image      = local.dawarich_image
+          command = ["web-entrypoint.sh"]
           args = ["bin/rails", "server", "-p", "3000", "-b", "::"]
 
           dynamic "env" {
@@ -338,9 +354,20 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
       metadata { labels = local.dawarich_sidekiq_labels }
       spec {
         enable_service_links = false
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_labels = local.dawarich_labels
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
         container {
           name    = "sidekiq"
           image   = local.dawarich_image
+          command = ["sidekiq-entrypoint.sh"]
           args = ["sidekiq"]
 
           dynamic "env" {

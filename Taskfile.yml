@@ -257,8 +257,6 @@ tasks:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml {{.CLI_ARGS}}
   configure:ceph-exporter:
     cmds: [ansible-playbook ansible/playbooks/configure_ceph_exporter.yml]
-  configure:dokploy:
-    cmds: [ansible-playbook ansible/playbooks/dokploy/site.yml]
   configure:gitlab:
     cmds: [ansible-playbook ansible/playbooks/gitlab/site.yml]
   configure:backup:
@@ -275,6 +273,9 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/dev_workstation/site.yml]
   configure:cockpit:
     cmds: [ansible-playbook ansible/playbooks/cockpit/site.yml]
+  configure:litellm-keys:
+    desc: Register SOPS-backed LiteLLM virtual keys by alias
+    cmds: [ansible-playbook ansible/playbooks/register_litellm_virtual_keys.yml]
   configure:media-stack:
     cmds: [ansible-playbook ansible/playbooks/media_stack/site.yml]
   decommission:media-k8s:
@@ -395,6 +396,5 @@ tasks:
     cmds:
       - task: configure:gateway
       - task: configure:monitoring
-      - task: configure:dokploy
       - task: configure:gitlab
       - task: configure:backup

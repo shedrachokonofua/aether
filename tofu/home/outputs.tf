@@ -8,11 +8,6 @@ output "monitoring_stack_console_password" {
   sensitive = true
 }
 
-output "dokploy_console_password" {
-  value     = random_password.dokploy_console_password.result
-  sensitive = true
-}
-
 output "backup_stack_password" {
   value     = random_password.backup_stack_password.result
   sensitive = true
@@ -64,6 +59,16 @@ output "keycloak_gitlab_client_secret" {
 
 output "keycloak_oauth2_proxy_client_secret" {
   value     = keycloak_openid_client.oauth2_proxy.client_secret
+  sensitive = true
+}
+
+output "keycloak_karakeep_client_secret" {
+  value     = keycloak_openid_client.karakeep.client_secret
+  sensitive = true
+}
+
+output "keycloak_memos_client_secret" {
+  value     = keycloak_openid_client.memos.client_secret
   sensitive = true
 }
 

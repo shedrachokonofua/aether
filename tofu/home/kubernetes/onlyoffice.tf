@@ -5,11 +5,21 @@
 # HTTPS URL so browser and callback URLs stay on the canonical trusted host.
 
 locals {
-  onlyoffice_host = "onlyoffice.apps.home.shdr.ch"
-  onlyoffice_url  = "https://${local.onlyoffice_host}"
+  onlyoffice_host         = "onlyoffice.apps.home.shdr.ch"
+  onlyoffice_url          = "https://${local.onlyoffice_host}"
+  onlyoffice_internal_url = local.onlyoffice_url
+  onlyoffice_storage_url  = "http://nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"
 
   onlyoffice_image = "onlyoffice/documentserver:latest"
   onlyoffice_port  = 80
+
+  nextcloud_onlyoffice_bootstrap_hash = nonsensitive(substr(sha256(join("|", [
+    local.onlyoffice_url,
+    local.onlyoffice_internal_url,
+    local.onlyoffice_storage_url,
+    random_password.onlyoffice_jwt_secret.result,
+    "Authorization",
+  ])), 0, 12))
 
   onlyoffice_labels = { app = "onlyoffice" }
 }
@@ -184,7 +194,7 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
   ]
 
   metadata {
-    name      = "nextcloud-onlyoffice-bootstrap"
+    name      = "nextcloud-onlyoffice-bootstrap-${local.nextcloud_onlyoffice_bootstrap_hash}"
     namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
   }
 
@@ -219,6 +229,17 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
           name  = "occ"
           image = local.nextcloud_server_image
 
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "1"
+              memory = "1Gi"
+            }
+          }
+
           command = ["/bin/sh", "-c", <<-EOT
             set -eu
             echo "Waiting for Nextcloud server to be installed..."
@@ -241,11 +262,13 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
             done
 
             cd /var/www/html
-            php occ status
-            php occ app:install onlyoffice || php occ app:enable onlyoffice
-            php occ config:app:set onlyoffice DocumentServerUrl --value="$${ONLYOFFICE_URL}/"
-            php occ config:app:set onlyoffice jwt_secret --value="$${JWT_SECRET}"
-            php occ config:app:set onlyoffice jwt_header --value="Authorization"
+            runuser -u www-data -- php occ status
+            runuser -u www-data -- php occ app:install onlyoffice || runuser -u www-data -- php occ app:enable onlyoffice
+            runuser -u www-data -- php occ config:app:set onlyoffice DocumentServerUrl --value="$${ONLYOFFICE_URL}/"
+            runuser -u www-data -- php occ config:app:set onlyoffice DocumentServerInternalUrl --value="$${ONLYOFFICE_INTERNAL_URL}/"
+            runuser -u www-data -- php occ config:app:set onlyoffice StorageUrl --value="$${ONLYOFFICE_STORAGE_URL}/"
+            runuser -u www-data -- php occ config:app:set onlyoffice jwt_secret --value="$${JWT_SECRET}"
+            runuser -u www-data -- php occ config:app:set onlyoffice jwt_header --value="Authorization"
           EOT
           ]
 
@@ -257,6 +280,16 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
           env {
             name  = "ONLYOFFICE_URL"
             value = local.onlyoffice_url
+          }
+
+          env {
+            name  = "ONLYOFFICE_INTERNAL_URL"
+            value = local.onlyoffice_internal_url
+          }
+
+          env {
+            name  = "ONLYOFFICE_STORAGE_URL"
+            value = local.onlyoffice_storage_url
           }
 
           env {
@@ -275,9 +308,14 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
           }
 
           volume_mount {
+            name       = "data"
+            mount_path = "/var/www/html/data"
+          }
+
+          volume_mount {
             name       = "config"
-            mount_path = "/var/www/html/config/config.php"
-            sub_path   = "config.php"
+            mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
+            sub_path   = "nextcloud-k8s.config.php"
             read_only  = true
           }
         }
@@ -290,12 +328,19 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
         }
 
         volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_data.metadata[0].name
+          }
+        }
+
+        volume {
           name = "config"
           secret {
             secret_name = kubernetes_secret_v1.nextcloud_config.metadata[0].name
             items {
-              key  = "config.php"
-              path = "config.php"
+              key  = "nextcloud-k8s.config.php"
+              path = "nextcloud-k8s.config.php"
             }
           }
         }

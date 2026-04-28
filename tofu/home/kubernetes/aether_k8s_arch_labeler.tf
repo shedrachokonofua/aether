@@ -8,7 +8,7 @@
 locals {
   aether_k8s_arch_labeler_namespace = "aether-k8s-arch-labeler"
   aether_k8s_arch_labeler_name      = "aether-k8s-arch-labeler"
-  aether_k8s_arch_labeler_image     = "registry.gitlab.home.shdr.ch/so/aether/aether-k8s-arch-labeler:latest"
+  aether_k8s_arch_labeler_image     = "registry.gitlab.home.shdr.ch/so/aether/aether-k8s-arch-labeler:944ccf25"
 }
 
 resource "kubectl_manifest" "aether_k8s_arch_labeler_namespace" {
@@ -39,6 +39,54 @@ resource "kubectl_manifest" "aether_k8s_arch_labeler_service_account" {
         "app.kubernetes.io/name" = local.aether_k8s_arch_labeler_name
       }
     }
+  })
+}
+
+resource "kubectl_manifest" "aether_k8s_arch_labeler_cluster_role" {
+  depends_on = [kubectl_manifest.aether_k8s_arch_labeler_service_account]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRole"
+    metadata = {
+      name = local.aether_k8s_arch_labeler_name
+      labels = {
+        "app.kubernetes.io/name" = local.aether_k8s_arch_labeler_name
+      }
+    }
+    rules = [{
+      apiGroups = [""]
+      resources = ["pods"]
+      verbs     = ["get", "list", "patch"]
+    }]
+  })
+}
+
+resource "kubectl_manifest" "aether_k8s_arch_labeler_cluster_role_binding" {
+  depends_on = [
+    kubectl_manifest.aether_k8s_arch_labeler_cluster_role,
+    kubectl_manifest.aether_k8s_arch_labeler_service_account,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRoleBinding"
+    metadata = {
+      name = local.aether_k8s_arch_labeler_name
+      labels = {
+        "app.kubernetes.io/name" = local.aether_k8s_arch_labeler_name
+      }
+    }
+    roleRef = {
+      apiGroup = "rbac.authorization.k8s.io"
+      kind     = "ClusterRole"
+      name     = local.aether_k8s_arch_labeler_name
+    }
+    subjects = [{
+      kind      = "ServiceAccount"
+      name      = local.aether_k8s_arch_labeler_name
+      namespace = local.aether_k8s_arch_labeler_namespace
+    }]
   })
 }
 
@@ -121,6 +169,7 @@ resource "kubectl_manifest" "aether_k8s_arch_labeler_service" {
 resource "kubectl_manifest" "aether_k8s_arch_labeler_deployment" {
   depends_on = [
     kubectl_manifest.aether_k8s_arch_labeler_certificate,
+    kubectl_manifest.aether_k8s_arch_labeler_cluster_role_binding,
     kubectl_manifest.aether_k8s_arch_labeler_service_account,
     kubectl_manifest.kyverno_arm_pool_guardrails,
   ]
@@ -151,7 +200,7 @@ resource "kubectl_manifest" "aether_k8s_arch_labeler_deployment" {
         }
         spec = {
           serviceAccountName           = local.aether_k8s_arch_labeler_name
-          automountServiceAccountToken = false
+          automountServiceAccountToken = true
           securityContext = {
             runAsNonRoot = true
             runAsUser    = 65532
@@ -163,7 +212,7 @@ resource "kubectl_manifest" "aether_k8s_arch_labeler_deployment" {
           containers = [{
             name            = "webhook"
             image           = local.aether_k8s_arch_labeler_image
-            imagePullPolicy = "IfNotPresent"
+            imagePullPolicy = "Always"
             env = [
               { name = "LISTEN_ADDR", value = ":8443" },
               { name = "TLS_CERT_FILE", value = "/tls/tls.crt" },
@@ -172,9 +221,15 @@ resource "kubectl_manifest" "aether_k8s_arch_labeler_deployment" {
               { name = "TARGET_ARCH", value = "arm64" },
               { name = "ARM_OK_LABEL", value = "aether.sh/arm-ok" },
               { name = "ARM_OK_VALUE", value = "true" },
+              { name = "PREFER_ARM_POOL", value = "true" },
+              { name = "ARM_POOL_LABEL", value = "aether.sh/node-pool" },
+              { name = "ARM_POOL_VALUE", value = "arm" },
+              { name = "ARM_POOL_PREFERENCE_WEIGHT", value = "35" },
               { name = "MAX_MEMORY_REQUEST", value = "512Mi" },
-              { name = "REGISTRY_TIMEOUT", value = "2s" },
+              { name = "REGISTRY_TIMEOUT", value = "10s" },
               { name = "CACHE_TTL", value = "24h" },
+              { name = "BACKFILL_EXISTING_PODS", value = "true" },
+              { name = "BACKFILL_INTERVAL", value = "1h" },
               { name = "LOG_LEVEL", value = "info" },
             ]
             envFrom = [{

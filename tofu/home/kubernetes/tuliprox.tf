@@ -182,6 +182,17 @@ resource "kubernetes_deployment_v1" "tuliprox" {
           image   = "busybox:latest"
           command = ["sh", "-c", "cp /secret-config/* /app/config/"]
 
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "16Mi"
+            }
+            limits = {
+              cpu    = "100m"
+              memory = "64Mi"
+            }
+          }
+
           volume_mount {
             name       = "secret-config"
             mount_path = "/secret-config"

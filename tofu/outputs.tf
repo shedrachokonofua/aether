@@ -8,11 +8,6 @@ output "home_monitoring_stack_console_password" {
   sensitive = true
 }
 
-output "home_dokploy_console_password" {
-  value     = module.home.dokploy_console_password
-  sensitive = true
-}
-
 output "home_backup_stack_password" {
   value     = module.home.backup_stack_password
   sensitive = true

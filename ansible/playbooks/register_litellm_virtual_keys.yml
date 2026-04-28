@@ -1,0 +1,91 @@
+---
+- name: Register LiteLLM virtual keys
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    litellm_url: "{{ lookup('env', 'LITELLM_URL') | default('https://litellm.home.shdr.ch', true) }}"
+    litellm_key_models:
+      - all-team-models
+    litellm_key_user_id: default_user_id
+
+  tasks:
+    - name: Load secrets
+      community.sops.load_vars:
+        file: "{{ aether_root }}/secrets/secrets.yml"
+        name: secrets
+
+    - name: Check LiteLLM key inputs
+      ansible.builtin.assert:
+        that:
+          - secrets.litellm.master_key is defined
+          - secrets.litellm.virtual_keys is defined
+          - secrets.litellm.virtual_keys | length > 0
+        fail_msg: "secrets.litellm.master_key and secrets.litellm.virtual_keys are required"
+
+    - name: Wait for LiteLLM API
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/health/liveliness"
+        method: GET
+        status_code: [200]
+      register: litellm_health
+      retries: 12
+      delay: 5
+      until: litellm_health.status == 200
+
+    - name: Check if virtual keys exist by alias
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/list?key_alias={{ item.key }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+        status_code: [200]
+        return_content: true
+      register: litellm_key_check
+      loop: "{{ secrets.litellm.virtual_keys | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      no_log: true
+
+    - name: Build existing alias list
+      ansible.builtin.set_fact:
+        litellm_existing_aliases: "{{ (litellm_existing_aliases | default([])) + [item.item.key] }}"
+      loop: "{{ litellm_key_check.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: item.json.total_count | default(0) | int > 0
+
+    - name: Build missing alias list
+      ansible.builtin.set_fact:
+        litellm_missing_aliases: "{{ (litellm_missing_aliases | default([])) + [item.item.key] }}"
+      loop: "{{ litellm_key_check.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: item.json.total_count | default(0) | int == 0
+
+    - name: Create missing virtual keys
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/generate"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ item.item.value }}"
+          key_alias: "{{ item.item.key }}"
+          models: "{{ litellm_key_models }}"
+          user_id: "{{ litellm_key_user_id }}"
+        status_code: [200]
+      loop: "{{ litellm_key_check.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: item.json.total_count | default(0) | int == 0
+      no_log: true
+
+    - name: Report virtual key registration
+      ansible.builtin.debug:
+        msg:
+          litellm_url: "{{ litellm_url }}"
+          existing_aliases: "{{ litellm_existing_aliases | default([]) | sort }}"
+          created_aliases: "{{ litellm_missing_aliases | default([]) | sort }}"

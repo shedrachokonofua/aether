@@ -251,11 +251,11 @@ resource "kubernetes_deployment_v1" "karakeep" {
           }
           env {
             name = "INFERENCE_TEXT_MODEL"
-            value = "claude-sonnet-4-20250514"
+            value = "aether/qwen3.5-9b"
           }
           env {
             name = "INFERENCE_IMAGE_MODEL"
-            value = "o4-mini"
+            value = "aether/qwen3.5-9b"
           }
           env {
             name = "EMBEDDING_TEXT_MODEL"
@@ -272,6 +272,50 @@ resource "kubernetes_deployment_v1" "karakeep" {
           env {
             name = "DATA_DIR"
             value = "/data"
+          }
+          env {
+            name  = "OCR_USE_LLM"
+            value = "true"
+          }
+          env {
+            name  = "CRAWLER_STORE_SCREENSHOT"
+            value = "true"
+          }
+          env {
+            name  = "CRAWLER_FULL_PAGE_SCREENSHOT"
+            value = "true"
+          }
+          env {
+            name  = "CRAWLER_FULL_PAGE_ARCHIVE"
+            value = "true"
+          }
+          env {
+            name  = "CRAWLER_VIDEO_DOWNLOAD"
+            value = "true"
+          }
+          env {
+            name  = "OAUTH_WELLKNOWN_URL"
+            value = "${var.oidc_issuer_url}/.well-known/openid-configuration"
+          }
+          env {
+            name  = "OAUTH_CLIENT_ID"
+            value = "karakeep"
+          }
+          env {
+            name  = "OAUTH_CLIENT_SECRET"
+            value = var.karakeep_oauth_client_secret
+          }
+          env {
+            name  = "OAUTH_PROVIDER_NAME"
+            value = "Aether"
+          }
+          env {
+            name  = "OAUTH_SCOPE"
+            value = "openid email profile"
+          }
+          env {
+            name  = "DISABLE_PASSWORD_AUTH"
+            value = "true"
           }
 
           port {

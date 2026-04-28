@@ -93,6 +93,17 @@ resource "kubernetes_deployment_v1" "ups_management" {
           name  = "prepare-nut-config"
           image = "busybox:latest"
 
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "16Mi"
+            }
+            limits = {
+              cpu    = "100m"
+              memory = "64Mi"
+            }
+          }
+
           command = [
             "sh",
             "-c",

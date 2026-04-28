@@ -20,7 +20,7 @@ resource "random_password" "affine_db_password" {
 }
 
 locals {
-  affine_version  = "0.25.7"
+  affine_version  = "0.26.3"
   affine_image    = "ghcr.io/toeverything/affine:${local.affine_version}"
   affine_pg_image = "pgvector/pgvector:pg16"
   affine_redis_image   = "redis:latest"
@@ -51,6 +51,58 @@ resource "kubernetes_secret_v1" "affine_postgres" {
     POSTGRES_USER     = "affine"
     POSTGRES_PASSWORD = random_password.affine_db_password.result
     POSTGRES_DB       = "affine"
+  }
+  type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "affine_config" {
+  depends_on = [kubernetes_namespace_v1.affine]
+  metadata {
+    name      = "affine-config"
+    namespace = local.affine_ns
+  }
+  data = {
+    "config.json" = jsonencode({
+      "$schema" = "https://github.com/toeverything/affine/releases/latest/download/config.schema.json"
+      auth = {
+        requireEmailVerification = false
+      }
+      oauth = {
+        providers = {
+          oidc = {
+            issuer       = var.oidc_issuer_url
+            clientId     = "affine"
+            clientSecret = var.affine_oauth_client_secret
+            args = {
+              scope = "openid profile email"
+            }
+          }
+        }
+      }
+      copilot = {
+        enabled = true
+        "providers.openai" = {
+          apiKey      = var.secrets["litellm.virtual_keys.affine"]
+          baseURL     = "https://litellm.home.shdr.ch/v1"
+          oldApiStyle = true
+        }
+        scenarios = {
+          override_enabled = true
+          scenarios = {
+            chat                    = "aether/gemma-4-26b-a4b"
+            coding                  = "aether/qwen3.6-35b-a3b:code"
+            complex_text_generation = "aether/gemma-4-26b-a4b"
+            polish_and_summarize    = "aether/qwen3.5-9b"
+            quick_decision_making   = "aether/qwen3.5-9b"
+            quick_text_generation   = "aether/gemma-4-26b-a4b"
+            rerank                  = "aether/bge-reranker-v2-m3"
+            embedding               = "aether/qwen3-embedding:4b"
+            audio_transcribing      = "aether/whisper-large-v3"
+            image                   = "gpt-image-1"
+          }
+        }
+      }
+    })
   }
   type = "Opaque"
 }
@@ -336,6 +388,7 @@ resource "kubernetes_deployment_v1" "affine" {
     kubernetes_job_v1.affine_migration,
     kubernetes_service_v1.affine_manticore,
     kubernetes_persistent_volume_claim_v1.affine_uploads,
+    kubernetes_secret_v1.affine_config,
   ]
   metadata {
     name      = "affine"
@@ -393,6 +446,13 @@ resource "kubernetes_deployment_v1" "affine" {
             mount_path = "/root/.affine/storage"
           }
 
+          volume_mount {
+            name       = "config"
+            mount_path = "/root/.affine/config/config.json"
+            sub_path   = "config.json"
+            read_only  = true
+          }
+
           resources {
             requests = { cpu = "200m", memory = "512Mi" }
             limits   = { cpu = "2", memory = "4Gi" }
@@ -410,6 +470,12 @@ resource "kubernetes_deployment_v1" "affine" {
         volume {
           name = "uploads"
           persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.affine_uploads.metadata[0].name }
+        }
+        volume {
+          name = "config"
+          secret {
+            secret_name = kubernetes_secret_v1.affine_config.metadata[0].name
+          }
         }
       }
     }

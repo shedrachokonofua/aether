@@ -79,21 +79,6 @@ nfs:
     gigahub: "192.168.2.232"
     vyos: "10.0.2.4"
 
-dokploy:
-  id: 1005
-  name: "dokploy"
-  node: "trinity"
-  admin: "aether"
-  cores: 8
-  memory: 16384
-  disk_gb: 256
-  ip: "10.0.3.6"
-  gateway: "10.0.3.1"
-  ports:
-    dokploy: 3000
-    traefik: 8080
-    watchtower: 28080
-
 gitlab:
   id: 1006
   name: "gitlab"
@@ -357,7 +342,7 @@ talos_trinity:
   role: "controlplane"
   node: "trinity"
   cores: 8
-  memory: 24576
+  memory: 32768
   disk_gb: 64
   # Local NVMe disk for etcd dataDir, isolating it from the Ceph-backed root
   # to eliminate fsync stalls (the workaround in talos_cluster.tf raised

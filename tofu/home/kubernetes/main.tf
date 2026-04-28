@@ -136,6 +136,30 @@ variable "litellm_mcp_url" {
   description = "LiteLLM MCP endpoint URL used by MCPO"
 }
 
+variable "coder_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Coder Keycloak OIDC client secret"
+}
+
+variable "affine_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "AFFiNE Keycloak OIDC client secret"
+}
+
+variable "karakeep_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Karakeep Keycloak OIDC client secret"
+}
+
+variable "memos_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Memos Keycloak OIDC client secret (consumed by bootstrap Job — Memos has no OIDC env vars)"
+}
+
 # =============================================================================
 # NFS Storage
 # =============================================================================

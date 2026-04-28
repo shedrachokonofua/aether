@@ -1053,6 +1053,174 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "coder_roles" {
   add_to_userinfo     = true
 }
 
+# =============================================================================
+# AFFiNE OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "affine" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "affine"
+  name      = "AFFiNE"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://affine.home.shdr.ch"
+  base_url  = "https://affine.home.shdr.ch"
+  admin_url = "https://affine.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://affine.home.shdr.ch/oauth/callback",
+    "https://affine.apps.home.shdr.ch/oauth/callback",
+  ]
+
+  web_origins = [
+    "https://affine.home.shdr.ch",
+    "https://affine.apps.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "affine_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.affine.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "affine_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.affine.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+# =============================================================================
+# Karakeep OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "karakeep" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "karakeep"
+  name      = "Karakeep"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://karakeep.home.shdr.ch"
+  base_url  = "https://karakeep.home.shdr.ch"
+  admin_url = "https://karakeep.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://karakeep.home.shdr.ch/api/auth/callback/custom",
+    "https://karakeep.apps.home.shdr.ch/api/auth/callback/custom",
+  ]
+
+  web_origins = [
+    "https://karakeep.home.shdr.ch",
+    "https://karakeep.apps.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "karakeep_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.karakeep.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "karakeep_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.karakeep.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+# =============================================================================
+# Memos OIDC Client
+# =============================================================================
+# Memos has no MEMOS_OIDC_* env vars (upstream issue #5004 closed wontfix).
+# Identity provider lives in the SQLite DB and is bootstrapped via
+# POST /api/v1/identity-providers after the deployment is up.
+# This block provisions the Keycloak client; the secret is wired through
+# kubernetes/main.tf for the bootstrap Job to consume.
+
+resource "keycloak_role" "memos_user" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "memos-user"
+  description = "Memos User"
+}
+
+resource "keycloak_openid_client" "memos" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "memos"
+  name      = "Memos"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://memos.home.shdr.ch"
+  base_url  = "https://memos.home.shdr.ch"
+  admin_url = "https://memos.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://memos.home.shdr.ch/auth/callback",
+  ]
+
+  web_origins = [
+    "https://memos.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "memos_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.memos.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "memos_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.memos.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
 resource "keycloak_openid_client" "seven30_kubernetes" {
   realm_id  = keycloak_realm.aether.id
   client_id = "seven30-kubernetes"
