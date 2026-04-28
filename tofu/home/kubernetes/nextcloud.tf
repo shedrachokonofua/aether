@@ -765,14 +765,25 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             timeout_seconds       = 5
           }
 
+          # CephFS via ceph-fuse pays a metadata roundtrip per stat/open, which
+          # is the worst case for PHP's `require_once` fan-out. OPcache caches
+          # compiled bytecode in shared memory and (with validate_timestamps=0)
+          # stops touching the filesystem after warmup. To pick up code changes
+          # after a Nextcloud upgrade you have to restart the pod.
+          volume_mount {
+            name       = "opcache"
+            mount_path = "/usr/local/etc/php/conf.d/zz-nextcloud-opcache.ini"
+            sub_path   = "zz-nextcloud-opcache.ini"
+          }
+
           resources {
             requests = {
-              cpu    = "200m"
-              memory = "512Mi"
+              cpu    = "500m"
+              memory = "1.5Gi"
             }
             limits = {
-              cpu    = "3"
-              memory = "3Gi"
+              cpu    = "2"
+              memory = "4Gi"
             }
           }
         }
@@ -801,8 +812,38 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             }
           }
         }
+
+        volume {
+          name = "opcache"
+          config_map {
+            name = kubernetes_config_map_v1.nextcloud_opcache.metadata[0].name
+          }
+        }
       }
     }
+  }
+}
+
+resource "kubernetes_config_map_v1" "nextcloud_opcache" {
+  depends_on = [kubernetes_namespace_v1.nextcloud]
+
+  metadata {
+    name      = "nextcloud-opcache"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  data = {
+    "zz-nextcloud-opcache.ini" = <<-INI
+      opcache.enable=1
+      opcache.enable_cli=0
+      opcache.memory_consumption=256
+      opcache.interned_strings_buffer=32
+      opcache.max_accelerated_files=20000
+      opcache.validate_timestamps=0
+      opcache.save_comments=1
+      opcache.jit=tracing
+      opcache.jit_buffer_size=128M
+    INI
   }
 }
 
