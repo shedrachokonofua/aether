@@ -1,7 +1,6 @@
 ---
 - name: Setup VM monitoring agents
   hosts:
-    - dev-workstation
     - dokploy
     - game-server
     - gateway-stack

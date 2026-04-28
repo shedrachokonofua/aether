@@ -1,9 +1,0 @@
----
-- name: Base setup
-  import_playbook: base.yml
-
-- name: Configure Fish
-  import_playbook: fish/site.yml
-
-- name: Mount network storage
-  import_playbook: mount_network_storage.yml

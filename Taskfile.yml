@@ -269,8 +269,6 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/setup_host_monitoring_agents.yml]
   configure:cockpit-agents:
     cmds: [ansible-playbook ansible/playbooks/setup_cockpit_agents.yml]
-  configure:dev-workstation:
-    cmds: [ansible-playbook ansible/playbooks/dev_workstation/site.yml]
   configure:cockpit:
     cmds: [ansible-playbook ansible/playbooks/cockpit/site.yml]
   configure:litellm-keys:
