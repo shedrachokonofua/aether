@@ -26,8 +26,7 @@ locals {
   affine_redis_image   = "redis:latest"
   affine_manticore_image = "manticoresearch/manticore:10.1.0"
 
-  affine_gateway_host = "affine.apps.home.shdr.ch"
-  affine_host         = "affine.home.shdr.ch"
+  affine_host = "affine.home.shdr.ch"
   affine_port         = 3010
 
   affine_pg_port       = 5432
@@ -506,7 +505,7 @@ resource "kubernetes_manifest" "affine_route" {
     metadata   = { name = "affine", namespace = local.affine_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.affine_gateway_host]
+      hostnames  = [local.affine_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"

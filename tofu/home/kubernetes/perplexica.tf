@@ -2,15 +2,14 @@
 # Perplexica — AI-powered Search
 # =============================================================================
 # Single container. Config.toml mounted from a Secret.
-# SearXNG backend: searxng.apps.home.shdr.ch (k8s)
+# SearXNG backend: searxng.home.shdr.ch (k8s)
 #
 # Data migration: tiny volumes (~32KB), can start fresh or copy:
 #   perplexica-backend-dbstore-default-perplexica-1vcy9k → memos-data PVC
 
 locals {
   perplexica_image        = "itzcrazykns1337/perplexica:latest"
-  perplexica_gateway_host = "perplexica.apps.home.shdr.ch"
-  perplexica_host         = "perplexica.home.shdr.ch"
+  perplexica_host = "perplexica.home.shdr.ch"
   perplexica_port         = 3000
   perplexica_ns           = kubernetes_namespace_v1.personal.metadata[0].name
   perplexica_labels       = { app = "perplexica" }
@@ -182,7 +181,7 @@ resource "kubernetes_manifest" "perplexica_route" {
     metadata   = { name = "perplexica", namespace = local.perplexica_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.perplexica_gateway_host]
+      hostnames  = [local.perplexica_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"

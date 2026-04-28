@@ -57,7 +57,7 @@ resource "kubernetes_manifest" "main_gateway" {
           name     = "http"
           protocol = "HTTP"
           port     = 80
-          hostname = "*.apps.home.shdr.ch"
+          hostname = "*.home.shdr.ch"
           allowedRoutes = {
             namespaces = {
               from = "All"

@@ -364,19 +364,17 @@ resource "keycloak_openid_client" "openwebui" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://openwebui.apps.home.shdr.ch"
-  base_url  = "https://openwebui.apps.home.shdr.ch"
-  admin_url = "https://openwebui.apps.home.shdr.ch"
+  root_url  = "https://openwebui.home.shdr.ch"
+  base_url  = "https://openwebui.home.shdr.ch"
+  admin_url = "https://openwebui.home.shdr.ch"
 
   valid_redirect_uris = [
     "https://openwebui.home.shdr.ch/oauth/oidc/callback",
-    "https://openwebui.apps.home.shdr.ch/oauth/oidc/callback",
     "https://ai.shdr.ch/oauth/oidc/callback",
   ]
 
   web_origins = [
     "https://openwebui.home.shdr.ch",
-    "https://openwebui.apps.home.shdr.ch",
     "https://ai.shdr.ch",
   ]
 }
@@ -415,18 +413,18 @@ resource "keycloak_openid_client" "immich" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://immich.apps.home.shdr.ch"
-  base_url  = "https://immich.apps.home.shdr.ch"
-  admin_url = "https://immich.apps.home.shdr.ch"
+  root_url  = "https://immich.home.shdr.ch"
+  base_url  = "https://immich.home.shdr.ch"
+  admin_url = "https://immich.home.shdr.ch"
 
   valid_redirect_uris = [
-    "https://immich.apps.home.shdr.ch/auth/login",
-    "https://immich.apps.home.shdr.ch/user-settings",
+    "https://immich.home.shdr.ch/auth/login",
+    "https://immich.home.shdr.ch/user-settings",
     "app.immich:///oauth-callback",
   ]
 
   web_origins = [
-    "https://immich.apps.home.shdr.ch",
+    "https://immich.home.shdr.ch",
   ]
 }
 
@@ -952,11 +950,11 @@ resource "keycloak_openid_client" "kubernetes" {
     "http://localhost:18000/*",
     "http://127.0.0.1:8000/*",
     "http://127.0.0.1:18000/*",
-    "https://headlamp.apps.home.shdr.ch/oidc-callback",
+    "https://headlamp.home.shdr.ch/oidc-callback",
   ]
 
   web_origins = [
-    "https://headlamp.apps.home.shdr.ch",
+    "https://headlamp.home.shdr.ch",
   ]
 }
 
@@ -1017,16 +1015,16 @@ resource "keycloak_openid_client" "coder" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://coder.apps.home.shdr.ch"
-  base_url  = "https://coder.apps.home.shdr.ch"
-  admin_url = "https://coder.apps.home.shdr.ch"
+  root_url  = "https://coder.home.shdr.ch"
+  base_url  = "https://coder.home.shdr.ch"
+  admin_url = "https://coder.home.shdr.ch"
 
   valid_redirect_uris = [
-    "https://coder.apps.home.shdr.ch/api/v2/users/oidc/callback",
+    "https://coder.home.shdr.ch/api/v2/users/oidc/callback",
   ]
 
   web_origins = [
-    "https://coder.apps.home.shdr.ch",
+    "https://coder.home.shdr.ch",
   ]
 }
 
@@ -1074,12 +1072,10 @@ resource "keycloak_openid_client" "affine" {
 
   valid_redirect_uris = [
     "https://affine.home.shdr.ch/oauth/callback",
-    "https://affine.apps.home.shdr.ch/oauth/callback",
   ]
 
   web_origins = [
     "https://affine.home.shdr.ch",
-    "https://affine.apps.home.shdr.ch",
   ]
 }
 
@@ -1127,12 +1123,10 @@ resource "keycloak_openid_client" "karakeep" {
 
   valid_redirect_uris = [
     "https://karakeep.home.shdr.ch/api/auth/callback/custom",
-    "https://karakeep.apps.home.shdr.ch/api/auth/callback/custom",
   ]
 
   web_origins = [
     "https://karakeep.home.shdr.ch",
-    "https://karakeep.apps.home.shdr.ch",
   ]
 }
 

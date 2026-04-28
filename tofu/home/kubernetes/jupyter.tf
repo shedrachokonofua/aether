@@ -6,7 +6,7 @@
 
 locals {
   jupyter_image  = "quay.io/jupyter/pytorch-notebook:cuda12-latest"
-  jupyter_host   = "jupyter.apps.home.shdr.ch"
+  jupyter_host   = "jupyter.home.shdr.ch"
   jupyter_port   = 8888
   jupyter_ns     = kubernetes_namespace_v1.infra.metadata[0].name
   jupyter_labels = { app = "jupyter" }

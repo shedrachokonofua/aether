@@ -6,7 +6,7 @@
 locals {
   ups_namespace = kubernetes_namespace_v1.infra.metadata[0].name
   ups_labels    = { app = "ups-management" }
-  ups_host      = "peanut.apps.home.shdr.ch"
+  ups_host      = "peanut.home.shdr.ch"
 
   ups_nut_port      = 3493
   ups_peanut_port   = 8080

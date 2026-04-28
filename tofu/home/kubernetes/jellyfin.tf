@@ -8,7 +8,7 @@
 locals {
   jellyfin_image = "docker.io/jellyfin/jellyfin:latest"
   # Gateway API matches the Host header from Caddy (header_up Host …); public URL is tv.shdr.ch.
-  jellyfin_gateway_hostname = "jellyfin.apps.home.shdr.ch"
+  jellyfin_host             = "jellyfin.home.shdr.ch"
   jellyfin_public_url       = "https://tv.shdr.ch"
   jellyfin_port             = 8096
   jellyfin_ns               = kubernetes_namespace_v1.media.metadata[0].name
@@ -400,7 +400,7 @@ resource "kubernetes_manifest" "jellyfin_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = [local.jellyfin_gateway_hostname, "tv.shdr.ch"]
+      hostnames = [local.jellyfin_host, "tv.shdr.ch"]
       rules = [{
         matches = [{
           path = {

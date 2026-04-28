@@ -593,7 +593,7 @@
             "group": "AI / ML",
             "icon": "rocket",
             "title": "Open WebUI",
-            "url": "https://openwebui.apps.home.shdr.ch",
+            "url": "https://openwebui.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -601,7 +601,7 @@
             "group": "AI / ML",
             "icon": "exchange-alt",
             "title": "LiteLLM",
-            "url": "https://litellm.apps.home.shdr.ch",
+            "url": "https://litellm.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -609,7 +609,7 @@
             "group": "AI / ML",
             "icon": "sync",
             "title": "llama-swap",
-            "url": "https://llama-swap.apps.home.shdr.ch",
+            "url": "https://llama-swap.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -617,7 +617,7 @@
             "group": "AI / ML",
             "icon": "palette",
             "title": "ComfyUI",
-            "url": "https://comfyui.apps.home.shdr.ch",
+            "url": "https://comfyui.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -625,7 +625,7 @@
             "group": "AI / ML",
             "icon": "book",
             "title": "Jupyter",
-            "url": "https://jupyter.apps.home.shdr.ch",
+            "url": "https://jupyter.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -633,7 +633,7 @@
             "group": "AI / ML",
             "icon": "comment-alt",
             "title": "Speaches",
-            "url": "https://speaches.apps.home.shdr.ch",
+            "url": "https://speaches.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -641,7 +641,7 @@
             "group": "AI / ML",
             "icon": "file-alt",
             "title": "Docling",
-            "url": "https://docling.apps.home.shdr.ch",
+            "url": "https://docling.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -649,7 +649,7 @@
             "group": "AI / ML",
             "icon": "globe",
             "title": "Firecrawl",
-            "url": "https://firecrawl.apps.home.shdr.ch",
+            "url": "https://firecrawl.home.shdr.ch",
             "color": "#7B61FF",
             "targetBlank": true
           },
@@ -665,7 +665,7 @@
             "group": "Media",
             "icon": "camera",
             "title": "Immich",
-            "url": "https://immich.apps.home.shdr.ch",
+            "url": "https://immich.home.shdr.ch",
             "color": "#E91E63",
             "targetBlank": true
           },
@@ -673,7 +673,7 @@
             "group": "Media",
             "icon": "tv",
             "title": "TulipRox",
-            "url": "https://tuliprox.apps.home.shdr.ch",
+            "url": "https://tuliprox.home.shdr.ch",
             "color": "#E91E63",
             "targetBlank": true
           },
@@ -681,7 +681,7 @@
             "group": "Media",
             "icon": "download-alt",
             "title": "NZBDav",
-            "url": "https://nzbdav.apps.home.shdr.ch",
+            "url": "https://nzbdav.home.shdr.ch",
             "color": "#E91E63",
             "targetBlank": true
           },
@@ -689,7 +689,7 @@
             "group": "Media",
             "icon": "list-ui-alt",
             "title": "Peanut",
-            "url": "https://peanut.apps.home.shdr.ch",
+            "url": "https://peanut.home.shdr.ch",
             "color": "#E91E63",
             "targetBlank": true
           },
@@ -721,7 +721,7 @@
             "group": "Infra",
             "icon": "monitor",
             "title": "Headlamp",
-            "url": "https://headlamp.apps.home.shdr.ch",
+            "url": "https://headlamp.home.shdr.ch",
             "color": "#4CAF50",
             "targetBlank": true
           },
@@ -729,7 +729,7 @@
             "group": "Infra",
             "icon": "sitemap",
             "title": "Hubble",
-            "url": "https://hubble.apps.home.shdr.ch",
+            "url": "https://hubble.home.shdr.ch",
             "color": "#4CAF50",
             "targetBlank": true
           },
@@ -777,7 +777,7 @@
             "group": "Tools",
             "icon": "search",
             "title": "SearXNG",
-            "url": "https://searxng.apps.home.shdr.ch",
+            "url": "https://searxng.home.shdr.ch",
             "color": "#FF9800",
             "targetBlank": true
           },
@@ -785,7 +785,7 @@
             "group": "Tools",
             "icon": "graph-bar",
             "title": "Hermes Beryl",
-            "url": "https://hermes-beryl-dashboard.apps.home.shdr.ch",
+            "url": "https://hermes-beryl-dashboard.home.shdr.ch",
             "color": "#FF9800",
             "targetBlank": true
           },
@@ -793,7 +793,7 @@
             "group": "Tools",
             "icon": "graph-bar",
             "title": "Hermes Tungsten",
-            "url": "https://hermes-tungsten-dashboard.apps.home.shdr.ch",
+            "url": "https://hermes-tungsten-dashboard.home.shdr.ch",
             "color": "#FF9800",
             "targetBlank": true
           }
@@ -3188,7 +3188,7 @@
           "links": [
             {
               "title": "Open OnlyOffice",
-              "url": "https://onlyoffice.apps.home.shdr.ch",
+              "url": "https://onlyoffice.home.shdr.ch",
               "targetBlank": true
             }
           ],
@@ -4142,7 +4142,7 @@
           "links": [
             {
               "title": "Open Immich k8s",
-              "url": "https://immich.apps.home.shdr.ch",
+              "url": "https://immich.home.shdr.ch",
               "targetBlank": true
             }
           ],

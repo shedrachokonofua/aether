@@ -35,8 +35,7 @@ locals {
   karakeep_chrome_image   = "gcr.io/zenika-hub/alpine-chrome:123"
   karakeep_meili_image    = "getmeili/meilisearch:v1.13.3"
 
-  karakeep_gateway_host = "karakeep.apps.home.shdr.ch"
-  karakeep_host         = "karakeep.home.shdr.ch"
+  karakeep_host = "karakeep.home.shdr.ch"
 
   karakeep_port       = 3000
   karakeep_chrome_port = 9222
@@ -375,7 +374,7 @@ resource "kubernetes_manifest" "karakeep_route" {
     metadata   = { name = "karakeep", namespace = local.karakeep_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.karakeep_gateway_host]
+      hostnames  = [local.karakeep_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"

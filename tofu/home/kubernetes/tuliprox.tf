@@ -14,7 +14,7 @@ resource "random_password" "tuliprox_rewrite_secret" {
 
 locals {
   tuliprox_image          = "ghcr.io/euzu/tuliprox:latest"
-  tuliprox_host           = "tuliprox.apps.home.shdr.ch"
+  tuliprox_host           = "tuliprox.home.shdr.ch"
   tuliprox_port           = 8901
   tuliprox_labels         = { app = "tuliprox" }
   tuliprox_rewrite_secret = md5(random_password.tuliprox_rewrite_secret.result)

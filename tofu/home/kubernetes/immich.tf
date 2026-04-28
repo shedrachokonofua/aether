@@ -13,7 +13,7 @@
 
 locals {
   immich_namespace = "immich"
-  immich_host      = "immich.apps.home.shdr.ch"
+  immich_host      = "immich.home.shdr.ch"
 
   immich_server_image   = "ghcr.io/immich-app/immich-server:release"
   immich_ml_image       = "ghcr.io/immich-app/immich-machine-learning:release-cuda"

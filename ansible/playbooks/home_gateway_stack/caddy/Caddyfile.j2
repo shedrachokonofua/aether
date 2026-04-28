@@ -194,18 +194,6 @@ kvm.home.shdr.ch {
   reverse_proxy 192.168.2.220
 }
 
-d.home.shdr.ch, *.d.home.shdr.ch {
-  reverse_proxy {{ vm.dokploy.ip }}
-}
-
-traefik.d.home.shdr.ch {
-  reverse_proxy {{ vm.dokploy.ip }}:{{ vm.dokploy.ports.traefik }}
-}
-
-watchtower.d.home.shdr.ch {
-  reverse_proxy {{ vm.dokploy.ip }}:{{ vm.dokploy.ports.watchtower }}
-}
-
 # Studio services: bind to both LAN and Tailscale IP so co-founders
 # with shared node access can reach them via Tailscale
 gitlab.home.shdr.ch {
@@ -307,33 +295,6 @@ apprise.home.shdr.ch {
   reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.apprise }}
 }
 
-comfyui.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host comfyui.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-docling.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host docling.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-jupyter.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host jupyter.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
 litellm.home.shdr.ch {
   redir /ui /ui/ 308
   redir /ui/login /ui/login/ 308
@@ -341,42 +302,6 @@ litellm.home.shdr.ch {
 
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-openwebui.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host openwebui.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-searxng.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host searxng.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-firecrawl.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host firecrawl.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-mcp.firecrawl.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host firecrawl-mcp.apps.home.shdr.ch
     header_up X-Real-IP {http.request.remote}
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto https
@@ -400,15 +325,6 @@ ups.home.shdr.ch {
     header_up Authorization {http.request.header.Authorization}
     # No buffering for real-time updates
     flush_interval -1
-  }
-}
-
-peanut.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host peanut.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
   }
 }
 
@@ -461,18 +377,9 @@ stremthru.home.shdr.ch {
   reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.stremthru }}
 }
 
-nzbdav.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host nzbdav.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
 tuliprox.home.shdr.ch {
   reverse_proxy 10.0.3.19 {
-    header_up Host tuliprox.apps.home.shdr.ch
+    header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto https
@@ -520,127 +427,6 @@ bao.home.shdr.ch {
     header_up X-Forwarded-For {http.request.remote}
     header_up Upgrade {http.request.header.Upgrade}
     header_up Connection {http.request.header.Connection}
-  }
-}
-
-# =============================================================================
-# Personal apps — each rewrites Host to *.apps.home.shdr.ch for Gateway routing
-# =============================================================================
-
-mazanoke.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host mazanoke.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-bentopdf.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host bentopdf.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-memos.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host memos.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-perplexica.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host perplexica.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-vaultwarden.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host vaultwarden.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-your-spotify.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host your-spotify.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-your-spotify-api.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host your-spotify-api.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-hoppscotch.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host hoppscotch.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-proxyscotch.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host proxyscotch.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-karakeep.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host karakeep.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-dawarich.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host dawarich.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-affine.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host affine.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
-
-nextcloud.home.shdr.ch {
-  reverse_proxy 10.0.3.19 {
-    header_up Host nextcloud.apps.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
   }
 }
 
@@ -710,7 +496,7 @@ oidc.k8s.home.shdr.ch {
 
 # Routes to Cilium L2 VIP (10.0.3.19) - Gateway API handles routing inside k8s
 
-*.apps.home.shdr.ch {
+*.home.shdr.ch {
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -752,7 +538,7 @@ oidc.k8s.home.shdr.ch {
 
   handle @ai {
     reverse_proxy 10.0.3.19 {
-      header_up Host openwebui.apps.home.shdr.ch
+      header_up Host openwebui.home.shdr.ch
       header_up X-Real-IP {http.request.header.X-Real-IP}
       header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
       header_up X-Forwarded-Host {http.request.host}
@@ -804,8 +590,8 @@ oidc.k8s.home.shdr.ch {
         header_up X-Forwarded-Uri {uri}
         copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Access-Token
       }
-      reverse_proxy {{ vm.dokploy.ip }} {
-        header_up Host "bentopdf.d.home.shdr.ch"
+      reverse_proxy 10.0.3.19 {
+        header_up Host "bentopdf.home.shdr.ch"
         header_up X-Real-IP {http.request.header.X-Real-IP}
         header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
         header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}

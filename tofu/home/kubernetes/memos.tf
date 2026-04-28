@@ -11,8 +11,7 @@
 
 locals {
   memos_image        = "neosmemo/memos:stable"
-  memos_gateway_host = "memos.apps.home.shdr.ch"
-  memos_host         = "memos.home.shdr.ch"
+  memos_host = "memos.home.shdr.ch"
   memos_port         = 5230
   memos_ns           = kubernetes_namespace_v1.personal.metadata[0].name
   memos_labels       = { app = "memos" }
@@ -128,7 +127,7 @@ resource "kubernetes_manifest" "memos_route" {
     metadata   = { name = "memos", namespace = local.memos_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.memos_gateway_host]
+      hostnames  = [local.memos_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"

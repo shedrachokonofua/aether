@@ -9,7 +9,7 @@ locals {
   litellm_finviz_image    = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
   litellm_coingecko_image = "docker.io/node:22-slim"
   litellm_time_mcp_image  = "docker.io/theo01/mcp-time:latest"
-  litellm_host            = "litellm.apps.home.shdr.ch"
+  litellm_host            = "litellm.home.shdr.ch"
   litellm_ns              = kubernetes_namespace_v1.infra.metadata[0].name
   litellm_labels          = { app = "litellm" }
   litellm_port            = 4000
@@ -435,6 +435,10 @@ resource "kubernetes_service_v1" "litellm" {
 resource "kubernetes_manifest" "litellm_route" {
   depends_on = [kubernetes_manifest.main_gateway, kubernetes_service_v1.litellm]
 
+  field_manager {
+    force_conflicts = true
+  }
+
   manifest = {
     apiVersion = "gateway.networking.k8s.io/v1"
     kind       = "HTTPRoute"
@@ -447,7 +451,7 @@ resource "kubernetes_manifest" "litellm_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = [local.litellm_host, "litellm.home.shdr.ch"]
+      hostnames = [local.litellm_host]
       rules = [{
         backendRefs = [{
           name = kubernetes_service_v1.litellm.metadata[0].name

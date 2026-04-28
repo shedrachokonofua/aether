@@ -5,7 +5,7 @@
 
 locals {
   openwebui_namespace = "infra"
-  openwebui_host      = "openwebui.apps.home.shdr.ch"
+  openwebui_host      = "openwebui.home.shdr.ch"
   openwebui_image     = "ghcr.io/open-webui/open-webui:latest"
   mcpo_image          = "ghcr.io/open-webui/mcpo:main"
   postgres_image      = "pgvector/pgvector:pg16"

@@ -6,7 +6,6 @@
 locals {
   mazanoke_image         = "ghcr.io/civilblur/mazanoke:latest"
   mazanoke_host          = "mazanoke.home.shdr.ch"
-  mazanoke_gateway_host  = "mazanoke.apps.home.shdr.ch"
   mazanoke_port          = 80
   mazanoke_ns            = kubernetes_namespace_v1.personal.metadata[0].name
   mazanoke_labels        = { app = "mazanoke" }
@@ -89,7 +88,7 @@ resource "kubernetes_manifest" "mazanoke_route" {
     metadata   = { name = "mazanoke", namespace = local.mazanoke_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.mazanoke_gateway_host]
+      hostnames  = [local.mazanoke_host]
       rules      = [{ backendRefs = [{ name = "mazanoke", port = local.mazanoke_port }] }]
     }
   }

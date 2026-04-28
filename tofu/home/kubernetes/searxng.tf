@@ -5,7 +5,7 @@
 
 locals {
   searxng_image  = "docker.io/searxng/searxng:latest"
-  searxng_host   = "searxng.apps.home.shdr.ch"
+  searxng_host   = "searxng.home.shdr.ch"
   searxng_port   = 8080
   searxng_ns     = kubernetes_namespace_v1.infra.metadata[0].name
   searxng_labels = { app = "searxng" }

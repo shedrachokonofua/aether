@@ -21,7 +21,7 @@ resource "helm_release" "headlamp" {
         clientID  = var.oidc_client_id
         issuerURL = var.oidc_issuer_url
       }
-      extraArgs = ["-oidc-callback-url", "https://headlamp.apps.home.shdr.ch/oidc-callback"]
+      extraArgs = ["-oidc-callback-url", "https://headlamp.home.shdr.ch/oidc-callback"]
     }
 
     service = {
@@ -52,7 +52,7 @@ resource "kubernetes_manifest" "headlamp_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = ["headlamp.apps.home.shdr.ch"]
+      hostnames = ["headlamp.home.shdr.ch"]
       rules = [{
         matches = [{
           path = {

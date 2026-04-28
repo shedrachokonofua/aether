@@ -11,8 +11,8 @@ locals {
   firecrawl_rabbitmq_image   = "docker.io/rabbitmq:3-management"
   firecrawl_mcp_image        = "docker.io/node:22-alpine"
 
-  firecrawl_host     = "firecrawl.apps.home.shdr.ch"
-  firecrawl_mcp_host = "firecrawl-mcp.apps.home.shdr.ch"
+  firecrawl_host     = "firecrawl.home.shdr.ch"
+  firecrawl_mcp_host = "firecrawl-mcp.home.shdr.ch"
   firecrawl_ns       = kubernetes_namespace_v1.infra.metadata[0].name
   firecrawl_labels   = { app = "firecrawl" }
 

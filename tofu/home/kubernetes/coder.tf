@@ -4,7 +4,7 @@
 
 locals {
   coder_namespace        = "coder"
-  coder_host             = "coder.apps.home.shdr.ch"
+  coder_host             = "coder.home.shdr.ch"
   coder_postgres_service = "coder-postgres"
   coder_postgres_db      = "coder"
   coder_postgres_user    = "coder"

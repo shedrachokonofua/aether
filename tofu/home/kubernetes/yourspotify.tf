@@ -22,10 +22,8 @@ locals {
   yourspotify_client_image = "yooooomi/your_spotify_client"
   yourspotify_mongo_image  = "mongo:6"
 
-  yourspotify_gateway_host     = "your-spotify.apps.home.shdr.ch"
-  yourspotify_api_gateway_host = "your-spotify-api.apps.home.shdr.ch"
-  yourspotify_host             = "your-spotify.home.shdr.ch"
-  yourspotify_api_host         = "your-spotify-api.home.shdr.ch"
+  yourspotify_host     = "your-spotify.home.shdr.ch"
+  yourspotify_api_host = "your-spotify-api.home.shdr.ch"
 
   yourspotify_client_port = 3000
   yourspotify_api_port    = 8080
@@ -262,7 +260,7 @@ resource "kubernetes_manifest" "yourspotify_route" {
     metadata   = { name = "yourspotify", namespace = local.yourspotify_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.yourspotify_gateway_host]
+      hostnames  = [local.yourspotify_host]
       rules      = [{ backendRefs = [{ name = "yourspotify-client", port = local.yourspotify_client_port }] }]
     }
   }
@@ -276,7 +274,7 @@ resource "kubernetes_manifest" "yourspotify_api_route" {
     metadata   = { name = "yourspotify-api", namespace = local.yourspotify_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.yourspotify_api_gateway_host]
+      hostnames  = [local.yourspotify_api_host]
       rules      = [{ backendRefs = [{ name = "yourspotify-api", port = local.yourspotify_api_port }] }]
     }
   }

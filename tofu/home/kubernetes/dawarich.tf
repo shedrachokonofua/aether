@@ -42,8 +42,7 @@ locals {
   dawarich_postgis_image = "postgis/postgis:17-3.5-alpine"
   dawarich_redis_image = "redis:7.4-alpine"
 
-  dawarich_gateway_host = "dawarich.apps.home.shdr.ch"
-  dawarich_host         = "dawarich.home.shdr.ch"
+  dawarich_host = "dawarich.home.shdr.ch"
 
   dawarich_port       = 3000
   dawarich_pg_port    = 5432
@@ -66,7 +65,7 @@ locals {
     OTP_ENCRYPTION_PRIMARY_KEY = random_password.dawarich_otp_encryption_primary_key.result
     OTP_ENCRYPTION_DETERMINISTIC_KEY = random_password.dawarich_otp_encryption_deterministic_key.result
     OTP_ENCRYPTION_KEY_DERIVATION_SALT = random_password.dawarich_otp_encryption_key_derivation_salt.result
-    APPLICATION_HOSTS = "localhost,${local.dawarich_host},${local.dawarich_gateway_host}"
+    APPLICATION_HOSTS = "localhost,${local.dawarich_host}"
     TIME_ZONE         = "America/Toronto"
     APPLICATION_PROTOCOL  = "https"
     RAILS_FORCE_SSL       = "0"
@@ -418,7 +417,7 @@ resource "kubernetes_manifest" "dawarich_route" {
     metadata   = { name = "dawarich", namespace = local.dawarich_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.dawarich_gateway_host]
+      hostnames  = [local.dawarich_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"

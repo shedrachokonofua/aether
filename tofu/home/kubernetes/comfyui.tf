@@ -4,7 +4,7 @@
 
 locals {
   comfyui_image   = "docker.io/yanwk/comfyui-boot:cu129-slim"
-  comfyui_host    = "comfyui.apps.home.shdr.ch"
+  comfyui_host    = "comfyui.home.shdr.ch"
   comfyui_port    = 8188
   comfyui_ns      = kubernetes_namespace_v1.infra.metadata[0].name
   comfyui_subpath = "comfyui/root"
@@ -170,6 +170,10 @@ resource "kubernetes_service_v1" "comfyui" {
 
 resource "kubernetes_manifest" "comfyui_route" {
   depends_on = [kubernetes_manifest.main_gateway, kubernetes_service_v1.comfyui]
+
+  field_manager {
+    force_conflicts = true
+  }
 
   manifest = {
     apiVersion = "gateway.networking.k8s.io/v1"

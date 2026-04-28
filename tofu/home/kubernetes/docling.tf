@@ -6,7 +6,7 @@
 
 locals {
   docling_image  = "ghcr.io/docling-project/docling-serve-cu128:main"
-  docling_host   = "docling.apps.home.shdr.ch"
+  docling_host   = "docling.home.shdr.ch"
   docling_port   = 5001
   docling_ns     = kubernetes_namespace_v1.infra.metadata[0].name
   docling_labels = { app = "docling" }

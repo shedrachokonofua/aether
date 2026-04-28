@@ -17,8 +17,7 @@ resource "random_password" "vaultwarden_admin_token" {
 
 locals {
   vaultwarden_image        = "vaultwarden/server:latest"
-  vaultwarden_gateway_host = "vaultwarden.apps.home.shdr.ch"
-  vaultwarden_host         = "vaultwarden.home.shdr.ch"
+  vaultwarden_host = "vaultwarden.home.shdr.ch"
   vaultwarden_port         = 80
   vaultwarden_ns           = kubernetes_namespace_v1.personal.metadata[0].name
   vaultwarden_labels       = { app = "vaultwarden" }
@@ -168,7 +167,7 @@ resource "kubernetes_manifest" "vaultwarden_route" {
     metadata   = { name = "vaultwarden", namespace = local.vaultwarden_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.vaultwarden_gateway_host]
+      hostnames  = [local.vaultwarden_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"

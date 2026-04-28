@@ -18,7 +18,7 @@ resource "kubernetes_manifest" "hubble_ui_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = ["hubble.apps.home.shdr.ch"]
+      hostnames = ["hubble.home.shdr.ch"]
       rules = [{
         matches = [{
           path = {

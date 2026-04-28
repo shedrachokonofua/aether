@@ -8,7 +8,7 @@
 
 locals {
   speaches_image  = "ghcr.io/speaches-ai/speaches:latest-cuda"
-  speaches_host   = "speaches.apps.home.shdr.ch"
+  speaches_host   = "speaches.home.shdr.ch"
   speaches_port   = 8000
   speaches_ns     = kubernetes_namespace_v1.infra.metadata[0].name
   speaches_labels = { app = "speaches" }

@@ -23,11 +23,9 @@
 
 locals {
   nextcloud_namespace    = "nextcloud"
-  nextcloud_host         = "nextcloud.home.shdr.ch"      # user-facing (Caddy TLS edge)
-  nextcloud_gateway_host = "nextcloud.apps.home.shdr.ch" # k8s Gateway routing (*.apps wildcard)
+  nextcloud_host = "nextcloud.home.shdr.ch"
   nextcloud_config = templatefile("${path.module}/nextcloud_config.php.tftpl", {
     host         = local.nextcloud_host
-    gateway_host = local.nextcloud_gateway_host
     service_host = "nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"
   })
   nextcloud_config_hash = substr(sha256(local.nextcloud_config), 0, 12)
@@ -1320,7 +1318,7 @@ resource "kubernetes_manifest" "nextcloud_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = [local.nextcloud_gateway_host]
+      hostnames = [local.nextcloud_host]
       rules = [
         {
           matches = [{

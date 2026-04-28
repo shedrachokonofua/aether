@@ -6,7 +6,7 @@
 
 locals {
   nzbdav_image  = "ghcr.io/nzbdav-dev/nzbdav:latest"
-  nzbdav_host   = "nzbdav.apps.home.shdr.ch"
+  nzbdav_host   = "nzbdav.home.shdr.ch"
   nzbdav_port   = 3000
   nzbdav_labels = { app = "nzbdav" }
 }

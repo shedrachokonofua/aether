@@ -6,7 +6,7 @@
 locals {
   knative_version          = "1.20"
   knative_operator_version = "1.20.0"
-  knative_domain           = "apps.home.shdr.ch"
+  knative_domain           = "home.shdr.ch"
 }
 
 # =============================================================================

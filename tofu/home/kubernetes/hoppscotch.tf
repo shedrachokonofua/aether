@@ -37,9 +37,8 @@ locals {
   hoppscotch_proxy_image = "hoppscotch/proxyscotch"
   hoppscotch_pg_image    = "postgres:15-alpine"
 
-  hoppscotch_gateway_host       = "hoppscotch.apps.home.shdr.ch"
-  hoppscotch_host               = "hoppscotch.home.shdr.ch"
-  hoppscotch_proxy_gateway_host = "proxyscotch.apps.home.shdr.ch"
+  hoppscotch_host       = "hoppscotch.home.shdr.ch"
+  hoppscotch_proxy_host = "proxyscotch.home.shdr.ch"
 
   hoppscotch_port       = 80
   hoppscotch_proxy_port = 9159
@@ -338,7 +337,7 @@ resource "kubernetes_manifest" "hoppscotch_route" {
     metadata   = { name = "hoppscotch", namespace = local.hoppscotch_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.hoppscotch_gateway_host]
+      hostnames  = [local.hoppscotch_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"
@@ -360,7 +359,7 @@ resource "kubernetes_manifest" "proxyscotch_route" {
     metadata   = { name = "proxyscotch", namespace = local.hoppscotch_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.hoppscotch_proxy_gateway_host]
+      hostnames  = [local.hoppscotch_proxy_host]
       rules      = [{ backendRefs = [{ name = "proxyscotch", port = local.hoppscotch_proxy_port }] }]
     }
   }

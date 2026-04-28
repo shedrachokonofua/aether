@@ -5,7 +5,7 @@
 # HTTPS URL so browser and callback URLs stay on the canonical trusted host.
 
 locals {
-  onlyoffice_host         = "onlyoffice.apps.home.shdr.ch"
+  onlyoffice_host         = "onlyoffice.home.shdr.ch"
   onlyoffice_url          = "https://${local.onlyoffice_host}"
   onlyoffice_internal_url = local.onlyoffice_url
   onlyoffice_storage_url  = "http://nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"

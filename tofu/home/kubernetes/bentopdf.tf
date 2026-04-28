@@ -6,7 +6,7 @@
 
 locals {
   bentopdf_image        = "bentopdf/bentopdf-simple:latest"
-  bentopdf_gateway_host = "bentopdf.apps.home.shdr.ch"
+  bentopdf_host = "bentopdf.home.shdr.ch"
   bentopdf_port         = 8080
   bentopdf_ns           = kubernetes_namespace_v1.personal.metadata[0].name
   bentopdf_labels       = { app = "bentopdf" }
@@ -89,7 +89,7 @@ resource "kubernetes_manifest" "bentopdf_route" {
     metadata   = { name = "bentopdf", namespace = local.bentopdf_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.bentopdf_gateway_host]
+      hostnames  = [local.bentopdf_host]
       rules      = [{ backendRefs = [{ name = "bentopdf", port = local.bentopdf_port }] }]
     }
   }

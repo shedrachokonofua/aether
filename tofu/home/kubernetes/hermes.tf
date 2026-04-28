@@ -20,8 +20,8 @@ locals {
 
   hermes_agents = {
     beryl = {
-      host           = "hermes-beryl.apps.home.shdr.ch"
-      dashboard_host = "hermes-beryl-dashboard.apps.home.shdr.ch"
+      host           = "hermes-beryl.home.shdr.ch"
+      dashboard_host = "hermes-beryl-dashboard.home.shdr.ch"
       env = {
         OPENAI_BASE_URL        = local.hermes_local_llm
         FIRECRAWL_API_URL      = local.hermes_firecrawl_url
@@ -71,8 +71,8 @@ locals {
     }
 
     tungsten = {
-      host           = "hermes-tungsten.apps.home.shdr.ch"
-      dashboard_host = "hermes-tungsten-dashboard.apps.home.shdr.ch"
+      host           = "hermes-tungsten.home.shdr.ch"
+      dashboard_host = "hermes-tungsten-dashboard.home.shdr.ch"
       env = {
         OPENAI_BASE_URL        = local.hermes_litellm
         FIRECRAWL_API_URL      = local.hermes_firecrawl_url
