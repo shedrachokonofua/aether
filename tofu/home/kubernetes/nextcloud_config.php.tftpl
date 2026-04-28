@@ -1,8 +1,6 @@
 <?php
 // Supplemental config — merged with the image-generated config.php at runtime.
 // Nextcloud merges all *.config.php files in the config directory.
-// DB, Redis memcache, and trusted_domains are handled by the image via env vars;
-// only settings the image doesn't cover natively go here.
 $CONFIG = array (
   'trusted_domains' => array (
     0 => 'localhost',
@@ -14,6 +12,20 @@ $CONFIG = array (
   'overwritehost'     => '${host}',
   'overwrite.cli.url' => 'https://${host}',
   'allow_local_remote_servers' => true,
+
+  // The Nextcloud image's auto-config only wires Redis on first install;
+  // since this instance was installed before the Redis service existed,
+  // pin memcache + locking explicitly so file ops don't fall back to
+  // disk-based locking (which is murderous over fuse-CephFS).
+  'memcache.local'       => '\OC\Memcache\APCu',
+  'memcache.distributed' => '\OC\Memcache\Redis',
+  'memcache.locking'     => '\OC\Memcache\Redis',
+  'filelocking.enabled'  => true,
+  'redis' => array(
+    'host'    => 'nextcloud-redis.nextcloud.svc.cluster.local',
+    'port'    => 6379,
+    'timeout' => 1.5,
+  ),
 
   'log_type'                => 'errorlog',
   'loglevel'                => 2,
