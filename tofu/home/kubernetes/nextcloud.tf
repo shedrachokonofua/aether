@@ -247,6 +247,124 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_app" {
   }
 }
 
+# RWX replacement for nextcloud-app on CephFS. Nextcloud's install/code/config
+# tree is shared by server + cron + task-worker + onlyoffice-bootstrap; RWO
+# forced them onto the same node. CephFS RWX lets each pod schedule freely.
+resource "kubernetes_persistent_volume_claim_v1" "nextcloud_app_rwx" {
+  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.cephfs]
+
+  metadata {
+    name      = "nextcloud-app-rwx"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.cephfs.metadata[0].name
+
+    resources {
+      requests = { storage = "5Gi" }
+    }
+  }
+}
+
+# One-shot rsync from RWO RBD → RWX CephFS. Runs on the same node as
+# nextcloud-server so it can mount the RWO source alongside the live pods.
+# Hash key includes the source PVC UID so we don't re-run after success.
+resource "kubernetes_job_v1" "nextcloud_app_rwx_migrate" {
+  depends_on = [
+    kubernetes_persistent_volume_claim_v1.nextcloud_app,
+    kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx,
+  ]
+
+  metadata {
+    name      = "nextcloud-app-rwx-migrate"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  spec {
+    backoff_limit              = 6
+    ttl_seconds_after_finished = 86400
+
+    template {
+      metadata {
+        labels = { app = "nextcloud-app-rwx-migrate" }
+      }
+
+      spec {
+        restart_policy = "OnFailure"
+
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
+        container {
+          name    = "rsync"
+          image   = "alpine:3.20"
+          command = ["/bin/sh", "-c", <<-EOT
+            set -eu
+            apk add --no-cache rsync >/dev/null
+            echo "Source contents:"
+            ls /old | head
+            echo "Destination contents (should be empty):"
+            ls /new | head
+            echo "rsync starting..."
+            # CephFS doesn't store SELinux xattrs, so drop -X (extended attrs)
+            # to avoid spurious lsetxattr errors that fail the job.
+            rsync -aH --info=progress2 /old/ /new/
+            echo "rsync done. Verifying..."
+            diff -q <(cd /old && find . | sort) <(cd /new && find . | sort) >/dev/null && echo "file lists match"
+          EOT
+          ]
+
+          volume_mount {
+            name       = "old"
+            mount_path = "/old"
+          }
+
+          volume_mount {
+            name       = "new"
+            mount_path = "/new"
+          }
+        }
+
+        volume {
+          name = "old"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "new"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+          }
+        }
+      }
+    }
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+  timeouts {
+    create = "20m"
+    update = "20m"
+  }
+}
+
 # NFS-backed data directory — user files stored at real paths so the share is
 # browsable directly from any NFS client (same pattern as immich_library).
 # Create /mnt/hdd/data/nextcloud on smith before first apply.
@@ -512,7 +630,8 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
   depends_on = [
     kubernetes_service_v1.nextcloud_postgres,
     kubernetes_service_v1.nextcloud_redis,
-    kubernetes_persistent_volume_claim_v1.nextcloud_app,
+    kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx,
+    kubernetes_job_v1.nextcloud_app_rwx_migrate,
     kubernetes_secret_v1.nextcloud_admin,
     kubernetes_secret_v1.nextcloud_config,
   ]
@@ -628,6 +747,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             initial_delay_seconds = 60
             period_seconds        = 15
             failure_threshold     = 6
+            timeout_seconds       = 5
           }
 
           liveness_probe {
@@ -642,6 +762,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             initial_delay_seconds = 120
             period_seconds        = 30
             failure_threshold     = 5
+            timeout_seconds       = 5
           }
 
           resources {
@@ -659,7 +780,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
         volume {
           name = "app"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
           }
         }
 
@@ -743,21 +864,6 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
       }
 
       spec {
-        affinity {
-          pod_affinity {
-            required_during_scheduling_ignored_during_execution {
-              label_selector {
-                match_expressions {
-                  key      = "app"
-                  operator = "In"
-                  values   = [local.nextcloud_server_labels.app]
-                }
-              }
-              topology_key = "kubernetes.io/hostname"
-            }
-          }
-        }
-
         container {
           name  = "cron"
           image = local.nextcloud_server_image
@@ -813,7 +919,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
         volume {
           name = "app"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
           }
         }
 
@@ -871,21 +977,6 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
       }
 
       spec {
-        affinity {
-          pod_affinity {
-            required_during_scheduling_ignored_during_execution {
-              label_selector {
-                match_expressions {
-                  key      = "app"
-                  operator = "In"
-                  values   = [local.nextcloud_server_labels.app]
-                }
-              }
-              topology_key = "kubernetes.io/hostname"
-            }
-          }
-        }
-
         container {
           name  = "worker"
           image = local.nextcloud_server_image
@@ -931,7 +1022,7 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
         volume {
           name = "app"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
           }
         }
 
@@ -988,24 +1079,6 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
       spec {
         restart_policy = "OnFailure"
 
-        affinity {
-          pod_affinity {
-            required_during_scheduling_ignored_during_execution {
-              label_selector {
-                match_expressions {
-                  key      = "app"
-                  operator = "In"
-                  values   = [local.nextcloud_server_labels.app]
-                }
-              }
-              topology_key = "kubernetes.io/hostname"
-            }
-          }
-        }
-
-        # The Job needs the same code volume as the server because `occ` is
-        # in /var/www/html. We mount the existing PVC RWO, so the Job is
-        # serialized after the server pod is healthy.
         container {
           name  = "occ"
           image = local.nextcloud_server_image
@@ -1087,7 +1160,7 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
         volume {
           name = "app"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
           }
         }
 
@@ -1148,21 +1221,6 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
 
       spec {
         restart_policy = "OnFailure"
-
-        affinity {
-          pod_affinity {
-            required_during_scheduling_ignored_during_execution {
-              label_selector {
-                match_expressions {
-                  key      = "app"
-                  operator = "In"
-                  values   = [local.nextcloud_server_labels.app]
-                }
-              }
-              topology_key = "kubernetes.io/hostname"
-            }
-          }
-        }
 
         container {
           name  = "occ"
@@ -1267,7 +1325,7 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
         volume {
           name = "app"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
           }
         }
 

@@ -210,21 +210,6 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
       spec {
         restart_policy = "OnFailure"
 
-        affinity {
-          pod_affinity {
-            required_during_scheduling_ignored_during_execution {
-              label_selector {
-                match_expressions {
-                  key      = "app"
-                  operator = "In"
-                  values   = [local.nextcloud_server_labels.app]
-                }
-              }
-              topology_key = "kubernetes.io/hostname"
-            }
-          }
-        }
-
         container {
           name  = "occ"
           image = local.nextcloud_server_image
@@ -323,7 +308,7 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
         volume {
           name = "app"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
           }
         }
 
