@@ -92,6 +92,16 @@
         group: aether
       tags: [pbs-exporter]
 
+    - name: Create blackbox-exporter directory
+      become: true
+      file:
+        path: ./blackbox
+        state: directory
+        mode: "0777"
+        owner: aether
+        group: aether
+      tags: [blackbox]
+
     - name: Create clickhouse directories
       become: true
       file:
@@ -112,6 +122,13 @@
         dest: ./prometheus/prometheus.yml
         mode: "0755"
       tags: [prometheus]
+
+    - name: Copy blackbox-exporter config
+      copy:
+        src: ./blackbox.yml
+        dest: ./blackbox/blackbox.yml
+        mode: "0755"
+      tags: [blackbox]
 
     - name: Create loki config
       copy:
@@ -207,6 +224,7 @@
           - "{{ vm.monitoring_stack.ports.clickhouse }}:8123" # ClickHouse HTTP/Play UI
           - "9221:9221" # PVE Exporter
           - "10019:10019" # PBS Exporter
+          - "{{ vm.monitoring_stack.ports.blackbox }}:9115" # blackbox-exporter (cert expiry probes)
         state: quadlet
         restart_policy: on-failure
         recreate: true
@@ -225,6 +243,7 @@
           clickhouse,
           pve-exporter,
           pbs-exporter,
+          blackbox,
           monitoring-pod,
         ]
 
@@ -264,6 +283,18 @@
           - "--web.enable-lifecycle"
         state: quadlet
       tags: [prometheus]
+
+    - name: Start blackbox-exporter
+      containers.podman.podman_container:
+        name: blackbox-exporter
+        image: quay.io/prometheus/blackbox-exporter:latest
+        pod: monitoring-stack.pod
+        volumes:
+          - /home/aether/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:Z
+        command:
+          - "--config.file=/etc/blackbox_exporter/config.yml"
+        state: quadlet
+      tags: [blackbox]
 
     - name: Start Loki
       containers.podman.podman_container:

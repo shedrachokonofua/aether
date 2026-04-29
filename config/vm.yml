@@ -63,6 +63,7 @@ monitoring_stack:
     prometheus: 9090
     clickhouse: 8123
     fleet: 8084
+    blackbox: 9115
 
 nfs:
   id: 1004
@@ -350,8 +351,7 @@ talos_trinity:
   memory: 32768
   disk_gb: 128
   disk_datastore: "local-lvm"
-  legacy_etcd_disk_gb: 32
-  ci_scratch_disk_gb: 256
+  ci_disk_gb: 128
   ip: "10.0.3.16"
   gateway: "10.0.3.1"
 
@@ -363,11 +363,11 @@ talos_neo:
   cores: 32
   memory: 49152
   # GPU node still carries heavier image/runtime churn than the other CI nodes.
-  # CI build scratch lives on ci_scratch_disk_gb, not on this root disk.
-  disk_gb: 192
+  # CI build scratch lives on ci_disk_gb, not on this root disk.
+  disk_gb: 256
   disk_datastore: "local-lvm"
   legacy_etcd_disk_gb: 32
-  ci_scratch_disk_gb: 256
+  ci_disk_gb: 128
   gpu: true
   gpu_pool: "blackwell"
   gpu_class: "rtx-pro-6000-blackwell"
@@ -388,9 +388,7 @@ talos_niobe:
   memory: 24576
   disk_gb: 128
   disk_datastore: "local-fast"
-  legacy_etcd_disk_gb: 32
-  legacy_etcd_disk_datastore: "local-fast"
-  ci_scratch_disk_gb: 256
+  ci_disk_gb: 128
   ip: "10.0.3.18"
   gateway: "10.0.3.1"
 

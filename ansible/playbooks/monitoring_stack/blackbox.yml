@@ -1,0 +1,10 @@
+modules:
+  # TLS handshake against host:port. Surfaces probe_ssl_earliest_cert_expiry
+  # (unix timestamp), which is the metric the cert-expiry alert rule reads.
+  tls_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      tls: true
+      tls_config:
+        insecure_skip_verify: false

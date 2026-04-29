@@ -429,3 +429,47 @@ groups:
         annotations:
           summary: "GPU XID error on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
           description: "DCGM reported a non-zero XID error count — check dmesg / GPU health"
+
+      # TLS cert expiry — fires 14 days before a probed cert's NotAfter.
+      # Targets are scraped by blackbox-exporter via the `tls_connect` module
+      # (see ansible/playbooks/monitoring_stack/blackbox.yml + the
+      # `blackbox-tls` job in prometheus.yml). Lab learned this matters in
+      # the Apr 2026 OpenBao outage: server cert silently rolled past
+      # NotAfter and every machine using openbao-agent stopped renewing.
+      - uid: tls-cert-expiring-soon
+        title: TLS cert expiring soon
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (probe_ssl_earliest_cert_expiry - time()) / 86400
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [14]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS cert on {{ $labels.instance }} expires in {{ $values.B.Value | printf \"%.1f\" }}d"
+          description: "Renew before NotAfter — see docs/bastion.md (lessons learned from the OpenBao incident)."

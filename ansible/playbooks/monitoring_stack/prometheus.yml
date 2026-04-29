@@ -81,3 +81,23 @@ scrape_configs:
           - "192.168.2.205:9926" # Neo
         labels:
           instance_type: "ceph"
+
+  # blackbox-exporter — TLS handshake probes, exports
+  # `probe_ssl_earliest_cert_expiry` so the Grafana cert-expiry alert can fire
+  # before a cert silently rolls past NotAfter (see Apr 2026 OpenBao incident).
+  - job_name: "blackbox-tls"
+    metrics_path: /probe
+    params:
+      module: [tls_connect]
+    static_configs:
+      - targets:
+          - "10.0.2.9:8200"     # OpenBao internal TLS
+          - "192.168.2.235:443" # step-ca
+          - "10.0.2.2:443"      # home gateway Caddy
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: localhost:9115
