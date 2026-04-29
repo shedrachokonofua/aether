@@ -211,6 +211,16 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --pooling last
           ttl: 120
 
+        "qwen3-embedding-0.6b":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf Qwen/Qwen3-Embedding-0.6B-GGUF:Q8_0
+            -ngl 99
+            --embedding
+            --pooling last
+          ttl: 600
+
       groups:
         "affine":
           swap: false

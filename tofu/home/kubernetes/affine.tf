@@ -95,7 +95,7 @@ resource "kubernetes_secret_v1" "affine_config" {
             quick_decision_making   = "aether/qwen3.5-9b"
             quick_text_generation   = "aether/gemma-4-26b-a4b"
             rerank                  = "aether/bge-reranker-v2-m3"
-            embedding               = "aether/qwen3-embedding:4b"
+            embedding               = "text-embedding-3-large"
             audio_transcribing      = "aether/whisper-large-v3"
             image                   = "gpt-image-1"
           }
