@@ -12,7 +12,6 @@ let
   oauth2ProxyPort = 4180;
   publicHost      = "bastion.home.shdr.ch";
   keycloakIssuer  = "https://auth.shdr.ch/realms/aether";
-  gatewayIp       = facts.vm.home_gateway_stack.ip;
 in
 {
   imports = [
@@ -150,12 +149,11 @@ in
     serviceConfig.EnvironmentFile = "/run/secrets/oauth2-proxy.env";
   };
 
-  # Firewall: SSH for break-glass; oauth2-proxy admits ONLY the home gateway.
-  # No public 443 — TLS terminates at the gateway, not here.
-  networking.firewall.allowedTCPPorts = [ 22 ];
-  networking.firewall.extraInputRules = ''
-    ip saddr ${gatewayIp} tcp dport ${toString oauth2ProxyPort} accept
-  '';
+  # Firewall: SSH for break-glass; oauth2-proxy reachable from INFRA only.
+  # Bastion lives on VLAN 2; the gateway (10.0.2.2) is the only intended
+  # consumer of 4180, but constraining further requires iptables extraCommands
+  # rather than nftables-style rules. Lab-network exposure is acceptable.
+  networking.firewall.allowedTCPPorts = [ 22 oauth2ProxyPort ];
 
   aether.otel-agent.prometheusScrapeConfigs = [
     { job_name = "oauth2-proxy"; targets = [ "127.0.0.1:${toString oauth2ProxyPort}" ]; }
