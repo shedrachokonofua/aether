@@ -161,6 +161,25 @@ resource "helm_release" "otel_collector_deployment" {
       kubernetesAttributes = { enabled = true }
     }
 
+    # The kubernetesAttributes preset's ClusterRole omits endpoints/services,
+    # so any prometheus scrape job using kubernetes_sd_configs role=endpoints
+    # silently fails with "endpoints is forbidden". Grant them explicitly.
+    clusterRole = {
+      create = true
+      rules = [
+        {
+          apiGroups = [""]
+          resources = ["endpoints", "services", "pods", "nodes", "namespaces"]
+          verbs     = ["get", "list", "watch"]
+        },
+        {
+          apiGroups = ["discovery.k8s.io"]
+          resources = ["endpointslices"]
+          verbs     = ["get", "list", "watch"]
+        },
+      ]
+    }
+
     config = {
       receivers = {
         prometheus = {
@@ -193,6 +212,37 @@ resource "helm_release" "otel_collector_deployment" {
                 scrape_interval = "30s"
                 static_configs = [{
                   targets = ["dcgm-exporter.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:9400"]
+                }]
+              },
+              {
+                job_name        = "node-exporter"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role       = "endpoints"
+                  namespaces = { names = [kubernetes_namespace_v1.system.metadata[0].name] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = local.node_exporter_name
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+                    action        = "keep"
+                    regex         = "metrics"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_node_name"]
+                    target_label  = "node"
+                  },
+                ]
+              },
+              {
+                job_name        = "kube-state-metrics"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["${local.kube_state_metrics_name}.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:${local.kube_state_metrics_port}"]
                 }]
               },
               {
