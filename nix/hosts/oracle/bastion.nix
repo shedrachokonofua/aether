@@ -107,7 +107,12 @@ in
         volumes = [
           "/var/lib/termix:/app/data"
         ];
-        extraOptions = [ "--pull=always" ];
+        # Pin DNS to the lab router. Default podman behavior (when the host
+        # uses systemd-resolved on 127.0.0.53) injects six public resolvers
+        # into the container, which makes node-fetch occasionally hit
+        # EAI_AGAIN against api.github.com during the version check and turn
+        # the user-facing /version + /alerts endpoints into 502s.
+        extraOptions = [ "--pull=always" "--dns=10.0.2.1" ];
       };
     };
   };
