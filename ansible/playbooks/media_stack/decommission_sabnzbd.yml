@@ -1,0 +1,93 @@
+---
+# One-shot playbook: stop and export sabnzbd from the media-stack VM so its
+# config can be restored into the Kubernetes ceph-rbd PVC.
+#
+# Run order (operator):
+#   1. tofu apply (sabnzbd Deployment comes up with default config)
+#   2. kubectl -n media scale deploy/sabnzbd --replicas=0
+#   3. ansible-playbook playbooks/media_stack/decommission_sabnzbd.yml
+#   4. POD=$(kubectl -n media get pods -l app=sabnzbd -o name | head -1) ;\
+#      # if scaled to 0, spin up a temp pod that mounts the PVC, or scale to
+#      # 1 with a sleep override; simplest:
+#      kubectl -n media scale deploy/sabnzbd --replicas=1 && \
+#      kubectl -n media wait --for=condition=ready pod -l app=sabnzbd --timeout=120s && \
+#      POD=$(kubectl -n media get pods -l app=sabnzbd -o name | head -1)
+#   5. kubectl -n media cp /tmp/media-stack-export/sabnzbd-config.tar.gz $POD:/tmp/
+#   6. kubectl -n media exec $POD -- sh -c 'rm -rf /config/* /config/.* 2>/dev/null; \
+#        tar xzf /tmp/sabnzbd-config.tar.gz -C /config --strip-components=1'
+#   7. kubectl -n media rollout restart deploy/sabnzbd
+#
+# After verification, follow up with the second-stage cleanup playbook (or
+# manually rerun the disable+remove tasks below by setting cleanup=true).
+
+- name: Decommission SABnzbd from media-stack VM
+  hosts: media-stack
+  gather_facts: false
+  vars:
+    admin_user: aether
+    export_dir: /tmp/media-stack-export
+    cleanup: false  # set true to disable quadlet + remove app dir after k8s verified
+
+  tasks:
+    # =========================================================================
+    # Stop service
+    # =========================================================================
+
+    - name: Stop sabnzbd quadlet (user scope)
+      ansible.builtin.systemd:
+        name: sabnzbd
+        state: stopped
+        scope: user
+      ignore_errors: true
+
+    # =========================================================================
+    # Export state
+    # =========================================================================
+
+    - name: Create local export directory
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ export_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: directory
+        mode: "0755"
+
+    - name: Archive SABnzbd config
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/sabnzbd-config.tar.gz -C /home/{{ admin_user }}/sabnzbd config
+      changed_when: true
+
+    - name: Fetch tarball to control node
+      ansible.builtin.fetch:
+        src: "/home/{{ admin_user }}/export/sabnzbd-config.tar.gz"
+        dest: "{{ export_dir }}/sabnzbd-config.tar.gz"
+        flat: true
+
+    # =========================================================================
+    # Cleanup (gated — only after k8s side is verified)
+    # =========================================================================
+
+    - name: Disable sabnzbd quadlet
+      ansible.builtin.systemd:
+        name: sabnzbd
+        enabled: false
+        scope: user
+      when: cleanup | bool
+      ignore_errors: true
+
+    - name: Remove sabnzbd application directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/sabnzbd"
+        state: absent
+      when: cleanup | bool
+
+    - name: Clean up remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: absent
+      when: cleanup | bool

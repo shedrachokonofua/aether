@@ -20,16 +20,10 @@
 - name: Deploy qBittorrent
   import_playbook: qbittorrent.yml
 
-- name: Deploy Prowlarr
-  import_playbook: prowlarr.yml
-
-- name: Deploy SABnzbd
-  import_playbook: sabnzbd.yml
-
 - name: Deploy Filestash
   import_playbook: filestash.yml
 
-# NZBDav, Jellyfin, and Tuliprox migrated to Kubernetes (media namespace)
+# NZBDav, Jellyfin, Tuliprox, SABnzbd, and Prowlarr migrated to Kubernetes (media namespace)
 
 - name: Deploy Jellyseerr
   import_playbook: jellyseerr.yml
