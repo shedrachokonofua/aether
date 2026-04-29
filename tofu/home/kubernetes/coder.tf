@@ -290,6 +290,10 @@ resource "helm_release" "coder" {
           name  = "CODER_TELEMETRY"
           value = "false"
         },
+        {
+          name  = "CODER_MAX_TOKEN_LIFETIME"
+          value = "87600h"
+        },
       ]
     }
   })]

@@ -29,8 +29,8 @@ locals {
   yourspotify_api_port    = 8080
   yourspotify_mongo_port  = 27017
 
-  yourspotify_ns           = kubernetes_namespace_v1.yourspotify.metadata[0].name
-  yourspotify_api_labels   = { app = "yourspotify-api" }
+  yourspotify_ns            = kubernetes_namespace_v1.yourspotify.metadata[0].name
+  yourspotify_api_labels    = { app = "yourspotify-api" }
   yourspotify_client_labels = { app = "yourspotify-client" }
   yourspotify_mongo_labels  = { app = "yourspotify-mongo" }
 }
@@ -71,6 +71,9 @@ resource "kubernetes_stateful_set_v1" "yourspotify_mongo" {
     template {
       metadata { labels = local.yourspotify_mongo_labels }
       spec {
+        # MongoDB 5+ requires ARMv8.2 on arm64; the Pi worker pool does not provide it.
+        node_selector = { "kubernetes.io/arch" = "amd64" }
+
         container {
           name  = "mongo"
           image = local.yourspotify_mongo_image
@@ -113,7 +116,7 @@ resource "kubernetes_service_v1" "yourspotify_mongo" {
   spec {
     selector = local.yourspotify_mongo_labels
     port {
-      port = local.yourspotify_mongo_port
+      port        = local.yourspotify_mongo_port
       target_port = local.yourspotify_mongo_port
     }
     type = "ClusterIP"
@@ -165,7 +168,7 @@ resource "kubernetes_deployment_v1" "yourspotify_api" {
 
           port {
             container_port = local.yourspotify_api_port
-            name = "http"
+            name           = "http"
           }
 
           resources {
@@ -187,9 +190,9 @@ resource "kubernetes_service_v1" "yourspotify_api" {
   spec {
     selector = local.yourspotify_api_labels
     port {
-      port = local.yourspotify_api_port
+      port        = local.yourspotify_api_port
       target_port = local.yourspotify_api_port
-      name = "http"
+      name        = "http"
     }
   }
 }
@@ -223,7 +226,7 @@ resource "kubernetes_deployment_v1" "yourspotify_client" {
 
           port {
             container_port = local.yourspotify_client_port
-            name = "http"
+            name           = "http"
           }
 
           resources {
@@ -245,9 +248,9 @@ resource "kubernetes_service_v1" "yourspotify_client" {
   spec {
     selector = local.yourspotify_client_labels
     port {
-      port = local.yourspotify_client_port
+      port        = local.yourspotify_client_port
       target_port = local.yourspotify_client_port
-      name = "http"
+      name        = "http"
     }
   }
 }
