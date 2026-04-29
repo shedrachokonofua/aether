@@ -17,7 +17,7 @@ Deploy workflow orchestration to enable:
 
 | Capability               | Current Solution         | Gap                                    |
 | ------------------------ | ------------------------ | -------------------------------------- |
-| Durable workflows        | Temporal (Dokku)         | ✅ Solved (application layer)         |
+| Durable workflows        | Temporal (Talos k8s)     | ✅ Solved (application layer)         |
 | Visual automation        | n8n (Dokploy)            | ❌ UI-first, not IaC                   |
 | Script workflows         | Windmill (Dokploy)       | ❌ Code-first, underutilized           |
 | Scheduled jobs           | Cron (scattered)         | ❌ No visibility, no retry logic       |

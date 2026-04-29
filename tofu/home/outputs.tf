@@ -23,19 +23,8 @@ output "iot_management_stack_password" {
   sensitive = true
 }
 
-output "dokku_password" {
-  value     = random_password.dokku_console_password.result
-  sensitive = true
-}
 
-output "dokku_deployment_public_key" {
-  value = tls_private_key.dokku_deployment_ssh_key.public_key_openssh
-}
 
-output "dokku_deployment_private_key" {
-  value     = tls_private_key.dokku_deployment_ssh_key.private_key_pem
-  sensitive = true
-}
 
 output "keycloak_grafana_client_secret" {
   value     = keycloak_openid_client.grafana.client_secret

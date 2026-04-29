@@ -120,7 +120,7 @@ node-local storage to remain independent of Ceph/NFS latency.
 | Niobe  | Monitoring Stack                            | Must alert when Ceph has issues                      |
 | Smith  | Backup Stack                                | Must work if Ceph fails                              |
 
-**Note:** Most workload VMs (GitLab, Dokku, Dokploy, messaging, media, etc.) now run on Ceph for HA capability.
+**Note:** Most workload VMs (GitLab, messaging, media, etc.) now run on Ceph for HA capability.
 
 ### Talos Control Plane and CI
 

@@ -415,23 +415,12 @@ stats.proxy.home.shdr.ch {
   reverse_proxy localhost:{{ vm.home_gateway_stack.ports.rotating_proxy_metrics }}
 }
 
-kk.home.shdr.ch, *.kk.home.shdr.ch {
-  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.http }}
-}
-
-infisical.home.shdr.ch {
-  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.infisical }}
-}
-
 temporal.home.shdr.ch {
-  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.temporal_ui }}
-}
-
-grpc.temporal.home.shdr.ch {
-  reverse_proxy {{ vm.dokku.ip }}:{{ vm.dokku.ports.temporal_grpc }} {
-    transport http {
-      versions h2c
-    }
+  reverse_proxy 10.0.3.19 {
+    header_up Host temporal.apps.home.shdr.ch
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto {http.request.scheme}
   }
 }
 

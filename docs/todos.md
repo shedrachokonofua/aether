@@ -62,7 +62,7 @@
   - [x] Create k8s dashboards in Grafana
   - [ ] Migrate AI Tool Stack, Messaging Stack to Knative
   - [ ] Migrate Media Stack (rffmpeg → GPU Workstation for transcoding)
-  - [ ] Migrate Dokku/Dokploy apps to Knative Services
+  - [x] Migrate Dokku/Dokploy apps to Knative Services / native Deployments
   - [ ] Configure multi-tenancy (namespaces, quotas, Cilium NetworkPolicies)
   - [ ] Add ARM worker pool from Raspberry Pis ([exploration](exploration/raspberry-pi.md))
     - [x] Wire baremetal Talos node support in Tofu (`platform: baremetal`, per-arch schematics)

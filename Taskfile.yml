@@ -286,8 +286,6 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/messaging_stack/site.yml]
   configure:messaging:
     cmds: [ansible-playbook ansible/playbooks/messaging_stack/postfix.yml]
-  configure:dokku:
-    cmds: [ansible-playbook ansible/playbooks/dokku/site.yml]
   provision:keycloak:
     cmds: [ansible-playbook ansible/playbooks/keycloak/site.yml]
   configure:keycloak:

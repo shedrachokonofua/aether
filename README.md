@@ -48,7 +48,7 @@ IaC for my private cloud.
 | Doc                                    | Description                            |
 | -------------------------------------- | -------------------------------------- |
 | [AI/ML](docs/ai-ml.md)                 | GPU workstation, Ollama, LiteLLM, RAG  |
-| [PaaS](docs/paas.md)                   | Dokku, Dokploy                         |
+| [PaaS](docs/paas.md)                   | Talos Kubernetes                       |
 | [Monitoring](docs/monitoring.md)       | OTEL, Prometheus, Grafana, Loki, Tempo |
 | [Communication](docs/communication.md) | Matrix, ntfy, Postfix, bridges         |
 
