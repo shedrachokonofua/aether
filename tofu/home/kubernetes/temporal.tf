@@ -7,9 +7,9 @@
 # Stack:
 #   * temporal-postgres: StatefulSet + PVC backing store (Ceph RBD)
 #   * temporal-server: auto-setup image (handles schema migrations on boot)
-#   * temporal-ui: web UI exposed via HTTPRoute at temporal.apps.home.shdr.ch
-#                  (Caddy on the home gateway forwards temporal.home.shdr.ch
-#                   to it).
+#   * temporal-ui: web UI exposed via HTTPRoute at temporal.home.shdr.ch
+#                  (Caddy on the home gateway forwards traffic to the k8s
+#                   gateway VIP preserving the Host header).
 #
 # In-cluster gRPC clients connect to:
 #   temporal-server.temporal.svc.cluster.local:7233
@@ -20,7 +20,7 @@
 
 locals {
   temporal_namespace      = "temporal"
-  temporal_host           = "temporal.apps.home.shdr.ch"
+  temporal_host           = "temporal.home.shdr.ch"
   temporal_image          = "docker.io/temporalio/auto-setup:latest"
   temporal_ui_image       = "docker.io/temporalio/ui:latest"
   temporal_postgres_image = "docker.io/postgres:17-alpine"
@@ -372,7 +372,7 @@ resource "kubernetes_deployment_v1" "temporal_ui" {
           }
           env {
             name  = "TEMPORAL_CORS_ORIGINS"
-            value = "https://temporal.home.shdr.ch,https://${local.temporal_host}"
+            value = "https://${local.temporal_host}"
           }
 
           resources {
