@@ -274,15 +274,22 @@
         remote_src: true
 
     - name: Split certificate bundle into leaf and chain (for IAM Roles Anywhere)
+      # Always reconcile leaf/chain to whatever openbao.crt currently is.
+      # Without this, a renewed openbao.crt would land alongside stale leaf+chain
+      # files, leaving the IAM Roles Anywhere helper signing requests with a
+      # new key against the old leaf cert — AWS rejects the signature and the
+      # service crash-loops on AccessDeniedException: Invalid signature.
       when: step_ca_check.status == 200
       ansible.builtin.shell: |
+        set -e
+        rm -f {{ openbao_tls_dir }}/openbao-part-*
         csplit -z -f {{ openbao_tls_dir }}/openbao-part- {{ openbao_tls_dir }}/openbao.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
         mv {{ openbao_tls_dir }}/openbao-part-00 {{ openbao_tls_dir }}/openbao-leaf.crt
         mv {{ openbao_tls_dir }}/openbao-part-01 {{ openbao_tls_dir }}/openbao-chain.crt
         chown {{ openbao_user }}:{{ openbao_group }} {{ openbao_tls_dir }}/openbao-leaf.crt {{ openbao_tls_dir }}/openbao-chain.crt
         chmod 0640 {{ openbao_tls_dir }}/openbao-leaf.crt {{ openbao_tls_dir }}/openbao-chain.crt
-      args:
-        creates: "{{ openbao_tls_dir }}/openbao-leaf.crt"
+      changed_when: true
+      notify: Restart openbao
 
     - name: Warn if step-ca not reachable
       when: step_ca_check.status != 200
