@@ -100,6 +100,19 @@
         line: "{{ seven30_vcluster_vip }} k8s.seven30.xyz"
         state: present
 
+    # Public DNS for oidc.k8s.home.shdr.ch resolves to Cloudflare's edge
+    # (proxied), and trinity/neo/smith can't terminate TLS to that path
+    # reliably from their network position. Override to the home gateway
+    # Caddy, which proxies the discovery + JWKS endpoints to the K8s API VIP
+    # internally. Required for STS AssumeRoleWithWebIdentity validation
+    # against home-cluster SA tokens.
+    - name: Ensure hosts entry for home K8s OIDC (via home gateway)
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^.*oidc\.k8s\.home\.shdr\.ch'
+        line: "10.0.2.2 oidc.k8s.home.shdr.ch"
+        state: present
+
     # =========================================================================
     # Install RGW
     # =========================================================================

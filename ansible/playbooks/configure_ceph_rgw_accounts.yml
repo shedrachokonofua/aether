@@ -330,6 +330,454 @@
       run_once: true
 
 # =============================================================================
+# Aether RGW IAM account
+# =============================================================================
+# Mirrors the seven30 account setup but for the home Talos cluster ("aether").
+# Creates a non-tenanted IAM account, a root user, and registers the GitLab
+# CI + home K8s OIDC providers under it so AssumeRoleWithWebIdentity works
+# for account-scoped roles created by aether-side workloads (shdrch, etc).
+#
+# Run with:
+#   task ansible:run -- playbooks/configure_ceph_rgw_accounts.yml --tags aether
+
+- name: Create Aether RGW IAM account
+  hosts: trinity
+  become: true
+  gather_facts: false
+  roles:
+    - common
+  tags:
+    - aether
+  vars:
+    rgw_admin_host: "trinity"
+    aether_account_name: "aether"
+    aether_root_user_uid: "aether-root"
+    aether_root_user_display: "AetherRoot"
+    openbao_addr: "https://bao.home.shdr.ch"
+    openbao_secret_path: "kv/data/aether/ceph-rgw"
+
+  tasks:
+    # =======================================================================
+    # 1. Create the aether RGW account
+    # =======================================================================
+
+    - name: Check for existing aether account
+      ansible.builtin.command:
+        cmd: radosgw-admin account get --account-name={{ aether_account_name }}
+      register: rgw_aether_account_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create aether RGW account
+      ansible.builtin.command:
+        cmd: radosgw-admin account create --account-name={{ aether_account_name }}
+      register: rgw_aether_account_create
+      when: rgw_aether_account_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Set account info from existing account
+      ansible.builtin.set_fact:
+        aether_account: "{{ rgw_aether_account_check.stdout | from_json }}"
+      when: rgw_aether_account_check.rc == 0
+      run_once: true
+
+    - name: Set account info from newly created account
+      ansible.builtin.set_fact:
+        aether_account: "{{ rgw_aether_account_create.stdout | from_json }}"
+      when: rgw_aether_account_check.rc != 0
+      run_once: true
+
+    - name: Display account ID
+      ansible.builtin.debug:
+        msg: "Aether RGW account ID: {{ aether_account.id }}"
+      run_once: true
+
+    # =======================================================================
+    # 2. Create account root user
+    # =======================================================================
+
+    - name: Check if aether root user already exists
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid={{ aether_root_user_uid }}
+      register: rgw_aether_root_user_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create aether account root user
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --uid={{ aether_root_user_uid }}
+          --display-name={{ aether_root_user_display }}
+          --account-id={{ aether_account.id }}
+          --account-root
+          --access-key={{ secrets.ceph.aether_account_access_key }}
+          --secret={{ secrets.ceph.aether_account_secret_key }}
+      register: rgw_aether_root_user_create
+      when: rgw_aether_root_user_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Set user info from existing user
+      ansible.builtin.set_fact:
+        aether_root_user: "{{ rgw_aether_root_user_check.stdout | from_json }}"
+      when: rgw_aether_root_user_check.rc == 0
+      run_once: true
+
+    - name: Set user info from newly created user
+      ansible.builtin.set_fact:
+        aether_root_user: "{{ rgw_aether_root_user_create.stdout | from_json }}"
+      when: rgw_aether_root_user_check.rc != 0
+      run_once: true
+
+    - name: Confirm account root user
+      ansible.builtin.debug:
+        msg: "Account root user: {{ aether_root_user_uid }} (account {{ aether_root_user.account_id | default('pending') }})"
+      run_once: true
+
+    # =======================================================================
+    # 3. Register OIDC providers under the aether account
+    # =======================================================================
+
+    - name: List existing OIDC providers (account-scoped)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam list-open-id-connect-providers
+      register: aether_oidc_list
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Set OIDC provider ARN list
+      ansible.builtin.set_fact:
+        aether_oidc_arns: "{{ (aether_oidc_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list }}"
+      run_once: true
+
+    # --- GitLab OIDC ---
+    - name: Get GitLab OIDC thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          HOST="gitlab.home.shdr.ch"
+          INTERMEDIATE_CERT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{if(/BEGIN/)n++;if(n==2)print}')
+          if [ -n "$INTERMEDIATE_CERT" ]; then
+            echo "$INTERMEDIATE_CERT" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          else
+            echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          fi
+      register: aether_gitlab_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register GitLab OIDC provider in aether account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://gitlab.home.shdr.ch" \
+            --client-id-list "https://gitlab.home.shdr.ch" \
+            --thumbprint-list "{{ aether_gitlab_oidc_thumbprint.stdout }}"
+      when:
+        - aether_gitlab_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/gitlab.home.shdr.ch' not in aether_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # --- Home K8s OIDC ---
+    - name: Get Home K8s OIDC thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          HOST="oidc.k8s.home.shdr.ch"
+          INTERMEDIATE_CERT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{if(/BEGIN/)n++;if(n==2)print}')
+          if [ -n "$INTERMEDIATE_CERT" ]; then
+            echo "$INTERMEDIATE_CERT" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          else
+            echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          fi
+      register: aether_home_k8s_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register Home K8s OIDC provider in aether account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://oidc.k8s.home.shdr.ch" \
+            --client-id-list "sts.amazonaws.com" \
+            --thumbprint-list "{{ aether_home_k8s_oidc_thumbprint.stdout }}"
+      when:
+        - aether_home_k8s_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/oidc.k8s.home.shdr.ch' not in aether_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # --- Keycloak (Aether SSO) OIDC ---
+    # Registers Keycloak so humans running tofu locally can federate via
+    # `task auth` (in shdrch or any other app repo) → Keycloak JWT →
+    # AssumeRoleWithWebIdentity → aether-admin role.
+    #
+    # Ceph RGW compares the registered thumbprintList against the JWT
+    # *signing cert* extracted from the JWKS x5c, NOT the IDP's TLS cert.
+    # We pull the JWT signing cert from /protocol/openid-connect/certs and
+    # hash that. (For OIDC providers whose JWKS has no x5c — e.g. raw K8s
+    # SA tokens — RGW skips the thumbprint check entirely and uses the
+    # public key directly, which is why the K8s OIDC provider works with
+    # any thumbprint registered.)
+    - name: Get Keycloak JWT signing cert thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          CERT=$(curl -sSf https://auth.shdr.ch/realms/aether/protocol/openid-connect/certs \
+            | jq -r '.keys[] | select(.use=="sig") | .x5c[0]')
+          PEM=$(printf '%s\n%s\n%s\n' \
+            "-----BEGIN CERTIFICATE-----" \
+            "$(echo "$CERT" | fold -w 64)" \
+            "-----END CERTIFICATE-----")
+          echo "$PEM" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+      register: aether_keycloak_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register Keycloak OIDC provider in aether account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://auth.shdr.ch/realms/aether" \
+            --client-id-list "toolbox" \
+            --thumbprint-list "{{ aether_keycloak_oidc_thumbprint.stdout }}"
+      when:
+        - aether_keycloak_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/auth.shdr.ch/realms/aether' not in aether_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # =======================================================================
+    # 3b. aether-admin role (humans via Keycloak SSO)
+    # =======================================================================
+    # Federated identity for humans running tofu locally against the aether
+    # account. Each app's tofu does:
+    #   provider "aws" {
+    #     assume_role_with_web_identity {
+    #       role_arn                = "arn:...:role/aether-admin"
+    #       web_identity_token_file = "~/.aether-toolbox/keycloak/id_token"
+    #     }
+    #   }
+    # No app holds aether-root; root creds live only in OpenBao for ansible
+    # bootstrap. Trust policy is keyed on the operator's Keycloak `sub` so
+    # only that user (with toolbox client) can assume.
+
+    - name: Look up Keycloak user ID for aether-admin trust policy
+      ansible.builtin.uri:
+        url: "https://auth.shdr.ch/realms/master/protocol/openid-connect/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          client_id: admin-cli
+          username: "{{ secrets.keycloak.bootstrap_admin_user }}"
+          password: "{{ secrets.keycloak.bootstrap_admin_password }}"
+          grant_type: password
+        return_content: true
+        status_code: 200
+      register: kc_token_resp
+      delegate_to: localhost
+      become: false
+      run_once: true
+      no_log: true
+
+    - name: Get shdrch user from Keycloak
+      ansible.builtin.uri:
+        url: "https://auth.shdr.ch/admin/realms/aether/users?username=shdrch&exact=true"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ (kc_token_resp.content | from_json).access_token }}"
+        return_content: true
+        status_code: 200
+      register: kc_user_resp
+      delegate_to: localhost
+      become: false
+      run_once: true
+      no_log: true
+
+    - name: Set aether admin sub
+      ansible.builtin.set_fact:
+        aether_admin_sub: "{{ (kc_user_resp.content | from_json)[0].id }}"
+      run_once: true
+
+    - name: Build aether-admin trust policy
+      ansible.builtin.set_fact:
+        aether_admin_trust_policy:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Federated: "arn:aws:iam::{{ aether_account.id }}:oidc-provider/auth.shdr.ch/realms/aether"
+              Action: "sts:AssumeRoleWithWebIdentity"
+              Condition:
+                # Keycloak issues `aud` as a JSON array (e.g.
+                # ["toolbox","openbao"]). ForAnyValue:StringEquals matches
+                # against any element of an array claim.
+                "ForAnyValue:StringEquals":
+                  "auth.shdr.ch/realms/aether:aud": "toolbox"
+                StringEquals:
+                  "auth.shdr.ch/realms/aether:sub": "{{ aether_admin_sub }}"
+      run_once: true
+
+    - name: Check if aether-admin role exists
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam get-role --role-name aether-admin >/dev/null 2>&1 && echo EXISTS || echo MISSING
+      register: aether_admin_role_check
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Create aether-admin role
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-role \
+            --role-name aether-admin \
+            --assume-role-policy-document '{{ aether_admin_trust_policy | to_json }}' \
+            --max-session-duration 43200
+      when: aether_admin_role_check.stdout == "MISSING"
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Update aether-admin role trust policy (idempotent)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam update-assume-role-policy \
+            --role-name aether-admin \
+            --policy-document '{{ aether_admin_trust_policy | to_json }}'
+      when: aether_admin_role_check.stdout == "EXISTS"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+    - name: Attach broad IAM/S3 policy to aether-admin
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam put-role-policy \
+            --role-name aether-admin \
+            --policy-name aether-admin-full \
+            --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["iam:*","s3:*","sts:*"],"Resource":"*"}]}'
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+    # =======================================================================
+    # 4. Write account_id + creds to OpenBao
+    # =======================================================================
+
+    - name: Build AWS credentials file
+      ansible.builtin.set_fact:
+        aether_aws_creds_content: "[default]\naws_access_key_id = {{ secrets.ceph.aether_account_access_key }}\naws_secret_access_key = {{ secrets.ceph.aether_account_secret_key }}\n"
+      run_once: true
+      no_log: true
+
+    - name: Write account_id and creds to OpenBao
+      ansible.builtin.uri:
+        url: "{{ openbao_addr }}/v1/{{ openbao_secret_path }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ lookup('ansible.builtin.env', 'VAULT_TOKEN') }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          data:
+            account_id: "{{ aether_account.id }}"
+            creds: "{{ aether_aws_creds_content }}"
+        status_code: [200, 204]
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: lookup('ansible.builtin.env', 'VAULT_TOKEN') | length > 0
+      no_log: true
+
+    - name: OpenBao update skipped (no VAULT_TOKEN)
+      ansible.builtin.debug:
+        msg: >-
+          VAULT_TOKEN not set — re-run with VAULT_TOKEN or update manually.
+      run_once: true
+      when: lookup('ansible.builtin.env', 'VAULT_TOKEN') | length == 0
+
+    # =======================================================================
+    # 5. Summary
+    # =======================================================================
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          Account:    {{ aether_account_name }} ({{ aether_account.id }})
+          Root user:  {{ aether_root_user_uid }}
+          OIDC:       gitlab.home.shdr.ch + oidc.k8s.home.shdr.ch + auth.shdr.ch/realms/aether
+          aether-admin: arn:aws:iam::{{ aether_account.id }}:role/aether-admin
+          OpenBao:    {{ openbao_secret_path }}
+
+          Workloads in the home cluster (shdrch, etc.) should reference:
+            arn:aws:iam::{{ aether_account.id }}:role/<role-name>
+            arn:aws:iam::{{ aether_account.id }}:oidc-provider/<issuer>
+
+          Humans running tofu locally federate via Keycloak SSO:
+            client_id: toolbox
+            assume role: arn:aws:iam::{{ aether_account.id }}:role/aether-admin
+      run_once: true
+
+# =============================================================================
 # Nextcloud RGW user + bucket
 # =============================================================================
 # Creates a dedicated RGW user for Nextcloud's S3 primary objectstore and

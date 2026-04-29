@@ -1,0 +1,67 @@
+---
+# =============================================================================
+# Static route from Proxmox hosts to internal VLANs (10.0.0.0/8)
+# =============================================================================
+# Why: Proxmox hosts (niobe/trinity/oracle/smith/neo) sit on 192.168.2.0/24
+# and default-route via the LAN gateway 192.168.2.1, which doesn't know about
+# the 10.0.0.0/8 internal VLANs (where home-gateway-stack, monitoring-stack,
+# k8s API VIP, etc. live).
+#
+# The home-gateway-stack VM has a 192.168.2.x-side NIC at 192.168.2.231 that
+# forwards into 10.0.0.0/8. Adding a static route via that NIC on every
+# Proxmox host gives them direct L3 access to internal services (k8s OIDC
+# discovery, GitLab, OpenBao, etc.).
+#
+# Without this route, RGW (running on trinity/neo/smith) cannot fetch JWKS
+# from internal OIDC issuers, so AssumeRoleWithWebIdentity always fails with
+# InvalidArgument. Discovered while debugging shdrch's STS exchange.
+#
+# Persists via /etc/network/if-up.d/ hook so it survives reboots and any
+# `ifup vmbr0` cycle. Idempotent (the script swallows "already exists").
+
+- name: Configure internal-VLAN route on Proxmox hosts
+  hosts: machines
+  become: true
+  gather_facts: false
+  vars:
+    aether_route_dest: "10.0.0.0/8"
+    aether_route_via:  "192.168.2.231"
+    aether_route_dev:  "vmbr0"
+
+  tasks:
+    - name: Install if-up.d hook (persistent route on vmbr0 up)
+      ansible.builtin.copy:
+        dest: /etc/network/if-up.d/aether-internal-route
+        mode: "0755"
+        owner: root
+        group: root
+        content: |
+          #!/bin/sh
+          # Managed by ansible: configure_proxmox_internal_routes.yml
+          # Adds the aether internal-VLAN route when vmbr0 comes up.
+          [ "$IFACE" = "{{ aether_route_dev }}" ] || exit 0
+          ip route add {{ aether_route_dest }} via {{ aether_route_via }} dev {{ aether_route_dev }} 2>/dev/null || true
+
+    - name: Apply the route now (no reboot needed)
+      ansible.builtin.shell:
+        cmd: |
+          if ip route get {{ aether_route_via }} >/dev/null 2>&1 \
+             && ! ip route show {{ aether_route_dest }} | grep -q "{{ aether_route_via }}"; then
+            ip route add {{ aether_route_dest }} via {{ aether_route_via }} dev {{ aether_route_dev }}
+            echo "ADDED"
+          else
+            echo "PRESENT_OR_GATEWAY_UNREACHABLE"
+          fi
+      register: route_apply
+      changed_when: "'ADDED' in route_apply.stdout"
+
+    - name: Verify reachability to home-gateway-stack (10.0.2.2)
+      ansible.builtin.command:
+        cmd: ping -c 1 -W 2 10.0.2.2
+      register: ping_check
+      changed_when: false
+      failed_when: ping_check.rc != 0
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} ({{ ansible_host }}): route applied — 10.0.2.2 reachable"
