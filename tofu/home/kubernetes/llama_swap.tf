@@ -221,24 +221,16 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --pooling last
           ttl: 600
 
-      groups:
-        "affine":
-          swap: false
-          exclusive: false
-          persistent: true
-          members:
-            - "gemma-4-26b-a4b"
-            - "qwen3.5-9b"
-
       matrix:
         vars:
           q3627: "qwen3.6-27b"
           q36: "qwen3.6-35b-a3b"
           g31: "gemma-4-31b"
+          g26: "gemma-4-26b-a4b"
           emb: "qwen3-embedding-4b"
           rr: "bge-reranker-v2-m3"
         sets:
-          full: "q3627 & q36 & g31 & emb & rr"
+          full: "q3627 & q36 & g31 & g26 & emb & rr"
     YAML
   }
 }
@@ -273,6 +265,9 @@ resource "kubernetes_deployment_v1" "llama_swap" {
     template {
       metadata {
         labels = local.llama_swap_labels
+        annotations = {
+          "aether.shdr.ch/config-sha" = sha256(kubernetes_config_map_v1.llama_swap_config.data["config.yaml"])
+        }
       }
 
       spec {

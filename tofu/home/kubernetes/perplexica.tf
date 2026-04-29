@@ -1,18 +1,24 @@
 # =============================================================================
 # Perplexica — AI-powered Search
 # =============================================================================
-# Single container. Config.toml mounted from a Secret.
+# Single container. Runtime config is seeded into the data PVC.
 # SearXNG backend: searxng.home.shdr.ch (k8s)
 #
 # Data migration: tiny volumes (~32KB), can start fresh or copy:
 #   perplexica-backend-dbstore-default-perplexica-1vcy9k → memos-data PVC
 
 locals {
-  perplexica_image        = "itzcrazykns1337/perplexica:latest"
-  perplexica_host = "perplexica.home.shdr.ch"
-  perplexica_port         = 3000
-  perplexica_ns           = kubernetes_namespace_v1.personal.metadata[0].name
-  perplexica_labels       = { app = "perplexica" }
+  perplexica_image           = "itzcrazykns1337/perplexica:latest"
+  perplexica_host            = "perplexica.home.shdr.ch"
+  perplexica_port            = 3000
+  perplexica_ns              = kubernetes_namespace_v1.personal.metadata[0].name
+  perplexica_labels          = { app = "perplexica" }
+  perplexica_searxng_url     = "http://searxng.infra.svc.cluster.local:8080"
+  perplexica_openai_base_url = "https://litellm.home.shdr.ch/v1"
+  perplexica_chat_model_key  = "aether/gemma-4-26b-a4b"
+  perplexica_chat_model_name = "Gemma 4 26B A4B (LiteLLM)"
+  perplexica_embedding_key   = "aether/qwen3-embedding:4b"
+  perplexica_embedding_name  = "Qwen3 Embedding 4B (LiteLLM)"
 }
 
 resource "kubernetes_secret_v1" "perplexica_config" {
@@ -24,27 +30,7 @@ resource "kubernetes_secret_v1" "perplexica_config" {
   }
 
   data = {
-    "config.toml" = <<-TOML
-      [GENERAL]
-      SIMILARITY_MEASURE = "cosine"
-
-      [MODELS.CUSTOM_OPENAI]
-      API_KEY = "${var.secrets["litellm.virtual_keys.perplexica"]}"
-      API_URL = "https://litellm.home.shdr.ch/v1"
-      MODEL_NAME = "openai/gpt-4o-mini"
-
-      [MODELS.OPENAI]
-      API_KEY = ""
-
-      [MODELS.GROQ]
-      API_KEY = ""
-
-      [MODELS.ANTHROPIC]
-      API_KEY = ""
-
-      [MODELS.GEMINI]
-      API_KEY = ""
-    TOML
+    OPENAI_API_KEY = var.secrets["litellm.virtual_keys.perplexica"]
   }
 
   type = "Opaque"
@@ -91,17 +77,168 @@ resource "kubernetes_deployment_v1" "perplexica" {
       spec {
         enable_service_links = false
 
+        init_container {
+          name  = "configure-perplexica"
+          image = local.perplexica_image
+
+          command = ["node", "-e"]
+          args = [<<-JS
+            const fs = require('fs');
+            const crypto = require('crypto');
+
+            const configPath = '/home/perplexica/data/config.json';
+            const dataDir = '/home/perplexica/data';
+            fs.mkdirSync(dataDir, { recursive: true });
+
+            let config = {
+              version: 1,
+              setupComplete: true,
+              preferences: {},
+              personalization: {},
+              modelProviders: [],
+              search: {},
+            };
+
+            if (fs.existsSync(configPath)) {
+              config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            }
+
+            config.version ??= 1;
+            config.preferences ??= {};
+            config.personalization ??= {};
+            config.modelProviders ??= [];
+            config.search ??= {};
+            config.setupComplete = true;
+            config.search.searxngURL = process.env.SEARXNG_API_URL;
+
+            const providerConfig = {
+              apiKey: process.env.OPENAI_API_KEY,
+              baseURL: process.env.OPENAI_BASE_URL,
+            };
+
+            if (!providerConfig.apiKey || !providerConfig.baseURL) {
+              throw new Error('OPENAI_API_KEY and OPENAI_BASE_URL are required');
+            }
+
+            const providerHash = crypto
+              .createHash('sha256')
+              .update(JSON.stringify(providerConfig, Object.keys(providerConfig).sort()))
+              .digest('hex');
+
+            const model = {
+              name: process.env.OPENAI_MODEL_NAME,
+              key: process.env.OPENAI_MODEL,
+            };
+            const embeddingModel = {
+              name: process.env.OPENAI_EMBEDDING_MODEL_NAME,
+              key: process.env.OPENAI_EMBEDDING_MODEL,
+            };
+
+            const provider = {
+              id: 'litellm',
+              name: 'LiteLLM',
+              type: 'openai',
+              config: providerConfig,
+              hash: providerHash,
+              chatModels: [model],
+              embeddingModels: [embeddingModel],
+            };
+
+            const existingIndex = config.modelProviders.findIndex((p) =>
+              p.id === provider.id ||
+              p.hash === provider.hash ||
+              (p.type === 'openai' && p.config?.baseURL === provider.config.baseURL)
+            );
+
+            if (existingIndex >= 0) {
+              const existing = config.modelProviders[existingIndex];
+              const chatModels = [
+                ...((existing.chatModels || []).filter((m) => m.key !== model.key)),
+                model,
+              ];
+              const embeddingModels = [
+                ...((existing.embeddingModels || []).filter((m) => m.key !== embeddingModel.key)),
+                embeddingModel,
+              ];
+
+              config.modelProviders[existingIndex] = {
+                ...existing,
+                ...provider,
+                chatModels,
+                embeddingModels,
+              };
+            } else {
+              config.modelProviders.push(provider);
+            }
+
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+          JS
+          ]
+
+          env {
+            name  = "SEARXNG_API_URL"
+            value = local.perplexica_searxng_url
+          }
+          env {
+            name  = "OPENAI_BASE_URL"
+            value = local.perplexica_openai_base_url
+          }
+          env {
+            name  = "OPENAI_MODEL"
+            value = local.perplexica_chat_model_key
+          }
+          env {
+            name  = "OPENAI_MODEL_NAME"
+            value = local.perplexica_chat_model_name
+          }
+          env {
+            name  = "OPENAI_EMBEDDING_MODEL"
+            value = local.perplexica_embedding_key
+          }
+          env {
+            name  = "OPENAI_EMBEDDING_MODEL_NAME"
+            value = local.perplexica_embedding_name
+          }
+          env {
+            name = "OPENAI_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.perplexica_config.metadata[0].name
+                key  = "OPENAI_API_KEY"
+              }
+            }
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/home/perplexica/data"
+          }
+        }
+
         container {
           name  = "perplexica"
           image = local.perplexica_image
 
           env {
             name  = "SEARXNG_API_URL"
-            value = "http://searxng.infra.svc.cluster.local:8080"
+            value = local.perplexica_searxng_url
           }
           env {
             name  = "DATA_DIR"
             value = "/home/perplexica"
+          }
+          env {
+            name  = "OPENAI_BASE_URL"
+            value = local.perplexica_openai_base_url
+          }
+          env {
+            name = "OPENAI_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.perplexica_config.metadata[0].name
+                key  = "OPENAI_API_KEY"
+              }
+            }
           }
 
           port {
@@ -116,12 +253,6 @@ resource "kubernetes_deployment_v1" "perplexica" {
           volume_mount {
             name       = "uploads"
             mount_path = "/home/perplexica/uploads"
-          }
-          volume_mount {
-            name       = "config"
-            mount_path = "/home/perplexica/config.toml"
-            sub_path   = "config.toml"
-            read_only  = true
           }
 
           resources {
@@ -147,10 +278,6 @@ resource "kubernetes_deployment_v1" "perplexica" {
           name = "uploads"
           empty_dir {}
         }
-        volume {
-          name = "config"
-          secret { secret_name = kubernetes_secret_v1.perplexica_config.metadata[0].name }
-        }
       }
     }
   }
@@ -165,9 +292,9 @@ resource "kubernetes_service_v1" "perplexica" {
   spec {
     selector = local.perplexica_labels
     port {
-      port = local.perplexica_port
+      port        = local.perplexica_port
       target_port = local.perplexica_port
-      name = "http"
+      name        = "http"
     }
   }
 }
