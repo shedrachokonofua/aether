@@ -92,6 +92,23 @@ locals {
           minAvailable = "60%"
         },
       ]
+      # Control plane stays on amd64; arm pool is for workloads, not operators.
+      workloads = [
+        for name in [
+          "activator",
+          "autoscaler",
+          "autoscaler-hpa",
+          "controller",
+          "webhook",
+          "net-istio-controller",
+          "net-istio-webhook",
+          ] : {
+          name = name
+          nodeSelector = {
+            "kubernetes.io/arch" = "amd64"
+          }
+        }
+      ]
       config = {
         network = {
           "ingress-class" = "gateway-api.ingress.networking.knative.dev"

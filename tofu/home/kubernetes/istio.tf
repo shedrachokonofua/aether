@@ -92,5 +92,9 @@ resource "helm_release" "ztunnel" {
 
   values = [yamlencode({
     caAddress = local.istio_csr_service
+    resources = {
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { cpu = "1000m", memory = "512Mi" }
+    }
   })]
 }
