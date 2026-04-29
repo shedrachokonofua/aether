@@ -129,6 +129,139 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched" {
   }
 }
 
+# RWX replacements on CephFS so server + sidekiq schedule independently.
+resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage_rwx" {
+  depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.cephfs]
+  metadata {
+    name = "dawarich-storage-rwx"
+    namespace = local.dawarich_ns
+  }
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.cephfs.metadata[0].name
+    resources { requests = { storage = "5Gi" } }
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched_rwx" {
+  depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.cephfs]
+  metadata {
+    name = "dawarich-watched-rwx"
+    namespace = local.dawarich_ns
+  }
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.cephfs.metadata[0].name
+    resources { requests = { storage = "5Gi" } }
+  }
+}
+
+# One-shot rsync from RWO RBD → RWX CephFS for both volumes. Runs on the same
+# node as dawarich-server so it can mount the RWO sources alongside the live
+# pods (multi-pod RWO is allowed on a single node).
+resource "kubernetes_job_v1" "dawarich_rwx_migrate" {
+  depends_on = [
+    kubernetes_persistent_volume_claim_v1.dawarich_storage,
+    kubernetes_persistent_volume_claim_v1.dawarich_watched,
+    kubernetes_persistent_volume_claim_v1.dawarich_storage_rwx,
+    kubernetes_persistent_volume_claim_v1.dawarich_watched_rwx,
+  ]
+
+  metadata {
+    name      = "dawarich-rwx-migrate"
+    namespace = local.dawarich_ns
+  }
+
+  spec {
+    backoff_limit              = 6
+    ttl_seconds_after_finished = 86400
+
+    template {
+      metadata {
+        labels = {
+          app               = "dawarich-rwx-migrate"
+          "aether.sh/arm-ok" = "true"
+        }
+      }
+
+      spec {
+        restart_policy = "OnFailure"
+
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector { match_labels = local.dawarich_labels }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
+        container {
+          name    = "rsync"
+          image   = "alpine:3.20"
+          command = ["/bin/sh", "-c", <<-EOT
+            set -eu
+            apk add --no-cache rsync >/dev/null
+            for src in storage watched; do
+              echo "rsync $src..."
+              rsync -aH --info=progress2 /old-$src/ /new-$src/
+            done
+            echo "done"
+          EOT
+          ]
+
+          resources {
+            requests = { cpu = "50m", memory = "128Mi" }
+            limits   = { cpu = "500m", memory = "512Mi" }
+          }
+
+          volume_mount {
+            name       = "old-storage"
+            mount_path = "/old-storage"
+          }
+          volume_mount {
+            name       = "new-storage"
+            mount_path = "/new-storage"
+          }
+          volume_mount {
+            name       = "old-watched"
+            mount_path = "/old-watched"
+          }
+          volume_mount {
+            name       = "new-watched"
+            mount_path = "/new-watched"
+          }
+        }
+
+        volume {
+          name = "old-storage"
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_storage.metadata[0].name }
+        }
+        volume {
+          name = "new-storage"
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_storage_rwx.metadata[0].name }
+        }
+        volume {
+          name = "old-watched"
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_watched.metadata[0].name }
+        }
+        volume {
+          name = "new-watched"
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_watched_rwx.metadata[0].name }
+        }
+      }
+    }
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+  timeouts {
+    create = "20m"
+    update = "20m"
+  }
+}
+
 # PostGIS (includes postgis extension — required by dawarich)
 resource "kubernetes_stateful_set_v1" "dawarich_postgres" {
   depends_on = [kubernetes_secret_v1.dawarich_postgres, kubernetes_persistent_volume_claim_v1.dawarich_postgres_data]
@@ -252,7 +385,9 @@ resource "kubernetes_deployment_v1" "dawarich" {
   depends_on = [
     kubernetes_service_v1.dawarich_postgres,
     kubernetes_service_v1.dawarich_redis,
-    kubernetes_persistent_volume_claim_v1.dawarich_storage,
+    kubernetes_persistent_volume_claim_v1.dawarich_storage_rwx,
+    kubernetes_persistent_volume_claim_v1.dawarich_watched_rwx,
+    kubernetes_job_v1.dawarich_rwx_migrate,
   ]
   metadata {
     name      = "dawarich"
@@ -311,11 +446,11 @@ resource "kubernetes_deployment_v1" "dawarich" {
 
         volume {
           name = "storage"
-          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_storage.metadata[0].name }
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_storage_rwx.metadata[0].name }
         }
         volume {
           name = "watched"
-          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_watched.metadata[0].name }
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_watched_rwx.metadata[0].name }
         }
       }
     }
@@ -353,16 +488,6 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
       metadata { labels = local.dawarich_sidekiq_labels }
       spec {
         enable_service_links = false
-        affinity {
-          pod_affinity {
-            required_during_scheduling_ignored_during_execution {
-              label_selector {
-                match_labels = local.dawarich_labels
-              }
-              topology_key = "kubernetes.io/hostname"
-            }
-          }
-        }
         container {
           name    = "sidekiq"
           image   = local.dawarich_image
@@ -398,11 +523,11 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
         }
         volume {
           name = "storage"
-          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_storage.metadata[0].name }
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_storage_rwx.metadata[0].name }
         }
         volume {
           name = "watched"
-          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_watched.metadata[0].name }
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.dawarich_watched_rwx.metadata[0].name }
         }
       }
     }
