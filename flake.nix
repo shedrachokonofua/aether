@@ -124,6 +124,8 @@
             opentofu
             ansible
             python3Packages.ansible-pylibssh  # For network_cli connections (VyOS)
+            python3Packages.boto3              # For amazon.aws CloudFormation tasks
+            python3Packages.botocore           # boto3 dependency, ditto
             
             # Secrets management
             sops

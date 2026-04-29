@@ -313,14 +313,28 @@ tasks:
   # ===========================================================================
   _nixos-deploy:
     internal: true
-    desc: Internal helper for NixOS deployments
+    desc: |
+      Internal helper for NixOS deployments. Rsyncs the repo to the target,
+      then runs nixos-rebuild on the target so the (x86_64-linux) IFD inputs
+      build natively — supports running deploys from non-Linux laptops.
     vars:
       STEP_CA_IP:
         sh: yq '.step_ca.ip' config/vm.yml
+      REMOTE_PATH: '{{.REMOTE_PATH | default "/root/aether"}}'
     cmds:
       - |
+        set -euo pipefail
         SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
-        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch --flake .#{{.FLAKE_TARGET}} --target-host root@{{.TARGET_IP}} --impure
+        rsync -aH --delete \
+          -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+          --exclude=.git \
+          --exclude=.terraform \
+          --exclude=secrets/ \
+          --exclude=tofu/.terraform \
+          --exclude=node_modules \
+          ./ root@{{.TARGET_IP}}:{{.REMOTE_PATH}}/
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.TARGET_IP}} \
+          "cd {{.REMOTE_PATH}} && SSH_CA_PUBKEY=\"$SSH_CA_PUBKEY\" nix --extra-experimental-features 'nix-command flakes' run nixpkgs#nixos-rebuild -- switch --flake .#{{.FLAKE_TARGET}} --impure"
 
   configure:adguard:
     desc: Deploy NixOS configuration to AdGuard LXC
@@ -338,20 +352,15 @@ tasks:
       - task: provision:adguard
       - task: configure:adguard
   configure:bastion:
-    desc: Deploy NixOS configuration to bastion LXC (builds on the target)
+    desc: Deploy NixOS configuration to bastion LXC
     vars:
       TARGET_IP:
         sh: yq '.bastion.ip' config/vm.yml
-      STEP_CA_IP:
-        sh: yq '.step_ca.ip' config/vm.yml
     cmds:
-      - |
-        SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
-        SSH_CA_PUBKEY="$SSH_CA_PUBKEY" nix run nixpkgs#nixos-rebuild -- switch \
-          --flake .#bastion \
-          --build-host root@{{.TARGET_IP}} \
-          --target-host root@{{.TARGET_IP}} \
-          --impure
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: bastion
   deploy:bastion:
     desc: Full deploy - provision bastion LXC + configure NixOS
     cmds:
