@@ -165,6 +165,11 @@ in
   # rather than nftables-style rules. Lab-network exposure is acceptable.
   networking.firewall.allowedTCPPorts = [ 22 oauth2ProxyPort ];
 
+  # podman's bridge MASQUERADEs container egress through eth0, but the
+  # kernel won't actually forward those packets without ip_forward set —
+  # so without this every container's outbound connection times out.
+  boot.kernel.sysctl."net.ipv4.ip_forward" = true;
+
   aether.otel-agent.prometheusScrapeConfigs = [
     { job_name = "oauth2-proxy"; targets = [ "127.0.0.1:${toString oauth2ProxyPort}" ]; }
   ];
