@@ -490,8 +490,13 @@ s3.home.shdr.ch {
 }
 
 shdr.ch {
+  @shdrchRoot path /
+  rewrite @shdrchRoot /shdrch/index.html
+  @shdrchNotRoot not path /
+  rewrite @shdrchNotRoot /shdrch{uri}
+
   reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
-    header_up Host shdrch.s3.home.shdr.ch
+    header_up Host s3.home.shdr.ch
     header_up X-Real-IP {http.request.remote}
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto https
@@ -543,8 +548,13 @@ oidc.k8s.home.shdr.ch {
   }
 
   handle @shdrch {
+    @publicShdrchRoot path /
+    rewrite @publicShdrchRoot /shdrch/index.html
+    @publicShdrchNotRoot not path /
+    rewrite @publicShdrchNotRoot /shdrch{uri}
+
     reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
-      header_up Host shdrch.s3.home.shdr.ch
+      header_up Host s3.home.shdr.ch
       header_up X-Real-IP {http.request.header.X-Real-IP}
       header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
       header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
