@@ -10,8 +10,9 @@ let
   termixImage     = "ghcr.io/lukegus/termix:latest";
   termixPort      = 8080;
   oauth2ProxyPort = 4180;
-  caddyHost       = "bastion.home.shdr.ch";
+  publicHost      = "bastion.home.shdr.ch";
   keycloakIssuer  = "https://auth.shdr.ch/realms/aether";
+  gatewayIp       = facts.vm.home_gateway_stack.ip;
 in
 {
   imports = [
@@ -116,8 +117,10 @@ in
     "d /var/lib/termix 0750 root root -"
   ];
 
-  # OAuth2-proxy in front of termix. Secrets injected via EnvironmentFile
-  # rendered by the openbao-agent template above.
+  # OAuth2-proxy in front of termix. Public TLS terminates at the home gateway
+  # (Caddy on home_gateway_stack); the gateway forwards plaintext over the lab
+  # network to oauth2-proxy here. So oauth2-proxy listens on the LAN
+  # interface, but the firewall only admits the gateway.
   services.oauth2-proxy = {
     enable = true;
     provider = "oidc";
@@ -126,15 +129,15 @@ in
     cookie.secret = null; # comes from EnvironmentFile
     email.domains = [ "*" ];
     oidcIssuerUrl = keycloakIssuer;
-    redirectURL = "https://${caddyHost}/oauth2/callback";
-    httpAddress = "127.0.0.1:${toString oauth2ProxyPort}";
+    redirectURL = "https://${publicHost}/oauth2/callback";
+    httpAddress = "0.0.0.0:${toString oauth2ProxyPort}";
     upstream = [ "http://127.0.0.1:${toString termixPort}/" ];
     setXauthrequest = true;
     reverseProxy = true;
     extraConfig = {
       cookie-secure = "true";
-      cookie-domain = caddyHost;
-      whitelist-domain = caddyHost;
+      cookie-domain = publicHost;
+      whitelist-domain = publicHost;
       allowed-role = "admin";
       pass-access-token = "true";
       pass-authorization-header = "true";
@@ -147,30 +150,14 @@ in
     serviceConfig.EnvironmentFile = "/run/secrets/oauth2-proxy.env";
   };
 
-  # Caddy terminates TLS in front of oauth2-proxy.
-  # First boot uses Caddy's internal CA so the box is reachable; once
-  # bastion.home.shdr.ch resolves and the lab step-ca cert renewer is in
-  # place, swap to a step-ca-issued cert via tls /etc/ssl/...
-  services.caddy = {
-    enable = true;
-    virtualHosts."${caddyHost}" = {
-      extraConfig = ''
-        tls internal
-        encode zstd gzip
-        reverse_proxy 127.0.0.1:${toString oauth2ProxyPort} {
-          header_up X-Real-IP {http.request.remote}
-          header_up X-Forwarded-For {http.request.remote}
-          header_up X-Forwarded-Proto {http.request.scheme}
-          flush_interval -1
-        }
-      '';
-    };
-  };
-
-  networking.firewall.allowedTCPPorts = [ 22 443 ];
+  # Firewall: SSH for break-glass; oauth2-proxy admits ONLY the home gateway.
+  # No public 443 — TLS terminates at the gateway, not here.
+  networking.firewall.allowedTCPPorts = [ 22 ];
+  networking.firewall.extraInputRules = ''
+    ip saddr ${gatewayIp} tcp dport ${toString oauth2ProxyPort} accept
+  '';
 
   aether.otel-agent.prometheusScrapeConfigs = [
-    { job_name = "oauth2-proxy"; targets = [ "127.0.0.1:4180" ]; }
-    { job_name = "caddy";        targets = [ "127.0.0.1:2019" ]; }
+    { job_name = "oauth2-proxy"; targets = [ "127.0.0.1:${toString oauth2ProxyPort}" ]; }
   ];
 }
