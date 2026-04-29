@@ -343,6 +343,20 @@ resource "talos_machine_configuration_apply" "this" {
         }
       }
     })] : [],
+    # Pi 5 silent ethernet wedge workaround. macb/RP1 driver in kernel 6.18.x
+    # locks up under TSO/SG load — link stays "up" but no packets flow, only
+    # power-cycle recovers. Ubuntu LP #2133877 + Cilium #43198. Disabling
+    # tx-tcp-segmentation + tx-scatter-gather is the most-cited mitigation
+    # until the netdev patch series lands in a released kernel.
+    try(each.value.model, "") == "raspberry-pi-5" ? [yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "EthernetConfig"
+      name       = "end0"
+      features = {
+        "tx-tcp-segmentation" = false
+        "tx-scatter-gather"   = false
+      }
+    })] : [],
 
     # Dedicated etcd disk: partition /dev/vdb and mount it at /var/lib/etcd
     # so Talos's etcd service writes there transparently (etcd's data dir is
