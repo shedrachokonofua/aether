@@ -1,6 +1,6 @@
-# Admin jump LXC — break-glass admin host on INFRA (VLAN 2, 10.0.2.10).
+# Bastion LXC — break-glass admin host on INFRA (VLAN 2, 10.0.2.10).
 # Cert-only SSH (via the lab SSH CA) plus a browser path: Caddy fronts
-# oauth2-proxy → termix at https://admin.home.shdr.ch.
+# oauth2-proxy → termix at https://bastion.home.shdr.ch.
 #
 # Stay deliberately separate from anything running on k8s so this still works
 # when the cluster is on fire.
@@ -10,7 +10,7 @@ let
   termixImage     = "ghcr.io/lukegus/termix:latest";
   termixPort      = 8080;
   oauth2ProxyPort = 4180;
-  caddyHost       = "admin.home.shdr.ch";
+  caddyHost       = "bastion.home.shdr.ch";
   keycloakIssuer  = "https://auth.shdr.ch/realms/aether";
 in
 {
@@ -21,7 +21,7 @@ in
     ../../modules/openbao-agent.nix
   ];
 
-  networking.hostName = "admin-jump";
+  networking.hostName = "bastion";
 
   # step-ca cert is bootstrapped at LXC provisioning time (Ansible pct push);
   # this module just keeps it renewed and bounces vault-agent on rotation.
@@ -30,15 +30,15 @@ in
     onRenew = [ "vault-agent.service" ];
   };
 
-  # Pull oauth2-proxy secrets from kv/data/aether/admin-jump (written by tofu
-  # in tofu/home/admin_jump.tf). Rendered to /run/secrets/oauth2-proxy.env
-  # which the oauth2-proxy systemd unit consumes via EnvironmentFile.
+  # Pull oauth2-proxy secrets from kv/data/aether/bastion (written by tofu in
+  # tofu/home/bastion.tf). Rendered to /run/secrets/oauth2-proxy.env which the
+  # oauth2-proxy systemd unit consumes via EnvironmentFile.
   aether.openbao-agent = {
     enable = true;
     templates."oauth2-proxy.env" = {
       contents = ''
-        OAUTH2_PROXY_CLIENT_SECRET={{ with secret "kv/data/aether/admin-jump" }}{{ .Data.data.oauth2_proxy_client_secret }}{{ end }}
-        OAUTH2_PROXY_COOKIE_SECRET={{ with secret "kv/data/aether/admin-jump" }}{{ .Data.data.oauth2_proxy_cookie_secret }}{{ end }}
+        OAUTH2_PROXY_CLIENT_SECRET={{ with secret "kv/data/aether/bastion" }}{{ .Data.data.oauth2_proxy_client_secret }}{{ end }}
+        OAUTH2_PROXY_COOKIE_SECRET={{ with secret "kv/data/aether/bastion" }}{{ .Data.data.oauth2_proxy_cookie_secret }}{{ end }}
       '';
       perms = "0400";
       user  = "oauth2-proxy";
@@ -121,7 +121,7 @@ in
   services.oauth2-proxy = {
     enable = true;
     provider = "oidc";
-    clientID = "admin-jump";
+    clientID = "bastion";
     clientSecret = null;  # comes from EnvironmentFile
     cookie.secret = null; # comes from EnvironmentFile
     email.domains = [ "*" ];
@@ -135,7 +135,7 @@ in
       cookie-secure = "true";
       cookie-domain = caddyHost;
       whitelist-domain = caddyHost;
-      allowed-role = "admin-jump:user";
+      allowed-role = "bastion:user";
       pass-access-token = "true";
       pass-authorization-header = "true";
     };
@@ -149,8 +149,8 @@ in
 
   # Caddy terminates TLS in front of oauth2-proxy.
   # First boot uses Caddy's internal CA so the box is reachable; once
-  # admin.home.shdr.ch resolves and the lab step-ca cert renewer is in place,
-  # swap to a step-ca-issued cert via tls /etc/ssl/...
+  # bastion.home.shdr.ch resolves and the lab step-ca cert renewer is in
+  # place, swap to a step-ca-issued cert via tls /etc/ssl/...
   services.caddy = {
     enable = true;
     virtualHosts."${caddyHost}" = {

@@ -1,16 +1,16 @@
 ---
-# Admin Jump LXC Provisioning
+# Bastion LXC Provisioning
 #
 # Break-glass admin host. Sits on INFRA (VLAN 2, 10.0.2.10), trusts the lab SSH
 # CA so cert-only auth works out of the box, ships with the full lab toolchain
 # (tofu/ansible/kubectl/talosctl/bao/step/sops/...), and serves termix at
-# https://admin.home.shdr.ch behind oauth2-proxy + Keycloak for browser access.
+# https://bastion.home.shdr.ch behind oauth2-proxy + Keycloak for browser access.
 #
 # Prerequisites:
 #   task nix:upload-lxc-image   # one-time: builds and uploads NixOS base image
 
-- name: Provision admin-jump LXC
+- name: Provision bastion LXC
   import_playbook: provision_lxc.yml
 
 # After provisioning:
-#   task configure:admin-jump   # nixos-rebuild --target-host root@10.0.2.10
+#   task configure:bastion   # nixos-rebuild --target-host root@10.0.2.10

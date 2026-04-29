@@ -724,16 +724,16 @@ resource "keycloak_openid_audience_protocol_mapper" "openbao_audience" {
 }
 
 # =============================================================================
-# Admin-jump OIDC client (oauth2-proxy in front of termix)
+# Bastion OIDC client (oauth2-proxy in front of termix)
 # =============================================================================
-# Confidential client used by oauth2-proxy on admin-jump to gate access to the
-# in-browser SSH terminal at https://admin.home.shdr.ch. Roles flow through
-# the realm-roles mapper; oauth2-proxy enforces `admin-jump:user`.
+# Confidential client used by oauth2-proxy on the bastion LXC to gate access
+# to the in-browser SSH terminal at https://bastion.home.shdr.ch. Roles flow
+# through the realm-roles mapper; oauth2-proxy enforces `bastion:user`.
 
-resource "keycloak_openid_client" "admin_jump" {
+resource "keycloak_openid_client" "bastion" {
   realm_id  = keycloak_realm.aether.id
-  client_id = "admin-jump"
-  name      = "Admin Jump"
+  client_id = "bastion"
+  name      = "Bastion"
   enabled   = true
 
   access_type                  = "CONFIDENTIAL"
@@ -741,22 +741,22 @@ resource "keycloak_openid_client" "admin_jump" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://admin.home.shdr.ch"
-  base_url  = "https://admin.home.shdr.ch"
-  admin_url = "https://admin.home.shdr.ch"
+  root_url  = "https://bastion.home.shdr.ch"
+  base_url  = "https://bastion.home.shdr.ch"
+  admin_url = "https://bastion.home.shdr.ch"
 
   valid_redirect_uris = [
-    "https://admin.home.shdr.ch/oauth2/callback",
+    "https://bastion.home.shdr.ch/oauth2/callback",
   ]
 
   web_origins = [
-    "https://admin.home.shdr.ch",
+    "https://bastion.home.shdr.ch",
   ]
 }
 
-resource "keycloak_openid_client_default_scopes" "admin_jump_default_scopes" {
+resource "keycloak_openid_client_default_scopes" "bastion_default_scopes" {
   realm_id  = keycloak_realm.aether.id
-  client_id = keycloak_openid_client.admin_jump.id
+  client_id = keycloak_openid_client.bastion.id
 
   default_scopes = [
     "profile",
@@ -765,9 +765,9 @@ resource "keycloak_openid_client_default_scopes" "admin_jump_default_scopes" {
   ]
 }
 
-resource "keycloak_openid_user_realm_role_protocol_mapper" "admin_jump_roles" {
+resource "keycloak_openid_user_realm_role_protocol_mapper" "bastion_roles" {
   realm_id  = keycloak_realm.aether.id
-  client_id = keycloak_openid_client.admin_jump.id
+  client_id = keycloak_openid_client.bastion.id
   name      = "realm-roles"
 
   claim_name          = "roles"
@@ -777,12 +777,12 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "admin_jump_roles" {
   add_to_userinfo     = true
 }
 
-resource "keycloak_openid_audience_protocol_mapper" "admin_jump_audience" {
+resource "keycloak_openid_audience_protocol_mapper" "bastion_audience" {
   realm_id  = keycloak_realm.aether.id
-  client_id = keycloak_openid_client.admin_jump.id
-  name      = "admin-jump-audience"
+  client_id = keycloak_openid_client.bastion.id
+  name      = "bastion-audience"
 
-  included_client_audience = keycloak_openid_client.admin_jump.client_id
+  included_client_audience = keycloak_openid_client.bastion.client_id
   add_to_id_token          = true
   add_to_access_token      = true
 }

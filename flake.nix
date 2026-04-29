@@ -77,12 +77,12 @@
             sshCaModule
           ];
         };
-        admin-jump = nixpkgs.lib.nixosSystem {
+        bastion = nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = sharedSpecialArgs;
           modules = [
             { nixpkgs.overlays = [ otelFixOverlay ]; }
-            ./nix/hosts/oracle/admin-jump.nix
+            ./nix/hosts/oracle/bastion.nix
             sshCaModule
           ];
         };
