@@ -136,6 +136,11 @@ in
     extraConfig = {
       cookie-secure = "true";
       cookie-domain = publicHost;
+      # Distinct cookie name so it doesn't collide with the gateway's
+      # `_oauth2_proxy` cookie (gateway scopes to .shdr.ch, which the
+      # browser also sends to bastion.home.shdr.ch — same name with
+      # different signing secret confuses both proxies).
+      cookie-name = "_bastion_oauth2_proxy";
       whitelist-domain = publicHost;
       allowed-role = "admin";
       pass-access-token = "true";
