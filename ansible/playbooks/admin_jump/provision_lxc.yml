@@ -1,0 +1,81 @@
+---
+# Provision admin-jump LXC using the custom NixOS base image
+# Differs from adguard: attached to VLAN 2 (INFRA, 10.0.2.0/24), so the pct
+# --net0 carries `tag=2` and the gateway is the VyOS VLAN gateway, not Gigahub.
+
+- name: Provision admin-jump LXC (NixOS)
+  hosts: oracle
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    nixos_template: "cephfs:vztmpl/nixos-base-lxc.tar.xz"
+    nixos_template_path: "/mnt/pve/cephfs/template/cache/nixos-base-lxc.tar.xz"
+    lxc_id: "{{ vm.admin_jump.id }}"
+  tasks:
+    - name: Check if base image exists on cephfs
+      stat:
+        path: "{{ nixos_template_path }}"
+      register: base_image
+      delegate_to: smith
+
+    - name: Fail if base image not found
+      fail:
+        msg: |
+          NixOS base image not found at {{ nixos_template }}
+          Build and upload it first: task nix:upload-lxc-image
+      when: not base_image.stat.exists
+
+    - name: Check if admin-jump LXC exists
+      command: pct status {{ lxc_id }}
+      register: lxc_exists
+      failed_when: false
+      changed_when: false
+
+    - name: Stop admin-jump LXC
+      command: pct stop {{ lxc_id }}
+      when: lxc_exists.rc == 0
+      register: stop_result
+      failed_when: false
+      changed_when: stop_result.rc == 0
+
+    - name: Wait for LXC to stop
+      command: pct status {{ lxc_id }}
+      register: lxc_status
+      until: "'stopped' in lxc_status.stdout"
+      retries: 30
+      delay: 2
+      when: lxc_exists.rc == 0 and stop_result.rc == 0
+      changed_when: false
+
+    - name: Delete admin-jump LXC
+      command: pct destroy {{ lxc_id }} --purge
+      when: lxc_exists.rc == 0
+      register: delete_result
+      failed_when: false
+      changed_when: delete_result.rc == 0
+
+    - name: Create admin-jump LXC
+      command: >
+        pct create {{ lxc_id }}
+        {{ nixos_template }}
+        --hostname {{ vm.admin_jump.name }}
+        --cores {{ vm.admin_jump.cores }}
+        --memory {{ vm.admin_jump.memory }}
+        --rootfs local-lvm:{{ vm.admin_jump.disk_gb }}
+        --net0 name=eth0,bridge=vmbr0,tag={{ vm.admin_jump.vlan }},gw={{ vm.admin_jump.gateway }},ip={{ vm.admin_jump.ip }}/24
+        --nameserver {{ vm.router.ip.vyos }}
+        --features nesting=1
+        --unprivileged 1
+      changed_when: true
+
+    - name: Start admin-jump LXC
+      command: pct start {{ lxc_id }}
+      changed_when: true
+
+    - name: Wait for SSH to be ready
+      wait_for:
+        host: "{{ vm.admin_jump.ip }}"
+        port: 22
+        timeout: 120
+      delegate_to: localhost

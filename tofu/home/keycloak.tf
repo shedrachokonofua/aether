@@ -724,6 +724,70 @@ resource "keycloak_openid_audience_protocol_mapper" "openbao_audience" {
 }
 
 # =============================================================================
+# Admin-jump OIDC client (oauth2-proxy in front of termix)
+# =============================================================================
+# Confidential client used by oauth2-proxy on admin-jump to gate access to the
+# in-browser SSH terminal at https://admin.home.shdr.ch. Roles flow through
+# the realm-roles mapper; oauth2-proxy enforces `admin-jump:user`.
+
+resource "keycloak_openid_client" "admin_jump" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "admin-jump"
+  name      = "Admin Jump"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://admin.home.shdr.ch"
+  base_url  = "https://admin.home.shdr.ch"
+  admin_url = "https://admin.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://admin.home.shdr.ch/oauth2/callback",
+  ]
+
+  web_origins = [
+    "https://admin.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "admin_jump_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.admin_jump.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "admin_jump_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.admin_jump.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "admin_jump_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.admin_jump.id
+  name      = "admin-jump-audience"
+
+  included_client_audience = keycloak_openid_client.admin_jump.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+# =============================================================================
 # Ceph RGW OIDC Client (STS)
 # =============================================================================
 # Public client for device authorization + STS AssumeRoleWithWebIdentity

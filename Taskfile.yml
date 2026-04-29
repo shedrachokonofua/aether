@@ -305,6 +305,9 @@ tasks:
   provision:adguard:
     desc: Provision AdGuard LXC from base image
     cmds: [ansible-playbook ansible/playbooks/adguard/site.yml]
+  provision:admin-jump:
+    desc: Provision admin-jump LXC from base image
+    cmds: [ansible-playbook ansible/playbooks/admin_jump/site.yml]
   # ===========================================================================
   # NixOS Deploy Helper (internal)
   # ===========================================================================
@@ -334,6 +337,21 @@ tasks:
     cmds:
       - task: provision:adguard
       - task: configure:adguard
+  configure:admin-jump:
+    desc: Deploy NixOS configuration to admin-jump LXC
+    vars:
+      TARGET_IP:
+        sh: yq '.admin_jump.ip' config/vm.yml
+    cmds:
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: admin-jump
+  deploy:admin-jump:
+    desc: Full deploy - provision admin-jump LXC + configure NixOS
+    cmds:
+      - task: provision:admin-jump
+      - task: configure:admin-jump
   provision:ids-mirror-bridge:
     desc: Create isolated bridge for IDS mirror traffic (one-time)
     cmds:

@@ -281,6 +281,22 @@ adguard:
     dns: 53
     admin: 3000
 
+admin_jump:
+  id: 1010
+  name: "admin-jump"
+  node: "oracle"
+  admin: "aether"
+  cores: 2
+  memory: 2048
+  disk_gb: 32
+  ip: "10.0.2.10"
+  gateway: "10.0.2.1"
+  vlan: 2
+  ports:
+    https: 443
+    termix: 8080
+    oauth2_proxy: 4180
+
 ids_stack:
   id: 1028
   name: "intrusion-detection-stack"
