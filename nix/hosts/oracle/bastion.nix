@@ -135,7 +135,7 @@ in
       cookie-secure = "true";
       cookie-domain = caddyHost;
       whitelist-domain = caddyHost;
-      allowed-role = "bastion:user";
+      allowed-role = "admin";
       pass-access-token = "true";
       pass-authorization-header = "true";
     };
