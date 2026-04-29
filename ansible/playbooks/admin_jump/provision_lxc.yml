@@ -1,7 +1,13 @@
 ---
-# Provision admin-jump LXC using the custom NixOS base image
-# Differs from adguard: attached to VLAN 2 (INFRA, 10.0.2.0/24), so the pct
-# --net0 carries `tag=2` and the gateway is the VyOS VLAN gateway, not Gigahub.
+# Provision admin-jump LXC using the custom NixOS base image, then bootstrap
+# the step-ca machine cert into the container so vault-agent can authenticate
+# to OpenBao on first boot.
+#
+# Differs from adguard:
+#   - Attached to VLAN 2 (INFRA, 10.0.2.0/24); pct --net0 carries `tag=2`
+#   - After SSH is up, mints a step-ca cert (CN admin-jump.home.shdr.ch),
+#     then pct-pushes cert/key/CA into the LXC's /etc/ssl/. This is the LXC
+#     analogue of the cloud-init `write_files` step VMs get for free.
 
 - name: Provision admin-jump LXC (NixOS)
   hosts: oracle
@@ -12,6 +18,14 @@
     nixos_template: "cephfs:vztmpl/nixos-base-lxc.tar.xz"
     nixos_template_path: "/mnt/pve/cephfs/template/cache/nixos-base-lxc.tar.xz"
     lxc_id: "{{ vm.admin_jump.id }}"
+
+    # Cert bootstrap (parallels backup_stack/openbao patterns).
+    step_ca_url: "https://ca.shdr.ch"
+    step_ca_provisioner: "machine-bootstrap"
+    step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password }}"
+    cert_hostname: "{{ vm.admin_jump.name }}.home.shdr.ch"
+    cert_local_dir: "/tmp/admin-jump-cert"
+
   tasks:
     - name: Check if base image exists on cephfs
       stat:
@@ -78,4 +92,113 @@
         host: "{{ vm.admin_jump.ip }}"
         port: 22
         timeout: 120
+      delegate_to: localhost
+
+    # =========================================================================
+    # step-ca cert bootstrap
+    # =========================================================================
+    # Mint the cert on the Ansible controller (where step-cli lives via the
+    # nix dev shell), then ship the files to oracle and inject into the LXC.
+
+    - name: Prepare local cert directory
+      file:
+        path: "{{ cert_local_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+
+    - name: Fetch step-ca fingerprint
+      command: step certificate fingerprint /etc/step-ca/certs/root_ca.crt
+      register: ca_fingerprint
+      delegate_to: step_ca
+      changed_when: false
+
+    - name: Bootstrap step-ca trust on controller
+      command: >
+        step ca bootstrap
+        --ca-url {{ step_ca_url }}
+        --fingerprint {{ ca_fingerprint.stdout }}
+        --force
+      environment:
+        STEPPATH: "{{ cert_local_dir }}/step"
+      delegate_to: localhost
+      run_once: true
+      changed_when: true
+      args:
+        creates: "{{ cert_local_dir }}/step/certs/root_ca.crt"
+
+    - name: Write provisioner password (controller)
+      copy:
+        content: "{{ step_ca_provisioner_password }}"
+        dest: "{{ cert_local_dir }}/provisioner-password.txt"
+        mode: "0600"
+      delegate_to: localhost
+      no_log: true
+
+    - name: Issue admin-jump machine certificate
+      command: >
+        step ca certificate
+        {{ cert_hostname }}
+        {{ cert_local_dir }}/machine.crt
+        {{ cert_local_dir }}/machine.key
+        --san {{ cert_hostname }}
+        --san {{ vm.admin_jump.ip }}
+        --san {{ vm.admin_jump.name }}
+        --san localhost
+        --san 127.0.0.1
+        --provisioner {{ step_ca_provisioner }}
+        --provisioner-password-file {{ cert_local_dir }}/provisioner-password.txt
+        --force
+      environment:
+        STEPPATH: "{{ cert_local_dir }}/step"
+      delegate_to: localhost
+      changed_when: true
+
+    - name: Copy CA root cert into bundle
+      copy:
+        src: "{{ cert_local_dir }}/step/certs/root_ca.crt"
+        dest: "{{ cert_local_dir }}/step-ca-root.crt"
+        remote_src: false
+        mode: "0644"
+      delegate_to: localhost
+
+    - name: Stage cert bundle on Proxmox host
+      copy:
+        src: "{{ cert_local_dir }}/{{ item }}"
+        dest: "/tmp/admin-jump-{{ item }}"
+        mode: "0600"
+      loop:
+        - machine.crt
+        - machine.key
+        - step-ca-root.crt
+
+    - name: Ensure /etc/ssl directories exist inside LXC
+      command: pct exec {{ lxc_id }} -- mkdir -p /etc/ssl/certs /etc/ssl/private
+      changed_when: true
+
+    - name: Push machine cert into LXC
+      command: pct push {{ lxc_id }} /tmp/admin-jump-machine.crt /etc/ssl/certs/machine.crt --perms 0644 --user 0 --group 0
+      changed_when: true
+
+    - name: Push machine key into LXC
+      command: pct push {{ lxc_id }} /tmp/admin-jump-machine.key /etc/ssl/private/machine.key --perms 0600 --user 0 --group 0
+      changed_when: true
+
+    - name: Push step-ca root into LXC
+      command: pct push {{ lxc_id }} /tmp/admin-jump-step-ca-root.crt /etc/ssl/certs/step-ca-root.crt --perms 0644 --user 0 --group 0
+      changed_when: true
+
+    - name: Cleanup staged cert files on Proxmox host
+      file:
+        path: "/tmp/admin-jump-{{ item }}"
+        state: absent
+      loop:
+        - machine.crt
+        - machine.key
+        - step-ca-root.crt
+
+    - name: Cleanup local cert directory
+      file:
+        path: "{{ cert_local_dir }}"
+        state: absent
       delegate_to: localhost

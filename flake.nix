@@ -82,7 +82,6 @@
           specialArgs = sharedSpecialArgs;
           modules = [
             { nixpkgs.overlays = [ otelFixOverlay ]; }
-            sops-nix.nixosModules.sops
             ./nix/hosts/oracle/admin-jump.nix
             sshCaModule
           ];

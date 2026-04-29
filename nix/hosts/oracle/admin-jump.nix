@@ -7,57 +7,65 @@
 { config, lib, pkgs, modulesPath, facts, ... }:
 
 let
-  # Termix — self-hosted SSH terminal manager, run as a container.
-  # Pin a digest once you've verified the build you want.
-  termixImage = "ghcr.io/lukegus/termix:latest";
-  termixPort  = 8080;
-
+  termixImage     = "ghcr.io/lukegus/termix:latest";
+  termixPort      = 8080;
   oauth2ProxyPort = 4180;
   caddyHost       = "admin.home.shdr.ch";
-
   keycloakIssuer  = "https://auth.shdr.ch/realms/aether";
 in
 {
   imports = [
     (modulesPath + "/virtualisation/proxmox-lxc.nix")
     ../../modules/base.nix
-    ../../modules/sops.nix
+    ../../modules/step-ca-cert.nix
+    ../../modules/openbao-agent.nix
   ];
 
   networking.hostName = "admin-jump";
 
-  # Lab toolchain. Mirrors the dev shell so admin work on this box matches
-  # what we get from `nix develop` on the laptop.
+  # step-ca cert is bootstrapped at LXC provisioning time (Ansible pct push);
+  # this module just keeps it renewed and bounces vault-agent on rotation.
+  aether.step-ca-cert = {
+    enable = true;
+    onRenew = [ "vault-agent.service" ];
+  };
+
+  # Pull oauth2-proxy secrets from kv/data/aether/admin-jump (written by tofu
+  # in tofu/home/admin_jump.tf). Rendered to /run/secrets/oauth2-proxy.env
+  # which the oauth2-proxy systemd unit consumes via EnvironmentFile.
+  aether.openbao-agent = {
+    enable = true;
+    templates."oauth2-proxy.env" = {
+      contents = ''
+        OAUTH2_PROXY_CLIENT_SECRET={{ with secret "kv/data/aether/admin-jump" }}{{ .Data.data.oauth2_proxy_client_secret }}{{ end }}
+        OAUTH2_PROXY_COOKIE_SECRET={{ with secret "kv/data/aether/admin-jump" }}{{ .Data.data.oauth2_proxy_cookie_secret }}{{ end }}
+      '';
+      perms = "0400";
+      user  = "oauth2-proxy";
+      group = "oauth2-proxy";
+      restartServices = [ "oauth2-proxy.service" ];
+    };
+  };
+
+  # Lab toolchain — mirrors the dev shell so admin work on this box matches
+  # what `nix develop` gives us on the laptop.
   environment.systemPackages = with pkgs; [
-    # IaC
     opentofu
     ansible
     python3Packages.ansible-pylibssh
-
-    # Secrets / certs
     sops
     age
     openbao
     step-cli
-
-    # Cloud / storage
     awscli2
     rclone
-
-    # Kubernetes / Talos
     kubectl
     talosctl
     cilium-cli
     istioctl
     kubernetes-helm
-
-    # GitLab
     glab
-
-    # Containers (for ad-hoc work, not termix's runtime)
     podman
-
-    # Utilities
     git
     jq
     yq-go
@@ -76,7 +84,6 @@ in
     go-task
   ];
 
-  # Quality-of-life on the shell: nix-direnv hooks for matching the laptop.
   programs.bash.interactiveShellInit = ''
     eval "$(${pkgs.direnv}/bin/direnv hook bash)"
   '';
@@ -93,12 +100,8 @@ in
       backend = "podman";
       containers.termix = {
         image = termixImage;
-        # Bind to localhost only — Caddy + oauth2-proxy are the public surface.
         ports = [ "127.0.0.1:${toString termixPort}:8080" ];
         environment = {
-          # Termix runs out-of-cluster as `root` inside the container; the
-          # `aether` user on the host is the operator identity reflected via
-          # the SSH cert, not the container UID.
           NODE_ENV = "production";
         };
         volumes = [
@@ -113,16 +116,14 @@ in
     "d /var/lib/termix 0750 root root -"
   ];
 
-  # OAuth2 proxy — Keycloak OIDC in front of termix.
-  # The client secret is provisioned by sops-nix; create the secret in
-  # secrets/secrets.yml under `admin_jump.oauth2_proxy_client_secret` and
-  # add a matching entry in nix/modules/sops.nix.
+  # OAuth2-proxy in front of termix. Secrets injected via EnvironmentFile
+  # rendered by the openbao-agent template above.
   services.oauth2-proxy = {
     enable = true;
     provider = "oidc";
     clientID = "admin-jump";
-    clientSecret = null;  # injected from env; see systemd override below
-    cookie.secret = null; # likewise
+    clientSecret = null;  # comes from EnvironmentFile
+    cookie.secret = null; # comes from EnvironmentFile
     email.domains = [ "*" ];
     oidcIssuerUrl = keycloakIssuer;
     redirectURL = "https://${caddyHost}/oauth2/callback";
@@ -134,27 +135,22 @@ in
       cookie-secure = "true";
       cookie-domain = caddyHost;
       whitelist-domain = caddyHost;
-      # Require the `admin-jump:user` role minted by the Keycloak client mapper.
       allowed-role = "admin-jump:user";
       pass-access-token = "true";
       pass-authorization-header = "true";
     };
   };
 
-  # sops-nix-managed env file with OAUTH2_PROXY_CLIENT_SECRET and
-  # OAUTH2_PROXY_COOKIE_SECRET. The unit's drop-in just sources it.
-  systemd.services.oauth2-proxy.serviceConfig.EnvironmentFile =
-    config.sops.secrets."admin_jump/oauth2_proxy_env".path;
-
-  sops.secrets."admin_jump/oauth2_proxy_env" = {
-    owner = "oauth2-proxy";
-    mode  = "0400";
+  systemd.services.oauth2-proxy = {
+    after  = [ "vault-agent.service" ];
+    wants  = [ "vault-agent.service" ];
+    serviceConfig.EnvironmentFile = "/run/secrets/oauth2-proxy.env";
   };
 
-  # Caddy — terminate TLS using step-ca's internal issuance.
-  # The step-ca-cert module elsewhere in the lab provisions /etc/ssl/admin
-  # via cert-renewer. For first deploy, fall back to Caddy's internal CA so
-  # the box is reachable; swap to step-ca once admin.home.shdr.ch is in DNS.
+  # Caddy terminates TLS in front of oauth2-proxy.
+  # First boot uses Caddy's internal CA so the box is reachable; once
+  # admin.home.shdr.ch resolves and the lab step-ca cert renewer is in place,
+  # swap to a step-ca-issued cert via tls /etc/ssl/...
   services.caddy = {
     enable = true;
     virtualHosts."${caddyHost}" = {
@@ -171,11 +167,8 @@ in
     };
   };
 
-  # Firewall: SSH for break-glass, HTTPS for browser path. Nothing else.
   networking.firewall.allowedTCPPorts = [ 22 443 ];
 
-  # OTel scrape for oauth2-proxy + caddy (Prometheus endpoints exposed on
-  # localhost; the host's otel-agent ships them upstream).
   aether.otel-agent.prometheusScrapeConfigs = [
     { job_name = "oauth2-proxy"; targets = [ "127.0.0.1:4180" ]; }
     { job_name = "caddy";        targets = [ "127.0.0.1:2019" ]; }
