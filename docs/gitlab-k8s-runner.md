@@ -10,13 +10,17 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
 - `runUntagged`: `true`
 - Executor: Kubernetes
 - Job pod mode: privileged
-- Manager replicas: `3`
-- Max concurrent jobs: `1` per manager, `3` total
+- Manager replicas: `4`
+- Max concurrent jobs: `1` per manager, `4` total
 - Manager pod requests/limits: `100m`/`500m` CPU, `128Mi`/`512Mi` memory
 - Build container requests/limits: `2`/`2` CPU, `2Gi`/`4Gi` memory,
   `8Gi`/`32Gi` ephemeral storage
 - Helper and service container requests/limits: small bounded defaults
 - Default build storage driver: `STORAGE_DRIVER=overlay`
+- Runner manager and job pods are pinned to `talos-trinity`, `talos-neo`, and
+  `talos-niobe`
+- Runner builds, cache, and temporary files are rooted under `/ci`,
+  backed by a dedicated node-local disk mounted at `/var/mnt/ci`
 
 ## Manual GitLab Step
 
@@ -103,10 +107,13 @@ For the first rollout, verify all of the following in one low-risk repo:
   override or change it to `overlay`; job-level variables can override the
   runner default.
 - The runner is intentionally capped below the observed cluster pain point of
-  6-7 concurrent jobs. With three manager replicas and a per-runner limit of
-  one job, this release should run at most three builds at a time.
+  6-7 concurrent jobs. With four manager replicas and a per-runner limit of
+  one job, this release should run at most four builds at a time.
 - Build jobs can request more resources with Kubernetes executor variables, but
   the runner caps overrides at `4` CPU, `8Gi` memory, and `64Gi` ephemeral
   storage.
+- Runner scratch space is intended to use the dedicated `/ci` hostPath
+  mount. If jobs need Buildah-specific container storage tuning, configure the
+  job to use a per-job path below `/ci` rather than the Talos root disk.
 - If the runner manager cannot trust `gitlab.home.shdr.ch`, add a custom CA
   secret and set `certsSecretName` in the Helm values template.

@@ -129,16 +129,29 @@ resource "proxmox_virtual_environment_vm" "talos" {
     file_format  = "raw"
   }
 
-  # Optional dedicated local-NVMe disk for etcd dataDir (per-node). Pulls etcd
-  # off the Ceph-backed root volume to eliminate fsync stalls.
-  # Placed at virtio1 (-> /dev/vdb) so the device path is uniform across all
-  # nodes regardless of whether they also have a virtio2 (e.g. gpu-storage on
-  # neo, which lives at virtio2 -> /dev/vdc).
+  # Optional dedicated local-NVMe disk for etcd dataDir (per-node).
+  # New CI nodes should keep etcd on the local Talos root disk instead; this
+  # remains only for existing/manual rollback compatibility.
   dynamic "disk" {
     for_each = try(each.value.etcd_disk_gb, null) != null ? [1] : []
     content {
       datastore_id = try(each.value.etcd_disk_datastore, "local-lvm")
       size         = each.value.etcd_disk_gb
+      interface    = "virtio1"
+      iothread     = true
+      discard      = "on"
+      file_format  = "raw"
+    }
+  }
+
+  # Legacy etcd disk kept attached during migration back to root-disk etcd.
+  # Talos does not mount this disk; it remains only to avoid mutating/deleting
+  # the previous virtio1 etcd volume in the same operation that changes root.
+  dynamic "disk" {
+    for_each = try(each.value.legacy_etcd_disk_gb, null) != null ? [1] : []
+    content {
+      datastore_id = try(each.value.legacy_etcd_disk_datastore, try(each.value.etcd_disk_datastore, "local-lvm"))
+      size         = each.value.legacy_etcd_disk_gb
       interface    = "virtio1"
       iothread     = true
       discard      = "on"
@@ -156,6 +169,24 @@ resource "proxmox_virtual_environment_vm" "talos" {
       datastore_id = "local-lvm"
       size         = each.value.gpu_storage_disk_gb
       interface    = "virtio2"
+      iothread     = true
+      discard      = "on"
+      file_format  = "raw"
+    }
+  }
+
+  # Optional CI disk. Mounted on the node at /var/mnt/ci and
+  # consumed by GitLab Runner hostPath mounts for build/cache/container scratch.
+  # Uses virtio3 deliberately so it cannot collide with existing virtio1 etcd
+  # disks or neo's virtio2 GPU storage during rolling migration. Talos device
+  # names are compacted by the guest, so this appears as /dev/vdc on non-GPU
+  # nodes and /dev/vdd on neo.
+  dynamic "disk" {
+    for_each = try(each.value.ci_disk_gb, null) != null ? [1] : []
+    content {
+      datastore_id = try(each.value.ci_disk_datastore, try(each.value.disk_datastore, "local-lvm"))
+      size         = each.value.ci_disk_gb
+      interface    = "virtio3"
       iothread     = true
       discard      = "on"
       file_format  = "raw"
@@ -318,13 +349,20 @@ resource "talos_machine_configuration_apply" "this" {
         )
       }),
     ],
-    # GPU-storage disk: partition /dev/vdc and mount at /var/mnt/gpu-storage,
-    # plus recursively bind-mount /var/mnt into kubelet's namespace so the
-    # /dev/vdc1 submount is visible to kubelet (and to local-PV-mounted Pods).
-    # `rbind` is critical — non-recursive `bind` only captures the top-level
-    # /var/mnt and silently misses submounts, so kubelet sees an empty
-    # directory on /dev/vda4 instead of the actual GPU storage. `rshared` is
-    # for forward propagation of any later mounts under /var/mnt.
+    # CI disk: partition and mount at /var/mnt/ci. The guest device name is
+    # /dev/vdc on nodes without neo's GPU storage disk and /dev/vdd on neo.
+    try(each.value.ci_disk_gb, null) != null ? [yamlencode({
+      machine = {
+        disks = [{
+          device = try(each.value.gpu_storage_disk_gb, null) != null ? "/dev/vdd" : "/dev/vdc"
+          partitions = [{
+            mountpoint = "/var/mnt/ci"
+          }]
+        }]
+      }
+    })] : [],
+
+    # GPU-storage disk: partition /dev/vdc and mount at /var/mnt/gpu-storage.
     try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({
       machine = {
         disks = [{
@@ -333,6 +371,15 @@ resource "talos_machine_configuration_apply" "this" {
             mountpoint = "/var/mnt/gpu-storage"
           }]
         }]
+      }
+    })] : [],
+
+    # Recursively bind-mount /var/mnt into kubelet's namespace so submounts
+    # like /var/mnt/ci and /var/mnt/gpu-storage are visible to hostPath
+    # and static local-PV mounted Pods. `rbind` is critical; a non-recursive bind
+    # only captures the top-level /var/mnt and misses submounts.
+    try(each.value.ci_disk_gb, null) != null || try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({
+      machine = {
         kubelet = {
           extraMounts = [{
             destination = "/var/mnt"

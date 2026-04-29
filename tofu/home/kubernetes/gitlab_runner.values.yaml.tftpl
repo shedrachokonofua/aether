@@ -12,16 +12,18 @@ topologySpreadConstraints:
       matchLabels:
         app: ${runner_app_label}
 
-# Keep manager pods off Raspberry Pi nodes (no buildah/arm64 build workloads on Pis)
+# Keep manager pods on the x86 CI nodes.
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
       nodeSelectorTerms:
         - matchExpressions:
-            - key: aether.sh/hardware
-              operator: NotIn
+            - key: kubernetes.io/hostname
+              operator: In
               values:
-                - rpi
+                - talos-trinity
+                - talos-neo
+                - talos-niobe
 
 rbac:
   create: true
@@ -45,7 +47,9 @@ runners:
       executor = "kubernetes"
       limit = 1
       request_concurrency = 1
-      environment = ["FF_NETWORK_PER_BUILD=1", "STORAGE_DRIVER=overlay"]
+      builds_dir = "/ci/builds"
+      cache_dir = "/ci/cache"
+      environment = ["FF_NETWORK_PER_BUILD=1", "STORAGE_DRIVER=overlay", "TMPDIR=/ci/tmp"]
 
       [runners.kubernetes]
         namespace = "${namespace}"
@@ -83,6 +87,11 @@ runners:
             [runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution]
               [[runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms]]
                 [[runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms.match_expressions]]
-                  key = "aether.sh/hardware"
-                  operator = "NotIn"
-                  values = ["rpi"]
+                  key = "kubernetes.io/hostname"
+                  operator = "In"
+                  values = ["talos-trinity", "talos-neo", "talos-niobe"]
+
+        [[runners.kubernetes.volumes.host_path]]
+          name = "ci"
+          mount_path = "/ci"
+          host_path = "/var/mnt/ci"

@@ -110,18 +110,46 @@ graph LR
 
 ## Node-Local Storage
 
-Critical infrastructure uses node-local storage to remain independent of Ceph/NFS:
+Critical infrastructure, control-plane churn, and disposable build scratch use
+node-local storage to remain independent of Ceph/NFS latency.
 
 | Host   | Workloads                                   | Reason                                               |
 | ------ | ------------------------------------------- | ---------------------------------------------------- |
 | Oracle | Router, Gateway, Keycloak, step-ca, OpenBao | Ceph-independent (core infra must boot without Ceph) |
-| Neo    | GPU Workstation                             | GPU passthrough pins to host                         |
+| Neo    | Talos GPU node, GPU model storage           | GPU passthrough pins to host; model loads need local I/O |
 | Niobe  | Monitoring Stack                            | Must alert when Ceph has issues                      |
 | Smith  | Backup Stack                                | Must work if Ceph fails                              |
 
 **Note:** Most workload VMs (GitLab, Dokku, Dokploy, messaging, media, etc.) now run on Ceph for HA capability.
 
-**Gap:** The Talos Kubernetes control-plane VMs (`talos-trinity`, `talos-neo`, `talos-niobe`) currently boot from `ceph-vm-disks`. Their etcd disks therefore share fate with the Ceph pool — Ceph write latency translates directly to etcd fsync stalls → API/scheduler flaps → workload impact. (Ceph itself runs on the Proxmox hosts and is independent of Kubernetes; the dependency is one-way: CP VMs → Ceph.) Planned migration: move CP boot disks to node-local storage (or redistribute CP VMs to hosts that already have local storage capacity).
+### Talos Control Plane and CI
+
+Talos control-plane roots and CI build scratch are intentionally local. These
+paths are latency-sensitive and write-heavy: etcd, kubelet, containerd, logs,
+image layers, dependency unpacking, build caches, and temporary build
+directories. They are poor fits for Ceph because Ceph's replication and network
+commit path add latency to small-file and fsync-heavy workloads.
+
+Durable Kubernetes application data remains on Ceph-backed PVCs. The local
+Talos disks are for node state, runtime churn, and disposable CI scratch.
+
+| Node           | Root disk                      | CI scratch                    | Notes |
+| -------------- | ------------------------------ | ----------------------------- | ----- |
+| talos-trinity  | 128G `local-lvm` on Trinity     | 128G `local-lvm` at `/var/mnt/ci` | Old 32G etcd disk removed; etcd now uses root/EPHEMERAL |
+| talos-niobe    | 128G `local-fast` on Niobe      | 128G `local-fast` at `/var/mnt/ci` | Old 32G etcd disk removed; etcd now uses root/EPHEMERAL |
+| talos-neo      | 256G `local-lvm` on Neo         | Pending separate `/var/mnt/ci` disk | Root and GPU storage are local; old 32G etcd disk still attached |
+
+GitLab Runner scratch is intended to use `/ci` inside job pods, backed by the
+node-local `/var/mnt/ci` hostPath once all selected CI nodes have the mount.
+Until `talos-neo` has the same CI disk, either leave the Runner `/ci` hostPath
+change unapplied or exclude `talos-neo` from Runner scheduling.
+
+### Placement Rule of Thumb
+
+- **Use local disk for:** Talos root, etcd/runtime churn, kubelet/containerd,
+  CI scratch, build caches, temporary files, and GPU model/cache locality.
+- **Use Ceph for:** durable application PVCs, HA-capable VM disks, replicated
+  service data, movable workloads, shared data, and backup sources.
 
 ## NFS Storage
 
