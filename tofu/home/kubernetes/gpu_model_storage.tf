@@ -8,6 +8,7 @@
 #
 # Layout under the PV root:
 #   /comfyui/root/        ComfyUI state
+#   /docling/models/      Docling artifacts cache (layout/OCR/VLM weights)
 #   /llama-swap/models/   GGUF cache (migration TBD)
 
 locals {

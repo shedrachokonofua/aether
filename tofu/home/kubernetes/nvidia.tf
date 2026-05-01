@@ -88,7 +88,7 @@ resource "helm_release" "nvidia_device_plugin" {
             timeSlicing = {
               resources = [{
                 name     = "nvidia.com/gpu"
-                replicas = 8
+                replicas = 12
               }]
             }
           }
