@@ -369,6 +369,11 @@
           OAUTH2_JWK_SET_URI: https://auth.shdr.ch/realms/aether/protocol/openid-connect/certs
         volumes:
           - /home/aether/janus/config.yml:/etc/janus/config.yml:Z
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
       tags: [janus, tenant-proxy]
 
     - name: Start PVE exporter
