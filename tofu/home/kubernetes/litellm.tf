@@ -136,6 +136,9 @@ resource "kubernetes_deployment_v1" "litellm" {
     template {
       metadata {
         labels = local.litellm_labels
+        annotations = {
+          "aether.shdr.ch/config-sha" = sha256(local.litellm_config_yaml)
+        }
       }
 
       spec {
