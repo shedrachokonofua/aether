@@ -175,12 +175,13 @@ resource "proxmox_virtual_environment_vm" "talos" {
     }
   }
 
-  # Optional CI disk. Mounted on the node at /var/mnt/ci and
-  # consumed by GitLab Runner hostPath mounts for build/cache/container scratch.
-  # Uses virtio3 deliberately so it cannot collide with existing virtio1 etcd
-  # disks or neo's virtio2 GPU storage during rolling migration. Talos device
-  # names are compacted by the guest, so this appears as /dev/vdc on non-GPU
-  # nodes and /dev/vdd on neo.
+  # Optional CI disk. Mounted on the node at /var/mnt/ci and consumed by GitLab
+  # Runner hostPath mounts for build/cache/container scratch. Uses virtio3
+  # deliberately so it cannot collide with legacy virtio1 etcd disks or neo's
+  # virtio2 GPU storage during rolling migration. Talos device names are
+  # compacted by the guest, so a virtio3 disk appears after the attached lower
+  # numbered virtio disks: /dev/vdb with root+CI only, /dev/vdc with a legacy
+  # etcd disk or GPU storage disk, and /dev/vdd when both are present.
   dynamic "disk" {
     for_each = try(each.value.ci_disk_gb, null) != null ? [1] : []
     content {
@@ -349,12 +350,17 @@ resource "talos_machine_configuration_apply" "this" {
         )
       }),
     ],
-    # CI disk: partition and mount at /var/mnt/ci. The guest device name is
-    # /dev/vdc on nodes without neo's GPU storage disk and /dev/vdd on neo.
+    # CI disk: partition and mount at /var/mnt/ci. Linux compacts virtio names
+    # by enumeration order, so virtio3's guest device depends on the lower
+    # numbered disks attached to the VM.
     try(each.value.ci_disk_gb, null) != null ? [yamlencode({
       machine = {
         disks = [{
-          device = try(each.value.gpu_storage_disk_gb, null) != null ? "/dev/vdd" : "/dev/vdc"
+          device = (
+            try(each.value.gpu_storage_disk_gb, null) != null && try(each.value.legacy_etcd_disk_gb, null) != null ? "/dev/vdd" :
+            try(each.value.gpu_storage_disk_gb, null) != null || try(each.value.legacy_etcd_disk_gb, null) != null ? "/dev/vdc" :
+            "/dev/vdb"
+          )
           partitions = [{
             mountpoint = "/var/mnt/ci"
           }]
@@ -362,11 +368,12 @@ resource "talos_machine_configuration_apply" "this" {
       }
     })] : [],
 
-    # GPU-storage disk: partition /dev/vdc and mount at /var/mnt/gpu-storage.
+    # GPU-storage disk: partition and mount at /var/mnt/gpu-storage. virtio2 is
+    # /dev/vdc while the legacy virtio1 etcd disk exists, otherwise /dev/vdb.
     try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({
       machine = {
         disks = [{
-          device = "/dev/vdc"
+          device = try(each.value.legacy_etcd_disk_gb, null) != null ? "/dev/vdc" : "/dev/vdb"
           partitions = [{
             mountpoint = "/var/mnt/gpu-storage"
           }]

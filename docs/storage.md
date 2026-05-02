@@ -135,14 +135,12 @@ Talos disks are for node state, runtime churn, and disposable CI scratch.
 
 | Node           | Root disk                      | CI scratch                    | Notes |
 | -------------- | ------------------------------ | ----------------------------- | ----- |
-| talos-trinity  | 128G `local-lvm` on Trinity     | 128G `local-lvm` at `/var/mnt/ci` | Old 32G etcd disk removed; etcd now uses root/EPHEMERAL |
-| talos-niobe    | 128G `local-fast` on Niobe      | 128G `local-fast` at `/var/mnt/ci` | Old 32G etcd disk removed; etcd now uses root/EPHEMERAL |
-| talos-neo      | 256G `local-lvm` on Neo         | Pending separate `/var/mnt/ci` disk | Root and GPU storage are local; old 32G etcd disk still attached |
+| talos-trinity  | 128G `local-lvm` on Trinity     | 128G `local-lvm` at `/var/mnt/ci` | etcd uses root/EPHEMERAL |
+| talos-niobe    | 128G `local-fast` on Niobe      | 128G `local-fast` at `/var/mnt/ci` | etcd uses root/EPHEMERAL |
+| talos-neo      | 256G `local-lvm` on Neo         | 128G `local-lvm` at `/var/mnt/ci` | Root and GPU storage are local; etcd uses root/EPHEMERAL |
 
 GitLab Runner scratch is intended to use `/ci` inside job pods, backed by the
-node-local `/var/mnt/ci` hostPath once all selected CI nodes have the mount.
-Until `talos-neo` has the same CI disk, either leave the Runner `/ci` hostPath
-change unapplied or exclude `talos-neo` from Runner scheduling.
+node-local `/var/mnt/ci` hostPath.
 
 ### Placement Rule of Thumb
 

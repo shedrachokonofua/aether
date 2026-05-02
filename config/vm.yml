@@ -349,7 +349,6 @@ talos_neo:
   # CI build scratch lives on ci_disk_gb, not on this root disk.
   disk_gb: 256
   disk_datastore: "local-lvm"
-  legacy_etcd_disk_gb: 32
   ci_disk_gb: 128
   gpu: true
   gpu_pool: "blackwell"
