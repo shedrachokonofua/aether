@@ -175,6 +175,18 @@
           shellHook = ''
             echo "🚀 Aether dev shell loaded"
             echo ""
+
+            __aether_drop_seven30_kubeconfig() {
+              local seven30_kubeconfig="$HOME/.seven30/k8s/config"
+              if [ "''${KUBECONFIG:-}" = "$seven30_kubeconfig" ]; then
+                unset KUBECONFIG
+              fi
+              if [ "''${KUBE_CONFIG_PATH:-}" = "$seven30_kubeconfig" ]; then
+                unset KUBE_CONFIG_PATH
+              fi
+            }
+
+            __aether_drop_seven30_kubeconfig
           '' + pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
             if ! colima status >/dev/null 2>&1; then
               echo "🐳 Starting colima (docker daemon for macOS)..."

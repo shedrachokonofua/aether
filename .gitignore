@@ -66,3 +66,4 @@ terraform.rc
 aether-public-gateway-caddy
 
 backups/
+.pi
