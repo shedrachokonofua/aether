@@ -254,6 +254,26 @@ resource "helm_release" "otel_collector_deployment" {
                   targets = ["${kubernetes_service_v1.ups_management.metadata[0].name}.${local.ups_namespace}.svc.cluster.local:${local.ups_exporter_port}"]
                 }]
               },
+              {
+                job_name        = "qbittorrent-exporter"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role       = "endpoints"
+                  namespaces = { names = [local.qbittorrent_ns] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = "qbittorrent-exporter"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+                    action        = "keep"
+                    regex         = "metrics"
+                  },
+                ]
+              },
             ]
           }
         }

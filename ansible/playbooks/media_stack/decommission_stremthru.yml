@@ -1,0 +1,83 @@
+---
+# One-shot playbook: stop and export stremthru from the media-stack VM so its
+# sqlite DB can be restored into the Kubernetes ceph-rbd PVC.
+#
+# Run order (operator):
+#   1. tofu apply  → stremthru Deployment up with default config
+#   2. kubectl -n media scale deploy/stremthru --replicas=0
+#      kubectl -n media wait --for=delete pod -l app=stremthru --timeout=120s
+#   3. ansible-playbook playbooks/media_stack/decommission_stremthru.yml
+#   4. Spin a temp restore pod with stremthru-data PVC mounted, kubectl cp the
+#      tarball, untar with --strip-components=1 into /data, chown -R 1000:1000.
+#   5. kubectl -n media delete pod stremthru-restore --grace-period=0 --force
+#      kubectl -n media scale deploy/stremthru --replicas=1
+#   6. After verification, rerun this playbook with -e cleanup=true.
+
+- name: Decommission StremThru from media-stack VM
+  hosts: media-stack
+  gather_facts: false
+  vars:
+    admin_user: aether
+    export_dir: /tmp/media-stack-export
+    cleanup: false
+
+  tasks:
+    - name: Stop stremthru quadlet (user scope)
+      ansible.builtin.systemd:
+        name: stremthru
+        state: stopped
+        scope: user
+      ignore_errors: true
+
+    - name: Create local export directory
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ export_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: directory
+        mode: "0755"
+
+    - name: Archive StremThru data
+      become: true
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/stremthru-data.tar.gz -C /home/{{ admin_user }}/stremthru data
+      changed_when: true
+
+    - name: Make tarball readable by ansible user
+      become: true
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export/stremthru-data.tar.gz"
+        owner: "{{ admin_user }}"
+        group: "{{ admin_user }}"
+        mode: "0644"
+
+    - name: Fetch tarball to control node
+      ansible.builtin.fetch:
+        src: "/home/{{ admin_user }}/export/stremthru-data.tar.gz"
+        dest: "{{ export_dir }}/stremthru-data.tar.gz"
+        flat: true
+
+    - name: Disable stremthru quadlet
+      ansible.builtin.systemd:
+        name: stremthru
+        enabled: false
+        scope: user
+      when: cleanup | bool
+      ignore_errors: true
+
+    - name: Remove stremthru application directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/stremthru"
+        state: absent
+      when: cleanup | bool
+
+    - name: Clean up remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: absent
+      when: cleanup | bool

@@ -201,7 +201,6 @@ media_stack:
     sabnzbd: 8085
     filestash: 8334
     jellyfin: 8096
-    jellyseerr: 5055
     sonarr: 8989
     radarr: 7878
     lidarr: 8686
@@ -280,6 +279,23 @@ bastion:
     https: 443
     termix: 8080
     oauth2_proxy: 4180
+
+notifications_stack:
+  id: 1011
+  name: "notifications-stack"
+  node: "niobe"
+  admin: "aether"
+  cores: 1
+  memory: 1024
+  disk_gb: 16
+  ip: "10.0.2.4"
+  gateway: "10.0.2.1"
+  ports:
+    smtp: 25
+    ntfy: 80
+    ntfy_metrics: 9090
+    apprise: 8000
+    postfix_metrics: 9154
 
 ids_stack:
   id: 1028

@@ -329,7 +329,13 @@ ups.home.shdr.ch {
 }
 
 qbittorrent.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.qbittorrent }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    flush_interval -1
+  }
 }
 
 prowlarr.home.shdr.ch {
@@ -377,28 +383,54 @@ tv.shdr.ch {
   }
 }
 
-jellyseerr.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.jellyseerr }}
-}
-
 sonarr.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.sonarr }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    flush_interval -1
+  }
 }
 
 radarr.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.radarr }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    flush_interval -1
+  }
 }
 
 lidarr.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.lidarr }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    flush_interval -1
+  }
 }
 
 aiostreams.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.aiostreams }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    flush_interval -1
+  }
 }
 
 stremthru.home.shdr.ch {
-  reverse_proxy {{ vm.media_stack.ip }}:{{ vm.media_stack.ports.stremthru }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+    flush_interval -1
+  }
 }
 
 tuliprox.home.shdr.ch {

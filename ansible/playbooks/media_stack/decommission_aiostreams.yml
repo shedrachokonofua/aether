@@ -1,0 +1,85 @@
+---
+# One-shot playbook: stop and export aiostreams from the media-stack VM so its
+# config + sqlite DB can be restored into the Kubernetes ceph-rbd PVC.
+#
+# Run order (operator):
+#   1. tofu apply  → aiostreams Deployment up with default config
+#   2. kubectl -n media scale deploy/aiostreams --replicas=0
+#      kubectl -n media wait --for=delete pod -l app=aiostreams --timeout=120s
+#   3. ansible-playbook playbooks/media_stack/decommission_aiostreams.yml
+#   4. Spin a temp restore pod with aiostreams-data PVC mounted, kubectl cp the
+#      tarball, untar with --strip-components=1 into /data (in-pod path is
+#      /app/data; in temp pod mount the PVC at /data and untar there),
+#      chown -R 1000:1000.
+#   5. kubectl -n media delete pod aiostreams-restore --grace-period=0 --force
+#      kubectl -n media scale deploy/aiostreams --replicas=1
+#   6. After verification, rerun this playbook with -e cleanup=true.
+
+- name: Decommission AIOStreams from media-stack VM
+  hosts: media-stack
+  gather_facts: false
+  vars:
+    admin_user: aether
+    export_dir: /tmp/media-stack-export
+    cleanup: false
+
+  tasks:
+    - name: Stop aiostreams quadlet (user scope)
+      ansible.builtin.systemd:
+        name: aiostreams
+        state: stopped
+        scope: user
+      ignore_errors: true
+
+    - name: Create local export directory
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ export_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: directory
+        mode: "0755"
+
+    - name: Archive AIOStreams data
+      become: true
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/aiostreams-data.tar.gz -C /home/{{ admin_user }}/aiostreams data
+      changed_when: true
+
+    - name: Make tarball readable by ansible user
+      become: true
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export/aiostreams-data.tar.gz"
+        owner: "{{ admin_user }}"
+        group: "{{ admin_user }}"
+        mode: "0644"
+
+    - name: Fetch tarball to control node
+      ansible.builtin.fetch:
+        src: "/home/{{ admin_user }}/export/aiostreams-data.tar.gz"
+        dest: "{{ export_dir }}/aiostreams-data.tar.gz"
+        flat: true
+
+    - name: Disable aiostreams quadlet
+      ansible.builtin.systemd:
+        name: aiostreams
+        enabled: false
+        scope: user
+      when: cleanup | bool
+      ignore_errors: true
+
+    - name: Remove aiostreams application directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/aiostreams"
+        state: absent
+      when: cleanup | bool
+
+    - name: Clean up remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: absent
+      when: cleanup | bool

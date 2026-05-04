@@ -1,0 +1,85 @@
+---
+# One-shot playbook: stop and export lidarr from the media-stack VM so its
+# config can be restored into the Kubernetes ceph-rbd PVC.
+#
+# Run order (operator):
+#   1. tofu apply  → lidarr Deployment up with default config
+#   2. ansible-playbook playbooks/media_stack/decommission_lidarr.yml
+#   3. POD=$(kubectl -n media get pods -l app=lidarr -o jsonpath='{.items[0].metadata.name}')
+#      kubectl -n media cp /tmp/media-stack-export/lidarr-config.tar.gz media/$POD:/tmp/
+#      kubectl -n media exec $POD -- sh -c \
+#        'find /config -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + && \
+#         tar xzf /tmp/lidarr-config.tar.gz -C /config --strip-components=1 && \
+#         chown -R abc:users /config && rm -f /tmp/lidarr-config.tar.gz'
+#      kubectl -n media rollout restart deploy/lidarr
+#   4. After verification, rerun this playbook with -e cleanup=true to disable
+#      the quadlet and remove /home/aether/lidarr.
+
+- name: Decommission Lidarr from media-stack VM
+  hosts: media-stack
+  gather_facts: false
+  vars:
+    admin_user: aether
+    export_dir: /tmp/media-stack-export
+    cleanup: false
+
+  tasks:
+    - name: Stop lidarr quadlet (user scope)
+      ansible.builtin.systemd:
+        name: lidarr
+        state: stopped
+        scope: user
+      ignore_errors: true
+
+    - name: Create local export directory
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ export_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: directory
+        mode: "0755"
+
+    - name: Archive Lidarr config
+      become: true
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/lidarr-config.tar.gz -C /home/{{ admin_user }}/lidarr config
+      changed_when: true
+
+    - name: Make tarball readable by ansible user
+      become: true
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export/lidarr-config.tar.gz"
+        owner: "{{ admin_user }}"
+        group: "{{ admin_user }}"
+        mode: "0644"
+
+    - name: Fetch tarball to control node
+      ansible.builtin.fetch:
+        src: "/home/{{ admin_user }}/export/lidarr-config.tar.gz"
+        dest: "{{ export_dir }}/lidarr-config.tar.gz"
+        flat: true
+
+    - name: Disable lidarr quadlet
+      ansible.builtin.systemd:
+        name: lidarr
+        enabled: false
+        scope: user
+      when: cleanup | bool
+      ignore_errors: true
+
+    - name: Remove lidarr application directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/lidarr"
+        state: absent
+      when: cleanup | bool
+
+    - name: Clean up remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: absent
+      when: cleanup | bool
