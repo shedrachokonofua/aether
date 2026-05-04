@@ -295,6 +295,7 @@ graph LR
 | 1    | Ethernet | Google TV Streamer | 5             | -           | 1Gbps   |
 | 2    | Ethernet | Mac Mini     | 4             | -           | 1Gbps   |
 | 3    | Ethernet | Laptop Dock        | 4             | -           | 2.5Gbps |
+| 5    | Ethernet | talos-sparks       | 3             | -           | 1Gbps   |
 | 6    | Ethernet | talos-tank         | 3             | -           | 1Gbps   |
 | 7    | Ethernet | talos-dozer        | 3             | -           | 1Gbps   |
 | 8    | Ethernet | talos-mouse        | 3             | -           | 1Gbps   |
@@ -308,12 +309,13 @@ Static VLAN/PVID configuration:
 | 2    | Access | 4    | -      | -      | U      | -      |
 | 3    | Access | 4    | -      | -      | U      | -      |
 | 4    | Access | 4    | -      | -      | U      | -      |
+| 5    | Access | 3    | -      | U      | -      | -      |
 | 6    | Access | 3    | -      | U      | -      | -      |
 | 7    | Access | 3    | -      | U      | -      | -      |
 | 8    | Access | 3    | -      | U      | -      | -      |
 | 9    | Trunk  | 1    | U      | T      | T      | T      |
 
-Legend: `U` = untagged member, `T` = tagged member. Pi Talos nodes use untagged VLAN 3 on ports 6-8; the SFP+ uplink to the rack carries VLAN 3 tagged.
+Legend: `U` = untagged member, `T` = tagged member. Pi Talos nodes use untagged VLAN 3 on ports 5-8; the SFP+ uplink to the rack carries VLAN 3 tagged.
 
 This office-switch Pi placement is temporary staging while the nodes are being installed and joined. The final placement is the main rack; update this table when the Pi ports move there.
 

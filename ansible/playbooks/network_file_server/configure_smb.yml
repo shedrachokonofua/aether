@@ -71,7 +71,7 @@
         append: yes
       loop: "{{ smb_users }}"
 
-    - name: Ensure share directories exist and have correct ownership / mode
+    - name: Ensure share directory roots exist with correct ownership / mode
       ansible.builtin.file:
         path: "{{ item.path }}"
         state: directory
@@ -79,6 +79,15 @@
         group: smbusers
         mode: "2775" # drwxrwsr-x  (set-gid keeps group on new files)
       loop: "{{ smb_shares }}"
+
+    - name: Recursively normalize group ownership and permissions on share contents
+      ansible.builtin.shell: |
+        set -euo pipefail
+        chgrp -R smbusers {{ item.path | quote }}
+        chmod -R g+rwX {{ item.path | quote }}
+        find {{ item.path | quote }} -type d -exec chmod g+s {} +
+      loop: "{{ smb_shares }}"
+      changed_when: false
 
     - name: Write smb.conf configuration file
       template:
