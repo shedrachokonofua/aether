@@ -1429,3 +1429,42 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_kubernetes_g
   add_to_access_token = true
   add_to_userinfo     = true
 }
+
+# =============================================================================
+# Miniflux OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "miniflux" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "miniflux"
+  name      = "Miniflux"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://miniflux.home.shdr.ch"
+  base_url  = "https://miniflux.home.shdr.ch"
+  admin_url = "https://miniflux.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://miniflux.home.shdr.ch/oauth2/oidc/callback",
+  ]
+
+  web_origins = [
+    "https://miniflux.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "miniflux_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.miniflux.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}

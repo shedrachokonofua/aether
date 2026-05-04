@@ -166,6 +166,12 @@ variable "nextexplorer_oauth_client_secret" {
   description = "nextExplorer Keycloak OIDC client secret"
 }
 
+variable "miniflux_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Miniflux Keycloak OIDC client secret"
+}
+
 # =============================================================================
 # NFS Storage
 # =============================================================================

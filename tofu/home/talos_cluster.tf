@@ -517,6 +517,7 @@ module "kubernetes" {
   karakeep_oauth_client_secret  = keycloak_openid_client.karakeep.client_secret
   memos_oauth_client_secret        = keycloak_openid_client.memos.client_secret
   nextexplorer_oauth_client_secret = keycloak_openid_client.nextexplorer.client_secret
+  miniflux_oauth_client_secret     = keycloak_openid_client.miniflux.client_secret
   litellm_mcp_url                  = "http://litellm.infra.svc.cluster.local:4000/mcp"
 
   # Media stack migration
