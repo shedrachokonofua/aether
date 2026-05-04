@@ -521,7 +521,6 @@ module "kubernetes" {
 
   # Media stack migration
   nfs_server_ip       = local.vm.nfs.ip.vyos
-  media_stack_ip      = local.vm.media_stack.ip
   rotating_proxy_addr = "${local.vm.home_gateway_stack.ip}:${local.vm.home_gateway_stack.ports.rotating_proxy}"
 
   depends_on = [talos_cluster_kubeconfig.this]

@@ -179,11 +179,6 @@ variable "nfs_server_ip" {
 # Media Stack
 # =============================================================================
 
-variable "media_stack_ip" {
-  type        = string
-  description = "Media stack VM IP (for rclone sidecar nzbdav access during transition)"
-}
-
 variable "rotating_proxy_addr" {
   type        = string
   description = "SOCKS5 rotating proxy address for tuliprox (host:port)"

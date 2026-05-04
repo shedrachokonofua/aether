@@ -184,30 +184,6 @@ messaging_stack:
     postfix_metrics: 9154
     apprise: 8000
 
-media_stack:
-  id: 1020
-  name: "media-stack"
-  node: "trinity"
-  admin: "aether"
-  cores: 8
-  memory: 8192
-  disk_gb: 128
-  ip: "10.0.3.5"
-  gateway: "10.0.3.1"
-  ports:
-    qbittorrent: 8080
-    qbittorrent_exporter: 8090
-    prowlarr: 9696
-    sabnzbd: 8085
-    jellyfin: 8096
-    sonarr: 8989
-    radarr: 7878
-    lidarr: 8686
-    aiostreams: 3000
-    stremthru: 8081
-    nzbdav: 3001
-    tuliprox: 8901
-
 keycloak:
   id: 1023
   name: "keycloak"
