@@ -1282,6 +1282,81 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "memos_roles" {
 # =============================================================================
 # nextExplorer (file browser, replaces filestash on the media-stack VM)
 # =============================================================================
+# Login is restricted to users with the realm `admin` role at the Keycloak
+# level via a custom browser flow override (deny-access fires for any
+# non-admin), and at the app level via OIDC_AUTO_CREATE_USERS=false plus
+# a bootstrapped admin local account in nextexplorer.tf.
+
+resource "keycloak_authentication_flow" "nextexplorer_browser" {
+  realm_id = keycloak_realm.aether.id
+  alias    = "nextexplorer-browser"
+  description = "Browser flow for nextExplorer — only realm-admins may complete login"
+}
+
+resource "keycloak_authentication_execution" "nextexplorer_cookie" {
+  realm_id          = keycloak_realm.aether.id
+  parent_flow_alias = keycloak_authentication_flow.nextexplorer_browser.alias
+  authenticator     = "auth-cookie"
+  requirement       = "ALTERNATIVE"
+}
+
+resource "keycloak_authentication_execution" "nextexplorer_idp_redirector" {
+  realm_id          = keycloak_realm.aether.id
+  parent_flow_alias = keycloak_authentication_flow.nextexplorer_browser.alias
+  authenticator     = "identity-provider-redirector"
+  requirement       = "ALTERNATIVE"
+  depends_on        = [keycloak_authentication_execution.nextexplorer_cookie]
+}
+
+resource "keycloak_authentication_subflow" "nextexplorer_forms" {
+  realm_id          = keycloak_realm.aether.id
+  parent_flow_alias = keycloak_authentication_flow.nextexplorer_browser.alias
+  alias             = "nextexplorer-forms"
+  requirement       = "ALTERNATIVE"
+  depends_on        = [keycloak_authentication_execution.nextexplorer_idp_redirector]
+}
+
+resource "keycloak_authentication_execution" "nextexplorer_username_password" {
+  realm_id          = keycloak_realm.aether.id
+  parent_flow_alias = keycloak_authentication_subflow.nextexplorer_forms.alias
+  authenticator     = "auth-username-password-form"
+  requirement       = "REQUIRED"
+}
+
+# Conditional subflow: only executes its children if the user lacks the admin
+# role. Inside, deny-access aborts the login.
+resource "keycloak_authentication_subflow" "nextexplorer_role_gate" {
+  realm_id          = keycloak_realm.aether.id
+  parent_flow_alias = keycloak_authentication_subflow.nextexplorer_forms.alias
+  alias             = "nextexplorer-admin-only"
+  requirement       = "CONDITIONAL"
+  depends_on        = [keycloak_authentication_execution.nextexplorer_username_password]
+}
+
+resource "keycloak_authentication_execution" "nextexplorer_condition_not_admin" {
+  realm_id          = keycloak_realm.aether.id
+  parent_flow_alias = keycloak_authentication_subflow.nextexplorer_role_gate.alias
+  authenticator     = "conditional-user-role"
+  requirement       = "REQUIRED"
+}
+
+resource "keycloak_authentication_execution_config" "nextexplorer_condition_not_admin" {
+  realm_id     = keycloak_realm.aether.id
+  execution_id = keycloak_authentication_execution.nextexplorer_condition_not_admin.id
+  alias        = "nextexplorer-not-admin"
+  config = {
+    "condUserRole" = keycloak_role.admin.name
+    "negate"       = "true"
+  }
+}
+
+resource "keycloak_authentication_execution" "nextexplorer_deny_non_admin" {
+  realm_id          = keycloak_realm.aether.id
+  parent_flow_alias = keycloak_authentication_subflow.nextexplorer_role_gate.alias
+  authenticator     = "deny-access-authenticator"
+  requirement       = "REQUIRED"
+  depends_on        = [keycloak_authentication_execution.nextexplorer_condition_not_admin]
+}
 
 resource "keycloak_openid_client" "nextexplorer" {
   realm_id  = keycloak_realm.aether.id
@@ -1305,6 +1380,10 @@ resource "keycloak_openid_client" "nextexplorer" {
   web_origins = [
     "https://files.home.shdr.ch",
   ]
+
+  authentication_flow_binding_overrides {
+    browser_id = keycloak_authentication_flow.nextexplorer_browser.id
+  }
 }
 
 resource "keycloak_openid_client" "seven30_kubernetes" {

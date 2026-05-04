@@ -25,6 +25,13 @@ resource "random_password" "nextexplorer_session" {
   special = false
 }
 
+# Bootstrap admin local account. Daily access is via OIDC (matched by email);
+# this is the break-glass local login in case Keycloak is unavailable.
+resource "random_password" "nextexplorer_admin" {
+  length  = 32
+  special = false
+}
+
 # =============================================================================
 # Secret
 # =============================================================================
@@ -40,8 +47,9 @@ resource "kubernetes_secret_v1" "nextexplorer" {
   type = "Opaque"
 
   data = {
-    session_secret      = random_password.nextexplorer_session.result
-    oidc_client_secret  = var.nextexplorer_oauth_client_secret
+    session_secret     = random_password.nextexplorer_session.result
+    oidc_client_secret = var.nextexplorer_oauth_client_secret
+    admin_password     = random_password.nextexplorer_admin.result
   }
 }
 
@@ -150,18 +158,42 @@ resource "kubernetes_deployment_v1" "nextexplorer" {
           }
 
           env {
+            name  = "AUTH_ADMIN_EMAIL"
+            value = "shedrachokonofua@gmail.com"
+          }
+
+          env {
+            name = "AUTH_ADMIN_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nextexplorer.metadata[0].name
+                key  = "admin_password"
+              }
+            }
+          }
+
+          env {
             name  = "OIDC_ENABLED"
             value = "true"
           }
 
+          # Login restricted to admins via the Keycloak browser-flow override
+          # in tofu/home/keycloak.tf — non-admins get a deny-access during the
+          # auth flow. As defense-in-depth, also disable auto-provision here so
+          # only the bootstrapped admin local account can be matched by OIDC.
           env {
             name  = "OIDC_AUTO_CREATE_USERS"
-            value = "true"
+            value = "false"
           }
 
           env {
             name  = "OIDC_SCOPES"
             value = "openid profile email"
+          }
+
+          env {
+            name  = "OIDC_ADMIN_GROUPS"
+            value = "admin"
           }
 
           env {
