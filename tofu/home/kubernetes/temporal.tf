@@ -356,6 +356,13 @@ resource "kubernetes_deployment_v1" "temporal_ui" {
       }
 
       spec {
+        # The Service named `temporal-server` in this namespace causes kubelet
+        # to inject `TEMPORAL_SERVER_PORT=tcp://...` into every pod here. The
+        # temporal-ui image references that var via its config template and
+        # tries to parse it as an int port, which fails YAML unmarshal. Disable
+        # the legacy service-link env injection.
+        enable_service_links = false
+
         container {
           name              = "temporal-ui"
           image             = local.temporal_ui_image
