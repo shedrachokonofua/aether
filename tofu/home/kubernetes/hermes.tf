@@ -14,24 +14,27 @@ locals {
   hermes_dashboard_port = 9119
   hermes_litellm        = "https://litellm.home.shdr.ch/v1"
   hermes_local_llm      = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.hermes_namespace}.svc.cluster.local:${local.llama_swap_port}/v1"
+  hermes_jellyfin_url   = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
   hermes_firecrawl_url  = "https://firecrawl.home.shdr.ch"
   hermes_matrix_server  = "https://matrix.home.shdr.ch"
   hermes_matrix_owner   = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
+  hermes_homeassistant  = "https://ha.home.shdr.ch"
 
   hermes_agents = {
     beryl = {
-      host           = "hermes-beryl.home.shdr.ch"
-      dashboard_host = "hermes-beryl-dashboard.home.shdr.ch"
+      host           = "beryl.home.shdr.ch"
+      dashboard_host = "beryl-dashboard.home.shdr.ch"
       env = {
         OPENAI_BASE_URL        = local.hermes_local_llm
-        FIRECRAWL_API_URL      = local.hermes_firecrawl_url
+        JELLYFIN_URL           = local.hermes_jellyfin_url
         MATRIX_HOMESERVER      = local.hermes_matrix_server
         MATRIX_USER_ID         = "@${var.secrets["matrix.beryl_bot_user"]}:matrix.home.shdr.ch"
         MATRIX_ALLOWED_USERS   = local.hermes_matrix_owner
         MATRIX_REQUIRE_MENTION = "true"
         MATRIX_AUTO_THREAD     = "true"
+        HASS_URL               = local.hermes_homeassistant
       }
-      secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "MATRIX_PASSWORD"]
+      secret_env_keys = ["API_SERVER_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN"]
       config = yamlencode({
         model = {
           provider       = "custom"
@@ -59,6 +62,23 @@ locals {
           memory_enabled       = true
           user_profile_enabled = true
         }
+        auxiliary = {
+          vision = {
+            provider = "main"
+          }
+          web_extract = {
+            provider = "main"
+          }
+          skills_hub = {
+            provider = "main"
+          }
+          mcp = {
+            provider = "main"
+          }
+          flush_memories = {
+            provider = "main"
+          }
+        }
         compression = {
           enabled      = true
           threshold    = 0.50
@@ -71,18 +91,43 @@ locals {
     }
 
     tungsten = {
-      host           = "hermes-tungsten.home.shdr.ch"
-      dashboard_host = "hermes-tungsten-dashboard.home.shdr.ch"
+      host           = "tungsten.home.shdr.ch"
+      dashboard_host = "tungsten-dashboard.home.shdr.ch"
       env = {
         OPENAI_BASE_URL        = local.hermes_litellm
         FIRECRAWL_API_URL      = local.hermes_firecrawl_url
+        GITLAB_HOST            = "gitlab.home.shdr.ch"
+        GITLAB_URL             = "https://gitlab.home.shdr.ch"
+        GRAFANA_URL            = "https://grafana.home.shdr.ch"
+        JELLYFIN_URL           = local.hermes_jellyfin_url
+        QBITTORRENT_URL        = "http://${kubernetes_service_v1.qbittorrent.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.qbittorrent_port}"
+        SABNZBD_URL            = "http://${kubernetes_service_v1.sabnzbd.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.sabnzbd_port}"
+        SONARR_URL             = "http://${kubernetes_service_v1.sonarr.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.sonarr_port}"
+        RADARR_URL             = "http://${kubernetes_service_v1.radarr.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.radarr_port}"
+        LIDARR_URL             = "http://${kubernetes_service_v1.lidarr.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.lidarr_port}"
+        PROWLARR_URL           = "http://${kubernetes_service_v1.prowlarr.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.prowlarr_port}"
         MATRIX_HOMESERVER      = local.hermes_matrix_server
         MATRIX_USER_ID         = "@${var.secrets["matrix.tungsten_bot_user"]}:matrix.home.shdr.ch"
         MATRIX_ALLOWED_USERS   = local.hermes_matrix_owner
         MATRIX_REQUIRE_MENTION = "true"
         MATRIX_AUTO_THREAD     = "true"
       }
-      secret_env_keys = ["API_SERVER_KEY", "OPENAI_API_KEY", "FIRECRAWL_API_KEY", "MATRIX_PASSWORD"]
+      secret_env_keys = [
+        "API_SERVER_KEY",
+        "OPENAI_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "MATRIX_ACCESS_TOKEN",
+        "GITLAB_TOKEN",
+        "GRAFANA_SA_TOKEN",
+        "JELLYFIN_API_KEY",
+        "QBITTORRENT_USERNAME",
+        "QBITTORRENT_PASSWORD",
+        "SABNZBD_API_KEY",
+        "SONARR_API_KEY",
+        "RADARR_API_KEY",
+        "LIDARR_API_KEY",
+        "PROWLARR_API_KEY",
+      ]
       config = yamlencode({
         model = {
           provider       = "custom"
@@ -110,6 +155,26 @@ locals {
         memory = {
           memory_enabled       = true
           user_profile_enabled = true
+        }
+        mcp_servers = {
+          arr = {
+            command = "npx"
+            args    = ["-y", "mcp-arr-server"]
+            env = {
+              SONARR_URL       = "$${SONARR_URL}"
+              SONARR_API_KEY   = "$${SONARR_API_KEY}"
+              RADARR_URL       = "$${RADARR_URL}"
+              RADARR_API_KEY   = "$${RADARR_API_KEY}"
+              LIDARR_URL       = "$${LIDARR_URL}"
+              LIDARR_API_KEY   = "$${LIDARR_API_KEY}"
+              PROWLARR_URL     = "$${PROWLARR_URL}"
+              PROWLARR_API_KEY = "$${PROWLARR_API_KEY}"
+            }
+            timeout = 180
+            sampling = {
+              enabled = false
+            }
+          }
         }
         compression = {
           enabled      = true
@@ -143,12 +208,26 @@ resource "kubernetes_secret_v1" "hermes_env" {
 
   data = merge(
     {
-      API_SERVER_KEY    = random_password.hermes_api_server_key[each.key].result
-      FIRECRAWL_API_KEY = var.secrets["firecrawl.api_key"]
-      MATRIX_PASSWORD   = var.secrets["matrix.${each.key}_bot_password"]
+      API_SERVER_KEY      = random_password.hermes_api_server_key[each.key].result
+      FIRECRAWL_API_KEY   = var.secrets["firecrawl.api_key"]
+      MATRIX_ACCESS_TOKEN = var.secrets["matrix.${each.key}_bot_access_token"]
     },
     each.key == "tungsten" ? {
-      OPENAI_API_KEY = var.secrets["litellm.virtual_keys.hermes_tungsten"]
+      OPENAI_API_KEY       = var.secrets["litellm.virtual_keys.hermes_tungsten"]
+      GITLAB_TOKEN         = var.secrets["gitlab.tungsten_token"]
+      GRAFANA_SA_TOKEN     = var.secrets["grafana_sa_token"]
+      JELLYFIN_API_KEY     = var.secrets["jellyfin.tungsten_api_key"]
+      QBITTORRENT_USERNAME = var.secrets["qbittorrent.username"]
+      QBITTORRENT_PASSWORD = var.secrets["qbittorrent.password"]
+      SABNZBD_API_KEY      = var.secrets["sabnzbd.api_key"]
+      SONARR_API_KEY       = lookup(var.secrets, "sonarr.api_key", "")
+      RADARR_API_KEY       = lookup(var.secrets, "radarr.api_key", "")
+      LIDARR_API_KEY       = lookup(var.secrets, "lidarr.api_key", "")
+      PROWLARR_API_KEY     = var.secrets["prowlarr.api_key"]
+    } : {},
+    each.key == "beryl" ? {
+      JELLYFIN_API_KEY = var.secrets["jellyfin.beryl_api_key"]
+      HASS_TOKEN       = var.secrets["homeassistant.beryl_token"]
     } : {}
   )
 
@@ -168,6 +247,7 @@ resource "kubernetes_config_map_v1" "hermes_bootstrap" {
   data = {
     "config.yaml" = each.value.config
     "SOUL.md"     = file("${path.module}/../../../hermes/${each.key}/SOUL.md")
+    "AGENTS.md"   = file("${path.module}/../../../hermes/${each.key}/AGENTS.md")
   }
 }
 
@@ -193,6 +273,95 @@ resource "kubernetes_persistent_volume_claim_v1" "hermes_data" {
   }
 }
 
+resource "kubernetes_service_account_v1" "hermes" {
+  for_each = local.hermes_agents
+
+  depends_on = [kubernetes_namespace_v1.infra]
+
+  metadata {
+    name      = "hermes-${each.key}"
+    namespace = local.hermes_namespace
+  }
+
+  automount_service_account_token = each.key == "tungsten"
+}
+
+resource "kubernetes_cluster_role_v1" "hermes_tungsten_readonly" {
+  metadata {
+    name = "hermes-tungsten-readonly"
+  }
+
+  rule {
+    api_groups = [""]
+    resources = [
+      "configmaps",
+      "endpoints",
+      "events",
+      "namespaces",
+      "nodes",
+      "persistentvolumeclaims",
+      "persistentvolumes",
+      "pods",
+      "pods/log",
+      "services",
+    ]
+    verbs = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["apps"]
+    resources = [
+      "daemonsets",
+      "deployments",
+      "replicasets",
+      "statefulsets",
+    ]
+    verbs = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["batch"]
+    resources  = ["cronjobs", "jobs"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["gateway.networking.k8s.io"]
+    resources  = ["gateways", "httproutes", "referencegrants"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["networking.k8s.io"]
+    resources  = ["ingresses", "networkpolicies"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["metrics.k8s.io"]
+    resources  = ["nodes", "pods"]
+    verbs      = ["get", "list"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding_v1" "hermes_tungsten_readonly" {
+  metadata {
+    name = "hermes-tungsten-readonly"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.hermes["tungsten"].metadata[0].name
+    namespace = local.hermes_namespace
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role_v1.hermes_tungsten_readonly.metadata[0].name
+  }
+}
+
 resource "kubernetes_deployment_v1" "hermes" {
   for_each = local.hermes_agents
 
@@ -200,6 +369,7 @@ resource "kubernetes_deployment_v1" "hermes" {
     kubernetes_config_map_v1.hermes_bootstrap,
     kubernetes_persistent_volume_claim_v1.hermes_data,
     kubernetes_secret_v1.hermes_env,
+    kubernetes_service_account_v1.hermes,
     kubernetes_service_v1.llama_swap,
   ]
 
@@ -229,16 +399,23 @@ resource "kubernetes_deployment_v1" "hermes" {
         labels = {
           app = "hermes-${each.key}"
         }
+        annotations = {
+          "checksum/config" = sha256(each.value.config)
+          "checksum/env"    = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.hermes_env[each.key].data)))
+        }
       }
 
       spec {
+        service_account_name            = kubernetes_service_account_v1.hermes[each.key].metadata[0].name
+        automount_service_account_token = each.key == "tungsten"
+
         init_container {
           name  = "bootstrap-config"
           image = "busybox:latest"
           command = [
             "sh",
             "-c",
-            "mkdir -p /data /data/sessions /data/memories /data/skills /data/cron /data/logs && cp /bootstrap/config.yaml /data/config.yaml && cp /bootstrap/SOUL.md /data/SOUL.md && chown 10000:10000 /data/config.yaml /data/SOUL.md && chmod 640 /data/config.yaml && chmod 644 /data/SOUL.md && chmod 755 /data /data/sessions /data/memories /data/skills /data/cron /data/logs"
+            "mkdir -p /data /data/sessions /data/memories /data/skills /data/cron /data/logs /data/.npm && cp /bootstrap/config.yaml /data/config.yaml && cp /bootstrap/SOUL.md /data/SOUL.md && cp /bootstrap/AGENTS.md /data/AGENTS.md && chown 10000:10000 /data/config.yaml /data/SOUL.md /data/AGENTS.md && chown -R 10000:10000 /data/.npm && chmod 640 /data/config.yaml && chmod 644 /data/SOUL.md /data/AGENTS.md && chmod 755 /data /data/sessions /data/memories /data/skills /data/cron /data/logs"
           ]
 
           volume_mount {
@@ -374,6 +551,7 @@ resource "kubernetes_deployment_v1" "hermes" {
           args = [
             <<-EOT
             set -euo pipefail
+            cp /opt/hermes/ui-tui/package-lock.json /opt/hermes/ui-tui/node_modules/.package-lock.json
             python3 - <<'PY'
             from pathlib import Path
 
@@ -385,12 +563,6 @@ resource "kubernetes_deployment_v1" "hermes" {
             )
             path.write_text(source)
             PY
-            cd /opt/hermes/ui-tui
-            npm install --silent --no-fund --no-audit --progress=false
-            npm run build
-            mkdir -p /opt/hermes/ui-tui/node_modules/@hermes/ink/dist
-            cp /opt/hermes/ui-tui/packages/hermes-ink/dist/ink-bundle.js /opt/hermes/ui-tui/node_modules/@hermes/ink/dist/ink-bundle.js
-            chown -R hermes:hermes /opt/hermes/ui-tui
             exec /opt/hermes/docker/entrypoint.sh hermes dashboard --host 0.0.0.0 --port ${local.hermes_dashboard_port} --no-open --insecure --tui
             EOT
           ]
@@ -488,7 +660,7 @@ resource "kubernetes_deployment_v1" "hermes" {
               port = local.hermes_dashboard_port
             }
             period_seconds    = 10
-            failure_threshold = 30
+            failure_threshold = 90
           }
 
           readiness_probe {
