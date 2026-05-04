@@ -121,6 +121,12 @@ model_list:
       litellm_credential_name: llama_swap_credential
       encoding_format: "float"
 
+  # Xiaomi MiMo models
+  - model_name: "xiaomi/mimo-v2.5-pro"
+    litellm_params:
+      model: "openai/mimo-v2.5-pro"
+      litellm_credential_name: xiaomi_credential
+
   # OpenRouter models
   - model_name: "openrouter/grok-4"
     litellm_params:
@@ -166,6 +172,12 @@ credential_list:
       api_key: os.environ/OPENROUTER_API_KEY
     credential_info:
       description: "OpenRouter"
+  - credential_name: xiaomi_credential
+    credential_values:
+      api_base: https://token-plan-sgp.xiaomimimo.com/v1
+      api_key: os.environ/XIAOMI_API_KEY
+    credential_info:
+      description: "Xiaomi MiMo"
 
 litellm_settings:
   drop_params: true
