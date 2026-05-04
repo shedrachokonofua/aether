@@ -11,11 +11,9 @@
 - name: Mount network storage
   import_playbook: mount_network_storage.yml
 
-- name: Deploy Filestash
-  import_playbook: filestash.yml
-
 # Migrated to Kubernetes (media namespace):
 #   NZBDav, Jellyfin, Tuliprox, SABnzbd, Prowlarr, qBittorrent, Sonarr, Radarr,
 #   Lidarr, AIOStreams, StremThru.
+# Replaced by nextExplorer on Kubernetes: Filestash.
 # Decommissioned entirely (no replacement): Jellyseerr.
 

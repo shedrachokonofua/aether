@@ -515,8 +515,9 @@ module "kubernetes" {
   coder_oauth_client_secret     = keycloak_openid_client.coder.client_secret
   affine_oauth_client_secret    = keycloak_openid_client.affine.client_secret
   karakeep_oauth_client_secret  = keycloak_openid_client.karakeep.client_secret
-  memos_oauth_client_secret     = keycloak_openid_client.memos.client_secret
-  litellm_mcp_url               = "http://litellm.infra.svc.cluster.local:4000/mcp"
+  memos_oauth_client_secret        = keycloak_openid_client.memos.client_secret
+  nextexplorer_oauth_client_secret = keycloak_openid_client.nextexplorer.client_secret
+  litellm_mcp_url                  = "http://litellm.infra.svc.cluster.local:4000/mcp"
 
   # Media stack migration
   nfs_server_ip       = local.vm.nfs.ip.vyos

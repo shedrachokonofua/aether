@@ -160,6 +160,12 @@ variable "memos_oauth_client_secret" {
   description = "Memos Keycloak OIDC client secret (consumed by bootstrap Job — Memos has no OIDC env vars)"
 }
 
+variable "nextexplorer_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "nextExplorer Keycloak OIDC client secret"
+}
+
 # =============================================================================
 # NFS Storage
 # =============================================================================

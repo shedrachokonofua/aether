@@ -199,7 +199,6 @@ media_stack:
     qbittorrent_exporter: 8090
     prowlarr: 9696
     sabnzbd: 8085
-    filestash: 8334
     jellyfin: 8096
     sonarr: 8989
     radarr: 7878

@@ -1279,6 +1279,34 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "memos_roles" {
   add_to_userinfo     = true
 }
 
+# =============================================================================
+# nextExplorer (file browser, replaces filestash on the media-stack VM)
+# =============================================================================
+
+resource "keycloak_openid_client" "nextexplorer" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "nextexplorer"
+  name      = "nextExplorer"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://files.home.shdr.ch"
+  base_url  = "https://files.home.shdr.ch"
+  admin_url = "https://files.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://files.home.shdr.ch/callback",
+  ]
+
+  web_origins = [
+    "https://files.home.shdr.ch",
+  ]
+}
+
 resource "keycloak_openid_client" "seven30_kubernetes" {
   realm_id  = keycloak_realm.aether.id
   client_id = "seven30-kubernetes"
