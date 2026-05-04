@@ -1,6 +1,8 @@
 # Hardware config for VMs provisioned from vm-base image
 # Only needed for nixos-rebuild (not image building)
-# nixos-generators creates: /dev/vda1 (ext4 root), GRUB on /dev/vda
+# vm-base images use GPT with:
+#   - /dev/disk/by-label/ESP   mounted at /boot
+#   - /dev/disk/by-label/nixos mounted at /
 { modulesPath, ... }:
 
 {
@@ -14,8 +16,12 @@
   };
 
   fileSystems."/" = {
-    device = "/dev/vda1";
+    device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
   };
-}
 
+  fileSystems."/boot" = {
+    device = "/dev/disk/by-label/ESP";
+    fsType = "vfat";
+  };
+}
