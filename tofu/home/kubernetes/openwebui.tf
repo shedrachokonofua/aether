@@ -4,11 +4,12 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  openwebui_namespace = "infra"
-  openwebui_host      = "openwebui.home.shdr.ch"
-  openwebui_image     = "ghcr.io/open-webui/open-webui:latest"
-  mcpo_image          = "ghcr.io/open-webui/mcpo:main"
-  postgres_image      = "pgvector/pgvector:pg16"
+  openwebui_namespace     = "infra"
+  openwebui_host          = "openwebui.home.shdr.ch"
+  openwebui_image         = "ghcr.io/open-webui/open-webui:latest"
+  mcpo_image              = "ghcr.io/open-webui/mcpo:main"
+  open_terminal_image     = "ghcr.io/open-webui/open-terminal:slim"
+  postgres_image          = "pgvector/pgvector:pg16"
   postgres_service    = "openwebui-postgres"
   postgres_db         = "openwebui"
   postgres_user       = "openwebui"
@@ -34,6 +35,22 @@ locals {
       id          = "litellm"
       name        = "LiteLLM"
       description = "LiteLLM"
+    }
+  }])
+
+  openwebui_terminal_server_connections = jsonencode([{
+    id        = "open-terminal"
+    name      = "Open Terminal"
+    enabled   = true
+    url       = "http://127.0.0.1:8000"
+    key       = random_password.openwebui_terminal_api_key.result
+    auth_type = "bearer"
+    config = {
+      access_grants = [{
+        principal_type = "user"
+        principal_id   = "*"
+        permission     = "read"
+      }]
     }
   }])
 
@@ -73,9 +90,11 @@ resource "kubernetes_secret_v1" "openwebui_env" {
     RERANKER_API_KEY        = var.secrets["litellm.virtual_keys.openwebui"]
     DATABASE_URL            = local.postgres_url
     PGVECTOR_DB_URL         = local.postgres_url
-    OAUTH_CLIENT_SECRET     = var.openwebui_oauth_client_secret
-    MCPO_API_KEY            = var.secrets["openwebui.mcpo_api_key"]
-    TOOL_SERVER_CONNECTIONS = local.openwebui_tool_server_connections
+    OAUTH_CLIENT_SECRET         = var.openwebui_oauth_client_secret
+    MCPO_API_KEY                = var.secrets["openwebui.mcpo_api_key"]
+    TOOL_SERVER_CONNECTIONS     = local.openwebui_tool_server_connections
+    OPEN_TERMINAL_API_KEY       = random_password.openwebui_terminal_api_key.result
+    TERMINAL_SERVER_CONNECTIONS = local.openwebui_terminal_server_connections
   }
 
   type = "Opaque"
@@ -119,6 +138,31 @@ resource "kubernetes_persistent_volume_claim_v1" "openwebui_data" {
 resource "random_password" "openwebui_postgres_password" {
   length  = 32
   special = false
+}
+
+resource "random_password" "openwebui_terminal_api_key" {
+  length  = 48
+  special = false
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "openwebui_terminal_data" {
+  depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
+
+  metadata {
+    name      = "openwebui-terminal-data"
+    namespace = kubernetes_namespace_v1.infra.metadata[0].name
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+
+    resources {
+      requests = {
+        storage = "20Gi"
+      }
+    }
+  }
 }
 
 resource "kubernetes_secret_v1" "openwebui_postgres" {
@@ -304,6 +348,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
     kubernetes_secret_v1.openwebui_env,
     kubernetes_secret_v1.openwebui_mcpo_config,
     kubernetes_persistent_volume_claim_v1.openwebui_data,
+    kubernetes_persistent_volume_claim_v1.openwebui_terminal_data,
     kubernetes_service_v1.openwebui_postgres
   ]
 
@@ -549,6 +594,15 @@ resource "kubernetes_deployment_v1" "openwebui" {
             }
           }
           env {
+            name = "TERMINAL_SERVER_CONNECTIONS"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.openwebui_env.metadata[0].name
+                key  = "TERMINAL_SERVER_CONNECTIONS"
+              }
+            }
+          }
+          env {
             name  = "WEBUI_URL"
             value = "https://ai.shdr.ch"
           }
@@ -769,6 +823,71 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
         }
 
+        container {
+          name  = "open-terminal"
+          image = local.open_terminal_image
+
+          # The slim image starts as root so its entrypoint can fix
+          # /home/user ownership and then drops to the in-image `user`
+          # (UID 1000) via gosu. That requires CAP_SETUID/SETGID +
+          # privilege escalation; CHOWN/FOWNER/DAC_OVERRIDE let the
+          # entrypoint chown the freshly-mounted PVC.
+          security_context {
+            allow_privilege_escalation = true
+            run_as_non_root            = false
+            capabilities {
+              drop = ["ALL"]
+              add  = ["SETUID", "SETGID", "CHOWN", "FOWNER", "DAC_OVERRIDE"]
+            }
+          }
+
+          port {
+            container_port = 8000
+          }
+
+          env {
+            name = "OPEN_TERMINAL_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.openwebui_env.metadata[0].name
+                key  = "OPEN_TERMINAL_API_KEY"
+              }
+            }
+          }
+
+          readiness_probe {
+            tcp_socket {
+              port = 8000
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 10
+          }
+
+          liveness_probe {
+            tcp_socket {
+              port = 8000
+            }
+            initial_delay_seconds = 45
+            period_seconds        = 20
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "1000m"
+              memory = "1Gi"
+            }
+          }
+
+          volume_mount {
+            name       = "open-terminal-data"
+            mount_path = "/home/user"
+          }
+        }
+
         volume {
           name = "openwebui-data"
           persistent_volume_claim {
@@ -780,6 +899,13 @@ resource "kubernetes_deployment_v1" "openwebui" {
           name = "mcpo-config"
           secret {
             secret_name = kubernetes_secret_v1.openwebui_mcpo_config.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "open-terminal-data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.openwebui_terminal_data.metadata[0].name
           }
         }
       }
