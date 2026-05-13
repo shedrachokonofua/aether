@@ -76,3 +76,8 @@ output "coder_url" {
   description = "Coder public URL via Gateway API"
   value       = "https://${local.coder_host}"
 }
+
+output "mux_url" {
+  description = "Mux public URL via Gateway API"
+  value       = "https://${local.mux_host}"
+}

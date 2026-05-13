@@ -10,6 +10,7 @@ locals {
   coder_postgres_user    = "coder"
   coder_postgres_port    = 5432
   coder_postgres_url     = "postgresql://${local.coder_postgres_user}:${random_password.coder_postgres_password.result}@${local.coder_postgres_service}.${local.coder_namespace}.svc.cluster.local:${local.coder_postgres_port}/${local.coder_postgres_db}?sslmode=disable"
+  coder_version          = "2.31.9"
 }
 
 resource "kubernetes_namespace_v1" "coder" {
@@ -227,7 +228,7 @@ resource "helm_release" "coder" {
   repository = "https://helm.coder.com/v2"
   chart      = "coder"
   namespace  = local.coder_namespace
-  version    = "2.31.9"
+  version    = local.coder_version
   wait       = true
   timeout    = 300
 

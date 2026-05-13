@@ -108,6 +108,17 @@ resource "kubernetes_manifest" "main_gateway" {
             }
           }
         },
+        {
+          name     = "mux-ports"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "*.mux.home.shdr.ch"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
+          }
+        },
       ]
     }
   }
