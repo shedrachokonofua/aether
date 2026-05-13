@@ -319,7 +319,7 @@ resource "talos_machine_configuration_apply" "this" {
               disk = try(each.value.install_disk, "/dev/vda")
               image = try(
                 each.value.install_image,
-                try(each.value.hardware, "") == "rpi" ? "factory.talos.dev/installer/${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_schematic : local.talos_rpi_schematic}:v1.12.7" : try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
+                try(each.value.hardware, "") == "rpi" ? "factory.talos.dev/installer/${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_schematic : local.talos_rpi_schematic}:${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_version : local.talos_rpi_version}" : try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
               )
             }
             # Pin a stable, human-readable hostname instead of Talos's default
