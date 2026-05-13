@@ -278,8 +278,53 @@ graph LR
 | 10   | SFP+     | Trinity                                               | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
 | 11   | SFP+     | Smith                                                 | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
 | 12   | SFP+     | Neo                                                   | 1             | 2, 3, 4, 5, 6, 7 | 10Gbps  |
+| 13   | SFP+     | Pi Switch                                             | 1             | 3                | 1Gbps   |
 
 - VLAN 1: Bell Gigahub LAN (192.168.2.0/24) - Direct access, bypasses VyOS firewall
+
+### Pi Switch
+
+**Device Name**: Netgear GS308EPP
+
+**Management**:
+
+- IP: `192.168.2.224`
+- Domain: `pi-switch.home.shdr.ch`
+- Management VLAN: 1
+- Rack switch uplink: port 13
+
+| Port | Type     | Device         | VLAN Untagged | VLAN Tagged | Speed |
+| ---- | -------- | -------------- | ------------- | ----------- | ----- |
+| 1    | Ethernet | Rack Switch    | 1             | 3           | 1Gbps |
+| 2    | Ethernet | ARM worker     | 3             | -           | 1Gbps |
+| 3    | Ethernet | ARM worker     | 3             | -           | 1Gbps |
+| 4    | Ethernet | ARM worker     | 3             | -           | 1Gbps |
+| 5    | Ethernet | ARM worker     | 3             | -           | 1Gbps |
+| 6    | Ethernet | Unassigned     | 1             | -           | 1Gbps |
+| 7    | Ethernet | Unassigned     | 1             | -           | 1Gbps |
+| 8    | Ethernet | Unassigned     | 1             | -           | 1Gbps |
+
+Static VLAN/PVID configuration:
+
+| Port | Mode   | PVID | VLAN 1 | VLAN 3 |
+| ---- | ------ | ---- | ------ | ------ |
+| 1    | Trunk  | 1    | U      | T      |
+| 2    | Access | 3    | -      | U      |
+| 3    | Access | 3    | -      | U      |
+| 4    | Access | 3    | -      | U      |
+| 5    | Access | 3    | -      | U      |
+| 6    | Access | 1    | U      | -      |
+| 7    | Access | 1    | U      | -      |
+| 8    | Access | 1    | U      | -      |
+
+ARM worker IP/MAC mapping observed from the rack:
+
+| Node           | IP        | MAC               |
+| -------------- | --------- | ----------------- |
+| `talos-tank`   | 10.0.3.23 | D8:3A:DD:EE:47:E6 |
+| `talos-dozer`  | 10.0.3.24 | 2C:CF:67:02:B6:2C |
+| `talos-mouse`  | 10.0.3.25 | 2C:CF:67:AC:E1:EF |
+| `talos-sparks` | 10.0.3.26 | 2C:CF:67:78:73:CE |
 
 ### Office Switch
 
@@ -295,10 +340,10 @@ graph LR
 | 1    | Ethernet | Google TV Streamer | 5             | -           | 1Gbps   |
 | 2    | Ethernet | Mac Mini     | 4             | -           | 1Gbps   |
 | 3    | Ethernet | Laptop Dock        | 4             | -           | 2.5Gbps |
-| 5    | Ethernet | talos-sparks       | 3             | -           | 1Gbps   |
-| 6    | Ethernet | talos-tank         | 3             | -           | 1Gbps   |
-| 7    | Ethernet | talos-dozer        | 3             | -           | 1Gbps   |
-| 8    | Ethernet | talos-mouse        | 3             | -           | 1Gbps   |
+| 5    | Ethernet | Unassigned         | 3             | -           | 1Gbps   |
+| 6    | Ethernet | Unassigned         | 3             | -           | 1Gbps   |
+| 7    | Ethernet | Unassigned         | 3             | -           | 1Gbps   |
+| 8    | Ethernet | Unassigned         | 3             | -           | 1Gbps   |
 | 9    | SFP+     | Rack Switch        | 1             | 3, 4, 5     | 10Gbps  |
 
 Static VLAN/PVID configuration:
@@ -315,9 +360,7 @@ Static VLAN/PVID configuration:
 | 8    | Access | 3    | -      | U      | -      | -      |
 | 9    | Trunk  | 1    | U      | T      | T      | T      |
 
-Legend: `U` = untagged member, `T` = tagged member. Pi Talos nodes use untagged VLAN 3 on ports 5-8; the SFP+ uplink to the rack carries VLAN 3 tagged.
-
-This office-switch Pi placement is temporary staging while the nodes are being installed and joined. The final placement is the main rack; update this table when the Pi ports move there.
+Legend: `U` = untagged member, `T` = tagged member. Ports 5-8 remain available as untagged VLAN 3 access ports; the SFP+ uplink to the rack carries VLAN 3 tagged.
 
 ### Access Point
 

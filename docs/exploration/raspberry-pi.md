@@ -10,12 +10,12 @@ The Pis are not control-plane nodes, not Ceph storage nodes, and not a replaceme
 
 ## Hardware
 
-| Node           | Hardware       | RAM | Role                 | IP        |
-| -------------- | -------------- | --- | -------------------- | --------- |
-| `talos-tank`   | Pi 5           | 4GB | ARM worker           | 10.0.3.23 |
-| `talos-dozer`  | Pi 5           | 4GB | ARM worker           | 10.0.3.24 |
-| `talos-mouse`  | Pi 4           | 4GB | ARM worker           | 10.0.3.25 |
-| `talos-sparks` | CM4 Lite / Mini Base | 4GB | ARM worker | 10.0.3.26 |
+| Node           | Hardware       | RAM | Role                 | IP        | MAC               |
+| -------------- | -------------- | --- | -------------------- | --------- | ----------------- |
+| `talos-tank`   | Pi 5           | 4GB | ARM worker           | 10.0.3.23 | D8:3A:DD:EE:47:E6 |
+| `talos-dozer`  | Pi 5           | 4GB | ARM worker           | 10.0.3.24 | 2C:CF:67:02:B6:2C |
+| `talos-mouse`  | Pi 4           | 4GB | ARM worker           | 10.0.3.25 | 2C:CF:67:AC:E1:EF |
+| `talos-sparks` | CM4 Lite / Mini Base | 4GB | ARM worker | 10.0.3.26 | 2C:CF:67:78:73:CE |
 
 `talos-sparks` is a Raspberry Pi CM4 SKU `CM4104000`: 4GB RAM, Lite/no eMMC, with wireless. It is currently on a Mini Base carrier and boots from microSD. Longer-term, swap to a proper CM4 carrier (Waveshare Mini Base Board B or similar) when the Pi shelf goes into the main rack. CM4 PCIe is Gen2 x1 (~400MB/s ceiling), so storage stays modest: microSD or a small 2242 NVMe. Per the storage policy, this node is Ceph end-to-end and holds no local persistent state.
 
@@ -32,35 +32,37 @@ The DHCP range is `10.0.3.240-254`; the static Pi addresses are outside that ran
 
 ## Switch Ports
 
-The Pis temporarily connect to the office switch on access ports in VLAN 3 while they are being installed and joined. Final placement is the main rack.
+The Pis connect to the rack Pi switch on access ports in VLAN 3. The Pi switch uplinks to rack switch port 13.
 
-| Office switch port | Node          | VLAN | PVID | Tagged VLANs |
-| ------------------ | ------------- | ---- | ---- | ------------ |
-| 6                  | `talos-tank`  | 3    | 3    | none         |
-| 7                  | `talos-dozer` | 3    | 3    | none         |
-| 8                  | `talos-mouse` | 3    | 3    | none         |
+| Pi switch port | Device     | VLAN | PVID | Tagged VLANs |
+| -------------- | ---------- | ---- | ---- | ------------ |
+| 1              | Rack uplink | 1    | 1    | 3            |
+| 2              | ARM worker | 3    | 3    | none         |
+| 3              | ARM worker | 3    | 3    | none         |
+| 4              | ARM worker | 3    | 3    | none         |
+| 5              | ARM worker | 3    | 3    | none         |
 
-Office switch uplink:
+Pi switch management:
 
-| Port | Device      | Untagged VLAN | Tagged VLANs |
-| ---- | ----------- | ------------- | ------------ |
-| 9    | Rack switch | 1             | 3, 4, 5      |
+| Setting | Value                 |
+| ------- | --------------------- |
+| IP      | 192.168.2.224         |
+| Domain  | pi-switch.home.shdr.ch |
+| VLAN    | 1                     |
 
 Rack switch side:
 
 | Rack switch port | Device        | Untagged VLAN | Tagged VLANs |
 | ---------------- | ------------- | ------------- | ------------ |
-| 5                | Office switch | 1             | 3, 4, 5      |
+| 13               | Pi switch     | 1             | 3            |
 
 For switch UIs that separate static VLAN membership from PVID:
 
-- Set static VLAN 3 membership to `untagged` on ports 6, 7, and 8.
-- Set static VLAN 3 membership to `tagged` on the office uplink port 9.
-- Set PVID `3` on ports 6, 7, and 8.
+- Set static VLAN 3 membership to `untagged` on Pi switch ports 2-5.
+- Set static VLAN 3 membership to `tagged` on Pi switch uplink port 1.
+- Set PVID `3` on Pi switch ports 2-5.
 - Keep the uplink PVID as `1`.
-- Add VLAN 3 as tagged on rack switch port 5 so VLAN 3 reaches VyOS.
-
-When the Pis move to the main rack, keep the same network semantics: each Pi port should be an untagged VLAN 3 access port with PVID 3.
+- Add VLAN 3 as tagged on rack switch port 13 so VLAN 3 reaches VyOS.
 
 ## Talos Images
 
