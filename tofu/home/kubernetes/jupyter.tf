@@ -71,6 +71,10 @@ resource "kubernetes_deployment_v1" "jupyter" {
 
         node_selector = local.gpu_node_selector
 
+        security_context {
+          fs_group = 100
+        }
+
         container {
           name  = "jupyter"
           image = local.jupyter_image
