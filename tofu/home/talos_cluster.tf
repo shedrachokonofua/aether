@@ -34,10 +34,12 @@ locals {
   }
 
   # Cluster configuration
-  talos_cluster_name = "aether-k8s"
-  talos_api_vip      = "10.0.3.20" # Talos native VIP for API server (kubectl)
-  talos_workload_vip = "10.0.3.19" # Cilium L2 VIP for workload traffic (Gateway)
-  talos_vcluster_vip = "10.0.3.21" # Cilium L2 VIP for Seven30 vcluster API
+  talos_cluster_name    = "aether-k8s"
+  talos_api_vip         = "10.0.3.20" # Talos native VIP for API server (kubectl)
+  talos_workload_vip    = "10.0.3.19" # Cilium L2 VIP for workload traffic (Gateway)
+  talos_vcluster_vip    = "10.0.3.21" # Cilium L2 VIP for Seven30 vcluster API
+  talos_config_contract = "v1.12"
+  kubernetes_version    = "v1.35.0"
 
   # Cluster endpoint uses the API VIP for HA kubectl access
   talos_cluster_endpoint = "https://${local.talos_api_vip}:6443"
@@ -78,19 +80,23 @@ resource "talos_machine_secrets" "this" {}
 data "talos_machine_configuration" "controlplane" {
   for_each = local.talos_controlplane_nodes
 
-  cluster_name     = local.talos_cluster_name
-  cluster_endpoint = local.talos_cluster_endpoint
-  machine_type     = "controlplane"
-  machine_secrets  = talos_machine_secrets.this.machine_secrets
+  cluster_name       = local.talos_cluster_name
+  cluster_endpoint   = local.talos_cluster_endpoint
+  talos_version      = local.talos_config_contract
+  kubernetes_version = local.kubernetes_version
+  machine_type       = "controlplane"
+  machine_secrets    = talos_machine_secrets.this.machine_secrets
 }
 
 data "talos_machine_configuration" "worker" {
   for_each = local.talos_worker_nodes
 
-  cluster_name     = local.talos_cluster_name
-  cluster_endpoint = local.talos_cluster_endpoint
-  machine_type     = "worker"
-  machine_secrets  = talos_machine_secrets.this.machine_secrets
+  cluster_name       = local.talos_cluster_name
+  cluster_endpoint   = local.talos_cluster_endpoint
+  talos_version      = local.talos_config_contract
+  kubernetes_version = local.kubernetes_version
+  machine_type       = "worker"
+  machine_secrets    = talos_machine_secrets.this.machine_secrets
 }
 
 data "talos_client_configuration" "this" {
