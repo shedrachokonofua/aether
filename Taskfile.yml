@@ -125,6 +125,52 @@ tasks:
         fi
 
   # ===========================================================================
+  # Talos
+  # ===========================================================================
+  talos:schematics:
+    desc: Generate Talos Image Factory schematic IDs for Talos VM images
+    cmds:
+      - |
+        set -euo pipefail
+
+        standard_id="$(curl -fsS -X POST \
+          -H 'Content-Type: application/yaml' \
+          --data-binary @- \
+          https://factory.talos.dev/schematics <<'YAML' | jq -r '.id'
+        customization:
+          systemExtensions:
+            officialExtensions:
+              - siderolabs/binfmt-misc
+              - siderolabs/gvisor
+              - siderolabs/kata-containers
+              - siderolabs/lldpd
+              - siderolabs/qemu-guest-agent
+              - siderolabs/stargz-snapshotter
+        YAML
+        )"
+
+        nvidia_id="$(curl -fsS -X POST \
+          -H 'Content-Type: application/yaml' \
+          --data-binary @- \
+          https://factory.talos.dev/schematics <<'YAML' | jq -r '.id'
+        customization:
+          systemExtensions:
+            officialExtensions:
+              - siderolabs/binfmt-misc
+              - siderolabs/gvisor
+              - siderolabs/kata-containers
+              - siderolabs/lldpd
+              - siderolabs/nvidia-container-toolkit-lts
+              - siderolabs/nvidia-open-gpu-kernel-modules-lts
+              - siderolabs/qemu-guest-agent
+              - siderolabs/stargz-snapshotter
+        YAML
+        )"
+
+        printf 'talos_schematic = "%s"\n' "$standard_id"
+        printf 'talos_nvidia_schematic = "%s"\n' "$nvidia_id"
+
+  # ===========================================================================
   # Secrets (only needs Bao env vars - AWS uses ~/.aws/credentials, age uses .sops.yaml)
   # ===========================================================================
   sv:

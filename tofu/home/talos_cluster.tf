@@ -51,6 +51,18 @@ locals {
 
   # Gateway API version
   gateway_api_version = "v1.2.1"
+
+  # The lldpd extension declares `configuration: true`; without this sibling
+  # document Talos waits for ext-lldpd until boot times out and reboots.
+  talos_lldpd_extension_service_config = yamlencode({
+    apiVersion = "v1alpha1"
+    kind       = "ExtensionServiceConfig"
+    name       = "lldpd"
+    configFiles = [{
+      mountPath = "/usr/local/etc/lldpd/lldpd.conf"
+      content   = "configure lldp portidsubtype ifname\n"
+    }]
+  })
 }
 
 # =============================================================================
@@ -250,14 +262,17 @@ resource "talos_machine_configuration_apply" "this" {
   # default (auto: stable). It conflicts with our static network.hostname
   # below, and the talos provider's strategic merge can't remove fields,
   # only add them. Leaves the rest of the baseline untouched.
-  machine_configuration_input = replace(
-    try(
-      data.talos_machine_configuration.controlplane[each.key].machine_configuration,
-      data.talos_machine_configuration.worker[each.key].machine_configuration,
-    ),
-    "/\n---\napiVersion: v1alpha1\nkind: HostnameConfig\nauto: stable\\s*\n*/",
-    "\n"
-  )
+  machine_configuration_input = join("\n---\n", [
+    trimspace(replace(
+      try(
+        data.talos_machine_configuration.controlplane[each.key].machine_configuration,
+        data.talos_machine_configuration.worker[each.key].machine_configuration,
+      ),
+      "/\n---\napiVersion: v1alpha1\nkind: HostnameConfig\nauto: stable\\s*\n*/",
+      "\n"
+    )),
+    local.talos_lldpd_extension_service_config,
+  ])
   endpoint = try(each.value.bootstrap_ip, each.value.ip)
   node     = try(each.value.bootstrap_ip, each.value.ip)
 
@@ -506,15 +521,15 @@ module "kubernetes" {
   secrets             = var.secrets
 
   # Crossplane Keycloak provider credentials
-  keycloak_url                  = "https://auth.shdr.ch"
-  keycloak_client_id            = keycloak_openid_client.crossplane.client_id
-  keycloak_client_secret        = keycloak_openid_client.crossplane.client_secret
-  openwebui_oauth_client_secret = keycloak_openid_client.openwebui.client_secret
-  immich_oauth_client_secret    = keycloak_openid_client.immich.client_secret
-  nextcloud_oauth_client_secret = keycloak_openid_client.nextcloud.client_secret
-  coder_oauth_client_secret     = keycloak_openid_client.coder.client_secret
-  affine_oauth_client_secret    = keycloak_openid_client.affine.client_secret
-  karakeep_oauth_client_secret  = keycloak_openid_client.karakeep.client_secret
+  keycloak_url                     = "https://auth.shdr.ch"
+  keycloak_client_id               = keycloak_openid_client.crossplane.client_id
+  keycloak_client_secret           = keycloak_openid_client.crossplane.client_secret
+  openwebui_oauth_client_secret    = keycloak_openid_client.openwebui.client_secret
+  immich_oauth_client_secret       = keycloak_openid_client.immich.client_secret
+  nextcloud_oauth_client_secret    = keycloak_openid_client.nextcloud.client_secret
+  coder_oauth_client_secret        = keycloak_openid_client.coder.client_secret
+  affine_oauth_client_secret       = keycloak_openid_client.affine.client_secret
+  karakeep_oauth_client_secret     = keycloak_openid_client.karakeep.client_secret
   memos_oauth_client_secret        = keycloak_openid_client.memos.client_secret
   nextexplorer_oauth_client_secret = keycloak_openid_client.nextexplorer.client_secret
   miniflux_oauth_client_secret     = keycloak_openid_client.miniflux.client_secret
