@@ -226,48 +226,6 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_postgres_data" {
   }
 }
 
-# /var/www/html holds the PHP code, installed apps, custom_apps, and config.
-# The data/ subdir is overlaid by the NFS mount below; only the PHP skeleton
-# and .ocdata sentinel land here.
-resource "kubernetes_persistent_volume_claim_v1" "nextcloud_app" {
-  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.ceph_rbd]
-
-  metadata {
-    name      = "nextcloud-app"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
-  }
-
-  spec {
-    access_modes       = ["ReadWriteOnce"]
-    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
-
-    resources {
-      requests = { storage = "5Gi" }
-    }
-  }
-}
-
-# RWX replacement for nextcloud-app on CephFS. Nextcloud's install/code/config
-# tree is shared by server + cron + task-worker + onlyoffice-bootstrap; RWO
-# forced them onto the same node. CephFS RWX lets each pod schedule freely.
-resource "kubernetes_persistent_volume_claim_v1" "nextcloud_app_rwx" {
-  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.cephfs]
-
-  metadata {
-    name      = "nextcloud-app-rwx"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
-  }
-
-  spec {
-    access_modes       = ["ReadWriteMany"]
-    storage_class_name = kubernetes_storage_class_v1.cephfs.metadata[0].name
-
-    resources {
-      requests = { storage = "5Gi" }
-    }
-  }
-}
-
 # Small persistent volume for App Store installs only. Bundled apps live in
 # the container image at /var/www/html/apps and are read-only; user-installed
 # apps land here and are referenced via apps_paths in nextcloud_config.
@@ -287,109 +245,6 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_custom_apps" {
       requests = { storage = "5Gi" }
     }
   }
-}
-
-# One-shot copy of third-party apps from the legacy nextcloud-app-rwx PVC into
-# the new nextcloud-custom-apps PVC. Filters out bundled apps (those present in
-# the container image at /usr/src/nextcloud/apps) so only the installed apps
-# (user_oidc, integration_openai, onlyoffice, etc.) land in the new PVC.
-resource "kubernetes_job_v1" "nextcloud_custom_apps_seed" {
-  timeouts {
-    create = "30m"
-  }
-
-  depends_on = [
-    kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx,
-    kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps,
-  ]
-
-  metadata {
-    name      = "nextcloud-custom-apps-seed"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
-  }
-
-  spec {
-    backoff_limit = 2
-    completions   = 1
-
-    template {
-      metadata {
-        labels = { app = "nextcloud-custom-apps-seed" }
-      }
-
-      spec {
-        restart_policy = "OnFailure"
-
-        container {
-          name    = "seed"
-          image   = local.nextcloud_server_image
-          command = ["/bin/sh", "-c", <<-EOT
-            set -eu
-
-            BUNDLED=/usr/src/nextcloud/apps
-            SRC=/old/apps
-            DST=/new
-
-            echo "== bundled apps in image =="
-            ls "$BUNDLED" | sort > /tmp/bundled.txt
-            echo "$(wc -l < /tmp/bundled.txt) apps bundled"
-
-            echo "== apps on legacy PVC =="
-            ls "$SRC" | sort > /tmp/source.txt
-            echo "$(wc -l < /tmp/source.txt) apps in source"
-
-            echo "== third-party (source minus bundled) =="
-            comm -23 /tmp/source.txt /tmp/bundled.txt > /tmp/copy.txt
-            cat /tmp/copy.txt
-
-            mkdir -p "$DST"
-            while read -r app; do
-              [ -z "$app" ] && continue
-              [ -d "$SRC/$app" ] || continue
-              echo "+ $app"
-              [ -e "$DST/$app" ] && rm -rf "$DST/$app"
-              cp -rp "$SRC/$app" "$DST/$app"
-            done < /tmp/copy.txt
-
-            chown -R www-data:www-data "$DST"
-
-            echo "== final $DST =="
-            ls "$DST" | sort
-            echo "seed complete"
-          EOT
-          ]
-
-          volume_mount {
-            name       = "old"
-            mount_path = "/old"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "new"
-            mount_path = "/new"
-          }
-        }
-
-        volume {
-          name = "old"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
-            read_only  = true
-          }
-        }
-
-        volume {
-          name = "new"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
-          }
-        }
-      }
-    }
-  }
-
-  wait_for_completion = true
 }
 
 # NFS-backed data directory — user files stored at real paths so the share is
@@ -658,7 +513,6 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
     kubernetes_service_v1.nextcloud_postgres,
     kubernetes_service_v1.nextcloud_redis,
     kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps,
-    kubernetes_job_v1.nextcloud_custom_apps_seed,
     kubernetes_secret_v1.nextcloud_admin,
     kubernetes_secret_v1.nextcloud_config,
   ]
