@@ -23,11 +23,30 @@ resource "helm_release" "cilium" {
     l2announcements = { enabled = true }
     externalIPs     = { enabled = true }
 
-    # Hubble observability
+    # Hubble observability — Prom-scrapeable L4 + L7 metrics with
+    # source/destination workload labels. Lets us answer "is service X
+    # active right now?" without per-app instrumentation.
+    #
+    # `httpV2` is the modern HTTP metric set; workload-name labels give us
+    # `destination_workload="docling"` etc. `flow` covers L4.
+    # `serviceMonitor` is off because the cluster scrapes via the in-cluster
+    # OTel collector (see otel_collector.tf), not Prometheus Operator CRDs.
     hubble = {
       enabled = true
       relay   = { enabled = true }
       ui      = { enabled = true }
+      metrics = {
+        enableOpenMetrics = true
+        enabled = [
+          "drop",
+          "tcp",
+          "flow",
+          "port-distribution",
+          "icmp",
+          "httpV2:exemplars=true;sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity;labelsContext=source_namespace,destination_namespace",
+        ]
+        serviceMonitor = { enabled = false }
+      }
     }
 
     # Gateway API support

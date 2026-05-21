@@ -4,12 +4,12 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  openwebui_namespace     = "infra"
-  openwebui_host          = "openwebui.home.shdr.ch"
-  openwebui_image         = "ghcr.io/open-webui/open-webui:latest"
-  mcpo_image              = "ghcr.io/open-webui/mcpo:main"
-  open_terminal_image     = "ghcr.io/open-webui/open-terminal:slim"
-  postgres_image          = "pgvector/pgvector:pg16"
+  openwebui_namespace = "infra"
+  openwebui_host      = "openwebui.home.shdr.ch"
+  openwebui_image     = "ghcr.io/open-webui/open-webui:latest"
+  mcpo_image          = "ghcr.io/open-webui/mcpo:main"
+  open_terminal_image = "ghcr.io/open-webui/open-terminal:slim"
+  postgres_image      = "pgvector/pgvector:pg16"
   postgres_service    = "openwebui-postgres"
   postgres_db         = "openwebui"
   postgres_user       = "openwebui"
@@ -72,6 +72,16 @@ resource "kubernetes_namespace_v1" "infra" {
 
   metadata {
     name = local.openwebui_namespace
+    labels = {
+      # Enroll the namespace in the Istio Ambient mesh. ztunnel intercepts
+      # pod traffic transparently (L4 mTLS via SPIFFE); applications see
+      # normal TCP. All services here are ClusterIP with no hostNetwork or
+      # NodePort, so interception is safe.
+      #
+      # Without this label, ztunnel sees zero traffic for the namespace,
+      # which is why istio_tcp_connections_opened_total etc. were empty.
+      "istio.io/dataplane-mode" = "ambient"
+    }
   }
 }
 
@@ -84,12 +94,12 @@ resource "kubernetes_secret_v1" "openwebui_env" {
   }
 
   data = {
-    WEBUI_SECRET_KEY        = var.secrets["openwebui.secret_key"]
-    OPENAI_API_KEY          = var.secrets["litellm.virtual_keys.openwebui"]
-    RAG_OPENAI_API_KEY      = var.secrets["litellm.virtual_keys.openwebui"]
-    RERANKER_API_KEY        = var.secrets["litellm.virtual_keys.openwebui"]
-    DATABASE_URL            = local.postgres_url
-    PGVECTOR_DB_URL         = local.postgres_url
+    WEBUI_SECRET_KEY            = var.secrets["openwebui.secret_key"]
+    OPENAI_API_KEY              = var.secrets["litellm.virtual_keys.openwebui"]
+    RAG_OPENAI_API_KEY          = var.secrets["litellm.virtual_keys.openwebui"]
+    RERANKER_API_KEY            = var.secrets["litellm.virtual_keys.openwebui"]
+    DATABASE_URL                = local.postgres_url
+    PGVECTOR_DB_URL             = local.postgres_url
     OAUTH_CLIENT_SECRET         = var.openwebui_oauth_client_secret
     MCPO_API_KEY                = var.secrets["openwebui.mcpo_api_key"]
     TOOL_SERVER_CONNECTIONS     = local.openwebui_tool_server_connections
@@ -496,7 +506,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           # model garbled proper nouns/URLs and granite_vision/nanonets
           # hallucinated. See docling.tf for the model rationale.
           env {
-            name  = "DOCLING_PARAMS"
+            name = "DOCLING_PARAMS"
             value = jsonencode({
               pipeline            = "vlm"
               vlm_pipeline_preset = "qwen"

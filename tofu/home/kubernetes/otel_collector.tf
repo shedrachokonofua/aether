@@ -193,17 +193,64 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
+                # Cilium Hubble L7/L4 metrics — `hubble_*` series with
+                # source/destination workload labels. Cilium-agent exposes
+                # them on :9965 when hubble.metrics.enabled is set (see
+                # cilium.tf). Same DaemonSet pattern as ztunnel below.
+                job_name        = "hubble"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role       = "pod"
+                  namespaces = { names = ["kube-system"] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_pod_label_k8s_app"]
+                    action        = "keep"
+                    regex         = "cilium"
+                  },
+                  {
+                    source_labels = ["__address__"]
+                    action        = "replace"
+                    regex         = "([^:]+)(?::\\d+)?"
+                    replacement   = "$$1:9965"
+                    target_label  = "__address__"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_node_name"]
+                    target_label  = "node"
+                  },
+                ]
+              },
+              {
+                # ztunnel is a DaemonSet with no Service in front — the
+                # previous endpoints-based scrape silently matched nothing.
+                # Discover pods directly and target the ztunnel-stats port
+                # (15020) on each one.
                 job_name        = "ztunnel"
                 scrape_interval = "30s"
                 kubernetes_sd_configs = [{
-                  role       = "endpoints"
+                  role       = "pod"
                   namespaces = { names = ["istio-system"] }
                 }]
                 relabel_configs = [
                   {
-                    source_labels = ["__meta_kubernetes_service_name"]
+                    source_labels = ["__meta_kubernetes_pod_label_app"]
                     action        = "keep"
                     regex         = "ztunnel"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+                    action        = "keep"
+                    regex         = "ztunnel-stats"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_node_name"]
+                    target_label  = "node"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "pod"
                   },
                 ]
               },
