@@ -363,7 +363,7 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
         volume {
           name = "install-state"
           secret {
-            secret_name = "nextcloud-install-state"
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
             items {
               key  = "install-state.config.php"
               path = "install-state.config.php"

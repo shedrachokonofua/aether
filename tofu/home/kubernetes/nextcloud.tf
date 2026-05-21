@@ -34,6 +34,13 @@ locals {
   nextcloud_postgres_image = "postgres:16-alpine"
   nextcloud_redis_image    = "redis:7-alpine"
 
+  # Must track the version baked into nextcloud_server_image. The install-state
+  # Secret writes this into /var/www/html/config/install-state.config.php; if it
+  # drifts behind the image, nextcloud goes into upgrade-required mode on every
+  # pod start and the bootstrap Jobs error with "Nextcloud or one of the apps
+  # require upgrade". Bump in lockstep with nextcloud_server_image.
+  nextcloud_installed_version = "32.0.9.2"
+
   nextcloud_server_port   = 80
   nextcloud_postgres_port = 5432
   nextcloud_redis_port    = 6379
@@ -160,6 +167,35 @@ resource "kubernetes_secret_v1" "nextcloud_config" {
 
   data = {
     "nextcloud-k8s.config.php" = local.nextcloud_config
+  }
+
+  type = "Opaque"
+}
+
+# Install-state Secret — values that nextcloud's installer wrote to config.php
+# at first install (instanceid, secret, passwordsalt) plus the DB credentials
+# the running instance actually uses. Kept separate from nextcloud-config so
+# rotation of the supplemental config never touches these values. Mounted as
+# /var/www/html/config/install-state.config.php in every nextcloud pod.
+resource "kubernetes_secret_v1" "nextcloud_install_state" {
+  depends_on = [kubernetes_namespace_v1.nextcloud]
+
+  metadata {
+    name      = "nextcloud-install-state"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  data = {
+    "install-state.config.php" = templatefile("${path.module}/nextcloud_install_state.config.php.tftpl", {
+      passwordsalt = var.secrets["nextcloud.passwordsalt"]
+      secret       = var.secrets["nextcloud.secret"]
+      instanceid   = var.secrets["nextcloud.instanceid"]
+      dbname       = local.nextcloud_db_name
+      dbhost       = "nextcloud-postgres.${local.nextcloud_namespace}.svc.cluster.local"
+      dbuser       = local.nextcloud_db_user
+      dbpassword   = var.secrets["nextcloud.dbpassword"]
+      version      = local.nextcloud_installed_version
+    })
   }
 
   type = "Opaque"
@@ -725,7 +761,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
         volume {
           name = "install-state"
           secret {
-            secret_name = "nextcloud-install-state"
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
             items {
               key  = "install-state.config.php"
               path = "install-state.config.php"
@@ -944,7 +980,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
         volume {
           name = "install-state"
           secret {
-            secret_name = "nextcloud-install-state"
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
             items {
               key  = "install-state.config.php"
               path = "install-state.config.php"
@@ -1092,7 +1128,7 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
         volume {
           name = "install-state"
           secret {
-            secret_name = "nextcloud-install-state"
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
             items {
               key  = "install-state.config.php"
               path = "install-state.config.php"
@@ -1278,7 +1314,7 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
         volume {
           name = "install-state"
           secret {
-            secret_name = "nextcloud-install-state"
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
             items {
               key  = "install-state.config.php"
               path = "install-state.config.php"
@@ -1491,7 +1527,7 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
         volume {
           name = "install-state"
           secret {
-            secret_name = "nextcloud-install-state"
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
             items {
               key  = "install-state.config.php"
               path = "install-state.config.php"
