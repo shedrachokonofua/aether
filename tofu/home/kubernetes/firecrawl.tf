@@ -156,11 +156,11 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           resources {
             requests = {
               cpu    = "100m"
-              memory = "256Mi"
+              memory = "512Mi"
             }
             limits = {
               cpu    = "1000m"
-              memory = "1Gi"
+              memory = "2Gi"
             }
           }
         }
@@ -298,6 +298,11 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           }
 
           env {
+            name  = "NODE_OPTIONS"
+            value = "--max-old-space-size=6144"
+          }
+
+          env {
             name = "DATABASE_PASSWORD"
             value_from {
               secret_key_ref {
@@ -395,11 +400,11 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           resources {
             requests = {
               cpu    = "500m"
-              memory = "1Gi"
+              memory = "2Gi"
             }
             limits = {
               cpu    = "4000m"
-              memory = "4Gi"
+              memory = "8Gi"
             }
           }
 
