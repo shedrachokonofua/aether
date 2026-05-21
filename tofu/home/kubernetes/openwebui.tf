@@ -67,24 +67,6 @@ locals {
   })
 }
 
-resource "kubernetes_namespace_v1" "infra" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.openwebui_namespace
-    labels = {
-      # Enroll the namespace in the Istio Ambient mesh. ztunnel intercepts
-      # pod traffic transparently (L4 mTLS via SPIFFE); applications see
-      # normal TCP. All services here are ClusterIP with no hostNetwork or
-      # NodePort, so interception is safe.
-      #
-      # Without this label, ztunnel sees zero traffic for the namespace,
-      # which is why istio_tcp_connections_opened_total etc. were empty.
-      "istio.io/dataplane-mode" = "ambient"
-    }
-  }
-}
-
 resource "kubernetes_secret_v1" "openwebui_env" {
   depends_on = [kubernetes_namespace_v1.infra]
 
