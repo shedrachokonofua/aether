@@ -32,4 +32,21 @@ $CONFIG = array (
   'maintenance_window_start'=> 1,
   'default_phone_region'    => 'CA',
   'upgrade.disable-web'     => true,
+
+  // Bundled apps come from the container image at /var/www/html/apps; only
+  // user-installed apps (App Store) need persistence. Without this split the
+  // entire PHP class tree sits on CephFS, which costs an MDS round-trip per
+  // require_once and tanks every page load. See nextcloud.tf.
+  'apps_paths' => array(
+    array(
+      'path'     => '/var/www/html/apps',
+      'url'      => '/apps',
+      'writable' => false,
+    ),
+    array(
+      'path'     => '/var/www/html/custom_apps',
+      'url'      => '/custom_apps',
+      'writable' => true,
+    ),
+  ),
 );

@@ -186,6 +186,10 @@ resource "kubernetes_service_v1" "onlyoffice" {
 # =============================================================================
 
 resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
+  timeouts {
+    create = "15m"
+  }
+
   depends_on = [
     kubernetes_deployment_v1.nextcloud_server,
     kubernetes_service_v1.nextcloud_server,
@@ -199,8 +203,7 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
   }
 
   spec {
-    backoff_limit              = 6
-    ttl_seconds_after_finished = 86400
+    backoff_limit = 6
 
     template {
       metadata {
@@ -209,6 +212,22 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
 
       spec {
         restart_policy = "OnFailure"
+
+        # Co-locate with the server pod for RWO custom-apps PVC sharing.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
 
         container {
           name  = "occ"
@@ -227,6 +246,10 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
 
           command = ["/bin/sh", "-c", <<-EOT
             set -eu
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
             echo "Waiting for Nextcloud server to be installed..."
             for i in $(seq 1 60); do
               code=$(curl -s -o /tmp/status.json -w '%%{http_code}' \
@@ -288,8 +311,8 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
           }
 
           volume_mount {
-            name       = "app"
-            mount_path = "/var/www/html"
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
           }
 
           volume_mount {
@@ -303,12 +326,19 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
             sub_path   = "nextcloud-k8s.config.php"
             read_only  = true
           }
+
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
+          }
         }
 
         volume {
-          name = "app"
+          name = "custom-apps"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
           }
         }
 
@@ -326,6 +356,17 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
             items {
               key  = "nextcloud-k8s.config.php"
               path = "nextcloud-k8s.config.php"
+            }
+          }
+        }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = "nextcloud-install-state"
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
             }
           }
         }

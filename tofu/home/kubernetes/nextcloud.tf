@@ -268,69 +268,101 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_app_rwx" {
   }
 }
 
-# One-shot rsync from RWO RBD → RWX CephFS. Runs on the same node as
-# nextcloud-server so it can mount the RWO source alongside the live pods.
-# Hash key includes the source PVC UID so we don't re-run after success.
-resource "kubernetes_job_v1" "nextcloud_app_rwx_migrate" {
-  depends_on = [
-    kubernetes_persistent_volume_claim_v1.nextcloud_app,
-    kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx,
-  ]
+# Small persistent volume for App Store installs only. Bundled apps live in
+# the container image at /var/www/html/apps and are read-only; user-installed
+# apps land here and are referenced via apps_paths in nextcloud_config.
+resource "kubernetes_persistent_volume_claim_v1" "nextcloud_custom_apps" {
+  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
-    name      = "nextcloud-app-rwx-migrate"
+    name      = "nextcloud-custom-apps"
     namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
   }
 
   spec {
-    backoff_limit              = 6
-    ttl_seconds_after_finished = 86400
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+
+    resources {
+      requests = { storage = "5Gi" }
+    }
+  }
+}
+
+# One-shot copy of third-party apps from the legacy nextcloud-app-rwx PVC into
+# the new nextcloud-custom-apps PVC. Filters out bundled apps (those present in
+# the container image at /usr/src/nextcloud/apps) so only the installed apps
+# (user_oidc, integration_openai, onlyoffice, etc.) land in the new PVC.
+resource "kubernetes_job_v1" "nextcloud_custom_apps_seed" {
+  timeouts {
+    create = "30m"
+  }
+
+  depends_on = [
+    kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx,
+    kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps,
+  ]
+
+  metadata {
+    name      = "nextcloud-custom-apps-seed"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  spec {
+    backoff_limit = 2
+    completions   = 1
 
     template {
       metadata {
-        labels = { app = "nextcloud-app-rwx-migrate" }
+        labels = { app = "nextcloud-custom-apps-seed" }
       }
 
       spec {
         restart_policy = "OnFailure"
 
-        affinity {
-          pod_affinity {
-            required_during_scheduling_ignored_during_execution {
-              label_selector {
-                match_expressions {
-                  key      = "app"
-                  operator = "In"
-                  values   = [local.nextcloud_server_labels.app]
-                }
-              }
-              topology_key = "kubernetes.io/hostname"
-            }
-          }
-        }
-
         container {
-          name    = "rsync"
-          image   = "alpine:3.20"
+          name    = "seed"
+          image   = local.nextcloud_server_image
           command = ["/bin/sh", "-c", <<-EOT
             set -eu
-            apk add --no-cache rsync >/dev/null
-            echo "Source contents:"
-            ls /old | head
-            echo "Destination contents (should be empty):"
-            ls /new | head
-            echo "rsync starting..."
-            # CephFS doesn't store SELinux xattrs, so drop -X (extended attrs)
-            # to avoid spurious lsetxattr errors that fail the job.
-            rsync -aH --info=progress2 /old/ /new/
-            echo "rsync done. Verifying..."
-            diff -q <(cd /old && find . | sort) <(cd /new && find . | sort) >/dev/null && echo "file lists match"
+
+            BUNDLED=/usr/src/nextcloud/apps
+            SRC=/old/apps
+            DST=/new
+
+            echo "== bundled apps in image =="
+            ls "$BUNDLED" | sort > /tmp/bundled.txt
+            echo "$(wc -l < /tmp/bundled.txt) apps bundled"
+
+            echo "== apps on legacy PVC =="
+            ls "$SRC" | sort > /tmp/source.txt
+            echo "$(wc -l < /tmp/source.txt) apps in source"
+
+            echo "== third-party (source minus bundled) =="
+            comm -23 /tmp/source.txt /tmp/bundled.txt > /tmp/copy.txt
+            cat /tmp/copy.txt
+
+            mkdir -p "$DST"
+            while read -r app; do
+              [ -z "$app" ] && continue
+              [ -d "$SRC/$app" ] || continue
+              echo "+ $app"
+              [ -e "$DST/$app" ] && rm -rf "$DST/$app"
+              cp -rp "$SRC/$app" "$DST/$app"
+            done < /tmp/copy.txt
+
+            chown -R www-data:www-data "$DST"
+
+            echo "== final $DST =="
+            ls "$DST" | sort
+            echo "seed complete"
           EOT
           ]
 
           volume_mount {
             name       = "old"
             mount_path = "/old"
+            read_only  = true
           }
 
           volume_mount {
@@ -342,27 +374,22 @@ resource "kubernetes_job_v1" "nextcloud_app_rwx_migrate" {
         volume {
           name = "old"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            read_only  = true
           }
         }
 
         volume {
           name = "new"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
           }
         }
       }
     }
-
-    completions = 1
   }
 
   wait_for_completion = true
-  timeouts {
-    create = "20m"
-    update = "20m"
-  }
 }
 
 # NFS-backed data directory — user files stored at real paths so the share is
@@ -630,8 +657,8 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
   depends_on = [
     kubernetes_service_v1.nextcloud_postgres,
     kubernetes_service_v1.nextcloud_redis,
-    kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx,
-    kubernetes_job_v1.nextcloud_app_rwx_migrate,
+    kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps,
+    kubernetes_job_v1.nextcloud_custom_apps_seed,
     kubernetes_secret_v1.nextcloud_admin,
     kubernetes_secret_v1.nextcloud_config,
   ]
@@ -669,6 +696,24 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
         container {
           name  = "nextcloud"
           image = local.nextcloud_server_image
+
+          # /var/www/html is no longer a PVC mount — the container's overlay
+          # FS gets a fresh copy of the PHP code from /usr/src/nextcloud on
+          # every pod start. Mount points (data, config, custom_apps, themes)
+          # are excluded so the rsync doesn't stomp our persistent volumes.
+          command = ["/bin/sh", "-c", <<-EOT
+            set -eu
+            # Excludes match the mount points; /config is NOT excluded because
+            # the image-stock config dir (CAN_INSTALL, .htaccess, .sample.php)
+            # ensures /var/www/html/config is www-data-writable. Our secret
+            # subPath mount of nextcloud-k8s.config.php overlays cleanly.
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
+            exec apache2-foreground
+          EOT
+          ]
 
           port {
             container_port = local.nextcloud_server_port
@@ -720,8 +765,8 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
           }
 
           volume_mount {
-            name       = "app"
-            mount_path = "/var/www/html"
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
           }
 
           volume_mount {
@@ -733,6 +778,16 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             name       = "config"
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
             sub_path   = "nextcloud-k8s.config.php"
+          }
+
+          # Hand-managed Secret with the pre-existing install state
+          # (passwordsalt, secret, instanceid, dbpassword) recovered from
+          # the legacy app PVC. TODO codify into tofu (see task #9).
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
           }
 
           readiness_probe {
@@ -789,9 +844,9 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
         }
 
         volume {
-          name = "app"
+          name = "custom-apps"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
           }
         }
 
@@ -809,6 +864,17 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             items {
               key  = "nextcloud-k8s.config.php"
               path = "nextcloud-k8s.config.php"
+            }
+          }
+        }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = "nextcloud-install-state"
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
             }
           }
         }
@@ -905,13 +971,42 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
       }
 
       spec {
+        # Co-locate with the server pod so we can share the RWO custom-apps
+        # PVC. RWO mounts a single node; pod affinity keeps us there.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
         container {
           name  = "cron"
           image = local.nextcloud_server_image
 
-          # The image entrypoint runs Apache by default; override to run the
-          # built-in cron.sh which loops every 5 minutes.
-          command = ["/cron.sh"]
+          # Override the Apache entrypoint to populate /var/www/html with PHP
+          # code (no longer on a PVC) and then run the built-in cron loop.
+          command = ["/bin/sh", "-c", <<-EOT
+            set -eu
+            # Excludes match the mount points; /config is NOT excluded because
+            # the image-stock config dir (CAN_INSTALL, .htaccess, .sample.php)
+            # ensures /var/www/html/config is www-data-writable. Our secret
+            # subPath mount of nextcloud-k8s.config.php overlays cleanly.
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
+            exec /cron.sh
+          EOT
+          ]
 
           env_from {
             secret_ref {
@@ -930,8 +1025,8 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
           }
 
           volume_mount {
-            name       = "app"
-            mount_path = "/var/www/html"
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
           }
 
           volume_mount {
@@ -943,6 +1038,16 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
             name       = "config"
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
             sub_path   = "nextcloud-k8s.config.php"
+          }
+
+          # Hand-managed Secret with the pre-existing install state
+          # (passwordsalt, secret, instanceid, dbpassword) recovered from
+          # the legacy app PVC. TODO codify into tofu (see task #9).
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
           }
 
           resources {
@@ -958,9 +1063,9 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
         }
 
         volume {
-          name = "app"
+          name = "custom-apps"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
           }
         }
 
@@ -978,6 +1083,17 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
             items {
               key  = "nextcloud-k8s.config.php"
               path = "nextcloud-k8s.config.php"
+            }
+          }
+        }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = "nextcloud-install-state"
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
             }
           }
         }
@@ -1018,12 +1134,36 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
       }
 
       spec {
+        # Co-locate with the server pod for RWO custom-apps PVC sharing.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
         container {
           name  = "worker"
           image = local.nextcloud_server_image
 
           command = ["/bin/sh", "-c", <<-EOT
             set -eu
+            # Excludes match the mount points; /config is NOT excluded because
+            # the image-stock config dir (CAN_INSTALL, .htaccess, .sample.php)
+            # ensures /var/www/html/config is www-data-writable. Our secret
+            # subPath mount of nextcloud-k8s.config.php overlays cleanly.
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
             cd /var/www/html
             while true; do
               runuser -u www-data -- php occ taskprocessing:worker --timeout=300 --interval=1
@@ -1044,8 +1184,8 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
           }
 
           volume_mount {
-            name       = "app"
-            mount_path = "/var/www/html"
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
           }
 
           volume_mount {
@@ -1058,12 +1198,22 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
             sub_path   = "nextcloud-k8s.config.php"
           }
+
+          # Hand-managed Secret with the pre-existing install state
+          # (passwordsalt, secret, instanceid, dbpassword) recovered from
+          # the legacy app PVC. TODO codify into tofu (see task #9).
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
+          }
         }
 
         volume {
-          name = "app"
+          name = "custom-apps"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
           }
         }
 
@@ -1084,6 +1234,17 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
             }
           }
         }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = "nextcloud-install-state"
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
+            }
+          }
+        }
       }
     }
   }
@@ -1097,6 +1258,10 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
 # existing provider settings when the identifier is already present.
 
 resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
+  timeouts {
+    create = "15m"
+  }
+
   depends_on = [
     kubernetes_deployment_v1.nextcloud_server,
     kubernetes_service_v1.nextcloud_server,
@@ -1110,7 +1275,6 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
 
   spec {
     backoff_limit              = 6
-    ttl_seconds_after_finished = 86400
 
     template {
       metadata {
@@ -1119,6 +1283,22 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
 
       spec {
         restart_policy = "OnFailure"
+
+        # Co-locate with the server pod for RWO custom-apps PVC sharing.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
 
         container {
           name  = "occ"
@@ -1139,6 +1319,14 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
           # commands. Uses the in-cluster Service to avoid host loops.
           command = ["/bin/sh", "-c", <<-EOT
             set -eu
+            # Excludes match the mount points; /config is NOT excluded because
+            # the image-stock config dir (CAN_INSTALL, .htaccess, .sample.php)
+            # ensures /var/www/html/config is www-data-writable. Our secret
+            # subPath mount of nextcloud-k8s.config.php overlays cleanly.
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
             echo "Waiting for Nextcloud server to be installed..."
             for i in $(seq 1 60); do
               code=$(curl -s -o /tmp/status.json -w '%%{http_code}' \
@@ -1182,8 +1370,8 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
           }
 
           volume_mount {
-            name       = "app"
-            mount_path = "/var/www/html"
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
           }
 
           volume_mount {
@@ -1196,12 +1384,22 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
             sub_path   = "nextcloud-k8s.config.php"
           }
+
+          # Hand-managed Secret with the pre-existing install state
+          # (passwordsalt, secret, instanceid, dbpassword) recovered from
+          # the legacy app PVC. TODO codify into tofu (see task #9).
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
+          }
         }
 
         volume {
-          name = "app"
+          name = "custom-apps"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
           }
         }
 
@@ -1219,6 +1417,17 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
             items {
               key  = "nextcloud-k8s.config.php"
               path = "nextcloud-k8s.config.php"
+            }
+          }
+        }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = "nextcloud-install-state"
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
             }
           }
         }
@@ -1240,6 +1449,10 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
 # then points the provider at the in-cluster LiteLLM API with a scoped key.
 
 resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
+  timeouts {
+    create = "15m"
+  }
+
   depends_on = [
     kubernetes_deployment_v1.nextcloud_server,
     kubernetes_service_v1.nextcloud_server,
@@ -1253,7 +1466,6 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
 
   spec {
     backoff_limit              = 6
-    ttl_seconds_after_finished = 86400
 
     template {
       metadata {
@@ -1262,6 +1474,22 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
 
       spec {
         restart_policy = "OnFailure"
+
+        # Co-locate with the server pod for RWO custom-apps PVC sharing.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
 
         container {
           name  = "occ"
@@ -1280,6 +1508,14 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
 
           command = ["/bin/sh", "-c", <<-EOT
             set -eu
+            # Excludes match the mount points; /config is NOT excluded because
+            # the image-stock config dir (CAN_INSTALL, .htaccess, .sample.php)
+            # ensures /var/www/html/config is www-data-writable. Our secret
+            # subPath mount of nextcloud-k8s.config.php overlays cleanly.
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
             echo "Waiting for Nextcloud server to be installed..."
             for i in $(seq 1 60); do
               code=$(curl -s -o /tmp/status.json -w '%%{http_code}' \
@@ -1347,8 +1583,8 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
           }
 
           volume_mount {
-            name       = "app"
-            mount_path = "/var/www/html"
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
           }
 
           volume_mount {
@@ -1361,12 +1597,22 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
             mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
             sub_path   = "nextcloud-k8s.config.php"
           }
+
+          # Hand-managed Secret with the pre-existing install state
+          # (passwordsalt, secret, instanceid, dbpassword) recovered from
+          # the legacy app PVC. TODO codify into tofu (see task #9).
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
+          }
         }
 
         volume {
-          name = "app"
+          name = "custom-apps"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_app_rwx.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
           }
         }
 
@@ -1384,6 +1630,17 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
             items {
               key  = "nextcloud-k8s.config.php"
               path = "nextcloud-k8s.config.php"
+            }
+          }
+        }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = "nextcloud-install-state"
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
             }
           }
         }
