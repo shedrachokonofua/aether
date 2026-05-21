@@ -95,3 +95,14 @@ runners:
           name = "ci"
           mount_path = "/ci"
           host_path = "/var/mnt/ci"
+
+        # /ci/tmp lives inside the /ci hostPath in theory, but the runner
+        # nodes never had `tmp/` created under /var/mnt/ci/, so nix builds
+        # that honor TMPDIR (set to /ci/tmp in the runner env above) failed
+        # with `stat: /ci/tmp: No such file or directory`. Overlay a
+        # per-job emptyDir at /ci/tmp so the dir always exists; ephemeral,
+        # auto-cleaned, no node-side prereq.
+        [[runners.kubernetes.volumes.empty_dir]]
+          name = "ci-tmp"
+          mount_path = "/ci/tmp"
+          medium = ""
