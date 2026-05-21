@@ -1,0 +1,51 @@
+## Synapse homeserver config — rendered by tofu, mounted at
+## /etc/synapse/homeserver.yaml. Layout intentionally moves files out of
+## /data so the data PVC only holds media_store + runtime state.
+server_name: "${server_name}"
+public_baseurl: "https://${server_name}/"
+pid_file: /data/homeserver.pid
+enable_metrics: true
+
+listeners:
+  - port: ${synapse_port}
+    tls: false
+    type: http
+    x_forwarded: true
+    bind_addresses: ["0.0.0.0"]
+    resources:
+      - names: [client, federation]
+        compress: false
+  - port: ${synapse_metrics_port}
+    type: metrics
+    bind_addresses: ["0.0.0.0"]
+
+database:
+  name: psycopg2
+  args:
+    user: "${db_user}"
+    password: "${db_password}"
+    dbname: "${db_user}"
+    host: "${db_host}"
+    port: ${db_port}
+    cp_min: 5
+    cp_max: 10
+
+log_config: "/etc/synapse/${server_name}.log.config"
+media_store_path: /data/media_store
+signing_key_path: "/etc/synapse/${server_name}.signing.key"
+
+registration_shared_secret: "${registration_shared_secret}"
+macaroon_secret_key: "${macaroon_secret_key}"
+form_secret: "${form_secret}"
+report_stats: false
+
+trusted_key_servers:
+  - server_name: "matrix.org"
+
+# Bridges and doublepuppet appservice registrations.
+# Bridge registration files live in each bridge's PVC, mounted read-only into
+# this container at /srv/<bridge>/registration.yaml.
+app_service_config_files:
+  - /srv/whatsapp/registration.yaml
+  - /srv/gmessages/registration.yaml
+  - /etc/synapse/doublepuppet.yaml

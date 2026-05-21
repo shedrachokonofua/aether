@@ -1,0 +1,371 @@
+# Messaging Stack Migration
+
+Migrate everything off the `messaging-stack` VM (`vmid 1016`, `10.0.3.4`,
+fedora + rootless podman quadlets) and decommission it. Two-phase plan agreed
+during the 2026-05-03 session:
+
+- **Phase 1 — Matrix → Talos k8s** (this worklog covers the IaC + decommission).
+  Synapse + element + the two mautrix bridges + their postgres land in a new
+  `matrix` namespace, modelled on `miniflux.tf`. Same per-app `tofu apply` →
+  RBD-snapshot → decommission playbook → `kubectl cp` restore → Caddy flip
+  pattern that worked for the media-stack migration in
+  [media-stack-migration.md](./media-stack-migration.md).
+- **Phase 2 — ntfy + postfix + apprise → new NixOS VM** (`notifications-stack`,
+  vmid `1011`, `10.0.2.4`, VLAN 2 — already reserved in `config/vm.yml`). Not
+  built yet; the repo has no NixOS host pattern. Separate workstream, deferred
+  until Phase 1 is green and the messaging-stack VM still hosts these three so
+  there's no notification gap.
+
+`hermes-bots` is **already on k8s** in the `infra` namespace (`hermes.tf`); it
+talks to `https://matrix.home.shdr.ch`, so as long as the Caddy backend swap
+keeps that hostname valid it is unaffected by Phase 1.
+
+---
+
+## Source paths on messaging-stack VM
+
+All quadlets run as user `aether`. Everything is inside one podman pod
+(`matrix.pod`) for the Matrix side; ntfy/postfix/apprise are independent pods.
+
+| App | Container data | Notes |
+|---|---|---|
+| synapse | `/home/aether/synapse/data` (media_store, signing key, logs) | port 8008, metrics 9091 |
+| postgres (matrix pod) | named volume `synapse_postgres_storage` | hosts `synapse`, `mautrix_whatsapp`, `mautrix_gmessages` DBs |
+| element | `/home/aether/element/config` | port 8080 |
+| mautrix-whatsapp | `/home/aether/mautrix-whatsapp/data` | config.yaml, registration.yaml, sqlite cache (not used — points at PG) |
+| mautrix-gmessages | `/home/aether/mautrix-gmessages/data` | same |
+| ntfy | `/home/aether/ntfy/{config,data}` + volume `ntfy_cache` | Phase 2 |
+| postfix | volume `postfix_queue` | SES relay; Phase 2 |
+| apprise | `/home/aether/apprise/config` | Phase 2 |
+
+Caddy currently routes (`ansible/playbooks/home_gateway_stack/caddy/Caddyfile.j2`):
+
+```caddy
+element.home.shdr.ch  →  {{ vm.messaging_stack.ip }}:8080
+matrix.home.shdr.ch    /_matrix/*          → {{ vm.messaging_stack.ip }}:8008
+                       /_synapse/client/*  → {{ vm.messaging_stack.ip }}:8008
+ntfy.home.shdr.ch     →  {{ vm.messaging_stack.ip }}:8082
+apprise.home.shdr.ch  →  {{ vm.messaging_stack.ip }}:8000
+```
+
+Keycloak SMTP relay (`tofu/home/keycloak.tf:106`) points at
+`messaging_stack.ip:25` — must be re-pointed at `notifications-stack.ip:25` in
+Phase 2 before the VM goes away.
+
+---
+
+## Phase 1 — Matrix to k8s
+
+### Architecture (k8s side)
+
+One namespace `matrix`. Following the cluster convention (newest example:
+`miniflux.tf` — separate StatefulSet for postgres), but the application side
+keeps **synapse, element, and the two bridges in a single Deployment with
+multiple containers**, mirroring the existing `matrix.pod` podman layout. The
+reason is shared registration files: bridges write
+`/data/registration.yaml`, and synapse needs to read those paths via
+`app_service_config_files`. RWO Ceph-RBD PVCs can be mounted into multiple
+containers within the same Pod, so we mount each bridge's data PVC `ro` into
+synapse at `/srv/<bridge>/`.
+
+| Resource | Shape | Why |
+|---|---|---|
+| `kubernetes_namespace_v1.matrix` | — | new |
+| `kubernetes_stateful_set_v1.matrix_postgres` | 1 replica, RBD PVC, init ConfigMap | cluster convention; init script creates the two bridge DBs on a fresh volume |
+| `kubernetes_deployment_v1.matrix` | replicas=1, strategy=Recreate, 4 containers | synapse + element + mautrix-whatsapp + mautrix-gmessages |
+| `kubernetes_persistent_volume_claim_v1.synapse_data` | RBD, 20Gi, `prevent_destroy` | media_store + runtime files |
+| `kubernetes_persistent_volume_claim_v1.matrix_postgres_data` | RBD, 10Gi, `prevent_destroy` | postgres data |
+| `kubernetes_persistent_volume_claim_v1.mautrix_whatsapp_data` | RBD, 5Gi, `prevent_destroy` | bridge state + registration.yaml |
+| `kubernetes_persistent_volume_claim_v1.mautrix_gmessages_data` | RBD, 5Gi, `prevent_destroy` | same |
+| `kubernetes_config_map_v1.synapse_config` | homeserver.yaml + log.config | rendered from `.tftpl` |
+| `kubernetes_config_map_v1.element_config` | config.json | rendered from `.tftpl` |
+| `kubernetes_config_map_v1.matrix_postgres_init` | init-bridge-dbs.sql | mounted at `/docker-entrypoint-initdb.d/` |
+| `kubernetes_secret_v1.synapse_secrets` | signing key + doublepuppet.yaml | mounted as files |
+| `kubernetes_secret_v1.matrix_postgres` | POSTGRES_USER/PASSWORD/DB | env_from on postgres SS |
+| `kubernetes_service_v1.synapse` | port 8008 | client/server |
+| `kubernetes_service_v1.element` | port 8080 | element-web |
+| `kubernetes_service_v1.matrix_postgres` | port 5432, ClusterIP | for synapse + bridges |
+| `kubernetes_manifest.matrix_route` | HTTPRoute `matrix.home.shdr.ch`, path-prefix `/_matrix` + `/_synapse/client` | preserves Caddy's path-filtering (admin API stays off the wire) |
+| `kubernetes_manifest.element_route` | HTTPRoute `element.home.shdr.ch` | — |
+
+**Synapse container mount layout** (intentional move away from "everything in `/data`"):
+
+| Mount | Source | Why |
+|---|---|---|
+| `/etc/synapse/homeserver.yaml` (subPath) | `synapse-config` CM | rendered from template |
+| `/etc/synapse/matrix.home.shdr.ch.log.config` (subPath) | `synapse-config` CM | static |
+| `/etc/synapse/doublepuppet.yaml` (subPath) | `synapse-secrets` Secret | contains AS tokens |
+| `/etc/synapse/matrix.home.shdr.ch.signing.key` (subPath) | `synapse-secrets` Secret | — |
+| `/srv/whatsapp/registration.yaml` (subPath, ro) | `mautrix-whatsapp-data` PVC | written by bridge container |
+| `/srv/gmessages/registration.yaml` (subPath, ro) | `mautrix-gmessages-data` PVC | same |
+| `/data` (rw) | `synapse-data` PVC | media_store only |
+
+`SYNAPSE_CONFIG_PATH=/etc/synapse/homeserver.yaml` to override the default
+`/data/homeserver.yaml` lookup.
+
+Database connection: bridges and synapse all connect to
+`matrix-postgres.matrix.svc.cluster.local:5432`, not localhost. Each uses its
+own DB on the same postgres instance.
+
+### Bridge config caveat
+
+The mautrix bridge configs are hundreds of lines and the bridge writes back to
+them at runtime. Phase 1 punts on rendering them from `.tftpl`: the bridge
+PVCs come up empty, and the **migration restore drops in the bridge's existing
+config.yaml + registration.yaml + sqlite cache from the tarball.** A
+**fresh-from-zero deployment will not work until** a follow-up adds initContainer
+seeding of the bridge configs from a ConfigMap (tracked as a TODO at the bottom
+of this file). The synapse side is fine — homeserver.yaml is fully rendered
+from a template.
+
+### Data migration
+
+Postgres uses `pg_dump --format=custom` per database (not `pg_dumpall`)
+because the k8s side's init script will have already created empty DBs by the
+time we restore — per-DB restore avoids `CREATE DATABASE` collisions.
+
+```
+synapse data  →  /tmp/messaging-stack-export/synapse-data.tar.gz     (no postgres data)
+postgres      →  /tmp/messaging-stack-export/{synapse,whatsapp,gmessages}.dump
+whatsapp data →  /tmp/messaging-stack-export/mautrix-whatsapp-data.tar.gz
+gmessages data → /tmp/messaging-stack-export/mautrix-gmessages-data.tar.gz
+```
+
+### Order of operations
+
+1. **Worklog + IaC drafted, reviewed, committed.** (don't apply yet)
+2. **RBD snapshot of vm-1016 disk** as the safety belt (same recipe as media-stack):
+   ```bash
+   # on trinity, root
+   SNAP=pre-matrix-migrate-$(date +%s)
+   rbd snap create vm-disks/vm-1016-disk-0@${SNAP}
+   rbd snap protect vm-disks/vm-1016-disk-0@${SNAP}
+   ```
+3. **`task tofu:apply`** in `tofu/home/`. New `matrix` namespace +
+   `matrix-postgres` StatefulSet come up (postgres is happy with an empty
+   volume — the init ConfigMap creates the bridge DBs). The `matrix`
+   Deployment Pod **will crash-loop** on first start (bridges have no
+   `config.yaml`, synapse has no AS `registration.yaml`) — **expected**.
+   Immediately scale the Deployment to 0 so the restore Pod can attach the
+   PVCs:
+   ```bash
+   kubectl -n matrix scale deployment/matrix --replicas=0
+   kubectl -n matrix wait --for=delete pod -l app=matrix --timeout=2m
+   ```
+4. **Decommission playbook**:
+   ```bash
+   task ansible:playbook -- ./ansible/playbooks/messaging_stack/decommission_matrix.yml
+   ```
+   Stops the `matrix-pod` user-scope quadlet, runs `pg_dump` per DB, tars
+   synapse + bridge data dirs, fetches everything to local
+   `/tmp/messaging-stack-export/`.
+5. **Restore postgres** directly into the running `matrix-postgres-0`
+   (postgres is the only k8s-side container that's actually Running). Per-DB
+   `pg_restore --clean --if-exists` to avoid `CREATE DATABASE` collisions
+   with the init script's pre-created DBs:
+   ```bash
+   DB_USER=$(kubectl -n matrix get secret matrix-postgres -o jsonpath='{.data.POSTGRES_USER}' | base64 -d)
+   for db in synapse:$DB_USER mautrix_whatsapp:mautrix_whatsapp mautrix_gmessages:mautrix_gmessages; do
+     src=${db%%:*}; dst=${db##*:}
+     kubectl -n matrix cp /tmp/messaging-stack-export/${src}.dump matrix-postgres-0:/tmp/
+     kubectl -n matrix exec matrix-postgres-0 -- \
+       pg_restore --clean --if-exists -U "$DB_USER" -d "$dst" /tmp/${src}.dump
+   done
+   ```
+6. **Restore PVC contents via a one-shot restore Pod.** RWO PVCs can only
+   attach to one Pod at a time; the matrix Deployment is scaled to 0, so the
+   PVCs are free. Spin up `matrix-restore` with all three PVCs mounted, `cp`
+   + `tar xzf` each tarball, then delete:
+   ```bash
+   cat <<'EOF' | kubectl apply -f -
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     name: matrix-restore
+     namespace: matrix
+   spec:
+     restartPolicy: Never
+     containers:
+       - name: restore
+         image: alpine:latest
+         command: ["sleep", "3600"]
+         volumeMounts:
+           - { name: synapse-data,           mountPath: /restore/synapse }
+           - { name: mautrix-whatsapp-data,  mountPath: /restore/whatsapp }
+           - { name: mautrix-gmessages-data, mountPath: /restore/gmessages }
+     volumes:
+       - { name: synapse-data,           persistentVolumeClaim: { claimName: synapse-data } }
+       - { name: mautrix-whatsapp-data,  persistentVolumeClaim: { claimName: mautrix-whatsapp-data } }
+       - { name: mautrix-gmessages-data, persistentVolumeClaim: { claimName: mautrix-gmessages-data } }
+   EOF
+   kubectl -n matrix wait --for=condition=Ready pod/matrix-restore --timeout=2m
+
+   # synapse: only extract media_store/ — homeserver.yaml, signing.key, log
+   # config now come from ConfigMap/Secret in /etc/synapse, so don't shadow
+   # them with legacy files from /data.
+   kubectl -n matrix cp /tmp/messaging-stack-export/synapse-data.tar.gz matrix/matrix-restore:/tmp/
+   kubectl -n matrix exec matrix-restore -- sh -c '\
+     mkdir -p /restore/synapse/media_store && \
+     tar xzf /tmp/synapse-data.tar.gz -C /tmp/ && \
+     cp -a /tmp/data/media_store/. /restore/synapse/media_store/ && \
+     rm -rf /tmp/data /tmp/synapse-data.tar.gz'
+
+   # whatsapp + gmessages bridges: restore the whole /data dir (brings
+   # config.yaml + registration.yaml + sqlite cache).
+   for b in whatsapp gmessages; do
+     kubectl -n matrix cp /tmp/messaging-stack-export/mautrix-${b}-data.tar.gz matrix/matrix-restore:/tmp/
+     kubectl -n matrix exec matrix-restore -- sh -c "\
+       tar xzf /tmp/mautrix-${b}-data.tar.gz -C /restore/${b} --strip-components=1 && \
+       rm -f /tmp/mautrix-${b}-data.tar.gz"
+   done
+
+   kubectl -n matrix delete pod matrix-restore
+   ```
+7. **Scale matrix Deployment back up** — synapse now sees the AS
+   registration files at `/srv/{whatsapp,gmessages}/registration.yaml` via
+   the bridge PVCs; bridges find their `config.yaml` in `/data`:
+   ```bash
+   kubectl -n matrix scale deployment/matrix --replicas=1
+   kubectl -n matrix rollout status deployment/matrix --timeout=5m
+   ```
+8. **Verify**:
+   - `kubectl -n matrix logs deploy/matrix -c synapse | grep -i ready`
+   - `curl -k http://<synapse-clusterIP>:8008/_matrix/client/versions` returns 200
+   - whatsapp/gmessages bridges connect (look for "Connected to WhatsApp" / "Connected to Google Messages" in their container logs)
+   - hermes-bots in the `infra` namespace still reach matrix (`kubectl -n infra logs deploy/hermes-beryl --tail=50` shows no auth errors)
+9. **Flip Caddy** — edit `ansible/playbooks/home_gateway_stack/caddy/Caddyfile.j2`
+   so `matrix.home.shdr.ch` and `element.home.shdr.ch` point at the cluster
+   Gateway VIP (`var.workload_vip`, same as the media stack flip). Apply:
+   ```bash
+   task ansible:run -- playbooks/home_gateway_stack/site.yml
+   ```
+10. **Smoke test from outside** — Element web client at `https://element.home.shdr.ch`
+    logs in, rooms list, bridge bots are present. Send a test WhatsApp + Google
+    Messages message both directions.
+11. **Sweep the VM-side definitions**:
+    - Delete `matrix.yml` from `ansible/playbooks/messaging_stack/`
+    - Drop the `import_playbook: matrix.yml` line from `messaging_stack/site.yml`
+    - Drop synapse scrape from the `vm_monitoring_agent` block in `site.yml`
+    - Re-run `task configure:home:messaging` so monitoring-agent forgets the
+      stale targets and `matrix-pod` quadlet files are gone
+12. **Drop the RBD snapshot** once you're satisfied (~1 week of soak):
+    ```bash
+    rbd snap unprotect vm-disks/vm-1016-disk-0@${SNAP}
+    rbd snap rm       vm-disks/vm-1016-disk-0@${SNAP}
+    ```
+
+### Gotchas to watch
+
+- **First-apply deadlock — restore Pod is mandatory, not optional.** Synapse
+  refuses to start when `app_service_config_files` paths are empty/missing;
+  bridges refuse to start without `config.yaml`. So the Pod crash-loops on
+  initial deploy, and `kubectl cp` against a CrashLoopBackOff container
+  fails. The PVCs are RWO, so we can't attach a second restore Pod while the
+  main Deployment Pod (terminating/restarting) still holds them. Hence step
+  3: scale Deployment to 0, wait for Pod delete, only then create
+  `matrix-restore`.
+- **Pod = single restart unit.** Any of the 4 containers crashing cycles all
+  4 — bridges' lifecycle is coupled to synapse. If a bridge's `livenessProbe`
+  starts flapping, it takes synapse with it. Start with no liveness probes on
+  the bridges (only readiness); revisit after a week.
+- **Bridge registration files are bridge-managed.** First start of a bridge
+  with no `registration.yaml` causes the bridge image's entrypoint to
+  generate one. In current podman flow this is a separate `podman run --rm`
+  step done by ansible. In k8s we rely on the migration restoring an existing
+  file. If the file is missing on restore, the bridge will hot-generate one
+  on start — but synapse won't know about it until the file appears and
+  synapse is restarted. **If you ever destroy a bridge PVC, restart synapse
+  after the bridge regenerates its registration.**
+- **media_store path change.** Existing podman layout had `media_store` at
+  `/data/media_store`; k8s keeps that path (synapse-data PVC mounted at `/data`).
+  No URL changes.
+- **Database `dbname == user`** in the current setup (`secrets.matrix.database_user`
+  is used as both). Don't change that or the restore breaks. The init script
+  creates the bridge DBs with the same owner.
+- **Element CORS.** Element web reads `config.json` at runtime; the base_url
+  is `https://matrix.home.shdr.ch` and stays the same across the cutover.
+  Browsers caching the old config.json is harmless.
+- **Hermes bots in `infra` ns.** They use `MATRIX_USER_ID` like
+  `@beryl:matrix.home.shdr.ch` with bot access tokens stored in
+  `var.secrets["matrix.<name>_bot_access_token"]`. These tokens were issued
+  by the existing Synapse, so they survive the migration intact as long as
+  the postgres `access_tokens` table is fully restored (it will be, via the
+  per-DB dump).
+- **Postgres image version**. Source VM runs `postgres:alpine` (no pin),
+  which by now is 18.x. The k8s side pins `postgres:17-alpine` to match the
+  cluster convention. `pg_restore` from a newer dump into an older server
+  fails — check the source server version first:
+  ```bash
+  ssh aether@10.0.3.4 'podman exec postgres pg_dumpall --version'
+  ```
+  If it reports 18.x, bump the k8s pin to `postgres:18-alpine` **before**
+  running `tofu apply` (matrix.tf, `matrix_postgres_image` local).
+
+---
+
+## Phase 2 — ntfy + postfix + apprise to notifications-stack NixOS VM
+
+**Not started.** Reserved: vmid `1011`, name `notifications-stack`,
+`10.0.2.4` (VLAN 2), `niobe`. Ports defined in `config/vm.yml`: smtp 25,
+ntfy 80, ntfy_metrics 9090, apprise 8000, postfix_metrics 9154.
+
+Prerequisites that don't exist yet:
+
+1. **A NixOS host pattern in this repo.** There is no `ansible/playbooks/notifications_stack/`
+   directory, no Nix flake for VM-side config, no module showing how
+   we bake a Nix VM image via Proxmox/Tofu. Decision needed: do we use
+   `nixos-anywhere` from cloud-init, or build a Nix Proxmox image once
+   and clone it like the fedora `proxmox_virtual_environment_download_file`
+   pattern? `tofu/home/messaging_stack.tf:6` currently downloads a
+   fedora cloud image — we'd add a sibling for a NixOS cloud image.
+2. **A Nix module each for ntfy, postfix-relay, apprise.** These can be
+   straight `services.ntfy-sh`, `services.postfix.relayHost`, and a
+   `virtualisation.oci-containers.containers.apprise` (since apprise has no
+   nix module). Each replaces the existing podman quadlet.
+3. **Caddy flip** for `ntfy.home.shdr.ch` and `apprise.home.shdr.ch` from
+   `messaging_stack.ip` → `notifications_stack.ip`.
+4. **Keycloak SMTP** — `tofu/home/keycloak.tf:106` points at
+   `local.vm.messaging_stack.ip` + `messaging_stack.ports.smtp`. Re-point at
+   `local.vm.notifications_stack.ip` + `notifications_stack.ports.smtp`
+   **before** the messaging-stack VM is destroyed, otherwise Keycloak loses
+   email delivery.
+5. **AWS SES creds** — postfix needs `tf_outputs.aws_ses_smtp_username` and
+   `_password` (currently consumed from a tofu outputs file by the existing
+   postfix.yml playbook). Same pattern carries over to the NixOS host.
+
+Order when we get to it: build Phase 2 IaC → spin up the new VM alongside the
+old one → cut Caddy + Keycloak over → smoke test → only then destroy the
+messaging-stack VM.
+
+---
+
+## Decommission the VM (after both phases)
+
+Mirror the media-stack decommission commit (`e29725e`):
+
+1. Targeted destroy of the VM with `prevent_destroy = false`:
+   ```bash
+   sed -i '' 's/prevent_destroy = true/prevent_destroy = false/' tofu/home/messaging_stack.tf
+   task tofu:apply -- -target=proxmox_virtual_environment_vm.messaging_stack -destroy
+   ```
+2. Sweep the dangling references in a single commit:
+   - delete `tofu/home/messaging_stack.tf`
+   - drop the `messaging-stack` block in `ansible/inventory/hosts.yml`
+   - drop the `messaging_stack:` block in `config/vm.yml`
+   - drop any `messaging` Taskfile targets (`task configure:home:messaging`)
+   - decommission playbooks under `ansible/playbooks/messaging_stack/` kept
+     as historical record (sweep in a later cleanup pass, same as media-stack)
+
+---
+
+## TODOs after Phase 1
+
+- [ ] Render `mautrix-whatsapp` and `mautrix-gmessages` config.yaml as ConfigMaps
+      with initContainer `cp -n` seeding to PVC, so the deployment is
+      reproducible from zero (no manual tarball restore needed).
+- [ ] Synapse `media_store` cleanup pass — the existing tarball will be the
+      whole history. Worth checking size before restoring; if it's >5Gi, bump
+      the PVC.
+- [ ] Move hermes bot access tokens to a renewable flow (Keycloak OIDC?). The
+      current static-token-in-secrets approach survives this migration but is
+      fragile.

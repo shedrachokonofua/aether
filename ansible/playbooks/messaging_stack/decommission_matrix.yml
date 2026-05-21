@@ -1,0 +1,214 @@
+---
+# One-shot playbook: stop and export the Matrix pod (synapse + element +
+# mautrix-whatsapp + mautrix-gmessages + postgres) from the messaging-stack VM
+# so its data can be restored into the Kubernetes `matrix` namespace.
+#
+# Per-DB pg_dump (not pg_dumpall) because the k8s side's init ConfigMap
+# pre-creates the synapse/mautrix_whatsapp/mautrix_gmessages DBs — a
+# pg_dumpall restore would collide on CREATE DATABASE.
+#
+# Run order (operator) — full recipe lives in docs/worklogs/messaging-stack-migration.md.
+# Summary:
+#   1. tofu apply  → matrix-postgres up; matrix Deployment Pod crash-loops
+#      (no config.yaml / registration.yaml yet). Expected.
+#   2. Scale Deployment to 0 so the restore Pod can claim the RWO PVCs:
+#        kubectl -n matrix scale deployment/matrix --replicas=0
+#        kubectl -n matrix wait --for=delete pod -l app=matrix --timeout=2m
+#   3. ansible-playbook playbooks/messaging_stack/decommission_matrix.yml
+#      → dumps + tarballs land in /tmp/messaging-stack-export/
+#   4. Restore postgres in-place (matrix-postgres-0 is Running; per-DB
+#      pg_restore to avoid colliding with init-created DBs):
+#        DB_USER=$(kubectl -n matrix get secret matrix-postgres -o jsonpath='{.data.POSTGRES_USER}' | base64 -d)
+#        for d in synapse:$DB_USER mautrix_whatsapp:mautrix_whatsapp mautrix_gmessages:mautrix_gmessages; do
+#          src=${d%%:*}; dst=${d##*:}
+#          kubectl -n matrix cp /tmp/messaging-stack-export/${src}.dump matrix-postgres-0:/tmp/
+#          kubectl -n matrix exec matrix-postgres-0 -- \
+#            pg_restore --clean --if-exists -U "$DB_USER" -d "$dst" /tmp/${src}.dump
+#        done
+#   5. Restore PVCs via a one-shot Pod (full YAML in the worklog):
+#        kubectl apply -f - <<'EOF'  ... matrix-restore Pod ...  EOF
+#        kubectl -n matrix wait --for=condition=Ready pod/matrix-restore --timeout=2m
+#        # synapse: extract only /data/media_store into the PVC
+#        kubectl -n matrix cp /tmp/messaging-stack-export/synapse-data.tar.gz matrix/matrix-restore:/tmp/
+#        kubectl -n matrix exec matrix-restore -- sh -c '\
+#          mkdir -p /restore/synapse/media_store && \
+#          tar xzf /tmp/synapse-data.tar.gz -C /tmp/ && \
+#          cp -a /tmp/data/media_store/. /restore/synapse/media_store/ && \
+#          rm -rf /tmp/data /tmp/synapse-data.tar.gz'
+#        # bridges: whole /data
+#        for b in whatsapp gmessages; do
+#          kubectl -n matrix cp /tmp/messaging-stack-export/mautrix-${b}-data.tar.gz matrix/matrix-restore:/tmp/
+#          kubectl -n matrix exec matrix-restore -- sh -c "\
+#            tar xzf /tmp/mautrix-${b}-data.tar.gz -C /restore/${b} --strip-components=1 && \
+#            rm -f /tmp/mautrix-${b}-data.tar.gz"
+#        done
+#        kubectl -n matrix delete pod matrix-restore
+#   6. Scale matrix Deployment back to 1:
+#        kubectl -n matrix scale deployment/matrix --replicas=1
+#        kubectl -n matrix rollout status deployment/matrix --timeout=5m
+#   7. After verification (Element login, bridge bots responsive, hermes-bots
+#      still hitting matrix), rerun this playbook with -e cleanup=true to
+#      stop+disable the matrix-pod quadlet on the VM and remove the legacy
+#      app dirs.
+#   8. After cleanup, drop matrix.yml from messaging_stack/site.yml + remove
+#      the synapse scrape from the vm_monitoring_agent block, then re-run
+#      `task configure:home:messaging` so the VM forgets the stale targets.
+
+- name: Decommission Matrix from messaging-stack VM
+  hosts: messaging-stack
+  gather_facts: false
+  vars:
+    admin_user: aether
+    export_dir: /tmp/messaging-stack-export
+    cleanup: false
+    # DB names — keep aligned with init-matrix-bridge-dbs.sql.j2.
+    bridge_dbs:
+      - mautrix_whatsapp
+      - mautrix_gmessages
+
+  tasks:
+    # =========================================================================
+    # Pre-flight: pg_dump while postgres is still running
+    # =========================================================================
+
+    - name: Read postgres user from sops-managed secrets
+      delegate_to: localhost
+      ansible.builtin.set_fact:
+        pg_user: "{{ secrets.matrix.database_user }}"
+      run_once: true
+
+    - name: Create remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: directory
+        mode: "0755"
+
+    - name: pg_dump synapse database (== {{ pg_user }})
+      ansible.builtin.command:
+        cmd: >
+          podman exec postgres
+          pg_dump --format=custom --no-owner --no-privileges
+          -U {{ pg_user }} -d {{ pg_user }}
+          -f /var/lib/postgresql/data/synapse.dump
+      changed_when: true
+
+    - name: pg_dump each bridge database
+      ansible.builtin.command:
+        cmd: >
+          podman exec postgres
+          pg_dump --format=custom --no-owner --no-privileges
+          -U {{ pg_user }} -d {{ item }}
+          -f /var/lib/postgresql/data/{{ item }}.dump
+      loop: "{{ bridge_dbs }}"
+      changed_when: true
+
+    - name: Copy postgres dumps out of the container volume
+      become: true
+      ansible.builtin.command:
+        cmd: >
+          podman cp postgres:/var/lib/postgresql/data/{{ item }}.dump
+          /home/{{ admin_user }}/export/{{ item }}.dump
+      loop:
+        - synapse
+        - mautrix_whatsapp
+        - mautrix_gmessages
+      changed_when: true
+
+    # =========================================================================
+    # Stop the matrix pod
+    # =========================================================================
+
+    - name: Stop matrix-pod quadlet (user scope)
+      ansible.builtin.systemd:
+        name: matrix-pod
+        state: stopped
+        scope: user
+      ignore_errors: true
+
+    # =========================================================================
+    # Archive on-disk data
+    # =========================================================================
+
+    - name: Create local export directory
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ export_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Archive synapse /data (media_store + signing key + legacy configs)
+      become: true
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/synapse-data.tar.gz -C /home/{{ admin_user }}/synapse data
+      changed_when: true
+
+    - name: Archive mautrix-whatsapp /data
+      become: true
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/mautrix-whatsapp-data.tar.gz -C /home/{{ admin_user }}/mautrix-whatsapp data
+      changed_when: true
+
+    - name: Archive mautrix-gmessages /data
+      become: true
+      ansible.builtin.command:
+        cmd: tar czf /home/{{ admin_user }}/export/mautrix-gmessages-data.tar.gz -C /home/{{ admin_user }}/mautrix-gmessages data
+      changed_when: true
+
+    - name: Make exports readable by the ansible user
+      become: true
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        owner: "{{ admin_user }}"
+        group: "{{ admin_user }}"
+        recurse: true
+        mode: "0644"
+
+    - name: Re-mark export directory mode (dirs need x)
+      become: true
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        mode: "0755"
+        state: directory
+
+    - name: Fetch all exports to control node
+      ansible.builtin.fetch:
+        src: "/home/{{ admin_user }}/export/{{ item }}"
+        dest: "{{ export_dir }}/{{ item }}"
+        flat: true
+      loop:
+        - synapse.dump
+        - mautrix_whatsapp.dump
+        - mautrix_gmessages.dump
+        - synapse-data.tar.gz
+        - mautrix-whatsapp-data.tar.gz
+        - mautrix-gmessages-data.tar.gz
+
+    # =========================================================================
+    # Cleanup (gated, second pass)
+    # =========================================================================
+
+    - name: Disable matrix-pod quadlet
+      ansible.builtin.systemd:
+        name: matrix-pod
+        enabled: false
+        scope: user
+      when: cleanup | bool
+      ignore_errors: true
+
+    - name: Remove legacy app directories
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/{{ item }}"
+        state: absent
+      loop:
+        - synapse
+        - element
+        - mautrix-whatsapp
+        - mautrix-gmessages
+        - postgres-init
+      when: cleanup | bool
+
+    - name: Clean up remote export directory
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/export"
+        state: absent
+      when: cleanup | bool
