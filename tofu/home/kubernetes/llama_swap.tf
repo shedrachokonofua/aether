@@ -8,7 +8,7 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v202-cuda-b8808"
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v216-cuda-b9246"
   llama_swap_host    = "llama-swap.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = kubernetes_namespace_v1.infra.metadata[0].name
