@@ -16,6 +16,7 @@ locals {
   hermes_local_llm      = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.hermes_namespace}.svc.cluster.local:${local.llama_swap_port}/v1"
   hermes_jellyfin_url   = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
   hermes_firecrawl_url  = "https://firecrawl.home.shdr.ch"
+  hermes_searxng_url    = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
   hermes_matrix_server  = "https://matrix.home.shdr.ch"
   hermes_matrix_owner   = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
   hermes_homeassistant  = "https://ha.home.shdr.ch"
@@ -26,6 +27,7 @@ locals {
       dashboard_host = "beryl-dashboard.home.shdr.ch"
       env = {
         OPENAI_BASE_URL        = local.hermes_local_llm
+        FIRECRAWL_API_URL      = local.hermes_firecrawl_url
         JELLYFIN_URL           = local.hermes_jellyfin_url
         MATRIX_HOMESERVER      = local.hermes_matrix_server
         MATRIX_USER_ID         = "@${var.secrets["matrix.beryl_bot_user"]}:matrix.home.shdr.ch"
@@ -33,8 +35,9 @@ locals {
         MATRIX_REQUIRE_MENTION = "true"
         MATRIX_AUTO_THREAD     = "true"
         HASS_URL               = local.hermes_homeassistant
+        SEARXNG_URL            = local.hermes_searxng_url
       }
-      secret_env_keys = ["API_SERVER_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN"]
+      secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN"]
       config = yamlencode({
         model = {
           provider       = "custom"
@@ -61,6 +64,10 @@ locals {
         memory = {
           memory_enabled       = true
           user_profile_enabled = true
+        }
+        web = {
+          search_backend  = "searxng"
+          extract_backend = "firecrawl"
         }
         auxiliary = {
           vision = {
@@ -111,6 +118,7 @@ locals {
         MATRIX_ALLOWED_USERS   = local.hermes_matrix_owner
         MATRIX_REQUIRE_MENTION = "true"
         MATRIX_AUTO_THREAD     = "true"
+        SEARXNG_URL            = local.hermes_searxng_url
       }
       secret_env_keys = [
         "API_SERVER_KEY",
@@ -155,6 +163,10 @@ locals {
         memory = {
           memory_enabled       = true
           user_profile_enabled = true
+        }
+        web = {
+          search_backend  = "searxng"
+          extract_backend = "firecrawl"
         }
         mcp_servers = {
           arr = {
