@@ -413,3 +413,73 @@ resource "kubectl_manifest" "kyverno_arm_pool_guardrails" {
     }
   })
 }
+
+resource "kubectl_manifest" "kyverno_arm_ok_daemonset_pods" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "kyverno.io/v1"
+    kind       = "ClusterPolicy"
+    metadata = {
+      name = "arm-ok-daemonset-pods"
+      annotations = {
+        "pod-policies.kyverno.io/autogen-controllers" = "none"
+        "policies.kyverno.io/title"                   = "ARM OK DaemonSet Pods"
+        "policies.kyverno.io/category"                = "Scheduling"
+        "policies.kyverno.io/subject"                 = "Pod"
+        "policies.kyverno.io/description"             = "Automatically label DaemonSet-owned Pods as ARM-eligible; ARM pool binding guardrails still enforce resource requests and memory ceilings."
+      }
+    }
+    spec = {
+      background = false
+      rules = [{
+        name = "label-daemonset-pods-arm-ok"
+        match = {
+          any = [{
+            resources = {
+              kinds = ["Pod"]
+            }
+          }]
+        }
+        exclude = {
+          any = [{
+            resources = {
+              namespaces = [
+                "kube-system",
+                "kube-public",
+                "kube-node-lease",
+                "istio-system",
+                "system",
+                "kyverno",
+                local.aether_k8s_arch_labeler_namespace,
+              ]
+            }
+          }]
+        }
+        preconditions = {
+          all = [
+            {
+              key      = "{{ request.object.metadata.ownerReferences[].kind || [] }}"
+              operator = "AnyIn"
+              value    = ["DaemonSet"]
+            },
+            {
+              key      = "{{ request.object.metadata.labels.\"aether.sh/arm-ok\" || '' }}"
+              operator = "Equals"
+              value    = ""
+            }
+          ]
+        }
+        mutate = {
+          patchStrategicMerge = {
+            metadata = {
+              labels = {
+                "aether.sh/arm-ok" = "true"
+              }
+            }
+          }
+        }
+      }]
+    }
+  })
+}

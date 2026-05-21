@@ -314,6 +314,15 @@ Reject pods on the ARM pool if any app container requests more than:
 
 This keeps the Pi pool for tiny workloads. System DaemonSets can be exempted by namespace or label.
 
+The Talos machine config also reserves extra kubelet headroom on ARM nodes:
+
+```text
+systemReserved.memory: 1Gi
+evictionHard.memory.available: 256Mi
+```
+
+That makes the scheduler's ARM memory budget roughly 2.4-2.6Gi per 4GB board, or about 10Gi total across the four-node ARM pool. Treat 75% requested memory as the steady-state target and 90% as an alert threshold, not a normal operating point.
+
 Initial exemptions:
 
 ```text
@@ -323,7 +332,7 @@ system
 kyverno
 ```
 
-Tune this after measuring Mouse's real overhead.
+Tune this after measuring real ARM node overhead over time.
 
 ### CPU Ceiling
 
@@ -348,10 +357,26 @@ aether.sh/arm-ok=true
 Meaning:
 
 - Pods with `aether.sh/arm-ok=true` may run on the ARM pool if requests are small.
+- Normal application pods get this label from `aether-k8s-arch-labeler` when all images support `linux/arm64` and requests are small.
+- DaemonSet-owned pods get this label from Kyverno so platform node agents can schedule on ARM automatically; the binding guardrails still enforce CPU/memory requests and the 512Mi memory ceiling.
 - Pods without it are prevented from landing on `aether.sh/node-pool=arm`.
-- This label should be added only after confirming the image is multi-arch or ARM64.
 
-This avoids explicit node selection while still preventing random amd64-only images from getting scheduled to Pi nodes.
+For normal application pods, this avoids explicit node selection while still preventing random amd64-only images from getting scheduled to Pi nodes. DaemonSets are handled as platform node agents and still have to pass the ARM resource guardrails.
+
+### Rebalancing
+
+Descheduler is installed as a suspended CronJob for the ARM node pool:
+
+```text
+aether.sh/node-pool=arm
+```
+
+The draft policy only uses `LowNodeUtilization`, protects PVC-backed pods, and
+lets the default scheduler choose replacement placement after evicting eligible
+stateless pods. It is intentionally suspended because descheduler eviction does
+not guarantee the replacement pod lands on a different ARM node. Prefer
+scheduler-time placement rules such as topology spread constraints for workloads
+that need real distribution.
 
 ### Policy Set
 
@@ -369,7 +394,11 @@ Active Kyverno resources:
    - Match pods assigned to ARM pool nodes.
    - Require `aether.sh/arm-ok=true` unless the namespace is exempt.
 
-4. `label-arm-nodes`
+4. `arm-ok-daemonset-pods`
+   - Label DaemonSet-owned pods with `aether.sh/arm-ok=true` automatically.
+   - Keeps platform node agents from needing chart-specific ARM labels.
+
+5. `label-arm-nodes`
    - Optional generate/mutate policy if node labels should be enforced from Kubernetes instead of Tofu/Talos bootstrap.
 
 ### Why This Shape

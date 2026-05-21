@@ -65,6 +65,25 @@ locals {
       content   = "configure lldp portidsubtype ifname\n"
     }]
   })
+
+  # Keep the 4GB Raspberry Pi worker pool from being packed to the edge. These
+  # values reduce pod-request allocatable memory to roughly 2.4-2.6Gi per node,
+  # which is about 75% of the current ARM node allocatable capacity.
+  talos_arm_kubelet_extra_config = {
+    systemReserved = {
+      cpu                 = "100m"
+      memory              = "1Gi"
+      "ephemeral-storage" = "1Gi"
+      pid                 = "100"
+    }
+    evictionHard = {
+      "memory.available"   = "256Mi"
+      "nodefs.available"   = "10%"
+      "nodefs.inodesFree"  = "5%"
+      "imagefs.available"  = "15%"
+      "imagefs.inodesFree" = "5%"
+    }
+  }
 }
 
 # =============================================================================
@@ -359,14 +378,19 @@ resource "talos_machine_configuration_apply" "this" {
             }
           },
           try(each.value.pool, null) != null || try(each.value.hardware, null) != null ? {
-            kubelet = {
-              extraArgs = {
-                "node-labels" = join(",", compact([
-                  try(each.value.pool, null) != null ? "aether.sh/node-pool=${each.value.pool}" : "",
-                  try(each.value.hardware, null) != null ? "aether.sh/hardware=${each.value.hardware}" : "",
-                ]))
-              }
-            }
+            kubelet = merge(
+              {
+                extraArgs = {
+                  "node-labels" = join(",", compact([
+                    try(each.value.pool, null) != null ? "aether.sh/node-pool=${each.value.pool}" : "",
+                    try(each.value.hardware, null) != null ? "aether.sh/hardware=${each.value.hardware}" : "",
+                  ]))
+                }
+              },
+              try(each.value.pool, "") == "arm" ? {
+                extraConfig = local.talos_arm_kubelet_extra_config
+              } : {}
+            )
           } : {}
         )
       }),
@@ -493,20 +517,6 @@ resource "talos_cluster_kubeconfig" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
   endpoint             = local.vm.talos_trinity.ip
   node                 = local.vm.talos_trinity.ip
-}
-
-# =============================================================================
-# Proxmox HA Resources
-# =============================================================================
-
-resource "proxmox_virtual_environment_haresource" "talos" {
-  for_each = proxmox_virtual_environment_vm.talos
-
-  resource_id  = "vm:${each.value.vm_id}"
-  state        = "started"
-  group        = proxmox_virtual_environment_hagroup.ceph_workloads.group
-  max_restart  = 3
-  max_relocate = try(local.talos_nodes[each.key].gpu, false) ? 0 : 2
 }
 
 # =============================================================================

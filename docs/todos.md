@@ -72,7 +72,7 @@
     - [x] Provision talos-tank (Pi 5) — flashed, joined, labeled
     - [x] Provision talos-sparks (CM4 Lite / Mini Base) — flashed, joined, labeled
     - [x] Move Pi nodes from office switch to main rack
-    - [ ] Land Kyverno `arm-pool-guardrails` ClusterPolicy (memory/CPU caps on `aether.sh/node-pool=arm`)
+    - [x] Land Kyverno ARM pool guardrails (`arm-pool-guardrails`, `arm-ok-daemonset-pods`)
 - [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))
   - [ ] Deploy WUD for container update visibility
   - [ ] Deploy Trivy for CVE scanning
