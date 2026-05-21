@@ -14,6 +14,9 @@ GPU-accelerated inference runs on **Talos Kubernetes** (`talos-neo`, RTX Pro 600
 | OpenWebUI   | Chat UI                                   | `tofu/home/kubernetes/openwebui.tf` |
 
 Model weights and ComfyUI state live on the **local NVMe** PV mounted on `talos-neo` (`gpu_model_storage.tf`).
+`llama-swap`, ComfyUI, Docling, JupyterLab, and Speaches are explicitly pinned to `talos-neo`
+with `local.gpu_neo_node_selector`; they still require the NVIDIA Talos
+extension selector in addition to the hostname.
 
 Image generation features (SDXL, Flux, Qwen-Image, ControlNet, LoRAs, etc.) follow upstream ComfyUI; manage models on the GPU PV / ComfyUI paths.
 

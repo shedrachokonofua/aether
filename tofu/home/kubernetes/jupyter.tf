@@ -69,7 +69,7 @@ resource "kubernetes_deployment_v1" "jupyter" {
       spec {
         runtime_class_name = "nvidia"
 
-        node_selector = local.gpu_node_selector
+        node_selector = local.gpu_neo_node_selector
 
         security_context {
           fs_group = 100

@@ -60,7 +60,7 @@ resource "kubernetes_deployment_v1" "docling" {
       spec {
         runtime_class_name = "nvidia"
 
-        node_selector = local.gpu_node_selector
+        node_selector = local.gpu_neo_node_selector
 
         # Seed the model PV from the image's baked cache (first run only) and
         # download the granite-docling-258M VLM weights if absent. Runs as root

@@ -11,11 +11,14 @@ locals {
   gpu_node_selector = {
     "extensions.talos.dev/nvidia-container-toolkit-lts" = "580.105.08-v1.18.1"
   }
+  gpu_neo_node_selector = merge(local.gpu_node_selector, {
+    "kubernetes.io/hostname" = "talos-neo"
+  })
 
   gpu_device_plugin_config_label = "nvidia.com/device-plugin.config"
   gpu_device_plugin_configs = {
     # Neo's Blackwell card has enough VRAM for broad opportunistic sharing.
-    blackwell = 8
+    blackwell = 12
     # Smith's GTX 1660 Super is a 6GB Turing card; keep scheduling conservative.
     turing = 2
   }
@@ -88,7 +91,7 @@ resource "helm_release" "nvidia_device_plugin" {
             timeSlicing = {
               resources = [{
                 name     = "nvidia.com/gpu"
-                replicas = 12
+                replicas = replicas
               }]
             }
           }

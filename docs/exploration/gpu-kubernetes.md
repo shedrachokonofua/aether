@@ -239,7 +239,12 @@ Only talos-neo is affected. The other two nodes are untouched:
 | Ceph RBD | OS disk, general workload storage | StorageClass (default) |
 | CephFS | Shared data (checkpoints, outputs, ComfyUI outputs) | PVC with CephFS StorageClass |
 
-Models live on local NVMe for fast loading. GPU workloads are pinned to talos-neo anyway (only GPU node), so nodeAffinity is not a constraint.
+Models live on local NVMe for fast loading. `llama-swap`, ComfyUI, and Docling
+use the `talos-neo` local model-storage PV, so their node affinity is
+intentional. Speaches is also pinned to `talos-neo`, but its model cache uses
+Ceph RBD rather than the local GPU PV.
+JupyterLab is likewise pinned to `talos-neo` for the CUDA notebook environment;
+its workspace uses Ceph RBD.
 
 ## GPU Metrics
 

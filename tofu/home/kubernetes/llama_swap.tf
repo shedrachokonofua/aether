@@ -273,7 +273,7 @@ resource "kubernetes_deployment_v1" "llama_swap" {
       spec {
         runtime_class_name = "nvidia"
 
-        node_selector = local.gpu_node_selector
+        node_selector = local.gpu_neo_node_selector
 
         init_container {
           name  = "init-storage"
