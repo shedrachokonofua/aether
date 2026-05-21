@@ -122,6 +122,8 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
       }
 
       spec {
+        termination_grace_period_seconds = 120
+
         # ---------------------------------------------------------------------
         # Gluetun — WireGuard VPN, all pod traffic egresses through it
         # ---------------------------------------------------------------------
