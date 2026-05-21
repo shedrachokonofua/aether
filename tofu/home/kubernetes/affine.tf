@@ -344,8 +344,7 @@ resource "kubernetes_job_v1" "affine_migration" {
     namespace = local.affine_ns
   }
   spec {
-    backoff_limit              = 4
-    ttl_seconds_after_finished = 86400
+    backoff_limit = 4
     template {
       metadata { labels = { app = "affine-migration" } }
       spec {

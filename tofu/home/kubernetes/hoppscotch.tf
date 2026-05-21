@@ -183,6 +183,10 @@ resource "kubernetes_service_v1" "hoppscotch_postgres" {
 
 # Migration job — runs prisma db push before the server starts; idempotent
 resource "kubernetes_job_v1" "hoppscotch_migration" {
+  timeouts {
+    create = "15m"
+  }
+
   depends_on = [kubernetes_service_v1.hoppscotch_postgres, kubernetes_secret_v1.hoppscotch_env]
 
   metadata {
@@ -191,8 +195,7 @@ resource "kubernetes_job_v1" "hoppscotch_migration" {
   }
 
   spec {
-    backoff_limit              = 4
-    ttl_seconds_after_finished = 86400
+    backoff_limit = 4
 
     template {
       metadata { labels = { app = "hoppscotch-migration" } }

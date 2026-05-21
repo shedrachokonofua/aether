@@ -173,8 +173,7 @@ resource "kubernetes_job_v1" "dawarich_rwx_migrate" {
   }
 
   spec {
-    backoff_limit              = 6
-    ttl_seconds_after_finished = 86400
+    backoff_limit = 6
 
     template {
       metadata {
