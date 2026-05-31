@@ -145,6 +145,16 @@ model_list:
       model: "openai/google/gemini-3.1-pro-preview"
       litellm_credential_name: openrouter_credential
 
+  # Cursor Composer via self-hosted composer-api (personal ns).
+  - model_name: "cursor/composer-2.5"
+    litellm_params:
+      model: "openai/composer-2.5"
+      litellm_credential_name: composer_credential
+  - model_name: "cursor/composer-2.5-fast"
+    litellm_params:
+      model: "openai/composer-2.5-fast"
+      litellm_credential_name: composer_credential
+
 credential_list:
   - credential_name: llama_swap_credential
     credential_values:
@@ -152,6 +162,14 @@ credential_list:
       api_key: none
     credential_info:
       description: "llama-swap on K8s"
+  - credential_name: composer_credential
+    credential_values:
+      # composer runs in the `personal` ns (outside the infra ambient mesh), so
+      # cross-ns cluster DNS is unreachable from here; use the public ingress.
+      api_base: https://composer.home.shdr.ch/v1
+      api_key: os.environ/CURSOR_API_KEY
+    credential_info:
+      description: "Cursor Composer (self-hosted)"
   - credential_name: speaches_credential
     credential_values:
       api_base: http://speaches.infra.svc.cluster.local:8000/v1

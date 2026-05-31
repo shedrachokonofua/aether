@@ -43,6 +43,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
     OPENROUTER_API_KEY = var.secrets["litellm.openrouter_api_key"]
     OLLAMA_API_KEY     = var.secrets["litellm.ollama_cloud_api_key"]
     XIAOMI_API_KEY     = var.secrets["litellm.xiaomi_api_key"]
+    CURSOR_API_KEY     = var.secrets["composer.cursor_api_key"]
     FINVIZ_API_KEY     = var.secrets["finviz_api_key"]
     COINGECKO_API_KEY  = var.secrets["coingecko_api_key"]
     LITELLM_CONFIG_SHA = sha256(local.litellm_config_yaml)
@@ -283,6 +284,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "XIAOMI_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "CURSOR_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "CURSOR_API_KEY"
               }
             }
           }
