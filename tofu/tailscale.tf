@@ -68,7 +68,7 @@ resource "tailscale_acl" "tailnet_acl" {
 
 resource "tailscale_dns_split_nameservers" "home_shdr_ch" {
   domain      = "home.shdr.ch"
-  nameservers = ["10.0.0.1"]
+  nameservers = [data.tailscale_device.home_gateway.addresses[0]]
 }
 
 resource "tailscale_dns_split_nameservers" "k8s_seven30_xyz" {

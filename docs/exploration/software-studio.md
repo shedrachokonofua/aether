@@ -18,8 +18,8 @@ Co-founders access studio services via **Tailscale node sharing** — the home g
 │  ├── tag:home-gateway:*      │   │  └── shared: aether-home-gw    │
 │  ├── tag:public-gateway:*    │   │      └── port 443 only (ACL)   │
 │  └── autogroup:self:*        │   │                                 │
-│                              │   │  MagicDNS custom record:        │
-│  Shared device:              │   │  *.home.shdr.ch → 100.76.131.97│
+│                              │   │  Split DNS:                    │
+│  Shared device:              │   │  allowed routes → 100.76.131.97│
 │  aether-home-gateway ────────┼───┤                                 │
 │  (tag:home-gateway)          │   │  No access to 10.0.0.0/8       │
 │                              │   │  No subnet routes exposed       │
@@ -90,6 +90,8 @@ Three layers, each tighter:
 ### What Seven30 members cannot reach
 
 Anything that is not explicitly bound to the home gateway's Tailscale interface. This is controlled by Caddy `bind` directives plus the Tailscale catch-all, not by exposing subnet routes. No subnet routes are exposed through node sharing, so `10.0.0.0/8` is structurally unreachable.
+
+The shared DNS listener returns the Tailscale IP only for allowed shared routes. Other `home.shdr.ch` names resolve to the home gateway LAN listener (`10.0.2.2`), which admin devices can reach through approved subnet routes and shared-device recipients cannot reach.
 
 ---
 
@@ -292,7 +294,7 @@ The Tailscale IP comes from `tofu output` → `tf-outputs.json` → Ansible `tf_
 
 **`:9443` block** — unchanged. Public access to `*.seven30.xyz` goes through Cloudflare → public gateway → home gateway `:9443` → K8s VIP. With `default_bind 10.0.2.2`, the `:9443` listener binds to the LAN IP, which the public gateway reaches via its subnet route.
 
-**OIDC flow**: When a co-founder visits `gitlab.home.shdr.ch`, GitLab redirects to `auth.shdr.ch` (public, via Cloudflare). After Keycloak auth, the browser is redirected back to `gitlab.home.shdr.ch`, which resolves via their MagicDNS custom record to the Tailscale IP. Seamless.
+**OIDC flow**: When a co-founder visits `gitlab.home.shdr.ch`, GitLab redirects to `auth.shdr.ch` (public, via Cloudflare). After Keycloak auth, the browser is redirected back to `gitlab.home.shdr.ch`, which resolves through shared split DNS to the Tailscale IP. Seamless.
 
 ---
 

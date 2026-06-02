@@ -31,15 +31,15 @@ ACLs enforce network segmentation and least-privilege access:
 
 ### DNS
 
-Admin tailnet devices use the home network router for `home.shdr.ch` split DNS, then reach services through the approved subnet routes:
+Admin tailnet devices and shared peer tailnets query the home gateway Tailscale DNS listener for split DNS. That listener returns the Tailscale IP only for routes Caddy exposes on the Tailscale interface, and returns the home gateway LAN IP for the rest of `home.shdr.ch`.
 
 | Domain         | Nameserver | Purpose                                      |
 | -------------- | ---------- | -------------------------------------------- |
-| home.shdr.ch   | 10.0.0.1   | Internal home DNS via VyOS -> AdGuard        |
+| home.shdr.ch   | Home gateway Tailscale IP | Mixed answers: shared routes -> Tailscale listener, admin-only routes -> LAN listener |
 | k8s.seven30.xyz | Home gateway Tailscale IP | Seven30 vcluster API via Caddy |
 | mars.seven30.xyz | Home gateway Tailscale IP | Mars vcluster routes via Caddy |
 
-The dnsmasq listener on the home gateway's Tailscale IP is for peer tailnets with shared-device access. Cofounders configure their own tailnet split DNS to that listener, so they resolve allowed shared routes to the Tailscale interface while admin devices keep using internal DNS for `home.shdr.ch`.
+The dnsmasq listener on the home gateway's Tailscale IP is authoritative for these split zones. Cofounders configure their own tailnet split DNS to that listener, so allowed shared routes resolve to the Tailscale interface while admin-only routes resolve to `10.0.2.2`, which shared-device recipients cannot reach. Admin devices use the same DNS listener and reach admin-only services through the approved subnet routes.
 
 ### Subnet Routing
 
