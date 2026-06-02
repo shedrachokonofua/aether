@@ -35,7 +35,7 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 
 ### LiteLLM
 
-Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, plus cloud providers and MCP tools.
+Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, cloud providers, Cursor Composer routes, and MCP tools. The Cursor Composer models are exposed as `cursor/composer-2.5` and `cursor/composer-2.5-fast`; LiteLLM bridges `/responses` clients to the self-hosted composer-api chat-completions endpoint, and also exposes first-class Cursor BYOK routes under `/cursor/*`.
 
 ```mermaid
 flowchart LR

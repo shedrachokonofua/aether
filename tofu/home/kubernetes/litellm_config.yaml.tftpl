@@ -90,9 +90,9 @@ model_list:
       litellm_credential_name: openai_credential
 
   # Anthropic models
-  - model_name: "anthropic/claude-opus-4.7"
+  - model_name: "anthropic/claude-opus-4.8"
     litellm_params:
-      model: "anthropic/claude-opus-4-7"
+      model: "anthropic/claude-opus-4-8"
       litellm_credential_name: anthropic_credential
   - model_name: "anthropic/claude-sonnet-4.6"
     litellm_params:
@@ -145,15 +145,21 @@ model_list:
       model: "openai/google/gemini-3.1-pro-preview"
       litellm_credential_name: openrouter_credential
 
-  # Cursor Composer via self-hosted composer-api (personal ns).
+  # Cursor Composer model aliases via self-hosted composer-api (personal ns).
+  # LiteLLM 1.86 also exposes first-class Cursor BYOK routes under /cursor/*;
+  # these aliases keep /v1/chat/completions and /v1/responses OpenAI-compatible.
+  # The explicit chat-completions flag lets LiteLLM bridge /responses clients to
+  # the composer-api /chat/completions endpoint instead of forwarding /responses.
   - model_name: "cursor/composer-2.5"
     litellm_params:
       model: "openai/composer-2.5"
       litellm_credential_name: composer_credential
+      use_chat_completions_api: true
   - model_name: "cursor/composer-2.5-fast"
     litellm_params:
       model: "openai/composer-2.5-fast"
       litellm_credential_name: composer_credential
+      use_chat_completions_api: true
 
 credential_list:
   - credential_name: llama_swap_credential

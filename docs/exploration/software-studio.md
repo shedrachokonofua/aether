@@ -89,7 +89,7 @@ Three layers, each tighter:
 
 ### What Seven30 members cannot reach
 
-Everything else. Not "blocked by auth" — the services don't exist on the Tailscale interface. `grafana.home.shdr.ch`, `proxmox`, etc. only bind to the LAN IP (`10.0.2.2`). Connection refused, not 403. No subnet routes are exposed through node sharing, so `10.0.0.0/8` is structurally unreachable.
+Anything that is not explicitly bound to the home gateway's Tailscale interface. This is controlled by Caddy `bind` directives plus the Tailscale catch-all, not by exposing subnet routes. No subnet routes are exposed through node sharing, so `10.0.0.0/8` is structurally unreachable.
 
 ---
 
@@ -116,24 +116,34 @@ data "tailscale_device" "home_gateway" {
   wait_for = "30s"
 }
 
+locals {
+  tailscale_admin_sources = [
+    "group:admin",
+    "autogroup:owner",
+    "autogroup:admin",
+  ]
+}
+
 resource "tailscale_acl" "tailnet_acl" {
   acl = jsonencode({
     groups : {
       "group:admin" : [local.tailscale.user],
     },
     tagOwners : {
-      "tag:home-gateway"   : ["group:admin"],
-      "tag:public-gateway" : ["group:admin"],
+      "tag:home-gateway"   : local.tailscale_admin_sources,
+      "tag:public-gateway" : local.tailscale_admin_sources,
     },
     acls : [
       // Admin: scoped to infrastructure + own devices only
       {
         action : "accept",
-        src : ["group:admin"],
+        src : local.tailscale_admin_sources,
         dst : [
           "tag:home-gateway:*",
           "tag:public-gateway:*",
           "autogroup:self:*",
+          "10.0.0.0/8:*",
+          "192.168.0.0/16:*",
         ],
       },
       // Shared users (co-founders via node sharing): HTTPS, DNS, GitLab SSH
@@ -170,12 +180,14 @@ resource "tailscale_acl" "tailnet_acl" {
 
 Key differences from the old plan:
 - No `group:seven30`. Co-founders aren't tailnet members.
-- `group:admin` scoped down from `*:*` to tagged infrastructure + `autogroup:self`.
+- Admin access is sourced from `group:admin`, `autogroup:owner`, and `autogroup:admin`, scoped to tagged infrastructure, own devices, and internal subnet routes.
 - `autogroup:shared` automatically matches anyone with whom a device is shared. No email management needed.
 
 ### DNS — Tailscale Split DNS + dnsmasq
 
 Tailscale doesn't support custom DNS A records (still an open feature request). Instead, co-founders use **Tailscale split DNS** — their tailnet forwards DNS queries for specific domains to a lightweight dnsmasq server running on the home gateway's Tailscale interface.
+
+The admin tailnet uses a different DNS path for `home.shdr.ch`: split DNS points at VyOS (`10.0.0.1`), which forwards to AdGuard and returns internal gateway records. That lets personal/admin devices use subnet routes and LAN-bound Caddy services instead of being forced through the co-founder Tailscale listener.
 
 **dnsmasq on the home gateway** (`ansible/playbooks/home_gateway_stack/dnsmasq/`):
 

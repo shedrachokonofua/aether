@@ -4,20 +4,28 @@ data "tailscale_device" "home_gateway" {
   wait_for = "30s"
 }
 
+locals {
+  tailscale_admin_sources = [
+    "group:admin",
+    "autogroup:owner",
+    "autogroup:admin",
+  ]
+}
+
 resource "tailscale_acl" "tailnet_acl" {
   acl = jsonencode({
     groups : {
       "group:admin" : [local.tailscale.user],
     },
     tagOwners : {
-      "tag:home-gateway" : ["group:admin"],
-      "tag:public-gateway" : ["group:admin"],
+      "tag:home-gateway" : local.tailscale_admin_sources,
+      "tag:public-gateway" : local.tailscale_admin_sources,
     },
     acls : [
       // Admin can access own infrastructure and own devices only
       {
         action : "accept",
-        src : ["group:admin"],
+        src : local.tailscale_admin_sources,
         dst : [
           "tag:home-gateway:*",
           "tag:public-gateway:*",
@@ -60,7 +68,7 @@ resource "tailscale_acl" "tailnet_acl" {
 
 resource "tailscale_dns_split_nameservers" "home_shdr_ch" {
   domain      = "home.shdr.ch"
-  nameservers = [data.tailscale_device.home_gateway.addresses[0]]
+  nameservers = ["10.0.0.1"]
 }
 
 resource "tailscale_dns_split_nameservers" "k8s_seven30_xyz" {

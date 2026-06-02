@@ -8,28 +8,38 @@ Tailscale provides secure mesh networking between home infrastructure and cloud 
 
 The tailnet is organized using groups and tags for role-based access control:
 
-| Type  | Name               | Members/Owners | Purpose                      |
-| ----- | ------------------ | -------------- | ---------------------------- |
-| Group | group:admin        | Primary user   | Administrative access        |
-| Tag   | tag:home-gateway   | group:admin    | Home network gateway machine |
-| Tag   | tag:public-gateway | group:admin    | AWS public gateway machine   |
+| Type       | Name                                | Members/Owners                | Purpose                         |
+| ---------- | ----------------------------------- | ----------------------------- | ------------------------------- |
+| Group      | group:admin                         | Primary user                  | Explicit admin identity         |
+| Autogroup  | autogroup:owner, autogroup:admin    | Tailscale owner/admin roles   | Admin and backup-admin devices  |
+| Tag        | tag:home-gateway                    | Admin sources                 | Home network gateway machine    |
+| Tag        | tag:public-gateway                  | Admin sources                 | AWS public gateway machine      |
 
 ### Access Control Rules
 
 ACLs enforce network segmentation and least-privilege access:
 
-| Source             | Destination       | Purpose                                  |
-| ------------------ | ----------------- | ---------------------------------------- |
-| group:admin        | \*:\*             | Full administrative access               |
-| tag:home-gateway   | 10.0.0.0/8:\*     | Access to home VyOS network              |
-| tag:home-gateway   | 192.168.0.0/16:\* | Access to home Bell Gigahub network      |
-| tag:public-gateway | 10.0.2.2:9443     | Access to home gateway Caddy public port |
+| Source                                       | Destination                         | Purpose                                  |
+| -------------------------------------------- | ----------------------------------- | ---------------------------------------- |
+| group:admin, autogroup:owner, autogroup:admin | tag:home-gateway:\*                 | Admin access to the home gateway         |
+| group:admin, autogroup:owner, autogroup:admin | tag:public-gateway:\*               | Admin access to the public gateway       |
+| group:admin, autogroup:owner, autogroup:admin | autogroup:self:\*                   | Admin users can reach their own devices  |
+| group:admin, autogroup:owner, autogroup:admin | 10.0.0.0/8:\*, 192.168.0.0/16:\*   | Admin access through subnet routes       |
+| autogroup:shared                             | tag:home-gateway:443,53,2222        | Shared-device recipients                 |
+| tag:home-gateway                             | 10.0.0.0/8:\*, 192.168.0.0/16:\*   | Home gateway access to internal networks |
+| tag:public-gateway                           | 10.0.2.2:9443                       | Access to home gateway Caddy public port |
 
 ### DNS
 
-The Tailscale network uses the home network router as its nameserver:
+Admin tailnet devices use the home network router for `home.shdr.ch` split DNS, then reach services through the approved subnet routes:
 
-- Primary nameserver: `10.0.0.1` (VyOS router on home network)
+| Domain         | Nameserver | Purpose                                      |
+| -------------- | ---------- | -------------------------------------------- |
+| home.shdr.ch   | 10.0.0.1   | Internal home DNS via VyOS -> AdGuard        |
+| k8s.seven30.xyz | Home gateway Tailscale IP | Seven30 vcluster API via Caddy |
+| mars.seven30.xyz | Home gateway Tailscale IP | Mars vcluster routes via Caddy |
+
+The dnsmasq listener on the home gateway's Tailscale IP is for peer tailnets with shared-device access. Cofounders configure their own tailnet split DNS to that listener, so they resolve allowed shared routes to the Tailscale interface while admin devices keep using internal DNS for `home.shdr.ch`.
 
 ### Subnet Routing
 
