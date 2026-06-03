@@ -75,17 +75,17 @@ resource "tailscale_acl" "tailnet_acl" {
 
 resource "tailscale_dns_split_nameservers" "home_shdr_ch" {
   domain      = "home.shdr.ch"
-  nameservers = [data.tailscale_device.admin_gateway.addresses[0]]
+  nameservers = [local.vm.router.ip.vyos]
 }
 
 resource "tailscale_dns_split_nameservers" "k8s_seven30_xyz" {
   domain      = "k8s.seven30.xyz"
-  nameservers = [data.tailscale_device.admin_gateway.addresses[0]]
+  nameservers = [local.vm.router.ip.vyos]
 }
 
 resource "tailscale_dns_split_nameservers" "mars_seven30_xyz" {
   domain      = "mars.seven30.xyz"
-  nameservers = [data.tailscale_device.admin_gateway.addresses[0]]
+  nameservers = [local.vm.router.ip.vyos]
 }
 
 resource "tailscale_oauth_client" "public_gateway_oauth_client" {

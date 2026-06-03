@@ -40,13 +40,13 @@ The home gateway stack runs two Tailscale nodes and two authoritative-only dnsma
 | `aether-home-gateway` | `tag:home-gateway` | `100.76.131.97` | Shared with cofounders | None |
 | `aether-admin-gateway` | `tag:admin-gateway` | `100.99.79.59` | Admin tailnet only | `10.0.0.0/8`, `192.168.0.0/16` |
 
-Admin tailnet split DNS points to the admin gateway. That listener returns the home gateway LAN IP (`10.0.2.2`) so admin devices use the admin-only subnet routes and LAN-bound Caddy services.
+Admin tailnet split DNS points to the LAN router (`10.0.0.1`) through the admin-only subnet routes. The router/LAN DNS path returns the normal internal records, including the home gateway LAN IP (`10.0.2.2`) for `home.shdr.ch`.
 
 | Domain         | Nameserver | Purpose                                      |
 | -------------- | ---------- | -------------------------------------------- |
-| home.shdr.ch | `100.99.79.59` | Admin `*.home.shdr.ch` -> `10.0.2.2` |
-| k8s.seven30.xyz | `100.99.79.59` | Admin vcluster API -> `10.0.2.2` |
-| mars.seven30.xyz | `100.99.79.59` | Admin Mars routes -> `10.0.2.2` |
+| home.shdr.ch | `10.0.0.1` | Admin `*.home.shdr.ch` -> LAN DNS records |
+| k8s.seven30.xyz | `10.0.0.1` | Admin vcluster API -> LAN DNS records |
+| mars.seven30.xyz | `10.0.0.1` | Admin Mars routes -> LAN DNS records |
 
 Cofounder tailnets use their own split DNS entries pointed at the shared gateway (`100.76.131.97`). The shared dnsmasq listener returns only the shared gateway Tailscale IP, never internal LAN IPs. Caddy binding and the shared catch-all decide what is exposed on `100.76.131.97:443`; internal-only routes do not leak through DNS.
 

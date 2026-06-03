@@ -11,6 +11,8 @@ resource "tls_private_key" "home_cockpit_ssh_key" {
 }
 
 locals {
+  vm = yamldecode(file("../config/vm.yml"))
+
   base_authorized_keys = [
     for key in split("\n", trimspace(data.local_file.authorized_keys.content))
     : key

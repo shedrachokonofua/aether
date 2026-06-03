@@ -88,7 +88,7 @@ output "home_gateway_tailscale_ip" {
 }
 
 output "home_admin_gateway_tailscale_ip" {
-  description = "Admin-only home gateway Tailscale IP (for admin split DNS)"
+  description = "Admin-only home gateway Tailscale IP (diagnostic; admin split DNS uses the LAN router)"
   value       = data.tailscale_device.admin_gateway.addresses[0]
 }
 

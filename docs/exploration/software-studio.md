@@ -20,7 +20,7 @@ Co-founders access studio services via **Tailscale node sharing** — the home g
 │  ├── tag:public-gateway:*    │   │                                 │
 │  └── autogroup:self:*        │   │                                 │
 │                              │   │  Split DNS:                    │
-│  Admin DNS:                  │   │  shared zones → 100.76.131.97 │
+│  Admin DNS: 10.0.0.1         │   │  shared zones → 100.76.131.97 │
 │  aether-admin-gateway        │   │                                 │
 │  (100.99.79.59)              │   │  Shared device:                │
 │       │                      │   │  aether-home-gateway           │
@@ -99,7 +99,7 @@ Three layers, each tighter:
 
 Anything that is not explicitly bound to the shared home gateway Tailscale interface. This is controlled by Caddy `bind` directives plus the Tailscale catch-all, not by exposing subnet routes. No subnet routes are exposed through node sharing, so `10.0.0.0/8` is structurally unreachable.
 
-The shared DNS listener returns only the shared Tailscale IP (`100.76.131.97`), never the LAN IP. Admin devices use a separate admin-only Tailscale identity (`100.99.79.59`) for split DNS and subnet routes, so personal/admin access no longer depends on the cofounder-facing DNS path.
+The shared DNS listener returns only the shared Tailscale IP (`100.76.131.97`), never the LAN IP. Admin devices use a separate admin-only Tailscale identity (`100.99.79.59`) for subnet routes, and admin split DNS points at the existing LAN router (`10.0.0.1`), so personal/admin access no longer depends on the cofounder-facing DNS path.
 
 ---
 
@@ -204,15 +204,14 @@ Key differences from the old plan:
 
 Tailscale doesn't support custom DNS A records (still an open feature request). Instead, co-founders use **Tailscale split DNS** — their tailnet forwards DNS queries for specific domains to a lightweight dnsmasq server running on the shared home gateway Tailscale interface.
 
-The admin tailnet uses a separate Tailscale identity on the same home gateway stack. Split DNS points at `aether-admin-gateway` (`100.99.79.59`), whose dnsmasq listener returns the home gateway LAN IP (`10.0.2.2`). That lets personal/admin devices use subnet routes and LAN-bound Caddy services without giving cofounders those routes or DNS answers.
+The admin tailnet uses a separate Tailscale identity on the same home gateway stack for subnet routing. Split DNS points at the existing LAN router (`10.0.0.1`), reached through those admin-only subnet routes. That lets personal/admin devices use the normal LAN DNS rewrites and LAN-bound Caddy services without giving cofounders those routes or DNS answers.
 
 **dnsmasq on the home gateway stack** (`ansible/playbooks/home_gateway_stack/dnsmasq/`):
 
 - Authoritative-only — responds to configured domains, returns NXDOMAIN for everything else
 - No upstream forwarding, no recursion, no cache poisoning vector
 - Shared dnsmasq binds to the shared Tailscale IP only (`100.76.131.97:53`)
-- Admin dnsmasq binds to the admin Tailscale IP only (`100.99.79.59:53`)
-- Both run as rootful Podman containers with host networking, started after their Tailscale containers
+- Admin DNS uses the existing LAN router (`10.0.0.1`), not a second dnsmasq container
 
 Shared records served:
 
@@ -222,13 +221,13 @@ Shared records served:
 | `k8s.seven30.xyz` | `100.76.131.97` | vcluster API via Caddy |
 | `mars.seven30.xyz` | `100.76.131.97` | Mars routes via Caddy |
 
-Admin records served:
+Admin split DNS:
 
-| Query | Answer | Purpose |
+| Domain | Nameserver | Purpose |
 | --- | --- | --- |
-| `*.home.shdr.ch` | `10.0.2.2` | LAN-bound Caddy routes through admin subnet routes |
-| `k8s.seven30.xyz` | `10.0.2.2` | vcluster API through admin subnet routes |
-| `mars.seven30.xyz` | `10.0.2.2` | Mars routes through admin subnet routes |
+| `home.shdr.ch` | `10.0.0.1` | Normal LAN DNS records through admin subnet routes |
+| `k8s.seven30.xyz` | `10.0.0.1` | Normal LAN DNS records through admin subnet routes |
+| `mars.seven30.xyz` | `10.0.0.1` | Normal LAN DNS records through admin subnet routes |
 
 **Co-founder one-time setup** — add split DNS entries in their own Tailscale admin console (DNS → Nameservers → Add Split DNS):
 
@@ -537,10 +536,10 @@ Start with Seven30 as the only studio. If a second one appears and trust is simi
 - [x] Add `default_bind 10.0.2.2` to Caddyfile global options
 - [x] Add explicit `bind 10.0.2.2 <tailscale_ip>` to GitLab routes
 - [x] `tofu apply` — deploy ACL, admin gateway OAuth client, and admin split DNS
-- [x] Ansible deploy — update Tailscale and deploy shared/admin dnsmasq containers
+- [x] Ansible deploy — update Tailscale and deploy shared dnsmasq container
 - [ ] Verify: all existing LAN routes still work
 - [x] Verify shared DNS: `dig @100.76.131.97 gitlab.home.shdr.ch` returns `100.76.131.97`
-- [x] Verify admin DNS: `dig @100.99.79.59 gitlab.home.shdr.ch` returns `10.0.2.2`
+- [x] Verify admin DNS: split DNS points to LAN router `10.0.0.1`
 
 ### Phase 2: Onboarding
 
