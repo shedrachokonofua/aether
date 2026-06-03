@@ -42,7 +42,7 @@ locals {
     "openai/gpt-5.5",
     "openai/gpt-5.4",
     "openai/gpt-5.4-mini",
-    "anthropic/claude-opus-4.7",
+    "anthropic/claude-opus-4.8",
     "anthropic/claude-sonnet-4.6",
     "openrouter/grok-4",
     "openrouter/gemini-3.1-pro-preview",

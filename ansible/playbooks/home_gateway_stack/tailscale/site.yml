@@ -22,6 +22,20 @@
         mode: "0700"
       become: true
 
+    - name: Create admin Tailscale state directory
+      file:
+        path: /var/lib/tailscale-admin
+        state: directory
+        mode: "0700"
+      become: true
+
+    - name: Create admin Tailscale runtime directory
+      file:
+        path: /var/run/tailscale-admin
+        state: directory
+        mode: "0755"
+      become: true
+
     - name: Migrate state from old rootless container
       ansible.builtin.copy:
         src: /home/aether/tailscale/data/
@@ -76,13 +90,54 @@
         env:
           TS_AUTHKEY: "{{ secrets.tailscale_oauth_client_secret }}?ephemeral=false"
           TS_USERSPACE: "false"
-          TS_ROUTES: "10.0.0.0/8,192.168.0.0/16"
+          TS_ROUTES: ""
           TS_ACCEPT_DNS: "false"
           TS_HOSTNAME: "aether-home-gateway"
           TS_EXTRA_ARGS: "--advertise-tags=tag:home-gateway"
           TS_STATE_DIR: "/var/lib/tailscale"
         volumes:
           - /var/lib/tailscale:/var/lib/tailscale:Z
+          - /dev/net/tun:/dev/net/tun
+        security_opt:
+          - label=disable
+      become: true
+
+    - name: Create admin Tailscale pod (rootful)
+      containers.podman.podman_pod:
+        name: tailscale-admin
+        state: quadlet
+        network: host
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=multi-user.target
+      become: true
+
+    - name: Create admin Tailscale container (rootful)
+      containers.podman.podman_container:
+        name: tailscale-admin
+        image: docker.io/tailscale/tailscale:latest
+        state: quadlet
+        pod: tailscale-admin.pod
+        cap_add:
+          - NET_ADMIN
+          - NET_RAW
+        env:
+          TS_AUTHKEY: "{{ tf_outputs.tailscale_admin_gateway_oauth_client_secret.value }}?ephemeral=false"
+          TS_AUTH_ONCE: "true"
+          TS_USERSPACE: "false"
+          TS_ROUTES: "10.0.0.0/8,192.168.0.0/16"
+          TS_ACCEPT_DNS: "false"
+          TS_HOSTNAME: "aether-admin-gateway"
+          TS_EXTRA_ARGS: "--advertise-tags=tag:admin-gateway"
+          TS_TAILSCALED_EXTRA_ARGS: "--tun=tsadmin0 --port=41642"
+          TS_SOCKET: "/var/run/tailscale-admin/tailscaled.sock"
+          TS_STATE_DIR: "/var/lib/tailscale-admin"
+        volumes:
+          - /var/lib/tailscale-admin:/var/lib/tailscale-admin:Z
+          - /var/run/tailscale-admin:/var/run/tailscale-admin:Z
           - /dev/net/tun:/dev/net/tun
         security_opt:
           - label=disable
@@ -117,6 +172,13 @@
     - name: Start tailscale quadlet
       ansible.builtin.systemd:
         name: tailscale-pod
+        state: restarted
+        scope: system
+      become: true
+
+    - name: Start admin Tailscale quadlet
+      ansible.builtin.systemd:
+        name: tailscale-admin-pod
         state: restarted
         scope: system
       become: true

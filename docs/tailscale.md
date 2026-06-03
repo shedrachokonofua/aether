@@ -12,7 +12,8 @@ The tailnet is organized using groups and tags for role-based access control:
 | ---------- | ----------------------------------- | ----------------------------- | ------------------------------- |
 | Group      | group:admin                         | Primary user                  | Explicit admin identity         |
 | Autogroup  | autogroup:owner, autogroup:admin    | Tailscale owner/admin roles   | Admin and backup-admin devices  |
-| Tag        | tag:home-gateway                    | Admin sources                 | Home network gateway machine    |
+| Tag        | tag:home-gateway                    | Admin sources                 | Shared home gateway node        |
+| Tag        | tag:admin-gateway                   | Admin sources                 | Admin-only home gateway node    |
 | Tag        | tag:public-gateway                  | Admin sources                 | AWS public gateway machine      |
 
 ### Access Control Rules
@@ -21,37 +22,46 @@ ACLs enforce network segmentation and least-privilege access:
 
 | Source                                       | Destination                         | Purpose                                  |
 | -------------------------------------------- | ----------------------------------- | ---------------------------------------- |
-| group:admin, autogroup:owner, autogroup:admin | tag:home-gateway:\*                 | Admin access to the home gateway         |
+| group:admin, autogroup:owner, autogroup:admin | tag:home-gateway:\*                 | Admin access to the shared gateway       |
+| group:admin, autogroup:owner, autogroup:admin | tag:admin-gateway:\*                | Admin access to the admin gateway        |
 | group:admin, autogroup:owner, autogroup:admin | tag:public-gateway:\*               | Admin access to the public gateway       |
 | group:admin, autogroup:owner, autogroup:admin | autogroup:self:\*                   | Admin users can reach their own devices  |
 | group:admin, autogroup:owner, autogroup:admin | 10.0.0.0/8:\*, 192.168.0.0/16:\*   | Admin access through subnet routes       |
 | autogroup:shared                             | tag:home-gateway:443,53,2222        | Shared-device recipients                 |
-| tag:home-gateway                             | 10.0.0.0/8:\*, 192.168.0.0/16:\*   | Home gateway access to internal networks |
+| tag:home-gateway, tag:admin-gateway          | 10.0.0.0/8:\*, 192.168.0.0/16:\*   | Gateway access to internal networks      |
 | tag:public-gateway                           | 10.0.2.2:9443                       | Access to home gateway Caddy public port |
 
 ### DNS
 
-Admin tailnet devices and shared peer tailnets query the home gateway Tailscale DNS listener for split DNS. That listener returns the Tailscale IP only for routes Caddy exposes on the Tailscale interface, and returns the home gateway LAN IP for the rest of `home.shdr.ch`.
+The home gateway stack runs two Tailscale nodes and two authoritative-only dnsmasq listeners:
+
+| Node | Tag | Tailscale IP | Audience | Subnet routes |
+| --- | --- | --- | --- | --- |
+| `aether-home-gateway` | `tag:home-gateway` | `100.76.131.97` | Shared with cofounders | None |
+| `aether-admin-gateway` | `tag:admin-gateway` | `100.99.79.59` | Admin tailnet only | `10.0.0.0/8`, `192.168.0.0/16` |
+
+Admin tailnet split DNS points to the admin gateway. That listener returns the home gateway LAN IP (`10.0.2.2`) so admin devices use the admin-only subnet routes and LAN-bound Caddy services.
 
 | Domain         | Nameserver | Purpose                                      |
 | -------------- | ---------- | -------------------------------------------- |
-| home.shdr.ch   | Home gateway Tailscale IP | Mixed answers: shared routes -> Tailscale listener, admin-only routes -> LAN listener |
-| k8s.seven30.xyz | Home gateway Tailscale IP | Seven30 vcluster API via Caddy |
-| mars.seven30.xyz | Home gateway Tailscale IP | Mars vcluster routes via Caddy |
+| home.shdr.ch | `100.99.79.59` | Admin `*.home.shdr.ch` -> `10.0.2.2` |
+| k8s.seven30.xyz | `100.99.79.59` | Admin vcluster API -> `10.0.2.2` |
+| mars.seven30.xyz | `100.99.79.59` | Admin Mars routes -> `10.0.2.2` |
 
-The dnsmasq listener on the home gateway's Tailscale IP is authoritative for these split zones. Cofounders configure their own tailnet split DNS to that listener, so allowed shared routes resolve to the Tailscale interface while admin-only routes resolve to `10.0.2.2`, which shared-device recipients cannot reach. Admin devices use the same DNS listener and reach admin-only services through the approved subnet routes.
+Cofounder tailnets use their own split DNS entries pointed at the shared gateway (`100.76.131.97`). The shared dnsmasq listener returns only the shared gateway Tailscale IP, never internal LAN IPs. Caddy binding and the shared catch-all decide what is exposed on `100.76.131.97:443`; internal-only routes do not leak through DNS.
 
 ### Subnet Routing
 
-Subnet routing with automatic approval is configured for the home gateway to advertise private networks to the tailnet:
+Subnet routing with automatic approval is configured for the admin gateway only:
 
 | Subnet         | Auto-approver    | Description          |
 | -------------- | ---------------- | -------------------- |
-| 10.0.0.0/8     | tag:home-gateway | VyOS network         |
-| 192.168.0.0/16 | tag:home-gateway | Bell Gigahub network |
+| 10.0.0.0/8     | tag:admin-gateway | VyOS network         |
+| 192.168.0.0/16 | tag:admin-gateway | Bell Gigahub network |
 
 ### OAuth Clients
 
 OAuth clients are provisioned for automated Tailscale authentication:
 
 - **Public Gateway OAuth Client** - Generates auth keys with `tag:public-gateway` for automated public gateway provisioning
+- **Admin Gateway OAuth Client** - Generates auth keys with `tag:admin-gateway` for the admin-only gateway container

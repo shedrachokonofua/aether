@@ -19,6 +19,14 @@
         mode: "0644"
       become: true
 
+    - name: Template admin dnsmasq config
+      template:
+        src: ./dnsmasq-admin.conf.j2
+        dest: /etc/dnsmasq/dnsmasq-admin.conf
+        mode: "0644"
+      become: true
+      when: tf_outputs.home_admin_gateway_tailscale_ip is defined
+
     - name: Create dnsmasq pod (rootful)
       containers.podman.podman_pod:
         name: dnsmasq
@@ -45,6 +53,34 @@
           - /etc/dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf:Z,ro
       become: true
 
+    - name: Create admin dnsmasq pod (rootful)
+      containers.podman.podman_pod:
+        name: dnsmasq-admin
+        state: quadlet
+        network: host
+        restart_policy: on-failure
+        recreate: true
+        quadlet_options:
+          - |
+            [Unit]
+            After=tailscale-admin-pod.service
+
+            [Install]
+            WantedBy=multi-user.target
+      become: true
+      when: tf_outputs.home_admin_gateway_tailscale_ip is defined
+
+    - name: Create admin dnsmasq container (rootful)
+      containers.podman.podman_container:
+        name: dnsmasq-admin
+        image: docker.io/4km3/dnsmasq:latest
+        state: quadlet
+        pod: dnsmasq-admin.pod
+        volumes:
+          - /etc/dnsmasq/dnsmasq-admin.conf:/etc/dnsmasq.conf:Z,ro
+      become: true
+      when: tf_outputs.home_admin_gateway_tailscale_ip is defined
+
     - name: Reload systemd daemon
       ansible.builtin.systemd:
         daemon_reload: yes
@@ -57,3 +93,11 @@
         state: restarted
         scope: system
       become: true
+
+    - name: Start admin dnsmasq quadlet
+      ansible.builtin.systemd:
+        name: dnsmasq-admin-pod
+        state: restarted
+        scope: system
+      become: true
+      when: tf_outputs.home_admin_gateway_tailscale_ip is defined

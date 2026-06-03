@@ -16,10 +16,17 @@ Co-founders access studio services via **Tailscale node sharing** — the home g
 │                              │   │                                 │
 │  You (admin)                 │   │  Co-founder device              │
 │  ├── tag:home-gateway:*      │   │  └── shared: aether-home-gw    │
-│  ├── tag:public-gateway:*    │   │      └── port 443 only (ACL)   │
+│  ├── tag:admin-gateway:*     │   │      └── ports 443/53/2222    │
+│  ├── tag:public-gateway:*    │   │                                 │
 │  └── autogroup:self:*        │   │                                 │
 │                              │   │  Split DNS:                    │
-│  Shared device:              │   │  allowed routes → 100.76.131.97│
+│  Admin DNS:                  │   │  shared zones → 100.76.131.97 │
+│  aether-admin-gateway        │   │                                 │
+│  (100.99.79.59)              │   │  Shared device:                │
+│       │                      │   │  aether-home-gateway           │
+│       └── DNS → 10.0.2.2     │   │                                 │
+│                              │   │                                 │
+│  Shared device:              │   │                                 │
 │  aether-home-gateway ────────┼───┤                                 │
 │  (tag:home-gateway)          │   │  No access to 10.0.0.0/8       │
 │                              │   │  No subnet routes exposed       │
@@ -33,7 +40,7 @@ Co-founders access studio services via **Tailscale node sharing** — the home g
 │  ├── gitlab.home.shdr.ch      ├── gitlab.home.shdr.ch              │
 │  ├── registry.gitlab...       ├── registry.gitlab...               │
 │  ├── pages.gitlab...          ├── pages.gitlab...                  │
-│  ├── grafana.home.shdr.ch     │   (studio routes only)             │
+│  ├── grafana.home.shdr.ch     │   (shared routes only)             │
 │  ├── *.apps.home.shdr.ch     │                                     │
 │  └── ... (everything)        │   :9443 (public, LAN-bound)        │
 │                              │   ├── *.shdr.ch                     │
@@ -74,8 +81,8 @@ Three layers, each tighter:
 
 | Layer | Controls | Mechanism |
 | --- | --- | --- |
-| Network | Can they reach the IP at all | Tailscale node sharing — shared device only, `autogroup:shared` ACL → port 443 only |
-| Reverse proxy | Which services exist on that IP | Caddy `bind` — only studio routes listen on the Tailscale interface |
+| Network | Can they reach the IP at all | Tailscale node sharing — shared device only, `autogroup:shared` ACL -> ports 443, 53, and 2222 only |
+| Reverse proxy | Which services exist on that IP | Caddy `bind` — only explicitly shared routes listen on the Tailscale interface |
 | Application | Who can use each service | Keycloak OIDC — GitLab and k8s apps authenticate via Keycloak |
 
 ### What Seven30 members can reach
@@ -85,13 +92,14 @@ Three layers, each tighter:
 | GitLab | `gitlab.home.shdr.ch` | Caddy (Tailscale bind) → GitLab VM |
 | GitLab Registry | `registry.gitlab.home.shdr.ch` | Caddy (Tailscale bind) → GitLab VM |
 | GitLab Pages | `pages.gitlab.home.shdr.ch` | Caddy (Tailscale bind) → GitLab VM |
+| Grafana | `grafana.home.shdr.ch` | Caddy (Tailscale bind) → Grafana, app auth still applies |
 | Seven30 apps (public) | `*.seven30.xyz` | Cloudflare → Public Caddy → Home Caddy `:9443` → K8s VIP |
 
 ### What Seven30 members cannot reach
 
-Anything that is not explicitly bound to the home gateway's Tailscale interface. This is controlled by Caddy `bind` directives plus the Tailscale catch-all, not by exposing subnet routes. No subnet routes are exposed through node sharing, so `10.0.0.0/8` is structurally unreachable.
+Anything that is not explicitly bound to the shared home gateway Tailscale interface. This is controlled by Caddy `bind` directives plus the Tailscale catch-all, not by exposing subnet routes. No subnet routes are exposed through node sharing, so `10.0.0.0/8` is structurally unreachable.
 
-The shared DNS listener returns the Tailscale IP only for allowed shared routes. Other `home.shdr.ch` names resolve to the home gateway LAN listener (`10.0.2.2`), which admin devices can reach through approved subnet routes and shared-device recipients cannot reach.
+The shared DNS listener returns only the shared Tailscale IP (`100.76.131.97`), never the LAN IP. Admin devices use a separate admin-only Tailscale identity (`100.99.79.59`) for split DNS and subnet routes, so personal/admin access no longer depends on the cofounder-facing DNS path.
 
 ---
 
@@ -118,6 +126,11 @@ data "tailscale_device" "home_gateway" {
   wait_for = "30s"
 }
 
+data "tailscale_device" "admin_gateway" {
+  hostname = "aether-admin-gateway"
+  wait_for = "30s"
+}
+
 locals {
   tailscale_admin_sources = [
     "group:admin",
@@ -133,6 +146,7 @@ resource "tailscale_acl" "tailnet_acl" {
     },
     tagOwners : {
       "tag:home-gateway"   : local.tailscale_admin_sources,
+      "tag:admin-gateway"  : local.tailscale_admin_sources,
       "tag:public-gateway" : local.tailscale_admin_sources,
     },
     acls : [
@@ -142,6 +156,7 @@ resource "tailscale_acl" "tailnet_acl" {
         src : local.tailscale_admin_sources,
         dst : [
           "tag:home-gateway:*",
+          "tag:admin-gateway:*",
           "tag:public-gateway:*",
           "autogroup:self:*",
           "10.0.0.0/8:*",
@@ -157,7 +172,7 @@ resource "tailscale_acl" "tailnet_acl" {
       // Home gateway: internal networks
       {
         action : "accept",
-        src : ["tag:home-gateway"],
+        src : ["tag:home-gateway", "tag:admin-gateway"],
         dst : [
           "10.0.0.0/8:*",
           "192.168.0.0/16:*",
@@ -172,8 +187,8 @@ resource "tailscale_acl" "tailnet_acl" {
     ],
     autoApprovers : {
       routes : {
-        "10.0.0.0/8"     : ["tag:home-gateway"],
-        "192.168.0.0/16" : ["tag:home-gateway"],
+        "10.0.0.0/8"     : ["tag:admin-gateway"],
+        "192.168.0.0/16" : ["tag:admin-gateway"],
       },
     },
   })
@@ -187,23 +202,33 @@ Key differences from the old plan:
 
 ### DNS — Tailscale Split DNS + dnsmasq
 
-Tailscale doesn't support custom DNS A records (still an open feature request). Instead, co-founders use **Tailscale split DNS** — their tailnet forwards DNS queries for specific domains to a lightweight dnsmasq server running on the home gateway's Tailscale interface.
+Tailscale doesn't support custom DNS A records (still an open feature request). Instead, co-founders use **Tailscale split DNS** — their tailnet forwards DNS queries for specific domains to a lightweight dnsmasq server running on the shared home gateway Tailscale interface.
 
-The admin tailnet uses a different DNS path for `home.shdr.ch`: split DNS points at VyOS (`10.0.0.1`), which forwards to AdGuard and returns internal gateway records. That lets personal/admin devices use subnet routes and LAN-bound Caddy services instead of being forced through the co-founder Tailscale listener.
+The admin tailnet uses a separate Tailscale identity on the same home gateway stack. Split DNS points at `aether-admin-gateway` (`100.99.79.59`), whose dnsmasq listener returns the home gateway LAN IP (`10.0.2.2`). That lets personal/admin devices use subnet routes and LAN-bound Caddy services without giving cofounders those routes or DNS answers.
 
-**dnsmasq on the home gateway** (`ansible/playbooks/home_gateway_stack/dnsmasq/`):
+**dnsmasq on the home gateway stack** (`ansible/playbooks/home_gateway_stack/dnsmasq/`):
 
 - Authoritative-only — responds to configured domains, returns NXDOMAIN for everything else
 - No upstream forwarding, no recursion, no cache poisoning vector
-- Binds to the Tailscale IP only (`100.76.131.97:53`)
-- Runs as a rootful Podman container with host networking, started after the Tailscale container
+- Shared dnsmasq binds to the shared Tailscale IP only (`100.76.131.97:53`)
+- Admin dnsmasq binds to the admin Tailscale IP only (`100.99.79.59:53`)
+- Both run as rootful Podman containers with host networking, started after their Tailscale containers
 
-Records served:
+Shared records served:
 
 | Query | Answer | Purpose |
 | --- | --- | --- |
-| `*.home.shdr.ch` | `100.76.131.97` | GitLab, registry, pages via Caddy |
+| `*.home.shdr.ch` | `100.76.131.97` | Caddy shared listener decides allowed routes |
 | `k8s.seven30.xyz` | `100.76.131.97` | vcluster API via Caddy |
+| `mars.seven30.xyz` | `100.76.131.97` | Mars routes via Caddy |
+
+Admin records served:
+
+| Query | Answer | Purpose |
+| --- | --- | --- |
+| `*.home.shdr.ch` | `10.0.2.2` | LAN-bound Caddy routes through admin subnet routes |
+| `k8s.seven30.xyz` | `10.0.2.2` | vcluster API through admin subnet routes |
+| `mars.seven30.xyz` | `10.0.2.2` | Mars routes through admin subnet routes |
 
 **Co-founder one-time setup** — add split DNS entries in their own Tailscale admin console (DNS → Nameservers → Add Split DNS):
 
@@ -211,6 +236,7 @@ Records served:
 | --- | --- | --- |
 | `home.shdr.ch` | `100.76.131.97` | Resolves `*.home.shdr.ch` via dnsmasq |
 | `k8s.seven30.xyz` | `100.76.131.97` | Resolves vcluster API via dnsmasq |
+| `mars.seven30.xyz` | `100.76.131.97` | Resolves Mars routes via dnsmasq |
 
 The ACL allows `autogroup:shared` to reach `tag:home-gateway:443,53,2222` — HTTPS for Caddy, DNS for split DNS, and GitLab SSH (socat forward to GitLab VM).
 
@@ -230,7 +256,7 @@ The device retains its `tag:home-gateway` tag on the admin side. On the recipien
 
 **Q: Can co-founders reach `10.0.0.0/8` (internal LAN)?**
 
-No. Node sharing does not expose subnet routes. The shared device has `TS_ROUTES: "10.0.0.0/8,192.168.0.0/16"` but these routes are only advertised within the admin tailnet. Shared recipients see only the device's Tailscale IP. This is structural, not policy — there's no ACL to misconfigure.
+No. Node sharing does not expose subnet routes. The shared device has `TS_ROUTES: ""`; the separate admin-only device advertises `10.0.0.0/8` and `192.168.0.0/16`. Shared recipients see only the shared device's Tailscale IP. This is structural, not policy — there's no ACL to misconfigure.
 
 **Q: Can co-founders reach port 9443?**
 
@@ -238,7 +264,7 @@ No. `autogroup:shared` ACL only allows ports 443 (Caddy HTTPS), 53 (split DNS), 
 
 **Q: What's exposed on port 53?**
 
-A dnsmasq instance that answers only `*.home.shdr.ch` and `k8s.seven30.xyz` with the home gateway's own Tailscale IP. No recursion, no forwarding, no upstream DNS. Worst case: an attacker learns the Tailscale IP they already have.
+A dnsmasq instance that answers only `*.home.shdr.ch`, `k8s.seven30.xyz`, and `mars.seven30.xyz` with the shared gateway's own Tailscale IP. It does not answer with `10.0.2.2`. No recursion, no forwarding, no upstream DNS. Worst case: an attacker learns the Tailscale IP they already have.
 
 **Q: Can co-founders see my other devices?**
 
@@ -250,7 +276,7 @@ No. Node sharing is one-way. You share a device with them; their devices don't a
 
 **Q: What if a co-founder's device is compromised?**
 
-Attacker gets access to `100.76.131.97:443`, `:53`, and `:2222`. They can reach Caddy (studio routes only), dnsmasq (static records, no recursion), and GitLab SSH (key-authenticated). Next layer is Keycloak OIDC for web, SSH keys for git. Blast radius: GitLab. No access to homelab infra, no lateral movement, no subnet routes.
+Attacker gets access to `100.76.131.97:443`, `:53`, and `:2222`. They can reach Caddy shared routes, dnsmasq (static records, no recursion), and GitLab SSH (key-authenticated). Next layer is Keycloak OIDC for web, SSH keys for git. Blast radius is limited to explicitly shared routes. No access to homelab infra, no lateral movement, no subnet routes.
 
 **Q: What if I want to revoke access?**
 
@@ -269,11 +295,11 @@ Unshare the device from the Tailscale admin console. Immediate effect.
 }
 ```
 
-All existing routes (grafana, proxmox, media, etc.) continue to work on LAN unchanged. They're structurally invisible on the Tailscale interface — connection refused, not 403.
+Existing LAN-only routes continue to work on LAN unchanged. Routes that are not explicitly bound to the shared Tailscale IP are handled by the Tailscale catch-all and return 403 on that interface instead of exposing the LAN service.
 
-**Studio routes** — bind to both LAN and Tailscale:
+**Shared routes** — bind to both LAN and the shared Tailscale IP:
 ```caddy
-# Studio services: accessible from both LAN and Tailscale
+# Shared services: accessible from both LAN and Tailscale
 gitlab.home.shdr.ch {
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}
@@ -499,6 +525,8 @@ Start with Seven30 as the only studio. If a second one appears and trust is simi
 
 - [x] Tailscale gateway running with `tag:home-gateway`
 - [x] Home gateway has Tailscale IP (`100.76.131.97`)
+- [x] Admin gateway running as a second Tailscale container with `tag:admin-gateway`
+- [x] Admin gateway has Tailscale IP (`100.99.79.59`)
 - [x] `*.seven30.xyz` DNS and public routing wired (Cloudflare → public gateway → `:9443`)
 - [x] Gateway API listener for `*.seven30.xyz` added
 
@@ -508,20 +536,20 @@ Start with Seven30 as the only studio. If a second one appears and trust is simi
 - [x] Add `home_gateway_tailscale_ip` output to `outputs.tf`
 - [x] Add `default_bind 10.0.2.2` to Caddyfile global options
 - [x] Add explicit `bind 10.0.2.2 <tailscale_ip>` to GitLab routes
-- [ ] `tofu apply` — deploy ACL changes (adds port 53 for `autogroup:shared`)
-- [ ] Ansible deploy — update Caddy config + deploy dnsmasq container
+- [x] `tofu apply` — deploy ACL, admin gateway OAuth client, and admin split DNS
+- [x] Ansible deploy — update Tailscale and deploy shared/admin dnsmasq containers
 - [ ] Verify: all existing LAN routes still work
-- [ ] Verify from Tailscale: GitLab reachable, personal services unreachable
-- [ ] Verify: `dig @100.76.131.97 gitlab.home.shdr.ch` returns the Tailscale IP
+- [x] Verify shared DNS: `dig @100.76.131.97 gitlab.home.shdr.ch` returns `100.76.131.97`
+- [x] Verify admin DNS: `dig @100.99.79.59 gitlab.home.shdr.ch` returns `10.0.2.2`
 
 ### Phase 2: Onboarding
 
 - [ ] Share `aether-home-gateway` with co-founders via Tailscale admin console
 - [ ] Give co-founders the Tailscale IP (`100.76.131.97`) for split DNS setup
-- [ ] Co-founders add split DNS in their tailnet: `home.shdr.ch` + `k8s.seven30.xyz` → `100.76.131.97`
+- [ ] Co-founders add split DNS in their tailnet: `home.shdr.ch`, `k8s.seven30.xyz`, and `mars.seven30.xyz` → `100.76.131.97`
 - [ ] Keycloak accounts already exist (manually managed)
 - [ ] Verify: GitLab OIDC login works end-to-end from co-founder perspective
-- [ ] Verify: Grafana/Jellyfin/Proxmox/personal apps unreachable (connection refused)
+- [ ] Verify: Jellyfin/Proxmox/personal-only apps return 403 or are unreachable from the shared device
 
 ### Phase 3: Gateway API + vcluster
 
@@ -557,7 +585,7 @@ Start with Seven30 as the only studio. If a second one appears and trust is simi
 | Access isolation | `default_bind` + Tailscale ACL | Deny-by-default at network + proxy layer |
 | DNS | Tailscale split DNS + dnsmasq on home gateway | Authoritative-only, no recursion, wildcard *.home.shdr.ch |
 | Ports | Standard :443 everywhere | Caddy per-interface bind |
-| Admin scope | `tag:home-gateway:*`, `tag:public-gateway:*`, `autogroup:self:*` | No `*:*` even for admin |
+| Admin scope | `tag:home-gateway:*`, `tag:admin-gateway:*`, `tag:public-gateway:*`, `autogroup:self:*` | No `*:*` even for admin |
 | Project management | GitLab native | No new tools |
 | Future studios | Node sharing per device or port-based | Depends on trust level |
 

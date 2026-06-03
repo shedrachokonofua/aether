@@ -73,9 +73,23 @@ output "tailscale_public_gateway_oauth_client_secret" {
   sensitive = true
 }
 
+output "tailscale_admin_gateway_oauth_client_id" {
+  value = tailscale_oauth_client.admin_gateway_oauth_client.id
+}
+
+output "tailscale_admin_gateway_oauth_client_secret" {
+  value     = tailscale_oauth_client.admin_gateway_oauth_client.key
+  sensitive = true
+}
+
 output "home_gateway_tailscale_ip" {
-  description = "Home gateway Tailscale IP (for co-founder MagicDNS and Caddy bind)"
+  description = "Shared home gateway Tailscale IP (for co-founder split DNS and Caddy bind)"
   value       = data.tailscale_device.home_gateway.addresses[0]
+}
+
+output "home_admin_gateway_tailscale_ip" {
+  description = "Admin-only home gateway Tailscale IP (for admin split DNS)"
+  value       = data.tailscale_device.admin_gateway.addresses[0]
 }
 
 output "aws_ses_smtp_username" {
