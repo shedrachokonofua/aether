@@ -1,106 +1,68 @@
 # =============================================================================
 # Composer API — self-hosted OpenAI-compatible endpoint for Cursor Composer
 # =============================================================================
-# Upstream (standardagents/composer-api) ships only a macOS app and a Cloudflare
-# Worker — there is no container image for the OpenAI front door. We run it on
-# aether with NO code changes:
-#
-#   - init container  : pulls the pinned upstream source + `npm ci` into /app
-#   - bridge container: `cursor-sdk-bridge` — talks to Cursor with the API key
-#   - frontend        : the upstream Worker, run verbatim by `wrangler dev`
-#                       (workerd) with a trimmed config that drops all
-#                       Cloudflare-only bindings (D1/R2/Durable Objects). It
-#                       reaches the bridge over localhost.
-#
-# Auth: this runs in "direct" mode — callers send their Cursor API key as the
-# Bearer token (e.g. `Authorization: Bearer crsr_...`). Nothing is stored.
+# Lab-built image (so/aether/composer-api) runs bridge + OpenAI server via
+# start.sh in one container. Callers send their Cursor API key as the Bearer
+# token (Authorization: Bearer crsr_...). CURSOR_API_KEY is also set as a
+# server-side fallback for probes and litellm.
 #
 # Endpoint: https://composer.home.shdr.ch/v1  (chat/completions, responses, models)
 
 locals {
-  composer_image       = "node:22"
-  composer_host        = "composer.home.shdr.ch"
-  composer_port        = 8787
-  composer_bridge_port = 8792
-  composer_ns          = kubernetes_namespace_v1.personal.metadata[0].name
-  composer_labels      = { app = "composer" }
-
-  # Pinned to the exact commit validated locally (chat/completions verified).
-  composer_commit = "d3eabd756c33cd7758db408f9adad623124df570"
-
-  # Trimmed wrangler config: upstream Worker, Cloudflare-only bindings removed,
-  # front door -> bridge on localhost (same pod).
-  composer_wrangler = {
-    name                = "composer-api"
-    main                = "worker/index.ts"
-    compatibility_date  = "2026-05-20"
-    compatibility_flags = ["nodejs_compat"]
-    vars = {
-      CURSOR_API_BASE           = "https://api.cursor.com"
-      CURSOR_CLIENT_VERSION     = "2.6.22"
-      CURSOR_SDK_CLIENT_VERSION = "sdk-1.0.13"
-      WAITLIST_SOURCE           = "cursor-api"
-      CURSOR_SDK_BRIDGE_URL     = "http://127.0.0.1:${local.composer_bridge_port}/sdk"
-    }
-  }
-
-  composer_init_script = <<-EOT
-    set -euo pipefail
-    echo "Fetching composer-api @ ${local.composer_commit}"
-    curl -fsSL "https://github.com/standardagents/composer-api/archive/${local.composer_commit}.tar.gz" -o /tmp/src.tgz
-    tar xzf /tmp/src.tgz --strip-components=1 -C /app
-    cp /config/wrangler.jsonc /app/wrangler.selfhost.jsonc
-    node /config/patch-fast.cjs
-    cd /app
-    npm ci --no-audit --no-fund
-    echo "init complete"
-  EOT
-
-  # Upstream's bridge sends only { id } to the Cursor SDK and collapses both
-  # composer-2.5 and composer-2.5-fast to "default", discarding the speed tier.
-  # The live Cursor catalog (verified via models.list with our key) exposes fast
-  # as a PARAMETER of composer-2.5, not a separate id:
-  #   composer-2.5      -> { id: "composer-2.5", params: [{ id: "fast", value: "false" }] }
-  #   composer-2.5-fast -> { id: "composer-2.5", params: [{ id: "fast", value: "true"  }] }
-  # Both selections were confirmed accepted end-to-end. This patch rewrites the
-  # one-line model mapping; it fails loudly if upstream changes that line.
-  composer_fast_patch = <<-EOT
-    const fs = require("fs");
-    const f = "/app/scripts/cursor-sdk-local-agent-bridge.mjs";
-    const s = fs.readFileSync(f, "utf8");
-    const oldLine = '  if (normalized === "composer-2.5" || normalized === "composer-2.5-fast") return { id: "default" };';
-    const newLines = [
-      '  if (normalized === "composer-2.5") return { id: "composer-2.5", params: [{ id: "fast", value: "false" }] };',
-      '  if (normalized === "composer-2.5-fast") return { id: "composer-2.5", params: [{ id: "fast", value: "true" }] };'
-    ].join("\n");
-    if (!s.includes(oldLine)) {
-      console.error("fast-model patch FAILED: upstream mapping line not found");
-      process.exit(1);
-    }
-    fs.writeFileSync(f, s.replace(oldLine, newLines));
-    console.log("fast-model patch applied");
-  EOT
+  composer_image        = "registry.gitlab.home.shdr.ch/so/aether/composer-api:latest"
+  composer_host         = "composer.home.shdr.ch"
+  composer_port         = 8080
+  composer_ns           = kubernetes_namespace_v1.personal.metadata[0].name
+  composer_labels       = { app = "composer" }
+  composer_registry_host = "registry.gitlab.home.shdr.ch"
+  composer_registry_user = var.secrets["gitlab.root_email"]
+  composer_registry_pass = var.secrets["gitlab.root_password"]
 }
 
-resource "kubernetes_config_map_v1" "composer_wrangler" {
+resource "kubernetes_secret_v1" "composer_gitlab_registry" {
   depends_on = [kubernetes_namespace_v1.personal]
 
   metadata {
-    name      = "composer-wrangler"
+    name      = "composer-gitlab-registry"
+    namespace = local.composer_ns
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        (local.composer_registry_host) = {
+          username = local.composer_registry_user
+          password = local.composer_registry_pass
+          auth     = base64encode("${local.composer_registry_user}:${local.composer_registry_pass}")
+        }
+      }
+    })
+  }
+}
+
+resource "kubernetes_secret_v1" "composer_env" {
+  depends_on = [kubernetes_namespace_v1.personal]
+
+  metadata {
+    name      = "composer-env"
     namespace = local.composer_ns
   }
 
   data = {
-    "wrangler.jsonc" = jsonencode(local.composer_wrangler)
-    "patch-fast.cjs" = local.composer_fast_patch
+    CURSOR_API_KEY = var.secrets["composer.cursor_api_key"]
   }
+
+  type = "Opaque"
 }
 
 resource "kubernetes_deployment_v1" "composer" {
-  depends_on = [kubernetes_config_map_v1.composer_wrangler]
+  depends_on = [
+    kubernetes_secret_v1.composer_gitlab_registry,
+    kubernetes_secret_v1.composer_env,
+  ]
 
-  # The init container pulls source + installs deps at pod start; don't block the
-  # apply on a slow first rollout (image pull + npm ci). Verify with kubectl.
   wait_for_rollout = false
 
   metadata {
@@ -124,102 +86,42 @@ resource "kubernetes_deployment_v1" "composer" {
       metadata {
         labels = local.composer_labels
         annotations = {
-          "aether.shdr.ch/composer-commit" = local.composer_commit
+          "aether.shdr.ch/composer-image" = local.composer_image
         }
       }
 
       spec {
         enable_service_links = false
 
-        init_container {
-          name    = "fetch"
-          image   = local.composer_image
-          command = ["bash", "-lc", local.composer_init_script]
-
-          env {
-            name  = "HOME"
-            value = "/app"
-          }
-          env {
-            name  = "npm_config_cache"
-            value = "/app/.npm"
-          }
-
-          volume_mount {
-            name       = "app"
-            mount_path = "/app"
-          }
-          volume_mount {
-            name       = "wrangler-config"
-            mount_path = "/config"
-            read_only  = true
-          }
-
-          resources {
-            requests = { cpu = "200m", memory = "384Mi" }
-            limits   = { cpu = "2", memory = "2Gi" }
-          }
+        image_pull_secrets {
+          name = kubernetes_secret_v1.composer_gitlab_registry.metadata[0].name
         }
 
-        # Back half: talks to Cursor's servers with the per-request API key.
         container {
-          name        = "bridge"
-          image       = local.composer_image
-          working_dir = "/app"
-          command     = ["node", "scripts/cursor-sdk-local-agent-bridge.mjs"]
+          name              = "composer-api"
+          image             = local.composer_image
+          image_pull_policy = "Always"
 
           env {
-            name  = "CURSOR_SDK_BRIDGE_HOST"
+            name  = "HOST"
             value = "0.0.0.0"
           }
           env {
-            name  = "CURSOR_SDK_BRIDGE_PORT"
-            value = tostring(local.composer_bridge_port)
+            name  = "PORT"
+            value = tostring(local.composer_port)
           }
-
-          port {
-            container_port = local.composer_bridge_port
-            name           = "bridge"
+          env {
+            name  = "NODE_OPTIONS"
+            value = "--dns-result-order=ipv4first"
           }
-
-          readiness_probe {
-            http_get {
-              path = "/health"
-              port = local.composer_bridge_port
+          env {
+            name = "CURSOR_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.composer_env.metadata[0].name
+                key  = "CURSOR_API_KEY"
+              }
             }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-          }
-
-          resources {
-            requests = { cpu = "50m", memory = "128Mi" }
-            limits   = { cpu = "1", memory = "512Mi" }
-          }
-
-          volume_mount {
-            name       = "app"
-            mount_path = "/app"
-          }
-        }
-
-        # Front door: the upstream Worker, run verbatim by wrangler/workerd.
-        container {
-          name        = "frontend"
-          image       = local.composer_image
-          working_dir = "/app"
-          command     = ["./node_modules/.bin/wrangler", "dev", "-c", "wrangler.selfhost.jsonc", "--ip", "0.0.0.0", "--port", tostring(local.composer_port)]
-
-          env {
-            name  = "HOME"
-            value = "/app"
-          }
-          env {
-            name  = "WRANGLER_SEND_METRICS"
-            value = "false"
-          }
-          env {
-            name  = "CI"
-            value = "true"
           }
 
           port {
@@ -229,47 +131,25 @@ resource "kubernetes_deployment_v1" "composer" {
 
           readiness_probe {
             http_get {
-              path = "/v1/models"
+              path = "/health"
               port = local.composer_port
-              http_header {
-                name  = "Authorization"
-                value = "Bearer probe"
-              }
             }
-            initial_delay_seconds = 10
+            initial_delay_seconds = 5
             period_seconds        = 10
-            failure_threshold     = 30
           }
 
           liveness_probe {
-            tcp_socket {
+            http_get {
+              path = "/health"
               port = local.composer_port
             }
-            initial_delay_seconds = 150
+            initial_delay_seconds = 15
             period_seconds        = 30
-            failure_threshold     = 5
           }
 
           resources {
             requests = { cpu = "200m", memory = "256Mi" }
             limits   = { cpu = "2", memory = "1Gi" }
-          }
-
-          volume_mount {
-            name       = "app"
-            mount_path = "/app"
-          }
-        }
-
-        volume {
-          name = "app"
-          empty_dir {}
-        }
-
-        volume {
-          name = "wrangler-config"
-          config_map {
-            name = kubernetes_config_map_v1.composer_wrangler.metadata[0].name
           }
         }
       }
