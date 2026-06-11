@@ -159,6 +159,10 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           ttl: 120
 
         "gemma-4-31b":
+          # MTP speculative decoding: ~1.4x+ faster generation, same accuracy.
+          # mtp-* draft GGUFs live in the same HF repo; llama.cpp post-2026-05-13
+          # (we ship b9246+). ~2 GB extra VRAM vs non-MTP.
+          # https://unsloth.ai/docs/models/mtp#gemma-4-mtp
           cmd: >
             llama-server
             --port $${PORT}
@@ -168,6 +172,8 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 131072
+            --spec-type draft-mtp
+            --spec-draft-n-max 2
           ttl: 900
           filters:
             setParamsByID:
@@ -185,6 +191,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 top_k: 64
 
         "gemma-4-26b-a4b":
+          # MTP speculative decoding — see gemma-4-31b above.
           cmd: >
             llama-server
             --port $${PORT}
@@ -194,6 +201,8 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 131072
+            --spec-type draft-mtp
+            --spec-draft-n-max 2
           ttl: 900
           filters:
             setParamsByID:
