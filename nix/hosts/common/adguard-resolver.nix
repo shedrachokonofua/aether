@@ -136,6 +136,8 @@ in
         "@@||app.lemonade.finance^$important"
         "@@||media.brightdata.com^$important"
         "@@||brightdata.com^$important"
+        # Unblock the .ng TLD (blanket-blocked by HaGeZi's Abused TLDs list)
+        "@@||ng^$important"
       ];
 
       filtering = {
