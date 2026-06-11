@@ -8,7 +8,7 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v216-cuda-b9246"
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v224-cuda-b9592"
   llama_swap_host    = "llama-swap.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = kubernetes_namespace_v1.infra.metadata[0].name
@@ -37,7 +37,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
         "qwen3.6-27b":
           # MTP (multi-token prediction) speculative decoding: ~1.4-2.2x faster
           # generation, same accuracy. Requires the -MTP-GGUF variant and
-          # llama.cpp post-2026-05-13 (we ship b9246+).
+          # llama.cpp post-2026-05-13.
           # https://unsloth.ai/docs/models/qwen3.6#mtp-guide
           cmd: >
             llama-server
@@ -160,13 +160,20 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
 
         "gemma-4-31b":
           # MTP speculative decoding: ~1.4x+ faster generation, same accuracy.
-          # mtp-* draft GGUFs live in the same HF repo; llama.cpp post-2026-05-13
-          # (we ship b9246+). ~2 GB extra VRAM vs non-MTP.
+          # MTP draft GGUFs live in the same HF repo; the gemma4-assistant
+          # draft arch needs llama.cpp post-2026-06-08 (b9571+).
+          # ~2 GB extra VRAM vs non-MTP.
+          # `-hff` pins the main GGUF: the repo's latest revision makes the
+          # :Q8_0 tag resolve to the MTP draft, which then fails to load as
+          # the main model (ctx_other error — ggml-org/llama.cpp#24443).
+          # `-fit off`: auto memory-fitting can't measure the gemma4-assistant
+          # draft context and aborts the load — ggml-org/llama.cpp#24343.
           # https://unsloth.ai/docs/models/mtp#gemma-4-mtp
           cmd: >
             llama-server
             --port $${PORT}
             -hf unsloth/gemma-4-31B-it-GGUF:Q8_0
+            -hff gemma-4-31B-it-Q8_0.gguf
             -ngl 99
             --no-mmap
             --cache-type-k q8_0
@@ -174,6 +181,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --ctx-size 131072
             --spec-type draft-mtp
             --spec-draft-n-max 2
+            -fit off
           ttl: 900
           filters:
             setParamsByID:
@@ -191,11 +199,12 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 top_k: 64
 
         "gemma-4-26b-a4b":
-          # MTP speculative decoding — see gemma-4-31b above.
+          # MTP speculative decoding (+ -hff, -fit off) — see gemma-4-31b above.
           cmd: >
             llama-server
             --port $${PORT}
             -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q8_0
+            -hff gemma-4-26B-A4B-it-Q8_0.gguf
             -ngl 99
             --no-mmap
             --cache-type-k q8_0
@@ -203,6 +212,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --ctx-size 131072
             --spec-type draft-mtp
             --spec-draft-n-max 2
+            -fit off
           ttl: 900
           filters:
             setParamsByID:
