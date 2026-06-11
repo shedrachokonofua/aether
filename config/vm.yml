@@ -239,6 +239,20 @@ adguard:
     dns: 53
     admin: 3000
 
+adguard_secondary:
+  id: 1035
+  name: "adguard-secondary"
+  node: "trinity"
+  admin: "aether"
+  cores: 1
+  memory: 2048
+  disk_gb: 20
+  ip: "192.168.2.237"
+  gateway: "192.168.2.1"
+  ports:
+    dns: 53
+    admin: 3000
+
 bastion:
   id: 1010
   name: "bastion"

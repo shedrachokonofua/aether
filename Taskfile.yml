@@ -344,6 +344,9 @@ tasks:
   provision:adguard:
     desc: Provision AdGuard LXC from base image
     cmds: [ansible-playbook ansible/playbooks/adguard/site.yml]
+  provision:adguard-secondary:
+    desc: Provision secondary AdGuard LXC from base image
+    cmds: [ansible-playbook ansible/playbooks/adguard/secondary.yml]
   provision:bastion:
     desc: Provision bastion LXC from base image
     cmds: [ansible-playbook ansible/playbooks/bastion/site.yml]
@@ -385,11 +388,26 @@ tasks:
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
           FLAKE_TARGET: adguard
+  configure:adguard-secondary:
+    desc: Deploy NixOS configuration to secondary AdGuard LXC
+    vars:
+      TARGET_IP:
+        sh: yq '.adguard_secondary.ip' config/vm.yml
+    cmds:
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: adguard-secondary
   deploy:adguard:
     desc: Full deploy - provision LXC + configure NixOS
     cmds:
       - task: provision:adguard
       - task: configure:adguard
+  deploy:adguard-secondary:
+    desc: Full deploy - provision secondary LXC + configure NixOS
+    cmds:
+      - task: provision:adguard-secondary
+      - task: configure:adguard-secondary
   configure:bastion:
     desc: Deploy NixOS configuration to bastion LXC
     vars:

@@ -23,7 +23,8 @@ All VMs and LXCs run on Proxmox VE across the five-host cluster. Storage is eith
 | Cockpit                 | Niobe   | VM   | 1GB   | 32GB                         | Ceph             | 1    | None        | LIVE - Ceph   | Cockpit                                                                                         | LIVE        |
 | step-ca                 | Oracle  | LXC  | 1GB   | 16GB                         | Node             | 2    | None        | PLANNED - ZFS | Private CA: SSH certs, X.509, OIDC/JWK provisioners                                             | LIVE        |
 | OpenBao                 | Oracle  | LXC  | 2GB   | 32GB                         | Node             | 2    | None        | PLANNED - ZFS | Secrets management: KV, dynamic credentials, Keycloak OIDC auth                                 | LIVE        |
-| AdGuard                 | Oracle  | LXC  | 512MB | 16GB                         | Node             | 2    | None        | PLANNED - ZFS | AdGuard Home, AdGuard DNS, AdGuard Exporter                                                     | PLANNED     |
+| AdGuard                 | Oracle  | LXC  | 1GB   | 20GB                         | Node             | 1    | None        | PLANNED - ZFS | Primary AdGuard Home resolver, DNS filtering, AdGuard Exporter                                  | LIVE        |
+| AdGuard Secondary       | Trinity | LXC  | 2GB   | 20GB                         | Node             | 1    | None        | PLANNED - ZFS | Secondary AdGuard Home resolver, same Nix config as primary                                     | DECLARED    |
 
 **HA Legend:** LIVE - Ceph = Proxmox HA enabled, PLANNED - ZFS = Needs ZFS reinstall (see [proxmox-ha.md](exploration/proxmox-ha.md)), N/A = Hardware passthrough or must survive storage failure
 

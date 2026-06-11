@@ -1,0 +1,18 @@
+---
+# Provision secondary AdGuard LXC using custom NixOS base image.
+#
+# This intentionally targets only vm.adguard_secondary, so it can be created
+# before changing the router to use redundant upstream DNS.
+
+- name: Provision secondary AdGuard LXC (NixOS)
+  hosts: trinity
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    adguard_vm: "{{ vm.adguard_secondary }}"
+    adguard_label: "secondary AdGuard"
+    nixos_template: "cephfs:vztmpl/nixos-base-lxc.tar.xz"
+    nixos_template_path: "/mnt/pve/cephfs/template/cache/nixos-base-lxc.tar.xz"
+  tasks:
+    - import_tasks: tasks/provision_lxc.yml

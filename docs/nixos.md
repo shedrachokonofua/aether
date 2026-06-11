@@ -78,7 +78,7 @@ After:  NixOS declares what state IS       → no drift      → rollback = buil
 │                         NIXOS FOUNDATIONAL LAYER                             │
 │                                                                              │
 │   Oracle:                    Niobe:                    Trinity:              │
-│   ├── adguard.nix ✅         ├── monitoring.nix        ├── dev.nix          │
+│   ├── adguard.nix ✅         ├── monitoring.nix        ├── adguard-secondary │
 │   ├── ids-stack.nix ✅       │   ├── Prometheus        │   └── Coder        │
 │   │   └── Zeek               │   ├── Grafana           │                    │
 │   │                          │   ├── Loki              ├── media.nix        │
@@ -108,9 +108,13 @@ aether/
 ├── flake.lock                    # Pinned dependencies
 ├── nix/
 │   ├── hosts/                    # Per-host configurations
-│   │   └── oracle/
-│   │       ├── adguard.nix       # DNS server (LXC)
-│   │       └── ids-stack.nix     # Network security (VM)
+│   │   ├── common/
+│   │   │   └── adguard-resolver.nix # Shared DNS resolver config
+│   │   ├── oracle/
+│   │   │   ├── adguard.nix       # Primary DNS server (LXC)
+│   │   │   └── ids-stack.nix     # Network security (VM)
+│   │   └── trinity/
+│   │       └── adguard-secondary.nix # Secondary DNS server (LXC)
 │   ├── modules/                  # Reusable modules
 │   │   ├── base.nix              # SSH CA, users, firewall, common packages
 │   │   ├── otel-agent.nix        # OTEL Collector with Prometheus scraping
@@ -183,7 +187,7 @@ SSH_CA_PUBKEY="$(ssh root@step-ca cat /etc/step-ca/certs/ssh_user_ca_key.pub)" \
 | Phase | Target                    | Status      | Notes                                  |
 | ----- | ------------------------- | ----------- | -------------------------------------- |
 | 1     | Dev shell (`nix develop`) | ✅ Complete | Replaced Docker toolbox                |
-| 2     | AdGuard LXC               | ✅ Complete | Full DNS config, OTEL, Prometheus      |
+| 2     | AdGuard LXCs              | ✅ Complete | Primary + secondary DNS config, OTEL, Prometheus |
 | 3     | IDS Stack VM              | ✅ Complete | Zeek via quadlet-nix, Suricata on VyOS |
 | 4     | Gateway Stack             | Planned     | Caddy, Tailscale, HAProxy              |
 | 5     | Identity Stack (LXCs)     | Planned     | Keycloak, step-ca, OpenBao             |

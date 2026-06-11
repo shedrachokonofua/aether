@@ -77,6 +77,15 @@
             sshCaModule
           ];
         };
+        adguard-secondary = nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = sharedSpecialArgs;
+          modules = [
+            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            ./nix/hosts/trinity/adguard-secondary.nix
+            sshCaModule
+          ];
+        };
         bastion = nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = sharedSpecialArgs;

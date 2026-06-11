@@ -1,0 +1,66 @@
+- name: Check if base image exists on cephfs
+  stat:
+    path: "{{ nixos_template_path }}"
+  register: base_image
+  delegate_to: smith
+
+- name: Fail if base image not found
+  fail:
+    msg: |
+      NixOS base image not found at {{ nixos_template }}
+      Build and upload it first: task nix:upload-lxc-image
+  when: not base_image.stat.exists
+
+- name: Check if {{ adguard_label }} LXC exists
+  command: pct status {{ adguard_vm.id }}
+  register: lxc_exists
+  failed_when: false
+  changed_when: false
+
+- name: Stop {{ adguard_label }} LXC
+  command: pct stop {{ adguard_vm.id }}
+  when: lxc_exists.rc == 0
+  register: stop_result
+  failed_when: false
+  changed_when: stop_result.rc == 0
+
+- name: Wait for {{ adguard_label }} LXC to stop
+  command: pct status {{ adguard_vm.id }}
+  register: lxc_status
+  until: "'stopped' in lxc_status.stdout"
+  retries: 30
+  delay: 2
+  when: lxc_exists.rc == 0 and stop_result.rc == 0
+  changed_when: false
+
+- name: Delete {{ adguard_label }} LXC
+  command: pct destroy {{ adguard_vm.id }} --purge
+  when: lxc_exists.rc == 0
+  register: delete_result
+  failed_when: false
+  changed_when: delete_result.rc == 0
+
+- name: Create {{ adguard_label }} LXC
+  command: >
+    pct create {{ adguard_vm.id }}
+    {{ nixos_template }}
+    --hostname {{ adguard_vm.name }}
+    --cores {{ adguard_vm.cores }}
+    --memory {{ adguard_vm.memory }}
+    --rootfs {{ adguard_vm.disk_datastore | default('local-lvm') }}:{{ adguard_vm.disk_gb }}
+    --net0 name=eth0,bridge=vmbr0,gw={{ adguard_vm.gateway }},ip={{ adguard_vm.ip }}/24
+    --nameserver {{ vm.router.ip.gigahub }}
+    --features nesting=1
+    --unprivileged 1
+  changed_when: true
+
+- name: Start {{ adguard_label }} LXC
+  command: pct start {{ adguard_vm.id }}
+  changed_when: true
+
+- name: Wait for {{ adguard_label }} SSH to be ready
+  wait_for:
+    host: "{{ adguard_vm.ip }}"
+    port: 22
+    timeout: 120
+  delegate_to: localhost

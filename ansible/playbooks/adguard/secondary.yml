@@ -1,0 +1,5 @@
+---
+# Secondary AdGuard LXC provisioning entry point.
+
+- name: Provision secondary AdGuard LXC
+  import_playbook: provision_secondary_lxc.yml

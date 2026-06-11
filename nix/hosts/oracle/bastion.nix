@@ -107,12 +107,16 @@ in
         volumes = [
           "/var/lib/termix:/app/data"
         ];
-        # Pin DNS to the lab AdGuard. Default podman behaviour (when the
-        # host uses systemd-resolved on 127.0.0.53) injects six public
+        # Pin DNS to the lab AdGuard resolvers. Default podman behaviour (when
+        # the host uses systemd-resolved on 127.0.0.53) injects six public
         # resolvers into the container; node-fetch in termix occasionally
         # hits EAI_AGAIN across that list and the version check fails,
         # surfacing as 502 on /version and /alerts.
-        extraOptions = [ "--pull=always" "--dns=${facts.vm.adguard.ip}" ];
+        extraOptions = [
+          "--pull=always"
+          "--dns=${facts.vm.adguard.ip}"
+          "--dns=${facts.vm.adguard_secondary.ip}"
+        ];
       };
     };
   };

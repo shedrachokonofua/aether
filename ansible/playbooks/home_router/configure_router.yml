@@ -73,6 +73,7 @@
           - set service dns forwarding cache-size 50000
           - set service dns forwarding negative-ttl 0
           - set service dns forwarding name-server {{ vm.adguard.ip }}
+          - set service dns forwarding name-server {{ vm.adguard_secondary.ip }}
         save: true
 
     - name: Configure VLAN interfaces

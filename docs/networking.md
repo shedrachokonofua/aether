@@ -65,7 +65,19 @@ graph TB
 
 ## DNS
 
-AdGuard Home provides DNS resolution and ad blocking for the home network. Runs on a standalone LXC container on Oracle.
+AdGuard Home provides DNS resolution and ad blocking for the home network. It
+runs as two standalone NixOS LXC resolvers so a rebuild or failed container on
+one Proxmox node does not remove LAN DNS.
+
+### Resolver Instances
+
+| Role      | Host    | IP            | Config target        |
+| --------- | ------- | ------------- | -------------------- |
+| Primary   | Oracle  | 192.168.2.236 | `.#adguard`          |
+| Secondary | Trinity | 192.168.2.237 | `.#adguard-secondary` |
+
+VyOS DNS forwarding listens on each VLAN gateway (`10.0.x.1`) and forwards to
+both AdGuard resolvers.
 
 ### Upstream Resolvers
 
@@ -83,10 +95,12 @@ Internal services resolve to the home gateway for reverse proxy routing:
 | ----------------------- | ------------ |
 | \*.home.shdr.ch         | Gateway IP   |
 | home.shdr.ch            | Gateway IP   |
-| auth.shdr.ch            | Gateway IP   |
 | ca.shdr.ch              | step-ca IP   |
 | ssh.gitlab.home.shdr.ch | GitLab IP    |
 | smtp.home.shdr.ch       | Messaging IP |
+
+`auth.shdr.ch` is intentionally left to public DNS so guest and untrusted VLANs
+reach the Cloudflare/public-gateway path instead of a LAN-only gateway address.
 
 ```mermaid
 graph LR
@@ -101,8 +115,9 @@ graph LR
         DNS1[DNS Forwarder<br/>10.0.x.1]
     end
 
-    subgraph AdGuard LXC
-        ADG[AdGuard Home<br/>:53]
+    subgraph AdGuard LXCs
+        ADG1[Primary<br/>192.168.2.236:53]
+        ADG2[Secondary<br/>192.168.2.237:53]
     end
 
     subgraph DoH Upstreams
@@ -113,15 +128,14 @@ graph LR
 
     subgraph DNS Rewrites
         R1[*.home.shdr.ch → Gateway]
-        R2[auth.shdr.ch → Gateway]
-        R3[ca.shdr.ch → step-ca]
-        R4[ssh.gitlab.home.shdr.ch → GitLab]
+        R2[ca.shdr.ch → step-ca]
+        R3[ssh.gitlab.home.shdr.ch → GitLab]
     end
 
     C1 & C2 & C3 & C4 -->|Query| DNS1
-    DNS1 -->|Forward| ADG
-    ADG -->|Rewrite Match| R1 & R2 & R3 & R4
-    ADG -->|External Query| Q9 & CF & GG
+    DNS1 -->|Forward| ADG1 & ADG2
+    ADG1 & ADG2 -->|Rewrite Match| R1 & R2 & R3
+    ADG1 & ADG2 -->|External Query| Q9 & CF & GG
 ```
 
 ## Reverse Proxy
