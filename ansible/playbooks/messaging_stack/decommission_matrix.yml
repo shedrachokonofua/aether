@@ -71,57 +71,62 @@
     # Pre-flight: pg_dump while postgres is still running
     # =========================================================================
 
-    # The inventory-level `secrets` var is the raw (still-encrypted) sops file;
-    # standalone playbooks must load the decrypted copy themselves, same as the
-    # common role does.
-    - name: Load decrypted secrets
-      community.sops.load_vars:
-        file: "{{ aether_root }}/secrets/secrets.yml"
-        name: sops_secrets
-      run_once: true
+    # Export only runs on the first pass — on the cleanup pass the matrix
+    # pod is already stopped, so pg_dump/podman cp would fail.
+    - name: Export postgres dumps
+      when: not (cleanup | bool)
+      block:
+        # The inventory-level `secrets` var is the raw (still-encrypted) sops
+        # file; standalone playbooks must load the decrypted copy themselves,
+        # same as the common role does.
+        - name: Load decrypted secrets
+          community.sops.load_vars:
+            file: "{{ aether_root }}/secrets/secrets.yml"
+            name: sops_secrets
+          run_once: true
 
-    - name: Read postgres user from sops-managed secrets
-      ansible.builtin.set_fact:
-        pg_user: "{{ sops_secrets.matrix.database_user }}"
-      run_once: true
+        - name: Read postgres user from sops-managed secrets
+          ansible.builtin.set_fact:
+            pg_user: "{{ sops_secrets.matrix.database_user }}"
+          run_once: true
 
-    - name: Create remote export directory
-      ansible.builtin.file:
-        path: "/home/{{ admin_user }}/export"
-        state: directory
-        mode: "0755"
+        - name: Create remote export directory
+          ansible.builtin.file:
+            path: "/home/{{ admin_user }}/export"
+            state: directory
+            mode: "0755"
 
-    - name: pg_dump synapse database (== {{ pg_user }})
-      ansible.builtin.command:
-        cmd: >
-          podman exec postgres
-          pg_dump --format=custom --no-owner --no-privileges
-          -U {{ pg_user }} -d {{ pg_user }}
-          -f /var/lib/postgresql/data/synapse.dump
-      changed_when: true
+        - name: pg_dump synapse database (== {{ pg_user }})
+          ansible.builtin.command:
+            cmd: >
+              podman exec postgres
+              pg_dump --format=custom --no-owner --no-privileges
+              -U {{ pg_user }} -d {{ pg_user }}
+              -f /var/lib/postgresql/data/synapse.dump
+          changed_when: true
 
-    - name: pg_dump each bridge database
-      ansible.builtin.command:
-        cmd: >
-          podman exec postgres
-          pg_dump --format=custom --no-owner --no-privileges
-          -U {{ pg_user }} -d {{ item }}
-          -f /var/lib/postgresql/data/{{ item }}.dump
-      loop: "{{ bridge_dbs }}"
-      changed_when: true
+        - name: pg_dump each bridge database
+          ansible.builtin.command:
+            cmd: >
+              podman exec postgres
+              pg_dump --format=custom --no-owner --no-privileges
+              -U {{ pg_user }} -d {{ item }}
+              -f /var/lib/postgresql/data/{{ item }}.dump
+          loop: "{{ bridge_dbs }}"
+          changed_when: true
 
-    # No become: the containers are rootless under {{ admin_user }}; root's
-    # podman namespace can't see them.
-    - name: Copy postgres dumps out of the container volume
-      ansible.builtin.command:
-        cmd: >
-          podman cp postgres:/var/lib/postgresql/data/{{ item }}.dump
-          /home/{{ admin_user }}/export/{{ item }}.dump
-      loop:
-        - synapse
-        - mautrix_whatsapp
-        - mautrix_gmessages
-      changed_when: true
+        # No become: the containers are rootless under {{ admin_user }};
+        # root's podman namespace can't see them.
+        - name: Copy postgres dumps out of the container volume
+          ansible.builtin.command:
+            cmd: >
+              podman cp postgres:/var/lib/postgresql/data/{{ item }}.dump
+              /home/{{ admin_user }}/export/{{ item }}.dump
+          loop:
+            - synapse
+            - mautrix_whatsapp
+            - mautrix_gmessages
+          changed_when: true
 
     # =========================================================================
     # Stop the matrix pod
@@ -138,73 +143,106 @@
     # Archive on-disk data
     # =========================================================================
 
-    - name: Create local export directory
-      delegate_to: localhost
-      ansible.builtin.file:
-        path: "{{ export_dir }}"
-        state: directory
-        mode: "0755"
+    - name: Archive and fetch app data
+      when: not (cleanup | bool)
+      block:
+        - name: Create local export directory
+          delegate_to: localhost
+          ansible.builtin.file:
+            path: "{{ export_dir }}"
+            state: directory
+            mode: "0755"
 
-    - name: Archive synapse /data (media_store + signing key + legacy configs)
-      become: true
-      ansible.builtin.command:
-        cmd: tar czf /home/{{ admin_user }}/export/synapse-data.tar.gz -C /home/{{ admin_user }}/synapse data
-      changed_when: true
+        - name: Archive synapse /data (media_store + signing key + legacy configs)
+          become: true
+          ansible.builtin.command:
+            cmd: tar czf /home/{{ admin_user }}/export/synapse-data.tar.gz -C /home/{{ admin_user }}/synapse data
+          changed_when: true
 
-    - name: Archive mautrix-whatsapp /data
-      become: true
-      ansible.builtin.command:
-        cmd: tar czf /home/{{ admin_user }}/export/mautrix-whatsapp-data.tar.gz -C /home/{{ admin_user }}/mautrix-whatsapp data
-      changed_when: true
+        - name: Archive mautrix-whatsapp /data
+          become: true
+          ansible.builtin.command:
+            cmd: tar czf /home/{{ admin_user }}/export/mautrix-whatsapp-data.tar.gz -C /home/{{ admin_user }}/mautrix-whatsapp data
+          changed_when: true
 
-    - name: Archive mautrix-gmessages /data
-      become: true
-      ansible.builtin.command:
-        cmd: tar czf /home/{{ admin_user }}/export/mautrix-gmessages-data.tar.gz -C /home/{{ admin_user }}/mautrix-gmessages data
-      changed_when: true
+        - name: Archive mautrix-gmessages /data
+          become: true
+          ansible.builtin.command:
+            cmd: tar czf /home/{{ admin_user }}/export/mautrix-gmessages-data.tar.gz -C /home/{{ admin_user }}/mautrix-gmessages data
+          changed_when: true
 
-    - name: Make exports readable by the ansible user
-      become: true
-      ansible.builtin.file:
-        path: "/home/{{ admin_user }}/export"
-        owner: "{{ admin_user }}"
-        group: "{{ admin_user }}"
-        recurse: true
-        mode: "0644"
+        - name: Make exports readable by the ansible user
+          become: true
+          ansible.builtin.file:
+            path: "/home/{{ admin_user }}/export"
+            owner: "{{ admin_user }}"
+            group: "{{ admin_user }}"
+            recurse: true
+            mode: "0644"
 
-    - name: Re-mark export directory mode (dirs need x)
-      become: true
-      ansible.builtin.file:
-        path: "/home/{{ admin_user }}/export"
-        mode: "0755"
-        state: directory
+        - name: Re-mark export directory mode (dirs need x)
+          become: true
+          ansible.builtin.file:
+            path: "/home/{{ admin_user }}/export"
+            mode: "0755"
+            state: directory
 
-    - name: Fetch all exports to control node
-      ansible.builtin.fetch:
-        src: "/home/{{ admin_user }}/export/{{ item }}"
-        dest: "{{ export_dir }}/{{ item }}"
-        flat: true
-      loop:
-        - synapse.dump
-        - mautrix_whatsapp.dump
-        - mautrix_gmessages.dump
-        - synapse-data.tar.gz
-        - mautrix-whatsapp-data.tar.gz
-        - mautrix-gmessages-data.tar.gz
+        - name: Fetch all exports to control node
+          ansible.builtin.fetch:
+            src: "/home/{{ admin_user }}/export/{{ item }}"
+            dest: "{{ export_dir }}/{{ item }}"
+            flat: true
+          loop:
+            - synapse.dump
+            - mautrix_whatsapp.dump
+            - mautrix_gmessages.dump
+            - synapse-data.tar.gz
+            - mautrix-whatsapp-data.tar.gz
+            - mautrix-gmessages-data.tar.gz
 
     # =========================================================================
     # Cleanup (gated, second pass)
     # =========================================================================
 
-    - name: Disable matrix-pod quadlet
+    # Quadlet units are generated, not enableable — removing the unit files
+    # is what prevents them starting on boot.
+    - name: Remove matrix quadlet unit files
+      ansible.builtin.file:
+        path: "/home/{{ admin_user }}/.config/containers/systemd/{{ item }}"
+        state: absent
+      loop:
+        - matrix.pod
+        - synapse.container
+        - element.container
+        - postgres.container
+        - mautrix-whatsapp.container
+        - mautrix-gmessages.container
+        - synapse_storage.volume
+        - synapse_postgres_storage.volume
+        - mautrix-whatsapp-storage.volume
+      when: cleanup | bool
+
+    - name: Reload user systemd to forget the matrix quadlets
       ansible.builtin.systemd:
-        name: matrix-pod
-        enabled: false
+        daemon_reload: true
         scope: user
       when: cleanup | bool
-      ignore_errors: true
 
+    - name: Remove matrix podman volumes
+      ansible.builtin.command:
+        cmd: podman volume rm --force {{ item }}
+      loop:
+        - synapse_storage
+        - synapse_postgres_storage
+        - mautrix-whatsapp-storage
+      when: cleanup | bool
+      changed_when: true
+      failed_when: false
+
+    # become: bridge data files are owned by rootless-podman subuids, which
+    # the admin user can't delete.
     - name: Remove legacy app directories
+      become: true
       ansible.builtin.file:
         path: "/home/{{ admin_user }}/{{ item }}"
         state: absent
@@ -217,6 +255,7 @@
       when: cleanup | bool
 
     - name: Clean up remote export directory
+      become: true
       ansible.builtin.file:
         path: "/home/{{ admin_user }}/export"
         state: absent
