@@ -1,8 +1,10 @@
 # Messaging Stack Migration
 
-Migrate everything off the `messaging-stack` VM (`vmid 1016`, `10.0.3.4`,
-fedora + rootless podman quadlets) and decommission it. Two-phase plan agreed
-during the 2026-05-03 session:
+Move Matrix off the `messaging-stack` VM (`vmid 1016`, `10.0.3.4`, fedora +
+rootless podman quadlets) to k8s, then rename the slimmed-down VM to
+`notifications-stack` on VLAN 2. Originally a two-phase plan agreed during the
+2026-05-03 session (Phase 2 then meant a new NixOS VM); Phase 2 revised
+2026-06-11 to a rename-in-place — the VM is **not** decommissioned:
 
 - **Phase 1 — Matrix → Talos k8s** (this worklog covers the IaC + decommission).
   Synapse + element + the two mautrix bridges + their postgres land in a new
@@ -10,11 +12,15 @@ during the 2026-05-03 session:
   RBD-snapshot → decommission playbook → `kubectl cp` restore → Caddy flip
   pattern that worked for the media-stack migration in
   [media-stack-migration.md](./media-stack-migration.md).
-- **Phase 2 — ntfy + postfix + apprise → new NixOS VM** (`notifications-stack`,
-  vmid `1011`, `10.0.2.4`, VLAN 2 — already reserved in `config/vm.yml`). Not
-  built yet; the repo has no NixOS host pattern. Separate workstream, deferred
-  until Phase 1 is green and the messaging-stack VM still hosts these three so
-  there's no notification gap.
+- **Phase 2 — rename the VM to `notifications-stack` and move it to VLAN 2**
+  (revised 2026-06-11; replaces the original "build a new NixOS VM" plan).
+  ntfy + postfix + apprise stay exactly where they are, running as podman
+  quadlets on the existing VM. After Matrix leaves in Phase 1, the VM is
+  renamed in place (keeps vmid `1016`) and re-IP'd to `10.0.2.4`/VLAN 2 —
+  the slot previously reserved for the never-built NixOS VM (vmid `1011`,
+  which gets dropped). No new host, no notification gap, no NixOS
+  prerequisite. A NixOS conversion of this VM can still happen later as its
+  own phase in `docs/nixos.md`, decoupled from this migration.
 
 `hermes-bots` is **already on k8s** in the `infra` namespace (`hermes.tf`); it
 talks to `https://matrix.home.shdr.ch`, so as long as the Caddy backend swap
@@ -48,9 +54,10 @@ ntfy.home.shdr.ch     →  {{ vm.messaging_stack.ip }}:8082
 apprise.home.shdr.ch  →  {{ vm.messaging_stack.ip }}:8000
 ```
 
-Keycloak SMTP relay (`tofu/home/keycloak.tf:106`) points at
-`messaging_stack.ip:25` — must be re-pointed at `notifications-stack.ip:25` in
-Phase 2 before the VM goes away.
+Keycloak SMTP relay (`tofu/home/keycloak.tf:106` and
+`tofu/home/keycloak_seven30.tf:37`) points at `messaging_stack.ip:25`, and
+GitLab (`ansible/playbooks/gitlab/gitlab.rb.j2:22`) at the same relay. Both
+re-point during the Phase 2 rename/re-IP — see the cutover order there.
 
 ---
 
@@ -303,58 +310,141 @@ gmessages data → /tmp/messaging-stack-export/mautrix-gmessages-data.tar.gz
 
 ---
 
-## Phase 2 — ntfy + postfix + apprise to notifications-stack NixOS VM
+## Phase 1 — execution notes (2026-06-11, done)
 
-**Not started.** Reserved: vmid `1011`, name `notifications-stack`,
-`10.0.2.4` (VLAN 2), `niobe`. Ports defined in `config/vm.yml`: smtp 25,
-ntfy 80, ntfy_metrics 9090, apprise 8000, postfix_metrics 9154.
+Executed end-to-end on 2026-06-11. Postgres on the VM was 17.6 → the
+`postgres:17-alpine` pin was correct as-is. RBD safety snapshot:
+`vm-disks/vm-1016-disk-0@pre-matrix-migrate-1781224510` (protected — drop
+after ~1 week of soak). Deviations and discoveries, in case the next
+migration rhymes:
 
-Prerequisites that don't exist yet:
+1. **decommission_matrix.yml had two latent bugs** (fixed in-tree):
+   it read `secrets.*` from the inventory var (the *raw* sops file — must
+   `community.sops.load_vars` in standalone playbooks), and the
+   `podman cp` task had `become: true`, which switches to root's podman
+   namespace where the rootless containers don't exist.
+2. **Schema pollution from the pre-restore crash-loop.** The initial
+   crash-looping synapse ran current-version migrations against the empty
+   DB before dying. `pg_restore --clean` only drops objects present in the
+   dump, so newer tables (e.g. `sticky_events`) survived and synapse then
+   crashed on migration replay (`DuplicateTable`). Fix: scale to 0, DROP +
+   recreate the synapse DB (`TEMPLATE template0 LC_COLLATE 'C'`), restore
+   into the virgin DB. Bridges were unaffected (they never reached their
+   DBs pre-restore).
+3. **kubelet subPath artifacts on the bridge PVCs.** The crash-looping pod's
+   `subPath: registration.yaml` mounts auto-created empty *directories*
+   named `registration.yaml` on both bridge PVCs, which broke the tar
+   extraction. `rmdir` them before extracting.
+4. **Bridge config.yaml needed a DB URI rewrite.** On the VM everything
+   shared one podman pod network, so configs said `@localhost/`. Patched to
+   `@matrix-postgres/` on the PVCs. The homeserver (`localhost:8008`) and
+   appservice (`localhost:29318/29336`) addresses stay correct — those
+   containers share the k8s Pod.
+5. **Duplicate `Server` header broke hermes.** Caddy → Envoy(gateway) →
+   synapse yields `Server: Caddy` + `server: envoy`; hermes' aiohttp
+   rejects the response with 400. Fixed with `header_down -Server` in the
+   `*.home.shdr.ch` wildcard block (and the `ha.home.shdr.ch` block, which
+   had the same pre-existing issue with HA's own Server header).
 
-1. **A NixOS host pattern in this repo.** There is no `ansible/playbooks/notifications_stack/`
-   directory, no Nix flake for VM-side config, no module showing how
-   we bake a Nix VM image via Proxmox/Tofu. Decision needed: do we use
-   `nixos-anywhere` from cloud-init, or build a Nix Proxmox image once
-   and clone it like the fedora `proxmox_virtual_environment_download_file`
-   pattern? `tofu/home/messaging_stack.tf:6` currently downloads a
-   fedora cloud image — we'd add a sibling for a NixOS cloud image.
-2. **A Nix module each for ntfy, postfix-relay, apprise.** These can be
-   straight `services.ntfy-sh`, `services.postfix.relayHost`, and a
-   `virtualisation.oci-containers.containers.apprise` (since apprise has no
-   nix module). Each replaces the existing podman quadlet.
-3. **Caddy flip** for `ntfy.home.shdr.ch` and `apprise.home.shdr.ch` from
-   `messaging_stack.ip` → `notifications_stack.ip`.
-4. **Keycloak SMTP** — `tofu/home/keycloak.tf:106` points at
-   `local.vm.messaging_stack.ip` + `messaging_stack.ports.smtp`. Re-point at
-   `local.vm.notifications_stack.ip` + `notifications_stack.ports.smtp`
-   **before** the messaging-stack VM is destroyed, otherwise Keycloak loses
-   email delivery.
-5. **AWS SES creds** — postfix needs `tf_outputs.aws_ses_smtp_username` and
-   `_password` (currently consumed from a tofu outputs file by the existing
-   postfix.yml playbook). Same pattern carries over to the NixOS host.
-
-Order when we get to it: build Phase 2 IaC → spin up the new VM alongside the
-old one → cut Caddy + Keycloak over → smoke test → only then destroy the
-messaging-stack VM.
+Still pending after verification soak: rerun
+`decommission_matrix.yml -e cleanup=true` (disables the matrix-pod quadlet
+and deletes legacy app dirs on the VM), and drop the RBD snapshot.
 
 ---
 
-## Decommission the VM (after both phases)
+## Phase 2 — rename to notifications-stack, move to VLAN 2
 
-Mirror the media-stack decommission commit (`e29725e`):
+**Not started. Run only after Phase 1 is green** — Matrix still routes to this
+VM's IP until the Caddy flip, so the rename/re-IP must not happen first.
 
-1. Targeted destroy of the VM with `prevent_destroy = false`:
-   ```bash
-   sed -i '' 's/prevent_destroy = true/prevent_destroy = false/' tofu/home/messaging_stack.tf
-   task tofu:apply -- -target=proxmox_virtual_environment_vm.messaging_stack -destroy
-   ```
-2. Sweep the dangling references in a single commit:
-   - delete `tofu/home/messaging_stack.tf`
-   - drop the `messaging-stack` block in `ansible/inventory/hosts.yml`
-   - drop the `messaging_stack:` block in `config/vm.yml`
-   - drop any `messaging` Taskfile targets (`task configure:home:messaging`)
-   - decommission playbooks under `ansible/playbooks/messaging_stack/` kept
-     as historical record (sweep in a later cleanup pass, same as media-stack)
+Plan (revised 2026-06-11): the existing VM (vmid `1016`) is kept and renamed
+in place. ntfy/postfix/apprise keep running as-is; only the VM's identity and
+network placement change: `messaging-stack` `10.0.3.4`/VLAN 3 →
+`notifications-stack` `10.0.2.4`/VLAN 2 (Infrastructure — same VLAN as
+monitoring-stack, where a notification relay belongs). The original plan to
+build a fresh NixOS VM at vmid `1011` is dropped; that reservation is freed.
+
+### Who consumes this VM (verified 2026-06-11)
+
+| Consumer | Path | Affected by re-IP? |
+|---|---|---|
+| Keycloak (`10.0.2.8`, V2) | direct IP `:25` via `keycloak.tf:106`, `keycloak_seven30.tf:37` | Re-renders from the renamed vm.yml key; V2→V2, no firewall change |
+| GitLab (`10.0.3.7`, V3) | direct IP `:25` via `gitlab.rb.j2:22` | **Yes — V3→V2 is default-drop.** Needs a new firewall rule (below) |
+| Grafana alerting (`10.0.2.3`, V2) | `https://apprise.home.shdr.ch` via Caddy | No — Caddy (`10.0.2.2`, V2) → V2 |
+| k8s pods / everything else | `ntfy.home.shdr.ch` / `apprise.home.shdr.ch` via Caddy | No — V3→Caddy:443 already allowed (`SERVICES-to-TRUSTED` rule 20) |
+
+### Changes, in one commit
+
+1. **`config/vm.yml`** — delete the reserved `notifications_stack:` block
+   (vmid 1011). Rename the `messaging_stack:` key → `notifications_stack:`,
+   set `name: "notifications-stack"`, `ip: "10.0.2.4"`, `gateway: "10.0.2.1"`.
+   Drop the Matrix ports (synapse, synapse_metrics, element, whatsapp,
+   gmessages, matrix_pg); keep `ntfy: 8082`, `ntfy_metrics: 9092`, `smtp: 25`,
+   `postfix_metrics: 9154`, `apprise: 8000` (ports don't change — the quadlets
+   are untouched).
+2. **`tofu/home/messaging_stack.tf` → `notifications_stack.tf`** — rename the
+   four resources (`proxmox_virtual_environment_vm.messaging_stack`,
+   `random_password.messaging_stack_console_password`,
+   `module.messaging_stack_user`,
+   `proxmox_virtual_environment_haresource.messaging_stack`) and **add a
+   `moved` block for each** — without them the plan shows destroy+create,
+   which `prevent_destroy = true` will refuse. Change `network_device.vlan_id`
+   `3 → 2`; the `ip_config` picks up the new IP from vm.yml. The provider
+   updates the cloud-init drive; the VM needs a reboot to take the new
+   address. Guest-internal hostname stays `messaging-stack` (user-data is in
+   `ignore_changes`) — fix manually with `hostnamectl` if it bothers you,
+   it's cosmetic.
+3. **Router** (`ansible/playbooks/home_router/configure_router.yml`) — add a
+   `SERVICES-to-TRUSTED` rule (next free: 24) allowing tcp/25 from
+   `{{ vm.gitlab.ip }}` to `{{ vm.notifications_stack.ip }}`, description
+   'Allow SMTP from GitLab to notifications relay'.
+4. **`ansible/playbooks/gitlab/gitlab.rb.j2:22`** — `vm.messaging_stack.*` →
+   `vm.notifications_stack.*`.
+5. **`tofu/home/keycloak.tf` + `keycloak_seven30.tf`** — same key rename.
+6. **`ansible/inventory/hosts.yml`** — rename the `messaging-stack` host
+   entry (IP resolves from vm.yml).
+7. **`ansible/playbooks/messaging_stack/` → `notifications_stack/`** — drop
+   `matrix.yml` from `site.yml` (Phase 1 sweep should already have done
+   this), rename the dir, update the Taskfile targets
+   (`Taskfile.yml:326-329`: `configure:messaging-stack` and
+   `configure:messaging` → `configure:notifications-stack` /
+   `configure:notifications`).
+8. **Fleet playbook host lists** — rename `messaging-stack` in
+   `ansible/playbooks/upgrade_fedora_vms.yml:5` and
+   `ansible/playbooks/setup_vm_monitoring_agents.yml:9`.
+8b. **AdGuard DNS rewrite** — `nix/hosts/common/adguard-resolver.nix:158`
+   pins `smtp.home.shdr.ch → 10.0.3.4` (found 2026-06-11; IP-based, so the
+   name-grep sweep missed it). Update to `10.0.2.4` and redeploy both
+   AdGuard LXCs. Check who uses `smtp.home.shdr.ch` vs the raw IP while
+   you're there.
+9. **Monitoring sweep** — `vm_monitoring_agent` / prometheus targets pick up
+   the renamed inventory host; re-run the monitoring playbook so labels and
+   scrape targets follow.
+
+Verified 2026-06-11: a full-repo grep for `messaging_stack|messaging-stack`
+turns up nothing beyond the files above plus comments in
+`tofu/home/kubernetes/matrix.tf` (historical context, no action) and the
+`ansible/playbooks/messaging_stack/` dir itself. Grafana has **no** SMTP
+config — alerting goes exclusively through the apprise contact points, so no
+Grafana change is needed. Keycloak's only references are the two `smtp_server`
+blocks (`keycloak.tf:106`, `keycloak_seven30.tf:37`), both reading
+`local.vm.messaging_stack.*` — the vm.yml key rename re-points them.
+
+### Cutover order (brief notification outage, acceptable)
+
+1. `task tofu:apply` — VM NIC re-tags to VLAN 2, cloud-init IP updates,
+   Keycloak SMTP re-points (same apply, so no email gap window).
+2. Reboot the VM; confirm it's up on `10.0.2.4`.
+3. Run the router playbook (GitLab SMTP rule).
+4. Re-render Caddy (`home_gateway_stack`) — ntfy/apprise upstreams follow the
+   renamed key.
+5. Re-run the gitlab playbook (smtp_address) and the monitoring playbook.
+6. Smoke test: `ntfy.home.shdr.ch` publish, apprise notify from Grafana test
+   alert, password-reset email from Keycloak, test email from GitLab admin.
+
+The VM is **not** decommissioned — it lives on as notifications-stack. If it
+ever moves to NixOS, that's a standalone phase in `docs/nixos.md` using the
+now-proven LXC/VM pattern from the AdGuard migration.
 
 ---
 

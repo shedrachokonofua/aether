@@ -12,23 +12,18 @@
           scrape_interval: 15s
           static_configs:
             - targets: ["localhost:{{ vm.messaging_stack.ports.ntfy_metrics }}"]
-        - job_name: "synapse"
-          scrape_interval: 15s
-          metrics_path: "/_synapse/metrics"
-          static_configs:
-            - targets:
-                ["localhost:{{ vm.messaging_stack.ports.synapse_metrics }}"]
         - job_name: "postfix"
           scrape_interval: 15s
           static_configs:
             - targets:
                 ["localhost:{{ vm.messaging_stack.ports.postfix_metrics }}"]
 
+# Matrix moved to the Talos cluster (tofu/home/kubernetes/matrix.tf) —
+# see docs/worklogs/messaging-stack-migration.md. matrix.yml and
+# decommission_matrix.yml are kept as historical record.
+
 - name: Deploy apprise gateway
   import_playbook: apprise.yml
-
-- name: Deploy matrix pod
-  import_playbook: matrix.yml
 
 - name: Deploy ntfy pod
   import_playbook: ntfy.yml

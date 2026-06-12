@@ -252,7 +252,13 @@ seven30.xyz, *.seven30.xyz {
 }
 
 ha.home.shdr.ch {
-  reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.home_assistant }}
+  # Avoid duplicate Server header (upstream + Caddy) — strict aiohttp
+  # clients (hermes) reject it with 400. Needs both: header_down for normal
+  # responses, site-level header for the websocket 101 upgrade response.
+  header -Server
+  reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.home_assistant }} {
+    header_down -Server
+  }
 }
 
 z.ha.home.shdr.ch {
@@ -282,14 +288,9 @@ cockpit.home.shdr.ch {
   }
 }
 
-element.home.shdr.ch {
-  reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.element }}
-}
-
-matrix.home.shdr.ch {
-  reverse_proxy /_matrix/* {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.synapse }}
-  reverse_proxy /_synapse/client/* {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.synapse }}
-}
+# matrix.home.shdr.ch + element.home.shdr.ch live on the Talos cluster now
+# (matrix namespace, HTTPRoutes on main-gateway); they fall through to the
+# *.home.shdr.ch wildcard below.
 
 ntfy.home.shdr.ch {
   reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.ntfy }}
@@ -571,6 +572,9 @@ oidc.k8s.home.shdr.ch {
     header_up X-Real-IP {http.request.remote}
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto {http.request.scheme}
+    # Strip envoy's Server header — combined with Caddy's own it produces a
+    # duplicate that strict HTTP clients (aiohttp/hermes) reject with 400.
+    header_down -Server
   }
 }
 

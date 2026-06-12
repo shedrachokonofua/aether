@@ -71,10 +71,18 @@
     # Pre-flight: pg_dump while postgres is still running
     # =========================================================================
 
+    # The inventory-level `secrets` var is the raw (still-encrypted) sops file;
+    # standalone playbooks must load the decrypted copy themselves, same as the
+    # common role does.
+    - name: Load decrypted secrets
+      community.sops.load_vars:
+        file: "{{ aether_root }}/secrets/secrets.yml"
+        name: sops_secrets
+      run_once: true
+
     - name: Read postgres user from sops-managed secrets
-      delegate_to: localhost
       ansible.builtin.set_fact:
-        pg_user: "{{ secrets.matrix.database_user }}"
+        pg_user: "{{ sops_secrets.matrix.database_user }}"
       run_once: true
 
     - name: Create remote export directory
@@ -102,8 +110,9 @@
       loop: "{{ bridge_dbs }}"
       changed_when: true
 
+    # No become: the containers are rootless under {{ admin_user }}; root's
+    # podman namespace can't see them.
     - name: Copy postgres dumps out of the container volume
-      become: true
       ansible.builtin.command:
         cmd: >
           podman cp postgres:/var/lib/postgresql/data/{{ item }}.dump
