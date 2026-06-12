@@ -42,6 +42,28 @@ report_stats: false
 trusted_key_servers:
   - server_name: "matrix.org"
 
+# SSO via Keycloak (aether realm). Callback:
+#   https://${server_name}/_synapse/client/oidc/callback
+# (covered by the /_synapse/client HTTPRoute prefix in matrix.tf).
+# The {{ ... }} templates below are Synapse's own Jinja, not tofu —
+# double-brace sequences are not special to templatefile(), they pass through.
+# allow_existing_users links the first SSO login to the existing Matrix
+# account with the same localpart (Keycloak preferred_username == localpart).
+# Password login stays enabled as a fallback.
+oidc_providers:
+  - idp_id: keycloak
+    idp_name: "Keycloak"
+    issuer: "${oidc_issuer}"
+    client_id: "${oidc_client_id}"
+    client_secret: "${oidc_client_secret}"
+    scopes: ["openid", "profile", "email"]
+    backchannel_logout_enabled: true
+    allow_existing_users: true
+    user_mapping_provider:
+      config:
+        localpart_template: "{{ user.preferred_username }}"
+        display_name_template: "{{ user.name }}"
+
 # Bridges and doublepuppet appservice registrations.
 # Bridge registration files live in each bridge's PVC, mounted read-only into
 # this container at /srv/<bridge>/registration.yaml.

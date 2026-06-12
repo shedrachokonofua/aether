@@ -201,6 +201,11 @@ resource "kubernetes_config_map_v1" "synapse_config" {
       registration_shared_secret = var.secrets["matrix.registration_shared_secret"]
       macaroon_secret_key        = var.secrets["matrix.macaroon_secret_key"]
       form_secret                = var.secrets["matrix.form_secret"]
+      # Keycloak SSO (client managed in tofu/home/keycloak.tf). Not
+      # var.oidc_client_id — that's the kube-apiserver OIDC client.
+      oidc_issuer        = var.oidc_issuer_url
+      oidc_client_id     = "matrix"
+      oidc_client_secret = var.matrix_oauth_client_secret
     })
     # Static; copy of ansible/playbooks/messaging_stack/files/synapse-log.config.
     "${local.matrix_host}.log.config" = <<-EOT
@@ -358,7 +363,14 @@ resource "kubernetes_deployment_v1" "matrix" {
     selector { match_labels = local.matrix_labels }
 
     template {
-      metadata { labels = local.matrix_labels }
+      metadata {
+        labels = local.matrix_labels
+        annotations = {
+          # Restart the pod when homeserver.yaml changes — the subPath mount
+          # never refreshes in-place (same pattern as litellm.tf/mux.tf).
+          "aether.shdr.ch/config-sha" = sha256(kubernetes_config_map_v1.synapse_config.data["homeserver.yaml"])
+        }
+      }
 
       spec {
         # ---------------------------------------------------------------------

@@ -153,6 +153,10 @@ in
         rewrites = [
           { domain = "*.home.shdr.ch"; answer = "10.0.2.2"; }
           { domain = "home.shdr.ch"; answer = "10.0.2.2"; }
+          # Resolve Keycloak to the internal gateway: the public (Cloudflare)
+          # path blocks /realms/master/*, which the tofu keycloak provider
+          # needs for admin-cli login.
+          { domain = "auth.shdr.ch"; answer = "10.0.2.2"; }
           { domain = "ca.shdr.ch"; answer = "192.168.2.235"; }
           { domain = "ssh.gitlab.home.shdr.ch"; answer = "10.0.3.7"; }
           { domain = "smtp.home.shdr.ch"; answer = "10.0.3.4"; }

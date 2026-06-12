@@ -176,6 +176,12 @@ variable "miniflux_oauth_client_secret" {
   description = "Miniflux Keycloak OIDC client secret"
 }
 
+variable "matrix_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Matrix Synapse Keycloak OIDC client secret"
+}
+
 # =============================================================================
 # NFS Storage
 # =============================================================================
