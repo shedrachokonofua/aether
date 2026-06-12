@@ -1,18 +1,20 @@
 # Communication
 
-Messaging infrastructure running on Niobe, providing unified notifications, Matrix-based chat with platform bridges, and outbound email relay.
+Matrix chat (with platform bridges) runs on the Talos k8s cluster; unified
+notifications and outbound email relay run on the `notifications-stack` VM
+(`10.0.2.6`, VLAN 2, formerly `messaging-stack`).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Niobe["Messaging Stack"]
-        subgraph MatrixPod["Matrix Pod"]
-            Synapse["Synapse"]
-            Postgres[(PostgreSQL)]
-            Bridges["Bridges"]
-        end
+    subgraph K8s["Talos k8s — matrix namespace"]
+        Synapse["Synapse + Element"]
+        Postgres[(PostgreSQL)]
+        Bridges["mautrix bridges"]
+    end
 
+    subgraph VM["notifications-stack VM (10.0.2.6)"]
         Apprise["Apprise"]
         ntfy["ntfy"]
         Postfix["Postfix"]
@@ -23,13 +25,17 @@ flowchart LR
     Services["Services"] --> Postfix --> SES["AWS SES"]
     Bridges <--> External["WhatsApp / GMessages"]
 
-    style Niobe fill:#d4f0e7,stroke:#6ac4a0
-    style MatrixPod fill:#e0f5ef,stroke:#7ad4b0
+    style K8s fill:#e0f5ef,stroke:#7ad4b0
+    style VM fill:#d4f0e7,stroke:#6ac4a0
 ```
 
 ## Matrix
 
-Self-hosted Matrix homeserver for federated chat and unified messaging.
+Self-hosted Matrix homeserver, deployed in the `matrix` namespace
+(`tofu/home/kubernetes/matrix.tf`): one pod runs synapse, element, and both
+mautrix bridges; postgres is a separate StatefulSet on Ceph RBD. Login
+supports Keycloak SSO (aether realm) alongside passwords. Migration history:
+[worklogs/messaging-stack-migration.md](./worklogs/messaging-stack-migration.md).
 
 | Component         | Purpose                            |
 | ----------------- | ---------------------------------- |
@@ -95,7 +101,7 @@ Postfix runs as an SMTP relay, allowing internal services to send email without 
 
 **Allowed sender domains:** `shdr.ch`, `home.shdr.ch`
 
-Internal services connect to `messaging-stack:25` to send email, which Postfix relays through SES.
+Internal services connect to `notifications-stack:25` (`10.0.2.6`, also `smtp.home.shdr.ch`) to send email, which Postfix relays through SES. GitLab (VLAN 3) reaches it via a dedicated `SERVICES-to-TRUSTED` firewall rule.
 
 ### Inbound (ProtonMail)
 
@@ -105,8 +111,8 @@ Personal email uses ProtonMail with custom domain. DNS MX records managed in Clo
 
 Prometheus metrics exposed for monitoring:
 
-| Exporter         | Port | Metrics                    |
-| ---------------- | ---- | -------------------------- |
-| Synapse          | 9000 | Federation, rooms, users   |
-| ntfy             | 9090 | Messages, subscriptions    |
-| Postfix Exporter | 9154 | Queue size, delivery stats |
+| Exporter         | Where                  | Metrics                    |
+| ---------------- | ---------------------- | -------------------------- |
+| Synapse          | k8s (`synapse` svc :9091) | Federation, rooms, users |
+| ntfy             | VM :9092               | Messages, subscriptions    |
+| Postfix Exporter | VM :9154               | Queue size, delivery stats |

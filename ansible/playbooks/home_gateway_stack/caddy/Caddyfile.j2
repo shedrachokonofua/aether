@@ -293,11 +293,11 @@ cockpit.home.shdr.ch {
 # *.home.shdr.ch wildcard below.
 
 ntfy.home.shdr.ch {
-  reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.ntfy }}
+  reverse_proxy {{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}
 }
 
 apprise.home.shdr.ch {
-  reverse_proxy {{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.apprise }}
+  reverse_proxy {{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.apprise }}
 }
 
 litellm.home.shdr.ch {

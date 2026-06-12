@@ -123,7 +123,7 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 | ---------------- | --------------- | --------------------------- |
 | AdGuard Exporter | Gateway Stack   | DNS queries, blocked count  |
 | HAProxy Exporter | Gateway Stack   | Backend health, connections |
-| Postfix Exporter | Messaging Stack | Mail queue, delivery stats  |
+| Postfix Exporter | Notifications Stack | Mail queue, delivery stats  |
 | Caddy metrics    | Multiple        | Request rates, latencies    |
 
 ## Dashboards

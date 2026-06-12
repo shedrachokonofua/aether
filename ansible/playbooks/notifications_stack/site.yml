@@ -1,6 +1,6 @@
 ---
-- name: Deploy messaging stack
-  hosts: messaging-stack
+- name: Deploy notifications stack
+  hosts: notifications-stack
   gather_facts: true
   roles:
     - common
@@ -11,12 +11,12 @@
         - job_name: "ntfy"
           scrape_interval: 15s
           static_configs:
-            - targets: ["localhost:{{ vm.messaging_stack.ports.ntfy_metrics }}"]
+            - targets: ["localhost:{{ vm.notifications_stack.ports.ntfy_metrics }}"]
         - job_name: "postfix"
           scrape_interval: 15s
           static_configs:
             - targets:
-                ["localhost:{{ vm.messaging_stack.ports.postfix_metrics }}"]
+                ["localhost:{{ vm.notifications_stack.ports.postfix_metrics }}"]
 
 # Matrix moved to the Talos cluster (tofu/home/kubernetes/matrix.tf) —
 # see docs/worklogs/messaging-stack-migration.md. matrix.yml and

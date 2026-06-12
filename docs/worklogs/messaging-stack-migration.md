@@ -446,6 +446,32 @@ The VM is **not** decommissioned — it lives on as notifications-stack. If it
 ever moves to NixOS, that's a standalone phase in `docs/nixos.md` using the
 now-proven LXC/VM pattern from the AdGuard migration.
 
+### Phase 2 — execution notes (2026-06-11, done)
+
+Executed same-day after Phase 1. Two surprises:
+
+1. **The reserved `10.0.2.4` was double-booked.** `vm.nfs.ip.vyos` (the NFS
+   LXC's VLAN-2 leg) already held it — discovered when "the VM" answered
+   SSH on the new IP with the wrong host key. Final IP is **`10.0.2.6`**.
+   Lesson: validate reservations against every `ip:` in `config/vm.yml`,
+   including nested per-network maps.
+2. **Cloud-init can't re-apply network config on these Fedora VMs.** The
+   fedora image's cloud-init was upgraded (via `upgrade_fedora_vms.yml`) to
+   the single-process architecture where the per-stage systemd units are
+   socket stubs for `cloud-init-main.service` — which the upgrade left
+   **disabled**. ds-identify finds the NoCloud drive, the stage units
+   "succeed", and nothing happens. So changing `ipconfig0` in tofu does
+   nothing in-guest. Worked around by editing the NM profile directly
+   (`nmcli con mod "cloud-init eth0" ...` + `hostnamectl set-hostname`,
+   with a `systemd-run --on-active=8 nmcli con up` to survive the VLAN
+   flip). Tofu's `ipconfig0` now matches guest reality, but any future
+   re-IP of a fedora VM needs the same manual step (or enable
+   `cloud-init-main` first).
+
+Also fixed en route: the apprise → Matrix alert target
+(`templates/apprise-config.yml.j2`) still pointed at the VM's synapse —
+dead since Phase 1. Now `matrixs://…@matrix.home.shdr.ch` via the gateway.
+
 ---
 
 ## TODOs after Phase 1

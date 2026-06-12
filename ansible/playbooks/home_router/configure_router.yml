@@ -429,6 +429,12 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 destination port {{ vm.openbao.ports.https }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 destination address {{ vm.openbao.ip }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 23 description 'Allow HTTPS to OpenBao'
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 destination port {{ vm.notifications_stack.ports.smtp }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 destination address {{ vm.notifications_stack.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 source address {{ vm.gitlab.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 description 'Allow SMTP from GitLab to notifications relay'
           - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
           - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
           - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept

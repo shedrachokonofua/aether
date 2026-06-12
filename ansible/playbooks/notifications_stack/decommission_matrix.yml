@@ -55,7 +55,7 @@
 #      `task configure:home:messaging` so the VM forgets the stale targets.
 
 - name: Decommission Matrix from messaging-stack VM
-  hosts: messaging-stack
+  hosts: notifications-stack
   gather_facts: false
   vars:
     admin_user: aether

@@ -1,6 +1,6 @@
 ---
 - name: Deploy Postfix relay
-  hosts: messaging-stack
+  hosts: notifications-stack
   gather_facts: true
   tasks:
     - name: Allow binding to privileged ports
@@ -19,8 +19,8 @@
         restart_policy: on-failure
         recreate: true
         ports:
-          - "{{ vm.messaging_stack.ports.smtp }}:25"
-          - "{{ vm.messaging_stack.ports.postfix_metrics }}:9154"
+          - "{{ vm.notifications_stack.ports.smtp }}:25"
+          - "{{ vm.notifications_stack.ports.postfix_metrics }}:9154"
         quadlet_options:
           - |
             [Install]
@@ -75,7 +75,7 @@
     - name: Wait for postfix to be ready
       wait_for:
         host: localhost
-        port: "{{ vm.messaging_stack.ports.smtp }}"
+        port: "{{ vm.notifications_stack.ports.smtp }}"
         timeout: 30
       register: wait_result
       until: not wait_result.failed

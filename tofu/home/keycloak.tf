@@ -103,8 +103,8 @@ resource "keycloak_realm" "aether" {
 
   smtp_server {
     from = "no-reply@shdr.ch"
-    host = local.vm.messaging_stack.ip
-    port = local.vm.messaging_stack.ports.smtp
+    host = local.vm.notifications_stack.ip
+    port = local.vm.notifications_stack.ports.smtp
   }
 
   # Brute force detection

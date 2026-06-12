@@ -6,7 +6,7 @@
     - gateway-stack
     - gitlab
     - iot-management-stack
-    - messaging-stack
+    - notifications-stack
     - home-gateway-stack
     - monitoring-stack
     - router

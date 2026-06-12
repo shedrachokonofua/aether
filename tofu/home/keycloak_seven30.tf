@@ -34,8 +34,8 @@ resource "keycloak_realm" "seven30" {
 
   smtp_server {
     from = "no-reply@seven30.xyz"
-    host = local.vm.messaging_stack.ip
-    port = local.vm.messaging_stack.ports.smtp
+    host = local.vm.notifications_stack.ip
+    port = local.vm.notifications_stack.ports.smtp
   }
 
   security_defenses {

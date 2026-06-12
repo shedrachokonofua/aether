@@ -1,6 +1,6 @@
 ---
 - name: Deploy ntfy pod
-  hosts: messaging-stack
+  hosts: notifications-stack
   gather_facts: true
   tasks:
     - name: Create required directories
@@ -25,8 +25,8 @@
         restart_policy: on-failure
         recreate: true
         ports:
-          - "{{ vm.messaging_stack.ports.ntfy }}:80"
-          - "{{ vm.messaging_stack.ports.ntfy_metrics }}:9090"
+          - "{{ vm.notifications_stack.ports.ntfy }}:80"
+          - "{{ vm.notifications_stack.ports.ntfy_metrics }}:9090"
         quadlet_options:
           - |
             [Install]
@@ -63,7 +63,7 @@
     - name: Wait for ntfy to be ready
       wait_for:
         host: localhost
-        port: "{{ vm.messaging_stack.ports.ntfy }}"
+        port: "{{ vm.notifications_stack.ports.ntfy }}"
         timeout: 30
       register: wait_result
       until: not wait_result.failed

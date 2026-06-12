@@ -1,0 +1,23 @@
+# Apprise Configuration
+# Docs: https://github.com/caronc/apprise/wiki
+
+version: 1
+
+urls:
+  - "ntfy://{{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}/alerts":
+      tag: alerts
+
+  - "ntfy://{{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}/system":
+      tag: system
+
+  - "matrixs://{{ secrets.matrix.aether_bot_user }}:{{ secrets.matrix.aether_bot_password }}@matrix.home.shdr.ch/#alerts":
+      tag: chat
+
+  - "mailto://{{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.smtp }}?from=notifications@shdr.ch&to={{ secrets.notification_email }}":
+      tag: email
+
+groups:
+  - critical: alerts, system, chat, email
+  - standard: alerts, chat
+  - quiet: chat
+  - push: alerts

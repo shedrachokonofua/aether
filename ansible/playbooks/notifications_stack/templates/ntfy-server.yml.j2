@@ -1,7 +1,7 @@
 # ntfy server config file
 # https://ntfy.sh/docs/config/
 
-base-url: "http://{{ vm.messaging_stack.ip }}:{{ vm.messaging_stack.ports.ntfy }}"
+base-url: "http://{{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}"
 
 cache-file: "/var/cache/ntfy/cache.db"
 cache-duration: "12h"

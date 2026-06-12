@@ -1,6 +1,6 @@
 ---
 - name: Deploy Apprise API gateway
-  hosts: messaging-stack
+  hosts: notifications-stack
   gather_facts: true
   tasks:
     - name: Create required directories
@@ -59,7 +59,7 @@
     - name: Wait for apprise to be ready
       wait_for:
         host: localhost
-        port: "{{ vm.messaging_stack.ports.apprise }}"
+        port: "{{ vm.notifications_stack.ports.apprise }}"
         timeout: 30
       register: wait_result
       until: not wait_result.failed

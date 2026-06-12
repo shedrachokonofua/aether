@@ -161,23 +161,21 @@ cockpit:
   ports:
     cockpit: 39090
 
-messaging_stack:
+# Formerly messaging-stack (10.0.3.4, VLAN 3) — renamed in place after the
+# Matrix → k8s migration; only ntfy/postfix/apprise remain. Same vmid.
+# NOT 10.0.2.4 (the old reservation): that IP belongs to the NFS LXC's
+# VLAN-2 leg (vm.nfs.ip.vyos) — the original reservation was double-booked.
+notifications_stack:
   id: 1016
-  name: "messaging-stack"
+  name: "notifications-stack"
   node: "niobe"
   admin: "aether"
   cores: 2
   memory: 2048
   disk_gb: 64
-  ip: "10.0.3.4"
-  gateway: "10.0.3.1"
+  ip: "10.0.2.6"
+  gateway: "10.0.2.1"
   ports:
-    synapse: 8008
-    synapse_metrics: 9091
-    element: 8080
-    whatsapp: 29318
-    gmessages: 29336
-    matrix_pg: 5432
     ntfy: 8082
     ntfy_metrics: 9092
     smtp: 25
@@ -268,23 +266,6 @@ bastion:
     https: 443
     termix: 8080
     oauth2_proxy: 4180
-
-notifications_stack:
-  id: 1011
-  name: "notifications-stack"
-  node: "niobe"
-  admin: "aether"
-  cores: 1
-  memory: 1024
-  disk_gb: 16
-  ip: "10.0.2.4"
-  gateway: "10.0.2.1"
-  ports:
-    smtp: 25
-    ntfy: 80
-    ntfy_metrics: 9090
-    apprise: 8000
-    postfix_metrics: 9154
 
 ids_stack:
   id: 1028
