@@ -12,7 +12,12 @@
 
 resource "kubernetes_namespace_v1" "hoppscotch" {
   depends_on = [helm_release.cilium]
-  metadata { name = "hoppscotch" }
+  metadata {
+    name = "hoppscotch"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
+  }
 }
 
 resource "random_password" "hoppscotch_postgres_password" {
@@ -71,30 +76,30 @@ resource "kubernetes_secret_v1" "hoppscotch_env" {
     namespace = local.hoppscotch_ns
   }
   data = {
-    DATABASE_URL            = "postgresql://hoppscotch:${random_password.hoppscotch_postgres_password.result}@hoppscotch-postgres.${local.hoppscotch_ns}.svc.cluster.local:${local.hoppscotch_pg_port}/hoppscotch"
-    JWT_SECRET              = random_password.hoppscotch_jwt_secret.result
-    SESSION_SECRET          = random_password.hoppscotch_session_secret.result
-    DATA_ENCRYPTION_KEY     = random_password.hoppscotch_data_encryption_key.result
-    TOKEN_SALT_COMPLEXITY   = "10"
-    MAGIC_LINK_TOKEN_VALIDITY  = "3"
-    REFRESH_TOKEN_VALIDITY     = "604800000"
-    ACCESS_TOKEN_VALIDITY      = "86400000"
-    ALLOW_SECURE_COOKIES       = "true"
-    REDIRECT_URL               = "https://${local.hoppscotch_host}"
-    WHITELISTED_ORIGINS        = "https://${local.hoppscotch_host},app://localhost_3200,app://hoppscotch"
+    DATABASE_URL                = "postgresql://hoppscotch:${random_password.hoppscotch_postgres_password.result}@hoppscotch-postgres.${local.hoppscotch_ns}.svc.cluster.local:${local.hoppscotch_pg_port}/hoppscotch"
+    JWT_SECRET                  = random_password.hoppscotch_jwt_secret.result
+    SESSION_SECRET              = random_password.hoppscotch_session_secret.result
+    DATA_ENCRYPTION_KEY         = random_password.hoppscotch_data_encryption_key.result
+    TOKEN_SALT_COMPLEXITY       = "10"
+    MAGIC_LINK_TOKEN_VALIDITY   = "3"
+    REFRESH_TOKEN_VALIDITY      = "604800000"
+    ACCESS_TOKEN_VALIDITY       = "86400000"
+    ALLOW_SECURE_COOKIES        = "true"
+    REDIRECT_URL                = "https://${local.hoppscotch_host}"
+    WHITELISTED_ORIGINS         = "https://${local.hoppscotch_host},app://localhost_3200,app://hoppscotch"
     VITE_ALLOWED_AUTH_PROVIDERS = "EMAIL"
-    MAILER_SMTP_ENABLE         = "false"
-    MAILER_USE_CUSTOM_CONFIGS  = "false"
-    MAILER_ADDRESS_FROM        = "noreply@${local.hoppscotch_host}"
-    MAILER_SMTP_URL            = "smtp://localhost:587"
-    RATE_LIMIT_TTL             = "60"
-    RATE_LIMIT_MAX             = "100"
-    VITE_BASE_URL              = "https://${local.hoppscotch_host}"
-    VITE_SHORTCODE_BASE_URL    = "https://${local.hoppscotch_host}"
-    VITE_ADMIN_URL             = "https://${local.hoppscotch_host}/admin"
-    VITE_BACKEND_GQL_URL       = "https://${local.hoppscotch_host}/backend/graphql"
-    VITE_BACKEND_WS_URL        = "wss://${local.hoppscotch_host}/backend/graphql"
-    VITE_BACKEND_API_URL       = "https://${local.hoppscotch_host}/backend/v1"
+    MAILER_SMTP_ENABLE          = "false"
+    MAILER_USE_CUSTOM_CONFIGS   = "false"
+    MAILER_ADDRESS_FROM         = "noreply@${local.hoppscotch_host}"
+    MAILER_SMTP_URL             = "smtp://localhost:587"
+    RATE_LIMIT_TTL              = "60"
+    RATE_LIMIT_MAX              = "100"
+    VITE_BASE_URL               = "https://${local.hoppscotch_host}"
+    VITE_SHORTCODE_BASE_URL     = "https://${local.hoppscotch_host}"
+    VITE_ADMIN_URL              = "https://${local.hoppscotch_host}/admin"
+    VITE_BACKEND_GQL_URL        = "https://${local.hoppscotch_host}/backend/graphql"
+    VITE_BACKEND_WS_URL         = "wss://${local.hoppscotch_host}/backend/graphql"
+    VITE_BACKEND_API_URL        = "https://${local.hoppscotch_host}/backend/v1"
     ENABLE_SUBPATH_BASED_ACCESS = "true"
   }
   type = "Opaque"
@@ -137,12 +142,12 @@ resource "kubernetes_stateful_set_v1" "hoppscotch_postgres" {
             }
           }
           env {
-            name = "PGDATA"
+            name  = "PGDATA"
             value = "/var/lib/postgresql/data/pgdata"
           }
           port { container_port = local.hoppscotch_pg_port }
           volume_mount {
-            name = "data"
+            name       = "data"
             mount_path = "/var/lib/postgresql/data"
           }
           readiness_probe {
@@ -174,7 +179,7 @@ resource "kubernetes_service_v1" "hoppscotch_postgres" {
   spec {
     selector = local.hoppscotch_pg_labels
     port {
-      port = local.hoppscotch_pg_port
+      port        = local.hoppscotch_pg_port
       target_port = local.hoppscotch_pg_port
     }
     type = "ClusterIP"
@@ -249,7 +254,7 @@ resource "kubernetes_deployment_v1" "hoppscotch" {
           }
           port {
             container_port = local.hoppscotch_port
-            name = "http"
+            name           = "http"
           }
           resources {
             requests = { cpu = "100m", memory = "256Mi" }
@@ -278,9 +283,9 @@ resource "kubernetes_service_v1" "hoppscotch" {
   spec {
     selector = local.hoppscotch_labels
     port {
-      port = local.hoppscotch_port
+      port        = local.hoppscotch_port
       target_port = local.hoppscotch_port
-      name = "http"
+      name        = "http"
     }
   }
 }
@@ -304,7 +309,7 @@ resource "kubernetes_deployment_v1" "proxyscotch" {
           image = local.hoppscotch_proxy_image
           port {
             container_port = local.hoppscotch_proxy_port
-            name = "http"
+            name           = "http"
           }
           resources {
             requests = { cpu = "30m", memory = "32Mi" }
@@ -325,9 +330,9 @@ resource "kubernetes_service_v1" "proxyscotch" {
   spec {
     selector = local.hoppscotch_proxy_labels
     port {
-      port = local.hoppscotch_proxy_port
+      port        = local.hoppscotch_proxy_port
       target_port = local.hoppscotch_proxy_port
-      name = "http"
+      name        = "http"
     }
   }
 }

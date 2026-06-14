@@ -11,7 +11,12 @@
 
 resource "kubernetes_namespace_v1" "affine" {
   depends_on = [helm_release.cilium]
-  metadata { name = "affine" }
+  metadata {
+    name = "affine"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
+  }
 }
 
 resource "random_password" "affine_db_password" {
@@ -20,30 +25,30 @@ resource "random_password" "affine_db_password" {
 }
 
 locals {
-  affine_version  = "0.26.3"
-  affine_image    = "ghcr.io/toeverything/affine:${local.affine_version}"
-  affine_pg_image = "pgvector/pgvector:pg16"
-  affine_redis_image   = "redis:latest"
+  affine_version         = "0.26.3"
+  affine_image           = "ghcr.io/toeverything/affine:${local.affine_version}"
+  affine_pg_image        = "pgvector/pgvector:pg16"
+  affine_redis_image     = "redis:latest"
   affine_manticore_image = "manticoresearch/manticore:10.1.0"
 
   affine_host = "affine.home.shdr.ch"
-  affine_port         = 3010
+  affine_port = 3010
 
-  affine_pg_port       = 5432
-  affine_redis_port    = 6379
+  affine_pg_port        = 5432
+  affine_redis_port     = 6379
   affine_manticore_port = 9308
 
-  affine_ns              = kubernetes_namespace_v1.affine.metadata[0].name
-  affine_labels          = { app = "affine" }
-  affine_pg_labels       = { app = "affine-postgres" }
-  affine_redis_labels    = { app = "affine-redis" }
+  affine_ns               = kubernetes_namespace_v1.affine.metadata[0].name
+  affine_labels           = { app = "affine" }
+  affine_pg_labels        = { app = "affine-postgres" }
+  affine_redis_labels     = { app = "affine-redis" }
   affine_manticore_labels = { app = "affine-manticore" }
 }
 
 resource "kubernetes_secret_v1" "affine_postgres" {
   depends_on = [kubernetes_namespace_v1.affine]
   metadata {
-    name = "affine-postgres"
+    name      = "affine-postgres"
     namespace = local.affine_ns
   }
   data = {
@@ -109,7 +114,7 @@ resource "kubernetes_secret_v1" "affine_config" {
 resource "kubernetes_persistent_volume_claim_v1" "affine_postgres_data" {
   depends_on = [kubernetes_namespace_v1.affine, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "affine-postgres-data"
+    name      = "affine-postgres-data"
     namespace = local.affine_ns
   }
   spec {
@@ -123,7 +128,7 @@ resource "kubernetes_persistent_volume_claim_v1" "affine_postgres_data" {
 resource "kubernetes_persistent_volume_claim_v1" "affine_uploads" {
   depends_on = [kubernetes_namespace_v1.affine, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "affine-uploads"
+    name      = "affine-uploads"
     namespace = local.affine_ns
   }
   spec {
@@ -137,7 +142,7 @@ resource "kubernetes_persistent_volume_claim_v1" "affine_uploads" {
 resource "kubernetes_persistent_volume_claim_v1" "affine_indexer" {
   depends_on = [kubernetes_namespace_v1.affine, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "affine-indexer"
+    name      = "affine-indexer"
     namespace = local.affine_ns
   }
   spec {
@@ -171,20 +176,20 @@ resource "kubernetes_stateful_set_v1" "affine_postgres" {
             }
           }
           env {
-            name = "POSTGRES_INITDB_ARGS"
+            name  = "POSTGRES_INITDB_ARGS"
             value = "--data-checksums"
           }
           env {
-            name = "POSTGRES_HOST_AUTH_METHOD"
+            name  = "POSTGRES_HOST_AUTH_METHOD"
             value = "trust"
           }
           env {
-            name = "PGDATA"
+            name  = "PGDATA"
             value = "/var/lib/postgresql/data/pgdata"
           }
           port { container_port = local.affine_pg_port }
           volume_mount {
-            name = "data"
+            name       = "data"
             mount_path = "/var/lib/postgresql/data"
           }
           readiness_probe {
@@ -209,14 +214,14 @@ resource "kubernetes_stateful_set_v1" "affine_postgres" {
 resource "kubernetes_service_v1" "affine_postgres" {
   depends_on = [kubernetes_stateful_set_v1.affine_postgres]
   metadata {
-    name = "affine-postgres"
+    name      = "affine-postgres"
     namespace = local.affine_ns
-    labels = local.affine_pg_labels
+    labels    = local.affine_pg_labels
   }
   spec {
     selector = local.affine_pg_labels
     port {
-      port = local.affine_pg_port
+      port        = local.affine_pg_port
       target_port = local.affine_pg_port
     }
     type = "ClusterIP"
@@ -259,14 +264,14 @@ resource "kubernetes_deployment_v1" "affine_redis" {
 
 resource "kubernetes_service_v1" "affine_redis" {
   metadata {
-    name = "affine-redis"
+    name      = "affine-redis"
     namespace = local.affine_ns
-    labels = local.affine_redis_labels
+    labels    = local.affine_redis_labels
   }
   spec {
     selector = local.affine_redis_labels
     port {
-      port = local.affine_redis_port
+      port        = local.affine_redis_port
       target_port = local.affine_redis_port
     }
   }
@@ -293,7 +298,7 @@ resource "kubernetes_deployment_v1" "affine_manticore" {
           image = local.affine_manticore_image
           port { container_port = local.affine_manticore_port }
           volume_mount {
-            name = "data"
+            name       = "data"
             mount_path = "/var/lib/manticore"
           }
           resources {
@@ -320,14 +325,14 @@ resource "kubernetes_deployment_v1" "affine_manticore" {
 
 resource "kubernetes_service_v1" "affine_manticore" {
   metadata {
-    name = "affine-manticore"
+    name      = "affine-manticore"
     namespace = local.affine_ns
-    labels = local.affine_manticore_labels
+    labels    = local.affine_manticore_labels
   }
   spec {
     selector = local.affine_manticore_labels
     port {
-      port = local.affine_manticore_port
+      port        = local.affine_manticore_port
       target_port = local.affine_manticore_port
     }
   }
@@ -340,7 +345,7 @@ resource "kubernetes_job_v1" "affine_migration" {
     kubernetes_service_v1.affine_redis,
   ]
   metadata {
-    name = "affine-migration"
+    name      = "affine-migration"
     namespace = local.affine_ns
   }
   spec {
@@ -354,19 +359,19 @@ resource "kubernetes_job_v1" "affine_migration" {
           image   = local.affine_image
           command = ["sh", "-c", "node ./scripts/self-host-predeploy.js"]
           env {
-            name = "REDIS_SERVER_HOST"
+            name  = "REDIS_SERVER_HOST"
             value = "affine-redis.${local.affine_ns}.svc.cluster.local"
           }
           env {
-            name = "DATABASE_URL"
+            name  = "DATABASE_URL"
             value = "postgresql://affine:${random_password.affine_db_password.result}@affine-postgres.${local.affine_ns}.svc.cluster.local:${local.affine_pg_port}/affine"
           }
           env {
-            name = "AFFINE_INDEXER_ENABLED"
+            name  = "AFFINE_INDEXER_ENABLED"
             value = "true"
           }
           env {
-            name = "AFFINE_INDEXER_SEARCH_ENDPOINT"
+            name  = "AFFINE_INDEXER_SEARCH_ENDPOINT"
             value = "http://affine-manticore.${local.affine_ns}.svc.cluster.local:${local.affine_manticore_port}"
           }
           resources {
@@ -406,41 +411,41 @@ resource "kubernetes_deployment_v1" "affine" {
           image = local.affine_image
 
           env {
-            name = "selfhosted"
+            name  = "selfhosted"
             value = "true"
           }
           env {
-            name = "REDIS_SERVER_HOST"
+            name  = "REDIS_SERVER_HOST"
             value = "affine-redis.${local.affine_ns}.svc.cluster.local"
           }
           env {
-            name = "DATABASE_URL"
+            name  = "DATABASE_URL"
             value = "postgresql://affine:${random_password.affine_db_password.result}@affine-postgres.${local.affine_ns}.svc.cluster.local:${local.affine_pg_port}/affine"
           }
           env {
-            name = "AFFINE_INDEXER_ENABLED"
+            name  = "AFFINE_INDEXER_ENABLED"
             value = "true"
           }
           env {
-            name = "AFFINE_INDEXER_SEARCH_ENDPOINT"
+            name  = "AFFINE_INDEXER_SEARCH_ENDPOINT"
             value = "http://affine-manticore.${local.affine_ns}.svc.cluster.local:${local.affine_manticore_port}"
           }
           env {
-            name = "AFFINE_SERVER_EXTERNAL_URL"
+            name  = "AFFINE_SERVER_EXTERNAL_URL"
             value = "https://${local.affine_host}"
           }
           env {
-            name = "PORT"
+            name  = "PORT"
             value = tostring(local.affine_port)
           }
 
           port {
             container_port = local.affine_port
-            name = "http"
+            name           = "http"
           }
 
           volume_mount {
-            name = "uploads"
+            name       = "uploads"
             mount_path = "/root/.affine/storage"
           }
 
@@ -482,16 +487,16 @@ resource "kubernetes_deployment_v1" "affine" {
 
 resource "kubernetes_service_v1" "affine" {
   metadata {
-    name = "affine"
+    name      = "affine"
     namespace = local.affine_ns
-    labels = local.affine_labels
+    labels    = local.affine_labels
   }
   spec {
     selector = local.affine_labels
     port {
-      port = local.affine_port
+      port        = local.affine_port
       target_port = local.affine_port
-      name = "http"
+      name        = "http"
     }
   }
 }

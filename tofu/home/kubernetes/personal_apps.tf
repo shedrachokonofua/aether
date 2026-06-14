@@ -11,5 +11,8 @@ resource "kubernetes_namespace_v1" "personal" {
 
   metadata {
     name = "personal"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
   }
 }

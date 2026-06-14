@@ -18,7 +18,12 @@
 
 resource "kubernetes_namespace_v1" "matrix" {
   depends_on = [helm_release.cilium]
-  metadata { name = "matrix" }
+  metadata {
+    name = "matrix"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
+  }
 }
 
 locals {

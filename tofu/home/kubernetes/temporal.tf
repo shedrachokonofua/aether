@@ -43,6 +43,9 @@ resource "kubernetes_namespace_v1" "temporal" {
 
   metadata {
     name = local.temporal_namespace
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
   }
 }
 

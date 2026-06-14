@@ -18,6 +18,9 @@ resource "kubernetes_namespace_v1" "coder" {
 
   metadata {
     name = local.coder_namespace
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
   }
 }
 

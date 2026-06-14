@@ -8,11 +8,11 @@
 locals {
   jellyfin_image = "docker.io/jellyfin/jellyfin:latest"
   # Gateway API matches the Host header from Caddy (header_up Host …); public URL is tv.shdr.ch.
-  jellyfin_host             = "jellyfin.home.shdr.ch"
-  jellyfin_public_url       = "https://tv.shdr.ch"
-  jellyfin_port             = 8096
-  jellyfin_ns               = kubernetes_namespace_v1.media.metadata[0].name
-  jellyfin_labels           = { app = "jellyfin" }
+  jellyfin_host       = "jellyfin.home.shdr.ch"
+  jellyfin_public_url = "https://tv.shdr.ch"
+  jellyfin_port       = 8096
+  jellyfin_ns         = kubernetes_namespace_v1.media.metadata[0].name
+  jellyfin_labels     = { app = "jellyfin" }
 
   rclone_image = "rclone/rclone:latest"
 }
@@ -27,6 +27,7 @@ resource "kubernetes_namespace_v1" "media" {
   metadata {
     name = "media"
     labels = {
+      "goldilocks.fairwinds.com/enabled"   = "true"
       "pod-security.kubernetes.io/enforce" = "privileged"
     }
   }

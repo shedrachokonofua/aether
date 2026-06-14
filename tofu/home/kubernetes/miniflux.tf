@@ -8,7 +8,12 @@
 
 resource "kubernetes_namespace_v1" "miniflux" {
   depends_on = [helm_release.cilium]
-  metadata { name = "miniflux" }
+  metadata {
+    name = "miniflux"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
+  }
 }
 
 resource "random_password" "miniflux_postgres_password" {
@@ -25,13 +30,13 @@ locals {
   miniflux_image          = "miniflux/miniflux:latest"
   miniflux_postgres_image = "postgres:17-alpine"
 
-  miniflux_host = "miniflux.home.shdr.ch"
-  miniflux_port = 8080
+  miniflux_host    = "miniflux.home.shdr.ch"
+  miniflux_port    = 8080
   miniflux_pg_port = 5432
 
-  miniflux_ns          = kubernetes_namespace_v1.miniflux.metadata[0].name
-  miniflux_labels      = { app = "miniflux" }
-  miniflux_pg_labels   = { app = "miniflux-postgres" }
+  miniflux_ns        = kubernetes_namespace_v1.miniflux.metadata[0].name
+  miniflux_labels    = { app = "miniflux" }
+  miniflux_pg_labels = { app = "miniflux-postgres" }
 
   miniflux_db_url = "postgres://miniflux:${random_password.miniflux_postgres_password.result}@miniflux-postgres.${local.miniflux_ns}.svc.cluster.local:${local.miniflux_pg_port}/miniflux?sslmode=disable"
 }

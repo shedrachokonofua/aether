@@ -81,3 +81,18 @@ output "mux_url" {
   description = "Mux public URL via Gateway API"
   value       = "https://${local.mux_host}"
 }
+
+output "goldilocks_url" {
+  description = "Goldilocks resource recommendation dashboard URL"
+  value       = "https://goldilocks.home.shdr.ch"
+}
+
+output "goldilocks_version" {
+  description = "Installed Goldilocks chart version"
+  value       = helm_release.goldilocks.version
+}
+
+output "vpa_recommender_version" {
+  description = "Installed VPA chart version"
+  value       = helm_release.vpa_recommender.version
+}

@@ -13,7 +13,12 @@
 
 resource "kubernetes_namespace_v1" "dawarich" {
   depends_on = [helm_release.cilium]
-  metadata { name = "dawarich" }
+  metadata {
+    name = "dawarich"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
+  }
 }
 
 resource "random_password" "dawarich_postgres_password" {
@@ -38,9 +43,9 @@ resource "random_password" "dawarich_otp_encryption_key_derivation_salt" {
 }
 
 locals {
-  dawarich_image       = "freikin/dawarich:latest"
+  dawarich_image         = "freikin/dawarich:latest"
   dawarich_postgis_image = "postgis/postgis:17-3.5-alpine"
-  dawarich_redis_image = "redis:7.4-alpine"
+  dawarich_redis_image   = "redis:7.4-alpine"
 
   dawarich_host = "dawarich.home.shdr.ch"
 
@@ -48,37 +53,37 @@ locals {
   dawarich_pg_port    = 5432
   dawarich_redis_port = 6379
 
-  dawarich_ns            = kubernetes_namespace_v1.dawarich.metadata[0].name
-  dawarich_labels        = { app = "dawarich" }
+  dawarich_ns             = kubernetes_namespace_v1.dawarich.metadata[0].name
+  dawarich_labels         = { app = "dawarich" }
   dawarich_sidekiq_labels = { app = "dawarich-sidekiq" }
-  dawarich_pg_labels     = { app = "dawarich-postgres" }
-  dawarich_redis_labels  = { app = "dawarich-redis" }
+  dawarich_pg_labels      = { app = "dawarich-postgres" }
+  dawarich_redis_labels   = { app = "dawarich-redis" }
 
   dawarich_db_env = {
-    RAILS_ENV         = "production"
-    DATABASE_HOST     = "dawarich-postgres.dawarich.svc.cluster.local"
-    DATABASE_USERNAME = "postgres"
-    DATABASE_PASSWORD = random_password.dawarich_postgres_password.result
-    DATABASE_NAME     = "dawarich_production"
-    REDIS_URL         = "redis://dawarich-redis.dawarich.svc.cluster.local:${local.dawarich_redis_port}"
-    SECRET_KEY_BASE   = random_password.dawarich_secret_key_base.result
-    OTP_ENCRYPTION_PRIMARY_KEY = random_password.dawarich_otp_encryption_primary_key.result
-    OTP_ENCRYPTION_DETERMINISTIC_KEY = random_password.dawarich_otp_encryption_deterministic_key.result
+    RAILS_ENV                          = "production"
+    DATABASE_HOST                      = "dawarich-postgres.dawarich.svc.cluster.local"
+    DATABASE_USERNAME                  = "postgres"
+    DATABASE_PASSWORD                  = random_password.dawarich_postgres_password.result
+    DATABASE_NAME                      = "dawarich_production"
+    REDIS_URL                          = "redis://dawarich-redis.dawarich.svc.cluster.local:${local.dawarich_redis_port}"
+    SECRET_KEY_BASE                    = random_password.dawarich_secret_key_base.result
+    OTP_ENCRYPTION_PRIMARY_KEY         = random_password.dawarich_otp_encryption_primary_key.result
+    OTP_ENCRYPTION_DETERMINISTIC_KEY   = random_password.dawarich_otp_encryption_deterministic_key.result
     OTP_ENCRYPTION_KEY_DERIVATION_SALT = random_password.dawarich_otp_encryption_key_derivation_salt.result
-    APPLICATION_HOSTS = "localhost,${local.dawarich_host}"
-    TIME_ZONE         = "America/Toronto"
-    APPLICATION_PROTOCOL  = "https"
-    RAILS_FORCE_SSL       = "0"
-    SELF_HOSTED           = "true"
-    STORE_GEODATA     = "true"
-    MIN_MINUTES_SPENT_IN_CITY = "60"
+    APPLICATION_HOSTS                  = "localhost,${local.dawarich_host}"
+    TIME_ZONE                          = "America/Toronto"
+    APPLICATION_PROTOCOL               = "https"
+    RAILS_FORCE_SSL                    = "0"
+    SELF_HOSTED                        = "true"
+    STORE_GEODATA                      = "true"
+    MIN_MINUTES_SPENT_IN_CITY          = "60"
   }
 }
 
 resource "kubernetes_secret_v1" "dawarich_postgres" {
   depends_on = [kubernetes_namespace_v1.dawarich]
   metadata {
-    name = "dawarich-postgres"
+    name      = "dawarich-postgres"
     namespace = local.dawarich_ns
   }
   data = {
@@ -92,7 +97,7 @@ resource "kubernetes_secret_v1" "dawarich_postgres" {
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_postgres_data" {
   depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "dawarich-postgres-data"
+    name      = "dawarich-postgres-data"
     namespace = local.dawarich_ns
   }
   spec {
@@ -106,7 +111,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_postgres_data" {
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage" {
   depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "dawarich-storage"
+    name      = "dawarich-storage"
     namespace = local.dawarich_ns
   }
   spec {
@@ -119,7 +124,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage" {
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched" {
   depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "dawarich-watched"
+    name      = "dawarich-watched"
     namespace = local.dawarich_ns
   }
   spec {
@@ -133,7 +138,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched" {
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage_rwx" {
   depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.cephfs]
   metadata {
-    name = "dawarich-storage-rwx"
+    name      = "dawarich-storage-rwx"
     namespace = local.dawarich_ns
   }
   spec {
@@ -146,7 +151,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage_rwx" {
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched_rwx" {
   depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.cephfs]
   metadata {
-    name = "dawarich-watched-rwx"
+    name      = "dawarich-watched-rwx"
     namespace = local.dawarich_ns
   }
   spec {
@@ -178,7 +183,7 @@ resource "kubernetes_job_v1" "dawarich_rwx_migrate" {
     template {
       metadata {
         labels = {
-          app               = "dawarich-rwx-migrate"
+          app                = "dawarich-rwx-migrate"
           "aether.sh/arm-ok" = "true"
         }
       }
@@ -196,8 +201,8 @@ resource "kubernetes_job_v1" "dawarich_rwx_migrate" {
         }
 
         container {
-          name    = "rsync"
-          image   = "alpine:3.20"
+          name  = "rsync"
+          image = "alpine:3.20"
           command = ["/bin/sh", "-c", <<-EOT
             set -eu
             apk add --no-cache rsync >/dev/null
@@ -285,12 +290,12 @@ resource "kubernetes_stateful_set_v1" "dawarich_postgres" {
             }
           }
           env {
-            name = "PGDATA"
+            name  = "PGDATA"
             value = "/var/lib/postgresql/data/pgdata"
           }
           port { container_port = local.dawarich_pg_port }
           volume_mount {
-            name = "data"
+            name       = "data"
             mount_path = "/var/lib/postgresql/data"
           }
           readiness_probe {
@@ -315,14 +320,14 @@ resource "kubernetes_stateful_set_v1" "dawarich_postgres" {
 resource "kubernetes_service_v1" "dawarich_postgres" {
   depends_on = [kubernetes_stateful_set_v1.dawarich_postgres]
   metadata {
-    name = "dawarich-postgres"
+    name      = "dawarich-postgres"
     namespace = local.dawarich_ns
-    labels = local.dawarich_pg_labels
+    labels    = local.dawarich_pg_labels
   }
   spec {
     selector = local.dawarich_pg_labels
     port {
-      port = local.dawarich_pg_port
+      port        = local.dawarich_pg_port
       target_port = local.dawarich_pg_port
     }
     type = "ClusterIP"
@@ -366,14 +371,14 @@ resource "kubernetes_deployment_v1" "dawarich_redis" {
 
 resource "kubernetes_service_v1" "dawarich_redis" {
   metadata {
-    name = "dawarich-redis"
+    name      = "dawarich-redis"
     namespace = local.dawarich_ns
-    labels = local.dawarich_redis_labels
+    labels    = local.dawarich_redis_labels
   }
   spec {
     selector = local.dawarich_redis_labels
     port {
-      port = local.dawarich_redis_port
+      port        = local.dawarich_redis_port
       target_port = local.dawarich_redis_port
     }
   }
@@ -402,10 +407,10 @@ resource "kubernetes_deployment_v1" "dawarich" {
       spec {
         enable_service_links = false
         container {
-          name       = "dawarich"
-          image      = local.dawarich_image
+          name    = "dawarich"
+          image   = local.dawarich_image
           command = ["web-entrypoint.sh"]
-          args = ["bin/rails", "server", "-p", "3000", "-b", "::"]
+          args    = ["bin/rails", "server", "-p", "3000", "-b", "::"]
 
           dynamic "env" {
             for_each = local.dawarich_db_env
@@ -417,15 +422,15 @@ resource "kubernetes_deployment_v1" "dawarich" {
 
           port {
             container_port = local.dawarich_port
-            name = "http"
+            name           = "http"
           }
 
           volume_mount {
-            name = "storage"
+            name       = "storage"
             mount_path = "/var/app/storage"
           }
           volume_mount {
-            name = "watched"
+            name       = "watched"
             mount_path = "/var/app/tmp/imports/watched"
           }
 
@@ -458,16 +463,16 @@ resource "kubernetes_deployment_v1" "dawarich" {
 
 resource "kubernetes_service_v1" "dawarich" {
   metadata {
-    name = "dawarich"
+    name      = "dawarich"
     namespace = local.dawarich_ns
-    labels = local.dawarich_labels
+    labels    = local.dawarich_labels
   }
   spec {
     selector = local.dawarich_labels
     port {
-      port = local.dawarich_port
+      port        = local.dawarich_port
       target_port = local.dawarich_port
-      name = "http"
+      name        = "http"
     }
   }
 }
@@ -491,7 +496,7 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
           name    = "sidekiq"
           image   = local.dawarich_image
           command = ["sidekiq-entrypoint.sh"]
-          args = ["sidekiq"]
+          args    = ["sidekiq"]
 
           dynamic "env" {
             for_each = local.dawarich_db_env
@@ -507,11 +512,11 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
           }
 
           volume_mount {
-            name = "storage"
+            name       = "storage"
             mount_path = "/var/app/storage"
           }
           volume_mount {
-            name = "watched"
+            name       = "watched"
             mount_path = "/var/app/tmp/imports/watched"
           }
 

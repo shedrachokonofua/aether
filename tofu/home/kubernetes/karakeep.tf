@@ -17,7 +17,12 @@
 
 resource "kubernetes_namespace_v1" "karakeep" {
   depends_on = [helm_release.cilium]
-  metadata { name = "karakeep" }
+  metadata {
+    name = "karakeep"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
+  }
 }
 
 resource "random_password" "karakeep_nextauth_secret" {
@@ -31,18 +36,18 @@ resource "random_password" "karakeep_meili_master_key" {
 }
 
 locals {
-  karakeep_image    = "ghcr.io/karakeep-app/karakeep:release"
-  karakeep_chrome_image   = "gcr.io/zenika-hub/alpine-chrome:123"
-  karakeep_meili_image    = "getmeili/meilisearch:v1.13.3"
+  karakeep_image        = "ghcr.io/karakeep-app/karakeep:release"
+  karakeep_chrome_image = "gcr.io/zenika-hub/alpine-chrome:123"
+  karakeep_meili_image  = "getmeili/meilisearch:v1.13.3"
 
   karakeep_host = "karakeep.home.shdr.ch"
 
-  karakeep_port       = 3000
+  karakeep_port        = 3000
   karakeep_chrome_port = 9222
   karakeep_meili_port  = 7700
 
-  karakeep_ns           = kubernetes_namespace_v1.karakeep.metadata[0].name
-  karakeep_labels       = { app = "karakeep" }
+  karakeep_ns            = kubernetes_namespace_v1.karakeep.metadata[0].name
+  karakeep_labels        = { app = "karakeep" }
   karakeep_chrome_labels = { app = "karakeep-chrome" }
   karakeep_meili_labels  = { app = "karakeep-meilisearch" }
 }
@@ -50,7 +55,7 @@ locals {
 resource "kubernetes_persistent_volume_claim_v1" "karakeep_data" {
   depends_on = [kubernetes_namespace_v1.karakeep, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "karakeep-data"
+    name      = "karakeep-data"
     namespace = local.karakeep_ns
   }
   spec {
@@ -64,7 +69,7 @@ resource "kubernetes_persistent_volume_claim_v1" "karakeep_data" {
 resource "kubernetes_persistent_volume_claim_v1" "karakeep_meilisearch" {
   depends_on = [kubernetes_namespace_v1.karakeep, kubernetes_storage_class_v1.ceph_rbd]
   metadata {
-    name = "karakeep-meilisearch"
+    name      = "karakeep-meilisearch"
     namespace = local.karakeep_ns
   }
   spec {
@@ -95,16 +100,16 @@ resource "kubernetes_deployment_v1" "karakeep_meilisearch" {
           name  = "meilisearch"
           image = local.karakeep_meili_image
           env {
-            name = "MEILI_MASTER_KEY"
+            name  = "MEILI_MASTER_KEY"
             value = random_password.karakeep_meili_master_key.result
           }
           env {
-            name = "MEILI_NO_ANALYTICS"
+            name  = "MEILI_NO_ANALYTICS"
             value = "true"
           }
           port { container_port = local.karakeep_meili_port }
           volume_mount {
-            name = "data"
+            name       = "data"
             mount_path = "/meili_data"
           }
           resources {
@@ -138,7 +143,7 @@ resource "kubernetes_service_v1" "karakeep_meilisearch" {
   spec {
     selector = local.karakeep_meili_labels
     port {
-      port = local.karakeep_meili_port
+      port        = local.karakeep_meili_port
       target_port = local.karakeep_meili_port
     }
   }
@@ -160,8 +165,8 @@ resource "kubernetes_deployment_v1" "karakeep_chrome" {
       spec {
         enable_service_links = false
         container {
-          name    = "chrome"
-          image   = local.karakeep_chrome_image
+          name  = "chrome"
+          image = local.karakeep_chrome_image
           args = [
             "--no-sandbox",
             "--disable-gpu",
@@ -190,7 +195,7 @@ resource "kubernetes_service_v1" "karakeep_chrome" {
   spec {
     selector = local.karakeep_chrome_labels
     port {
-      port = local.karakeep_chrome_port
+      port        = local.karakeep_chrome_port
       target_port = local.karakeep_chrome_port
     }
   }
@@ -221,55 +226,55 @@ resource "kubernetes_deployment_v1" "karakeep" {
           image = local.karakeep_image
 
           env {
-            name = "NEXTAUTH_SECRET"
+            name  = "NEXTAUTH_SECRET"
             value = random_password.karakeep_nextauth_secret.result
           }
           env {
-            name = "NEXTAUTH_URL"
+            name  = "NEXTAUTH_URL"
             value = "https://${local.karakeep_host}"
           }
           env {
-            name = "MEILI_ADDR"
+            name  = "MEILI_ADDR"
             value = "http://karakeep-meilisearch.${local.karakeep_ns}.svc.cluster.local:${local.karakeep_meili_port}"
           }
           env {
-            name = "MEILI_MASTER_KEY"
+            name  = "MEILI_MASTER_KEY"
             value = random_password.karakeep_meili_master_key.result
           }
           env {
-            name = "BROWSER_WEB_URL"
+            name  = "BROWSER_WEB_URL"
             value = "http://karakeep-chrome.${local.karakeep_ns}.svc.cluster.local:${local.karakeep_chrome_port}"
           }
           env {
-            name = "OPENAI_API_KEY"
+            name  = "OPENAI_API_KEY"
             value = var.secrets["litellm.virtual_keys.karakeep"]
           }
           env {
-            name = "OPENAI_BASE_URL"
+            name  = "OPENAI_BASE_URL"
             value = "https://litellm.home.shdr.ch/v1"
           }
           env {
-            name = "INFERENCE_TEXT_MODEL"
+            name  = "INFERENCE_TEXT_MODEL"
             value = "aether/qwen3.5-9b"
           }
           env {
-            name = "INFERENCE_IMAGE_MODEL"
+            name  = "INFERENCE_IMAGE_MODEL"
             value = "aether/qwen3.5-9b"
           }
           env {
-            name = "EMBEDDING_TEXT_MODEL"
+            name  = "EMBEDDING_TEXT_MODEL"
             value = "gemini-embedding-exp-03-07"
           }
           env {
-            name = "INFERENCE_CONTEXT_LENGTH"
+            name  = "INFERENCE_CONTEXT_LENGTH"
             value = "32000"
           }
           env {
-            name = "INFERENCE_ENABLE_AUTO_SUMMARIZATION"
+            name  = "INFERENCE_ENABLE_AUTO_SUMMARIZATION"
             value = "true"
           }
           env {
-            name = "DATA_DIR"
+            name  = "DATA_DIR"
             value = "/data"
           }
           env {
@@ -319,11 +324,11 @@ resource "kubernetes_deployment_v1" "karakeep" {
 
           port {
             container_port = local.karakeep_port
-            name = "http"
+            name           = "http"
           }
 
           volume_mount {
-            name = "data"
+            name       = "data"
             mount_path = "/data"
           }
 
@@ -359,9 +364,9 @@ resource "kubernetes_service_v1" "karakeep" {
   spec {
     selector = local.karakeep_labels
     port {
-      port = local.karakeep_port
+      port        = local.karakeep_port
       target_port = local.karakeep_port
-      name = "http"
+      name        = "http"
     }
   }
 }

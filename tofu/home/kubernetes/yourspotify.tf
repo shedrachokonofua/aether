@@ -14,7 +14,12 @@
 
 resource "kubernetes_namespace_v1" "yourspotify" {
   depends_on = [helm_release.cilium]
-  metadata { name = "yourspotify" }
+  metadata {
+    name = "yourspotify"
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
+  }
 }
 
 locals {

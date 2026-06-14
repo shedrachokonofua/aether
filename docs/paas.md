@@ -18,15 +18,22 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Knative        | Serverless/scale-to-zero serving                      |
 | OTEL Collector | Cluster + node telemetry to external monitoring stack |
 | Metrics Server | metrics.k8s.io for HPA/VPA, kubectl top, Headlamp     |
+| VPA Recommender | VPA recommendation engine only; updater/admission disabled |
+| Goldilocks     | Resource request right-sizing dashboard for opt-in namespaces |
 | Headlamp       | Kubernetes dashboard with OIDC auth                   |
 | Hubble UI      | Cilium network observability UI                       |
 | GitLab Agent   | CI/CD deploys via GitLab KAS tunnel                   |
 | Crossplane     | Infrastructure control plane (Ceph RGW S3-compatible) |
 
+Goldilocks is advisory only: it creates VPA objects with `updateMode: Off` in
+namespaces labeled `goldilocks.fairwinds.com/enabled=true`. Resource changes
+stay manual and flow back through OpenTofu.
+
 ### Access
 
 - API: `https://10.0.3.20:6443` (Talos API VIP)
 - Workload VIP: `10.0.3.19` (Cilium L2 LoadBalancer IP)
-- Ingress wildcard: `*.apps.home.shdr.ch`
-- Headlamp: `https://headlamp.apps.home.shdr.ch`
-- Hubble UI: `https://hubble.apps.home.shdr.ch`
+- Ingress wildcard: `*.home.shdr.ch`
+- Headlamp: `https://headlamp.home.shdr.ch`
+- Hubble UI: `https://hubble.home.shdr.ch`
+- Goldilocks: `https://goldilocks.home.shdr.ch`

@@ -18,7 +18,8 @@ resource "kubernetes_namespace_v1" "infra" {
   metadata {
     name = "infra"
     labels = {
-      "istio.io/dataplane-mode" = "ambient"
+      "goldilocks.fairwinds.com/enabled" = "true"
+      "istio.io/dataplane-mode"          = "ambient"
     }
   }
 }

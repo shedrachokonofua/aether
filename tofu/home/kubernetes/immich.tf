@@ -43,6 +43,9 @@ resource "kubernetes_namespace_v1" "immich" {
 
   metadata {
     name = local.immich_namespace
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
   }
 }
 

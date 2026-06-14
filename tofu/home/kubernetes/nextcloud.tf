@@ -22,8 +22,8 @@
 # pattern that already runs on the cluster.
 
 locals {
-  nextcloud_namespace    = "nextcloud"
-  nextcloud_host = "nextcloud.home.shdr.ch"
+  nextcloud_namespace = "nextcloud"
+  nextcloud_host      = "nextcloud.home.shdr.ch"
   nextcloud_config = templatefile("${path.module}/nextcloud_config.php.tftpl", {
     host         = local.nextcloud_host
     service_host = "nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"
@@ -93,6 +93,9 @@ resource "kubernetes_namespace_v1" "nextcloud" {
 
   metadata {
     name = local.nextcloud_namespace
+    labels = {
+      "goldilocks.fairwinds.com/enabled" = "true"
+    }
   }
 }
 
@@ -1164,7 +1167,7 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
   }
 
   spec {
-    backoff_limit              = 6
+    backoff_limit = 6
 
     template {
       metadata {
@@ -1355,7 +1358,7 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
   }
 
   spec {
-    backoff_limit              = 6
+    backoff_limit = 6
 
     template {
       metadata {
