@@ -70,6 +70,14 @@ model_list:
     litellm_params:
       model: "ollama_chat/gemini-3-flash-preview"
       litellm_credential_name: ollama_cloud_credential
+  - model_name: "ollama-cloud/minimax-m3"
+    litellm_params:
+      model: "ollama_chat/minimax-m3"
+      litellm_credential_name: ollama_cloud_credential
+  - model_name: "ollama-cloud/kimi-k2.7-code"
+    litellm_params:
+      model: "ollama_chat/kimi-k2.7-code"
+      litellm_credential_name: ollama_cloud_credential
 
   # OpenAI models — provider caches 1024+ token prefixes automatically;
   # retention + per-model cache key improve hit rate and TTL (default 5–10m → 24h).
