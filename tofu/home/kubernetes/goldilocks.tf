@@ -35,6 +35,19 @@ resource "helm_release" "vpa_recommender" {
 
     recommender = {
       enabled = true
+      extraArgs = {
+        storage                      = "prometheus"
+        prometheus-address           = "https://prometheus.home.shdr.ch"
+        prometheus-cadvisor-job-name = "otel-metrics"
+        container-name-label         = "container"
+        container-namespace-label    = "namespace"
+        container-pod-name-label     = "pod"
+        metric-for-pod-labels        = "kube_pod_labels{job=\"otel-metrics\",exported_job=\"kube-state-metrics\"}[8d]"
+        pod-label-prefix             = "label_"
+        pod-name-label               = "pod"
+        pod-namespace-label          = "namespace"
+        memory-saver                 = "true"
+      }
       resources = {
         requests = {
           cpu    = "50m"

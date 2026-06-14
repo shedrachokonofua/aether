@@ -98,12 +98,46 @@ resource "helm_release" "otel_collector_daemonset" {
       kubernetesAttributes = { enabled = true }
     }
 
+    clusterRole = {
+      create = true
+      rules = [
+        {
+          apiGroups = [""]
+          resources = ["nodes/metrics", "nodes/proxy"]
+          verbs     = ["get"]
+        }
+      ]
+    }
+
     config = {
       receivers = {
         otlp = {
           protocols = {
             grpc = { endpoint = "0.0.0.0:4317" }
             http = { endpoint = "0.0.0.0:4318" }
+          }
+        }
+        prometheus = {
+          config = {
+            scrape_configs = [
+              {
+                # cAdvisor metrics retain namespace/pod/container labels that
+                # VPA's Prometheus history provider needs for per-container
+                # recommendations. kubeletstats is useful for dashboards, but
+                # it is not enough for VPA history on multi-container pods.
+                job_name          = "kubelet-cadvisor"
+                scrape_interval   = "30s"
+                scheme            = "https"
+                metrics_path      = "/metrics/cadvisor"
+                bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+                tls_config = {
+                  insecure_skip_verify = true
+                }
+                static_configs = [{
+                  targets = ["$${env:K8S_NODE_IP}:10250"]
+                }]
+              }
+            ]
           }
         }
         # Explicit kubelet receiver config so container/node CPU usage metrics are always collected.
@@ -121,7 +155,7 @@ resource "helm_release" "otel_collector_daemonset" {
         telemetry = { logs = { level = "warn" } }
         pipelines = {
           logs    = { receivers = ["filelog", "otlp"], processors = local.otel_processor_chain, exporters = ["otlphttp"] }
-          metrics = { receivers = ["hostmetrics", "kubeletstats", "otlp"], processors = local.otel_processor_chain, exporters = ["otlphttp"] }
+          metrics = { receivers = ["hostmetrics", "kubeletstats", "otlp", "prometheus"], processors = local.otel_processor_chain, exporters = ["otlphttp"] }
           traces  = { receivers = ["otlp"], processors = local.otel_processor_chain, exporters = ["otlphttp"] }
         }
       }

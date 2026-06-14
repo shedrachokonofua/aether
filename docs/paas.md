@@ -27,7 +27,9 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 
 Goldilocks is advisory only: it creates VPA objects with `updateMode: Off` in
 namespaces labeled `goldilocks.fairwinds.com/enabled=true`. Resource changes
-stay manual and flow back through OpenTofu.
+stay manual and flow back through OpenTofu. VPA reads live resource metrics from
+metrics-server and uses Prometheus-backed cAdvisor history for restart/backfill
+context.
 
 ### Access
 
