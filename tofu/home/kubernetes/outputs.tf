@@ -96,3 +96,28 @@ output "vpa_recommender_version" {
   description = "Installed VPA chart version"
   value       = helm_release.vpa_recommender.version
 }
+
+output "tetragon_version" {
+  description = "Installed Tetragon chart version"
+  value       = helm_release.tetragon.version
+}
+
+output "trivy_operator_version" {
+  description = "Installed Trivy Operator chart version"
+  value       = helm_release.trivy_operator.version
+}
+
+output "policy_reporter_url" {
+  description = "Policy Reporter UI URL"
+  value       = "https://${local.policy_reporter_host}"
+}
+
+output "policy_reporter_version" {
+  description = "Installed Policy Reporter chart version"
+  value       = helm_release.policy_reporter.version
+}
+
+output "kepler_version" {
+  description = "Installed Kepler chart version"
+  value       = helm_release.kepler.version
+}

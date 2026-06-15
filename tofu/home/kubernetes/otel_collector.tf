@@ -49,9 +49,10 @@ locals {
     }
   }
 
-  otel_exporters       = { otlphttp = { endpoint = local.otlp_endpoint } }
-  otel_resources       = { requests = { cpu = "100m", memory = "256Mi" }, limits = { cpu = "500m", memory = "512Mi" } }
-  otel_processor_chain = ["memory_limiter", "k8sattributes", "resource", "transform/k8s_labels", "batch"]
+  otel_exporters           = { otlphttp = { endpoint = local.otlp_endpoint } }
+  otel_resources           = { requests = { cpu = "100m", memory = "256Mi" }, limits = { cpu = "500m", memory = "512Mi" } }
+  otel_daemonset_resources = { requests = { cpu = "50m", memory = "64Mi" }, limits = { cpu = "500m", memory = "512Mi" } }
+  otel_processor_chain     = ["memory_limiter", "k8sattributes", "resource", "transform/k8s_labels", "batch"]
 }
 
 # =============================================================================
@@ -59,7 +60,10 @@ locals {
 # =============================================================================
 
 resource "helm_release" "otel_collector_daemonset" {
-  depends_on = [helm_release.cilium]
+  depends_on = [
+    helm_release.cilium,
+    kubernetes_priority_class_v1.node_agent,
+  ]
 
   name       = "otel-daemonset"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
@@ -72,6 +76,9 @@ resource "helm_release" "otel_collector_daemonset" {
   values = [yamlencode({
     image = { repository = "otel/opentelemetry-collector-k8s" }
     mode  = "daemonset"
+
+    priorityClassName = local.node_agent_priority_class
+
     extraEnvs = [
       {
         name = "K8S_NODE_NAME"
@@ -161,7 +168,7 @@ resource "helm_release" "otel_collector_daemonset" {
       }
     }
 
-    resources = local.otel_resources
+    resources = local.otel_daemonset_resources
     ports = {
       otlp      = { enabled = true, containerPort = 4317, servicePort = 4317, protocol = "TCP" }
       otlp-http = { enabled = true, containerPort = 4318, servicePort = 4318, protocol = "TCP" }
@@ -174,7 +181,14 @@ resource "helm_release" "otel_collector_daemonset" {
 # =============================================================================
 
 resource "helm_release" "otel_collector_deployment" {
-  depends_on = [helm_release.cilium, helm_release.ztunnel]
+  depends_on = [
+    helm_release.cilium,
+    helm_release.ztunnel,
+    helm_release.tetragon,
+    helm_release.trivy_operator,
+    helm_release.policy_reporter,
+    helm_release.kepler,
+  ]
 
   name       = "otel-cluster"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
@@ -324,6 +338,41 @@ resource "helm_release" "otel_collector_deployment" {
                 scrape_interval = "30s"
                 static_configs = [{
                   targets = ["${local.kube_state_metrics_name}.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:${local.kube_state_metrics_port}"]
+                }]
+              },
+              {
+                job_name        = "tetragon"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["tetragon.${local.tetragon_namespace}.svc.cluster.local:2112"]
+                }]
+              },
+              {
+                job_name        = "tetragon-operator"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["tetragon-operator-metrics.${local.tetragon_namespace}.svc.cluster.local:2113"]
+                }]
+              },
+              {
+                job_name        = "trivy-operator"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["trivy-operator.${local.trivy_operator_namespace}.svc.cluster.local:80"]
+                }]
+              },
+              {
+                job_name        = "policy-reporter"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["policy-reporter.${local.policy_reporter_namespace}.svc.cluster.local:8080"]
+                }]
+              },
+              {
+                job_name        = "kepler"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["kepler.${local.kepler_namespace}.svc.cluster.local:9102"]
                 }]
               },
               {

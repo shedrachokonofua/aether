@@ -13,6 +13,7 @@
 #   - OTEL Collectors (observability)
 #   - Metrics Server (resource metrics API)
 #   - Kyverno (policy guardrails)
+#   - Tetragon, Trivy Operator, Policy Reporter, Kepler (security/efficiency observability)
 #   - Headlamp (dashboard)
 #   - GitLab Agent (CI/CD deployments)
 #   - Crossplane (infrastructure control plane)

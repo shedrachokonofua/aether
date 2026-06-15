@@ -20,6 +20,10 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Metrics Server | metrics.k8s.io for HPA/VPA, kubectl top, Headlamp     |
 | VPA Recommender | VPA recommendation engine only; updater/admission disabled |
 | Goldilocks     | Resource request right-sizing dashboard for opt-in namespaces |
+| Tetragon       | eBPF runtime security observability, observe-only      |
+| Trivy Operator | Vulnerability/config/RBAC/security report generation   |
+| Policy Reporter | UI and metrics for Kyverno and Trivy report results   |
+| Kepler         | Node, pod, and container energy/efficiency metrics     |
 | Headlamp       | Kubernetes dashboard with OIDC auth                   |
 | Hubble UI      | Cilium network observability UI                       |
 | GitLab Agent   | CI/CD deploys via GitLab KAS tunnel                   |
@@ -31,6 +35,13 @@ stay manual and flow back through OpenTofu. VPA reads live resource metrics from
 metrics-server and uses Prometheus-backed cAdvisor history for restart/backfill
 context.
 
+Tetragon, Trivy Operator, Policy Reporter, and Kepler are observability/reporting
+components only. They do not block admissions, mutate workloads, or enforce
+runtime policy.
+
+Trivy's node collector is configured with Talos-safe host paths and small scan
+job requests so per-node scans can run on the ARM pool without hard arch pins.
+
 ### Access
 
 - API: `https://10.0.3.20:6443` (Talos API VIP)
@@ -39,3 +50,4 @@ context.
 - Headlamp: `https://headlamp.home.shdr.ch`
 - Hubble UI: `https://hubble.home.shdr.ch`
 - Goldilocks: `https://goldilocks.home.shdr.ch`
+- Policy Reporter: `https://policy-reporter.home.shdr.ch`
