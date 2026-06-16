@@ -141,6 +141,19 @@ variable "litellm_mcp_url" {
   description = "LiteLLM MCP endpoint URL used by MCPO"
 }
 
+variable "litellm_google_maps_api_key" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Google Maps API key used by LiteLLM's Google Maps MCP sidecar"
+}
+
+variable "litellm_google_maps_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to deploy LiteLLM's Google Maps MCP sidecar"
+}
+
 variable "coder_oauth_client_secret" {
   type        = string
   sensitive   = true

@@ -39,6 +39,16 @@ locals {
     account_id = data.sops_file.secrets.data["seven30.cloudflare_account_id"]
   }
 
+  google = {
+    project_id = lookup(data.sops_file.secrets.data, "google.project_id", "")
+  }
+
+  litellm_google_maps_api_key = try(
+    module.google[0].litellm_google_maps_api_key,
+    ""
+  )
+  litellm_google_maps_enabled = local.google.project_id != ""
+
   home = {
     proxmox = {
       endpoint = data.sops_file.secrets.data["proxmox.cluster_endpoint"]

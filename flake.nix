@@ -142,6 +142,7 @@
             
             # Cloud CLIs
             pkgsUnstable.awscli2
+            google-cloud-sdk
             rclone            # S3 CLI for AWS + Ceph RGW (MIT license)
             
             # Certificate management

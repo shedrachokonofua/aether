@@ -109,6 +109,27 @@ output "aws_ses_domain_verification_token" {
   value = module.aws.ses_domain_verification_token
 }
 
+output "google_maps_litellm_api_key" {
+  description = "Google Maps API key used by the LiteLLM Google Maps MCP sidecar"
+  value       = local.litellm_google_maps_api_key
+  sensitive   = true
+}
+
+output "google_project_id" {
+  description = "Google Cloud project used for Aether resources"
+  value       = nonsensitive(local.google.project_id)
+}
+
+output "google_workload_identity_provider_audience" {
+  description = "Workload Identity Federation audience used by task login"
+  value       = try(module.google[0].workload_identity_provider_audience, "")
+}
+
+output "google_tofu_service_account_email" {
+  description = "Google service account impersonated by task login through WIF"
+  value       = try(module.google[0].tofu_service_account_email, "")
+}
+
 
 
 

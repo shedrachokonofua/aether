@@ -4,24 +4,30 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  litellm_image           = "ghcr.io/berriai/litellm:1.86.2"
-  litellm_postgres_image  = "docker.io/postgres:latest"
-  litellm_finviz_image    = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
-  litellm_coingecko_image = "docker.io/node:22-slim"
-  litellm_time_mcp_image  = "docker.io/theo01/mcp-time:latest"
-  litellm_host            = "litellm.home.shdr.ch"
-  litellm_ns              = kubernetes_namespace_v1.infra.metadata[0].name
-  litellm_labels          = { app = "litellm" }
-  litellm_port            = 4000
-  litellm_finviz_port     = 8000
-  litellm_coingecko_port  = 8002
-  litellm_time_mcp_port   = 8003
-  litellm_postgres_port   = 5432
-  litellm_config_yaml     = templatefile("${path.module}/litellm_config.yaml.tftpl", { alphavantage_api_key = var.secrets["alphavantage_api_key"] })
-  litellm_database_url    = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@localhost/litellm?sslmode=disable"
-  litellm_registry_host   = "registry.gitlab.home.shdr.ch"
-  litellm_registry_user   = var.secrets["gitlab.root_email"]
-  litellm_registry_pass   = var.secrets["gitlab.root_password"]
+  litellm_image               = "ghcr.io/berriai/litellm:1.86.2"
+  litellm_postgres_image      = "docker.io/postgres:latest"
+  litellm_finviz_image        = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
+  litellm_coingecko_image     = "docker.io/node:22-slim"
+  litellm_time_mcp_image      = "docker.io/theo01/mcp-time:latest"
+  litellm_google_maps_image   = "docker.io/node:22-slim"
+  litellm_google_maps_package = "@cablate/mcp-google-map@0.0.52"
+  litellm_host                = "litellm.home.shdr.ch"
+  litellm_ns                  = kubernetes_namespace_v1.infra.metadata[0].name
+  litellm_labels              = { app = "litellm" }
+  litellm_port                = 4000
+  litellm_finviz_port         = 8000
+  litellm_coingecko_port      = 8002
+  litellm_time_mcp_port       = 8003
+  litellm_google_maps_port    = 8004
+  litellm_postgres_port       = 5432
+  litellm_config_yaml = templatefile("${path.module}/litellm_config.yaml.tftpl", {
+    alphavantage_api_key = var.secrets["alphavantage_api_key"]
+    google_maps_enabled  = var.litellm_google_maps_enabled
+  })
+  litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@localhost/litellm?sslmode=disable"
+  litellm_registry_host = "registry.gitlab.home.shdr.ch"
+  litellm_registry_user = var.secrets["gitlab.root_email"]
+  litellm_registry_pass = var.secrets["gitlab.root_password"]
 }
 
 resource "kubernetes_secret_v1" "litellm_env" {
@@ -32,22 +38,27 @@ resource "kubernetes_secret_v1" "litellm_env" {
     namespace = local.litellm_ns
   }
 
-  data = {
-    LITELLM_MASTER_KEY = var.secrets["litellm.master_key"]
-    DATABASE_URL       = local.litellm_database_url
-    POSTGRES_DB        = "litellm"
-    POSTGRES_USER      = var.secrets["litellm.database_user"]
-    POSTGRES_PASSWORD  = var.secrets["litellm.database_password"]
-    OPENAI_API_KEY     = var.secrets["litellm.openai_api_key"]
-    ANTHROPIC_API_KEY  = var.secrets["litellm.anthropic_api_key"]
-    OPENROUTER_API_KEY = var.secrets["litellm.openrouter_api_key"]
-    OLLAMA_API_KEY     = var.secrets["litellm.ollama_cloud_api_key"]
-    XIAOMI_API_KEY     = var.secrets["litellm.xiaomi_api_key"]
-    CURSOR_API_KEY     = var.secrets["composer.cursor_api_key"]
-    FINVIZ_API_KEY     = var.secrets["finviz_api_key"]
-    COINGECKO_API_KEY  = var.secrets["coingecko_api_key"]
-    LITELLM_CONFIG_SHA = sha256(local.litellm_config_yaml)
-  }
+  data = merge(
+    {
+      LITELLM_MASTER_KEY = var.secrets["litellm.master_key"]
+      DATABASE_URL       = local.litellm_database_url
+      POSTGRES_DB        = "litellm"
+      POSTGRES_USER      = var.secrets["litellm.database_user"]
+      POSTGRES_PASSWORD  = var.secrets["litellm.database_password"]
+      OPENAI_API_KEY     = var.secrets["litellm.openai_api_key"]
+      ANTHROPIC_API_KEY  = var.secrets["litellm.anthropic_api_key"]
+      OPENROUTER_API_KEY = var.secrets["litellm.openrouter_api_key"]
+      OLLAMA_API_KEY     = var.secrets["litellm.ollama_cloud_api_key"]
+      XIAOMI_API_KEY     = var.secrets["litellm.xiaomi_api_key"]
+      CURSOR_API_KEY     = var.secrets["composer.cursor_api_key"]
+      FINVIZ_API_KEY     = var.secrets["finviz_api_key"]
+      COINGECKO_API_KEY  = var.secrets["coingecko_api_key"]
+      LITELLM_CONFIG_SHA = sha256(local.litellm_config_yaml)
+    },
+    var.litellm_google_maps_enabled ? {
+      GOOGLE_MAPS_API_KEY = var.litellm_google_maps_api_key
+    } : {}
+  )
 
   type = "Opaque"
 }
@@ -416,6 +427,31 @@ resource "kubernetes_deployment_v1" "litellm" {
           port {
             container_port = local.litellm_time_mcp_port
             name           = "time-mcp"
+          }
+        }
+
+        dynamic "container" {
+          for_each = var.litellm_google_maps_enabled ? [1] : []
+
+          content {
+            name    = "google-maps-mcp-server"
+            image   = local.litellm_google_maps_image
+            command = ["npx", "-y", local.litellm_google_maps_package, "--host", "0.0.0.0", "--port", tostring(local.litellm_google_maps_port)]
+
+            port {
+              container_port = local.litellm_google_maps_port
+              name           = "google-maps"
+            }
+
+            env {
+              name = "GOOGLE_MAPS_API_KEY"
+              value_from {
+                secret_key_ref {
+                  name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                  key  = "GOOGLE_MAPS_API_KEY"
+                }
+              }
+            }
           }
         }
 

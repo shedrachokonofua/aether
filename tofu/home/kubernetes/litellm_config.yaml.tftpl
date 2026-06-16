@@ -262,3 +262,7 @@ mcp_servers:
   #   url: "http://localhost:8002/"
   finviz:
     url: "http://localhost:8000/mcp"
+%{ if google_maps_enabled ~}
+  google_maps:
+    url: "http://localhost:8004/mcp"
+%{ endif ~}

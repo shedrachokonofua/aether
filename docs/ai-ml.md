@@ -60,18 +60,19 @@ flowchart LR
     subgraph MCP["MCP Tools"]
         TIME[Time]
         FC[Firecrawl]
+        GMAPS[Google Maps]
     end
 
     OWUI & API --> LLM
     LLM --> LS & RR
     LLM --> OAI & ANT & OR
-    LLM --> TIME & FC
+    LLM --> TIME & FC & GMAPS
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0
     style Cloud fill:#f0e4d4,stroke:#c4a06a
 ```
 
-See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl) for the live model list and credentials.
+See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl) for the live model list and MCP registry. Google Maps MCP is opt-in: when `google.project_id` exists in SOPS, [`tofu/google/main.tf`](../tofu/google/main.tf) provisions the Google Maps API key, keeps it in Terraform state, restricts it to Maps APIs, and passes it to the LiteLLM sidecar as `GOOGLE_MAPS_API_KEY`. Google Cloud admin access is keyless after bootstrap: the first apply uses a human Application Default Credential from `gcloud auth application-default login`, then `task login` writes Workload Identity Federation external-account credentials for future OpenTofu runs instead of using a service-account JSON key.
 
 ### OpenWebUI
 

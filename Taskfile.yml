@@ -70,6 +70,7 @@ tasks:
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        [ -f "{{.CACHE_DIR}}/google-env" ] && set -a && . "{{.CACHE_DIR}}/google-env" && set +a
         tofu -chdir=tofu apply {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
       - task: k8s:auth
@@ -79,6 +80,7 @@ tasks:
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        [ -f "{{.CACHE_DIR}}/google-env" ] && set -a && . "{{.CACHE_DIR}}/google-env" && set +a
         tofu -chdir=tofu plan {{.CLI_ARGS}}
 
   tofu:refresh:
@@ -86,6 +88,7 @@ tasks:
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        [ -f "{{.CACHE_DIR}}/google-env" ] && set -a && . "{{.CACHE_DIR}}/google-env" && set +a
         tofu -chdir=tofu refresh {{.CLI_ARGS}}
       - tofu -chdir=tofu output -json > ./secrets/tf-outputs.json
 
@@ -94,6 +97,7 @@ tasks:
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        [ -f "{{.CACHE_DIR}}/google-env" ] && set -a && . "{{.CACHE_DIR}}/google-env" && set +a
         tofu -chdir=tofu import {{.CLI_ARGS}}
 
   tofu:apply:gitlab-runner:
@@ -110,6 +114,7 @@ tasks:
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        [ -f "{{.CACHE_DIR}}/google-env" ] && set -a && . "{{.CACHE_DIR}}/google-env" && set +a
         tofu -chdir=tofu force-unlock {{.CLI_ARGS}}
 
   k8s:auth:

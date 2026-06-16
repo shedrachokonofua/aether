@@ -551,6 +551,8 @@ module "kubernetes" {
   miniflux_oauth_client_secret     = keycloak_openid_client.miniflux.client_secret
   matrix_oauth_client_secret       = keycloak_openid_client.matrix.client_secret
   litellm_mcp_url                  = "http://litellm.infra.svc.cluster.local:4000/mcp"
+  litellm_google_maps_api_key      = var.litellm_google_maps_api_key
+  litellm_google_maps_enabled      = var.litellm_google_maps_enabled
 
   # Media stack migration
   nfs_server_ip       = local.vm.nfs.ip.vyos

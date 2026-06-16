@@ -177,6 +177,7 @@ flowchart LR
     CLI -->|token exchange| StepCA[step-ca<br/><i>SSH cert</i>]
     CLI -->|token exchange| Bao[OpenBao<br/><i>Bao token</i>]
     CLI -->|token exchange| AWS[AWS<br/><i>STS creds</i>]
+    CLI -->|token exchange| GCP[Google Cloud<br/><i>WIF creds</i>]
 ```
 
 ### Keycloak Configuration
@@ -194,7 +195,7 @@ flowchart LR
 
 | Client    | Purpose              | Token Use                                    |
 | --------- | -------------------- | -------------------------------------------- |
-| toolbox   | CLI authentication   | Device auth → SSH cert, Bao token, AWS creds |
+| toolbox   | CLI authentication   | Device auth → SSH cert, Bao token, AWS creds, Google WIF creds |
 | grafana   | Monitoring access    | Role mapping (grafana-editor/viewer)         |
 | openwebui | AI chat interface    | Role mapping (openwebui-user)                |
 | gitlab    | Code access          | User provisioning + group sync               |
@@ -234,6 +235,22 @@ AWS trusts step-ca as an identity provider via IAM Roles Anywhere. The trust anc
 | Profile             | Role                | Trusted CN       | Permissions         |
 | ------------------- | ------------------- | ---------------- | ------------------- |
 | openbao-auto-unseal | openbao-auto-unseal | bao.home.shdr.ch | KMS Encrypt/Decrypt |
+
+### Google Cloud Workload Identity Federation
+
+Google Cloud trusts Keycloak toolbox tokens through Workload Identity Federation. `task login` writes an external-account credential file that exchanges the short-lived Keycloak ID token through Google STS and impersonates the `aether-tofu` service account. No service-account JSON key is created or stored. The first apply that creates the WIF resources needs a human Application Default Credential from `gcloud auth application-default login`; after `task tofu:write-outputs`, subsequent `task login` runs write the WIF credential file automatically.
+
+**Identity Provider**: `aether/keycloak`
+
+- Trusts `https://auth.shdr.ch/realms/aether`
+- Requires the `toolbox` audience and the configured Keycloak email claim
+- Credentials via Google STS + service account impersonation
+
+**Service accounts**:
+
+| Service account | Who | Permissions |
+| --------------- | --- | ----------- |
+| aether-tofu | Me via Keycloak toolbox token | Manage Google IAM/WIF, Service Usage, and API keys for Aether |
 
 ### Tailscale
 
@@ -324,6 +341,7 @@ flowchart TB
 | Component     | Traditional            | This Architecture                       |
 | ------------- | ---------------------- | --------------------------------------- |
 | AWS access    | IAM user + access keys | Certificate → Roles Anywhere            |
+| Google access | Service account JSON key | Keycloak token → WIF → service account impersonation |
 | Vault access  | Root token / AppRole   | Certificate auth / OIDC                 |
 | Pod-to-pod    | Trust network / mTLS sidecars | Istio Ambient ztunnel (SPIFFE mTLS) |
 | CI → step-ca  | Hardcoded token        | GitLab JWT → cert directly           |

@@ -47,6 +47,18 @@ variable "secrets" {
   description = "SOPS secrets map passed from root module"
 }
 
+variable "litellm_google_maps_api_key" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Google Maps API key for LiteLLM's Google Maps MCP server"
+}
+
+variable "litellm_google_maps_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to deploy LiteLLM's Google Maps MCP server"
+}
 
 locals {
   vm = yamldecode(file("${path.module}/../../config/vm.yml"))

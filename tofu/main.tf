@@ -19,6 +19,11 @@ terraform {
       source  = "tailscale/tailscale"
       version = "~> 0.20"
     }
+
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 7.0"
+    }
   }
 }
 
@@ -27,6 +32,18 @@ module "aws" {
   aws_region             = var.aws_region
   aws_notification_email = local.aws.notification_email
   keycloak_shdrch_sub    = module.home.keycloak_shdrch_user_id
+}
+
+module "google" {
+  count                 = local.google.project_id != "" ? 1 : 0
+  source                = "./google"
+  project_id            = local.google.project_id
+  keycloak_shdrch_email = local.home.keycloak.shdrch_email
+}
+
+provider "google" {
+  project               = local.google.project_id != "" ? local.google.project_id : null
+  user_project_override = true
 }
 
 provider "cloudflare" {
@@ -51,6 +68,8 @@ module "home" {
   keycloak_admin_password          = local.home.keycloak.admin_password
   keycloak_shdrch_email            = local.home.keycloak.shdrch_email
   keycloak_shdrch_initial_password = local.home.keycloak.shdrch_initial_password
+  litellm_google_maps_api_key      = local.litellm_google_maps_api_key
+  litellm_google_maps_enabled      = local.litellm_google_maps_enabled
 }
 
 provider "tailscale" {

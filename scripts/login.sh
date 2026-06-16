@@ -7,6 +7,7 @@
 #   - SSH certificate (step-ca OIDC provisioner)
 #   - OpenBao (JWT auth backend)
 #   - AWS (STS AssumeRoleWithWebIdentity)
+#   - Google Cloud (Workload Identity Federation)
 #   - Ceph RGW (STS AssumeRoleWithWebIdentity)
 #
 # Usage:
@@ -14,6 +15,7 @@
 #   ./scripts/login.sh --ssh     # SSH certificate only
 #   ./scripts/login.sh --bao     # OpenBao only
 #   ./scripts/login.sh --aws     # AWS only
+#   ./scripts/login.sh --google  # Google Cloud only
 #   ./scripts/login.sh --s3      # Ceph S3 only
 #   ./scripts/login.sh --no-ssh  # Skip SSH even if agent available
 #   ./scripts/login.sh --status  # Check current auth status
@@ -22,6 +24,9 @@
 #   AETHER_CACHE_DIR   - Where to store tokens (default: ~/.aether-toolbox)
 #   AETHER_AWS_ROLE    - AWS role ARN to assume (default: auto-detect admin role)
 #   AETHER_AWS_REGION  - AWS region (default: us-east-1)
+#   AETHER_GOOGLE_WIF_AUDIENCE    - Google WIF audience (default: tf output)
+#   AETHER_GOOGLE_SERVICE_ACCOUNT - Google service account email (default: tf output)
+#   AETHER_GOOGLE_PROJECT         - Google project ID (default: tf output)
 #   SSH_AUTH_SOCK      - SSH agent socket (auto-detected for SSH cert exchange)
 #
 # S3 Usage (after login):
@@ -252,6 +257,81 @@ EOF
   } 2>/dev/null || true
 
   log_success "AWS credentials cached (expires: $expiration)"
+  return 0
+}
+
+exchange_for_google() {
+  local id_token="$1"
+  local required="${2:-false}"
+
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local outputs_file="$script_dir/../secrets/tf-outputs.json"
+
+  local audience="${AETHER_GOOGLE_WIF_AUDIENCE:-}"
+  local service_account="${AETHER_GOOGLE_SERVICE_ACCOUNT:-}"
+  local project_id="${AETHER_GOOGLE_PROJECT:-}"
+
+  if [[ -f "$outputs_file" ]]; then
+    if [[ -z "$audience" ]]; then
+      audience=$(jq -r '.google_workload_identity_provider_audience.value // empty' "$outputs_file" 2>/dev/null || true)
+    fi
+    if [[ -z "$service_account" ]]; then
+      service_account=$(jq -r '.google_tofu_service_account_email.value // empty' "$outputs_file" 2>/dev/null || true)
+    fi
+    if [[ -z "$project_id" ]]; then
+      project_id=$(jq -r '.google_project_id.value // empty' "$outputs_file" 2>/dev/null || true)
+    fi
+  fi
+
+  if [[ -z "$audience" || -z "$service_account" ]]; then
+    local msg="Google WIF is not configured yet"
+    if [[ "$required" == "true" ]]; then
+      log_error "$msg. Set google.project_id, bootstrap/apply the google module, then run task tofu:write-outputs."
+      return 1
+    fi
+    log_info "$msg; skipping Google credentials"
+    return 0
+  fi
+
+  log_info "Writing Google Workload Identity Federation credentials..."
+
+  local google_dir="$CACHE_DIR/google"
+  mkdir -p "$google_dir"
+  chmod 700 "$google_dir"
+
+  local token_file="$google_dir/keycloak-id-token.jwt"
+  local credentials_file="$google_dir/application-default-credentials.json"
+  local impersonation_url="https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${service_account}:generateAccessToken"
+
+  printf '%s' "$id_token" > "$token_file"
+  chmod 600 "$token_file"
+
+  jq -n \
+    --arg audience "$audience" \
+    --arg token_file "$token_file" \
+    --arg impersonation_url "$impersonation_url" \
+    '{
+      type: "external_account",
+      audience: $audience,
+      subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+      token_url: "https://sts.googleapis.com/v1/token",
+      service_account_impersonation_url: $impersonation_url,
+      credential_source: {
+        file: $token_file
+      }
+    }' > "$credentials_file"
+  chmod 600 "$credentials_file"
+
+  cat > "$CACHE_DIR/google-env" <<EOF
+GOOGLE_APPLICATION_CREDENTIALS=${credentials_file}
+CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=${credentials_file}
+GOOGLE_CLOUD_PROJECT=${project_id}
+GOOGLE_PROJECT=${project_id}
+EOF
+  chmod 600 "$CACHE_DIR/google-env"
+
+  log_success "Google WIF credentials configured (service account: $service_account)"
   return 0
 }
 
@@ -497,6 +577,21 @@ check_status() {
     log_warn "Not authenticated (no cached credentials)"
   fi
 
+  # Check Google Cloud
+  echo -e "\n${BLUE}Google Cloud:${NC}"
+  if [[ -f "$CACHE_DIR/google-env" ]]; then
+    local google_creds google_project
+    google_creds=$(grep '^GOOGLE_APPLICATION_CREDENTIALS=' "$CACHE_DIR/google-env" | cut -d= -f2- || true)
+    google_project=$(grep '^GOOGLE_CLOUD_PROJECT=' "$CACHE_DIR/google-env" | cut -d= -f2- || true)
+    if [[ -n "$google_creds" && -f "$google_creds" ]]; then
+      log_success "WIF credentials configured (project: ${google_project:-unknown})"
+    else
+      log_warn "Cached Google env exists but credential file is missing"
+    fi
+  else
+    log_warn "Not authenticated (no cached WIF credentials)"
+  fi
+
   # Check Ceph S3
   echo -e "\n${BLUE}Ceph S3:${NC}"
   if [[ -f "$CACHE_DIR/s3-env" ]]; then
@@ -521,6 +616,8 @@ check_status() {
 
 do_login() {
   local do_aws=true
+  local do_google=true
+  local google_required=false
   local do_bao=true
   local do_s3=true
   local do_ssh=auto  # auto = try if SSH agent available
@@ -529,6 +626,16 @@ do_login() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --aws)
+        do_google=false
+        do_bao=false
+        do_s3=false
+        do_ssh=false
+        shift
+        ;;
+      --google)
+        do_aws=false
+        do_google=true
+        google_required=true
         do_bao=false
         do_s3=false
         do_ssh=false
@@ -536,18 +643,21 @@ do_login() {
         ;;
       --bao)
         do_aws=false
+        do_google=false
         do_s3=false
         do_ssh=false
         shift
         ;;
       --s3)
         do_aws=false
+        do_google=false
         do_bao=false
         do_ssh=false
         shift
         ;;
       --ssh)
         do_aws=false
+        do_google=false
         do_bao=false
         do_s3=false
         do_ssh=true
@@ -562,10 +672,11 @@ do_login() {
         exit 0
         ;;
       --help|-h)
-        echo "Usage: $0 [--aws|--bao|--s3|--ssh|--no-ssh|--status]"
+        echo "Usage: $0 [--aws|--google|--bao|--s3|--ssh|--no-ssh|--status]"
         echo ""
         echo "Options:"
         echo "  --aws     Only get AWS credentials"
+        echo "  --google  Only configure Google Cloud WIF credentials"
         echo "  --bao     Only get OpenBao token"
         echo "  --s3      Only get Ceph S3 credentials"
         echo "  --ssh     Only get SSH certificate"
@@ -581,6 +692,9 @@ do_login() {
         echo "  AETHER_CACHE_DIR   Token cache directory (default: ~/.aether-toolbox)"
         echo "  AETHER_AWS_ROLE    AWS role ARN to assume"
         echo "  AETHER_AWS_REGION  AWS region (default: us-east-1)"
+        echo "  AETHER_GOOGLE_WIF_AUDIENCE       Google WIF audience"
+        echo "  AETHER_GOOGLE_SERVICE_ACCOUNT    Google service account email"
+        echo "  AETHER_GOOGLE_PROJECT            Google project ID"
         exit 0
         ;;
       *)
@@ -635,11 +749,12 @@ do_login() {
   log_success "Authentication successful!"
   echo ""
 
-  # Exchange tokens (ordered by importance: SSH → Bao → AWS → S3)
+  # Exchange tokens (ordered by importance: SSH → Bao → AWS → Google → S3)
   local ssh_ok=true
   local ssh_skipped=false
   local bao_ok=true
   local aws_ok=true
+  local google_ok=true
   local s3_ok=true
 
   # SSH: auto-detect or explicit (most used day-to-day)
@@ -662,6 +777,10 @@ do_login() {
 
   if $do_aws; then
     exchange_for_aws "$id_token" || aws_ok=false
+  fi
+
+  if $do_google; then
+    exchange_for_google "$id_token" "$google_required" || google_ok=false
   fi
 
   if $do_s3; then
@@ -694,6 +813,17 @@ do_login() {
       log_error "AWS: Failed"
     fi
   fi
+  if $do_google; then
+    if $google_ok; then
+      if [[ -f "$CACHE_DIR/google-env" ]]; then
+        log_success "Google: Ready (WIF config in $CACHE_DIR/google-env)"
+      else
+        log_info "Google: Not configured"
+      fi
+    else
+      log_error "Google: Failed"
+    fi
+  fi
   if $do_s3; then
     if $s3_ok; then
       log_success "Ceph RGW:  Ready (rclone remotes: ceph_rgw, aws)"
@@ -704,7 +834,7 @@ do_login() {
   echo ""
 
   # Only fail on explicit requests, not auto-detected SSH
-  if ! $bao_ok || ! $aws_ok || ! $s3_ok; then
+  if ! $bao_ok || ! $aws_ok || ! $google_ok || ! $s3_ok; then
     exit 1
   fi
   if [[ "$do_ssh" == "true" ]] && ! $ssh_ok; then
@@ -714,4 +844,3 @@ do_login() {
 
 # Run main
 do_login "$@"
-
