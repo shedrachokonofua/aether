@@ -3,11 +3,8 @@
 # =============================================================================
 # Browser-accessible Mux server in a Kata pod. Workspaces and npm cache live on
 # Ceph RBD so restarts do not lose local state.
-
-resource "random_password" "mux_server_auth_token" {
-  length  = 48
-  special = false
-}
+#
+# Auth: --no-auth (trusted tailnet only; mux.home.shdr.ch is not SSO-wrapped).
 
 locals {
   mux_image                 = "docker.io/library/node:22-bookworm"
@@ -37,8 +34,10 @@ locals {
     "aether/qwen3.6-27b:code",
     "aether/qwen3.6-27b:think",
     "aether/qwen3.5-9b:think",
+    "cursor/composer-2.5",
+    "cursor/composer-2.5-fast",
     "ollama-cloud/kimi-k2.6",
-    "ollama-cloud/glm-5.1",
+    "ollama-cloud/glm-5.2",
     "openai/gpt-5.5",
     "openai/gpt-5.4",
     "openai/gpt-5.4-mini",
@@ -75,8 +74,7 @@ resource "kubernetes_secret_v1" "mux_env" {
   }
 
   data = {
-    MUX_SERVER_AUTH_TOKEN = random_password.mux_server_auth_token.result
-    "litellm-api-key"     = var.secrets["litellm.virtual_keys.mux"]
+    "litellm-api-key" = var.secrets["litellm.virtual_keys.mux"]
   }
 
   type = "Opaque"
@@ -218,6 +216,7 @@ resource "kubernetes_deployment_v1" "mux" {
             exec npx -y "mux@${local.mux_version}" server \
               --host 0.0.0.0 \
               --port ${local.mux_port} \
+              --no-auth \
               --allow-http-origin \
               --add-project /data/workspace
           EOT
@@ -226,16 +225,6 @@ resource "kubernetes_deployment_v1" "mux" {
           port {
             container_port = local.mux_port
             name           = "http"
-          }
-
-          env {
-            name = "MUX_SERVER_AUTH_TOKEN"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.mux_env.metadata[0].name
-                key  = "MUX_SERVER_AUTH_TOKEN"
-              }
-            }
           }
 
           env {
