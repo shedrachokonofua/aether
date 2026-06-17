@@ -301,6 +301,114 @@ resource "helm_release" "policy_reporter" {
   })]
 }
 
+resource "helm_release" "trivy_operator_polr_adapter" {
+  depends_on = [
+    helm_release.policy_reporter,
+    helm_release.trivy_operator,
+  ]
+
+  name       = "trivy-operator-polr-adapter"
+  repository = "https://fjogeleit.github.io/trivy-operator-polr-adapter"
+  chart      = "trivy-operator-polr-adapter"
+  namespace  = kubernetes_namespace_v1.policy_reporter.metadata[0].name
+  version    = "0.11.3"
+  wait       = true
+  timeout    = 600
+
+  values = [yamlencode({
+    crds = {
+      install = false
+    }
+
+    openreports = {
+      enabled = false
+      install = false
+    }
+
+    adapters = {
+      vulnerabilityReports = {
+        enabled = true
+        timeout = 2
+      }
+      clusterVulnerabilityReports = {
+        enabled = true
+        timeout = 2
+      }
+      configAuditReports = {
+        enabled = false
+      }
+      cisKubeBenchReports = {
+        enabled = false
+      }
+      complianceReports = {
+        enabled = false
+      }
+      rbacAssessmentReports = {
+        enabled = false
+      }
+      exposedSecretReports = {
+        enabled = false
+      }
+      infraAssessmentReports = {
+        enabled = false
+      }
+      clusterInfraAssessmentReports = {
+        enabled = false
+      }
+    }
+
+    resources = {
+      requests = { cpu = "25m", memory = "64Mi" }
+      limits   = { cpu = "250m", memory = "256Mi" }
+    }
+  })]
+}
+
+resource "kubernetes_cluster_role_v1" "policy_reporter_trivy_plugin" {
+  metadata {
+    name = "policy-reporter-trivy-plugin"
+  }
+
+  rule {
+    api_groups = ["aquasecurity.github.io"]
+    resources = [
+      "clustercompliancereports",
+      "clusterconfigauditreports",
+      "clusterinfraassessmentreports",
+      "clusterrbacassessmentreports",
+      "clustersbomreports",
+      "clustervulnerabilityreports",
+      "configauditreports",
+      "exposedsecretreports",
+      "infraassessmentreports",
+      "rbacassessmentreports",
+      "sbomreports",
+      "vulnerabilityreports",
+    ]
+    verbs = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding_v1" "policy_reporter_trivy_plugin" {
+  depends_on = [helm_release.policy_reporter]
+
+  metadata {
+    name = "policy-reporter-trivy-plugin"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role_v1.policy_reporter_trivy_plugin.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "policy-reporter-trivy-plugin"
+    namespace = kubernetes_namespace_v1.policy_reporter.metadata[0].name
+  }
+}
+
 resource "kubernetes_manifest" "policy_reporter_route" {
   depends_on = [kubernetes_manifest.main_gateway, helm_release.policy_reporter]
 
