@@ -267,6 +267,7 @@ exchange_for_google() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local outputs_file="$script_dir/../secrets/tf-outputs.json"
+  local token_script="$script_dir/google-wif-token.sh"
 
   local audience="${AETHER_GOOGLE_WIF_AUDIENCE:-}"
   local service_account="${AETHER_GOOGLE_SERVICE_ACCOUNT:-}"
@@ -294,6 +295,11 @@ exchange_for_google() {
     return 0
   fi
 
+  if [[ ! -x "$token_script" ]]; then
+    log_error "Google WIF token script missing or not executable: $token_script"
+    return 1
+  fi
+
   log_info "Writing Google Workload Identity Federation credentials..."
 
   local google_dir="$CACHE_DIR/google"
@@ -302,6 +308,7 @@ exchange_for_google() {
 
   local token_file="$google_dir/keycloak-id-token.jwt"
   local credentials_file="$google_dir/application-default-credentials.json"
+  local token_cache_file="$google_dir/wif-token-cache.json"
   local impersonation_url="https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${service_account}:generateAccessToken"
 
   printf '%s' "$id_token" > "$token_file"
@@ -309,7 +316,8 @@ exchange_for_google() {
 
   jq -n \
     --arg audience "$audience" \
-    --arg token_file "$token_file" \
+    --arg token_script "$token_script" \
+    --arg token_cache_file "$token_cache_file" \
     --arg impersonation_url "$impersonation_url" \
     '{
       type: "external_account",
@@ -318,7 +326,11 @@ exchange_for_google() {
       token_url: "https://sts.googleapis.com/v1/token",
       service_account_impersonation_url: $impersonation_url,
       credential_source: {
-        file: $token_file
+        executable: {
+          command: $token_script,
+          timeout_millis: 30000,
+          output_file: $token_cache_file
+        }
       }
     }' > "$credentials_file"
   chmod 600 "$credentials_file"
@@ -328,11 +340,39 @@ GOOGLE_APPLICATION_CREDENTIALS=${credentials_file}
 CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=${credentials_file}
 GOOGLE_CLOUD_PROJECT=${project_id}
 GOOGLE_PROJECT=${project_id}
+GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES=1
 EOF
   chmod 600 "$CACHE_DIR/google-env"
 
+  # Verify the executable refresh path works before reporting success.
+  if ! GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES=1 \
+    GOOGLE_APPLICATION_CREDENTIALS="$credentials_file" \
+    CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$credentials_file" \
+    gcloud auth application-default print-access-token &>/dev/null; then
+    log_error "Google WIF credential exchange failed after login"
+    return 1
+  fi
+
   log_success "Google WIF credentials configured (service account: $service_account)"
   return 0
+}
+
+persist_keycloak_refresh_token() {
+  local token_response="$1"
+  local refresh_token
+
+  refresh_token=$(echo "$token_response" | jq -r '.refresh_token // empty')
+  if [[ -z "$refresh_token" ]]; then
+    log_warn "Keycloak did not return a refresh token; Google WIF will expire with the ID token (~5m)"
+    return 0
+  fi
+
+  local google_dir="$CACHE_DIR/google"
+  mkdir -p "$google_dir"
+  chmod 700 "$google_dir"
+
+  printf '%s' "$refresh_token" > "$google_dir/keycloak-refresh-token"
+  chmod 600 "$google_dir/keycloak-refresh-token"
 }
 
 exchange_for_s3() {
@@ -580,13 +620,16 @@ check_status() {
   # Check Google Cloud
   echo -e "\n${BLUE}Google Cloud:${NC}"
   if [[ -f "$CACHE_DIR/google-env" ]]; then
-    local google_creds google_project
-    google_creds=$(grep '^GOOGLE_APPLICATION_CREDENTIALS=' "$CACHE_DIR/google-env" | cut -d= -f2- || true)
-    google_project=$(grep '^GOOGLE_CLOUD_PROJECT=' "$CACHE_DIR/google-env" | cut -d= -f2- || true)
-    if [[ -n "$google_creds" && -f "$google_creds" ]]; then
-      log_success "WIF credentials configured (project: ${google_project:-unknown})"
+    set -a
+    # shellcheck disable=SC1091
+    source "$CACHE_DIR/google-env"
+    set +a
+    local google_project="${GOOGLE_CLOUD_PROJECT:-unknown}"
+    if GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES=1 \
+      gcloud auth application-default print-access-token &>/dev/null; then
+      log_success "Authenticated via WIF (project: $google_project)"
     else
-      log_warn "Cached Google env exists but credential file is missing"
+      log_warn "WIF credentials expired or invalid (run: task login)"
     fi
   else
     log_warn "Not authenticated (no cached WIF credentials)"
@@ -745,6 +788,8 @@ do_login() {
   local access_token id_token
   access_token=$(echo "$token_response" | jq -r '.access_token')
   id_token=$(echo "$token_response" | jq -r '.id_token')
+
+  persist_keycloak_refresh_token "$token_response"
 
   log_success "Authentication successful!"
   echo ""
