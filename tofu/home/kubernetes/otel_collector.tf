@@ -341,11 +341,35 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
+                # Tetragon agent is a DaemonSet behind a Service. Scrape
+                # endpoints directly so every node agent is represented rather
+                # than one load-balanced service target.
                 job_name        = "tetragon"
                 scrape_interval = "30s"
-                static_configs = [{
-                  targets = ["tetragon.${local.tetragon_namespace}.svc.cluster.local:2112"]
+                kubernetes_sd_configs = [{
+                  role       = "endpoints"
+                  namespaces = { names = [local.tetragon_namespace] }
                 }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = "tetragon"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+                    action        = "keep"
+                    regex         = "metrics"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_node_name"]
+                    target_label  = "node"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "pod"
+                  },
+                ]
               },
               {
                 job_name        = "tetragon-operator"
@@ -369,11 +393,34 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
+                # Kepler is a DaemonSet; scrape each endpoint to preserve
+                # per-node energy metrics instead of sampling one Service VIP.
                 job_name        = "kepler"
                 scrape_interval = "30s"
-                static_configs = [{
-                  targets = ["kepler.${local.kepler_namespace}.svc.cluster.local:9102"]
+                kubernetes_sd_configs = [{
+                  role       = "endpoints"
+                  namespaces = { names = [local.kepler_namespace] }
                 }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = "kepler"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+                    action        = "keep"
+                    regex         = "http"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_node_name"]
+                    target_label  = "node"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "pod"
+                  },
+                ]
               },
               {
                 job_name        = "nut_exporter"

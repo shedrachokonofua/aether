@@ -7,6 +7,11 @@ receivers:
         endpoint: "0.0.0.0:4318"
 
 processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 2048
+    spike_limit_mib: 512
+
   batch:
     timeout: 10s
     send_batch_size: 2048
@@ -117,13 +122,13 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [transform/metrics, batch]
+      processors: [memory_limiter, transform/metrics, batch]
       exporters: [prometheus]
 
     # Ingest logs and route based on source
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [routing/logs]
 
     # Zeek logs -> ClickHouse
@@ -143,7 +148,7 @@ service:
 
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [routing/traces]
 
     traces/default:
