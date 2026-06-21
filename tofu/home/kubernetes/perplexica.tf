@@ -256,7 +256,7 @@ resource "kubernetes_deployment_v1" "perplexica" {
           }
 
           resources {
-            requests = { cpu = "100m", memory = "256Mi" }
+            requests = { cpu = "100m", memory = "512Mi" }
             limits   = { cpu = "1", memory = "1Gi" }
           }
 

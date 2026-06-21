@@ -91,7 +91,7 @@ resource "kubernetes_stateful_set_v1" "yourspotify_mongo" {
           }
 
           resources {
-            requests = { cpu = "100m", memory = "256Mi" }
+            requests = { cpu = "100m", memory = "768Mi" }
             limits   = { cpu = "1", memory = "1Gi" }
           }
 

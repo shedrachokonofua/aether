@@ -302,7 +302,7 @@ resource "kubernetes_deployment_v1" "affine_manticore" {
             mount_path = "/var/lib/manticore"
           }
           resources {
-            requests = { cpu = "100m", memory = "256Mi" }
+            requests = { cpu = "100m", memory = "640Mi" }
             limits   = { cpu = "1", memory = "1Gi" }
           }
           readiness_probe {

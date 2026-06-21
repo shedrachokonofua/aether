@@ -348,7 +348,7 @@ resource "kubernetes_deployment_v1" "llama_swap" {
           resources {
             requests = {
               cpu              = "2"
-              memory           = "4Gi"
+              memory           = "8Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {
