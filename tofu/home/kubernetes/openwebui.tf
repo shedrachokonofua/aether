@@ -727,7 +727,11 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "AUDIO_TTS_MODEL"
-            value = "kokoro"
+            value = "speaches-ai/Kokoro-82M-v1.0-ONNX"
+          }
+          env {
+            name  = "AUDIO_TTS_VOICE"
+            value = "af_heart"
           }
 
           readiness_probe {
