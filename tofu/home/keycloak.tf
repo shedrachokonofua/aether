@@ -101,6 +101,14 @@ resource "keycloak_realm" "aether" {
   refresh_token_max_reuse  = 0
   password_policy          = "length(12) and notUsername"
 
+  web_authn_passwordless_policy {
+    relying_party_entity_name         = "keycloak"
+    require_resident_key              = "Yes"
+    user_verification_requirement     = "required"
+    passwordless_passkeys_enabled     = true
+    avoid_same_authenticator_register = false
+  }
+
   smtp_server {
     from = "no-reply@shdr.ch"
     host = local.vm.notifications_stack.ip
@@ -240,6 +248,18 @@ resource "keycloak_required_action" "webauthn_register" {
   default_action = false
 }
 
+resource "keycloak_required_action" "webauthn_register_passwordless" {
+  realm_id       = keycloak_realm.aether.id
+  alias          = "webauthn-register-passwordless"
+  enabled        = true
+  default_action = false
+}
+
+resource "keycloak_authentication_bindings" "aether_browser" {
+  realm_id     = keycloak_realm.aether.id
+  browser_flow = "browser"
+}
+
 # =============================================================================
 # Aether Realm - Roles
 # =============================================================================
@@ -294,7 +314,7 @@ resource "keycloak_user" "shdrch_aether" {
   last_name      = "Okonofua"
 
   # Prompt to configure MFA on next login
-  required_actions = ["webauthn-register", "CONFIGURE_TOTP"]
+  required_actions = ["webauthn-register-passwordless", "CONFIGURE_TOTP"]
 
   initial_password {
     value     = var.keycloak_shdrch_initial_password

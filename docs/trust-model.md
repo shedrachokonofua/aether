@@ -189,6 +189,7 @@ flowchart LR
 | SSO session max lifespan | 12h                                      |
 | Access token lifespan    | 5m                                       |
 | Password policy          | length(12), notUsername                  |
+| Browser flow             | Built-in browser flow with passwordless passkeys enabled |
 | Features enabled         | token-exchange, admin-fine-grained-authz |
 
 ### OIDC Clients (Aether Realm)
