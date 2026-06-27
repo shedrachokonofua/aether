@@ -13,6 +13,74 @@ locals {
   onlyoffice_image = "onlyoffice/documentserver:latest"
   onlyoffice_port  = 80
 
+  onlyoffice_ai_provider_url = "https://litellm.home.shdr.ch"
+  onlyoffice_ai_model_id     = "aether/gemma-4-26b-a4b"
+  onlyoffice_ai_model_name   = "Aether Gemma 4 26B A4B"
+
+  onlyoffice_ai_settings_json = jsonencode({
+    version = 3
+    timeout = "10m"
+    proxy   = ""
+    allowedCorsOrigins = [
+      "https://onlyoffice.github.io",
+      "https://onlyoffice-plugins.github.io",
+      local.onlyoffice_url,
+    ]
+    actions = {
+      Chat = {
+        name         = "Ask AI"
+        icon         = "ask-ai"
+        model        = local.onlyoffice_ai_model_id
+        capabilities = 1
+      }
+      Summarization = {
+        name         = "Summarization"
+        icon         = "summarization"
+        model        = local.onlyoffice_ai_model_id
+        capabilities = 1
+      }
+      Translation = {
+        name         = "Translation"
+        icon         = "translation"
+        model        = local.onlyoffice_ai_model_id
+        capabilities = 1
+      }
+      TextAnalyze = {
+        name         = "Text analysis"
+        icon         = "text-analysis-ai"
+        model        = local.onlyoffice_ai_model_id
+        capabilities = 1
+      }
+    }
+    providers = {
+      OpenAI = {
+        name = "OpenAI"
+        url  = local.onlyoffice_ai_provider_url
+        key  = var.secrets["litellm.virtual_keys.nextcloud"]
+        models = [{
+          id       = local.onlyoffice_ai_model_id
+          object   = "model"
+          owned_by = "aether"
+          name     = local.onlyoffice_ai_model_id
+          endpoints = [
+            1,
+          ]
+          options = {
+            max_input_tokens = 131072
+          }
+        }]
+      }
+    }
+    models = [{
+      capabilities = 1
+      provider     = "OpenAI"
+      name         = local.onlyoffice_ai_model_name
+      id           = local.onlyoffice_ai_model_id
+    }]
+  })
+
+  onlyoffice_ai_settings_hash = nonsensitive(substr(sha256(local.onlyoffice_ai_settings_json), 0, 12))
+
   nextcloud_onlyoffice_bootstrap_hash = nonsensitive(substr(sha256(join("|", [
     local.onlyoffice_url,
     local.onlyoffice_internal_url,
@@ -48,12 +116,30 @@ resource "kubernetes_secret_v1" "onlyoffice_jwt" {
   type = "Opaque"
 }
 
+resource "kubernetes_secret_v1" "onlyoffice_ai_settings" {
+  depends_on = [kubernetes_namespace_v1.nextcloud]
+
+  metadata {
+    name      = "onlyoffice-ai-settings"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  data = {
+    "ai-settings.json" = local.onlyoffice_ai_settings_json
+  }
+
+  type = "Opaque"
+}
+
 # =============================================================================
 # Deployment
 # =============================================================================
 
 resource "kubernetes_deployment_v1" "onlyoffice" {
-  depends_on = [kubernetes_secret_v1.onlyoffice_jwt]
+  depends_on = [
+    kubernetes_secret_v1.onlyoffice_ai_settings,
+    kubernetes_secret_v1.onlyoffice_jwt,
+  ]
 
   metadata {
     name      = "onlyoffice"
@@ -71,6 +157,9 @@ resource "kubernetes_deployment_v1" "onlyoffice" {
     template {
       metadata {
         labels = local.onlyoffice_labels
+        annotations = {
+          "aether.shdr.ch/ai-settings-sha" = local.onlyoffice_ai_settings_hash
+        }
       }
 
       spec {
@@ -85,7 +174,10 @@ resource "kubernetes_deployment_v1" "onlyoffice" {
             if [ -f /etc/onlyoffice/documentserver/nginx/includes/http-common.conf ]; then
               sed -i "s/[$]the_scheme[;]/https;/g" /etc/onlyoffice/documentserver/nginx/includes/http-common.conf
             fi
-            exec /app/ds/run-document-server.sh
+            if [ -f /run/onlyoffice-ai/ai-settings.json ]; then
+              python3 -c 'import json; local_json="/etc/onlyoffice/documentserver/local.json"; ai_settings_json="/run/onlyoffice-ai/ai-settings.json"; config=json.load(open(local_json, encoding="utf-8")); config["aiSettings"]=json.load(open(ai_settings_json, encoding="utf-8")); f=open(local_json, "w", encoding="utf-8"); json.dump(config, f, indent=2); f.write(chr(10)); f.close()'
+            fi
+            /app/ds/run-document-server.sh 2>&1 | sed -u -E 's/"key": "[^"]+"/"key": "[REDACTED]"/g'
           EOT
           ]
 
@@ -112,6 +204,13 @@ resource "kubernetes_deployment_v1" "onlyoffice" {
           env {
             name  = "JWT_HEADER"
             value = "Authorization"
+          }
+
+          volume_mount {
+            name       = "ai-settings"
+            mount_path = "/run/onlyoffice-ai/ai-settings.json"
+            sub_path   = "ai-settings.json"
+            read_only  = true
           }
 
           readiness_probe {
@@ -150,6 +249,17 @@ resource "kubernetes_deployment_v1" "onlyoffice" {
             limits = {
               cpu    = "3"
               memory = "4Gi"
+            }
+          }
+        }
+
+        volume {
+          name = "ai-settings"
+          secret {
+            secret_name = kubernetes_secret_v1.onlyoffice_ai_settings.metadata[0].name
+            items {
+              key  = "ai-settings.json"
+              path = "ai-settings.json"
             }
           }
         }
