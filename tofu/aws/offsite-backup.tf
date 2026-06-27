@@ -11,8 +11,8 @@ resource "aws_iam_role" "offsite_backup" {
   name = "offsite-backup"
   path = "/aether/"
 
-  # Allow sessions up to 8 hours (28800 seconds)
-  max_session_duration = 28800
+  # Allow sessions up to 12 hours (43200 seconds), the IAM role maximum.
+  max_session_duration = 43200
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -79,8 +79,8 @@ resource "aws_rolesanywhere_profile" "offsite_backup" {
   enabled   = true
   role_arns = [aws_iam_role.offsite_backup.arn]
 
-  # 8 hour sessions (28800 seconds)
-  duration_seconds = 28800
+  # 12 hour sessions (43200 seconds)
+  duration_seconds = 43200
 
   tags = {
     Name    = "offsite-backup"
@@ -138,10 +138,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "offsite_backup_en
 resource "aws_s3_bucket_versioning" "offsite_backup_versioning" {
   bucket = aws_s3_bucket.offsite_backup.id
   versioning_configuration {
-    # Disabled - Deep Archive has 180-day minimum storage charge per object,
-    # so versioning causes paying for "deleted" versions for 6 months.
-    # The source data (PBS/ZFS) already has its own versioning.
-    status = "Suspended"
+    # Enabled so accidental or automated deletes create recoverable noncurrent
+    # versions instead of immediately erasing the only offsite copy.
+    status = "Enabled"
   }
 
   lifecycle {
@@ -153,27 +152,37 @@ resource "aws_s3_bucket_lifecycle_configuration" "offsite_backup_lifecycle" {
   bucket = aws_s3_bucket.offsite_backup.id
 
   rule {
-    id     = "DeepArchiveBackups"
+    id     = "DeepArchiveResticData"
     status = "Enabled"
 
     filter {
-      prefix = ""
+      prefix = "restic/data/"
     }
 
     # Cost: ~$0.00099/GB/month | Retrieval: 12-48 hours, ~$0.02/GB
+    # Only restic data packs transition. Repository metadata such as config,
+    # snapshots, locks, keys, and index must stay readable for future backups.
     transition {
       days          = 1
       storage_class = "DEEP_ARCHIVE"
     }
 
-    # Auto-delete after 181 days (just past Deep Archive 180-day minimum)
-    # You're paying for 180 days regardless, so no point keeping longer unless needed
-    expiration {
-      days = 181
+    # No expiration: this bucket is the disaster-recovery copy. Retention is
+    # controlled by the backup tool and explicit operator action, not by S3
+    # lifecycle expiry.
+  }
+
+  rule {
+    id     = "DeepArchiveResticV2Data"
+    status = "Enabled"
+
+    filter {
+      prefix = "restic-v2/data/"
     }
 
-    noncurrent_version_expiration {
-      noncurrent_days = 1
+    transition {
+      days          = 1
+      storage_class = "DEEP_ARCHIVE"
     }
   }
 
