@@ -1,32 +1,32 @@
 # =============================================================================
-# Perplexica — AI-powered Search
+# Vane — AI-powered Search
 # =============================================================================
 # Single container. Runtime config is seeded into the data PVC.
 # SearXNG backend: searxng.home.shdr.ch (k8s)
+# Uses slim image since we run our own SearXNG instance.
 #
-# Data migration: tiny volumes (~32KB), can start fresh or copy:
-#   perplexica-backend-dbstore-default-perplexica-1vcy9k → memos-data PVC
+# Formerly Perplexica (rebranded upstream, same author).
 
 locals {
-  perplexica_image           = "itzcrazykns1337/perplexica:latest"
-  perplexica_host            = "perplexica.home.shdr.ch"
-  perplexica_port            = 3000
-  perplexica_ns              = kubernetes_namespace_v1.personal.metadata[0].name
-  perplexica_labels          = { app = "perplexica" }
-  perplexica_searxng_url     = "http://searxng.infra.svc.cluster.local:8080"
-  perplexica_openai_base_url = "https://litellm.home.shdr.ch/v1"
-  perplexica_chat_model_key  = "aether/gemma-4-26b-a4b"
-  perplexica_chat_model_name = "Gemma 4 26B A4B (LiteLLM)"
-  perplexica_embedding_key   = "aether/qwen3-embedding:4b"
-  perplexica_embedding_name  = "Qwen3 Embedding 4B (LiteLLM)"
+  vane_image           = "itzcrazykns1337/vane:slim-latest"
+  vane_host            = "vane.home.shdr.ch"
+  vane_port            = 3000
+  vane_ns              = kubernetes_namespace_v1.personal.metadata[0].name
+  vane_labels          = { app = "vane" }
+  vane_searxng_url     = "http://searxng.infra.svc.cluster.local:8080"
+  vane_openai_base_url = "https://litellm.home.shdr.ch/v1"
+  vane_chat_model_key  = "aether/gemma-4-26b-a4b"
+  vane_chat_model_name = "Gemma 4 26B A4B (LiteLLM)"
+  vane_embedding_key   = "aether/qwen3-embedding:4b"
+  vane_embedding_name  = "Qwen3 Embedding 4B (LiteLLM)"
 }
 
-resource "kubernetes_secret_v1" "perplexica_config" {
+resource "kubernetes_secret_v1" "vane_config" {
   depends_on = [kubernetes_namespace_v1.personal]
 
   metadata {
-    name      = "perplexica-config"
-    namespace = local.perplexica_ns
+    name      = "vane-config"
+    namespace = local.vane_ns
   }
 
   data = {
@@ -36,12 +36,12 @@ resource "kubernetes_secret_v1" "perplexica_config" {
   type = "Opaque"
 }
 
-resource "kubernetes_persistent_volume_claim_v1" "perplexica_data" {
+resource "kubernetes_persistent_volume_claim_v1" "vane_data" {
   depends_on = [kubernetes_namespace_v1.personal, kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
-    name      = "perplexica-data"
-    namespace = local.perplexica_ns
+    name      = "vane-data"
+    namespace = local.vane_ns
   }
 
   spec {
@@ -51,16 +51,16 @@ resource "kubernetes_persistent_volume_claim_v1" "perplexica_data" {
   }
 }
 
-resource "kubernetes_deployment_v1" "perplexica" {
+resource "kubernetes_deployment_v1" "vane" {
   depends_on = [
-    kubernetes_persistent_volume_claim_v1.perplexica_data,
-    kubernetes_secret_v1.perplexica_config,
+    kubernetes_persistent_volume_claim_v1.vane_data,
+    kubernetes_secret_v1.vane_config,
   ]
 
   metadata {
-    name      = "perplexica"
-    namespace = local.perplexica_ns
-    labels    = local.perplexica_labels
+    name      = "vane"
+    namespace = local.vane_ns
+    labels    = local.vane_labels
   }
 
   spec {
@@ -68,26 +68,26 @@ resource "kubernetes_deployment_v1" "perplexica" {
     strategy { type = "Recreate" }
 
     selector {
-      match_labels = local.perplexica_labels
+      match_labels = local.vane_labels
     }
 
     template {
-      metadata { labels = local.perplexica_labels }
+      metadata { labels = local.vane_labels }
 
       spec {
         enable_service_links = false
 
         init_container {
-          name  = "configure-perplexica"
-          image = local.perplexica_image
+          name  = "configure-vane"
+          image = local.vane_image
 
           command = ["node", "-e"]
           args = [<<-JS
             const fs = require('fs');
             const crypto = require('crypto');
 
-            const configPath = '/home/perplexica/data/config.json';
-            const dataDir = '/home/perplexica/data';
+            const configPath = '/home/vane/data/config.json';
+            const dataDir = '/home/vane/data';
             fs.mkdirSync(dataDir, { recursive: true });
 
             let config = {
@@ -177,33 +177,33 @@ resource "kubernetes_deployment_v1" "perplexica" {
 
           env {
             name  = "SEARXNG_API_URL"
-            value = local.perplexica_searxng_url
+            value = local.vane_searxng_url
           }
           env {
             name  = "OPENAI_BASE_URL"
-            value = local.perplexica_openai_base_url
+            value = local.vane_openai_base_url
           }
           env {
             name  = "OPENAI_MODEL"
-            value = local.perplexica_chat_model_key
+            value = local.vane_chat_model_key
           }
           env {
             name  = "OPENAI_MODEL_NAME"
-            value = local.perplexica_chat_model_name
+            value = local.vane_chat_model_name
           }
           env {
             name  = "OPENAI_EMBEDDING_MODEL"
-            value = local.perplexica_embedding_key
+            value = local.vane_embedding_key
           }
           env {
             name  = "OPENAI_EMBEDDING_MODEL_NAME"
-            value = local.perplexica_embedding_name
+            value = local.vane_embedding_name
           }
           env {
             name = "OPENAI_API_KEY"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret_v1.perplexica_config.metadata[0].name
+                name = kubernetes_secret_v1.vane_config.metadata[0].name
                 key  = "OPENAI_API_KEY"
               }
             }
@@ -211,48 +211,48 @@ resource "kubernetes_deployment_v1" "perplexica" {
 
           volume_mount {
             name       = "data"
-            mount_path = "/home/perplexica/data"
+            mount_path = "/home/vane/data"
           }
         }
 
         container {
-          name  = "perplexica"
-          image = local.perplexica_image
+          name  = "vane"
+          image = local.vane_image
 
           env {
             name  = "SEARXNG_API_URL"
-            value = local.perplexica_searxng_url
+            value = local.vane_searxng_url
           }
           env {
             name  = "DATA_DIR"
-            value = "/home/perplexica"
+            value = "/home/vane"
           }
           env {
             name  = "OPENAI_BASE_URL"
-            value = local.perplexica_openai_base_url
+            value = local.vane_openai_base_url
           }
           env {
             name = "OPENAI_API_KEY"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret_v1.perplexica_config.metadata[0].name
+                name = kubernetes_secret_v1.vane_config.metadata[0].name
                 key  = "OPENAI_API_KEY"
               }
             }
           }
 
           port {
-            container_port = local.perplexica_port
+            container_port = local.vane_port
             name           = "http"
           }
 
           volume_mount {
             name       = "data"
-            mount_path = "/home/perplexica/data"
+            mount_path = "/home/vane/data"
           }
           volume_mount {
             name       = "uploads"
-            mount_path = "/home/perplexica/uploads"
+            mount_path = "/home/vane/uploads"
           }
 
           resources {
@@ -263,7 +263,7 @@ resource "kubernetes_deployment_v1" "perplexica" {
           readiness_probe {
             http_get {
               path = "/"
-              port = local.perplexica_port
+              port = local.vane_port
             }
             initial_delay_seconds = 15
             period_seconds        = 15
@@ -272,7 +272,7 @@ resource "kubernetes_deployment_v1" "perplexica" {
 
         volume {
           name = "data"
-          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.perplexica_data.metadata[0].name }
+          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.vane_data.metadata[0].name }
         }
         volume {
           name = "uploads"
@@ -283,32 +283,32 @@ resource "kubernetes_deployment_v1" "perplexica" {
   }
 }
 
-resource "kubernetes_service_v1" "perplexica" {
+resource "kubernetes_service_v1" "vane" {
   metadata {
-    name      = "perplexica"
-    namespace = local.perplexica_ns
-    labels    = local.perplexica_labels
+    name      = "vane"
+    namespace = local.vane_ns
+    labels    = local.vane_labels
   }
   spec {
-    selector = local.perplexica_labels
+    selector = local.vane_labels
     port {
-      port        = local.perplexica_port
-      target_port = local.perplexica_port
+      port        = local.vane_port
+      target_port = local.vane_port
       name        = "http"
     }
   }
 }
 
-resource "kubernetes_manifest" "perplexica_route" {
-  depends_on = [kubernetes_manifest.main_gateway, kubernetes_service_v1.perplexica]
+resource "kubernetes_manifest" "vane_route" {
+  depends_on = [kubernetes_manifest.main_gateway, kubernetes_service_v1.vane]
 
   manifest = {
     apiVersion = "gateway.networking.k8s.io/v1"
     kind       = "HTTPRoute"
-    metadata   = { name = "perplexica", namespace = local.perplexica_ns }
+    metadata   = { name = "vane", namespace = local.vane_ns }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default" }]
-      hostnames  = [local.perplexica_host]
+      hostnames  = [local.vane_host]
       rules = [{
         filters = [{
           type = "RequestHeaderModifier"
@@ -316,7 +316,7 @@ resource "kubernetes_manifest" "perplexica_route" {
             set = [{ name = "X-Forwarded-Proto", value = "https" }]
           }
         }]
-        backendRefs = [{ name = "perplexica", port = local.perplexica_port }]
+        backendRefs = [{ name = "vane", port = local.vane_port }]
       }]
     }
   }
