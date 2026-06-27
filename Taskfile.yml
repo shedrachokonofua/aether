@@ -6,12 +6,18 @@ version: "3"
 
 vars:
   CACHE_DIR: ${HOME}/.aether-toolbox
+  AETHER_SSH_AGENT_SOCK:
+    sh: 'printf "%s" "${AETHER_SSH_AUTH_SOCK:-${AETHER_CACHE_DIR:-$HOME/.aether-toolbox}/ssh/agent.sock}"'
+  TASK_SSH_AUTH_SOCK:
+    sh: 'printf "%s" "${SSH_AUTH_SOCK:-${AETHER_SSH_AUTH_SOCK:-${AETHER_CACHE_DIR:-$HOME/.aether-toolbox}/ssh/agent.sock}}"'
 
 env:
   ANSIBLE_CONFIG: ./ansible/ansible.cfg
   LC_ALL: C.UTF-8
   LANG: C.UTF-8
   AWS_REGION: us-east-1
+  SSH_AUTH_SOCK: "{{.TASK_SSH_AUTH_SOCK}}"
+  AETHER_SSH_AUTH_SOCK: "{{.AETHER_SSH_AGENT_SOCK}}"
 
 tasks:
   # ===========================================================================
@@ -338,6 +344,9 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/keycloak/deploy_keycloak.yml]
   configure:public-gateway:
     cmds: [ansible-playbook ansible/playbooks/public_gateway_stack/site.yml]
+  configure:uptime-monitor:
+    desc: Deploy and configure the GCP Uptime Monitor (Uptime Kuma + Tailscale + Cloudflare Tunnel)
+    cmds: [ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml]
   provision:game-server:
     cmds: [ansible-playbook ansible/playbooks/game_server/site.yml]
   provision:step-ca:
