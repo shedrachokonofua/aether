@@ -1,0 +1,11 @@
+<clickhouse>
+  <profiles>
+    <default>
+      <!-- Disable always-on query stack sampling; keep query_log itself bounded by TTL. -->
+      <query_profiler_real_time_period_ns>0</query_profiler_real_time_period_ns>
+      <query_profiler_cpu_time_period_ns>0</query_profiler_cpu_time_period_ns>
+      <memory_profiler_step>0</memory_profiler_step>
+      <log_query_views>0</log_query_views>
+    </default>
+  </profiles>
+</clickhouse>

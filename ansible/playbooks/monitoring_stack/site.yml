@@ -113,6 +113,8 @@
       loop:
         - ./clickhouse/data
         - ./clickhouse/init
+        - ./clickhouse/config.d
+        - ./clickhouse/users.d
       tags: [clickhouse]
 
     # === Configuration Files ===
@@ -173,6 +175,7 @@
       loop:
         - datasources
         - dashboards
+        - alerting
       tags: [grafana]
 
     - name: Template grafana datasources
@@ -187,6 +190,13 @@
         src: ./grafana/provisioning/dashboards/
         dest: ./grafana/provisioning/dashboards/
         mode: "0755"
+      tags: [grafana]
+
+    - name: Copy grafana alerting provisioning
+      copy:
+        src: ./grafana/provisioning/alerting/
+        dest: ./grafana/provisioning/alerting/
+        mode: "0644"
       tags: [grafana]
 
     - name: Create PVE exporter config
@@ -205,6 +215,20 @@
       copy:
         src: ./clickhouse/
         dest: ./clickhouse/init/
+        mode: "0644"
+      tags: [clickhouse]
+
+    - name: Copy ClickHouse config overrides
+      copy:
+        src: ./clickhouse-config.d/
+        dest: ./clickhouse/config.d/
+        mode: "0644"
+      tags: [clickhouse]
+
+    - name: Copy ClickHouse user profile overrides
+      copy:
+        src: ./clickhouse-users.d/
+        dest: ./clickhouse/users.d/
         mode: "0644"
       tags: [clickhouse]
 
@@ -407,12 +431,14 @@
       containers.podman.podman_container:
         name: clickhouse
         pod: monitoring-stack.pod
-        image: docker.io/clickhouse/clickhouse-server:latest
-        pull: always
+        image: docker.io/clickhouse/clickhouse-server:26.6.1.1193
+        pull: missing
         state: quadlet
         volumes:
           - clickhouse_storage.volume:/var/lib/clickhouse:Z
           - /home/aether/clickhouse/init:/docker-entrypoint-initdb.d:Z
+          - /home/aether/clickhouse/config.d/aether-system-logs.xml:/etc/clickhouse-server/config.d/aether-system-logs.xml:Z
+          - /home/aether/clickhouse/users.d/aether-default-profile.xml:/etc/clickhouse-server/users.d/aether-default-profile.xml:Z
         env:
           CLICKHOUSE_USER: aether
           CLICKHOUSE_PASSWORD: "{{ secrets.clickhouse.password }}"

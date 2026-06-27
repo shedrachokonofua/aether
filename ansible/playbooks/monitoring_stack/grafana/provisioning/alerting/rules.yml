@@ -51,11 +51,11 @@ groups:
         data:
           - refId: A
             relativeTimeRange:
-              from: 300
+              from: 600
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: (1 - node_memory_MemAvailable_bytes{job="proxmox-hosts-node"} / node_memory_MemTotal_bytes{job="proxmox-hosts-node"}) * 100
+              expr: (1 - avg_over_time(node_memory_MemAvailable_bytes{job="proxmox-hosts-node"}[10m]) / avg_over_time(node_memory_MemTotal_bytes{job="proxmox-hosts-node"}[10m])) * 100
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -132,7 +132,7 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: (sum by(exported_job) (system_memory_usage{state="used"}) / sum by(exported_job) (system_memory_usage)) * 100
+              expr: (sum by(host_name, exported_job) (system_memory_usage_bytes{state="used",host_name!=""}) / sum by(host_name, exported_job) (system_memory_usage_bytes{host_name!=""})) * 100
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -157,10 +157,86 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "High memory usage on VM {{ $labels.exported_job }}"
+          summary: "High memory usage on VM {{ $labels.host_name }}"
           description: 'VM real memory usage is {{ $values.B.Value | printf "%.1f" }}%'
 
       # Disk Alerts
+      - uid: vm-root-disk-space-low
+        title: VM Root Disk Space Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (sum by(host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state="free",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[15m])) / sum by(host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state=~"used|free|reserved",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[15m]))) * 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [10]
+              refId: C
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low root disk space on VM {{ $labels.host_name }}"
+          description: 'Root filesystem free space is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: vm-hostmetrics-missing
+        title: VM Hostmetrics Missing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: count by(host_name) (count_over_time(system_filesystem_usage_bytes{state="free",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[1h])) unless on(host_name) count by(host_name) (count_over_time(system_filesystem_usage_bytes{state="free",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[15m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VM hostmetrics missing for {{ $labels.host_name }}"
+          description: "Root filesystem telemetry was present in the last hour but has been absent for 15 minutes"
+
       - uid: disk-space-low
         title: Disk Space Low
         condition: C
@@ -237,6 +313,45 @@ groups:
           summary: "SMART failure on {{ $labels.instance }} {{ $labels.device }}"
           description: "Disk SMART status indicates failure - replace disk immediately"
 
+      # OTel / Loki ingestion health
+      - uid: otel-loki-queue-high
+        title: OTel Loki Queue High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (otelcol_exporter_queue_size{job="otel-collector",data_type="logs",exporter="otlphttp/loki"} / otelcol_exporter_queue_capacity{job="otel-collector",data_type="logs",exporter="otlphttp/loki"}) * 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [80]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OTel Loki log exporter queue is high"
+          description: 'Loki log exporter queue is {{ $values.B.Value | printf "%.1f" }}% full'
+
       # Host Down Alert
       - uid: host-down
         title: Host Down
@@ -287,7 +402,7 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: (time() - max by(vm_id) (pbs_snapshot_vm_last_timestamp)) / 3600
+              expr: ((label_replace(time() - max by(vm_id) (pbs_snapshot_vm_last_timestamp), "id", "qemu/$1", "vm_id", "(.*)") or label_replace(time() - max by(vm_id) (pbs_snapshot_vm_last_timestamp), "id", "lxc/$1", "vm_id", "(.*)")) * on(id) group_left(name, node) max by(id, name, node) (pve_guest_info{name!=""})) / 3600
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -312,8 +427,122 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Stale backup for VM {{ $labels.vm_id }}"
+          summary: "Stale backup for {{ $labels.name }} ({{ $labels.id }})"
           description: 'Last backup was {{ $values.B.Value | printf "%.0f" }} hours ago'
+
+      - uid: db-backup-job-failed
+        title: DB Backup Job Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: sum by(namespace, job_name, reason) (max_over_time(kube_job_status_failed{job_name=~"db-backup-.*"}[2h]) > 0)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DB backup job failed in {{ $labels.namespace }}"
+          description: "Job {{ $labels.job_name }} failed: {{ $labels.reason }}"
+
+      - uid: db-backup-stale
+        title: DB Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (time() - last_over_time(kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"}[2h])) / 3600
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stale DB backup for {{ $labels.namespace }}/{{ $labels.cronjob }}"
+          description: 'Last successful DB backup was {{ $values.B.Value | printf "%.0f" }} hours ago'
+
+      - uid: db-backup-never-succeeded
+        title: DB Backup Never Succeeded
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: last_over_time(kube_cronjob_next_schedule_time{cronjob=~"db-backup-.*"}[2h]) unless on(namespace, cronjob) last_over_time(kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"}[2h])
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 36h
+        labels:
+          severity: critical
+        annotations:
+          summary: "DB backup has never succeeded for {{ $labels.namespace }}/{{ $labels.cronjob }}"
+          description: "No successful DB backup has been observed for this CronJob"
 
       # GPU Alerts
       - uid: gpu-high-temp

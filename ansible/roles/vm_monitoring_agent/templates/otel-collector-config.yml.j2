@@ -10,11 +10,34 @@ receivers:
   journald:
     directory: /var/log/journal/
     storage: file_storage/journald_cursor_storage
+    convert_message_bytes: true
     matches:
       - _UID: "1000"
 {% for unit in monitored_systemd_units %}
       - _SYSTEMD_UNIT: {{ unit }}
 {% endfor %}
+    operators:
+      - type: copy
+        from: body._SYSTEMD_UNIT
+        to: attributes["journald.unit.name"]
+        if: body._SYSTEMD_UNIT != nil
+      - type: copy
+        from: body.PRIORITY
+        to: attributes["journald.priority.number"]
+        if: body.PRIORITY != nil
+      - type: copy
+        from: body.SYSLOG_IDENTIFIER
+        to: attributes["syslog.identifier"]
+        if: body.SYSLOG_IDENTIFIER != nil
+      - type: copy
+        from: body.CONTAINER_NAME
+        to: attributes["container.name"]
+        if: body.CONTAINER_NAME != nil
+      - type: move
+        id: set-body
+        from: body.MESSAGE
+        to: body
+        if: body.MESSAGE != nil
   filelog:
     storage: file_storage/filelog_cursor_storage
     include:
@@ -37,7 +60,7 @@ receivers:
       system:
 {% if has_podman_socket | default(false) %}
   podman_stats:
-    endpoint: unix:///run/user/1000/podman/podman.sock
+    endpoint: unix://{{ podman_socket_path | default('/run/podman/podman.sock') }}
     collection_interval: {{ podman_metrics_collection_interval | default('15s') }}
     initial_delay: {{ podman_metrics_initial_delay | default('1s') }}
     timeout: 5s
