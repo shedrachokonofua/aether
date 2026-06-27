@@ -33,6 +33,22 @@ tv.shdr.ch {
       header_up X-Real-IP {remote_host}
       header_up X-Forwarded-For {remote_host}
       header_up X-Forwarded-Proto {scheme}
+      flush_interval -1
+    }
+  }
+}
+
+nextcloud.shdr.ch {
+  header Strict-Transport-Security "max-age=15552000; includeSubDomains"
+
+  route {
+    crowdsec
+    appsec
+    reverse_proxy 10.0.2.2:9443 {
+      header_up Host {host}
+      header_up X-Real-IP {remote_host}
+      header_up X-Forwarded-For {remote_host}
+      header_up X-Forwarded-Proto {scheme}
     }
   }
 }

@@ -22,15 +22,18 @@
 # pattern that already runs on the cluster.
 
 locals {
-  nextcloud_namespace = "nextcloud"
-  nextcloud_host      = "nextcloud.home.shdr.ch"
+  nextcloud_namespace     = "nextcloud"
+  nextcloud_host          = "nextcloud.shdr.ch"
+  nextcloud_internal_host = "nextcloud.home.shdr.ch"
+  nextcloud_hosts         = [local.nextcloud_host, local.nextcloud_internal_host]
   nextcloud_config = templatefile("${path.module}/nextcloud_config.php.tftpl", {
-    host         = local.nextcloud_host
-    service_host = "nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"
+    host          = local.nextcloud_host
+    internal_host = local.nextcloud_internal_host
+    service_host  = "nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"
   })
   nextcloud_config_hash = substr(sha256(local.nextcloud_config), 0, 12)
 
-  nextcloud_server_image   = "nextcloud:32-apache"
+  nextcloud_server_image   = "nextcloud:34.0.0-apache"
   nextcloud_postgres_image = "postgres:16-alpine"
   nextcloud_redis_image    = "redis:7-alpine"
 
@@ -39,7 +42,7 @@ locals {
   # drifts behind the image, nextcloud goes into upgrade-required mode on every
   # pod start and the bootstrap Jobs error with "Nextcloud or one of the apps
   # require upgrade". Bump in lockstep with nextcloud_server_image.
-  nextcloud_installed_version = "32.0.9.2"
+  nextcloud_installed_version = "34.0.0.12"
 
   nextcloud_server_port   = 80
   nextcloud_postgres_port = 5432
@@ -73,6 +76,7 @@ locals {
     "free_prompt_picker=1",
     "text_to_image_picker=0",
     "speech_to_text_picker=0",
+    "context_chat=2",
   ])), 0, 12))
 
   nextcloud_server_labels = { app = "nextcloud-server" }
@@ -195,7 +199,7 @@ resource "kubernetes_secret_v1" "nextcloud_install_state" {
       instanceid   = var.secrets["nextcloud.instanceid"]
       dbname       = local.nextcloud_db_name
       dbhost       = "nextcloud-postgres.${local.nextcloud_namespace}.svc.cluster.local"
-      dbuser       = local.nextcloud_db_user
+      dbuser       = "oc_admin"
       dbpassword   = var.secrets["nextcloud.dbpassword"]
       version      = local.nextcloud_installed_version
     })
@@ -604,6 +608,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
               --exclude=/data/ \
               --exclude=/custom_apps/ --exclude=/themes/ \
               /usr/src/nextcloud/ /var/www/html/
+            install -d -o www-data -g www-data /var/www/html/themes
             exec apache2-foreground
           EOT
           ]
@@ -629,7 +634,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
           # it here so the installer's first-run autoconfig has the value.
           env {
             name  = "NEXTCLOUD_TRUSTED_DOMAINS"
-            value = local.nextcloud_host
+            value = join(" ", local.nextcloud_hosts)
           }
 
           env {
@@ -897,6 +902,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
               --exclude=/data/ \
               --exclude=/custom_apps/ --exclude=/themes/ \
               /usr/src/nextcloud/ /var/www/html/
+            install -d -o www-data -g www-data /var/www/html/themes
             exec /cron.sh
           EOT
           ]
@@ -1057,6 +1063,7 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
               --exclude=/data/ \
               --exclude=/custom_apps/ --exclude=/themes/ \
               /usr/src/nextcloud/ /var/www/html/
+            install -d -o www-data -g www-data /var/www/html/themes
             cd /var/www/html
             while true; do
               runuser -u www-data -- php occ taskprocessing:worker --timeout=300 --interval=1
@@ -1220,6 +1227,7 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
               --exclude=/data/ \
               --exclude=/custom_apps/ --exclude=/themes/ \
               /usr/src/nextcloud/ /var/www/html/
+            install -d -o www-data -g www-data /var/www/html/themes
             echo "Waiting for Nextcloud server to be installed..."
             for i in $(seq 1 60); do
               code=$(curl -s -o /tmp/status.json -w '%%{http_code}' \
@@ -1350,6 +1358,7 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
     kubernetes_deployment_v1.nextcloud_server,
     kubernetes_service_v1.nextcloud_server,
     kubernetes_secret_v1.nextcloud_ai,
+    kubernetes_service_v1.nextcloud_context_chat_backend,
   ]
 
   metadata {
@@ -1409,6 +1418,7 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
               --exclude=/data/ \
               --exclude=/custom_apps/ --exclude=/themes/ \
               /usr/src/nextcloud/ /var/www/html/
+            install -d -o www-data -g www-data /var/www/html/themes
             echo "Waiting for Nextcloud server to be installed..."
             for i in $(seq 1 60); do
               code=$(curl -s -o /tmp/status.json -w '%%{http_code}' \
@@ -1447,6 +1457,29 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
             runuser -u www-data -- php occ config:app:set integration_openai stt_provider_enabled --value=0 --type=string --lazy
             runuser -u www-data -- php occ config:app:set integration_openai tts_provider_enabled --value=0 --type=string --lazy
             runuser -u www-data -- php occ config:app:set integration_openai analyze_image_provider_enabled --value=0 --type=string --lazy
+
+            # AppAPI / Context Chat setup
+            echo "Waiting for Context Chat backend to accept connections..."
+            for i in $(seq 1 30); do
+              if curl -s http://nextcloud-context-chat-backend.${local.nextcloud_namespace}.svc.cluster.local:10034/ >/dev/null; then
+                break
+              fi
+              sleep 2
+            done
+
+            runuser -u www-data -- php occ app_api:daemon:list | grep -q manual_install || \
+              runuser -u www-data -- php occ app_api:daemon:register \
+                manual_install "Manual Install" manual-install http \
+                nextcloud-context-chat-backend.${local.nextcloud_namespace}.svc.cluster.local \
+                http://nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local
+
+            runuser -u www-data -- php occ app:install context_chat || runuser -u www-data -- php occ app:enable context_chat
+
+            runuser -u www-data -- php occ app_api:app:list | grep -q context_chat_backend || \
+              runuser -u www-data -- php occ app_api:app:register \
+                context_chat_backend manual_install \
+                --json-info "{\"appid\":\"context_chat_backend\",\"name\":\"Context Chat Backend\",\"daemon_config_name\":\"manual_install\",\"version\":\"1.0.0\",\"secret\":\"$${CONTEXT_CHAT_BACKEND_SECRET}\",\"port\":10034}" \
+                --wait-finish
           EOT
           ]
 
@@ -1471,6 +1504,16 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
               secret_key_ref {
                 name = kubernetes_secret_v1.nextcloud_ai.metadata[0].name
                 key  = "LITELLM_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "CONTEXT_CHAT_BACKEND_SECRET"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nextcloud_context_chat_backend.metadata[0].name
+                key  = "APP_SECRET"
               }
             }
           }
@@ -1567,7 +1610,7 @@ resource "kubernetes_manifest" "nextcloud_route" {
         name      = "main-gateway"
         namespace = "default"
       }]
-      hostnames = [local.nextcloud_host]
+      hostnames = local.nextcloud_hosts
       rules = [
         {
           matches = [{
@@ -1593,6 +1636,182 @@ resource "kubernetes_manifest" "nextcloud_route" {
         },
       ]
     }
+  }
+}
+
+# =============================================================================
+# Context Chat Backend
+# =============================================================================
+
+resource "random_password" "nextcloud_context_chat_backend_secret" {
+  length  = 32
+  special = false
+}
+
+resource "kubernetes_secret_v1" "nextcloud_context_chat_backend" {
+  depends_on = [kubernetes_namespace_v1.nextcloud]
+
+  metadata {
+    name      = "nextcloud-context-chat-backend"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  data = {
+    APP_SECRET = random_password.nextcloud_context_chat_backend_secret.result
+  }
+
+  type = "Opaque"
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "nextcloud_context_chat_backend_data" {
+  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.ceph_rbd]
+
+  metadata {
+    name      = "nextcloud-context-chat-backend-data"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+
+    resources {
+      requests = { storage = "10Gi" }
+    }
+  }
+}
+
+resource "kubernetes_deployment_v1" "nextcloud_context_chat_backend" {
+  depends_on = [
+    kubernetes_namespace_v1.nextcloud,
+    kubernetes_persistent_volume_claim_v1.nextcloud_context_chat_backend_data,
+    kubernetes_secret_v1.nextcloud_context_chat_backend,
+  ]
+
+  metadata {
+    name      = "nextcloud-context-chat-backend"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    labels    = { app = "nextcloud-context-chat-backend" }
+  }
+
+  spec {
+    replicas = 1
+
+    strategy {
+      type = "Recreate"
+    }
+
+    selector {
+      match_labels = { app = "nextcloud-context-chat-backend" }
+    }
+
+    template {
+      metadata {
+        labels = { app = "nextcloud-context-chat-backend" }
+      }
+
+      spec {
+        container {
+          name  = "backend"
+          image = "ghcr.io/nextcloud/context_chat_backend:latest"
+
+          port {
+            container_port = 10034
+            name           = "http"
+          }
+
+          env {
+            name  = "APP_ID"
+            value = "context_chat_backend"
+          }
+
+          env {
+            name  = "APP_VERSION"
+            value = "1.0.0"
+          }
+
+          env {
+            name  = "APP_DISPLAY_NAME"
+            value = "Context Chat Backend"
+          }
+
+          env {
+            name  = "APP_HOST"
+            value = "0.0.0.0"
+          }
+
+          env {
+            name  = "APP_PORT"
+            value = "10034"
+          }
+
+          env {
+            name = "APP_SECRET"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nextcloud_context_chat_backend.metadata[0].name
+                key  = "APP_SECRET"
+              }
+            }
+          }
+
+          env {
+            name  = "NEXTCLOUD_URL"
+            value = "http://nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"
+          }
+
+          env {
+            name  = "CC_DOWNLOAD_MODELS_FROM_HF"
+            value = "true"
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "256Mi"
+            }
+            limits = {
+              cpu    = "2"
+              memory = "2Gi"
+            }
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/nc_app_context_chat_backend_data"
+          }
+        }
+
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_context_chat_backend_data.metadata[0].name
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service_v1" "nextcloud_context_chat_backend" {
+  depends_on = [kubernetes_deployment_v1.nextcloud_context_chat_backend]
+
+  metadata {
+    name      = "nextcloud-context-chat-backend"
+    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    labels    = { app = "nextcloud-context-chat-backend" }
+  }
+
+  spec {
+    selector = { app = "nextcloud-context-chat-backend" }
+
+    port {
+      port        = 10034
+      target_port = 10034
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
   }
 }
 

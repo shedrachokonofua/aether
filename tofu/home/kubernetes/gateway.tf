@@ -98,6 +98,17 @@ resource "kubernetes_manifest" "main_gateway" {
           }
         },
         {
+          name     = "nextcloud-public"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "nextcloud.shdr.ch"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
+          }
+        },
+        {
           name     = "litellm-home"
           protocol = "HTTP"
           port     = 80

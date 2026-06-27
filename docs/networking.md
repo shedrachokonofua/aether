@@ -177,7 +177,7 @@ graph TB
     end
 
     User -->|"*.shdr.ch"| CF
-    User -->|"tv.shdr.ch (direct)"| NFT
+    User -->|"tv.shdr.ch / nextcloud.shdr.ch (direct)"| NFT
     CF --> NFT
     NFT -->|blocked IPs| CS
     NFT --> CAD1

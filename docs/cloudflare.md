@@ -23,6 +23,7 @@ The domain routes public traffic through the AWS-hosted public gateway with Clou
 | A           | @    | AWS Public Gateway IP | Yes     | Root domain routing                                                                 |
 | A           | \*   | AWS Public Gateway IP | Yes     | Wildcard subdomain routing                                                          |
 | A           | tv   | AWS Public Gateway IP | No      | Jellyfin video streaming (unproxied to comply with Cloudflare ToS on video content) |
+| A           | nextcloud | AWS Public Gateway IP | No      | Nextcloud file sync and large uploads through the public gateway                     |
 
 ### Email (ProtonMail)
 

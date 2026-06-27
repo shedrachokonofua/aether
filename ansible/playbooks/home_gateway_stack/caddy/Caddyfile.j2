@@ -391,6 +391,7 @@ tv.shdr.ch {
     header_up X-Real-IP {http.request.remote}
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto https
+    flush_interval -1
   }
 }
 
@@ -582,6 +583,7 @@ oidc.k8s.home.shdr.ch {
   @shdrch host shdr.ch
   @auth host auth.shdr.ch
   @ai host ai.shdr.ch
+  @nextcloud host nextcloud.shdr.ch
   @tv host tv.shdr.ch
   @mars host mars.seven30.xyz
   @seven30 host seven30.xyz
@@ -624,12 +626,23 @@ oidc.k8s.home.shdr.ch {
     }
   }
 
+  handle @nextcloud {
+    reverse_proxy 10.0.3.19 {
+      header_up Host nextcloud.shdr.ch
+      header_up X-Real-IP {http.request.header.X-Real-IP}
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+      header_up X-Forwarded-Host {http.request.host}
+      header_up X-Forwarded-Proto https
+    }
+  }
+
   handle @tv {
     reverse_proxy 10.0.3.19 {
       header_up Host tv.shdr.ch
       header_up X-Real-IP {http.request.header.X-Real-IP}
       header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
       header_up X-Forwarded-Proto https
+      flush_interval -1
     }
   }
 

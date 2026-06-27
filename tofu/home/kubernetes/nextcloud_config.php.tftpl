@@ -5,7 +5,8 @@ $CONFIG = array (
   'trusted_domains' => array (
     0 => 'localhost',
     1 => '${host}',
-    2 => '${service_host}',
+    2 => '${internal_host}',
+    3 => '${service_host}',
   ),
   'trusted_proxies' => array (0 => '0.0.0.0/0'),
   'overwriteprotocol' => 'https',
@@ -32,6 +33,17 @@ $CONFIG = array (
   'maintenance_window_start'=> 1,
   'default_phone_region'    => 'CA',
   'upgrade.disable-web'     => true,
+  'defaultapp'              => 'files',
+
+  // Outbound mail via the notifications-stack Postfix relay (→ AWS SES).
+  // From must stay on an allowed sender domain (shdr.ch / home.shdr.ch).
+  'mail_smtpmode'     => 'smtp',
+  'mail_smtphost'     => 'smtp.home.shdr.ch',
+  'mail_smtpport'     => 25,
+  'mail_smtpsecure'   => '',
+  'mail_smtpauth'     => 0,
+  'mail_from_address' => 'nextcloud',
+  'mail_domain'       => 'shdr.ch',
 
   // Bundled apps come from the container image at /var/www/html/apps; only
   // user-installed apps (App Store) need persistence. Without this split the
