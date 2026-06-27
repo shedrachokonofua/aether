@@ -56,7 +56,7 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
     }
 
     dns {
-      servers = [local.vm.backup_stack.gateway]
+      servers = [local.vm.adguard.ip, local.vm.adguard_secondary.ip]
     }
 
     user_account {

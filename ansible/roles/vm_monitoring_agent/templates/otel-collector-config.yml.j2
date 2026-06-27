@@ -13,7 +13,7 @@ receivers:
     convert_message_bytes: true
     matches:
       - _UID: "1000"
-{% for unit in monitored_systemd_units %}
+{% for unit in (monitored_systemd_units + (monitored_systemd_units_extra | default([]))) %}
       - _SYSTEMD_UNIT: {{ unit }}
 {% endfor %}
     operators:

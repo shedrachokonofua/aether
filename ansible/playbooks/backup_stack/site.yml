@@ -1,6 +1,14 @@
 ---
 - hosts: backup-stack
   gather_facts: true
+  vars:
+    # backrest + PBS run as root (UID 0), excluded by the journald receiver's
+    # default _UID=1000 match and not in the default monitored_systemd_units
+    # list. Add them here so their logs ship to Loki.
+    monitored_systemd_units_extra:
+      - backrest.service
+      - proxmox-backup.service
+      - proxmox-backup-proxy.service
   roles:
     - common
     - vm_baseline

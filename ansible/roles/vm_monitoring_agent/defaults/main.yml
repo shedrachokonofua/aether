@@ -42,6 +42,10 @@ monitored_systemd_units:
   - NetworkManager
   - aether-otel-collector
 
+# Extra journald units to monitor on top of monitored_systemd_units (per-host override).
+# Defaults to empty so existing hosts are unchanged.
+monitored_systemd_units_extra: []
+
 # File log patterns
 file_log_patterns:
   - "/var/log/*.log"
