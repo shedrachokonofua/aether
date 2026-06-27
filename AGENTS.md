@@ -41,6 +41,14 @@ State is remote (S3 + DynamoDB). If a `tofu` command fails with a lock error:
 2. **Never run `tofu force-unlock` on your own.** Even if you're confident the lock is stale, **ask the user first.** Force-unlocking a live apply corrupts state.
 3. Only after the user confirms the lock is stuck (not just slow) should you run `task tofu:unlock -- <lock-id>`.
 
+## Live patching — explicit approval required
+
+Live patching means changing live infrastructure outside the declared IaC path, including `kubectl patch`, `kubectl set`, ad hoc `kubectl apply -f -`, imperative Gateway/Grafana/Keycloak/API mutations, or SSH-host changes that bypass the repo's normal workflow.
+
+- Always request explicit user approval before any live patch. Include the exact command or mutation, the reason IaC cannot be used first, expected impact, rollback path, and what verification will prove it worked.
+- A locked or failing OpenTofu/Terraform apply is **not** a valid reason by itself to live patch. Wait for the lock, fix the plan/provider issue, or stop and explain the blocker unless the user explicitly approves the live patch after seeing the justification.
+- If approval is granted, keep the change as small as possible, record the resulting drift, and follow up with the matching IaC change so live state and code converge.
+
 ## Monitoring & observability
 
 The monitoring stack VM (`monitoring-stack`, `10.0.2.3`, deployed by `ansible/playbooks/monitoring_stack/`) is a wealth of telemetry — use it before guessing. When debugging an issue ("is the cluster slow?", "did this deploy break something?", "what's eating the GPU?"), check here first.
