@@ -135,19 +135,6 @@ bazzite_builder:
   ip: "192.168.2.234"
   gateway: "192.168.2.1"
 
-game_server:
-  id: 1014
-  name: "game-server"
-  node: "smith"
-  admin: "shdrch"
-  cores: 12
-  memory: 16384
-  disk_gb: 256
-  ip: "10.0.3.13"
-  gateway: "10.0.3.1"
-  ports:
-    sunshine: 47990
-
 cockpit:
   id: 1015
   name: "cockpit"
@@ -369,6 +356,7 @@ talos_smith:
   memory: 32768
   disk_gb: 128
   gpu: true
+  gpu_input: true # uinput extension + module for the Sunshine game-server (smith only for now)
   gpu_pool: "turing"
   gpu_class: "gtx-1660-super"
   gpu_hostpci_id: "0000:0a:00.0"

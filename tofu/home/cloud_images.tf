@@ -92,11 +92,23 @@ locals {
   # (would work on Pi5 GICv3 in principle, deferred until validated).
   talos_rpi5_schematic = "a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4"
 
-  # GPU schematic: standard amd64 extensions plus NVIDIA open kernel modules
-  # LTS + NVIDIA container toolkit LTS.
-  # Generate at: https://factory.talos.dev/?arch=amd64&extensions=siderolabs%2Fbinfmt-misc&extensions=siderolabs%2Fgvisor&extensions=siderolabs%2Fkata-containers&extensions=siderolabs%2Flldpd&extensions=siderolabs%2Fnvidia-container-toolkit-lts&extensions=siderolabs%2Fnvidia-open-gpu-kernel-modules-lts&extensions=siderolabs%2Fqemu-guest-agent&extensions=siderolabs%2Fstargz-snapshotter&platform=nocloud
+  # GPU schematics — two variants, selected per node via the gpu_input flag so
+  # the input extension rolls out one node at a time:
+  #   base  = NVIDIA container toolkit LTS + open kernel modules LTS (+ kata,
+  #           gvisor, etc). GPU nodes WITHOUT gpu_input use this.
+  #   input = base + siderolabs/uinput, for nodes running the Sunshine game-server
+  #           (gpu_input: true). uinput provides /dev/uinput for virtual
+  #           keyboard/mouse/gamepad injection; Talos omits the input subsystem
+  #           from the base image. NOTE: siderolabs/joydev + uhid are NOT yet
+  #           published for v1.12.1 (build 400s with them) — uinput alone covers
+  #           evdev input; re-add joydev/uhid for legacy /dev/input/js* once they
+  #           ship for this Talos version.
+  # talos-smith runs the input schematic; talos-neo stays on base until its turn.
   # Previous (no kata): 2e186944edfff6a15572ad75ec2b6f26b35e2542566d640dfcd2ad7c52a2df55
-  talos_nvidia_schematic = "1fa5d0f0c7a4c18c21248502be69570d133202ad46d644981e8034b63462087d"
+  talos_nvidia_base_schematic = "1fa5d0f0c7a4c18c21248502be69570d133202ad46d644981e8034b63462087d"
+  # input = base + siderolabs/uinput. Build-verified 2026-06-27 (installer 200);
+  # d952c982… (base + joydev + uhid + uinput) 400s — joydev/uhid unpublished for v1.12.1.
+  talos_nvidia_schematic = "88dfed3cc7c944b6c235188339abc08fc0d507b127a45d3c3130f54315b557a4"
 }
 
 # Talos ISO for Proxmox boot (nocloud platform)

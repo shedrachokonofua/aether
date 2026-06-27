@@ -338,7 +338,7 @@ resource "talos_machine_configuration_apply" "this" {
               disk = try(each.value.install_disk, "/dev/vda")
               image = try(
                 each.value.install_image,
-                try(each.value.hardware, "") == "rpi" ? "factory.talos.dev/installer/${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_schematic : local.talos_rpi_schematic}:${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_version : local.talos_rpi_version}" : try(each.value.gpu, false) ? "factory.talos.dev/installer/${local.talos_nvidia_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
+                try(each.value.hardware, "") == "rpi" ? "factory.talos.dev/installer/${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_schematic : local.talos_rpi_schematic}:${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_version : local.talos_rpi_version}" : try(each.value.gpu, false) ? "factory.talos.dev/installer/${try(each.value.gpu_input, false) ? local.talos_nvidia_schematic : local.talos_nvidia_base_schematic}:${local.talos_version}" : "factory.talos.dev/installer/${local.talos_schematic}:${local.talos_version}"
               )
             }
             # Pin a stable, human-readable hostname instead of Talos's default
@@ -475,16 +475,22 @@ resource "talos_machine_configuration_apply" "this" {
       }
     })] : [],
 
-    # NVIDIA kernel modules for GPU nodes
+    # NVIDIA kernel modules for GPU nodes. uinput is added only for gpu_input
+    # nodes (running the Sunshine game-server): the siderolabs/uinput extension
+    # ships uinput.ko and this loads it so /dev/uinput exists for virtual
+    # keyboard/mouse/gamepad injection. Loaded on config apply (no reboot).
     try(each.value.gpu, false) ? [yamlencode({
       machine = {
         kernel = {
-          modules = [
-            { name = "nvidia" },
-            { name = "nvidia_uvm" },
-            { name = "nvidia_drm" },
-            { name = "nvidia_modeset" },
-          ]
+          modules = concat(
+            [
+              { name = "nvidia" },
+              { name = "nvidia_uvm" },
+              { name = "nvidia_drm" },
+              { name = "nvidia_modeset" },
+            ],
+            try(each.value.gpu_input, false) ? [{ name = "uinput" }] : []
+          )
         }
       }
     })] : [],
