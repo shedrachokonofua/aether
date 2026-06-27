@@ -86,9 +86,8 @@ resource "kubernetes_secret_v1" "affine_config" {
       copilot = {
         enabled = true
         "providers.openai" = {
-          apiKey      = var.secrets["litellm.virtual_keys.affine"]
-          baseURL     = "https://litellm.home.shdr.ch/v1"
-          oldApiStyle = true
+          apiKey  = var.secrets["litellm.virtual_keys.affine"]
+          baseURL = "https://litellm.home.shdr.ch/v1"
         }
         scenarios = {
           override_enabled = true
@@ -100,7 +99,7 @@ resource "kubernetes_secret_v1" "affine_config" {
             quick_decision_making   = "aether/qwen3.5-9b"
             quick_text_generation   = "aether/gemma-4-26b-a4b"
             rerank                  = "aether/bge-reranker-v2-m3"
-            embedding               = "aether/qwen3-embedding:0.6b"
+            embedding               = "text-embedding-3-large"
             audio_transcribing      = "aether/whisper-large-v3"
             image                   = "gpt-image-1"
           }
@@ -406,6 +405,29 @@ resource "kubernetes_deployment_v1" "affine" {
       metadata { labels = local.affine_labels }
       spec {
         enable_service_links = false
+        init_container {
+          name  = "wait-for-litellm"
+          image = "curlimages/curl:8.12.1"
+          command = [
+            "sh", "-c",
+            "until curl -sf http://litellm.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/health/liveliness; do sleep 2; done; sleep 5",
+          ]
+        }
+        # Admin UI edits persist copilot settings to app_configs and override the
+        # mounted config.json. Clear those keys on every start so IaC stays authoritative.
+        init_container {
+          name  = "sync-copilot-config"
+          image = "docker.io/postgres:16-alpine"
+          command = [
+            "sh", "-c",
+            "until pg_isready -h affine-postgres.${local.affine_ns}.svc.cluster.local -U affine; do sleep 2; done; PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h affine-postgres.${local.affine_ns}.svc.cluster.local -U affine -d affine -v ON_ERROR_STOP=1 -c \"DELETE FROM app_configs WHERE id IN ('copilot.providers.openai', 'copilot.scenarios');\"",
+          ]
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.affine_postgres.metadata[0].name
+            }
+          }
+        }
         container {
           name  = "affine"
           image = local.affine_image

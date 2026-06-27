@@ -5,7 +5,7 @@
 
 locals {
   litellm_image               = "ghcr.io/berriai/litellm:1.86.2"
-  litellm_postgres_image      = "docker.io/postgres:latest"
+  litellm_postgres_image      = "docker.io/postgres:18"
   litellm_finviz_image        = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
   litellm_coingecko_image     = "docker.io/node:22-slim"
   litellm_time_mcp_image      = "docker.io/theo01/mcp-time:latest"

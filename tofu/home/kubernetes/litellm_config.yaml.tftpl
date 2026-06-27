@@ -1,53 +1,65 @@
 model_list:
-  # llama-swap (K8s)
+  # llama-swap (K8s) — AFFiNE Copilot streams via /v1/responses; bridge to chat/completions.
   - model_name: "aether/qwen3.6-27b"
     litellm_params:
       model: "openai/qwen3.6-27b"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/qwen3.6-27b:code"
     litellm_params:
       model: "openai/qwen3.6-27b:code"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/qwen3.6-27b:think"
     litellm_params:
       model: "openai/qwen3.6-27b:think"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/qwen3.6-35b-a3b"
     litellm_params:
       model: "openai/qwen3.6-35b-a3b"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/qwen3.6-35b-a3b:code"
     litellm_params:
       model: "openai/qwen3.6-35b-a3b:code"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/qwen3.6-35b-a3b:think"
     litellm_params:
       model: "openai/qwen3.6-35b-a3b:think"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/qwen3.5-9b"
     litellm_params:
       model: "openai/qwen3.5-9b"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/qwen3.5-9b:think"
     litellm_params:
       model: "openai/qwen3.5-9b:think"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/gemma-4-31b"
     litellm_params:
       model: "openai/gemma-4-31b"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/gemma-4-31b:think"
     litellm_params:
       model: "openai/gemma-4-31b:think"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/gemma-4-26b-a4b"
     litellm_params:
       model: "openai/gemma-4-26b-a4b"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
   - model_name: "aether/gemma-4-26b-a4b:think"
     litellm_params:
       model: "openai/gemma-4-26b-a4b:think"
       litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
 
   # Ollama Cloud models
   - model_name: "ollama-cloud/kimi-k2.6"
@@ -153,11 +165,28 @@ model_list:
       model: "openai/qwen3-embedding-4b"
       litellm_credential_name: llama_swap_credential
       encoding_format: "float"
+      additional_drop_params: ["dimensions"]
   - model_name: "aether/qwen3-embedding:0.6b"
     litellm_params:
       model: "openai/qwen3-embedding-0.6b"
       litellm_credential_name: llama_swap_credential
       encoding_format: "float"
+      additional_drop_params: ["dimensions"]
+  # AFFiNE 0.26.3 hardcodes gemini-embedding-001 for embed calls and accepts
+  # text-embedding-3-large for the startup capability check (OpenAI provider builtin).
+  # AFFiNE always sends dimensions=256; qwen backends ignore it — drop before LiteLLM validation.
+  - model_name: "gemini-embedding-001"
+    litellm_params:
+      model: "openai/qwen3-embedding-0.6b"
+      litellm_credential_name: llama_swap_credential
+      encoding_format: "float"
+      additional_drop_params: ["dimensions"]
+  - model_name: "text-embedding-3-large"
+    litellm_params:
+      model: "openai/qwen3-embedding-0.6b"
+      litellm_credential_name: llama_swap_credential
+      encoding_format: "float"
+      additional_drop_params: ["dimensions"]
 
   # Xiaomi MiMo models
   - model_name: "xiaomi/mimo-v2.5-pro"
