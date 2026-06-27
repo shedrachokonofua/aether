@@ -28,6 +28,8 @@ locals {
   temporal_pg_user        = "temporal"
   temporal_pg_service     = "temporal-postgres"
   temporal_pg_port        = 5432
+  temporal_cnpg_cluster   = "temporal-cnpg"
+  temporal_pg_host        = "${local.temporal_cnpg_cluster}-rw.${local.temporal_namespace}.svc.cluster.local"
   temporal_dynamic_config = <<-YAML
     limit.maxIDLength:
       - value: 255
@@ -71,6 +73,22 @@ resource "kubernetes_secret_v1" "temporal_postgres" {
   }
 
   type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "temporal_cnpg_app" {
+  depends_on = [kubernetes_namespace_v1.temporal]
+
+  metadata {
+    name      = "temporal-cnpg-app"
+    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+  }
+
+  type = "kubernetes.io/basic-auth"
+
+  data = {
+    username = local.temporal_pg_user
+    password = random_password.temporal_postgres_password.result
+  }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "temporal_postgres_data" {
@@ -193,6 +211,179 @@ resource "kubernetes_service_v1" "temporal_postgres" {
   }
 }
 
+resource "kubectl_manifest" "temporal_cnpg_cluster" {
+  depends_on = [
+    helm_release.cnpg,
+    kubectl_manifest.cnpg_require_ceph_rbd_storage,
+    kubernetes_secret_v1.temporal_cnpg_app,
+    kubernetes_service_v1.temporal_postgres,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Cluster"
+    metadata = {
+      name      = local.temporal_cnpg_cluster
+      namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    }
+    spec = {
+      instances = 1
+      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
+      storage = {
+        size         = "20Gi"
+        storageClass = local.cnpg_storage_class
+      }
+      bootstrap = {
+        initdb = {
+          database = local.temporal_pg_db
+          owner    = local.temporal_pg_user
+          secret = {
+            name = kubernetes_secret_v1.temporal_cnpg_app.metadata[0].name
+          }
+          import = {
+            type      = "microservice"
+            databases = [local.temporal_pg_db]
+            source = {
+              externalCluster = "temporal-source"
+            }
+            postImportApplicationSQL = [
+              "ALTER ROLE ${local.temporal_pg_user} CREATEDB",
+            ]
+          }
+        }
+      }
+      externalClusters = [{
+        name = "temporal-source"
+        connectionParameters = {
+          host    = "${local.temporal_pg_service}.${local.temporal_namespace}.svc.cluster.local"
+          user    = local.temporal_pg_user
+          dbname  = local.temporal_pg_db
+          sslmode = "disable"
+        }
+        password = {
+          name = kubernetes_secret_v1.temporal_postgres.metadata[0].name
+          key  = "POSTGRES_PASSWORD"
+        }
+      }]
+    }
+  })
+}
+
+resource "kubernetes_job_v1" "temporal_visibility_import" {
+  depends_on = [kubectl_manifest.temporal_cnpg_cluster]
+
+  metadata {
+    name      = "temporal-visibility-import"
+    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+  }
+
+  spec {
+    backoff_limit = 3
+
+    template {
+      metadata {
+        labels = {
+          app = "temporal-visibility-import"
+        }
+      }
+
+      spec {
+        restart_policy       = "OnFailure"
+        enable_service_links = false
+
+        container {
+          name  = "import"
+          image = local.db_backup_pg_image
+
+          command = ["/bin/sh", "-ec", <<-EOT
+            set -eu
+
+            export PGPASSWORD="$DST_PGPASSWORD"
+            if psql -h "$DST_PGHOST" -p "$PGPORT" -U "$DST_PGUSER" -d postgres -Atc "select 1 from pg_database where datname = 'temporal_visibility'" | grep -qx 1; then
+              tables="$(psql -h "$DST_PGHOST" -p "$PGPORT" -U "$DST_PGUSER" -d temporal_visibility -Atc "select count(*) from information_schema.tables where table_schema = 'public'")"
+              if [ "$tables" != "0" ]; then
+                echo "temporal_visibility already restored"
+                exit 0
+              fi
+            else
+              createdb -h "$DST_PGHOST" -p "$PGPORT" -U "$DST_PGUSER" temporal_visibility
+            fi
+
+            export PGPASSWORD="$SRC_PGPASSWORD"
+            pg_dump -h "$SRC_PGHOST" -p "$PGPORT" -U "$SRC_PGUSER" -d temporal_visibility --format=custom --file /tmp/temporal_visibility.dump
+
+            export PGPASSWORD="$DST_PGPASSWORD"
+            pg_restore -h "$DST_PGHOST" -p "$PGPORT" -U "$DST_PGUSER" -d temporal_visibility --no-owner --role="$DST_PGUSER" /tmp/temporal_visibility.dump
+          EOT
+          ]
+
+          env {
+            name  = "SRC_PGHOST"
+            value = "${local.temporal_pg_service}.${local.temporal_namespace}.svc.cluster.local"
+          }
+          env {
+            name = "SRC_PGUSER"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.temporal_postgres.metadata[0].name
+                key  = "POSTGRES_USER"
+              }
+            }
+          }
+          env {
+            name = "SRC_PGPASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.temporal_postgres.metadata[0].name
+                key  = "POSTGRES_PASSWORD"
+              }
+            }
+          }
+          env {
+            name  = "DST_PGHOST"
+            value = local.temporal_pg_host
+          }
+          env {
+            name = "DST_PGUSER"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.temporal_cnpg_app.metadata[0].name
+                key  = "username"
+              }
+            }
+          }
+          env {
+            name = "DST_PGPASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.temporal_cnpg_app.metadata[0].name
+                key  = "password"
+              }
+            }
+          }
+          env {
+            name  = "PGPORT"
+            value = tostring(local.temporal_pg_port)
+          }
+
+          resources {
+            requests = { cpu = "50m", memory = "128Mi" }
+            limits   = { cpu = "500m", memory = "512Mi" }
+          }
+        }
+      }
+    }
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+  timeouts {
+    create = "10m"
+    update = "10m"
+  }
+}
+
 # ─── Temporal server ─────────────────────────────────────────────────────────
 
 resource "kubernetes_config_map_v1" "temporal_dynamic_config" {
@@ -209,7 +400,7 @@ resource "kubernetes_config_map_v1" "temporal_dynamic_config" {
 }
 
 resource "kubernetes_deployment_v1" "temporal_server" {
-  depends_on = [kubernetes_service_v1.temporal_postgres, kubernetes_config_map_v1.temporal_dynamic_config]
+  depends_on = [kubernetes_job_v1.temporal_visibility_import, kubernetes_config_map_v1.temporal_dynamic_config]
 
   metadata {
     name      = "temporal-server"
@@ -254,7 +445,7 @@ resource "kubernetes_deployment_v1" "temporal_server" {
           }
           env {
             name  = "POSTGRES_SEEDS"
-            value = "${local.temporal_pg_service}.${local.temporal_namespace}.svc.cluster.local"
+            value = local.temporal_pg_host
           }
           env {
             name = "POSTGRES_USER"

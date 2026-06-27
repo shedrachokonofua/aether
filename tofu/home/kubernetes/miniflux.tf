@@ -38,7 +38,9 @@ locals {
   miniflux_labels    = { app = "miniflux" }
   miniflux_pg_labels = { app = "miniflux-postgres" }
 
-  miniflux_db_url = "postgres://miniflux:${random_password.miniflux_postgres_password.result}@miniflux-postgres.${local.miniflux_ns}.svc.cluster.local:${local.miniflux_pg_port}/miniflux?sslmode=disable"
+  miniflux_cnpg_cluster = "miniflux-cnpg"
+  miniflux_db_host      = "${local.miniflux_cnpg_cluster}-rw.${local.miniflux_ns}.svc.cluster.local"
+  miniflux_db_url       = "postgres://miniflux:${random_password.miniflux_postgres_password.result}@${local.miniflux_db_host}:${local.miniflux_pg_port}/miniflux?sslmode=disable"
 }
 
 # =============================================================================
@@ -70,6 +72,19 @@ resource "kubernetes_secret_v1" "miniflux" {
     DATABASE_URL         = local.miniflux_db_url
     ADMIN_PASSWORD       = random_password.miniflux_admin_password.result
     OAUTH2_CLIENT_SECRET = var.miniflux_oauth_client_secret
+  }
+}
+
+resource "kubernetes_secret_v1" "miniflux_cnpg_app" {
+  depends_on = [kubernetes_namespace_v1.miniflux]
+  metadata {
+    name      = "miniflux-cnpg-app"
+    namespace = local.miniflux_ns
+  }
+  type = "kubernetes.io/basic-auth"
+  data = {
+    username = "miniflux"
+    password = random_password.miniflux_postgres_password.result
   }
 }
 
@@ -157,12 +172,71 @@ resource "kubernetes_service_v1" "miniflux_postgres" {
 }
 
 # =============================================================================
+# CloudNativePG — target Postgres cluster
+# =============================================================================
+
+resource "kubectl_manifest" "miniflux_cnpg_cluster" {
+  depends_on = [
+    helm_release.cnpg,
+    kubectl_manifest.cnpg_require_ceph_rbd_storage,
+    kubernetes_secret_v1.miniflux_cnpg_app,
+    kubernetes_service_v1.miniflux_postgres,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Cluster"
+    metadata = {
+      name      = local.miniflux_cnpg_cluster
+      namespace = local.miniflux_ns
+    }
+    spec = {
+      instances = 1
+      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
+      storage = {
+        size         = "5Gi"
+        storageClass = local.cnpg_storage_class
+      }
+      bootstrap = {
+        initdb = {
+          database = "miniflux"
+          owner    = "miniflux"
+          secret = {
+            name = kubernetes_secret_v1.miniflux_cnpg_app.metadata[0].name
+          }
+          import = {
+            type      = "microservice"
+            databases = ["miniflux"]
+            source = {
+              externalCluster = "miniflux-source"
+            }
+          }
+        }
+      }
+      externalClusters = [{
+        name = "miniflux-source"
+        connectionParameters = {
+          host    = "miniflux-postgres.${local.miniflux_ns}.svc.cluster.local"
+          user    = "miniflux"
+          dbname  = "miniflux"
+          sslmode = "disable"
+        }
+        password = {
+          name = kubernetes_secret_v1.miniflux_postgres.metadata[0].name
+          key  = "POSTGRES_PASSWORD"
+        }
+      }]
+    }
+  })
+}
+
+# =============================================================================
 # Miniflux app
 # =============================================================================
 
 resource "kubernetes_deployment_v1" "miniflux" {
   depends_on = [
-    kubernetes_service_v1.miniflux_postgres,
+    kubectl_manifest.miniflux_cnpg_cluster,
     kubernetes_secret_v1.miniflux,
   ]
 
@@ -182,9 +256,28 @@ resource "kubernetes_deployment_v1" "miniflux" {
       metadata { labels = local.miniflux_labels }
 
       spec {
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65534
+          run_as_group    = 65534
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
         container {
           name  = "miniflux"
           image = local.miniflux_image
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+            run_as_non_root = true
+            run_as_user     = 65534
+            run_as_group    = 65534
+          }
 
           env_from {
             secret_ref { name = kubernetes_secret_v1.miniflux.metadata[0].name }

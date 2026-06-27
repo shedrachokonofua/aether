@@ -53,6 +53,9 @@ locals {
   hoppscotch_labels       = { app = "hoppscotch" }
   hoppscotch_proxy_labels = { app = "proxyscotch" }
   hoppscotch_pg_labels    = { app = "hoppscotch-postgres" }
+  hoppscotch_cnpg_cluster = "hoppscotch-cnpg"
+  hoppscotch_db_host      = "${local.hoppscotch_cnpg_cluster}-rw.${local.hoppscotch_ns}.svc.cluster.local"
+  hoppscotch_db_url       = "postgresql://hoppscotch:${random_password.hoppscotch_postgres_password.result}@${local.hoppscotch_db_host}:${local.hoppscotch_pg_port}/hoppscotch"
 }
 
 resource "kubernetes_secret_v1" "hoppscotch_postgres" {
@@ -76,7 +79,7 @@ resource "kubernetes_secret_v1" "hoppscotch_env" {
     namespace = local.hoppscotch_ns
   }
   data = {
-    DATABASE_URL                = "postgresql://hoppscotch:${random_password.hoppscotch_postgres_password.result}@hoppscotch-postgres.${local.hoppscotch_ns}.svc.cluster.local:${local.hoppscotch_pg_port}/hoppscotch"
+    DATABASE_URL                = local.hoppscotch_db_url
     JWT_SECRET                  = random_password.hoppscotch_jwt_secret.result
     SESSION_SECRET              = random_password.hoppscotch_session_secret.result
     DATA_ENCRYPTION_KEY         = random_password.hoppscotch_data_encryption_key.result
@@ -103,6 +106,19 @@ resource "kubernetes_secret_v1" "hoppscotch_env" {
     ENABLE_SUBPATH_BASED_ACCESS = "true"
   }
   type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "hoppscotch_cnpg_app" {
+  depends_on = [kubernetes_namespace_v1.hoppscotch]
+  metadata {
+    name      = "hoppscotch-cnpg-app"
+    namespace = local.hoppscotch_ns
+  }
+  type = "kubernetes.io/basic-auth"
+  data = {
+    username = "hoppscotch"
+    password = random_password.hoppscotch_postgres_password.result
+  }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "hoppscotch_postgres_data" {
@@ -186,13 +202,72 @@ resource "kubernetes_service_v1" "hoppscotch_postgres" {
   }
 }
 
+# =============================================================================
+# CloudNativePG — target Postgres cluster
+# =============================================================================
+
+resource "kubectl_manifest" "hoppscotch_cnpg_cluster" {
+  depends_on = [
+    helm_release.cnpg,
+    kubectl_manifest.cnpg_require_ceph_rbd_storage,
+    kubernetes_secret_v1.hoppscotch_cnpg_app,
+    kubernetes_service_v1.hoppscotch_postgres,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Cluster"
+    metadata = {
+      name      = local.hoppscotch_cnpg_cluster
+      namespace = local.hoppscotch_ns
+    }
+    spec = {
+      instances = 1
+      imageName = "ghcr.io/cloudnative-pg/postgresql:15.17"
+      storage = {
+        size         = "5Gi"
+        storageClass = local.cnpg_storage_class
+      }
+      bootstrap = {
+        initdb = {
+          database = "hoppscotch"
+          owner    = "hoppscotch"
+          secret = {
+            name = kubernetes_secret_v1.hoppscotch_cnpg_app.metadata[0].name
+          }
+          import = {
+            type      = "microservice"
+            databases = ["hoppscotch"]
+            source = {
+              externalCluster = "hoppscotch-source"
+            }
+          }
+        }
+      }
+      externalClusters = [{
+        name = "hoppscotch-source"
+        connectionParameters = {
+          host    = "hoppscotch-postgres.${local.hoppscotch_ns}.svc.cluster.local"
+          user    = "hoppscotch"
+          dbname  = "hoppscotch"
+          sslmode = "disable"
+        }
+        password = {
+          name = kubernetes_secret_v1.hoppscotch_postgres.metadata[0].name
+          key  = "POSTGRES_PASSWORD"
+        }
+      }]
+    }
+  })
+}
+
 # Migration job — runs prisma db push before the server starts; idempotent
 resource "kubernetes_job_v1" "hoppscotch_migration" {
   timeouts {
     create = "15m"
   }
 
-  depends_on = [kubernetes_service_v1.hoppscotch_postgres, kubernetes_secret_v1.hoppscotch_env]
+  depends_on = [kubectl_manifest.hoppscotch_cnpg_cluster, kubernetes_secret_v1.hoppscotch_env]
 
   metadata {
     name      = "hoppscotch-migration"
@@ -231,7 +306,7 @@ resource "kubernetes_job_v1" "hoppscotch_migration" {
 }
 
 resource "kubernetes_deployment_v1" "hoppscotch" {
-  depends_on = [kubernetes_job_v1.hoppscotch_migration, kubernetes_secret_v1.hoppscotch_env]
+  depends_on = [kubectl_manifest.hoppscotch_cnpg_cluster, kubernetes_job_v1.hoppscotch_migration, kubernetes_secret_v1.hoppscotch_env]
   metadata {
     name      = "hoppscotch"
     namespace = local.hoppscotch_ns

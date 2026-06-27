@@ -9,7 +9,9 @@ locals {
   coder_postgres_db      = "coder"
   coder_postgres_user    = "coder"
   coder_postgres_port    = 5432
-  coder_postgres_url     = "postgresql://${local.coder_postgres_user}:${random_password.coder_postgres_password.result}@${local.coder_postgres_service}.${local.coder_namespace}.svc.cluster.local:${local.coder_postgres_port}/${local.coder_postgres_db}?sslmode=disable"
+  coder_cnpg_cluster     = "coder-cnpg"
+  coder_postgres_host    = "${local.coder_cnpg_cluster}-rw.${local.coder_namespace}.svc.cluster.local"
+  coder_postgres_url     = "postgresql://${local.coder_postgres_user}:${random_password.coder_postgres_password.result}@${local.coder_postgres_host}:${local.coder_postgres_port}/${local.coder_postgres_db}?sslmode=disable"
   coder_version          = "2.31.9"
 }
 
@@ -60,6 +62,22 @@ resource "kubernetes_secret_v1" "coder_secrets" {
   }
 
   type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "coder_cnpg_app" {
+  depends_on = [kubernetes_namespace_v1.coder]
+
+  metadata {
+    name      = "coder-cnpg-app"
+    namespace = local.coder_namespace
+  }
+
+  type = "kubernetes.io/basic-auth"
+
+  data = {
+    username = local.coder_postgres_user
+    password = random_password.coder_postgres_password.result
+  }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "coder_postgres_data" {
@@ -224,8 +242,63 @@ resource "kubernetes_service_v1" "coder_postgres" {
   }
 }
 
+resource "kubectl_manifest" "coder_cnpg_cluster" {
+  depends_on = [
+    helm_release.cnpg,
+    kubectl_manifest.cnpg_require_ceph_rbd_storage,
+    kubernetes_secret_v1.coder_cnpg_app,
+    kubernetes_service_v1.coder_postgres,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Cluster"
+    metadata = {
+      name      = local.coder_cnpg_cluster
+      namespace = local.coder_namespace
+    }
+    spec = {
+      instances = 1
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      storage = {
+        size         = "20Gi"
+        storageClass = local.cnpg_storage_class
+      }
+      bootstrap = {
+        initdb = {
+          database = local.coder_postgres_db
+          owner    = local.coder_postgres_user
+          secret = {
+            name = kubernetes_secret_v1.coder_cnpg_app.metadata[0].name
+          }
+          import = {
+            type      = "microservice"
+            databases = [local.coder_postgres_db]
+            source = {
+              externalCluster = "coder-source"
+            }
+          }
+        }
+      }
+      externalClusters = [{
+        name = "coder-source"
+        connectionParameters = {
+          host    = "${local.coder_postgres_service}.${local.coder_namespace}.svc.cluster.local"
+          user    = local.coder_postgres_user
+          dbname  = local.coder_postgres_db
+          sslmode = "disable"
+        }
+        password = {
+          name = kubernetes_secret_v1.coder_postgres.metadata[0].name
+          key  = "POSTGRES_PASSWORD"
+        }
+      }]
+    }
+  })
+}
+
 resource "helm_release" "coder" {
-  depends_on = [kubernetes_secret_v1.coder_secrets, kubernetes_service_v1.coder_postgres]
+  depends_on = [kubernetes_secret_v1.coder_secrets, kubectl_manifest.coder_cnpg_cluster]
 
   name       = "coder"
   repository = "https://helm.coder.com/v2"
