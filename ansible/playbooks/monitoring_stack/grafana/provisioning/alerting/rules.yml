@@ -313,6 +313,272 @@ groups:
           summary: "SMART failure on {{ $labels.instance }} {{ $labels.device }}"
           description: "Disk SMART status indicates failure - replace disk immediately"
 
+      - uid: proxmox-node-exporter-down
+        title: Proxmox Node Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: up{job="proxmox-hosts-node"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Proxmox node exporter is down on {{ $labels.instance }}"
+          description: "Node exporter is not being scraped; disk, NVMe, CPU, and memory alerts may be blind"
+
+      - uid: proxmox-smart-exporter-down
+        title: Proxmox SMART Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: up{job="proxmox-hosts-smart"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SMART exporter is down on {{ $labels.instance }}"
+          description: "SMART exporter is not being scraped; disk health alerts may be blind"
+
+      - uid: ceph-exporter-down
+        title: Ceph Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: up{job="ceph"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ceph exporter is down on {{ $labels.instance }}"
+          description: "Ceph exporter is not being scraped; OSD alerts may be blind"
+
+      - uid: ceph-osd-daemon-down
+        title: Ceph OSD Daemon Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: ceph_daemon_socket_up{job="ceph",ceph_daemon=~"ceph-osd\\..*"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ceph OSD {{ $labels.ceph_daemon }} is down on {{ $labels.hostname }}"
+          description: "The Ceph exporter can see the OSD daemon socket, but it is not up"
+
+      - uid: ceph-osd-count-low
+        title: Ceph OSD Count Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: 6 - sum(ceph_daemon_socket_up{job="ceph",ceph_daemon=~"ceph-osd\\..*"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ceph has fewer than 6 OSD daemons up"
+          description: '{{ $values.B.Value | printf "%.0f" }} expected Ceph OSD daemon(s) are missing or down'
+
+      - uid: ceph-nvme-controller-dead
+        title: Ceph NVMe Controller Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: node_nvme_info{job="proxmox-hosts-node",state="dead"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe controller {{ $labels.serial }} is dead on {{ $labels.instance }}"
+          description: "{{ $labels.model }} reports state=dead via node_exporter"
+
+      - uid: ceph-osd-disk-missing
+        title: Ceph OSD Disk Missing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.202:9100",serial="25385Z803700",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.202:9100",serial="25385Z803747",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.204:9100",serial="S7U8NJ0XA18390B",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.204:9100",serial="S7U8NJ0XA18330N",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.205:9100",serial="25206C801512",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.205:9100",serial="25124J801300",state="live"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Expected Ceph OSD disk {{ $labels.serial }} is missing on {{ $labels.instance }}"
+          description: "A Ceph OSD NVMe serial is no longer present as a live controller"
+
       # OTel / Loki ingestion health
       - uid: otel-loki-queue-high
         title: OTel Loki Queue High
@@ -440,7 +706,29 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: sum by(namespace, job_name, reason) (max_over_time(kube_job_status_failed{job_name=~"db-backup-.*"}[2h]) > 0)
+              expr: |
+                (
+                  max by(namespace, job_name, owner_name, reason) (
+                    (kube_job_status_failed{job_name=~"db-backup-.*", reason!=""} > 0)
+                    * on(namespace, job_name) group_left(owner_name)
+                      kube_job_owner{owner_kind="CronJob", owner_name=~"db-backup-.*"}
+                  )
+                )
+                unless on(namespace, job_name, owner_name)
+                (
+                  max by(namespace, job_name, owner_name) (
+                    kube_job_status_start_time{job_name=~"db-backup-.*"}
+                    * on(namespace, job_name) group_left(owner_name)
+                      kube_job_owner{owner_kind="CronJob", owner_name=~"db-backup-.*"}
+                  )
+                  < on(namespace, owner_name) group_left()
+                    max by(namespace, owner_name) (
+                      label_replace(
+                        kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"},
+                        "owner_name", "$1", "cronjob", "(.*)"
+                      )
+                    )
+                )
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -543,6 +831,196 @@ groups:
         annotations:
           summary: "DB backup has never succeeded for {{ $labels.namespace }}/{{ $labels.cronjob }}"
           description: "No successful DB backup has been observed for this CronJob"
+
+      - uid: restic-metrics-exporter-down
+        title: Restic Metrics Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: 1 - up{service_name="aether-restic"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic metrics exporter is down"
+          description: "Prometheus cannot scrape backup-stack's restic snapshot metrics"
+
+      - uid: restic-metrics-stale
+        title: Restic Metrics Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (time() - aether_restic_metrics_last_success_timestamp_seconds{service_name="aether-restic"}) / 3600
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [2]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic metrics are stale"
+          description: 'Last restic metrics generation was {{ $values.B.Value | printf "%.1f" }} hours ago'
+
+      - uid: restic-plan-path-inaccessible
+        title: Restic Plan Path Inaccessible
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: aether_restic_plan_path_accessible{service_name="aether-restic"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic source path is inaccessible for {{ $labels.plan_id }}"
+          description: "Backrest cannot stat {{ $labels.path }}"
+
+      - uid: restic-backup-never-succeeded
+        title: Restic Backup Never Succeeded
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: aether_restic_plan_configured{service_name="aether-restic"} unless on(host_name, plan_id) aether_restic_snapshot_last_success_timestamp_seconds{service_name="aether-restic"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic backup has never succeeded for {{ $labels.plan_id }}"
+          description: "No restic snapshot exists yet for {{ $labels.path }}"
+
+      - uid: restic-backup-stale
+        title: Restic Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (time() - aether_restic_snapshot_last_success_timestamp_seconds{service_name="aether-restic"}) / 3600
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stale restic backup for {{ $labels.plan_id }}"
+          description: 'Last restic snapshot for {{ $labels.path }} was {{ $values.B.Value | printf "%.0f" }} hours ago'
 
       # GPU Alerts
       - uid: gpu-high-temp
