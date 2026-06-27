@@ -27,7 +27,8 @@
 #   AETHER_GOOGLE_WIF_AUDIENCE    - Google WIF audience (default: tf output)
 #   AETHER_GOOGLE_SERVICE_ACCOUNT - Google service account email (default: tf output)
 #   AETHER_GOOGLE_PROJECT         - Google project ID (default: tf output)
-#   SSH_AUTH_SOCK      - SSH agent socket (auto-detected for SSH cert exchange)
+#   SSH_AUTH_SOCK      - SSH agent socket (default: Aether-managed agent)
+#   AETHER_SSH_AUTH_SOCK - Stable SSH agent socket (default: ~/.aether-toolbox/ssh/agent.sock)
 #
 # S3 Usage (after login):
 #   rclone lsd ceph_rgw:                   # List Ceph RGW buckets
@@ -50,6 +51,8 @@ CEPH_RGW_URL="https://s3.home.shdr.ch"
 CEPH_RGW_ROLE="arn:aws:iam:::role/admin"
 CACHE_DIR="${AETHER_CACHE_DIR:-$HOME/.aether-toolbox}"
 AWS_REGION="${AETHER_AWS_REGION:-us-east-1}"
+SSH_AGENT_DIR="${AETHER_SSH_AGENT_DIR:-$CACHE_DIR/ssh}"
+AETHER_SSH_AUTH_SOCK="${AETHER_SSH_AUTH_SOCK:-$SSH_AGENT_DIR/agent.sock}"
 
 # Colors
 RED='\033[0;31m'
@@ -81,8 +84,64 @@ ensure_deps() {
 }
 
 ensure_cache_dir() {
-  mkdir -p "$CACHE_DIR/bao"
+  mkdir -p "$CACHE_DIR/bao" "$SSH_AGENT_DIR"
   chmod 700 "$CACHE_DIR"
+  chmod 700 "$SSH_AGENT_DIR"
+}
+
+ssh_agent_usable() {
+  local sock="$1"
+  local rc
+
+  [[ -S "$sock" ]] || return 1
+  SSH_AUTH_SOCK="$sock" ssh-add -l >/dev/null 2>&1
+  rc=$?
+
+  # ssh-add returns 1 when the agent is reachable but empty.
+  [[ $rc -eq 0 || $rc -eq 1 ]]
+}
+
+select_ssh_agent() {
+  if [[ -n "${SSH_AUTH_SOCK:-}" ]] && ssh_agent_usable "$SSH_AUTH_SOCK"; then
+    export SSH_AUTH_SOCK
+    return 0
+  fi
+
+  if ssh_agent_usable "$AETHER_SSH_AUTH_SOCK"; then
+    export SSH_AUTH_SOCK="$AETHER_SSH_AUTH_SOCK"
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_ssh_agent() {
+  if select_ssh_agent; then
+    return 0
+  fi
+
+  mkdir -p "$SSH_AGENT_DIR"
+  chmod 700 "$SSH_AGENT_DIR"
+
+  if [[ -e "$AETHER_SSH_AUTH_SOCK" ]] && ! ssh_agent_usable "$AETHER_SSH_AUTH_SOCK"; then
+    rm -f "$AETHER_SSH_AUTH_SOCK"
+  fi
+
+  local output
+  output=$(ssh-agent -a "$AETHER_SSH_AUTH_SOCK" -s 2>&1) || {
+    log_error "Failed to start SSH agent: $output"
+    return 1
+  }
+
+  eval "$output" >/dev/null
+  export SSH_AUTH_SOCK="$AETHER_SSH_AUTH_SOCK"
+
+  if ! ssh_agent_usable "$SSH_AUTH_SOCK"; then
+    log_error "Started SSH agent, but it is not reachable at $SSH_AUTH_SOCK"
+    return 1
+  fi
+
+  log_info "Started SSH agent at $SSH_AUTH_SOCK"
 }
 
 # =============================================================================
@@ -300,7 +359,7 @@ exchange_for_google() {
     return 1
   fi
 
-  log_info "Writing Google Workload Identity Federation credentials..."
+  log_info "Writing GCP Workload Identity Federation credentials..."
 
   local google_dir="$CACHE_DIR/google"
   mkdir -p "$google_dir"
@@ -353,7 +412,7 @@ EOF
     return 1
   fi
 
-  log_success "Google WIF credentials configured (service account: $service_account)"
+  log_success "GCP WIF credentials configured (service account: $service_account)"
   return 0
 }
 
@@ -495,10 +554,8 @@ exchange_for_bao() {
 exchange_for_ssh_cert() {
   local id_token="$1"
 
-  # Check if SSH agent is available
-  if [[ ! -S "${SSH_AUTH_SOCK:-}" ]]; then
+  if ! ensure_ssh_agent; then
     log_warn "SSH agent not available, skipping SSH certificate"
-    log_info "  Use 'task ca:login' on host, or pass SSH_AUTH_SOCK to container"
     return 1
   fi
 
@@ -545,12 +602,11 @@ check_status() {
 
   # Check step-ca SSH cert (most used day-to-day)
   echo -e "${BLUE}SSH:${NC}"
-  if [[ -S "${SSH_AUTH_SOCK:-}" ]]; then
-    # Check for certificates using step if available, fallback to ssh-add
-    if command -v step &>/dev/null; then
-      local cert_raw
-      cert_raw=$(step ssh list --raw 2>/dev/null | grep -v '^ssh-' | head -1 || true)
-      if [[ -n "$cert_raw" ]]; then
+  if select_ssh_agent; then
+    local cert_raw
+    cert_raw=$(ssh-add -L 2>/dev/null | grep -m1 'cert-v01@openssh.com' || true)
+    if [[ -n "$cert_raw" ]]; then
+      if command -v step &>/dev/null; then
         local cert_details
         cert_details=$(echo "$cert_raw" | step ssh inspect 2>/dev/null || true)
         local valid_to principals
@@ -562,18 +618,13 @@ check_status() {
           log_success "Certificate loaded"
         fi
       else
-        log_warn "No certificate in agent (use 'task login' or 'task ca:login')"
+        log_success "Certificate loaded"
       fi
     else
-      # Fallback: check for cert-authority entries in ssh-add
-      if ssh-add -L 2>/dev/null | grep -q 'cert-authority\|ssh-.*-cert'; then
-        log_success "Certificate loaded (run 'step ssh list' for details)"
-      else
-        log_warn "No certificate in agent (use 'task login' or 'task ca:login')"
-      fi
+      log_warn "No certificate in agent (use 'task login -- --ssh')"
     fi
   else
-    log_info "Agent not available in container (check on host with 'ssh-add -l')"
+    log_info "Agent not available (run: task login -- --ssh)"
   fi
 
   # Check OpenBao
@@ -618,7 +669,7 @@ check_status() {
   fi
 
   # Check Google Cloud
-  echo -e "\n${BLUE}Google Cloud:${NC}"
+  echo -e "\n${BLUE}GCP:${NC}"
   if [[ -f "$CACHE_DIR/google-env" ]]; then
     set -a
     # shellcheck disable=SC1091
@@ -719,7 +770,7 @@ do_login() {
         echo ""
         echo "Options:"
         echo "  --aws     Only get AWS credentials"
-        echo "  --google  Only configure Google Cloud WIF credentials"
+        echo "  --google  Only configure GCP WIF credentials"
         echo "  --bao     Only get OpenBao token"
         echo "  --s3      Only get Ceph S3 credentials"
         echo "  --ssh     Only get SSH certificate"
@@ -805,11 +856,7 @@ do_login() {
   # SSH: auto-detect or explicit (most used day-to-day)
   # Uses ID token (contains sub claim required by OIDC provisioner)
   if [[ "$do_ssh" == "auto" ]]; then
-    if [[ -S "${SSH_AUTH_SOCK:-}" ]]; then
-      exchange_for_ssh_cert "$id_token" || ssh_ok=false
-    else
-      ssh_skipped=true
-    fi
+    exchange_for_ssh_cert "$id_token" || ssh_ok=false
   elif [[ "$do_ssh" == "true" ]]; then
     exchange_for_ssh_cert "$id_token" || ssh_ok=false
   else
@@ -861,12 +908,12 @@ do_login() {
   if $do_google; then
     if $google_ok; then
       if [[ -f "$CACHE_DIR/google-env" ]]; then
-        log_success "Google: Ready (WIF config in $CACHE_DIR/google-env)"
+        log_success "GCP: Ready (WIF config in $CACHE_DIR/google-env)"
       else
-        log_info "Google: Not configured"
+        log_info "GCP: Not configured"
       fi
     else
-      log_error "Google: Failed"
+      log_error "GCP: Failed"
     fi
   fi
   if $do_s3; then
