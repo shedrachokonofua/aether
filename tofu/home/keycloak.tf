@@ -488,18 +488,23 @@ resource "keycloak_openid_client" "nextcloud" {
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
 
-  root_url  = "https://nextcloud.home.shdr.ch"
-  base_url  = "https://nextcloud.home.shdr.ch"
-  admin_url = "https://nextcloud.home.shdr.ch"
+  root_url  = "https://nextcloud.shdr.ch"
+  base_url  = "https://nextcloud.shdr.ch"
+  admin_url = "https://nextcloud.shdr.ch"
 
   valid_redirect_uris = [
+    "https://nextcloud.shdr.ch/apps/user_oidc/code",
+    "https://nextcloud.shdr.ch/index.php/apps/user_oidc/code",
+    # Keep the old internal hostname valid while clients migrate to the public name.
     "https://nextcloud.home.shdr.ch/apps/user_oidc/code",
     "https://nextcloud.home.shdr.ch/index.php/apps/user_oidc/code",
     # Login Flow v2 final redirect for the iOS/Android app
+    "nc://login/server:https://nextcloud.shdr.ch",
     "nc://login/server:https://nextcloud.home.shdr.ch",
   ]
 
   web_origins = [
+    "https://nextcloud.shdr.ch",
     "https://nextcloud.home.shdr.ch",
   ]
 }
@@ -1067,6 +1072,47 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "kubernetes_groups" {
 }
 
 # =============================================================================
+# Hermes Dashboard OIDC Client
+# =============================================================================
+# Public PKCE client for the Hermes Agent dashboards.
+
+resource "keycloak_openid_client" "hermes_dashboard" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "hermes-dashboard"
+  name      = "Hermes Dashboard"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  pkce_code_challenge_method   = "S256"
+
+  root_url = "https://beryl-dashboard.home.shdr.ch"
+  base_url = "https://beryl-dashboard.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://beryl-dashboard.home.shdr.ch/auth/callback",
+    "https://tungsten-dashboard.home.shdr.ch/auth/callback",
+  ]
+
+  web_origins = [
+    "https://beryl-dashboard.home.shdr.ch",
+    "https://tungsten-dashboard.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "hermes_dashboard_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.hermes_dashboard.id
+
+  default_scopes = [
+    "profile",
+    "email",
+  ]
+}
+
+# =============================================================================
 # Seven30 vcluster OIDC Client
 # =============================================================================
 # Public client for kubectl authentication to the Seven30 vcluster.
@@ -1308,8 +1354,8 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "memos_roles" {
 # a bootstrapped admin local account in nextexplorer.tf.
 
 resource "keycloak_authentication_flow" "nextexplorer_browser" {
-  realm_id = keycloak_realm.aether.id
-  alias    = "nextexplorer-browser"
+  realm_id    = keycloak_realm.aether.id
+  alias       = "nextexplorer-browser"
   description = "Browser flow for nextExplorer — only realm-admins may complete login"
 }
 
