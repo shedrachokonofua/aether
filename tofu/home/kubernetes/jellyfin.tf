@@ -329,8 +329,8 @@ resource "kubernetes_deployment_v1" "jellyfin" {
 
         volume {
           name = "rclone-config"
-          config_map {
-            name = kubernetes_config_map_v1.rclone_nzbdav.metadata[0].name
+          secret {
+            secret_name = kubernetes_secret_v1.rclone_nzbdav.metadata[0].name
           }
         }
       }
@@ -339,10 +339,10 @@ resource "kubernetes_deployment_v1" "jellyfin" {
 }
 
 # =============================================================================
-# Rclone ConfigMap
+# Rclone Secret
 # =============================================================================
 
-resource "kubernetes_config_map_v1" "rclone_nzbdav" {
+resource "kubernetes_secret_v1" "rclone_nzbdav" {
   depends_on = [kubernetes_namespace_v1.media]
 
   metadata {
@@ -350,12 +350,16 @@ resource "kubernetes_config_map_v1" "rclone_nzbdav" {
     namespace = local.jellyfin_ns
   }
 
+  type = "Opaque"
+
   data = {
     "rclone.conf" = <<-EOT
       [nzb-dav]
       type = webdav
       url = http://nzbdav.${local.jellyfin_ns}.svc.cluster.local:3000
       vendor = other
+      user = ${var.secrets["nzbdav.webdav_username"]}
+      pass = ${var.secrets["nzbdav.webdav_password_obscured"]}
     EOT
   }
 }

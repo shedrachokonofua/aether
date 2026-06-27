@@ -52,6 +52,26 @@ resource "kubernetes_persistent_volume_claim_v1" "nzbdav_data" {
 }
 
 # =============================================================================
+# Secret
+# =============================================================================
+
+resource "kubernetes_secret_v1" "nzbdav_webdav" {
+  depends_on = [kubernetes_namespace_v1.media]
+
+  metadata {
+    name      = "nzbdav-webdav"
+    namespace = local.jellyfin_ns
+  }
+
+  type = "Opaque"
+
+  data = {
+    username = var.secrets["nzbdav.webdav_username"]
+    password = var.secrets["nzbdav.webdav_password"]
+  }
+}
+
+# =============================================================================
 # Deployment
 # =============================================================================
 
@@ -59,6 +79,7 @@ resource "kubernetes_deployment_v1" "nzbdav" {
   depends_on = [
     kubernetes_persistent_volume_claim_v1.nzbdav_config,
     kubernetes_persistent_volume_claim_v1.nzbdav_data,
+    kubernetes_secret_v1.nzbdav_webdav,
   ]
 
   metadata {
@@ -111,6 +132,26 @@ resource "kubernetes_deployment_v1" "nzbdav" {
           env {
             name  = "UPGRADE"
             value = "0.6.0"
+          }
+
+          env {
+            name = "WEBDAV_USER"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nzbdav_webdav.metadata[0].name
+                key  = "username"
+              }
+            }
+          }
+
+          env {
+            name = "WEBDAV_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nzbdav_webdav.metadata[0].name
+                key  = "password"
+              }
+            }
           }
 
           volume_mount {
