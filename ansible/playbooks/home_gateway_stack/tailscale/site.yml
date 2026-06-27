@@ -29,11 +29,21 @@
         mode: "0700"
       become: true
 
-    - name: Create admin Tailscale runtime directory
-      file:
-        path: /var/run/tailscale-admin
-        state: directory
-        mode: "0755"
+    # /run is tmpfs and is wiped on every reboot, so a one-shot dir create does
+    # not survive: after a reboot the admin tailscale container fails to mount
+    # its socket dir (statfs ... no such file or directory) and the subnet router
+    # never comes back. A tmpfiles.d drop-in recreates it on every boot, before
+    # the quadlet starts.
+    - name: Persist admin Tailscale runtime dir across reboots (tmpfiles.d)
+      ansible.builtin.copy:
+        dest: /etc/tmpfiles.d/tailscale-admin.conf
+        content: "d /run/tailscale-admin 0755 root root -\n"
+        mode: "0644"
+      become: true
+
+    - name: Create admin Tailscale runtime directory now
+      ansible.builtin.command: systemd-tmpfiles --create /etc/tmpfiles.d/tailscale-admin.conf
+      changed_when: false
       become: true
 
     - name: Migrate state from old rootless container
