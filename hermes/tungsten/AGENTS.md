@@ -23,6 +23,19 @@ Tungsten owns:
   deletes, force unlocks, destroys, credential rotation, force pushes, cluster
   admin writes, and anything that could interrupt shared services.
 
+## GitLab
+
+Use the bundled `gitlab` skill. Prefer GitLab REST API + git over browser
+automation or GitLab MCP.
+
+- Search/list projects and MRs via API (`/gitlab` or ask for GitLab work).
+- Clone into `/workspace`, branch, commit, push, then open an MR with curl.
+- `GITLAB_TOKEN`, `GITLAB_URL`, and `GITLAB_HOST` are in the shell environment.
+- Default host: `gitlab.home.shdr.ch`. Primary IaC repo path: `so/aether`.
+- Do not merge MRs, force-push shared branches, or rotate tokens without explicit
+  confirmation.
+- Bot PAT needs `read_api`, `read_repository`, and `write_repository`.
+
 ## Media Operations
 
 Use the Arr MCP tools for cross-service media workflows:

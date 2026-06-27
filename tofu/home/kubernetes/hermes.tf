@@ -8,18 +8,21 @@
 # Tungsten: public Kimi model through LiteLLM -> Ollama Cloud.
 
 locals {
-  hermes_namespace      = kubernetes_namespace_v1.infra.metadata[0].name
-  hermes_image          = "nousresearch/hermes-agent:latest"
-  hermes_port           = 8642
-  hermes_dashboard_port = 9119
-  hermes_litellm        = "https://litellm.home.shdr.ch/v1"
-  hermes_local_llm      = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.hermes_namespace}.svc.cluster.local:${local.llama_swap_port}/v1"
-  hermes_jellyfin_url   = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
-  hermes_firecrawl_url  = "https://firecrawl.home.shdr.ch"
-  hermes_searxng_url    = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
-  hermes_matrix_server  = "https://matrix.home.shdr.ch"
-  hermes_matrix_owner   = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
-  hermes_homeassistant  = "https://ha.home.shdr.ch"
+  hermes_namespace                    = kubernetes_namespace_v1.infra.metadata[0].name
+  hermes_image                        = "nousresearch/hermes-agent:latest"
+  hermes_port                         = 8642
+  hermes_dashboard_port               = 9119
+  hermes_litellm                      = "https://litellm.home.shdr.ch/v1"
+  hermes_local_llm                    = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.hermes_namespace}.svc.cluster.local:${local.llama_swap_port}/v1"
+  hermes_jellyfin_url                 = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
+  hermes_firecrawl_url                = "https://firecrawl.home.shdr.ch"
+  hermes_searxng_url                  = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
+  hermes_matrix_server                = "https://matrix.home.shdr.ch"
+  hermes_matrix_owner                 = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
+  hermes_homeassistant                = "https://ha.home.shdr.ch"
+  hermes_tungsten_skills_root         = "${path.module}/../../../hermes/tungsten/skills"
+  hermes_bootstrap_init_base          = "mkdir -p /data /data/sessions /data/memories /data/skills /data/cron /data/logs /data/.npm && cp /bootstrap/config.yaml /data/config.yaml && cp /bootstrap/SOUL.md /data/SOUL.md && cp /bootstrap/AGENTS.md /data/AGENTS.md && chown 10000:10000 /data/config.yaml /data/SOUL.md /data/AGENTS.md && chown -R 10000:10000 /data/.npm && chmod 640 /data/config.yaml && chmod 644 /data/SOUL.md /data/AGENTS.md && chmod 755 /data /data/sessions /data/memories /data/skills /data/cron /data/logs"
+  hermes_bootstrap_init_gitlab_skills = "mkdir -p /data/skills/gitlab/gitlab && cp /skills-bootstrap/gitlab-SKILL.md /data/skills/gitlab/gitlab/SKILL.md && chown -R 10000:10000 /data/skills/gitlab && chmod 644 /data/skills/gitlab/gitlab/SKILL.md"
 
   hermes_agents = {
     beryl = {
@@ -153,6 +156,9 @@ locals {
             "PATH",
             "HOME",
             "HERMES_HOME",
+            "GITLAB_HOST",
+            "GITLAB_URL",
+            "GITLAB_TOKEN",
           ]
         }
         api_server = {
@@ -263,6 +269,19 @@ resource "kubernetes_config_map_v1" "hermes_bootstrap" {
   }
 }
 
+resource "kubernetes_config_map_v1" "hermes_tungsten_skills" {
+  depends_on = [kubernetes_namespace_v1.infra]
+
+  metadata {
+    name      = "hermes-tungsten-skills"
+    namespace = local.hermes_namespace
+  }
+
+  data = {
+    "gitlab-SKILL.md" = file("${local.hermes_tungsten_skills_root}/gitlab/SKILL.md")
+  }
+}
+
 resource "kubernetes_persistent_volume_claim_v1" "hermes_data" {
   for_each = local.hermes_agents
 
@@ -296,6 +315,10 @@ resource "kubernetes_service_account_v1" "hermes" {
   }
 
   automount_service_account_token = each.key == "tungsten"
+
+  image_pull_secret {
+    name = "dockerhub-creds"
+  }
 }
 
 resource "kubernetes_cluster_role_v1" "hermes_tungsten_readonly" {
@@ -379,6 +402,7 @@ resource "kubernetes_deployment_v1" "hermes" {
 
   depends_on = [
     kubernetes_config_map_v1.hermes_bootstrap,
+    kubernetes_config_map_v1.hermes_tungsten_skills,
     kubernetes_persistent_volume_claim_v1.hermes_data,
     kubernetes_secret_v1.hermes_env,
     kubernetes_service_account_v1.hermes,
@@ -411,10 +435,15 @@ resource "kubernetes_deployment_v1" "hermes" {
         labels = {
           app = "hermes-${each.key}"
         }
-        annotations = {
-          "checksum/config" = sha256(each.value.config)
-          "checksum/env"    = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.hermes_env[each.key].data)))
-        }
+        annotations = merge(
+          {
+            "checksum/config" = sha256(each.value.config)
+            "checksum/env"    = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.hermes_env[each.key].data)))
+          },
+          each.key == "tungsten" ? {
+            "checksum/skills" = sha256(jsonencode(kubernetes_config_map_v1.hermes_tungsten_skills.data))
+          } : {}
+        )
       }
 
       spec {
@@ -427,7 +456,7 @@ resource "kubernetes_deployment_v1" "hermes" {
           command = [
             "sh",
             "-c",
-            "mkdir -p /data /data/sessions /data/memories /data/skills /data/cron /data/logs /data/.npm && cp /bootstrap/config.yaml /data/config.yaml && cp /bootstrap/SOUL.md /data/SOUL.md && cp /bootstrap/AGENTS.md /data/AGENTS.md && chown 10000:10000 /data/config.yaml /data/SOUL.md /data/AGENTS.md && chown -R 10000:10000 /data/.npm && chmod 640 /data/config.yaml && chmod 644 /data/SOUL.md /data/AGENTS.md && chmod 755 /data /data/sessions /data/memories /data/skills /data/cron /data/logs"
+            each.key == "tungsten" ? "${local.hermes_bootstrap_init_base} && ${local.hermes_bootstrap_init_gitlab_skills}" : local.hermes_bootstrap_init_base
           ]
 
           volume_mount {
@@ -439,6 +468,15 @@ resource "kubernetes_deployment_v1" "hermes" {
             name       = "bootstrap"
             mount_path = "/bootstrap"
             read_only  = true
+          }
+
+          dynamic "volume_mount" {
+            for_each = each.key == "tungsten" ? [1] : []
+            content {
+              name       = "skills-bootstrap"
+              mount_path = "/skills-bootstrap"
+              read_only  = true
+            }
           }
         }
 
@@ -557,26 +595,18 @@ resource "kubernetes_deployment_v1" "hermes" {
         }
 
         container {
-          name    = "dashboard"
-          image   = local.hermes_image
-          command = ["/bin/bash", "-lc"]
+          name  = "dashboard"
+          image = local.hermes_image
           args = [
-            <<-EOT
-            set -euo pipefail
-            cp /opt/hermes/ui-tui/package-lock.json /opt/hermes/ui-tui/node_modules/.package-lock.json
-            python3 - <<'PY'
-            from pathlib import Path
-
-            path = Path("/opt/hermes/hermes_cli/web_server.py")
-            source = path.read_text()
-            source = source.replace(
-                "client_host and client_host not in _LOOPBACK_HOSTS",
-                "False and client_host and client_host not in _LOOPBACK_HOSTS",
-            )
-            path.write_text(source)
-            PY
-            exec /opt/hermes/docker/entrypoint.sh hermes dashboard --host 0.0.0.0 --port ${local.hermes_dashboard_port} --no-open --insecure --tui
-            EOT
+            "hermes",
+            "dashboard",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            tostring(local.hermes_dashboard_port),
+            "--no-open",
+            "--insecure",
+            "--tui",
           ]
 
           port {
@@ -597,6 +627,26 @@ resource "kubernetes_deployment_v1" "hermes" {
           env {
             name  = "HERMES_DASHBOARD_TUI"
             value = "1"
+          }
+
+          env {
+            name  = "HERMES_DASHBOARD_PUBLIC_URL"
+            value = "https://${each.value.dashboard_host}"
+          }
+
+          env {
+            name  = "HERMES_DASHBOARD_OIDC_ISSUER"
+            value = var.oidc_issuer_url
+          }
+
+          env {
+            name  = "HERMES_DASHBOARD_OIDC_CLIENT_ID"
+            value = "hermes-dashboard"
+          }
+
+          env {
+            name  = "HERMES_DASHBOARD_OIDC_SCOPES"
+            value = "openid profile email"
           }
 
           env {
@@ -704,6 +754,16 @@ resource "kubernetes_deployment_v1" "hermes" {
           name = "bootstrap"
           config_map {
             name = kubernetes_config_map_v1.hermes_bootstrap[each.key].metadata[0].name
+          }
+        }
+
+        dynamic "volume" {
+          for_each = each.key == "tungsten" ? [1] : []
+          content {
+            name = "skills-bootstrap"
+            config_map {
+              name = kubernetes_config_map_v1.hermes_tungsten_skills.metadata[0].name
+            }
           }
         }
 

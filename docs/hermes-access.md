@@ -32,7 +32,7 @@ Tungsten is the online development and operations bot.
 | SABnzbd | URL + API key | Wired as env |
 | Jellyfin | Tungsten-specific API key | Wired |
 | Kubernetes | Read-only service account for objects, events, logs, metrics | Wired |
-| GitLab | Bot PAT for repos, MRs, CI | Wired as env |
+| GitLab | Bot PAT + bundled `gitlab` skill (curl API, search/clone/MR) | Wired |
 | OpenBao | Narrow read only to explicit paths | Not wired |
 
 ## Needed From Shdrch
@@ -49,5 +49,8 @@ Tungsten is the online development and operations bot.
   Prowlarr.
 - Hermes also ships native Home Assistant REST tools gated by `HASS_TOKEN`;
   Beryl uses those instead of the HA MCP endpoint.
+- Tungsten GitLab workflows use `GITLAB_TOKEN`/`GITLAB_URL` in the terminal shell
+  plus bundled skill `hermes/tungsten/skills/gitlab/SKILL.md` (adapted from
+  vm0-ai/vm0-skills; no GitLab MCP).
 - Matrix is wired with `MATRIX_ACCESS_TOKEN` for each bot rather than password
   login, so pod restarts do not trip homeserver login rate limits.
