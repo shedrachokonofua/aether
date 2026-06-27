@@ -29,8 +29,8 @@ home_gateway_stack:
   name: "home-gateway-stack"
   node: "oracle"
   admin: "aether"
-  cores: 8
-  memory: 2048
+  cores: 4
+  memory: 4096
   disk_gb: 128
   ip: "10.0.2.2"
   gateway: "10.0.2.1"
