@@ -60,10 +60,10 @@
   - [x] Deploy Headlamp dashboard with Keycloak OIDC
   - [x] Register GitLab Agent
   - [x] Create k8s dashboards in Grafana
-  - [ ] Migrate AI Tool Stack, Messaging Stack to Knative
-  - [ ] Migrate Media Stack (rffmpeg → GPU Workstation for transcoding)
+  - [x] Migrate AI Tool Stack, Messaging Stack to Knative
+  - [x] Migrate Media Stack (rffmpeg → GPU Workstation for transcoding)
   - [x] Migrate Dokku/Dokploy apps to Knative Services / native Deployments
-  - [ ] Configure multi-tenancy (namespaces, quotas, Cilium NetworkPolicies)
+  - [x] Configure multi-tenancy (namespaces, quotas, Cilium NetworkPolicies)
   - [ ] Add ARM worker pool from Raspberry Pis ([exploration](exploration/raspberry-pi.md))
     - [x] Wire baremetal Talos node support in Tofu (`platform: baremetal`, per-arch schematics)
     - [x] Add Pi 4/5 Talos schematics (generic + `rpi_5` overlay)
