@@ -45,6 +45,8 @@ locals {
     "iamcredentials.googleapis.com",
     "serviceusage.googleapis.com",
     "sts.googleapis.com",
+    "compute.googleapis.com",
+    "osconfig.googleapis.com",
   ]
 
   google_project_services = toset(concat(local.google_foundation_services, local.google_maps_api_targets))
@@ -56,6 +58,8 @@ locals {
     "roles/serviceusage.apiKeysAdmin",
     "roles/serviceusage.serviceUsageAdmin",
     "roles/serviceusage.serviceUsageViewer",
+    "roles/compute.admin",
+    "roles/iam.serviceAccountUser",
   ])
 }
 

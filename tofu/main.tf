@@ -39,6 +39,7 @@ module "google" {
   source                = "./google"
   project_id            = local.google.project_id
   keycloak_shdrch_email = local.home.keycloak.shdrch_email
+  billing_account_id    = local.google.billing_account_id
 }
 
 provider "google" {

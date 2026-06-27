@@ -64,6 +64,22 @@ output "aws_public_gateway_private_key" {
   sensitive = true
 }
 
+output "google_uptime_monitor_ip" {
+  value       = try(module.google[0].uptime_monitor_ip, "")
+  description = "Public IP of the GCP uptime monitor VM"
+}
+
+output "google_uptime_monitor_public_key" {
+  value       = try(module.google[0].uptime_monitor_public_key, "")
+  description = "Public SSH key for the GCP uptime monitor VM"
+}
+
+output "google_uptime_monitor_private_key" {
+  value       = try(module.google[0].uptime_monitor_private_key, "")
+  sensitive   = true
+  description = "Private SSH key for the GCP uptime monitor VM"
+}
+
 output "tailscale_public_gateway_oauth_client_id" {
   value = tailscale_oauth_client.public_gateway_oauth_client.id
 }
@@ -71,6 +87,17 @@ output "tailscale_public_gateway_oauth_client_id" {
 output "tailscale_public_gateway_oauth_client_secret" {
   value     = tailscale_oauth_client.public_gateway_oauth_client.key
   sensitive = true
+}
+
+output "tailscale_uptime_monitor_oauth_client_id" {
+  value       = tailscale_oauth_client.uptime_monitor_oauth_client.id
+  description = "Uptime monitor Tailscale OAuth client ID"
+}
+
+output "tailscale_uptime_monitor_oauth_client_secret" {
+  value       = tailscale_oauth_client.uptime_monitor_oauth_client.key
+  sensitive   = true
+  description = "Uptime monitor Tailscale OAuth client secret"
 }
 
 output "tailscale_admin_gateway_oauth_client_id" {
@@ -175,4 +202,15 @@ output "talos_client_configuration" {
   description = "Talosconfig for talosctl"
   value       = module.home.talos_client_configuration
   sensitive   = true
+}
+
+output "cloudflare_uptime_monitor_tunnel_token" {
+  description = "Cloudflare Tunnel Token for the uptime monitor"
+  value       = data.cloudflare_zero_trust_tunnel_cloudflared_token.uptime_monitor_tunnel_token.token
+  sensitive   = true
+}
+
+output "tailscale_uptime_monitor_ip" {
+  description = "Private Tailscale IP of the uptime monitor VM"
+  value       = data.tailscale_device.uptime_monitor.addresses[0]
 }

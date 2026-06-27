@@ -1,0 +1,44 @@
+---
+- name: Deploy Cloudflare Tunnel
+  hosts: uptime-monitor
+  gather_facts: true
+  become: true
+  vars:
+    tunnel_token: "{{ tf_outputs.cloudflare_uptime_monitor_tunnel_token.value | default('') }}"
+  tasks:
+    - name: Download Cloudflare GPG key
+      get_url:
+        url: https://pkg.cloudflare.com/cloudflare-main.gpg
+        dest: /usr/share/keyrings/cloudflare-main.gpg
+        mode: '0644'
+
+    - name: Add Cloudflare APT repository
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared bookworm main"
+        state: present
+        filename: cloudflare
+
+    - name: Install cloudflared
+      apt:
+        name: cloudflared
+        state: present
+        update_cache: yes
+
+    - name: Check if cloudflared service is installed
+      stat:
+        path: /etc/systemd/system/cloudflared.service
+      register: cloudflared_service_installed
+
+    - name: Install and run cloudflared service (Managed Tunnel)
+      command: cloudflared service install "{{ tunnel_token }}"
+      when:
+        - not cloudflared_service_installed.stat.exists
+        - tunnel_token != ""
+
+    - name: Ensure cloudflared is enabled and running
+      systemd:
+        name: cloudflared
+        state: started
+        enabled: yes
+      when:
+        - tunnel_token != ""

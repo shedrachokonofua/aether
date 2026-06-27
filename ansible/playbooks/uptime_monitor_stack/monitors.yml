@@ -1,0 +1,37 @@
+---
+# Uptime Kuma monitors to preconfigure
+monitors:
+  - name: "shdr.ch"
+    url: "https://shdr.ch"
+    type: "http"
+    interval: 60
+
+  - name: "Keycloak"
+    url: "https://auth.shdr.ch/realms/aether"
+    type: "http"
+    interval: 60
+
+  - name: "OpenWebUI"
+    url: "https://ai.shdr.ch"
+    type: "http"
+    interval: 60
+
+  - name: "Nextcloud"
+    url: "https://nextcloud.shdr.ch"
+    type: "http"
+    interval: 60
+
+  - name: "Jellyfin"
+    url: "https://tv.shdr.ch"
+    type: "http"
+    interval: 60
+
+  - name: "BentoPDF"
+    url: "https://pdf.shdr.ch"
+    type: "http"
+    interval: 60
+
+  - name: "seven30.xyz"
+    url: "https://seven30.xyz"
+    type: "http"
+    interval: 60

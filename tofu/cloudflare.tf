@@ -86,6 +86,17 @@ resource "cloudflare_dns_record" "aether_public_gateway_tv" {
   ttl     = 300
 }
 
+# nextcloud.shdr.ch - Direct access for Nextcloud sync and large uploads.
+# Protected by CrowdSec on the public gateway instead of Cloudflare WAF.
+resource "cloudflare_dns_record" "aether_public_gateway_nextcloud" {
+  name    = "nextcloud"
+  content = module.aws.public_gateway_ip
+  type    = "A"
+  zone_id = cloudflare_zone.shdrch_domain.id
+  proxied = false
+  ttl     = 300
+}
+
 resource "cloudflare_dns_record" "aether_public_gateway_seven30_root" {
   provider = cloudflare.seven30
   name     = "@"
@@ -236,4 +247,45 @@ resource "cloudflare_dns_record" "shdr_ch_protonmail_verification" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+resource "random_id" "uptime_monitor_tunnel_secret" {
+  byte_length = 32
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared" "uptime_monitor_tunnel" {
+  account_id    = local.cloudflare.account_id
+  name          = "aether-uptime-monitor"
+  tunnel_secret = random_id.uptime_monitor_tunnel_secret.b64_std
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "uptime_monitor_tunnel_config" {
+  account_id = local.cloudflare.account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.uptime_monitor_tunnel.id
+
+  config = {
+    ingress = [
+      {
+        hostname = "status.shdr.ch"
+        service  = "http://localhost:3001"
+      },
+      {
+        service = "http_status:404"
+      }
+    ]
+  }
+}
+
+data "cloudflare_zero_trust_tunnel_cloudflared_token" "uptime_monitor_tunnel_token" {
+  account_id = local.cloudflare.account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.uptime_monitor_tunnel.id
+}
+
+resource "cloudflare_dns_record" "uptime_monitor_cname" {
+  zone_id = cloudflare_zone.shdrch_domain.id
+  name    = "status"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.uptime_monitor_tunnel.id}.cfargotunnel.com"
+  type    = "CNAME"
+  proxied = true
+  ttl     = 1
 }

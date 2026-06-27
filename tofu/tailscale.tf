@@ -26,6 +26,7 @@ resource "tailscale_acl" "tailnet_acl" {
       "tag:home-gateway" : local.tailscale_admin_sources,
       "tag:admin-gateway" : local.tailscale_admin_sources,
       "tag:public-gateway" : local.tailscale_admin_sources,
+      "tag:uptime-monitor" : local.tailscale_admin_sources,
     },
     acls : [
       // Admin can access own infrastructure and own devices only
@@ -36,6 +37,7 @@ resource "tailscale_acl" "tailnet_acl" {
           "tag:home-gateway:*",
           "tag:admin-gateway:*",
           "tag:public-gateway:*",
+          "tag:uptime-monitor:*",
           "autogroup:self:*",
           "10.0.0.0/8:*",
           "192.168.0.0/16:*",
@@ -61,6 +63,16 @@ resource "tailscale_acl" "tailnet_acl" {
         action : "accept",
         src : ["tag:public-gateway"],
         dst : ["10.0.2.2:9443"],
+      },
+      // Uptime monitor can access gateways to perform checks
+      {
+        action : "accept",
+        src : ["tag:uptime-monitor"],
+        dst : [
+          "tag:home-gateway:443,9443",
+          "tag:public-gateway:443",
+          "tag:admin-gateway:443",
+        ],
       },
     ],
     autoApprovers : {
@@ -94,8 +106,21 @@ resource "tailscale_oauth_client" "public_gateway_oauth_client" {
   tags        = ["tag:public-gateway"]
 }
 
+resource "tailscale_oauth_client" "uptime_monitor_oauth_client" {
+  description = "Uptime monitor Tailscale OAuth client"
+  scopes      = ["auth_keys"]
+  tags        = ["tag:uptime-monitor"]
+
+  depends_on = [tailscale_acl.tailnet_acl]
+}
+
 resource "tailscale_oauth_client" "admin_gateway_oauth_client" {
   description = "Admin gateway Tailscale OAuth client"
   scopes      = ["auth_keys"]
   tags        = ["tag:admin-gateway"]
+}
+
+data "tailscale_device" "uptime_monitor" {
+  hostname = "aether-uptime-monitor"
+  wait_for = "30s"
 }

@@ -1,0 +1,244 @@
+---
+- name: Deploy Uptime Kuma
+  hosts: uptime-monitor
+  gather_facts: true
+  become: true
+  vars_files:
+    - monitors.yml
+  tasks:
+    - name: Create uptime-kuma system user
+      user:
+        name: uptime-kuma
+        system: yes
+        shell: /sbin/nologin
+        create_home: no
+        home: /opt/uptime-kuma
+
+    - name: Download Nodesource setup script
+      get_url:
+        url: https://deb.nodesource.com/setup_20.x
+        dest: /tmp/nodesource_setup.sh
+        mode: '0755'
+
+    - name: Run Nodesource setup script
+      command: /tmp/nodesource_setup.sh
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js, git, build-essential, and acl
+      apt:
+        name:
+          - nodejs
+          - git
+          - build-essential
+          - acl # Required for Ansible become_user file permissions
+        state: present
+        update_cache: yes
+
+    - name: Check if /opt/uptime-kuma is a git repository
+      stat:
+        path: /opt/uptime-kuma/.git
+      register: kuma_git_dir
+
+    - name: Remove non-git /opt/uptime-kuma directory
+      file:
+        path: /opt/uptime-kuma
+        state: absent
+      when: not kuma_git_dir.stat.exists
+
+    # Set directory ownership first to ensure the user can write to it
+    - name: Ensure /opt/uptime-kuma exists and is owned by uptime-kuma
+      file:
+        path: /opt/uptime-kuma
+        owner: uptime-kuma
+        group: uptime-kuma
+        state: directory
+
+    - name: Clone Uptime Kuma repository
+      become_user: uptime-kuma
+      git:
+        repo: https://github.com/louislam/uptime-kuma.git
+        dest: /opt/uptime-kuma
+        version: master # Track master branch
+        force: yes
+      register: kuma_clone
+
+    - name: Check if Uptime Kuma is already built
+      stat:
+        path: /opt/uptime-kuma/node_modules
+      register: kuma_node_modules
+
+    - name: Set ownership of Uptime Kuma files
+      file:
+        path: /opt/uptime-kuma
+        owner: uptime-kuma
+        group: uptime-kuma
+        recurse: yes
+        state: directory
+
+    - name: Run npm setup and build
+      become_user: uptime-kuma
+      command: npm run setup
+      args:
+        chdir: /opt/uptime-kuma
+      when: kuma_clone.changed or not kuma_node_modules.stat.exists
+
+    - name: Write systemd service file for Uptime Kuma
+      copy:
+        content: |
+          [Unit]
+          Description=Uptime Kuma - Self-hosted monitoring tool
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=uptime-kuma
+          WorkingDirectory=/opt/uptime-kuma
+          ExecStart=/usr/bin/node server/server.js
+          Restart=on-failure
+          RestartSec=10
+          Environment=PORT=3001 HOST=127.0.0.1
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/uptime-kuma.service
+        mode: '0644'
+      notify: Restart Uptime Kuma
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Start and enable Uptime Kuma service
+      systemd:
+        name: uptime-kuma
+        state: started
+        enabled: yes
+
+    # Declarative GitOps Monitors Seeding
+    - name: Write monitors configuration JSON file
+      copy:
+        content: "{{ monitors | to_json }}"
+        dest: /opt/uptime-kuma/data/monitors.json
+        owner: uptime-kuma
+        group: uptime-kuma
+        mode: '0644'
+
+    - name: Write monitors sync python script
+      copy:
+        content: |
+          import json
+          import sqlite3
+          import sys
+
+          db_path = "/opt/uptime-kuma/data/kuma.db"
+          monitors_file = "/opt/uptime-kuma/data/monitors.json"
+
+          try:
+              with open(monitors_file, 'r') as f:
+                  desired_monitors = json.load(f)
+          except Exception as e:
+              print(f"Error loading monitors file: {e}")
+              sys.exit(1)
+
+          conn = sqlite3.connect(db_path)
+          cursor = conn.cursor()
+
+          # Get user_id if an admin has been created
+          cursor.execute("SELECT id FROM user LIMIT 1")
+          user_row = cursor.fetchone()
+          user_id = user_row[0] if user_row else None
+
+          # Get existing monitors
+          cursor.execute("SELECT id, name, url, user_id FROM monitor")
+          existing = {row[1]: (row[0], row[2], row[3]) for row in cursor.fetchall()}
+          desired_names = {m['name'] for m in desired_monitors}
+
+          # Delete monitors not in desired list
+          for name in list(existing.keys()):
+              if name not in desired_names:
+                  monitor_id, _, _ = existing[name]
+                  cursor.execute("DELETE FROM monitor WHERE id=?", (monitor_id,))
+                  print(f"Deleted monitor: {name}")
+
+          # Sync monitors
+          for m in desired_monitors:
+              name = m['name']
+              url = m['url']
+              m_type = m.get('type', 'http')
+              interval = m.get('interval', 60)
+              
+              if name in existing:
+                  monitor_id, old_url, old_user_id = existing[name]
+                  if old_url != url or (old_user_id is None and user_id is not None):
+                      cursor.execute("UPDATE monitor SET url=?, type=?, interval=?, user_id=? WHERE id=?", (url, m_type, interval, user_id, monitor_id))
+                      print(f"Updated monitor: {name}")
+              else:
+                  cursor.execute("""
+                      INSERT INTO monitor (name, active, url, type, interval, weight, maxretries, ignore_tls, upside_down, maxredirects, accepted_statuscodes_json, retry_interval, user_id)
+                      VALUES (?, 1, ?, ?, ?, 2000, 0, 0, 0, 10, '["200-299"]', 0, ?)
+                  """, (name, url, m_type, interval, user_id))
+                  print(f"Added monitor: {name}")
+
+          # Create default status page if it doesn't exist
+          cursor.execute("SELECT id FROM status_page WHERE slug='default'")
+          sp_row = cursor.fetchone()
+          if not sp_row:
+              cursor.execute("""
+                  INSERT INTO status_page (slug, title, description, icon, theme, published, search_engine_index, show_tags, show_powered_by, show_certificate_expiry)
+                  VALUES ('default', 'Aether Services', 'Lab status monitoring page', 'circle-check', 'dark', 1, 1, 0, 0, 1)
+              """)
+              sp_id = cursor.lastrowid
+              print("Created default status page")
+          else:
+              sp_id = sp_row[0]
+
+          # Create default group if it doesn't exist for the status page
+          cursor.execute("SELECT id FROM `group` WHERE status_page_id=?", (sp_id,))
+          group_row = cursor.fetchone()
+          if not group_row:
+              cursor.execute("""
+                  INSERT INTO `group` (name, public, active, weight, status_page_id)
+                  VALUES ('Services', 1, 1, 1000, ?)
+              """, (sp_id,))
+              group_id = cursor.lastrowid
+              print("Created default status page group")
+          else:
+              group_id = group_row[0]
+
+          # Clear old links and link current monitors to the group
+          cursor.execute("DELETE FROM monitor_group WHERE group_id=?", (group_id,))
+          
+          # Fetch all active monitors
+          cursor.execute("SELECT id FROM monitor WHERE active=1")
+          active_monitors = [row[0] for row in cursor.fetchall()]
+          
+          for idx, m_id in enumerate(active_monitors):
+              cursor.execute("""
+                  INSERT INTO monitor_group (monitor_id, group_id, weight)
+                  VALUES (?, ?, ?)
+              """, (m_id, group_id, idx * 10))
+          print(f"Linked {len(active_monitors)} monitors to the status page group")
+
+          # Set default entry page to the status page
+          cursor.execute("INSERT OR REPLACE INTO setting (key, value, type) VALUES ('entryPage', '\"statusPage-default\"', 'string')")
+          print("Set entryPage setting to the default status page")
+
+          conn.commit()
+          conn.close()
+        dest: /opt/uptime-kuma/sync_monitors.py
+        owner: uptime-kuma
+        group: uptime-kuma
+        mode: '0755'
+
+    - name: Run monitors sync script
+      command: python3 /opt/uptime-kuma/sync_monitors.py
+      register: sync_output
+      changed_when: "'Added' in sync_output.stdout or 'Updated' in sync_output.stdout or 'Deleted' in sync_output.stdout or 'Created' in sync_output.stdout"
+      notify: Restart Uptime Kuma
+
+  handlers:
+    - name: Restart Uptime Kuma
+      systemd:
+        name: uptime-kuma
+        state: restarted

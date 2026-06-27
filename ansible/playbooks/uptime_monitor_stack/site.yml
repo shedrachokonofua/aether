@@ -1,0 +1,15 @@
+---
+- name: Configure uptime monitor stack
+  hosts: uptime-monitor
+  gather_facts: true
+  roles:
+    - common
+
+- name: Deploy tailscale
+  import_playbook: tailscale.yml
+
+- name: Deploy Uptime Kuma
+  import_playbook: uptime_kuma.yml
+
+- name: Deploy Cloudflare Tunnel
+  import_playbook: tunnel.yml
