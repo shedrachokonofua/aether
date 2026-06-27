@@ -216,9 +216,12 @@ resource "helm_release" "trivy_operator" {
       headless = false
     }
 
+    # Operator runs 6 scanner types over ~244 reports with 4 concurrent scan
+    # jobs; at a 500m CPU limit it throttled hard and its 1s /healthz/ probe
+    # stalled, triggering liveness kills (200+ restarts). Give it real headroom.
     resources = {
-      requests = { cpu = "50m", memory = "128Mi" }
-      limits   = { cpu = "500m", memory = "512Mi" }
+      requests = { cpu = "100m", memory = "256Mi" }
+      limits   = { cpu = "1", memory = "1Gi" }
     }
 
     trivy = {
@@ -264,9 +267,12 @@ resource "helm_release" "policy_reporter" {
     rest    = { enabled = true }
     metrics = { enabled = true }
 
+    # Core REST API holds the policy/result set in memory; with ~244 trivy
+    # VulnerabilityReports it sat at ~239Mi against a 256Mi limit and OOMed,
+    # which made /v2/policies time out and crashlooped the trivy plugin probe.
     resources = {
-      requests = { cpu = "50m", memory = "128Mi" }
-      limits   = { cpu = "250m", memory = "256Mi" }
+      requests = { cpu = "50m", memory = "256Mi" }
+      limits   = { cpu = "250m", memory = "512Mi" }
     }
 
     ui = {
@@ -292,6 +298,35 @@ resource "helm_release" "policy_reporter" {
       }
       trivy = {
         enabled = true
+
+        # Without a GitHub PAT the plugin enriches findings via api.github.com
+        # unauthenticated (60 req/h) and gets 403/429 rate limited, spamming
+        # errors and loading the API. Disable that enrichment until a token is
+        # available. To re-enable: add a read-only PAT to SOPS and set
+        #   github = { token = var.secrets["github_pat"] }
+        github = {
+          disable = true
+        }
+
+        # Default liveness/readiness hit /vulnr/v1/policies (which proxies to
+        # policy-reporter core) with a 3s timeout; transient core latency made
+        # the probe flap and crashloop the pod (1800+ restarts). Relax timeout
+        # and failureThreshold so brief core slowness is tolerated.
+        livenessProbe = {
+          httpGet             = { path = "/vulnr/v1/policies", port = "http" }
+          initialDelaySeconds = 15
+          periodSeconds       = 20
+          timeoutSeconds      = 10
+          failureThreshold    = 6
+        }
+        readinessProbe = {
+          httpGet             = { path = "/vulnr/v1/policies", port = "http" }
+          initialDelaySeconds = 10
+          periodSeconds       = 20
+          timeoutSeconds      = 10
+          failureThreshold    = 6
+        }
+
         resources = {
           requests = { cpu = "50m", memory = "128Mi" }
           limits   = { cpu = "500m", memory = "512Mi" }
