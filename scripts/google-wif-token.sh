@@ -23,7 +23,15 @@ OUTPUT_FILE="$CACHE_DIR/google/wif-token-cache.json"
 
 jwt_payload() {
   local token="$1"
-  echo "$token" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null
+  local payload pad
+
+  payload=$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')
+  pad=$(( (4 - ${#payload} % 4) % 4 ))
+  if [[ "$pad" -gt 0 ]]; then
+    payload="${payload}$(printf '%*s' "$pad" '' | tr ' ' '=')"
+  fi
+
+  printf '%s' "$payload" | base64 -d 2>/dev/null
 }
 
 jwt_exp() {
