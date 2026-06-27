@@ -23,7 +23,7 @@
       "repo": "offsite-s3",
       "paths": ["{{ path }}"],
       "schedule": {
-        "cron": "0 3 * * *",
+        "cron": "{{ backrest_backup_cron }}",
         "clock": "LOCAL"
       },
       "retention": {
@@ -39,5 +39,4 @@
     "disabled": true
   }
 }
-
 

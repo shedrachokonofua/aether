@@ -1022,6 +1022,82 @@ groups:
           summary: "Stale restic backup for {{ $labels.plan_id }}"
           description: 'Last restic snapshot for {{ $labels.path }} was {{ $values.B.Value | printf "%.0f" }} hours ago'
 
+      - uid: talos-etcd-snapshot-failed
+        title: Talos Etcd Snapshot Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: aether_talos_etcd_snapshot_generation_success{service_name="aether-restic"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Talos etcd snapshot failed for {{ $labels.cluster }}"
+          description: "The latest scheduled Talos etcd snapshot command did not complete successfully"
+
+      - uid: talos-etcd-snapshot-stale
+        title: Talos Etcd Snapshot Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (time() - aether_talos_etcd_snapshot_last_success_timestamp_seconds{service_name="aether-restic"}) / 3600
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Talos etcd snapshot is stale for {{ $labels.cluster }}"
+          description: 'Last successful Talos etcd snapshot was {{ $values.B.Value | printf "%.0f" }} hours ago'
+
       # GPU Alerts
       - uid: gpu-high-temp
         title: GPU High Temperature

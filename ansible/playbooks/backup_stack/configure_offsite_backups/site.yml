@@ -29,10 +29,11 @@
     # --- AWS Configuration ---
     aws_region: us-east-1
     aws_profile: backups
+    aws_session_duration_seconds: 43200
 
     # --- S3 Repository ---
     s3_bucket: "{{ tf_outputs.aws_offsite_backup_bucket_name.value }}"
-    restic_repository: "s3:s3.amazonaws.com/{{ s3_bucket }}/restic"
+    restic_repository: "s3:s3.amazonaws.com/{{ s3_bucket }}/restic-v2"
 
     # --- IAM Roles Anywhere ---
     trust_anchor_arn: "{{ tf_outputs.aws_offsite_backup_trust_anchor_arn.value }}"
@@ -43,6 +44,24 @@
     backrest_version: "1.7.1"
     backrest_port: "{{ vm.backup_stack.ports.backrest }}"
     backrest_bind_address: "0.0.0.0"
+    backrest_backup_cron: "0 8 * * *"
+    seaweed_db_dump_bucket: "aether-db-dumps"
+    seaweed_db_dump_endpoint: "http://{{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.s3 }}"
+    seaweed_db_dump_sync_dir: "/mnt/hdd/data/backups/seaweed-db-dumps"
+    internal_route_dest: "10.0.0.0/8"
+    internal_route_via: "{{ vm.router.ip.gigahub }}"
+    internal_route_dev: "eth0"
+    talosctl_version: "v1.12.1"
+    talos_config_path: "/root/.talos/config"
+    talos_etcd_snapshot_dir: "/mnt/hdd/data/backups/talos-etcd"
+    talos_etcd_metrics_dir: "/var/lib/aether-talos-etcd-metrics"
+    talos_etcd_snapshot_schedule: "*-*-* 02:20:00"
+    talos_etcd_snapshot_retention_days: 30
+    talos_etcd_snapshot_node: "{{ vm.talos_trinity.ip }}"
+    talos_control_plane_nodes:
+      - "{{ vm.talos_trinity.ip }}"
+      - "{{ vm.talos_neo.ip }}"
+      - "{{ vm.talos_niobe.ip }}"
 
     # --- Backup Sources ---
     backup_paths:
@@ -60,8 +79,43 @@
           - curl
           - unzip
           - jq
+          - awscli
         state: present
         update_cache: true
+
+    - name: Create internal VLAN route service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/aether-internal-route.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Route Aether internal VLANs through home gateway
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          ExecStart=/usr/sbin/ip route replace {{ internal_route_dest }} via {{ internal_route_via }} dev {{ internal_route_dev }}
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload systemd
+
+    - name: Enable and apply internal VLAN route
+      ansible.builtin.systemd:
+        name: aether-internal-route.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Verify route to SeaweedFS
+      ansible.builtin.command:
+        cmd: ip route get {{ vm.seaweedfs.ip }}
+      register: seaweed_route_check
+      changed_when: false
 
     # =========================================================================
     # Install step-cli (for certificate management)
@@ -122,6 +176,30 @@
       when: not signing_helper_stat.stat.exists
 
     # =========================================================================
+    # Install talosctl (for scheduled Kubernetes control-plane snapshots)
+    # =========================================================================
+    - name: Check if talosctl is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/talosctl
+      register: talosctl_stat
+
+    - name: Check installed talosctl version
+      ansible.builtin.command:
+        cmd: /usr/local/bin/talosctl version --client
+      register: talosctl_version_check
+      changed_when: false
+      failed_when: false
+      when: talosctl_stat.stat.exists
+
+    - name: Install talosctl
+      ansible.builtin.get_url:
+        url: "https://github.com/siderolabs/talos/releases/download/{{ talosctl_version }}/talosctl-linux-amd64"
+        dest: /usr/local/bin/talosctl
+        mode: "0755"
+        timeout: 120
+      when: not talosctl_stat.stat.exists or talosctl_version not in (talosctl_version_check.stdout | default(''))
+
+    # =========================================================================
     # step-ca Bootstrap and TLS Certificate
     # =========================================================================
     - name: Ensure step config directory exists
@@ -161,7 +239,7 @@
       failed_when: false
 
     - name: Download step-ca root certificate
-      when: step_ca_check.status == 200
+      when: (step_ca_check.status | default(0)) == 200
       ansible.builtin.get_url:
         url: "{{ step_ca_url }}/roots.pem"
         dest: /tmp/step_root_ca.pem
@@ -169,14 +247,14 @@
         mode: "0644"
 
     - name: Get step-ca root certificate fingerprint
-      when: step_ca_check.status == 200
+      when: (step_ca_check.status | default(0)) == 200
       ansible.builtin.command:
         cmd: "step certificate fingerprint /tmp/step_root_ca.pem"
       register: ca_fingerprint
       changed_when: false
 
     - name: Bootstrap step-ca trust
-      when: step_ca_check.status == 200
+      when: (step_ca_check.status | default(0)) == 200
       ansible.builtin.command:
         cmd: >
           step ca bootstrap
@@ -189,7 +267,7 @@
         creates: "{{ step_config_dir }}/certs/root_ca.crt"
 
     - name: Request TLS certificate from step-ca
-      when: step_ca_check.status == 200
+      when: (step_ca_check.status | default(0)) == 200
       ansible.builtin.command:
         cmd: >
           step ca certificate
@@ -202,27 +280,23 @@
           --san=127.0.0.1
           --provisioner={{ step_ca_provisioner }}
           --provisioner-password-file={{ step_config_dir }}/provisioner-password.txt
-          --not-after 168h
+          --not-after 24h
           --force
       environment:
         STEPPATH: "{{ step_config_dir }}"
-      args:
-        creates: "{{ certs_dir }}/cert.pem"
       notify: Restart backrest
 
     - name: Split certificate bundle into leaf and chain (for IAM Roles Anywhere)
-      when: step_ca_check.status == 200
+      when: (step_ca_check.status | default(0)) == 200
       ansible.builtin.shell: |
         csplit -z -f {{ certs_dir }}/cert-part- {{ certs_dir }}/cert.pem '/-----BEGIN CERTIFICATE-----/' '{*}'
         mv {{ certs_dir }}/cert-part-00 {{ certs_dir }}/cert-leaf.pem
         mv {{ certs_dir }}/cert-part-01 {{ certs_dir }}/cert-chain.pem
         chown root:root {{ certs_dir }}/cert-leaf.pem {{ certs_dir }}/cert-chain.pem
         chmod 0640 {{ certs_dir }}/cert-leaf.pem {{ certs_dir }}/cert-chain.pem
-      args:
-        creates: "{{ certs_dir }}/cert-leaf.pem"
 
     - name: Warn if step-ca not reachable
-      when: step_ca_check.status != 200
+      when: (step_ca_check.status | default(0)) != 200
       ansible.builtin.debug:
         msg: "TLS certificate setup skipped — step-ca not reachable. Run deploy again after step-ca is available."
 
@@ -294,16 +368,72 @@
         owner: "{{ backrest_user }}"
         mode: "0600"
 
-    - name: Create backrest startup wrapper script (fetches AWS creds as env vars)
+    - name: Create backrest startup wrapper script
       ansible.builtin.copy:
         content: |
           #!/bin/bash
           set -e
 
-          # Restic's minio-go library doesn't support credential_process from AWS config.
-          # We must fetch credentials and export as environment variables.
-          # See: https://github.com/restic/restic/blob/master/internal/backend/s3/s3.go
+          # Restic credentials are minted per restic process by the wrapper at
+          # {{ backrest_data_dir }}/restic. Do not export long-lived AWS_* env
+          # vars into the Backrest daemon.
+          exec /usr/local/bin/backrest
+        dest: "{{ step_config_dir }}/start-backrest.sh"
+        owner: "{{ backrest_user }}"
+        group: root
+        mode: "0750"
+      notify: Restart backrest
 
+    - name: Ensure Backrest data directory exists for restic wrapper
+      ansible.builtin.file:
+        path: "{{ backrest_data_dir }}"
+        state: directory
+        owner: "{{ backrest_user }}"
+        mode: "0700"
+
+    - name: Preserve Backrest-managed restic binary as real binary
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          wrapper="{{ backrest_data_dir }}/restic"
+          real="{{ backrest_data_dir }}/restic-real"
+          marker="Managed by ansible: aether-restic-credential-wrapper"
+
+          if [ -x "$wrapper" ] && ! grep -qa "$marker" "$wrapper"; then
+            cp -f "$wrapper" "$real"
+            chmod 0755 "$real"
+            echo UPDATED
+          elif [ -x "$real" ]; then
+            echo PRESENT
+          else
+            echo "No Backrest-managed restic binary found at $wrapper or $real" >&2
+            exit 1
+          fi
+      register: restic_real_preserve
+      changed_when: "'UPDATED' in restic_real_preserve.stdout"
+
+    - name: Create Backrest restic credential wrapper
+      ansible.builtin.copy:
+        dest: "{{ backrest_data_dir }}/restic"
+        owner: "{{ backrest_user }}"
+        group: root
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          # Managed by ansible: aether-restic-credential-wrapper
+          set -euo pipefail
+
+          REAL="{{ backrest_data_dir }}/restic-real"
+
+          case "${1:-}" in
+            version|--version|self-update)
+              exec "$REAL" "$@"
+              ;;
+          esac
+
+          # Restic's minio-go S3 backend does not support credential_process.
+          # Mint Roles Anywhere credentials for every restic process so each
+          # Backrest plan gets a fresh session window.
           CREDS=$(/usr/local/bin/aws_signing_helper credential-process \
             --certificate {{ certs_dir }}/cert-leaf.pem \
             --private-key {{ certs_dir }}/key.pem \
@@ -311,18 +441,447 @@
             --trust-anchor-arn {{ trust_anchor_arn }} \
             --profile-arn {{ profile_arn }} \
             --role-arn {{ role_arn }} \
-            --session-duration 28800)
+            --session-duration {{ aws_session_duration_seconds }})
 
-          export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
-          export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
-          export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
+          export AWS_ACCESS_KEY_ID
+          export AWS_SECRET_ACCESS_KEY
+          export AWS_SESSION_TOKEN
+          export AWS_DEFAULT_REGION="{{ aws_region }}"
+          export AWS_EC2_METADATA_DISABLED=true
 
-          exec /usr/local/bin/backrest
-        dest: "{{ step_config_dir }}/start-backrest.sh"
-        owner: "{{ backrest_user }}"
+          AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
+          AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
+          AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
+
+          logger -t aether-restic-credentials "minted AWS session for restic ${1:-unknown}" || true
+          exec "$REAL" "$@"
+      notify: Restart backrest
+
+    - name: Create restic metrics directory
+      ansible.builtin.file:
+        path: /var/lib/aether-restic-metrics
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create restic snapshot metrics generator
+      ansible.builtin.copy:
+        dest: /usr/local/bin/aether-restic-snapshot-metrics
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+
+          CONFIG="{{ backrest_config_dir }}/config.json"
+          RESTIC_BIN="{{ backrest_data_dir }}/restic"
+          METRICS_DIR="/var/lib/aether-restic-metrics"
+          OUT="${METRICS_DIR}/metrics.prom"
+          TMP="$(mktemp "${METRICS_DIR}/metrics.prom.XXXXXX")"
+
+          label_escape() {
+            printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+          }
+
+          emit_help() {
+            cat <<'EOF'
+          # HELP aether_restic_plan_configured Restic/Backrest plan is configured.
+          # TYPE aether_restic_plan_configured gauge
+          # HELP aether_restic_plan_path_accessible Restic/Backrest plan source path is accessible.
+          # TYPE aether_restic_plan_path_accessible gauge
+          # HELP aether_restic_plan_check_success Last restic snapshot check for this plan succeeded.
+          # TYPE aether_restic_plan_check_success gauge
+          # HELP aether_restic_snapshot_last_success_timestamp_seconds Latest restic snapshot timestamp for this plan.
+          # TYPE aether_restic_snapshot_last_success_timestamp_seconds gauge
+          # HELP aether_restic_metrics_last_success_timestamp_seconds Last successful metrics generation timestamp.
+          # TYPE aether_restic_metrics_last_success_timestamp_seconds gauge
+          # HELP aether_restic_metrics_generation_success Last metrics generation completed successfully.
+          # TYPE aether_restic_metrics_generation_success gauge
+          EOF
+          }
+
+          repo_uri="$(jq -r '.repos[] | select(.id == "offsite-s3").uri' "$CONFIG")"
+          repo_password="$(jq -r '.repos[] | select(.id == "offsite-s3").password' "$CONFIG")"
+          export RESTIC_REPOSITORY="$repo_uri"
+          export RESTIC_PASSWORD="$repo_password"
+          export HOME=/root
+          export XDG_CACHE_HOME="{{ backrest_data_dir }}/cache"
+
+          emit_help > "$TMP"
+
+          jq -c '.plans[]' "$CONFIG" | while read -r plan; do
+            plan_id="$(jq -r '.id' <<<"$plan")"
+            path="$(jq -r '.paths[0]' <<<"$plan")"
+            plan_label="$(label_escape "$plan_id")"
+            path_label="$(label_escape "$path")"
+
+            printf 'aether_restic_plan_configured{plan_id="%s",path="%s"} 1\n' "$plan_label" "$path_label" >> "$TMP"
+
+            if stat "$path" >/dev/null 2>&1; then
+              printf 'aether_restic_plan_path_accessible{plan_id="%s",path="%s"} 1\n' "$plan_label" "$path_label" >> "$TMP"
+            else
+              printf 'aether_restic_plan_path_accessible{plan_id="%s",path="%s"} 0\n' "$plan_label" "$path_label" >> "$TMP"
+            fi
+
+            err="$(mktemp)"
+            if snapshot_json="$("$RESTIC_BIN" snapshots --json --latest 1 --path "$path" 2>"$err")"; then
+              snapshot_time="$(jq -r '.[0].time // empty' <<<"$snapshot_json")"
+              if [ -n "$snapshot_time" ]; then
+                printf 'aether_restic_plan_check_success{plan_id="%s",path="%s"} 1\n' "$plan_label" "$path_label" >> "$TMP"
+                snapshot_ts="$(date -d "$snapshot_time" +%s)"
+                printf 'aether_restic_snapshot_last_success_timestamp_seconds{plan_id="%s",path="%s"} %s\n' "$plan_label" "$path_label" "$snapshot_ts" >> "$TMP"
+              else
+                printf 'aether_restic_plan_check_success{plan_id="%s",path="%s"} 0\n' "$plan_label" "$path_label" >> "$TMP"
+                logger -t aether-restic-metrics "snapshot check found no snapshots for ${plan_id} path ${path}" || true
+              fi
+            else
+              printf 'aether_restic_plan_check_success{plan_id="%s",path="%s"} 0\n' "$plan_label" "$path_label" >> "$TMP"
+              logger -t aether-restic-metrics "snapshot check failed for ${plan_id}: $(tr '\n' ' ' < "$err")" || true
+            fi
+            rm -f "$err"
+          done
+
+          printf 'aether_restic_metrics_last_success_timestamp_seconds %s\n' "$(date +%s)" >> "$TMP"
+          printf 'aether_restic_metrics_generation_success 1\n' >> "$TMP"
+          chmod 0644 "$TMP"
+          mv "$TMP" "$OUT"
+
+    - name: Create restic metrics HTTP exporter
+      ansible.builtin.copy:
+        dest: /usr/local/bin/aether-prometheus-file-exporter
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/usr/bin/env python3
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+          from pathlib import Path
+
+          METRICS_FILES = [
+              Path("/var/lib/aether-restic-metrics/metrics.prom"),
+              Path("{{ talos_etcd_metrics_dir }}/metrics.prom"),
+          ]
+
+          class Handler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path != "/metrics":
+                      self.send_response(404)
+                      self.end_headers()
+                      return
+                  chunks = [path.read_bytes() for path in METRICS_FILES if path.exists()]
+                  if chunks:
+                      data = b"\n".join(chunks) + b"\n"
+                  else:
+                      data = b"aether_restic_metrics_generation_success 0\n"
+                  self.send_response(200)
+                  self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+                  self.send_header("Content-Length", str(len(data)))
+                  self.end_headers()
+                  self.wfile.write(data)
+
+              def log_message(self, fmt, *args):
+                  return
+
+          ThreadingHTTPServer(("127.0.0.1", 19100), Handler).serve_forever()
+
+    - name: Create restic metrics generator service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/aether-restic-metrics.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Generate Aether restic snapshot metrics
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/aether-restic-snapshot-metrics
+
+    - name: Create restic metrics generator timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/aether-restic-metrics.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Generate Aether restic snapshot metrics hourly
+
+          [Timer]
+          OnBootSec=2m
+          OnUnitActiveSec=1h
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+      notify:
+        - Reload systemd
+        - Restart restic metrics timer
+
+    - name: Create restic metrics exporter service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/aether-restic-metrics-exporter.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Serve Aether restic metrics for Prometheus
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/aether-prometheus-file-exporter
+          Restart=on-failure
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+      notify:
+        - Reload systemd
+        - Restart restic metrics exporter
+
+    - name: Enable and start restic metrics services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      loop:
+        - aether-restic-metrics.timer
+        - aether-restic-metrics-exporter.service
+
+    - name: Generate initial restic metrics
+      ansible.builtin.command:
+        cmd: /usr/local/bin/aether-restic-snapshot-metrics
+      changed_when: false
+
+    - name: Create talos config directory
+      ansible.builtin.file:
+        path: "{{ talos_config_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Write talosctl client configuration
+      ansible.builtin.copy:
+        dest: "{{ talos_config_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+        content: "{{ tf_outputs.talos_client_configuration.value }}"
+      no_log: true
+
+    - name: Create Talos etcd snapshot directory
+      ansible.builtin.file:
+        path: "{{ talos_etcd_snapshot_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Create Talos etcd metrics directory
+      ansible.builtin.file:
+        path: "{{ talos_etcd_metrics_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create Talos etcd snapshot script
+      ansible.builtin.copy:
+        dest: /usr/local/bin/aether-talos-etcd-snapshot
+        owner: root
         group: root
         mode: "0750"
-      notify: Restart backrest
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+
+          CLUSTER="aether-k8s"
+          NODE="{{ talos_etcd_snapshot_node }}"
+          ENDPOINTS="{{ talos_control_plane_nodes | join(',') }}"
+          TALOSCONFIG="{{ talos_config_path }}"
+          SNAPSHOT_DIR="{{ talos_etcd_snapshot_dir }}"
+          METRICS_DIR="{{ talos_etcd_metrics_dir }}"
+          RETENTION_DAYS="{{ talos_etcd_snapshot_retention_days }}"
+          METRICS_OUT="${METRICS_DIR}/metrics.prom"
+
+          mkdir -p "$SNAPSHOT_DIR" "$METRICS_DIR"
+          METRICS_TMP="$(mktemp "${METRICS_DIR}/metrics.prom.XXXXXX")"
+
+          label_escape() {
+            printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+          }
+
+          latest_snapshot_fields() {
+            find "$SNAPSHOT_DIR" -type f -name "${CLUSTER}-etcd-*.snapshot" -printf '%T@ %s %p\n' 2>/dev/null \
+              | sort -n \
+              | tail -1
+          }
+
+          write_metrics() {
+            local success="$1"
+            local last_line="$2"
+            local now
+            local cluster_label
+            local node_label
+            now="$(date +%s)"
+            cluster_label="$(label_escape "$CLUSTER")"
+            node_label="$(label_escape "$NODE")"
+
+            cat > "$METRICS_TMP" <<EOF
+          # HELP aether_talos_etcd_snapshot_generation_success Last scheduled Talos etcd snapshot command completed successfully.
+          # TYPE aether_talos_etcd_snapshot_generation_success gauge
+          # HELP aether_talos_etcd_snapshot_last_success_timestamp_seconds Latest successful Talos etcd snapshot timestamp.
+          # TYPE aether_talos_etcd_snapshot_last_success_timestamp_seconds gauge
+          # HELP aether_talos_etcd_snapshot_last_size_bytes Latest successful Talos etcd snapshot size.
+          # TYPE aether_talos_etcd_snapshot_last_size_bytes gauge
+          # HELP aether_talos_etcd_snapshot_metrics_last_run_timestamp_seconds Last Talos etcd snapshot metrics update timestamp.
+          # TYPE aether_talos_etcd_snapshot_metrics_last_run_timestamp_seconds gauge
+          aether_talos_etcd_snapshot_generation_success{cluster="${cluster_label}",node="${node_label}"} ${success}
+          aether_talos_etcd_snapshot_metrics_last_run_timestamp_seconds{cluster="${cluster_label}",node="${node_label}"} ${now}
+          EOF
+
+            if [ -n "$last_line" ]; then
+              local mtime
+              local size
+              mtime="$(awk '{print int($1)}' <<<"$last_line")"
+              size="$(awk '{print $2}' <<<"$last_line")"
+              printf 'aether_talos_etcd_snapshot_last_success_timestamp_seconds{cluster="%s",node="%s"} %s\n' "$cluster_label" "$node_label" "$mtime" >> "$METRICS_TMP"
+              printf 'aether_talos_etcd_snapshot_last_size_bytes{cluster="%s",node="%s"} %s\n' "$cluster_label" "$node_label" "$size" >> "$METRICS_TMP"
+            fi
+
+            chmod 0644 "$METRICS_TMP"
+            mv "$METRICS_TMP" "$METRICS_OUT"
+          }
+
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          tmp="$(mktemp "${SNAPSHOT_DIR}/.${CLUSTER}-etcd-${stamp}.XXXXXX.snapshot")"
+          final="${SNAPSHOT_DIR}/${CLUSTER}-etcd-${stamp}.snapshot"
+
+          if /usr/local/bin/talosctl --talosconfig "$TALOSCONFIG" --nodes "$NODE" --endpoints "$ENDPOINTS" etcd snapshot "$tmp"; then
+            chmod 0600 "$tmp"
+            mv "$tmp" "$final"
+            find "$SNAPSHOT_DIR" -type f -name "${CLUSTER}-etcd-*.snapshot" -mtime +"$RETENTION_DAYS" -delete
+            write_metrics 1 "$(latest_snapshot_fields)"
+          else
+            rc=$?
+            rm -f "$tmp"
+            write_metrics 0 "$(latest_snapshot_fields)"
+            exit "$rc"
+          fi
+
+    - name: Create Talos etcd snapshot service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/aether-talos-etcd-snapshot.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Snapshot Aether Talos etcd state
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/aether-talos-etcd-snapshot
+      notify: Reload systemd
+
+    - name: Create Talos etcd snapshot timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/aether-talos-etcd-snapshot.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Snapshot Aether Talos etcd state daily
+
+          [Timer]
+          OnCalendar={{ talos_etcd_snapshot_schedule }}
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+      notify:
+        - Reload systemd
+        - Restart Talos etcd snapshot timer
+
+    - name: Enable and start Talos etcd snapshot timer
+      ansible.builtin.systemd:
+        name: aether-talos-etcd-snapshot.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: not ansible_check_mode
+
+    - name: Create SeaweedFS DB dump sync directory
+      ansible.builtin.file:
+        path: "{{ seaweed_db_dump_sync_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Create SeaweedFS DB dump sync environment
+      ansible.builtin.copy:
+        dest: /etc/seaweed-db-dumps-sync.env
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          AWS_ACCESS_KEY_ID={{ secrets.seaweedfs.s3_admin_access_key }}
+          AWS_SECRET_ACCESS_KEY={{ secrets.seaweedfs.s3_admin_secret_key }}
+          AWS_DEFAULT_REGION=us-east-1
+          AWS_EC2_METADATA_DISABLED=true
+      no_log: true
+
+    - name: Create SeaweedFS DB dump sync service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/seaweed-db-dumps-sync.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Sync SeaweedFS DB dumps to Backrest-backed filesystem
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          EnvironmentFile=/etc/seaweed-db-dumps-sync.env
+          ExecStart=/usr/bin/aws --endpoint-url {{ seaweed_db_dump_endpoint }} s3 sync s3://{{ seaweed_db_dump_bucket }} {{ seaweed_db_dump_sync_dir }}/{{ seaweed_db_dump_bucket }} --delete --no-progress
+      notify: Reload systemd
+
+    - name: Create SeaweedFS DB dump sync timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/seaweed-db-dumps-sync.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Sync SeaweedFS DB dumps before offsite Backrest run
+
+          [Timer]
+          OnCalendar=*-*-* 02:35:00
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+      notify:
+        - Reload systemd
+        - Restart seaweed-db-dumps-sync timer
 
     # =========================================================================
     # Configure Backrest
@@ -341,24 +900,45 @@
         owner: "{{ backrest_user }}"
         mode: "0700"
 
+    - name: Check if Backrest config exists
+      ansible.builtin.stat:
+        path: "{{ backrest_config_dir }}/config.json"
+      register: backrest_config_stat
+
+    - name: Read existing Backrest config
+      ansible.builtin.slurp:
+        src: "{{ backrest_config_dir }}/config.json"
+      register: backrest_existing_config
+      when: backrest_config_stat.stat.exists
+      no_log: true
+
+    - name: Reuse existing restic repository password
+      ansible.builtin.set_fact:
+        restic_password: >-
+          {{
+            (
+              (backrest_existing_config.content | b64decode | from_json).repos
+              | selectattr('id', 'equalto', 'offsite-s3')
+              | list
+              | first
+            ).password
+          }}
+      when: backrest_config_stat.stat.exists
+      no_log: true
+
     - name: Generate restic repository password
       ansible.builtin.set_fact:
         restic_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
       when: restic_password is not defined
       no_log: true
 
-    - name: Check if Backrest config exists
-      ansible.builtin.stat:
-        path: "{{ backrest_config_dir }}/config.json"
-      register: backrest_config_stat
-
-    - name: Create initial Backrest config
+    - name: Write Backrest config
       ansible.builtin.template:
         src: backrest-config.json.j2
         dest: "{{ backrest_config_dir }}/config.json"
         owner: "{{ backrest_user }}"
         mode: "0600"
-      when: not backrest_config_stat.stat.exists
+      no_log: true
       notify: Restart backrest
 
     # =========================================================================
@@ -383,13 +963,13 @@
         daemon_reload: true
 
     # =========================================================================
-    # Certificate Renewal Daemon (step ca renew --daemon)
+    # Certificate Renewal
     # =========================================================================
     - name: Create certificate renewal hook script
       ansible.builtin.copy:
         content: |
           #!/bin/bash
-          # Renewal hook script for step ca renew --daemon
+          # Renewal hook script for step ca renew
           # Re-splits certificate bundle for IAM Roles Anywhere and restarts Backrest
           set -e
 
@@ -416,28 +996,21 @@
         content: |
           [Unit]
           Description=Renew backup-stack TLS certificate from step-ca
-          After=network-online.target backrest.service
+          After=network-online.target
           Wants=network-online.target
-          BindsTo=backrest.service
 
           [Service]
-          Type=simple
+          Type=oneshot
           User=root
           Group=root
 
           Environment="STEPPATH={{ step_config_dir }}"
 
           # Renewal script re-splits certs for IAM Roles Anywhere and restarts Backrest
-          ExecStart=/usr/bin/step ca renew --daemon \
+          ExecStart=/usr/bin/step ca renew --force \
             --exec "{{ step_config_dir }}/renew-hook.sh" \
             {{ certs_dir }}/cert.pem \
             {{ certs_dir }}/key.pem
-
-          Restart=on-failure
-          RestartSec=30
-
-          [Install]
-          WantedBy=multi-user.target
         dest: /etc/systemd/system/backrest-cert-renew.service
         owner: root
         group: root
@@ -446,64 +1019,52 @@
         - Reload systemd
         - Restart backrest-cert-renew
 
-    - name: Enable and start certificate renewal daemon
-      ansible.builtin.systemd:
-        name: backrest-cert-renew.service
-        enabled: true
-        state: started
-        daemon_reload: true
-
-    # =========================================================================
-    # AWS Credential Refresh Timer
-    # =========================================================================
-    # Restic's minio-go library doesn't support credential_process or auto-refresh.
-    # AWS session credentials expire after 8 hours. Restart backrest before the
-    # daily backup to ensure fresh credentials are available.
-
-    - name: Create credential refresh service
+    - name: Install step-ca renewal timer
       ansible.builtin.copy:
         content: |
           [Unit]
-          Description=Refresh AWS credentials for Backrest
-          Documentation=https://github.com/restic/restic/issues/2389
-
-          [Service]
-          Type=oneshot
-          ExecStart=/usr/bin/systemctl restart backrest.service
-        dest: /etc/systemd/system/backrest-cred-refresh.service
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Reload systemd
-
-    - name: Create credential refresh timer
-      ansible.builtin.copy:
-        content: |
-          [Unit]
-          Description=Refresh AWS credentials before daily backup
-          Documentation=https://github.com/restic/restic/issues/2389
+          Description=Renew backup-stack TLS certificate before expiry
 
           [Timer]
-          # Run at 2:55 AM daily, 5 minutes before the 3 AM backup schedule
-          OnCalendar=*-*-* 02:55:00
+          OnCalendar=*-*-* 00,16:15:00
           Persistent=true
 
           [Install]
           WantedBy=timers.target
-        dest: /etc/systemd/system/backrest-cred-refresh.timer
+        dest: /etc/systemd/system/backrest-cert-renew.timer
         owner: root
         group: root
         mode: "0644"
       notify:
         - Reload systemd
-        - Enable cred refresh timer
+        - Enable cert renew timer
 
-    - name: Enable and start credential refresh timer
+    - name: Enable and start certificate renewal timer
       ansible.builtin.systemd:
-        name: backrest-cred-refresh.timer
+        name: backrest-cert-renew.timer
         enabled: true
         state: started
         daemon_reload: true
+
+    # =========================================================================
+    # Obsolete AWS Credential Refresh Timer
+    # =========================================================================
+    - name: Stop and disable obsolete credential refresh timer
+      ansible.builtin.systemd:
+        name: backrest-cred-refresh.timer
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: Remove obsolete credential refresh systemd units
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/backrest-cred-refresh.service
+        - /etc/systemd/system/backrest-cred-refresh.timer
+      notify: Reload systemd
 
     # =========================================================================
     # Cleanup old rclone configuration (if exists)
@@ -537,12 +1098,41 @@
     - name: Restart backrest-cert-renew
       ansible.builtin.systemd:
         name: backrest-cert-renew.service
-        state: restarted
+        state: started
         daemon_reload: true
 
-    - name: Enable cred refresh timer
+    - name: Enable cert renew timer
       ansible.builtin.systemd:
-        name: backrest-cred-refresh.timer
+        name: backrest-cert-renew.timer
         enabled: true
         state: started
         daemon_reload: true
+
+    - name: Restart seaweed-db-dumps-sync timer
+      ansible.builtin.systemd:
+        name: seaweed-db-dumps-sync.timer
+        enabled: true
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart restic metrics timer
+      ansible.builtin.systemd:
+        name: aether-restic-metrics.timer
+        enabled: true
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart restic metrics exporter
+      ansible.builtin.systemd:
+        name: aether-restic-metrics-exporter.service
+        enabled: true
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart Talos etcd snapshot timer
+      ansible.builtin.systemd:
+        name: aether-talos-etcd-snapshot.timer
+        enabled: true
+        state: restarted
+        daemon_reload: true
+      when: not ansible_check_mode

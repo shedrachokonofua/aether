@@ -9,6 +9,15 @@
       - backrest.service
       - proxmox-backup.service
       - proxmox-backup-proxy.service
+    prometheus_scrape_configs:
+      - job_name: aether-restic
+        scrape_interval: 60s
+        static_configs:
+          - targets:
+              - 127.0.0.1:19100
+            labels:
+              service_name: aether-restic
+              host_name: backup-stack
   roles:
     - common
     - vm_baseline
