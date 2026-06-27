@@ -19,8 +19,11 @@ locals {
   gpu_device_plugin_configs = {
     # Neo's Blackwell card has enough VRAM for broad opportunistic sharing.
     blackwell = 12
-    # Smith's GTX 1660 Super is a 6GB Turing card; keep scheduling conservative.
-    turing = 2
+    # Smith's GTX 1660 Super is a 6GB Turing card. 3 slices so the game-server
+    # Sunshine session can coexist with jellyfin transcode + immich-ml if they
+    # reschedule onto smith. VRAM is tight at 6GB — fine for the actual library
+    # (Football Manager + PS2/PS3 emulation), watch for OOM with heavier titles.
+    turing = 3
   }
   gpu_node_device_plugin_configs = {
     talos-neo   = "blackwell"

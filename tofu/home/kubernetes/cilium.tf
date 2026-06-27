@@ -115,6 +115,11 @@ resource "kubernetes_manifest" "cilium_ip_pool" {
           start = var.vcluster_vip
           stop  = var.vcluster_vip
         },
+        # game-server Moonlight VIP (reuses the decommissioned VM 1014 IP)
+        {
+          start = local.game_server_vip
+          stop  = local.game_server_vip
+        },
       ]
     }
   }
