@@ -483,3 +483,61 @@ resource "kubectl_manifest" "kyverno_arm_ok_daemonset_pods" {
     }
   })
 }
+
+# Force reclaimPolicy=Retain on dynamically-provisioned Ceph PVs. A StorageClass's
+# reclaimPolicy is immutable, so rather than maintain a second SC we mutate the PV
+# at admission. failurePolicy=Ignore so a Kyverno outage can never block storage
+# provisioning (a PV would just be born Delete, as it is today).
+resource "kubectl_manifest" "kyverno_ceph_pv_retain" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "kyverno.io/v1"
+    kind       = "ClusterPolicy"
+    metadata = {
+      name = "ceph-pv-retain-reclaim"
+      annotations = {
+        "pod-policies.kyverno.io/autogen-controllers" = "none"
+        "policies.kyverno.io/title"                   = "Retain Reclaim on Ceph PVs"
+        "policies.kyverno.io/category"                = "Storage"
+        "policies.kyverno.io/subject"                 = "PersistentVolume"
+        "policies.kyverno.io/description"             = "Dynamically-provisioned Ceph (ceph-rbd/cephfs) PersistentVolumes inherit reclaimPolicy=Delete from their StorageClass, so an accidental PVC/namespace delete destroys the underlying RBD image or CephFS subvolume. This mutates new Ceph PVs to Retain at admission."
+      }
+    }
+    spec = {
+      background    = false
+      failurePolicy = "Ignore"
+      rules = [{
+        name = "set-retain-on-ceph-pv"
+        match = {
+          any = [{
+            resources = {
+              kinds = ["PersistentVolume"]
+            }
+          }]
+        }
+        preconditions = {
+          all = [
+            {
+              key      = "{{ request.operation || 'BACKGROUND' }}"
+              operator = "Equals"
+              value    = "CREATE"
+            },
+            {
+              key      = "{{ request.object.spec.storageClassName || '' }}"
+              operator = "AnyIn"
+              value    = ["ceph-rbd", "cephfs"]
+            }
+          ]
+        }
+        mutate = {
+          patchStrategicMerge = {
+            spec = {
+              persistentVolumeReclaimPolicy = "Retain"
+            }
+          }
+        }
+      }]
+    }
+  })
+}
