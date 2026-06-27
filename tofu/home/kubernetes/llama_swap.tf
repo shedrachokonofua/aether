@@ -47,7 +47,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
-            --ctx-size 131072
+            --ctx-size 262144
             --spec-type draft-mtp
             --spec-draft-n-max 2
           ttl: 900
@@ -88,7 +88,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
-            --ctx-size 131072
+            --ctx-size 262144
             --spec-type draft-mtp
             --spec-draft-n-max 2
           ttl: 900
@@ -178,7 +178,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
-            --ctx-size 131072
+            --ctx-size 262144
             --spec-type draft-mtp
             --spec-draft-n-max 2
             -fit off
@@ -209,7 +209,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
-            --ctx-size 131072
+            --ctx-size 262144
             --spec-type draft-mtp
             --spec-draft-n-max 2
             -fit off
