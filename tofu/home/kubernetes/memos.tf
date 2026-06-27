@@ -10,11 +10,11 @@
 #   3. kubectl cp into the PVC (via a debug pod)
 
 locals {
-  memos_image        = "neosmemo/memos:stable"
-  memos_host = "memos.home.shdr.ch"
-  memos_port         = 5230
-  memos_ns           = kubernetes_namespace_v1.personal.metadata[0].name
-  memos_labels       = { app = "memos" }
+  memos_image  = "neosmemo/memos:stable"
+  memos_host   = "memos.home.shdr.ch"
+  memos_port   = 5230
+  memos_ns     = kubernetes_namespace_v1.personal.metadata[0].name
+  memos_labels = { app = "memos" }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "memos_data" {
@@ -111,9 +111,9 @@ resource "kubernetes_service_v1" "memos" {
   spec {
     selector = local.memos_labels
     port {
-      port = local.memos_port
+      port        = local.memos_port
       target_port = local.memos_port
-      name = "http"
+      name        = "http"
     }
   }
 }

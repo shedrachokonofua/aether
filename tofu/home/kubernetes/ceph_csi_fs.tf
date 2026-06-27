@@ -6,8 +6,8 @@
 # RBD remains the default for single-writer workloads (databases, etc).
 
 locals {
-  cephfs_name             = "cephfs"
-  cephfs_subvolume_group  = "csi"
+  cephfs_name            = "cephfs"
+  cephfs_subvolume_group = "csi"
 }
 
 # CephFS CSI lives in its own namespace so its Helm-managed ceph-config
@@ -65,10 +65,10 @@ resource "helm_release" "ceph_csi_fs" {
     }
     provisioner = {
       replicaCount = 1
-      provisioner = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
-      attacher    = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
-      resizer     = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
-      snapshotter = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
+      provisioner  = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
+      attacher     = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
+      resizer      = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
+      snapshotter  = { resources = { requests = { cpu = "10m", memory = "64Mi" } } }
     }
   })]
 }
@@ -86,9 +86,9 @@ resource "kubernetes_storage_class_v1" "cephfs" {
   volume_binding_mode    = "Immediate"
 
   parameters = {
-    clusterID        = local.ceph_fsid
-    fsName           = local.cephfs_name
-    subvolumeGroup   = local.cephfs_subvolume_group
+    clusterID      = local.ceph_fsid
+    fsName         = local.cephfs_name
+    subvolumeGroup = local.cephfs_subvolume_group
 
     # Talos kernels don't ship the `ceph` kmod, so kernel mount.ceph fails with
     # "Module ceph not found". Use ceph-fuse instead — userspace, no kmod

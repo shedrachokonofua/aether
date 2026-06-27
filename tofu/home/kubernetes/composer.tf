@@ -9,11 +9,11 @@
 # Endpoint: https://composer.home.shdr.ch/v1  (chat/completions, responses, models)
 
 locals {
-  composer_image        = "registry.gitlab.home.shdr.ch/so/aether/composer-api:latest"
-  composer_host         = "composer.home.shdr.ch"
-  composer_port         = 8080
-  composer_ns           = kubernetes_namespace_v1.personal.metadata[0].name
-  composer_labels       = { app = "composer" }
+  composer_image         = "registry.gitlab.home.shdr.ch/so/aether/composer-api:latest"
+  composer_host          = "composer.home.shdr.ch"
+  composer_port          = 8080
+  composer_ns            = kubernetes_namespace_v1.personal.metadata[0].name
+  composer_labels        = { app = "composer" }
   composer_registry_host = "registry.gitlab.home.shdr.ch"
   composer_registry_user = var.secrets["gitlab.root_email"]
   composer_registry_pass = var.secrets["gitlab.root_password"]

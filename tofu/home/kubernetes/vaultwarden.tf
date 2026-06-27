@@ -16,11 +16,11 @@ resource "random_password" "vaultwarden_admin_token" {
 }
 
 locals {
-  vaultwarden_image        = "vaultwarden/server:latest"
-  vaultwarden_host = "vaultwarden.home.shdr.ch"
-  vaultwarden_port         = 80
-  vaultwarden_ns           = kubernetes_namespace_v1.personal.metadata[0].name
-  vaultwarden_labels       = { app = "vaultwarden" }
+  vaultwarden_image  = "vaultwarden/server:latest"
+  vaultwarden_host   = "vaultwarden.home.shdr.ch"
+  vaultwarden_port   = 80
+  vaultwarden_ns     = kubernetes_namespace_v1.personal.metadata[0].name
+  vaultwarden_labels = { app = "vaultwarden" }
 }
 
 resource "kubernetes_secret_v1" "vaultwarden_env" {
@@ -32,11 +32,11 @@ resource "kubernetes_secret_v1" "vaultwarden_env" {
   }
 
   data = {
-    DOMAIN             = "https://${local.vaultwarden_host}"
-    SIGNUPS_ALLOWED    = "false"
-    ADMIN_TOKEN        = random_password.vaultwarden_admin_token.result
-    WEBSOCKET_ENABLED  = "true"
-    ROCKET_PORT        = tostring(local.vaultwarden_port)
+    DOMAIN            = "https://${local.vaultwarden_host}"
+    SIGNUPS_ALLOWED   = "false"
+    ADMIN_TOKEN       = random_password.vaultwarden_admin_token.result
+    WEBSOCKET_ENABLED = "true"
+    ROCKET_PORT       = tostring(local.vaultwarden_port)
   }
 
   type = "Opaque"
@@ -146,14 +146,14 @@ resource "kubernetes_service_v1" "vaultwarden" {
   spec {
     selector = local.vaultwarden_labels
     port {
-      port = local.vaultwarden_port
+      port        = local.vaultwarden_port
       target_port = local.vaultwarden_port
-      name = "http"
+      name        = "http"
     }
     port {
-      port = 3012
+      port        = 3012
       target_port = 3012
-      name = "websocket"
+      name        = "websocket"
     }
   }
 }

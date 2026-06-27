@@ -4,11 +4,11 @@
 # Stateless. No data migration needed.
 
 locals {
-  mazanoke_image         = "ghcr.io/civilblur/mazanoke:latest"
-  mazanoke_host          = "mazanoke.home.shdr.ch"
-  mazanoke_port          = 80
-  mazanoke_ns            = kubernetes_namespace_v1.personal.metadata[0].name
-  mazanoke_labels        = { app = "mazanoke" }
+  mazanoke_image  = "ghcr.io/civilblur/mazanoke:latest"
+  mazanoke_host   = "mazanoke.home.shdr.ch"
+  mazanoke_port   = 80
+  mazanoke_ns     = kubernetes_namespace_v1.personal.metadata[0].name
+  mazanoke_labels = { app = "mazanoke" }
 }
 
 resource "kubernetes_deployment_v1" "mazanoke" {
@@ -72,9 +72,9 @@ resource "kubernetes_service_v1" "mazanoke" {
   spec {
     selector = local.mazanoke_labels
     port {
-      port = local.mazanoke_port
+      port        = local.mazanoke_port
       target_port = local.mazanoke_port
-      name = "http"
+      name        = "http"
     }
   }
 }

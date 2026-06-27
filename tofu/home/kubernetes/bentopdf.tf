@@ -5,11 +5,11 @@
 # Public URL pdf.shdr.ch remains behind oauth2-proxy on the gateway.
 
 locals {
-  bentopdf_image        = "bentopdf/bentopdf-simple:latest"
-  bentopdf_host = "bentopdf.home.shdr.ch"
-  bentopdf_port         = 8080
-  bentopdf_ns           = kubernetes_namespace_v1.personal.metadata[0].name
-  bentopdf_labels       = { app = "bentopdf" }
+  bentopdf_image  = "bentopdf/bentopdf-simple:latest"
+  bentopdf_host   = "bentopdf.home.shdr.ch"
+  bentopdf_port   = 8080
+  bentopdf_ns     = kubernetes_namespace_v1.personal.metadata[0].name
+  bentopdf_labels = { app = "bentopdf" }
 }
 
 resource "kubernetes_deployment_v1" "bentopdf" {
@@ -73,9 +73,9 @@ resource "kubernetes_service_v1" "bentopdf" {
   spec {
     selector = local.bentopdf_labels
     port {
-      port = local.bentopdf_port
+      port        = local.bentopdf_port
       target_port = local.bentopdf_port
-      name = "http"
+      name        = "http"
     }
   }
 }

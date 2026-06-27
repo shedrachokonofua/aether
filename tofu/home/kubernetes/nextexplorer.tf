@@ -7,13 +7,13 @@
 # files.home.shdr.ch with their normal SSO.
 
 locals {
-  nextexplorer_image     = "docker.io/nxzai/explorer:latest"
-  nextexplorer_host      = "files.home.shdr.ch"
-  nextexplorer_port      = 3000
-  nextexplorer_ns        = local.jellyfin_ns
-  nextexplorer_labels    = { app = "nextexplorer" }
-  nextexplorer_oidc_url  = var.oidc_issuer_url
-  nextexplorer_public    = "https://${local.nextexplorer_host}"
+  nextexplorer_image    = "docker.io/nxzai/explorer:latest"
+  nextexplorer_host     = "files.home.shdr.ch"
+  nextexplorer_port     = 3000
+  nextexplorer_ns       = local.jellyfin_ns
+  nextexplorer_labels   = { app = "nextexplorer" }
+  nextexplorer_oidc_url = var.oidc_issuer_url
+  nextexplorer_public   = "https://${local.nextexplorer_host}"
 }
 
 # =============================================================================
