@@ -255,10 +255,22 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           q36: "qwen3.6-35b-a3b"
           g31: "gemma-4-31b"
           g26: "gemma-4-26b-a4b"
-          emb: "qwen3-embedding-4b"
+          q35: "qwen3.5-9b"
+          # AFFiNE + LiteLLM route embed calls to 0.6b; must be in-matrix or llama-swap
+          # evicts the chat model when embedding starts (exclusive default).
+          emb: "qwen3-embedding-0.6b"
           rr: "bge-reranker-v2-m3"
+        evict_costs:
+          q3627: 25
+          q36: 25
+          g31: 25
+          g26: 20
+          q35: 10
+          emb: 2
+          rr: 3
         sets:
-          full: "q3627 & q36 & g31 & g26 & emb & rr"
+          # One chat model + embedding + reranker — AFFiNE copilot pattern.
+          llm: "(q3627 | q36 | g31 | g26 | q35) & emb & rr"
     YAML
   }
 }
