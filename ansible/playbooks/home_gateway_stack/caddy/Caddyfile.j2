@@ -272,11 +272,19 @@ m.ha.home.shdr.ch {
   }
 }
 
-sunshine.game.home.shdr.ch {
-  reverse_proxy {{ vm.game_server.ip }}:{{ vm.game_server.ports.sunshine }} {
+sunshine.home.shdr.ch {
+  # Game server Sunshine web UI — now a k8s LoadBalancer VIP (reuses the retired
+  # VM 1014 IP, 10.0.3.13). Web UI only; Moonlight streaming connects to the VIP
+  # directly (multi-port TCP+UDP, can't traverse this HTTP gateway).
+  reverse_proxy 10.0.3.13:47990 {
     transport http {
       tls_insecure_skip_verify
     }
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up Upgrade {http.request.header.Upgrade}
+    header_up Connection {http.request.header.Connection}
   }
 }
 
