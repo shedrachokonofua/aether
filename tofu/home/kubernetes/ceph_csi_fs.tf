@@ -34,6 +34,10 @@ resource "kubernetes_secret_v1" "ceph_csi_fs" {
   data = {
     adminID  = "admin"
     adminKey = local.ceph_admin_key
+    # userID/userKey are required for node-stage mounts of *static* CephFS PVs
+    # (e.g. the game-server /gaming volume). Dynamic provisioning uses admin*.
+    userID  = "admin"
+    userKey = local.ceph_admin_key
   }
 }
 
