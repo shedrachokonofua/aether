@@ -324,6 +324,11 @@ talos_neo:
   disk_datastore: "local-lvm"
   ci_disk_gb: 128
   gpu: true
+  # uinput extension + module + userns sysctl for the Sunshine game-server.
+  # Moved here from smith: neo's Ryzen 9 9950X handles PS3 (RPCS3) emulation
+  # far better than smith's 3700X. neo is control-plane, so the game pod runs
+  # with a bounded CPU request (no exclusive pinning) to protect etcd.
+  gpu_input: true
   gpu_pool: "blackwell"
   gpu_class: "rtx-pro-6000-blackwell"
   gpu_hostpci_id: "0000:01:00.0"
@@ -356,7 +361,7 @@ talos_smith:
   memory: 32768
   disk_gb: 128
   gpu: true
-  gpu_input: true # uinput extension + module for the Sunshine game-server (smith only for now)
+  gpu_input: true # uinput extension + module for the Sunshine game-server (kept as a fallback; primary host is now neo)
   gpu_pool: "turing"
   gpu_class: "gtx-1660-super"
   gpu_hostpci_id: "0000:0a:00.0"

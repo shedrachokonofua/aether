@@ -369,13 +369,19 @@ resource "talos_machine_configuration_apply" "this" {
               nameservers = try(each.value.nameservers, ["10.0.0.1"])
             }
             time = { servers = ["time.cloudflare.com"] }
-            sysctls = {
+            sysctls = merge({
               "net.core.bpf_jit_enable"         = "1"
               "net.ipv4.conf.all.forwarding"    = "1"
               "net.ipv6.conf.all.forwarding"    = "1"
               "net.ipv4.conf.all.rp_filter"     = "0"
               "net.ipv4.conf.default.rp_filter" = "0"
-            }
+              }, try(each.value.gpu_input, false) ? {
+              # Steam + its bubblewrap sandbox require user namespaces enabled
+              # (>=100). Talos disables them by default for hardening; scope the
+              # relaxation to the GPU game-server node (smith) only, via the same
+              # gpu_input flag that gates the input schematic/uinput.
+              "user.max_user_namespaces" = "15000"
+            } : {})
           },
           try(each.value.pool, null) != null || try(each.value.hardware, null) != null ? {
             kubelet = merge(
