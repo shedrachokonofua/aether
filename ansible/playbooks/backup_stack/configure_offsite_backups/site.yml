@@ -44,6 +44,8 @@
     backrest_version: "1.7.1"
     backrest_port: "{{ vm.backup_stack.ports.backrest }}"
     backrest_bind_address: "0.0.0.0"
+    backrest_allow_restart_during_operations: false
+    backrest_restart_override_reason: ""
     backrest_backup_cron: "0 8 * * *"
     seaweed_db_dump_bucket: "aether-db-dumps"
     seaweed_db_dump_endpoint: "http://{{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.s3 }}"
@@ -70,6 +72,57 @@
       - /mnt/hdd/backups-vm
 
   tasks:
+    - name: Check Backrest operations before applying restart-capable changes
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ backrest_port }}/v1.Backrest/GetOperations"
+        method: POST
+        headers:
+          Content-Type: application/json
+          Connect-Protocol-Version: "1"
+        body_format: json
+        body:
+          selector:
+            instanceId: backup-stack
+          lastN: "50"
+        return_content: true
+        status_code: 200
+      register: backrest_operations_check
+      changed_when: false
+      failed_when: false
+
+    - name: Record active Backrest operations
+      ansible.builtin.set_fact:
+        backrest_active_operations: >-
+          {{
+            (backrest_operations_check.json.operations | default([]) | selectattr('status', 'equalto', 'STATUS_PENDING') | list)
+            + (backrest_operations_check.json.operations | default([]) | selectattr('status', 'equalto', 'STATUS_INPROGRESS') | list)
+          }}
+      when: backrest_operations_check.status | default(0) == 200
+
+    - name: Require an override reason before restarting Backrest with active operations
+      ansible.builtin.fail:
+        msg: >-
+          Backrest has active operations, and backrest_allow_restart_during_operations=true was
+          set without backrest_restart_override_reason. Provide the explicit operational reason.
+      when:
+        - (backrest_active_operations | default([]) | length) > 0
+        - backrest_allow_restart_during_operations | bool
+        - (backrest_restart_override_reason | trim | length) == 0
+
+    - name: Refuse to change Backrest while operations are active
+      ansible.builtin.fail:
+        msg: >-
+          Backrest has active operations: {{
+            backrest_active_operations
+            | map(attribute='id')
+            | list
+            | join(', ')
+          }}. Re-run only after they finish, or set
+          backrest_allow_restart_during_operations=true with backrest_restart_override_reason.
+      when:
+        - (backrest_active_operations | default([]) | length) > 0
+        - not (backrest_allow_restart_during_operations | bool)
+
     # =========================================================================
     # Install dependencies
     # =========================================================================
