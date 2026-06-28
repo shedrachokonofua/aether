@@ -70,6 +70,8 @@ Restic + Backrest sync critical data to AWS S3 for offsite disaster recovery.
 | /mnt/hdd/data       | HDD pool data              | Daily @ 8AM |
 | /mnt/hdd/backups-vm | PBS VM backups             | Daily @ 8AM |
 
+The PBS datastore plan uses restic `--compression off` and `--read-concurrency 4`. PBS chunk data is already content-addressed/compressed, and the offsite window is bounded by the 12-hour IAM Roles Anywhere session maximum.
+
 `/mnt/hdd/data` also contains backup-stack generated control-plane snapshots under
 `/mnt/hdd/data/backups/talos-etcd`, so those snapshots are swept offsite by the same Backrest plan
 after the next successful `/mnt/hdd/data` run.
