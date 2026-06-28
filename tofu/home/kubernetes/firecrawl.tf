@@ -7,18 +7,25 @@ locals {
   firecrawl_image            = "ghcr.io/firecrawl/firecrawl:latest"
   firecrawl_playwright_image = "ghcr.io/firecrawl/playwright-service:latest"
   firecrawl_postgres_image   = "ghcr.io/firecrawl/nuq-postgres:latest"
+  firecrawl_cnpg_image       = "ghcr.io/firecrawl/nuq-postgres:17.10@sha256:4ca6718b2cef40404b046db5cd37ae45db3e44d1a5750c80522f3587a5b193d5"
   firecrawl_redis_image      = "docker.io/redis:alpine"
   firecrawl_rabbitmq_image   = "docker.io/rabbitmq:3-management"
   firecrawl_mcp_image        = "docker.io/node:22-alpine"
 
-  firecrawl_host     = "firecrawl.home.shdr.ch"
-  firecrawl_mcp_host = "firecrawl-mcp.home.shdr.ch"
-  firecrawl_ns       = kubernetes_namespace_v1.infra.metadata[0].name
-  firecrawl_labels   = { app = "firecrawl" }
+  firecrawl_host         = "firecrawl.home.shdr.ch"
+  firecrawl_mcp_host     = "firecrawl-mcp.home.shdr.ch"
+  firecrawl_ns           = kubernetes_namespace_v1.infra.metadata[0].name
+  firecrawl_labels       = { app = "firecrawl" }
+  firecrawl_cnpg_cluster = "firecrawl-cnpg"
+  firecrawl_db_user      = "firecrawl"
 
   firecrawl_api_port        = 3002
   firecrawl_mcp_port        = 3007
   firecrawl_playwright_port = 3000
+  firecrawl_postgres_port   = 5432
+
+  firecrawl_db_source_service = "firecrawl-postgres-backup.${local.firecrawl_ns}.svc.cluster.local"
+  firecrawl_db_service        = "${local.firecrawl_cnpg_cluster}-rw.${local.firecrawl_ns}.svc.cluster.local"
 }
 
 # =============================================================================
@@ -44,6 +51,38 @@ resource "kubernetes_secret_v1" "firecrawl_env" {
   type = "Opaque"
 }
 
+resource "kubernetes_secret_v1" "firecrawl_cnpg_superuser" {
+  depends_on = [kubernetes_namespace_v1.infra]
+
+  metadata {
+    name      = "firecrawl-cnpg-superuser"
+    namespace = local.firecrawl_ns
+  }
+
+  type = "kubernetes.io/basic-auth"
+
+  data = {
+    username = "postgres"
+    password = var.secrets["firecrawl.database_password"]
+  }
+}
+
+resource "kubernetes_secret_v1" "firecrawl_cnpg_app" {
+  depends_on = [kubernetes_namespace_v1.infra]
+
+  metadata {
+    name      = "firecrawl-cnpg-app"
+    namespace = local.firecrawl_ns
+  }
+
+  type = "kubernetes.io/basic-auth"
+
+  data = {
+    username = local.firecrawl_db_user
+    password = var.secrets["firecrawl.database_password"]
+  }
+}
+
 resource "kubernetes_persistent_volume_claim_v1" "firecrawl_redis_data" {
   depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
 
@@ -59,6 +98,10 @@ resource "kubernetes_persistent_volume_claim_v1" "firecrawl_redis_data" {
     resources {
       requests = { storage = "2Gi" }
     }
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -78,6 +121,79 @@ resource "kubernetes_persistent_volume_claim_v1" "firecrawl_postgres_data" {
       requests = { storage = "10Gi" }
     }
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "kubectl_manifest" "firecrawl_cnpg_cluster" {
+  depends_on = [
+    helm_release.cnpg,
+    kubectl_manifest.cnpg_require_ceph_rbd_storage,
+    kubernetes_secret_v1.firecrawl_cnpg_app,
+    kubernetes_service_v1.db_backup_sidecar_postgres["firecrawl"],
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Cluster"
+    metadata = {
+      name      = local.firecrawl_cnpg_cluster
+      namespace = local.firecrawl_ns
+    }
+    spec = {
+      instances             = 1
+      imageName             = local.firecrawl_cnpg_image
+      postgresUID           = 999
+      postgresGID           = 999
+      affinity              = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
+      primaryUpdateMethod   = "restart"
+      nodeMaintenanceWindow = { reusePVC = true }
+      storage = {
+        size         = "30Gi"
+        storageClass = local.cnpg_storage_class
+      }
+      postgresql = {
+        shared_preload_libraries = ["pg_cron"]
+        parameters = {
+          "cron.database_name" = "postgres"
+          max_wal_size         = "2GB"
+          shared_buffers       = "512MB"
+          wal_compression      = "on"
+        }
+      }
+      bootstrap = {
+        initdb = {
+          database = "postgres"
+          owner    = local.firecrawl_db_user
+          secret   = { name = kubernetes_secret_v1.firecrawl_cnpg_app.metadata[0].name }
+          import = {
+            type      = "microservice"
+            databases = ["postgres"]
+            source    = { externalCluster = "firecrawl-source" }
+          }
+        }
+      }
+      externalClusters = [{
+        name = "firecrawl-source"
+        connectionParameters = {
+          host    = local.firecrawl_db_source_service
+          user    = "postgres"
+          dbname  = "postgres"
+          sslmode = "disable"
+        }
+        password = {
+          name = kubernetes_secret_v1.firecrawl_env.metadata[0].name
+          key  = "DATABASE_PASSWORD"
+        }
+      }]
+    }
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # =============================================================================
@@ -86,9 +202,8 @@ resource "kubernetes_persistent_volume_claim_v1" "firecrawl_postgres_data" {
 
 resource "kubernetes_deployment_v1" "firecrawl" {
   depends_on = [
+    kubectl_manifest.firecrawl_cnpg_cluster,
     kubernetes_secret_v1.firecrawl_env,
-    kubernetes_persistent_volume_claim_v1.firecrawl_redis_data,
-    kubernetes_persistent_volume_claim_v1.firecrawl_postgres_data,
     kubernetes_service_v1.searxng,
   ]
 
@@ -127,11 +242,6 @@ resource "kubernetes_deployment_v1" "firecrawl" {
             name           = "redis"
           }
 
-          volume_mount {
-            name       = "redis-data"
-            mount_path = "/data"
-          }
-
           resources {
             requests = {
               cpu    = "50m"
@@ -151,57 +261,6 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           port {
             container_port = 5672
             name           = "amqp"
-          }
-
-          resources {
-            requests = {
-              cpu    = "100m"
-              memory = "512Mi"
-            }
-            limits = {
-              cpu    = "1000m"
-              memory = "2Gi"
-            }
-          }
-        }
-
-        container {
-          name  = "postgres"
-          image = local.firecrawl_postgres_image
-
-          port {
-            container_port = 5432
-            name           = "postgres"
-          }
-
-          env {
-            name  = "POSTGRES_USER"
-            value = "postgres"
-          }
-
-          env {
-            name = "POSTGRES_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.firecrawl_env.metadata[0].name
-                key  = "DATABASE_PASSWORD"
-              }
-            }
-          }
-
-          env {
-            name  = "POSTGRES_DB"
-            value = "postgres"
-          }
-
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-
-          volume_mount {
-            name       = "postgres-data"
-            mount_path = "/var/lib/postgresql/data"
           }
 
           resources {
@@ -359,7 +418,7 @@ resource "kubernetes_deployment_v1" "firecrawl" {
 
           env {
             name  = "NUQ_DATABASE_URL"
-            value = "postgres://postgres:$(DATABASE_PASSWORD)@localhost:5432/postgres"
+            value = "postgres://${local.firecrawl_db_user}:$(DATABASE_PASSWORD)@${local.firecrawl_db_service}:${local.firecrawl_postgres_port}/postgres"
           }
 
           env {
@@ -469,19 +528,6 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           }
         }
 
-        volume {
-          name = "redis-data"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.firecrawl_redis_data.metadata[0].name
-          }
-        }
-
-        volume {
-          name = "postgres-data"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.firecrawl_postgres_data.metadata[0].name
-          }
-        }
       }
     }
   }

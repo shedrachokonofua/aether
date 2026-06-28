@@ -4,7 +4,7 @@
 # Two isolated Hermes gateway instances with separate state, memories, sessions,
 # personalities, and model backends.
 #
-# Beryl: fully local inference through llama-swap in-cluster.
+# Beryl: fully local inference through llama-swap; LiteLLM MCP for tools.
 # Tungsten: public Kimi model through LiteLLM -> Ollama Cloud.
 
 locals {
@@ -19,6 +19,7 @@ locals {
   hermes_searxng_url                  = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
   hermes_matrix_server                = "https://matrix.home.shdr.ch"
   hermes_matrix_owner                 = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
+  hermes_beryl_matrix_home_room       = "!pkLDsPitwNliMhAELi:matrix.home.shdr.ch"
   hermes_homeassistant                = "https://ha.home.shdr.ch"
   hermes_tungsten_skills_root         = "${path.module}/../../../hermes/tungsten/skills"
   hermes_bootstrap_init_base          = "mkdir -p /data /data/sessions /data/memories /data/skills /data/cron /data/logs /data/.npm && cp /bootstrap/config.yaml /data/config.yaml && cp /bootstrap/SOUL.md /data/SOUL.md && cp /bootstrap/AGENTS.md /data/AGENTS.md && chown 10000:10000 /data/config.yaml /data/SOUL.md /data/AGENTS.md && chown -R 10000:10000 /data/.npm && chmod 640 /data/config.yaml && chmod 644 /data/SOUL.md /data/AGENTS.md && chmod 755 /data /data/sessions /data/memories /data/skills /data/cron /data/logs"
@@ -32,25 +33,29 @@ locals {
         OPENAI_BASE_URL        = local.hermes_local_llm
         FIRECRAWL_API_URL      = local.hermes_firecrawl_url
         JELLYFIN_URL           = local.hermes_jellyfin_url
+        LITELLM_MCP_URL        = var.litellm_mcp_url
         MATRIX_HOMESERVER      = local.hermes_matrix_server
         MATRIX_USER_ID         = "@${var.secrets["matrix.beryl_bot_user"]}:matrix.home.shdr.ch"
         MATRIX_ALLOWED_USERS   = local.hermes_matrix_owner
+        MATRIX_ALLOWED_ROOMS   = local.hermes_beryl_matrix_home_room
+        MATRIX_HOME_ROOM       = local.hermes_beryl_matrix_home_room
+        MATRIX_HOME_ROOM_NAME  = "Beryl Home"
         MATRIX_REQUIRE_MENTION = "true"
         MATRIX_AUTO_THREAD     = "true"
         HASS_URL               = local.hermes_homeassistant
         SEARXNG_URL            = local.hermes_searxng_url
       }
-      secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN"]
+      secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "LITELLM_MCP_API_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN"]
       config = yamlencode({
         model = {
           provider       = "custom"
           default        = "qwen3.6-27b"
           base_url       = local.hermes_local_llm
-          context_length = 131072
+          context_length = 262144
         }
         terminal = {
           backend          = "local"
-          cwd              = "/workspace"
+          cwd              = "/opt/data"
           timeout          = 180
           persistent_shell = true
           env_passthrough = [
@@ -71,6 +76,38 @@ locals {
         web = {
           search_backend  = "searxng"
           extract_backend = "firecrawl"
+        }
+        platforms = {
+          homeassistant = {
+            enabled = true
+            extra = {
+              # Hermes drops HA events unless at least one watch filter is set.
+              # Keep this narrow: Beryl should notice low-frequency house state,
+              # not every light, motion, presence, or telemetry update.
+              watch_domains = [
+                "alarm_control_panel",
+                "climate",
+              ]
+              watch_entities = [
+                "binary_sensor.entrance_diffuser_cloud_connection",
+                "binary_sensor.q_sensor_ac_mains_disconnected",
+                "binary_sensor.q_sensor_ac_mains_re_connected",
+                "binary_sensor.q_sensor_replace_battery_now",
+                "binary_sensor.q_sensor_replace_battery_soon",
+              ]
+              cooldown_seconds = 300
+            }
+          }
+        }
+        mcp_servers = {
+          litellm = {
+            url = "$${LITELLM_MCP_URL}"
+            headers = {
+              "x-litellm-api-key" = "Bearer $${LITELLM_MCP_API_KEY}"
+            }
+            timeout         = 180
+            connect_timeout = 60
+          }
         }
         auxiliary = {
           vision = {
@@ -95,7 +132,8 @@ locals {
           target_ratio = 0.20
         }
         agent = {
-          max_turns = 60
+          max_turns            = 90
+          tool_use_enforcement = true
         }
       })
     }
@@ -149,7 +187,7 @@ locals {
         }
         terminal = {
           backend          = "local"
-          cwd              = "/workspace"
+          cwd              = "/opt/data"
           timeout          = 180
           persistent_shell = true
           env_passthrough = [
@@ -244,8 +282,9 @@ resource "kubernetes_secret_v1" "hermes_env" {
       PROWLARR_API_KEY     = var.secrets["prowlarr.api_key"]
     } : {},
     each.key == "beryl" ? {
-      JELLYFIN_API_KEY = var.secrets["jellyfin.beryl_api_key"]
-      HASS_TOKEN       = var.secrets["homeassistant.beryl_token"]
+      JELLYFIN_API_KEY    = var.secrets["jellyfin.beryl_api_key"]
+      HASS_TOKEN          = var.secrets["homeassistant.beryl_token"]
+      LITELLM_MCP_API_KEY = var.secrets["litellm.virtual_keys.hermes_beryl"]
     } : {}
   )
 
