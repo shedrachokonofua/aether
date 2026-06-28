@@ -23,7 +23,7 @@
       "repo": "offsite-s3",
       "paths": ["{{ path }}"],
 {% if path | basename == "backups-vm" %}
-      "backupFlags": ["--compression", "off", "--read-concurrency", "4"],
+      "backup_flags": ["--compression", "off", "--read-concurrency", "4"],
 {% endif %}
       "schedule": {
         "cron": "{{ backrest_backup_cron }}",
