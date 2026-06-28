@@ -70,6 +70,76 @@ resource "kubernetes_secret_v1" "game_server" {
 }
 
 # =============================================================================
+# Boot-fix script — runs (as root) via a postStart hook before the X session +
+# Sunshine start. Fixes three steam-headless-in-headless-container issues:
+#   1. light-locker (XFCE screen locker) hits a glib assertion and crash-loops
+#      the desktop session -> disable its autostart + binary.
+#   2. Sunshine's "main loop" IS its GTK system-tray loop, which quits unless it
+#      can reach the desktop StatusNotifierWatcher. Drop file caps (so AT_SECURE
+#      stops glib ignoring the bus env), and source a shim that hands Sunshine
+#      the running xfce4-panel session bus + NO_AT_BRIDGE (skip the a11y bus).
+#   3. start-dumb-udev.sh restarts Xorg when Sunshine uinput devices appear;
+#      current Sunshine creates those devices at startup, so the restart tears
+#      down Sunshine, removes the devices, clears the guard, and loops forever.
+# =============================================================================
+
+resource "kubernetes_config_map_v1" "game_server_bootfix" {
+  metadata {
+    name      = "game-server-bootfix"
+    namespace = local.game_server_ns
+  }
+  data = {
+    "boot-fix.sh" = <<-EOT
+      #!/bin/sh
+      # Disable light-locker (crash-loops the headless session).
+      if [ -f /etc/xdg/autostart/light-locker.desktop ]; then
+        printf '\nHidden=true\nX-GNOME-Autostart-enabled=false\n' >> /etc/xdg/autostart/light-locker.desktop
+      fi
+      chmod 000 /usr/bin/light-locker 2>/dev/null || true
+      # Sunshine creates uinput devices at startup. Upstream dumb-udev "fixes"
+      # input two broken ways: (1) it restarts Xorg when the devices appear (a
+      # crash loop -- the restart tears down Sunshine, which recreates the
+      # devices), and (2) it runs udevd under `unshare --net`, putting udevd in a
+      # different network namespace than Xorg. udev hotplug events are per-netns,
+      # so Xorg never receives them and input never works. Fix both: mask the
+      # net-naming rules so a main-ns udevd can't rename the pod NIC, drop
+      # `unshare --net` so udevd shares Xorg's namespace (hotplug reaches Xorg),
+      # and replace the Xorg restart with an input-only `udevadm trigger`. No
+      # Xorg restart -> the crash loop cannot return.
+      for r in 73-special-net-names 75-net-description 80-net-setup-link 81-net-dhcp; do
+        ln -sf /dev/null "/etc/udev/rules.d/$r.rules"
+      done
+      if [ -f /usr/bin/start-dumb-udev.sh ]; then
+        sed -i \
+          -e 's@unshare --net @@g' \
+          -e 's@.*supervisorctl restart xorg.*@udevadm trigger --action=add --subsystem-match=input || true  # input hotplug by boot-fix@' \
+          -e 's@.*rm -f.*xorg-restarted.*@: # guard kept persistent by boot-fix@' \
+          /usr/bin/start-dumb-udev.sh
+        # Clear any separate-ns udevd that already started so the patched script
+        # relaunches udevd in the main (Xorg) namespace cleanly.
+        udevadm control --exit 2>/dev/null || true
+        pkill -x systemd-udevd 2>/dev/null || true
+        pkill -x udevd 2>/dev/null || true
+        rm -f /run/udev/control
+        pkill -f '/usr/bin/start-dumb-udev.sh' 2>/dev/null || true
+      fi
+      # Sunshine tray fix: drop caps + write a shim (sourced by start-sunshine.sh)
+      # that points Sunshine at the live xfce4-panel session bus + NO_AT_BRIDGE.
+      setcap -r /usr/bin/sunshine 2>/dev/null || true
+      {
+        echo 'export NO_AT_BRIDGE=1'
+        echo '_p=$(pgrep -x xfce4-panel | head -1)'
+        echo '[ -n "$_p" ] && export DBUS_SESSION_BUS_ADDRESS=$(tr "\0" "\n" < /proc/$_p/environ 2>/dev/null | grep "^DBUS_SESSION_BUS_ADDRESS=" | cut -d= -f2-)'
+      } > /usr/local/bin/gs-sunshine-env.sh
+      chmod +x /usr/local/bin/gs-sunshine-env.sh
+      if ! grep -q gs-sunshine-env /usr/bin/start-sunshine.sh; then
+        sed -i '/# Start the sunshine server/i . /usr/local/bin/gs-sunshine-env.sh' /usr/bin/start-sunshine.sh
+      fi
+    EOT
+  }
+}
+
+# =============================================================================
 # Storage
 # =============================================================================
 # home  : configs, flatpak emulators (PCSX2/RPCS3), Sunshine state, Steam client
@@ -121,7 +191,11 @@ resource "kubernetes_persistent_volume_v1" "game_server_gaming" {
     capacity                         = { storage = "1Ti" } # nominal; static volume, not enforced
     access_modes                     = ["ReadWriteMany"]
     persistent_volume_reclaim_policy = "Retain"
-    storage_class_name               = "" # static, no provisioner
+    # Explicit non-default class name (no such StorageClass exists, so nothing
+    # dynamically provisions). Must match the PVC. NOT "" — the TF provider drops
+    # empty-string, letting the DefaultStorageClass admission inject ceph-rbd,
+    # which then won't bind to this static PV.
+    storage_class_name = "cephfs-static"
 
     persistent_volume_source {
       csi {
@@ -152,7 +226,7 @@ resource "kubernetes_persistent_volume_claim_v1" "game_server_gaming" {
   }
   spec {
     access_modes       = ["ReadWriteMany"]
-    storage_class_name = ""
+    storage_class_name = "cephfs-static" # must match the PV; not "" (provider drops it -> default injected)
     volume_name        = kubernetes_persistent_volume_v1.game_server_gaming.metadata[0].name
     resources {
       requests = { storage = "1Ti" }
@@ -172,6 +246,11 @@ resource "kubernetes_deployment_v1" "game_server" {
     kubernetes_secret_v1.game_server,
   ]
 
+  # Don't block apply on rollout — steam-headless installs the NVIDIA driver and
+  # starts Xorg/Steam/Sunshine on first boot (slow, and likely needs a round of
+  # tuning). Manage readiness out-of-band.
+  wait_for_rollout = false
+
   metadata {
     name      = "game-server"
     namespace = local.game_server_ns
@@ -189,14 +268,21 @@ resource "kubernetes_deployment_v1" "game_server" {
     template {
       metadata {
         labels = local.game_server_labels
+        annotations = {
+          "aether.shdr.ch/bootfix-sha" = sha256(kubernetes_config_map_v1.game_server_bootfix.data["boot-fix.sh"])
+        }
       }
 
       spec {
         runtime_class_name = "nvidia"
-        node_selector      = local.gpu_smith_node_selector
+        node_selector      = local.gpu_neo_node_selector
 
         security_context {
           fs_group = 1000 # PUID/PGID — own the PVCs so the desktop user can write
+          # Don't recursively chown every volume on each mount — the 1Ti CephFS
+          # /gaming library is already owned by 1000 (from the old VM), so root
+          # matches and kubelet skips it; only the empty Steam-library PVC chowns.
+          fs_group_change_policy = "OnRootMismatch"
         }
 
         container {
@@ -206,6 +292,16 @@ resource "kubernetes_deployment_v1" "game_server" {
 
           security_context {
             privileged = true # required: /dev/uinput, /dev/dri, /dev/input, Xorg root rights
+          }
+
+          # Run boot-fix (light-locker disable + Sunshine tray/dbus fix) as root,
+          # before the X session + Sunshine launch.
+          lifecycle {
+            post_start {
+              exec {
+                command = ["sh", "/opt/gs-bootfix/boot-fix.sh"]
+              }
+            }
           }
 
           # --- identity / locale ---
@@ -285,6 +381,11 @@ resource "kubernetes_deployment_v1" "game_server" {
             name       = "dshm"
             mount_path = "/dev/shm"
           }
+          volume_mount {
+            name       = "bootfix"
+            mount_path = "/opt/gs-bootfix"
+            read_only  = true
+          }
 
           dynamic "port" {
             for_each = toset(concat(local.game_server_tcp_ports, [for p in local.game_server_udp_ports : p]))
@@ -295,7 +396,12 @@ resource "kubernetes_deployment_v1" "game_server" {
 
           resources {
             requests = {
-              cpu              = "2"
+              # Guaranteed CPU share for the emulator: RPCS3 (PS3) is brutally
+              # CPU-bound and was being starved by smith's ~52 co-tenant pods.
+              # An 8-core request floors its CFS weight under contention; with
+              # no CPU *limit* it still bursts higher when the node is idle, and
+              # neighbors reclaim these cycles whenever nobody is streaming.
+              cpu              = "8"
               memory           = "4Gi"
               "nvidia.com/gpu" = "1"
             }
@@ -332,6 +438,13 @@ resource "kubernetes_deployment_v1" "game_server" {
             size_limit = "4Gi"
           }
         }
+        volume {
+          name = "bootfix"
+          config_map {
+            name         = kubernetes_config_map_v1.game_server_bootfix.metadata[0].name
+            default_mode = "0755"
+          }
+        }
       }
     }
   }
@@ -354,7 +467,12 @@ resource "kubernetes_service_v1" "game_server" {
   spec {
     type                    = "LoadBalancer"
     selector                = local.game_server_labels
-    external_traffic_policy = "Local" # preserve client source IP for Sunshine lan/wan origin checks
+    # The VIP's L2 announcement lease lands on an arbitrary node (e.g. neo), but
+    # the pod is GPU-pinned to smith. With "Local" the announcing node drops
+    # traffic when it has no local endpoint -> connection refused. "Cluster" lets
+    # any node route to the pod. Sunshine sees a private/LAN SNAT source, which
+    # still satisfies its lan/wan origin check.
+    external_traffic_policy = "Cluster"
 
     dynamic "port" {
       for_each = toset(local.game_server_tcp_ports)
