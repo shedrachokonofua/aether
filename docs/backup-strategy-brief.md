@@ -51,7 +51,7 @@ The lab *intends* 3-2-1 but currently isn't there:
 | CephFS shares | CephFS | ❌ | ✅ restic-v2 smoke verified; bulk scheduled daily |
 | **~12 Postgres + 1 Mongo** | `ceph-rbd` | ✅ interim logical dumps → SeaweedFS | ✅ backup-stack mirrors dumps into `/mnt/hdd/data`, Backrest sweeps offsite |
 | **~52 non-DB RBD PVCs** (Vaultwarden, matrix-synapse, memos, karakeep, app configs) | `ceph-rbd` | ❌ **none** | ❌ **none** |
-| etcd / cluster state | Talos etcd | ✅ scheduled Talos snapshot → `/mnt/hdd/data/backups/talos-etcd` | ⏳ covered by next successful Backrest `/mnt/hdd/data` run |
+| etcd / cluster state | Talos etcd | ✅ scheduled Talos snapshot → `/mnt/hdd/data/backups/talos-etcd` | ✅ included in the scheduled Backrest `/mnt/hdd/data` offsite snapshot |
 | tofu state | S3+DynamoDB | ✅ (encrypted) | ✅ |
 | SOPS secrets | git | ✅ | ✅ |
 | **step-ca CA key** | identity VM | ❌ **no backup** | ❌ |
@@ -77,9 +77,10 @@ The lab *intends* 3-2-1 but currently isn't there:
   LiteLLM, Nextcloud, Matrix, and Immich are migrated CNPG-backed app DBs.
 - **Kubernetes control-plane protection** — `backup-stack` runs `aether-talos-etcd-snapshot.timer`
   daily at 02:20, using the Tofu-generated Talos client config. A manual proof snapshot on
-  2026-06-27 wrote a 412MB etcd snapshot to `/mnt/hdd/data/backups/talos-etcd`, and Prometheus
-  now scrapes `aether_talos_etcd_snapshot_*` metrics from the `aether-restic` exporter. Grafana
-  alert rules cover failed and stale Talos etcd snapshots.
+  2026-06-27 wrote a 412MB etcd snapshot to `/mnt/hdd/data/backups/talos-etcd`; the scheduled
+  2026-06-28 run wrote a 424MB snapshot, and the scheduled Backrest `/mnt/hdd/data` offsite
+  snapshot includes both files. Prometheus scrapes `aether_talos_etcd_snapshot_*` metrics from
+  the `aether-restic` exporter. Grafana alert rules cover failed and stale Talos etcd snapshots.
 - **Freshness alerts** — now cover PBS, DB dump CronJobs, restic metrics/exporter, Backrest/restic
   plan freshness, and Talos etcd snapshot success/staleness. Additional coverage is still needed
   for future CNPG Barman/WAL, k8up, sanoid, and PBS remote-sync.
@@ -197,9 +198,7 @@ HL15) remains the "proper" long-term home if neo's coupling becomes painful.
 ## 7. Open items / to verify before/at build
 
 - **[physical]** neo case: 4× 3.5″ bays + ≥4 SATA power leads (user believes it fits).
-- **[live]** Observe the first scheduled bulk Backrest run into `restic-v2`.
-- **[live]** After the current PBS seed releases the restic repo lock, verify a successful
-  `/mnt/hdd/data` Backrest snapshot includes `/mnt/hdd/data/backups/talos-etcd`.
+- **[live]** Complete the first successful PBS datastore Backrest run into `restic-v2`.
 - **[decision]** Why was SeaweedFS deleted in Jan? (reliability matters for a backup role.)
 - **[test]** CNPG Barman/WAL archive → SeaweedFS static-key auth, end to end, before migrating
   higher-value databases.

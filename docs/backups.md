@@ -150,6 +150,7 @@ talosctl --nodes 10.0.3.16 --endpoints 10.0.3.16,10.0.3.17,10.0.3.18 etcd snapsh
 ```
 
 Snapshots are written to `/mnt/hdd/data/backups/talos-etcd` with 30-day local retention. A manual
-proof run on 2026-06-27 created a 412MB snapshot and emitted
-`aether_talos_etcd_snapshot_*` metrics through the `aether-restic` Prometheus scrape. Grafana
-alerts cover failed and stale Talos etcd snapshots.
+proof run on 2026-06-27 created a 412MB snapshot; the scheduled 2026-06-28 run created a 424MB
+snapshot, and the scheduled Backrest `/mnt/hdd/data` offsite snapshot includes both files.
+Snapshot generation emits `aether_talos_etcd_snapshot_*` metrics through the `aether-restic`
+Prometheus scrape. Grafana alerts cover failed and stale Talos etcd snapshots.
