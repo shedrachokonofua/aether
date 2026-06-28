@@ -4,6 +4,12 @@ provisioning = /etc/grafana/provisioning
 [server]
 root_url = https://grafana.home.shdr.ch
 
+[security]
+# Allow embedding Grafana in an iframe (the Orion portal at home.shdr.ch).
+# home.shdr.ch and grafana.home.shdr.ch share the registrable domain shdr.ch,
+# so the session cookie is sent same-site; this just drops X-Frame-Options.
+allow_embedding = true
+
 [users]
 default_theme = light
 auto_assign_org = false
