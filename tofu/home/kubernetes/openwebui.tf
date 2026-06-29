@@ -607,6 +607,10 @@ resource "kubernetes_deployment_v1" "openwebui" {
             value = "false"
           }
           env {
+            name  = "ENABLE_API_KEYS"
+            value = "true"
+          }
+          env {
             name  = "ENABLE_OAUTH_SIGNUP"
             value = "true"
           }
