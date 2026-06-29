@@ -1182,6 +1182,91 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "coder_roles" {
 }
 
 # =============================================================================
+# Orion OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "orion" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "orion"
+  name      = "Orion"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://home.shdr.ch"
+  base_url  = "https://home.shdr.ch"
+  admin_url = "https://home.shdr.ch"
+
+  valid_redirect_uris = [
+    "http://localhost:5174/auth/callback",
+    "https://home.shdr.ch/auth/callback",
+  ]
+
+  valid_post_logout_redirect_uris = [
+    "http://localhost:5174/*",
+    "https://5174.mux.home.shdr.ch/*",
+    "https://home.shdr.ch/*",
+  ]
+
+  web_origins = [
+    "https://home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "orion_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.orion.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# =============================================================================
+# Deskplane OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "deskplane" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "deskplane"
+  name      = "Deskplane"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://desktop.home.shdr.ch"
+  base_url  = "https://desktop.home.shdr.ch"
+  admin_url = "https://desktop.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://desktop.home.shdr.ch/auth/callback",
+  ]
+
+  web_origins = [
+    "https://desktop.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "deskplane_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.deskplane.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# =============================================================================
 # AFFiNE OIDC Client
 # =============================================================================
 

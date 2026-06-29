@@ -160,6 +160,12 @@ variable "coder_oauth_client_secret" {
   description = "Coder Keycloak OIDC client secret"
 }
 
+variable "deskplane_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Deskplane Keycloak OIDC client secret"
+}
+
 variable "affine_oauth_client_secret" {
   type        = string
   sensitive   = true
