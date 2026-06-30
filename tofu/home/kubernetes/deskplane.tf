@@ -185,7 +185,7 @@ resource "helm_release" "deskplane" {
         {
           name        = "kali"
           displayName = "Kali Linux"
-          image       = "kasmweb/kali-linux:1.17.0"
+          image       = "kasmweb/core-kali-rolling:1.17.0"
           runtime = {
             type          = "kasmvnc"
             port          = 6901
