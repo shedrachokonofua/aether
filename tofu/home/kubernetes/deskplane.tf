@@ -123,19 +123,163 @@ resource "helm_release" "deskplane" {
       storageClassName = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
     }
 
-    profiles = [{
-      name = "default"
-      resources = {
-        requests = {
-          cpu    = "500m"
-          memory = "1Gi"
+    catalog = {
+      images = [
+        {
+          name        = "chrome"
+          displayName = "Chrome"
+          image       = "kasmweb/chrome:1.17.0"
+          runtime = {
+            type          = "kasmvnc"
+            port          = 6901
+            scheme        = "https"
+            passwordEnv   = "VNC_PW"
+            skipTLSVerify = true
+          }
+          persistence = {
+            defaultMountPath = "/home/kasm-user"
+          }
+          environment = {
+            KASM_SVC_AUDIO   = "1"
+            KASM_SVC_UPLOADS = "1"
+          }
+        },
+        {
+          name        = "firefox"
+          displayName = "Firefox"
+          image       = "kasmweb/firefox:1.17.0"
+          runtime = {
+            type          = "kasmvnc"
+            port          = 6901
+            scheme        = "https"
+            passwordEnv   = "VNC_PW"
+            skipTLSVerify = true
+          }
+          persistence = {
+            defaultMountPath = "/home/kasm-user"
+          }
+          environment = {
+            KASM_SVC_AUDIO   = "1"
+            KASM_SVC_UPLOADS = "1"
+          }
+        },
+        {
+          name        = "brave"
+          displayName = "Brave"
+          image       = "kasmweb/brave:1.17.0"
+          runtime = {
+            type          = "kasmvnc"
+            port          = 6901
+            scheme        = "https"
+            passwordEnv   = "VNC_PW"
+            skipTLSVerify = true
+          }
+          persistence = {
+            defaultMountPath = "/home/kasm-user"
+          }
+          environment = {
+            KASM_SVC_AUDIO   = "1"
+            KASM_SVC_UPLOADS = "1"
+          }
+        },
+        {
+          name        = "kali"
+          displayName = "Kali Linux"
+          image       = "kasmweb/kali-linux:1.17.0"
+          runtime = {
+            type          = "kasmvnc"
+            port          = 6901
+            scheme        = "https"
+            passwordEnv   = "VNC_PW"
+            skipTLSVerify = true
+          }
+          persistence = {
+            defaultMountPath = "/home/kasm-user"
+          }
+          environment = {
+            KASM_SVC_AUDIO   = "1"
+            KASM_SVC_UPLOADS = "1"
+          }
+        },
+        {
+          name        = "tor"
+          displayName = "Tor Browser"
+          image       = "kasmweb/tor-browser:1.17.0"
+          runtime = {
+            type          = "kasmvnc"
+            port          = 6901
+            scheme        = "https"
+            passwordEnv   = "VNC_PW"
+            skipTLSVerify = true
+          }
+          persistence = {
+            defaultMountPath = "/home/kasm-user"
+          }
+          environment = {
+            KASM_SVC_AUDIO   = "1"
+            KASM_SVC_UPLOADS = "1"
+          }
+        },
+        {
+          name        = "terminal"
+          displayName = "Terminal"
+          image       = "kasmweb/desktop:1.17.0"
+          runtime = {
+            type          = "kasmvnc"
+            port          = 6901
+            scheme        = "https"
+            passwordEnv   = "VNC_PW"
+            skipTLSVerify = true
+          }
+          persistence = {
+            defaultMountPath = "/home/kasm-user"
+          }
+          environment = {
+            KASM_SVC_AUDIO   = "1"
+            KASM_SVC_UPLOADS = "1"
+          }
+        },
+      ]
+    }
+
+    profiles = [
+      {
+        name = "default"
+        resources = {
+          requests = {
+            cpu    = "500m"
+            memory = "1Gi"
+          }
+          limits = {
+            cpu    = "4"
+            memory = "8Gi"
+          }
         }
-        limits = {
-          cpu    = "4"
-          memory = "8Gi"
+        nodeSelector = local.deskplane_node_selector
+      },
+      {
+        name = "gpu"
+        resources = {
+          requests = {
+            cpu              = "500m"
+            memory           = "1Gi"
+            nvidia.com/gpu   = "1"
+          }
+          limits = {
+            cpu              = "4"
+            memory           = "8Gi"
+            nvidia.com/gpu   = "1"
+          }
         }
+        nodeSelector = local.deskplane_node_selector
+        tolerations = [
+          {
+            key      = "nvidia.com/gpu"
+            operator = "Exists"
+            effect   = "NoSchedule"
+          }
+        ]
       }
-      nodeSelector = local.deskplane_node_selector
-    }]
+    ]
   })]
 }
