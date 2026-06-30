@@ -263,12 +263,12 @@ resource "helm_release" "deskplane" {
           requests = {
             cpu              = "500m"
             memory           = "1Gi"
-            nvidia.com/gpu   = "1"
+            "nvidia.com/gpu" = "1"
           }
           limits = {
             cpu              = "4"
             memory           = "8Gi"
-            nvidia.com/gpu   = "1"
+            "nvidia.com/gpu" = "1"
           }
         }
         nodeSelector = local.deskplane_node_selector
