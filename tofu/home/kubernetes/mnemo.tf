@@ -25,7 +25,7 @@ locals {
 # --- Secrets -----------------------------------------------------------------
 
 resource "kubernetes_secret_v1" "mnemo_env" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [kubernetes_namespace_v1.infra, kubernetes_secret_v1.openwebui_postgres]
 
   metadata {
     name      = "mnemo-env"
@@ -34,38 +34,39 @@ resource "kubernetes_secret_v1" "mnemo_env" {
   }
 
   data = {
-    DATABASE_URL              = local.mnemo_db_url
-    SECRET_KEY_BASE           = var.secrets["mnemo.secret_key_base"]
-    PHX_HOST                  = local.mnemo_host
-    PHX_SERVER                = "true"
+    DATABASE_URL    = local.mnemo_db_url
+    SECRET_KEY_BASE = var.secrets["mnemo.secret_key_base"]
+    PHX_HOST        = local.mnemo_host
+    PHX_SERVER      = "true"
 
     # Seaweed S3 object storage
-    SEAWEED_S3_ENDPOINT       = local.mnemo_seaweed_endpoint
-    SEAWEED_S3_BUCKET         = local.mnemo_seaweed_bucket
-    SEAWEED_S3_ACCESS_KEY     = var.secrets["seaweedfs.s3_admin_access_key"]
-    SEAWEED_S3_SECRET_KEY     = var.secrets["seaweedfs.s3_admin_secret_key"]
+    SEAWEED_S3_ENDPOINT   = local.mnemo_seaweed_endpoint
+    SEAWEED_S3_BUCKET     = local.mnemo_seaweed_bucket
+    SEAWEED_S3_ACCESS_KEY = var.secrets["seaweedfs.s3_admin_access_key"]
+    SEAWEED_S3_SECRET_KEY = var.secrets["seaweedfs.s3_admin_secret_key"]
 
     # LiteLLM embeddings
     LITELLM_EMBEDDING_BASE_URL = "http://litellm.${local.mnemo_namespace}.svc.cluster.local:4000"
     LITELLM_EMBEDDING_API_KEY  = var.secrets["litellm.master_key"]
+    LITELLM_EMBEDDING_MODEL    = "text-embedding-3-large"
 
     # OpenWebUI source (read-only API access)
-    OPENWEBUI_DATABASE_URL     = "postgresql://openwebui:${kubernetes_secret_v1.openwebui_cnpg_app.data["password"]}@openwebui-cnpg-rw.${local.mnemo_namespace}.svc.cluster.local:5432/openwebui?sslmode=disable"
-    OPENWEBUI_API_KEY          = var.secrets["openwebui.mcpo_api_key"]
+    OPENWEBUI_DATABASE_URL = "postgresql://openwebui:${kubernetes_secret_v1.openwebui_postgres.data["POSTGRES_PASSWORD"]}@openwebui-postgres.${local.mnemo_namespace}.svc.cluster.local:5432/openwebui?sslmode=disable"
+    OPENWEBUI_API_KEY      = var.secrets["openwebui.mcpo_api_key"]
 
     # Matrix source (bot user access token)
-    MATRIX_HOMESERVER_URL      = "https://${local.mnemo_host}"
-    MATRIX_ACCESS_TOKEN        = var.secrets["matrix.mnemo_bot_access_token"]
+    MATRIX_HOMESERVER_URL = "https://${local.mnemo_host}"
+    MATRIX_ACCESS_TOKEN   = var.secrets["matrix.mnemo_bot_access_token"]
 
     # Gmail source (OAuth refresh token)
-    GMAIL_CLIENT_ID            = var.secrets["gmail.client_id"]
-    GMAIL_CLIENT_SECRET        = var.secrets["gmail.client_secret"]
-    GMAIL_REFRESH_TOKEN        = var.secrets["gmail.refresh_token"]
+    GMAIL_CLIENT_ID     = var.secrets["gmail.client_id"]
+    GMAIL_CLIENT_SECRET = var.secrets["gmail.client_secret"]
+    GMAIL_REFRESH_TOKEN = var.secrets["gmail.refresh_token"]
 
     # OTEL (Aether in-cluster collector)
-    OTEL_SERVICE_NAME          = "mnemo"
+    OTEL_SERVICE_NAME           = "mnemo"
     OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.system.svc.cluster.local:4317"
-    OTEL_RESOURCE_ATTRIBUTES   = "service.namespace=mnemo,deployment.environment=home"
+    OTEL_RESOURCE_ATTRIBUTES    = "service.namespace=mnemo,deployment.environment=home"
   }
 
   type = "Opaque"
@@ -104,11 +105,17 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
     metadata = {
       name      = local.mnemo_cnpg
       namespace = local.mnemo_namespace
-      labels    = local.mnemo_labels
+      labels    = merge(local.mnemo_labels, { "aether.sh/arm-ok" = "true" })
     }
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      resources = {
+        claims   = []
+        requests = { cpu = "250m", memory = "256Mi" }
+        limits   = { cpu = "2000m", memory = "2Gi" }
+      }
+      affinity = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
@@ -120,16 +127,206 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
           secret = {
             name = kubernetes_secret_v1.mnemo_cnpg_app.metadata[0].name
           }
+          # Install required extensions after DB creation (Phase 1 schema).
+          # pg_trgm and unaccent are bundled with PostgreSQL; pgvector needs
+          # the extension installed (available in the CNPG postgres image).
+          postInitApplicationSQL = [
+            "CREATE EXTENSION IF NOT EXISTS vector",
+            "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+            "CREATE EXTENSION IF NOT EXISTS unaccent"
+          ]
         }
       }
-      postgresql = {
-        parameters = {
-          # Enable pgvector, pg_trgm, unaccent (required by Phase 1 schema)
-          shared_preload_libraries = "vector"
+
+    }
+  })
+}
+
+# --- Database Migration + Source Bootstrap -----------------------------------
+
+resource "kubernetes_job_v1" "mnemo_migration" {
+  depends_on = [
+    kubectl_manifest.mnemo_cnpg_cluster,
+    kubernetes_secret_v1.mnemo_env,
+  ]
+
+  metadata {
+    name      = "mnemo-migrate"
+    namespace = local.mnemo_namespace
+    labels    = merge(local.mnemo_labels, { job = "mnemo-migrate" })
+  }
+
+  spec {
+    backoff_limit = 3
+
+    template {
+      metadata {
+        labels = merge(local.mnemo_labels, { job = "mnemo-migrate" })
+      }
+
+      spec {
+        restart_policy       = "OnFailure"
+        enable_service_links = false
+        node_selector        = { "kubernetes.io/arch" = "amd64" }
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65534
+          run_as_group    = 65534
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
+        container {
+          name              = "migrate"
+          image             = local.mnemo_image
+          image_pull_policy = "Always"
+          command           = ["/app/bin/mnemo", "eval", "Mnemo.Release.migrate()"]
+
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.mnemo_env.metadata[0].name
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = { cpu = "100m", memory = "256Mi" }
+            limits   = { cpu = "1000m", memory = "1Gi" }
+          }
         }
       }
     }
-  })
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "10m"
+    update = "10m"
+  }
+}
+
+resource "kubernetes_job_v1" "mnemo_bootstrap_openwebui" {
+  depends_on = [
+    kubernetes_job_v1.mnemo_migration,
+    kubernetes_secret_v1.mnemo_env,
+  ]
+
+  metadata {
+    name      = "mnemo-bootstrap-openwebui"
+    namespace = local.mnemo_namespace
+    labels    = merge(local.mnemo_labels, { job = "mnemo-bootstrap-openwebui" })
+  }
+
+  spec {
+    backoff_limit = 3
+
+    template {
+      metadata {
+        labels = merge(local.mnemo_labels, { job = "mnemo-bootstrap-openwebui" })
+      }
+
+      spec {
+        restart_policy       = "OnFailure"
+        enable_service_links = false
+        node_selector        = { "kubernetes.io/arch" = "amd64" }
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65534
+          run_as_group    = 65534
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
+        container {
+          name              = "bootstrap"
+          image             = local.mnemo_image
+          image_pull_policy = "Always"
+          command = ["/app/bin/mnemo", "eval", <<-EOT
+            Application.ensure_all_started(:mnemo)
+
+            result =
+              Mnemo.Repo.query!("""
+              WITH existing AS (
+                SELECT id
+                FROM source_accounts
+                WHERE source_kind = 'openwebui' AND name = 'default'
+                LIMIT 1
+              ),
+              inserted AS (
+                INSERT INTO source_accounts (source_kind, name, config, enabled, inserted_at, updated_at)
+                SELECT 'openwebui', 'default', jsonb_build_object('database_url_configured', true), true, now(), now()
+                WHERE NOT EXISTS (SELECT 1 FROM existing)
+                RETURNING id
+              )
+              SELECT id FROM inserted
+              UNION ALL
+              SELECT id FROM existing
+              LIMIT 1
+              """)
+
+            [[source_account_id]] = result.rows
+
+            IO.puts("openwebui source_account_id=" <> Ecto.UUID.cast!(source_account_id))
+
+            job =
+              Mnemo.Jobs.SyncOpenWebUI.new(Map.new(),
+                unique: [
+                  period: 3600,
+                  fields: [:worker, :queue, :args],
+                  states: [:available, :scheduled, :executing, :retryable]
+                ]
+              )
+
+            case Oban.insert(job) do
+              {:ok, job} -> IO.puts("queued openwebui sync job " <> Integer.to_string(job.id))
+              {:error, changeset} -> IO.puts("openwebui sync job not queued: " <> inspect(changeset.errors))
+            end
+          EOT
+          ]
+
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.mnemo_env.metadata[0].name
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = { cpu = "100m", memory = "256Mi" }
+            limits   = { cpu = "1000m", memory = "1Gi" }
+          }
+        }
+      }
+    }
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "10m"
+    update = "10m"
+  }
 }
 
 # --- Deployment --------------------------------------------------------------
@@ -137,6 +334,8 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
 resource "kubernetes_deployment_v1" "mnemo" {
   depends_on = [
     kubectl_manifest.mnemo_cnpg_cluster,
+    kubernetes_job_v1.mnemo_migration,
+    kubernetes_job_v1.mnemo_bootstrap_openwebui,
     kubernetes_secret_v1.mnemo_env,
   ]
 
@@ -291,7 +490,7 @@ resource "kubectl_manifest" "mnemo_db_backup" {
       namespace = local.mnemo_namespace
     }
     spec = {
-      schedule = "0 2 * * *"  # Daily at 2am
+      schedule             = "0 2 * * *" # Daily at 2am
       backupOwnerReference = "self"
       cluster = {
         name = local.mnemo_cnpg
