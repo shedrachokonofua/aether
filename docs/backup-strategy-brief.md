@@ -63,7 +63,8 @@ The lab *intends* 3-2-1 but currently isn't there:
 - **restic/Backrest** — deployed and repaired 2026-06-21. Paths `/mnt/cephfs`, `/mnt/hdd/data`,
   `/mnt/hdd/backups-vm` → `s3://aether-home-offsite-backup/restic-v2`; auth = IAM Roles
   Anywhere + step-ca cert; the Backrest-managed restic binary is wrapped so each restic process
-  mints fresh AWS credentials, and cert renewal is handled by systemd timer.
+  mints fresh AWS credentials. Cert renewal is handled by systemd timer and only re-splits the
+  renewed certificate bundle; it must not restart Backrest during active backups.
 - **SeaweedFS** — restored 2026-06-21 as a NixOS LXC on Smith (`10.0.2.11`) with historical
   hostnames `seaweed.home.shdr.ch`, `s3.seaweed.home.shdr.ch`, and
   `master.seaweed.home.shdr.ch`. Direct and HTTPS S3 smoke tests passed. This is an interim

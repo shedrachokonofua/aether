@@ -1023,7 +1023,7 @@
         content: |
           #!/bin/bash
           # Renewal hook script for step ca renew
-          # Re-splits certificate bundle for IAM Roles Anywhere and restarts Backrest
+          # Re-splits certificate bundle for IAM Roles Anywhere.
           set -e
 
           CERT_FILE="{{ certs_dir }}/cert.pem"
@@ -1035,9 +1035,6 @@
           mv "${CERTS_DIR}/cert-part-01" "${CERTS_DIR}/cert-chain.pem"
           chown root:root "${CERTS_DIR}/cert-leaf.pem" "${CERTS_DIR}/cert-chain.pem"
           chmod 0640 "${CERTS_DIR}/cert-leaf.pem" "${CERTS_DIR}/cert-chain.pem"
-
-          # Restart Backrest to use the new certificate
-          systemctl restart backrest.service
         dest: "{{ step_config_dir }}/renew-hook.sh"
         owner: root
         group: root
@@ -1059,7 +1056,9 @@
 
           Environment="STEPPATH={{ step_config_dir }}"
 
-          # Renewal script re-splits certs for IAM Roles Anywhere and restarts Backrest
+          # Renewal script re-splits certs for IAM Roles Anywhere. The restic
+          # credential wrapper reads them from disk for each new restic process,
+          # so renewal must not restart Backrest and interrupt active backups.
           ExecStart=/usr/bin/step ca renew --force \
             --exec "{{ step_config_dir }}/renew-hook.sh" \
             {{ certs_dir }}/cert.pem \

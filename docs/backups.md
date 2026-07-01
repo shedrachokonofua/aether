@@ -91,7 +91,7 @@ Uses **IAM Roles Anywhere** with step-ca certificates — no static AWS credenti
 
 - TLS certificate from step-ca (`backup-stack.home.shdr.ch`)
 - The Backrest restic wrapper uses AWS Signing Helper to fetch fresh temporary credentials per restic process
-- Certificate renewal uses a oneshot `backrest-cert-renew.service` on a twice-daily systemd timer.
+- Certificate renewal uses a oneshot `backrest-cert-renew.service` on a twice-daily systemd timer. It only re-splits the renewed bundle for IAM Roles Anywhere; it must not restart Backrest because active restic backups would be interrupted.
 
 ### AWS S3 Configuration
 
