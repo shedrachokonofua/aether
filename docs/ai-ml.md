@@ -1,6 +1,6 @@
 # AI/ML
 
-GPU-accelerated inference runs on **Talos Kubernetes** (`talos-neo`, RTX Pro 6000 Blackwell).
+GPU-accelerated inference runs on **Talos Kubernetes**. Most shared AI workloads, including SnapOtter's file-processing AI tools, use `talos-neo` (RTX Pro 6000 Blackwell).
 
 ## Kubernetes GPU stack
 
@@ -12,11 +12,14 @@ GPU-accelerated inference runs on **Talos Kubernetes** (`talos-neo`, RTX Pro 600
 | JupyterLab  | Notebooks (OpenWebUI code execution)      | `tofu/home/kubernetes/jupyter.tf` |
 | Speaches    | STT/TTS                                   | `tofu/home/kubernetes/speaches.tf` |
 | OpenWebUI   | Chat UI                                   | `tofu/home/kubernetes/openwebui.tf` |
+| SnapOtter   | File-processing AI tools                  | `tofu/home/kubernetes/snapotter.tf` |
 
 Model weights and ComfyUI state live on the **local NVMe** PV mounted on `talos-neo` (`gpu_model_storage.tf`).
 `llama-swap`, ComfyUI, Docling, JupyterLab, and Speaches are explicitly pinned to `talos-neo`
 with `local.gpu_neo_node_selector`; they still require the NVIDIA Talos
 extension selector in addition to the hostname.
+
+SnapOtter uses a Ceph RBD PVC for app data and its AI cache, requests one `nvidia.com/gpu`, uses the `nvidia` runtime class, and pins to `talos-neo` with `local.snapotter_gpu_node_selector`. `SNAPOTTER_GPU=true` keeps rembg/ONNX background-removal models on CUDA; the older `talos-smith` GTX 1660 Super placement could not reliably run the BiRefNet ONNX models through CUDA.
 
 Image generation features (SDXL, Flux, Qwen-Image, ControlNet, LoRAs, etc.) follow upstream ComfyUI; manage models on the GPU PV / ComfyUI paths.
 
