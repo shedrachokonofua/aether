@@ -4,7 +4,7 @@
 # Stack:
 #   - immich-server   (API + web UI)
 #   - immich-ml       (CLIP smart-search + InsightFace face recognition, GPU)
-#   - postgres        (Immich's official image with VectorChord + pgvecto.rs)
+#   - postgres        (CNPG + VectorChord)
 #   - redis           (job queue)
 # Storage:
 #   - library  -> NFS (/mnt/hdd/data/immich on smith)
@@ -15,8 +15,9 @@ locals {
   immich_namespace = "immich"
   immich_host      = "immich.home.shdr.ch"
 
-  immich_server_image   = "ghcr.io/immich-app/immich-server:release"
-  immich_ml_image       = "ghcr.io/immich-app/immich-machine-learning:release-cuda"
+  immich_version        = "v3.0.0"
+  immich_server_image   = "ghcr.io/immich-app/immich-server:${local.immich_version}"
+  immich_ml_image       = "ghcr.io/immich-app/immich-machine-learning:${local.immich_version}-cuda"
   immich_postgres_image = "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
   immich_redis_image    = "redis:6.2-alpine"
 
@@ -264,7 +265,7 @@ resource "kubernetes_persistent_volume_claim_v1" "immich_takeout" {
 }
 
 # =============================================================================
-# Postgres (VectorChord + pgvecto.rs)
+# Legacy Postgres (retained for rollback)
 # =============================================================================
 
 resource "kubernetes_stateful_set_v1" "immich_postgres" {
@@ -298,9 +299,8 @@ resource "kubernetes_stateful_set_v1" "immich_postgres" {
           name  = "postgres"
           image = local.immich_postgres_image
 
-          # Immich requires both VectorChord (vchord) and pgvecto.rs (vectors)
-          # extensions to be loaded via shared_preload_libraries before the
-          # server can run its CREATE EXTENSION migrations.
+          # Retained only for rollback to the pre-CNPG database. Live Immich
+          # uses the immich-cnpg cluster with VectorChord.
           args = [
             "postgres",
             "-c", "shared_preload_libraries=vchord.so,vectors.so",
