@@ -355,6 +355,12 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/step_ca/provision_aws_trust.yml]
   configure:step-ca:
     cmds: [ansible-playbook ansible/playbooks/step_ca/deploy_step_ca.yml]
+  backup:step-ca:
+    desc: Back up step-ca CA key material to SOPS-encrypted secrets/step-ca-backup.yml
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        ansible-playbook ansible/playbooks/step_ca/backup_keys.yml
   provision:adguard:
     desc: Provision AdGuard LXC from base image
     cmds: [ansible-playbook ansible/playbooks/adguard/site.yml]

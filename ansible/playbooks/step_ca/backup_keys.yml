@@ -1,0 +1,104 @@
+---
+# Backs up the step-ca CA key material (root/intermediate CA keys, SSH host/user
+# CA keys, and their matching public certs) into a single SOPS-encrypted YAML
+# document at secrets/step-ca-backup.yml.
+#
+# Deliberately excludes:
+#   - secrets/password.txt / secrets/provisioner-password.txt — already backed
+#     up as secrets.step_ca.password / secrets.step_ca.provisioner_password in
+#     secrets/secrets.yml.
+#   - the badger provisioner DB (step_ca_data_dir) — provisioners are
+#     re-created declaratively by deploy_step_ca.yml, no need to back up state.
+#   - *.old / *.bak leftovers under secrets/ and certs/ — stale artifacts from
+#     a prior key rotation, not part of the live CA.
+
+- name: Slurp step-ca CA key material and certs
+  hosts: step-ca
+  become: true
+  gather_facts: false
+  vars:
+    step_ca_home: "/etc/step-ca"
+    step_ca_private_key_files:
+      - root_ca_key
+      - intermediate_ca_key
+      - ssh_host_ca_key
+      - ssh_user_ca_key
+    step_ca_cert_files:
+      - root_ca.crt
+      - intermediate_ca.crt
+      - ssh_host_ca_key.pub
+      - ssh_user_ca_key.pub
+  tasks:
+    - name: Slurp private key PEMs
+      ansible.builtin.slurp:
+        src: "{{ step_ca_home }}/secrets/{{ item }}"
+      loop: "{{ step_ca_private_key_files }}"
+      register: step_ca_slurped_keys
+      no_log: true
+
+    - name: Slurp public certs
+      ansible.builtin.slurp:
+        src: "{{ step_ca_home }}/certs/{{ item }}"
+      loop: "{{ step_ca_cert_files }}"
+      register: step_ca_slurped_certs
+      no_log: true
+
+    - name: Combine slurp results
+      ansible.builtin.set_fact:
+        step_ca_slurp_results: "{{ step_ca_slurped_keys.results + step_ca_slurped_certs.results }}"
+      no_log: true
+
+    - name: Build filename-to-content mapping
+      ansible.builtin.set_fact:
+        step_ca_backup_files: "{{ dict(step_ca_slurp_results | map(attribute='item') | zip(step_ca_slurp_results | map(attribute='content') | map('b64decode'))) }}"
+      no_log: true
+
+- name: Write and SOPS-encrypt the step-ca backup bundle
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    aether_root: "{{ lookup('env', 'PWD') }}"
+    step_ca_backup_file: "{{ aether_root }}/secrets/step-ca-backup.yml"
+    step_ca_backup_document:
+      step_ca_backup:
+        source_host: step-ca
+        source_ip: "{{ hostvars['step-ca'].ansible_host }}"
+        ca_home: /etc/step-ca
+        backed_up_at: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+        excludes: >-
+          password.txt and provisioner-password.txt (already backed up as
+          secrets.step_ca.password / secrets.step_ca.provisioner_password in
+          secrets/secrets.yml); the badger provisioner DB (provisioners are
+          re-created declaratively by deploy_step_ca.yml); *.old/*.bak
+          leftovers from a prior key rotation.
+        files: "{{ hostvars['step-ca'].step_ca_backup_files }}"
+  tasks:
+    - name: Write, encrypt, and protect the step-ca backup bundle
+      block:
+        - name: Write plaintext backup bundle (transient — encrypted next task)
+          ansible.builtin.copy:
+            content: "{{ step_ca_backup_document | to_nice_yaml(indent=2) }}"
+            dest: "{{ step_ca_backup_file }}"
+            mode: "0600"
+          no_log: true
+
+        - name: Encrypt backup bundle with SOPS
+          ansible.builtin.command:
+            cmd: "sops -e -i {{ step_ca_backup_file }}"
+          environment:
+            VAULT_ADDR: "{{ lookup('env', 'VAULT_ADDR') | default(omit) }}"
+            VAULT_TOKEN: "{{ lookup('env', 'VAULT_TOKEN') | default(omit) }}"
+          no_log: true
+      rescue:
+        - name: Remove plaintext backup bundle after failed encryption
+          ansible.builtin.file:
+            path: "{{ step_ca_backup_file }}"
+            state: absent
+
+        - name: Fail loudly about the aborted backup
+          ansible.builtin.fail:
+            msg: >-
+              step-ca backup encryption failed and the plaintext bundle was
+              removed. Check VAULT_ADDR/VAULT_TOKEN (task login) and AWS/age
+              fallback availability, then re-run task backup:step-ca.

@@ -21,3 +21,6 @@
 
 - name: Provision AWS Trust Anchor for IAM Roles Anywhere
   import_playbook: provision_aws_trust.yml
+
+- name: Back up step-ca CA key material to SOPS
+  import_playbook: backup_keys.yml

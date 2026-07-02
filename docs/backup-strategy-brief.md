@@ -54,7 +54,7 @@ The lab *intends* 3-2-1 but currently isn't there:
 | etcd / cluster state | Talos etcd | ✅ scheduled Talos snapshot → `/mnt/hdd/data/backups/talos-etcd` | ✅ included in the scheduled Backrest `/mnt/hdd/data` offsite snapshot |
 | tofu state | S3+DynamoDB | ✅ (encrypted) | ✅ |
 | SOPS secrets | git | ✅ | ✅ |
-| **step-ca CA key** | identity VM | ❌ **no backup** | ❌ |
+| **step-ca CA key** | identity VM | ✅ SOPS-encrypted in git (`secrets/step-ca-backup.yml`, `task backup:step-ca`) | ⚠️ offline copy (USB/paper next to the age key) still recommended, not yet done |
 | restic repo password | backrest `config.json` only | ⚠️ **not in SOPS** | ❌ |
 
 **Existing mechanisms**
@@ -125,7 +125,7 @@ HL15) remains the "proper" long-term home if neo's coupling becomes painful.
 | Databases | Ceph RBD (`ceph-rbd`, NVMe) | **CNPG** data PVCs stay on Ceph NVMe; WAL+base backups → SeaweedFS on neo/smith (PITR) | mirror Seaweed objects into Backrest source tree → AWS |
 | Non-DB RBD PVCs | Ceph RBD | **k8up** restic → SeaweedFS on neo | sweep → AWS |
 | etcd | Talos | scheduled `talosctl etcd snapshot` → backup-stack now; move to neo/copy ② later | `/mnt/hdd/data` Backrest plan → AWS |
-| PKI / secrets | step-ca / git | — | step-ca CA key backup (new); restic pw → SOPS |
+| PKI / secrets | step-ca / git | — | step-ca CA key backed up to `secrets/step-ca-backup.yml` (done, `task backup:step-ca`); restic pw → SOPS |
 
 ## 4. Component decisions
 
@@ -160,9 +160,10 @@ HL15) remains the "proper" long-term home if neo's coupling becomes painful.
 7. **etcd** — scheduled `talosctl etcd snapshot` now runs on backup-stack and writes to
    `/mnt/hdd/data/backups/talos-etcd` so the existing `/mnt/hdd/data` Backrest plan can sweep it
    offsite. Move the local copy to neo/copy ② when that tier exists.
-8. **PKI/secrets gaps** — back up the **step-ca CA key** (encrypted, offsite); **seed the restic
-   repo password into SOPS** (today it exists only in `config.json` — lose it and the repo is
-   unrecoverable).
+8. **PKI/secrets gaps** — the **step-ca CA key** is now backed up (SOPS-encrypted in git via
+   `task backup:step-ca`); an offline copy (USB/paper) next to the age key is still recommended
+   but not yet done. **Seed the restic repo password into SOPS** (today it exists only in
+   `config.json` — lose it and the repo is unrecoverable) remains outstanding.
 
 ## 5. Hardening fixes (cross-cutting)
 
@@ -185,8 +186,8 @@ HL15) remains the "proper" long-term home if neo's coupling becomes painful.
 - **P1 — close the worst gaps:** stand up the **neo NAS** (HBA + drives + ZFS pool); interim DB
   protection is now live (per-DB `pg_dump`/`mongodump` CronJobs → SeaweedFS bucket →
   backup-stack mirror under `/mnt/hdd/data` → Backrest offsite) while CNPG is built; flip reclaim
-  policy; back up step-ca CA key; seed restic password to SOPS; deploy sanoid; expand backup
-  alerting.
+  policy; step-ca CA key backup done (`task backup:step-ca`); seed restic password to SOPS; deploy
+  sanoid; expand backup alerting.
 - **P2 — databases done right:** CNPG operator + `ceph-rbd` storage guardrail are live; Miniflux,
   Hoppscotch, Coder, Temporal, Affine, OpenWebUI, LiteLLM, Nextcloud, Matrix, and Immich are
   migrated. Next: Barman plugin/WAL archiving to SeaweedFS, then migrate remaining Postgres

@@ -158,3 +158,18 @@ proof run on 2026-06-27 created a 412MB snapshot; the scheduled 2026-06-28 run c
 snapshot, and the scheduled Backrest `/mnt/hdd/data` offsite snapshot includes both files.
 Snapshot generation emits `aether_talos_etcd_snapshot_*` metrics through the `aether-restic`
 Prometheus scrape. Grafana alerts cover failed and stale Talos etcd snapshots.
+
+## PKI — step-ca CA Key Backup
+
+The step-ca root/intermediate CA private keys and the SSH host/user CA keys are backed up to
+`secrets/step-ca-backup.yml`, SOPS-encrypted the same way as `secrets/secrets.yml`.
+
+- `task backup:step-ca` runs `ansible/playbooks/step_ca/backup_keys.yml`, which slurps the key
+  PEMs from `/etc/step-ca/secrets/` and the matching public certs from `/etc/step-ca/certs/` on
+  the `step-ca` LXC, then encrypts the bundle in place with `sops -e -i`.
+- Excludes `password.txt`/`provisioner-password.txt` (already stored in `secrets/secrets.yml` as
+  `secrets.step_ca.password` / `secrets.step_ca.provisioner_password`) and the badger provisioner
+  DB (provisioners are re-created declaratively by `deploy_step_ca.yml`).
+- This gives the CA key material the same protection as other SOPS secrets (git history, and
+  offsite once pushed to the remote). An offline copy (USB/paper, next to the age key) is still
+  recommended and not yet done.
