@@ -40,8 +40,8 @@ locals {
   }
 
   google = {
-    project_id         = lookup(data.sops_file.secrets.data, "google.project_id", "")
-    billing_account_id = lookup(data.sops_file.secrets.data, "google.billing_account_id", "")
+    project_id         = data.sops_file.secrets.data["google.project_id"]
+    billing_account_id = data.sops_file.secrets.data["google.billing_account_id"]
   }
 
   litellm_google_maps_api_key = try(

@@ -276,15 +276,15 @@ resource "kubernetes_secret_v1" "hermes_env" {
       QBITTORRENT_USERNAME = var.secrets["qbittorrent.username"]
       QBITTORRENT_PASSWORD = var.secrets["qbittorrent.password"]
       SABNZBD_API_KEY      = var.secrets["sabnzbd.api_key"]
-      SONARR_API_KEY       = lookup(var.secrets, "sonarr.api_key", "")
-      RADARR_API_KEY       = lookup(var.secrets, "radarr.api_key", "")
-      LIDARR_API_KEY       = lookup(var.secrets, "lidarr.api_key", "")
+      SONARR_API_KEY       = var.secrets["sonarr.api_key"]
+      RADARR_API_KEY       = var.secrets["radarr.api_key"]
+      LIDARR_API_KEY       = var.secrets["lidarr.api_key"]
       PROWLARR_API_KEY     = var.secrets["prowlarr.api_key"]
     } : {},
     each.key == "beryl" ? {
       JELLYFIN_API_KEY    = var.secrets["jellyfin.beryl_api_key"]
       HASS_TOKEN          = var.secrets["homeassistant.beryl_token"]
-      LITELLM_MCP_API_KEY = lookup(var.secrets, "litellm.virtual_keys.hermes_beryl", "")
+      LITELLM_MCP_API_KEY = var.secrets["litellm.virtual_keys.hermes_beryl"]
     } : {}
   )
 

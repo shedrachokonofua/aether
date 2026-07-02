@@ -72,7 +72,7 @@ resource "kubernetes_secret_v1" "orion_env" {
     SQLITE_DATABASE_PATH = "/data/orion.sqlite"
     # News widget → self-hosted Miniflux (API key minted in Miniflux, stored in SOPS).
     MINIFLUX_URL     = "https://miniflux.home.shdr.ch"
-    MINIFLUX_API_KEY = lookup(var.secrets, "miniflux.orion_api_key", "")
+    MINIFLUX_API_KEY = var.secrets["miniflux.orion_api_key"]
     # AI summary / search → self-hosted LiteLLM (dedicated orion virtual key in SOPS).
     LITELLM_URL     = "https://litellm.home.shdr.ch/v1"
     LITELLM_API_KEY = var.secrets["litellm.virtual_keys.orion"]
