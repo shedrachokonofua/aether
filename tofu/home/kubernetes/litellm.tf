@@ -11,6 +11,7 @@ locals {
   litellm_time_mcp_image      = "docker.io/theo01/mcp-time:latest"
   litellm_google_maps_image   = "docker.io/node:22-slim"
   litellm_google_maps_package = "@cablate/mcp-google-map@0.0.52"
+  litellm_affine_mcp_image    = "ghcr.io/dawncr0w/affine-mcp-server:latest"
   litellm_host                = "litellm.home.shdr.ch"
   litellm_ns                  = kubernetes_namespace_v1.infra.metadata[0].name
   litellm_labels              = { app = "litellm" }
@@ -19,10 +20,13 @@ locals {
   litellm_coingecko_port      = 8002
   litellm_time_mcp_port       = 8003
   litellm_google_maps_port    = 8004
+  litellm_affine_mcp_port     = 8005
   litellm_postgres_port       = 5432
+  litellm_cnpg_cluster        = "litellm-cnpg"
+  litellm_affine_workspace_id = "5e3fe4c1-8c87-489b-95a5-77daa164a836"
   litellm_config_yaml = templatefile("${path.module}/litellm_config.yaml.tftpl", {
-    alphavantage_api_key = var.secrets["alphavantage_api_key"]
-    google_maps_enabled  = var.litellm_google_maps_enabled
+    affine_mcp_http_token = random_password.litellm_affine_mcp_http.result
+    google_maps_enabled   = var.litellm_google_maps_enabled
   })
   litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@localhost/litellm?sslmode=disable"
   litellm_registry_host = "registry.gitlab.home.shdr.ch"
@@ -40,20 +44,22 @@ resource "kubernetes_secret_v1" "litellm_env" {
 
   data = merge(
     {
-      LITELLM_MASTER_KEY = var.secrets["litellm.master_key"]
-      DATABASE_URL       = local.litellm_database_url
-      POSTGRES_DB        = "litellm"
-      POSTGRES_USER      = var.secrets["litellm.database_user"]
-      POSTGRES_PASSWORD  = var.secrets["litellm.database_password"]
-      OPENAI_API_KEY     = var.secrets["litellm.openai_api_key"]
-      ANTHROPIC_API_KEY  = var.secrets["litellm.anthropic_api_key"]
-      OPENROUTER_API_KEY = var.secrets["litellm.openrouter_api_key"]
-      OLLAMA_API_KEY     = var.secrets["litellm.ollama_cloud_api_key"]
-      XIAOMI_API_KEY     = var.secrets["litellm.xiaomi_api_key"]
-      CURSOR_API_KEY     = var.secrets["composer.cursor_api_key"]
-      FINVIZ_API_KEY     = var.secrets["finviz_api_key"]
-      COINGECKO_API_KEY  = var.secrets["coingecko_api_key"]
-      LITELLM_CONFIG_SHA = sha256(local.litellm_config_yaml)
+      LITELLM_MASTER_KEY    = var.secrets["litellm.master_key"]
+      DATABASE_URL          = local.litellm_database_url
+      POSTGRES_DB           = "litellm"
+      POSTGRES_USER         = var.secrets["litellm.database_user"]
+      POSTGRES_PASSWORD     = var.secrets["litellm.database_password"]
+      OPENAI_API_KEY        = var.secrets["litellm.openai_api_key"]
+      ANTHROPIC_API_KEY     = var.secrets["litellm.anthropic_api_key"]
+      OPENROUTER_API_KEY    = var.secrets["litellm.openrouter_api_key"]
+      OLLAMA_API_KEY        = var.secrets["litellm.ollama_cloud_api_key"]
+      XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
+      CURSOR_API_KEY        = var.secrets["composer.cursor_api_key"]
+      FINVIZ_API_KEY        = var.secrets["finviz_api_key"]
+      COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
+      AFFINE_API_TOKEN      = var.secrets["litellm.affine_api_token"]
+      AFFINE_MCP_HTTP_TOKEN = random_password.litellm_affine_mcp_http.result
+      LITELLM_CONFIG_SHA    = sha256(local.litellm_config_yaml)
     },
     var.litellm_google_maps_enabled ? {
       GOOGLE_MAPS_API_KEY = var.litellm_google_maps_api_key
@@ -61,6 +67,11 @@ resource "kubernetes_secret_v1" "litellm_env" {
   )
 
   type = "Opaque"
+}
+
+resource "random_password" "litellm_affine_mcp_http" {
+  length  = 48
+  special = false
 }
 
 resource "kubernetes_secret_v1" "litellm_config" {
@@ -150,7 +161,8 @@ resource "kubernetes_deployment_v1" "litellm" {
       metadata {
         labels = local.litellm_labels
         annotations = {
-          "aether.shdr.ch/config-sha" = sha256(local.litellm_config_yaml)
+          "aether.shdr.ch/config-sha"       = sha256(local.litellm_config_yaml)
+          "aether.shdr.ch/database-url-sha" = sha256(local.litellm_database_url)
         }
       }
 
@@ -451,6 +463,95 @@ resource "kubernetes_deployment_v1" "litellm" {
                   key  = "GOOGLE_MAPS_API_KEY"
                 }
               }
+            }
+          }
+        }
+
+        container {
+          name  = "affine-mcp-server"
+          image = local.litellm_affine_mcp_image
+
+          port {
+            container_port = local.litellm_affine_mcp_port
+            name           = "affine-mcp"
+          }
+
+          env {
+            name  = "MCP_TRANSPORT"
+            value = "http"
+          }
+
+          env {
+            name  = "PORT"
+            value = tostring(local.litellm_affine_mcp_port)
+          }
+
+          env {
+            name  = "AFFINE_MCP_HTTP_HOST"
+            value = "0.0.0.0"
+          }
+
+          env {
+            name  = "AFFINE_MCP_AUTH_MODE"
+            value = "bearer"
+          }
+
+          env {
+            name  = "AFFINE_BASE_URL"
+            value = "https://${local.affine_host}"
+          }
+
+          env {
+            name  = "AFFINE_WORKSPACE_ID"
+            value = local.litellm_affine_workspace_id
+          }
+
+          env {
+            name = "AFFINE_API_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "AFFINE_API_TOKEN"
+              }
+            }
+          }
+
+          env {
+            name = "AFFINE_MCP_HTTP_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "AFFINE_MCP_HTTP_TOKEN"
+              }
+            }
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/readyz"
+              port = local.litellm_affine_mcp_port
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/healthz"
+              port = local.litellm_affine_mcp_port
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 30
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
             }
           }
         }

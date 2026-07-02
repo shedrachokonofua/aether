@@ -75,7 +75,8 @@ The lab *intends* 3-2-1 but currently isn't there:
   volume path.
 - **Database protection** — interim dump jobs are live. CloudNativePG is installed with a
   `ceph-rbd` storage guardrail; Miniflux, Hoppscotch, Coder, Temporal, Affine, OpenWebUI,
-  LiteLLM, Nextcloud, Matrix, and Immich are migrated CNPG-backed app DBs.
+  Nextcloud, Matrix, and Immich are migrated CNPG-backed app DBs. LiteLLM has an adopted/staged
+  CNPG cluster, but the live app still writes to its in-pod Postgres sidecar.
 - **Kubernetes control-plane protection** — `backup-stack` runs `aether-talos-etcd-snapshot.timer`
   daily at 02:20, using the Tofu-generated Talos client config. A manual proof snapshot on
   2026-06-27 wrote a 412MB etcd snapshot to `/mnt/hdd/data/backups/talos-etcd`; the scheduled
@@ -84,9 +85,9 @@ The lab *intends* 3-2-1 but currently isn't there:
   the `aether-restic` exporter. Grafana alert rules cover failed and stale Talos etcd snapshots.
 - **Freshness alerts** — now cover PBS, DB dump CronJobs, restic metrics/exporter, Backrest/restic
   plan freshness, and Talos etcd snapshot success/staleness. Additional coverage is still needed
-  for future CNPG Barman/WAL, k8up, sanoid, and PBS remote-sync.
-- **Absent:** sanoid (configured only), Ceph snapshots, Velero/k8up/volsync, and CNPG Barman/WAL
-  archiving.
+  for broad CNPG Barman/WAL, k8up, sanoid, and PBS remote-sync.
+- **Absent or partial:** sanoid (configured only), Ceph snapshots, Velero/k8up/volsync, and broad
+  CNPG Barman/WAL archiving. Mnemo is the current exception with native CNPG object-store backup.
 
 ## 3. Target architecture — second failure domain on `neo`
 
@@ -189,9 +190,10 @@ HL15) remains the "proper" long-term home if neo's coupling becomes painful.
   policy; step-ca CA key backup done (`task backup:step-ca`); seed restic password to SOPS; deploy
   sanoid; expand backup alerting.
 - **P2 — databases done right:** CNPG operator + `ceph-rbd` storage guardrail are live; Miniflux,
-  Hoppscotch, Coder, Temporal, Affine, OpenWebUI, LiteLLM, Nextcloud, Matrix, and Immich are
-  migrated. Next: Barman plugin/WAL archiving to SeaweedFS, then migrate remaining Postgres
-  services one-by-one and retire the P1 pg_dump stopgap.
+  Hoppscotch, Coder, Temporal, Affine, OpenWebUI, Nextcloud, Matrix, and Immich are migrated.
+  LiteLLM's CNPG cluster is adopted but not cut over. Next: Barman plugin/WAL archiving to
+  SeaweedFS, then migrate remaining Postgres services one-by-one and retire the P1 pg_dump
+  stopgap.
 - **P3 — round out copy ②:** k8up for non-DB RBD PVCs; move etcd snapshot local copy to neo;
   PBS remote-sync + `zfs send` to neo.
 - **P4 — prove it:** RTO/RPO targets per class; first **restore drill** (Vaultwarden + one Postgres

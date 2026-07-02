@@ -49,8 +49,9 @@ locals {
   element_port         = 8080
   matrix_pg_port       = 5432
 
-  matrix_pg_service = "matrix-postgres.${local.matrix_ns}.svc.cluster.local"
-  matrix_pg_user    = var.secrets["matrix.database_user"]
+  matrix_cnpg_cluster = "matrix-cnpg"
+  matrix_pg_service   = "${local.matrix_cnpg_cluster}-rw.${local.matrix_ns}.svc.cluster.local"
+  matrix_pg_user      = var.secrets["matrix.database_user"]
 }
 
 # =============================================================================
@@ -189,7 +190,7 @@ resource "kubernetes_service_v1" "matrix_postgres" {
 # =============================================================================
 
 resource "kubernetes_config_map_v1" "synapse_config" {
-  depends_on = [kubernetes_namespace_v1.matrix]
+  depends_on = [kubectl_manifest.matrix_cnpg_cluster]
   metadata {
     name      = "synapse-config"
     namespace = local.matrix_ns

@@ -48,8 +48,10 @@ locals {
   nextcloud_postgres_port = 5432
   nextcloud_redis_port    = 6379
 
-  nextcloud_db_name = "nextcloud"
-  nextcloud_db_user = "nextcloud"
+  nextcloud_db_name      = "nextcloud"
+  nextcloud_db_user      = "nextcloud"
+  nextcloud_cnpg_cluster = "nextcloud-cnpg"
+  nextcloud_db_host      = "${local.nextcloud_cnpg_cluster}-rw.${local.nextcloud_namespace}.svc.cluster.local"
 
   nextcloud_nfs_share = "/mnt/hdd/data/nextcloud"
 
@@ -198,7 +200,7 @@ resource "kubernetes_secret_v1" "nextcloud_install_state" {
       secret       = var.secrets["nextcloud.secret"]
       instanceid   = var.secrets["nextcloud.instanceid"]
       dbname       = local.nextcloud_db_name
-      dbhost       = "nextcloud-postgres.${local.nextcloud_namespace}.svc.cluster.local"
+      dbhost       = local.nextcloud_db_host
       dbuser       = "oc_admin"
       dbpassword   = var.secrets["nextcloud.dbpassword"]
       version      = local.nextcloud_installed_version
@@ -639,7 +641,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
 
           env {
             name  = "POSTGRES_HOST"
-            value = "nextcloud-postgres.${local.nextcloud_namespace}.svc.cluster.local"
+            value = local.nextcloud_db_host
           }
 
           env {
@@ -915,7 +917,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
 
           env {
             name  = "POSTGRES_HOST"
-            value = "nextcloud-postgres.${local.nextcloud_namespace}.svc.cluster.local"
+            value = local.nextcloud_db_host
           }
 
           env {

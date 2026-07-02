@@ -15,7 +15,7 @@ locals {
     affine = {
       namespace = "affine"
       name      = "affine-postgres"
-      service   = "affine-postgres"
+      service   = "${local.affine_cnpg_cluster}-rw"
       user      = "affine"
       database  = "affine"
       port      = 5432
@@ -60,7 +60,7 @@ locals {
     immich = {
       namespace = "immich"
       name      = "immich-postgres"
-      service   = "immich-postgres"
+      service   = "${local.immich_cnpg_cluster}-rw"
       user      = local.immich_db_user
       database  = local.immich_db_name
       port      = local.immich_postgres_port
@@ -78,7 +78,7 @@ locals {
     matrix = {
       namespace = "matrix"
       name      = "matrix-postgres"
-      service   = "matrix-postgres"
+      service   = "${local.matrix_cnpg_cluster}-rw"
       user      = local.matrix_pg_user
       database  = local.matrix_pg_user
       port      = local.matrix_pg_port
@@ -96,7 +96,7 @@ locals {
     nextcloud = {
       namespace = "nextcloud"
       name      = "nextcloud-postgres"
-      service   = "nextcloud-postgres"
+      service   = "${local.nextcloud_cnpg_cluster}-rw"
       user      = local.nextcloud_db_user
       database  = local.nextcloud_db_name
       port      = local.nextcloud_postgres_port
@@ -105,7 +105,7 @@ locals {
     openwebui = {
       namespace = "infra"
       name      = "openwebui-postgres"
-      service   = local.postgres_service
+      service   = "${local.openwebui_cnpg_cluster}-rw"
       user      = local.postgres_user
       database  = local.postgres_db
       port      = local.postgres_port

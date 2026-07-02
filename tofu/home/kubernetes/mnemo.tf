@@ -97,6 +97,7 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
     helm_release.cnpg,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.mnemo_cnpg_app,
+    kubernetes_secret_v1.db_backup_s3["infra"],
   ]
 
   yaml_body = yamlencode({
@@ -119,6 +120,34 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
+      }
+      backup = {
+        target          = "primary"
+        retentionPolicy = "14d"
+        barmanObjectStore = {
+          destinationPath = "s3://${local.db_backup_bucket}/cnpg/${local.mnemo_cnpg}"
+          endpointURL     = local.db_backup_s3_endpoint
+          s3Credentials = {
+            accessKeyId = {
+              name = kubernetes_secret_v1.db_backup_s3[local.mnemo_namespace].metadata[0].name
+              key  = "AWS_ACCESS_KEY_ID"
+            }
+            secretAccessKey = {
+              name = kubernetes_secret_v1.db_backup_s3[local.mnemo_namespace].metadata[0].name
+              key  = "AWS_SECRET_ACCESS_KEY"
+            }
+            region = {
+              name = kubernetes_secret_v1.db_backup_s3[local.mnemo_namespace].metadata[0].name
+              key  = "AWS_DEFAULT_REGION"
+            }
+          }
+          wal = {
+            compression = "gzip"
+          }
+          data = {
+            compression = "gzip"
+          }
+        }
       }
       bootstrap = {
         initdb = {
@@ -490,8 +519,10 @@ resource "kubectl_manifest" "mnemo_db_backup" {
       namespace = local.mnemo_namespace
     }
     spec = {
-      schedule             = "0 2 * * *" # Daily at 2am
+      schedule             = "0 0 2 * * *" # Daily at 02:00 UTC; CNPG schedules include seconds.
       backupOwnerReference = "self"
+      method               = "barmanObjectStore"
+      target               = "primary"
       cluster = {
         name = local.mnemo_cnpg
       }

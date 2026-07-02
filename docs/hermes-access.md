@@ -12,7 +12,7 @@ Beryl is the private offline personal assistant.
 | Matrix | Beryl bot account via stored access token, private home room for proactive output | Wired |
 | Jellyfin | Beryl-specific API key | Wired |
 | Notes and documents | AFFiNE via community `affine-mcp-server` on LiteLLM MCP | Wired |
-| LiteLLM MCP | Full aggregate (time, firecrawl, finviz, alpha_vantage, affine, …) | Wired |
+| LiteLLM MCP | Full aggregate (time, firecrawl, finviz, affine, Google Maps when enabled, ...) | Wired |
 | Images and screenshots | Private read/search workspace with local vision | To wire |
 | Home Assistant | Limited bot token through Hermes native HA tools + gateway platform with narrow event filters | Wired |
 | Web/Firecrawl/cloud APIs | SearXNG + Firecrawl extract + LiteLLM MCP sidecars | Wired |

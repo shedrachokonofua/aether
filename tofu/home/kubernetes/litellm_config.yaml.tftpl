@@ -285,12 +285,14 @@ mcp_servers:
     url: "http://localhost:8003/mcp"
   firecrawl:
     url: "http://firecrawl.infra.svc.cluster.local:3007/mcp"
-  alpha_vantage:
-    url: "https://mcp.alphavantage.co/mcp?apikey=${alphavantage_api_key}"
   # coingecko:
   #   url: "http://localhost:8002/"
   finviz:
     url: "http://localhost:8000/mcp"
+  affine:
+    url: "http://localhost:8005/mcp"
+    auth_type: bearer_token
+    auth_value: "${affine_mcp_http_token}"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"

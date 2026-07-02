@@ -43,6 +43,10 @@ locals {
   affine_pg_labels        = { app = "affine-postgres" }
   affine_redis_labels     = { app = "affine-redis" }
   affine_manticore_labels = { app = "affine-manticore" }
+
+  affine_cnpg_cluster = "affine-cnpg"
+  affine_db_host      = "${local.affine_cnpg_cluster}-rw.${local.affine_ns}.svc.cluster.local"
+  affine_db_url       = "postgresql://affine:${random_password.affine_db_password.result}@${local.affine_db_host}:${local.affine_pg_port}/affine"
 }
 
 resource "kubernetes_secret_v1" "affine_postgres" {
@@ -340,7 +344,7 @@ resource "kubernetes_service_v1" "affine_manticore" {
 # Migration job — runs DB migrations before server starts; idempotent
 resource "kubernetes_job_v1" "affine_migration" {
   depends_on = [
-    kubernetes_service_v1.affine_postgres,
+    kubectl_manifest.affine_cnpg_cluster,
     kubernetes_service_v1.affine_redis,
   ]
   metadata {
@@ -363,7 +367,7 @@ resource "kubernetes_job_v1" "affine_migration" {
           }
           env {
             name  = "DATABASE_URL"
-            value = "postgresql://affine:${random_password.affine_db_password.result}@affine-postgres.${local.affine_ns}.svc.cluster.local:${local.affine_pg_port}/affine"
+            value = local.affine_db_url
           }
           env {
             name  = "AFFINE_INDEXER_ENABLED"
@@ -420,7 +424,7 @@ resource "kubernetes_deployment_v1" "affine" {
           image = "docker.io/postgres:16-alpine"
           command = [
             "sh", "-c",
-            "until pg_isready -h affine-postgres.${local.affine_ns}.svc.cluster.local -U affine; do sleep 2; done; PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h affine-postgres.${local.affine_ns}.svc.cluster.local -U affine -d affine -v ON_ERROR_STOP=1 -c \"DELETE FROM app_configs WHERE id IN ('copilot.providers.openai', 'copilot.scenarios');\"",
+            "until pg_isready -h ${local.affine_db_host} -U affine; do sleep 2; done; PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h ${local.affine_db_host} -U affine -d affine -v ON_ERROR_STOP=1 -c \"DELETE FROM app_configs WHERE id IN ('copilot.providers.openai', 'copilot.scenarios');\"",
           ]
           env_from {
             secret_ref {
@@ -442,7 +446,7 @@ resource "kubernetes_deployment_v1" "affine" {
           }
           env {
             name  = "DATABASE_URL"
-            value = "postgresql://affine:${random_password.affine_db_password.result}@affine-postgres.${local.affine_ns}.svc.cluster.local:${local.affine_pg_port}/affine"
+            value = local.affine_db_url
           }
           env {
             name  = "AFFINE_INDEXER_ENABLED"

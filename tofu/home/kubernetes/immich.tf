@@ -28,6 +28,9 @@ locals {
   immich_db_name = "immich"
   immich_db_user = "immich"
 
+  immich_cnpg_cluster = "immich-cnpg"
+  immich_db_host      = "${local.immich_cnpg_cluster}-rw.${local.immich_namespace}.svc.cluster.local"
+
   immich_server_labels   = { app = "immich-server" }
   immich_ml_labels       = { app = "immich-ml" }
   immich_postgres_labels = { app = "immich-postgres" }
@@ -642,7 +645,7 @@ resource "kubernetes_service_v1" "immich_ml" {
 
 resource "kubernetes_deployment_v1" "immich_server" {
   depends_on = [
-    kubernetes_service_v1.immich_postgres,
+    kubectl_manifest.immich_cnpg_cluster,
     kubernetes_service_v1.immich_redis,
     kubernetes_service_v1.immich_ml,
     kubernetes_persistent_volume_claim_v1.immich_library,
@@ -683,7 +686,7 @@ resource "kubernetes_deployment_v1" "immich_server" {
 
           env {
             name  = "DB_HOSTNAME"
-            value = "immich-postgres.${local.immich_namespace}.svc.cluster.local"
+            value = local.immich_db_host
           }
 
           env {

@@ -4,17 +4,19 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  openwebui_namespace = "infra"
-  openwebui_host      = "openwebui.home.shdr.ch"
-  openwebui_image     = "ghcr.io/open-webui/open-webui:latest"
-  mcpo_image          = "ghcr.io/open-webui/mcpo:main"
-  open_terminal_image = "ghcr.io/open-webui/open-terminal:slim"
-  postgres_image      = "pgvector/pgvector:pg16"
-  postgres_service    = "openwebui-postgres"
-  postgres_db         = "openwebui"
-  postgres_user       = "openwebui"
-  postgres_port       = 5432
-  postgres_url        = "postgresql://${local.postgres_user}:${random_password.openwebui_postgres_password.result}@${local.postgres_service}.${local.openwebui_namespace}.svc.cluster.local:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
+  openwebui_namespace    = "infra"
+  openwebui_host         = "openwebui.home.shdr.ch"
+  openwebui_image        = "ghcr.io/open-webui/open-webui:latest"
+  mcpo_image             = "ghcr.io/open-webui/mcpo:main"
+  open_terminal_image    = "ghcr.io/open-webui/open-terminal:slim"
+  postgres_image         = "pgvector/pgvector:pg16"
+  postgres_service       = "openwebui-postgres"
+  postgres_db            = "openwebui"
+  postgres_user          = "openwebui"
+  postgres_port          = 5432
+  openwebui_cnpg_cluster = "openwebui-cnpg"
+  postgres_host          = "${local.openwebui_cnpg_cluster}-rw.${local.openwebui_namespace}.svc.cluster.local"
+  postgres_url           = "postgresql://${local.postgres_user}:${random_password.openwebui_postgres_password.result}@${local.postgres_host}:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
 
   openwebui_tool_server_connections = jsonencode([{
     type      = "openapi"
@@ -337,11 +339,11 @@ resource "kubernetes_service_v1" "openwebui_postgres" {
 
 resource "kubernetes_deployment_v1" "openwebui" {
   depends_on = [
+    kubectl_manifest.openwebui_cnpg_cluster,
     kubernetes_secret_v1.openwebui_env,
     kubernetes_secret_v1.openwebui_mcpo_config,
     kubernetes_persistent_volume_claim_v1.openwebui_data,
     kubernetes_persistent_volume_claim_v1.openwebui_terminal_data,
-    kubernetes_service_v1.openwebui_postgres
   ]
 
   metadata {
