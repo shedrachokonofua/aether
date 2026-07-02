@@ -284,7 +284,7 @@ resource "kubernetes_secret_v1" "hermes_env" {
     each.key == "beryl" ? {
       JELLYFIN_API_KEY    = var.secrets["jellyfin.beryl_api_key"]
       HASS_TOKEN          = var.secrets["homeassistant.beryl_token"]
-      LITELLM_MCP_API_KEY = var.secrets["litellm.virtual_keys.hermes_beryl"]
+      LITELLM_MCP_API_KEY = lookup(var.secrets, "litellm.virtual_keys.hermes_beryl", "")
     } : {}
   )
 
@@ -476,8 +476,9 @@ resource "kubernetes_deployment_v1" "hermes" {
         }
         annotations = merge(
           {
-            "checksum/config" = sha256(each.value.config)
-            "checksum/env"    = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.hermes_env[each.key].data)))
+            "checksum/config"    = sha256(each.value.config)
+            "checksum/env"       = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.hermes_env[each.key].data)))
+            "checksum/bootstrap" = sha256(jsonencode(kubernetes_config_map_v1.hermes_bootstrap[each.key].data))
           },
           each.key == "tungsten" ? {
             "checksum/skills" = sha256(jsonencode(kubernetes_config_map_v1.hermes_tungsten_skills.data))
