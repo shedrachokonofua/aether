@@ -583,9 +583,9 @@
           },
           {
             "group": "Personal",
-            "icon": "compress",
-            "title": "Mazanoke",
-            "url": "https://mazanoke.d.home.shdr.ch",
+            "icon": "image",
+            "title": "SnapOtter",
+            "url": "https://snapotter.home.shdr.ch",
             "color": "#26A69A",
             "targetBlank": true
           },
@@ -2181,7 +2181,7 @@
     {
       "type": "stat",
       "id": 109,
-      "title": "Mazanoke",
+      "title": "SnapOtter",
       "datasource": {
         "uid": "$datasource"
       },
@@ -2197,8 +2197,8 @@
           "unit": "Bps",
           "links": [
             {
-              "title": "Open Mazanoke",
-              "url": "https://mazanoke.d.home.shdr.ch",
+              "title": "Open SnapOtter",
+              "url": "https://snapotter.home.shdr.ch",
               "targetBlank": true
             }
           ],
@@ -2238,7 +2238,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"mazanoke\\.d\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate(caddy_http_response_size_bytes_sum{host=~\"snapotter\\.home\\.shdr\\.ch\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "Keep",
           "refId": "A"
         }
