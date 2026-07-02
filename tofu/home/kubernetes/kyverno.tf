@@ -94,6 +94,9 @@ resource "kubernetes_secret_v1" "dockerhub_pull_secret_source" {
   metadata {
     name      = local.dockerhub_pull_secret_name
     namespace = helm_release.kyverno.namespace
+    labels = {
+      "generate.kyverno.io/clone-source" = ""
+    }
   }
 
   type = "kubernetes.io/dockerconfigjson"

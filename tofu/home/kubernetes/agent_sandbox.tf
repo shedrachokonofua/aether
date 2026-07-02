@@ -14,9 +14,10 @@
 # Sandboxes pin to amd64 (Pi nodes excluded — Cloud Hypervisor needs GICv3).
 
 locals {
-  agent_sandbox_version    = "v0.4.5"
-  agent_sandbox_controller = "agent-sandbox-system" # created by upstream manifest
-  agent_sandbox_workloads  = "sandboxes"            # where Sandbox CRs live
+  agent_sandbox_version                  = "v0.4.5"
+  agent_sandbox_controller               = "agent-sandbox-system" # created by upstream manifest
+  agent_sandbox_workloads                = "sandboxes"            # where Sandbox CRs live
+  agent_sandbox_controller_deployment_id = "/apis/apps/v1/namespaces/${local.agent_sandbox_controller}/deployments/agent-sandbox-controller"
 }
 
 # =============================================================================
@@ -41,8 +42,51 @@ data "kubectl_file_documents" "agent_sandbox_extensions" {
   content = data.http.agent_sandbox_extensions_manifest.response_body
 }
 
+locals {
+  agent_sandbox_controller_resources = {
+    requests = {
+      cpu    = "50m"
+      memory = "64Mi"
+    }
+    limits = {
+      cpu    = "500m"
+      memory = "256Mi"
+    }
+  }
+
+  agent_sandbox_extensions_manifests = {
+    for id, manifest in data.kubectl_file_documents.agent_sandbox_extensions.manifests :
+    id => id == local.agent_sandbox_controller_deployment_id ? yamlencode(merge(
+      yamldecode(manifest),
+      {
+        spec = merge(yamldecode(manifest).spec, {
+          template = merge(yamldecode(manifest).spec.template, {
+            spec = merge(yamldecode(manifest).spec.template.spec, {
+              nodeSelector = merge(
+                try(yamldecode(manifest).spec.template.spec.nodeSelector, {}),
+                { "kubernetes.io/arch" = "amd64" }
+              )
+              containers = [
+                for container in yamldecode(manifest).spec.template.spec.containers :
+                merge(container, {
+                  resources = container.name == "agent-sandbox-controller" ? local.agent_sandbox_controller_resources : try(container.resources, {})
+                })
+              ]
+            })
+          })
+        })
+      }
+    )) : manifest
+  }
+}
+
 resource "kubectl_manifest" "agent_sandbox_core" {
-  for_each = data.kubectl_file_documents.agent_sandbox_core.manifests
+  # extensions.yaml ships the controller Deployment with the --extensions flag;
+  # keep that object under one kubectl_manifest address to avoid SSA drift loops.
+  for_each = {
+    for id, manifest in data.kubectl_file_documents.agent_sandbox_core.manifests : id => manifest
+    if id != local.agent_sandbox_controller_deployment_id
+  }
 
   depends_on = [helm_release.cilium]
 
@@ -51,7 +95,7 @@ resource "kubectl_manifest" "agent_sandbox_core" {
 }
 
 resource "kubectl_manifest" "agent_sandbox_extensions" {
-  for_each = data.kubectl_file_documents.agent_sandbox_extensions.manifests
+  for_each = local.agent_sandbox_extensions_manifests
 
   # Extensions reference CRDs / RBAC defined by the core manifest.
   depends_on = [kubectl_manifest.agent_sandbox_core]

@@ -170,6 +170,12 @@ resource "kubernetes_deployment_v1" "orion" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
+    ]
+  }
 }
 
 resource "kubernetes_service_v1" "orion" {

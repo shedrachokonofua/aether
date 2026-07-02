@@ -4,7 +4,7 @@
 # Serverless platform for scale-to-zero workloads
 
 locals {
-  knative_version          = "1.20"
+  knative_version          = "1.20.0"
   knative_operator_version = "1.20.0"
   knative_domain           = "home.shdr.ch"
 }
