@@ -1431,6 +1431,45 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "memos_roles" {
 }
 
 # =============================================================================
+# SnapOtter OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "snapotter" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "snapotter"
+  name      = "SnapOtter"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://snapotter.home.shdr.ch"
+  base_url  = "https://snapotter.home.shdr.ch"
+  admin_url = "https://snapotter.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://snapotter.home.shdr.ch/api/auth/oidc/callback",
+  ]
+
+  web_origins = [
+    "https://snapotter.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "snapotter_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.snapotter.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# =============================================================================
 # nextExplorer (file browser, replaces filestash on the media-stack VM)
 # =============================================================================
 # Login is restricted to users with the realm `admin` role at the Keycloak
