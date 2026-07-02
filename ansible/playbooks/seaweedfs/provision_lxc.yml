@@ -1,0 +1,139 @@
+---
+# Provision SeaweedFS as a NixOS LXC on smith.
+#
+# Nix owns the SeaweedFS daemons. This playbook creates the LXC, ensures the
+# host ZFS dataset exists, and pushes the S3 credentials file out of SOPS.
+
+- name: Provision SeaweedFS LXC (NixOS)
+  hosts: smith
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    seaweedfs_vm: "{{ vm.seaweedfs }}"
+    nixos_template: "cephfs:vztmpl/nixos-base-lxc.tar.xz"
+    nixos_template_path: "/mnt/pve/cephfs/template/cache/nixos-base-lxc.tar.xz"
+    seaweedfs_dataset: "hdd/seaweedfs"
+    seaweedfs_mountpoint: "/mnt/hdd/seaweedfs"
+    seaweedfs_s3_config_remote: "/mnt/hdd/seaweedfs/secrets/s3.json"
+    seaweedfs_s3_config_content: |
+      {
+        "identities": [
+          {
+            "name": "admin",
+            "credentials": [
+              {
+                "accessKey": "{{ secrets.seaweedfs.s3_admin_access_key }}",
+                "secretKey": "{{ secrets.seaweedfs.s3_admin_secret_key }}"
+              }
+            ],
+            "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+          }
+        ]
+      }
+
+  tasks:
+    - name: Check if base image exists on cephfs
+      ansible.builtin.stat:
+        path: "{{ nixos_template_path }}"
+      register: base_image
+
+    - name: Fail if base image not found
+      ansible.builtin.fail:
+        msg: |
+          NixOS base image not found at {{ nixos_template }}.
+          Build and upload it first: task nix:upload-lxc-image
+      when: not base_image.stat.exists
+
+    - name: Check if SeaweedFS ZFS dataset exists
+      ansible.builtin.command: zfs list -H {{ seaweedfs_dataset }}
+      register: seaweedfs_dataset_check
+      failed_when: false
+      changed_when: false
+
+    - name: Create SeaweedFS ZFS dataset
+      ansible.builtin.command: >
+        zfs create
+        -o compression=lz4
+        -o mountpoint={{ seaweedfs_mountpoint }}
+        {{ seaweedfs_dataset }}
+      when: seaweedfs_dataset_check.rc != 0
+
+    - name: Ensure SeaweedFS dataset mountpoint permissions
+      ansible.builtin.file:
+        path: "{{ seaweedfs_mountpoint }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Check if SeaweedFS LXC exists
+      ansible.builtin.command: pct status {{ seaweedfs_vm.id }}
+      register: lxc_exists
+      failed_when: false
+      changed_when: false
+
+    - name: Stop SeaweedFS LXC
+      ansible.builtin.command: pct stop {{ seaweedfs_vm.id }}
+      when: lxc_exists.rc == 0
+      register: stop_result
+      failed_when: false
+      changed_when: stop_result.rc == 0
+
+    - name: Wait for SeaweedFS LXC to stop
+      ansible.builtin.command: pct status {{ seaweedfs_vm.id }}
+      register: lxc_status
+      until: "'stopped' in lxc_status.stdout"
+      retries: 30
+      delay: 2
+      when: lxc_exists.rc == 0 and stop_result.rc == 0
+      changed_when: false
+
+    - name: Delete SeaweedFS LXC
+      ansible.builtin.command: pct destroy {{ seaweedfs_vm.id }} --purge
+      when: lxc_exists.rc == 0
+      register: delete_result
+      failed_when: false
+      changed_when: delete_result.rc == 0
+
+    - name: Create SeaweedFS LXC
+      ansible.builtin.command: >
+        pct create {{ seaweedfs_vm.id }}
+        {{ nixos_template }}
+        --hostname {{ seaweedfs_vm.name }}
+        --cores {{ seaweedfs_vm.cores }}
+        --memory {{ seaweedfs_vm.memory }}
+        --rootfs local-lvm:{{ seaweedfs_vm.disk_gb }}
+        --net0 name=eth0,bridge=vmbr0,tag={{ seaweedfs_vm.vlan }},gw={{ seaweedfs_vm.gateway }},ip={{ seaweedfs_vm.ip }}/24
+        --nameserver {{ seaweedfs_vm.gateway }}
+        --mp0 {{ seaweedfs_mountpoint }},mp={{ seaweedfs_mountpoint }}
+        --features nesting=1
+        --unprivileged 0
+      changed_when: true
+
+    - name: Start SeaweedFS LXC
+      ansible.builtin.command: pct start {{ seaweedfs_vm.id }}
+      changed_when: true
+
+    - name: Wait for SeaweedFS SSH to be ready
+      ansible.builtin.wait_for:
+        host: "{{ seaweedfs_vm.ip }}"
+        port: 22
+        timeout: 120
+      delegate_to: localhost
+
+    - name: Create SeaweedFS secret directory in LXC
+      ansible.builtin.command: >
+        pct exec {{ seaweedfs_vm.id }}
+        -- /run/current-system/sw/bin/mkdir -p /mnt/hdd/seaweedfs/secrets
+      changed_when: true
+
+    - name: Write SeaweedFS S3 config into persistent mount
+      ansible.builtin.shell:
+        cmd: >
+          pct exec {{ seaweedfs_vm.id }}
+          -- /run/current-system/sw/bin/sh -c
+          'umask 022 && /run/current-system/sw/bin/cat > {{ seaweedfs_s3_config_remote | quote }} && /run/current-system/sw/bin/chmod 0644 {{ seaweedfs_s3_config_remote | quote }}'
+        stdin: "{{ seaweedfs_s3_config_content }}"
+      no_log: true
+      changed_when: true
