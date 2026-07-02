@@ -296,6 +296,10 @@ resource "kubectl_manifest" "coder_cnpg_cluster" {
       }]
     }
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "helm_release" "coder" {

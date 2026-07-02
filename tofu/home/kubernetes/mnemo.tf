@@ -16,6 +16,9 @@ locals {
   mnemo_db_service = "${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local"
   mnemo_db_url     = "postgresql://${local.mnemo_db_user}:${kubernetes_secret_v1.mnemo_cnpg_app.data["password"]}@${local.mnemo_db_service}:5432/${local.mnemo_db}?sslmode=disable"
 
+  mnemo_openwebui_db_host = "${local.openwebui_cnpg_cluster}-rw.${local.openwebui_namespace}.svc.cluster.local"
+  mnemo_openwebui_db_url  = "postgresql://${local.postgres_user}:${kubernetes_secret_v1.openwebui_cnpg_app.data["password"]}@${local.mnemo_openwebui_db_host}:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
+
   mnemo_seaweed_endpoint = "https://s3.seaweed.home.shdr.ch"
   mnemo_seaweed_bucket   = "mnemo-objects"
 
@@ -25,7 +28,10 @@ locals {
 # --- Secrets -----------------------------------------------------------------
 
 resource "kubernetes_secret_v1" "mnemo_env" {
-  depends_on = [kubernetes_namespace_v1.infra, kubernetes_secret_v1.openwebui_postgres]
+  depends_on = [
+    kubernetes_namespace_v1.infra,
+    kubernetes_secret_v1.openwebui_cnpg_app,
+  ]
 
   metadata {
     name      = "mnemo-env"
@@ -51,7 +57,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     LITELLM_EMBEDDING_MODEL    = "text-embedding-3-large"
 
     # OpenWebUI source (read-only API access)
-    OPENWEBUI_DATABASE_URL = "postgresql://openwebui:${kubernetes_secret_v1.openwebui_postgres.data["POSTGRES_PASSWORD"]}@openwebui-postgres.${local.mnemo_namespace}.svc.cluster.local:5432/openwebui?sslmode=disable"
+    OPENWEBUI_DATABASE_URL = local.mnemo_openwebui_db_url
     OPENWEBUI_API_KEY      = var.secrets["openwebui.mcpo_api_key"]
 
     # Matrix source (bot user access token)
@@ -142,6 +148,10 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
 
     }
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # --- Database Migration + Source Bootstrap -----------------------------------
@@ -361,6 +371,7 @@ resource "kubernetes_deployment_v1" "mnemo" {
           "prometheus.io/scrape" = "true"
           "prometheus.io/port"   = tostring(local.mnemo_port)
           "prometheus.io/path"   = "/metrics"
+          "checksum/env"         = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.mnemo_env.data)))
         }
       }
 

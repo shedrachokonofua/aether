@@ -260,6 +260,10 @@ resource "kubectl_manifest" "hoppscotch_cnpg_cluster" {
       }]
     }
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Migration job — runs prisma db push before the server starts; idempotent

@@ -176,6 +176,44 @@ resource "helm_release" "otel_collector_daemonset" {
   })]
 }
 
+resource "kubernetes_service_v1" "otel_collector_daemonset" {
+  depends_on = [helm_release.otel_collector_daemonset]
+
+  metadata {
+    name      = "otel-daemonset-opentelemetry-collector"
+    namespace = kubernetes_namespace_v1.system.metadata[0].name
+    labels = {
+      "app.kubernetes.io/instance" = "otel-daemonset"
+      "app.kubernetes.io/name"     = "opentelemetry-collector"
+      "component"                  = "agent-collector"
+    }
+  }
+
+  spec {
+    selector = {
+      "app.kubernetes.io/instance" = "otel-daemonset"
+      "app.kubernetes.io/name"     = "opentelemetry-collector"
+      "component"                  = "agent-collector"
+    }
+
+    port {
+      name        = "otlp"
+      port        = 4317
+      target_port = "otlp"
+      protocol    = "TCP"
+    }
+
+    port {
+      name        = "otlp-http"
+      port        = 4318
+      target_port = "otlp-http"
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
+  }
+}
+
 # =============================================================================
 # OTEL Collector - Deployment Mode
 # =============================================================================

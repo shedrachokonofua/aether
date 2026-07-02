@@ -268,6 +268,10 @@ resource "kubectl_manifest" "temporal_cnpg_cluster" {
       }]
     }
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "kubernetes_job_v1" "temporal_visibility_import" {

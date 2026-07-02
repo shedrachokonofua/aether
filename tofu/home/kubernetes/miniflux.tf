@@ -229,6 +229,10 @@ resource "kubectl_manifest" "miniflux_cnpg_cluster" {
       }]
     }
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # =============================================================================
