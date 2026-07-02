@@ -130,6 +130,17 @@ resource "kubernetes_manifest" "main_gateway" {
             }
           }
         },
+        {
+          name     = "home-root"
+          protocol = "HTTP"
+          port     = 80
+          hostname = "home.shdr.ch"
+          allowedRoutes = {
+            namespaces = {
+              from = "All"
+            }
+          }
+        },
       ]
     }
   }
