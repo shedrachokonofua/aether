@@ -165,7 +165,8 @@ resource "kubernetes_stateful_set_v1" "affine_postgres" {
   }
   spec {
     service_name = "affine-postgres"
-    replicas     = 1
+    # Legacy pre-CNPG database retained only for rollback.
+    replicas = 0
     selector { match_labels = local.affine_pg_labels }
     template {
       metadata { labels = local.affine_pg_labels }

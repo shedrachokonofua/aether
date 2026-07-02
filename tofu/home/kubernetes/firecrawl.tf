@@ -7,7 +7,7 @@ locals {
   firecrawl_image            = "ghcr.io/firecrawl/firecrawl:latest"
   firecrawl_playwright_image = "ghcr.io/firecrawl/playwright-service:latest"
   firecrawl_postgres_image   = "ghcr.io/firecrawl/nuq-postgres:latest"
-  firecrawl_cnpg_image       = "ghcr.io/firecrawl/nuq-postgres:17.10@sha256:4ca6718b2cef40404b046db5cd37ae45db3e44d1a5750c80522f3587a5b193d5"
+  firecrawl_cnpg_image       = "registry.gitlab.home.shdr.ch/so/aether/aether-k8s-arch-labeler/firecrawl-cnpg:17.10-barman-uid999-20260702@sha256:626fe0232862aab001ef424811764a96abb025a4e2011c6c939fa37d82188d20"
   firecrawl_redis_image      = "docker.io/redis:alpine"
   firecrawl_rabbitmq_image   = "docker.io/rabbitmq:3-management"
   firecrawl_mcp_image        = "docker.io/node:22-alpine"
@@ -26,6 +26,9 @@ locals {
 
   firecrawl_db_source_service = "firecrawl-postgres-backup.${local.firecrawl_ns}.svc.cluster.local"
   firecrawl_db_service        = "${local.firecrawl_cnpg_cluster}-rw.${local.firecrawl_ns}.svc.cluster.local"
+  firecrawl_registry_host     = "registry.gitlab.home.shdr.ch"
+  firecrawl_registry_user     = var.secrets["gitlab.root_email"]
+  firecrawl_registry_pass     = var.secrets["gitlab.root_password"]
 }
 
 # =============================================================================
@@ -83,6 +86,29 @@ resource "kubernetes_secret_v1" "firecrawl_cnpg_app" {
   }
 }
 
+resource "kubernetes_secret_v1" "firecrawl_gitlab_registry" {
+  depends_on = [kubernetes_namespace_v1.infra]
+
+  metadata {
+    name      = "firecrawl-gitlab-registry"
+    namespace = local.firecrawl_ns
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        (local.firecrawl_registry_host) = {
+          username = local.firecrawl_registry_user
+          password = local.firecrawl_registry_pass
+          auth     = base64encode("${local.firecrawl_registry_user}:${local.firecrawl_registry_pass}")
+        }
+      }
+    })
+  }
+}
+
 resource "kubernetes_persistent_volume_claim_v1" "firecrawl_redis_data" {
   depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
 
@@ -132,6 +158,7 @@ resource "kubectl_manifest" "firecrawl_cnpg_cluster" {
     helm_release.cnpg,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.firecrawl_cnpg_app,
+    kubernetes_secret_v1.firecrawl_gitlab_registry,
     kubernetes_service_v1.db_backup_sidecar_postgres["firecrawl"],
   ]
 
@@ -145,6 +172,7 @@ resource "kubectl_manifest" "firecrawl_cnpg_cluster" {
     spec = {
       instances             = 1
       imageName             = local.firecrawl_cnpg_image
+      imagePullSecrets      = [{ name = kubernetes_secret_v1.firecrawl_gitlab_registry.metadata[0].name }]
       postgresUID           = 999
       postgresGID           = 999
       affinity              = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
@@ -163,6 +191,7 @@ resource "kubectl_manifest" "firecrawl_cnpg_cluster" {
           wal_compression      = "on"
         }
       }
+      backup = local.cnpg_backup_specs["firecrawl"]
       bootstrap = {
         initdb = {
           database = "postgres"

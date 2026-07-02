@@ -197,6 +197,7 @@ resource "kubectl_manifest" "miniflux_cnpg_cluster" {
         size         = "5Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["miniflux"]
       bootstrap = {
         initdb = {
           database = "miniflux"

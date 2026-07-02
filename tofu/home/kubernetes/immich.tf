@@ -137,6 +137,10 @@ resource "kubernetes_persistent_volume_claim_v1" "immich_postgres_data" {
       requests = { storage = "30Gi" }
     }
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "immich_ml_cache" {
@@ -277,7 +281,8 @@ resource "kubernetes_stateful_set_v1" "immich_postgres" {
 
   spec {
     service_name = "immich-postgres"
-    replicas     = 1
+    # Legacy pre-CNPG database retained only for rollback.
+    replicas = 0
 
     selector {
       match_labels = local.immich_postgres_labels

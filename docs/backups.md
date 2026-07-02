@@ -130,15 +130,21 @@ Current DB dump flow:
 
 - Kubernetes CronJobs write logical dumps to bucket `aether-db-dumps`
 - Postgres jobs use `pg_dump --format=custom --no-owner`; the Mongo job uses `mongodump --archive --gzip`
-- Miniflux, Hoppscotch, Coder, Temporal, Affine, OpenWebUI, Nextcloud, Matrix, and Immich
-  are CNPG-backed and their dump jobs target the matching `*-cnpg-rw` writer services
-- LiteLLM has an adopted/staged CNPG cluster, but the live app still uses its in-pod Postgres
-  sidecar; its dump job intentionally targets the sidecar backup Service until the cutover
+- Miniflux, Hoppscotch, Coder, Temporal, Affine, OpenWebUI, Nextcloud, Matrix, Immich, and
+  LiteLLM are CNPG-backed and their dump jobs target the matching `*-cnpg-rw` writer services
 - Other Postgres jobs still target their current app Postgres services until they are migrated
 - Jobs run between 01:03 and 02:07, before the offsite Backrest window
 - `backup-stack` runs `seaweed-db-dumps-sync.timer` daily at 02:35
 - The sync mirrors `aether-db-dumps` to `/mnt/hdd/data/backups/seaweed-db-dumps/aether-db-dumps`
 - Backrest carries that mirror offsite through its existing `/mnt/hdd/data` plan
+
+Current native CNPG flow:
+
+- Tofu declares native object-store backup specs for all 12 current CNPG clusters: Affine, Coder,
+  Firecrawl, Hoppscotch, Immich, LiteLLM, Matrix, Miniflux, Mnemo, Nextcloud, OpenWebUI, and Temporal
+- Base backups and WAL archive to `s3://aether-db-dumps/cnpg/<cluster>` with 14-day retention
+- A manual sweep on 2026-07-02 completed for all 12 clusters and verified base-backup objects in
+  SeaweedFS
 
 Backrest does **not** mount or snapshot `/mnt/hdd/seaweedfs/current`; that directory is Seaweed's
 live internal storage and is not a stable backup interface.

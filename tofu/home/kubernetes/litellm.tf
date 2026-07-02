@@ -23,12 +23,13 @@ locals {
   litellm_affine_mcp_port     = 8005
   litellm_postgres_port       = 5432
   litellm_cnpg_cluster        = "litellm-cnpg"
+  litellm_db_host             = "${local.litellm_cnpg_cluster}-rw.${local.litellm_ns}.svc.cluster.local"
   litellm_affine_workspace_id = "5e3fe4c1-8c87-489b-95a5-77daa164a836"
   litellm_config_yaml = templatefile("${path.module}/litellm_config.yaml.tftpl", {
     affine_mcp_http_token = random_password.litellm_affine_mcp_http.result
     google_maps_enabled   = var.litellm_google_maps_enabled
   })
-  litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@localhost/litellm?sslmode=disable"
+  litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@${local.litellm_db_host}/litellm?sslmode=disable"
   litellm_registry_host = "registry.gitlab.home.shdr.ch"
   litellm_registry_user = var.secrets["gitlab.root_email"]
   litellm_registry_pass = var.secrets["gitlab.root_password"]
@@ -130,14 +131,18 @@ resource "kubernetes_persistent_volume_claim_v1" "litellm_postgres_data" {
       }
     }
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "kubernetes_deployment_v1" "litellm" {
   depends_on = [
+    kubectl_manifest.litellm_cnpg_cluster,
     kubernetes_secret_v1.litellm_env,
     kubernetes_secret_v1.litellm_config,
     kubernetes_secret_v1.litellm_gitlab_registry,
-    kubernetes_persistent_volume_claim_v1.litellm_postgres_data,
   ]
 
   metadata {
@@ -171,64 +176,6 @@ resource "kubernetes_deployment_v1" "litellm" {
 
         image_pull_secrets {
           name = kubernetes_secret_v1.litellm_gitlab_registry.metadata[0].name
-        }
-
-        container {
-          name  = "postgres"
-          image = local.litellm_postgres_image
-
-          port {
-            container_port = local.litellm_postgres_port
-            name           = "postgres"
-          }
-
-          env {
-            name = "POSTGRES_DB"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "POSTGRES_DB"
-              }
-            }
-          }
-
-          env {
-            name = "POSTGRES_USER"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "POSTGRES_USER"
-              }
-            }
-          }
-
-          env {
-            name = "POSTGRES_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "POSTGRES_PASSWORD"
-              }
-            }
-          }
-
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-
-          readiness_probe {
-            exec {
-              command = ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d litellm"]
-            }
-            initial_delay_seconds = 15
-            period_seconds        = 10
-          }
-
-          volume_mount {
-            name       = "postgres-data"
-            mount_path = "/var/lib/postgresql/data"
-          }
         }
 
         container {
@@ -553,13 +500,6 @@ resource "kubernetes_deployment_v1" "litellm" {
               cpu    = "500m"
               memory = "512Mi"
             }
-          }
-        }
-
-        volume {
-          name = "postgres-data"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.litellm_postgres_data.metadata[0].name
           }
         }
 

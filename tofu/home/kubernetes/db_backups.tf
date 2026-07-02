@@ -69,7 +69,7 @@ locals {
     litellm = {
       namespace = "infra"
       name      = "litellm-postgres"
-      service   = "litellm-postgres-backup"
+      service   = "${local.litellm_cnpg_cluster}-rw"
       user      = "litellm"
       database  = "litellm"
       port      = local.litellm_postgres_port
@@ -97,7 +97,7 @@ locals {
       namespace = "nextcloud"
       name      = "nextcloud-postgres"
       service   = "${local.nextcloud_cnpg_cluster}-rw"
-      user      = local.nextcloud_db_user
+      user      = local.nextcloud_cnpg_user
       database  = local.nextcloud_db_name
       port      = local.nextcloud_postgres_port
       schedule  = "48 1 * * *"

@@ -51,6 +51,7 @@ locals {
   nextcloud_db_name      = "nextcloud"
   nextcloud_db_user      = "nextcloud"
   nextcloud_cnpg_cluster = "nextcloud-cnpg"
+  nextcloud_cnpg_user    = "oc_admin"
   nextcloud_db_host      = "${local.nextcloud_cnpg_cluster}-rw.${local.nextcloud_namespace}.svc.cluster.local"
 
   nextcloud_nfs_share = "/mnt/hdd/data/nextcloud"
@@ -201,7 +202,7 @@ resource "kubernetes_secret_v1" "nextcloud_install_state" {
       instanceid   = var.secrets["nextcloud.instanceid"]
       dbname       = local.nextcloud_db_name
       dbhost       = local.nextcloud_db_host
-      dbuser       = "oc_admin"
+      dbuser       = local.nextcloud_cnpg_user
       dbpassword   = var.secrets["nextcloud.dbpassword"]
       version      = local.nextcloud_installed_version
     })
@@ -268,6 +269,10 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_postgres_data" {
     resources {
       requests = { storage = "20Gi" }
     }
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -362,7 +367,8 @@ resource "kubernetes_stateful_set_v1" "nextcloud_postgres" {
 
   spec {
     service_name = "nextcloud-postgres"
-    replicas     = 1
+    # Legacy pre-CNPG database retained only for rollback.
+    replicas = 0
 
     selector {
       match_labels = local.nextcloud_postgres_labels

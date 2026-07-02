@@ -264,6 +264,7 @@ resource "kubectl_manifest" "coder_cnpg_cluster" {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["coder"]
       bootstrap = {
         initdb = {
           database = local.coder_postgres_db

@@ -121,34 +121,7 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = {
-        target          = "primary"
-        retentionPolicy = "14d"
-        barmanObjectStore = {
-          destinationPath = "s3://${local.db_backup_bucket}/cnpg/${local.mnemo_cnpg}"
-          endpointURL     = local.db_backup_s3_endpoint
-          s3Credentials = {
-            accessKeyId = {
-              name = kubernetes_secret_v1.db_backup_s3[local.mnemo_namespace].metadata[0].name
-              key  = "AWS_ACCESS_KEY_ID"
-            }
-            secretAccessKey = {
-              name = kubernetes_secret_v1.db_backup_s3[local.mnemo_namespace].metadata[0].name
-              key  = "AWS_SECRET_ACCESS_KEY"
-            }
-            region = {
-              name = kubernetes_secret_v1.db_backup_s3[local.mnemo_namespace].metadata[0].name
-              key  = "AWS_DEFAULT_REGION"
-            }
-          }
-          wal = {
-            compression = "gzip"
-          }
-          data = {
-            compression = "gzip"
-          }
-        }
-      }
+      backup = local.cnpg_backup_specs["mnemo"]
       bootstrap = {
         initdb = {
           database = local.mnemo_db

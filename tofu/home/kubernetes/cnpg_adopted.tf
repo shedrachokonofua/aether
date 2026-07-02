@@ -39,11 +39,12 @@ resource "kubectl_manifest" "affine_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13-standard-bookworm"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["affine"]
       bootstrap = {
         initdb = {
           database = "affine"
@@ -127,6 +128,7 @@ resource "kubectl_manifest" "immich_cnpg_cluster" {
           wal_compression = "on"
         }
       }
+      backup = local.cnpg_backup_specs["immich"]
       bootstrap = {
         initdb = {
           database = local.immich_db_name
@@ -193,11 +195,12 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:18.4-standard-bookworm"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:18.4"
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["litellm"]
       bootstrap = {
         initdb = {
           database      = "litellm"
@@ -266,11 +269,12 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13-standard-bookworm"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["openwebui"]
       bootstrap = {
         initdb = {
           database = local.postgres_db
@@ -340,11 +344,12 @@ resource "kubectl_manifest" "matrix_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9-standard-bookworm"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["matrix"]
       bootstrap = {
         initdb = {
           database      = "app"
@@ -391,7 +396,7 @@ resource "kubernetes_secret_v1" "nextcloud_cnpg_app" {
   type = "kubernetes.io/basic-auth"
 
   data = {
-    username = "oc_admin"
+    username = local.nextcloud_cnpg_user
     password = var.secrets["nextcloud.dbpassword"]
   }
 }
@@ -413,15 +418,16 @@ resource "kubectl_manifest" "nextcloud_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13-standard-bookworm"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["nextcloud"]
       bootstrap = {
         initdb = {
           database = local.nextcloud_db_name
-          owner    = "oc_admin"
+          owner    = local.nextcloud_cnpg_user
           secret   = { name = kubernetes_secret_v1.nextcloud_cnpg_app.metadata[0].name }
           import = {
             type      = "microservice"

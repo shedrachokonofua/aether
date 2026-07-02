@@ -121,7 +121,8 @@ resource "kubernetes_stateful_set_v1" "matrix_postgres" {
   }
   spec {
     service_name = "matrix-postgres"
-    replicas     = 1
+    # Legacy pre-CNPG database retained only for rollback.
+    replicas = 0
     selector { match_labels = local.matrix_pg_labels }
     template {
       metadata { labels = local.matrix_pg_labels }

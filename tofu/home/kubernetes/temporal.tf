@@ -233,6 +233,7 @@ resource "kubectl_manifest" "temporal_cnpg_cluster" {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
+      backup = local.cnpg_backup_specs["temporal"]
       bootstrap = {
         initdb = {
           database = local.temporal_pg_db
