@@ -30,10 +30,11 @@
         "clock": "LOCAL"
       },
       "retention": {
-        "policyKeepLastN": 7,
-        "policyKeepDaily": 7,
-        "policyKeepWeekly": 4,
-        "policyKeepMonthly": 6
+        "policyTimeBucketed": {
+          "daily": 7,
+          "weekly": 4,
+          "monthly": 6
+        }
       }
     }{{ "," if not loop.last else "" }}
 {% endfor %}

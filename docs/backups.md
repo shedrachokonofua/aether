@@ -80,10 +80,14 @@ after the next successful `/mnt/hdd/data` run.
 
 | Type    | Keep |
 | ------- | ---- |
-| Last N  | 7    |
 | Daily   | 7    |
 | Weekly  | 4    |
 | Monthly | 6    |
+
+Backrest's retention field is a protobuf `oneof`: a plan keeps either last-N **or** time-bucketed
+counts, never both. The config uses `policyTimeBucketed` (daily/weekly/monthly above); with daily
+backups this subsumes the old keep-last-7. Unknown retention fields are silently discarded by
+Backrest on config load — do not reintroduce flat `policyKeepDaily`-style keys in the template.
 
 ### AWS Authentication
 
