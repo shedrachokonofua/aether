@@ -71,7 +71,11 @@ resource "proxmox_virtual_environment_container" "backup_stack" {
 
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [operating_system[0].template_file_id, initialization[0].user_account[0].keys]
+    ignore_changes = [
+      operating_system[0].template_file_id,
+      initialization[0].dns[0].domain,
+      initialization[0].user_account[0].keys,
+    ]
   }
 }
 

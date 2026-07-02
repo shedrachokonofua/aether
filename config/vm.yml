@@ -48,7 +48,7 @@ monitoring_stack:
   node: "niobe"
   admin: "aether"
   cores: 4
-  memory: 8192
+  memory: 16384
   disk_gb: 256
   ip: "10.0.2.3"
   gateway: "10.0.2.1"

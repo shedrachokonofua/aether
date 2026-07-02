@@ -154,6 +154,12 @@ resource "proxmox_virtual_environment_file" "cloud_config" {
     file_name = "${var.name}-cloud-config.yml"
     data      = local.cloud_config
   }
+
+  lifecycle {
+    # This snippet seeds the VM once. The machine certificate is short-lived and
+    # renewed inside the guest by nix/modules/step-ca-cert.nix after first boot.
+    ignore_changes = [source_raw[0].data]
+  }
 }
 
 # -----------------------------------------------------------------------------
