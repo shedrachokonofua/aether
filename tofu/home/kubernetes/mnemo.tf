@@ -492,14 +492,14 @@ resource "kubernetes_manifest" "mnemo_route" {
 
 # --- DB Backup Target --------------------------------------------------------
 
-resource "kubectl_manifest" "mnemo_db_backup" {
+resource "kubectl_manifest" "mnemo_cnpg_backup" {
   depends_on = [kubectl_manifest.mnemo_cnpg_cluster]
 
   yaml_body = yamlencode({
     apiVersion = "postgresql.cnpg.io/v1"
     kind       = "ScheduledBackup"
     metadata = {
-      name      = "mnemo-db-backup"
+      name      = "mnemo-cnpg-backup"
       namespace = local.mnemo_namespace
     }
     spec = {
