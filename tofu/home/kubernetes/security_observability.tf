@@ -13,21 +13,6 @@ locals {
 
   policy_reporter_host = "policy-reporter.home.shdr.ch"
 
-  trivy_scan_job_affinity = {
-    nodeAffinity = {
-      preferredDuringSchedulingIgnoredDuringExecution = [{
-        weight = 90
-        preference = {
-          matchExpressions = [{
-            key      = "kubernetes.io/arch"
-            operator = "In"
-            values   = ["amd64"]
-          }]
-        }
-      }]
-    }
-  }
-
   trivy_scan_job_container_security_context = {
     allowPrivilegeEscalation = false
     capabilities = {
@@ -77,7 +62,6 @@ locals {
   ]
 
   trivy_scan_job_config_sha = sha256(jsonencode({
-    affinity                  = local.trivy_scan_job_affinity
     containerSecurityContext  = local.trivy_scan_job_container_security_context
     nodeCollectorVolumeMounts = local.trivy_node_collector_volume_mounts
     nodeCollectorVolumes      = local.trivy_node_collector_volumes
@@ -182,6 +166,7 @@ resource "helm_release" "trivy_operator" {
 
   values = [yamlencode({
     operator = {
+      replicas                                     = 1
       scanJobTTL                                   = "1h"
       scanSecretTTL                                = "1h"
       scanJobTimeout                               = "10m"
@@ -203,7 +188,6 @@ resource "helm_release" "trivy_operator" {
     }
 
     trivyOperator = {
-      scanJobAffinity                            = local.trivy_scan_job_affinity
       scanJobPodTemplateContainerSecurityContext = local.trivy_scan_job_container_security_context
     }
 
