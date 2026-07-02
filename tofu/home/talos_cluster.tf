@@ -556,10 +556,12 @@ module "kubernetes" {
   immich_oauth_client_secret       = keycloak_openid_client.immich.client_secret
   nextcloud_oauth_client_secret    = keycloak_openid_client.nextcloud.client_secret
   coder_oauth_client_secret        = keycloak_openid_client.coder.client_secret
+  orion_oauth_client_secret        = keycloak_openid_client.orion.client_secret
   deskplane_oauth_client_secret    = keycloak_openid_client.deskplane.client_secret
   affine_oauth_client_secret       = keycloak_openid_client.affine.client_secret
   karakeep_oauth_client_secret     = keycloak_openid_client.karakeep.client_secret
   memos_oauth_client_secret        = keycloak_openid_client.memos.client_secret
+  snapotter_oauth_client_secret    = keycloak_openid_client.snapotter.client_secret
   nextexplorer_oauth_client_secret = keycloak_openid_client.nextexplorer.client_secret
   miniflux_oauth_client_secret     = keycloak_openid_client.miniflux.client_secret
   matrix_oauth_client_secret       = keycloak_openid_client.matrix.client_secret

@@ -160,6 +160,12 @@ variable "coder_oauth_client_secret" {
   description = "Coder Keycloak OIDC client secret"
 }
 
+variable "orion_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Orion Keycloak OIDC client secret"
+}
+
 variable "deskplane_oauth_client_secret" {
   type        = string
   sensitive   = true
@@ -182,6 +188,12 @@ variable "memos_oauth_client_secret" {
   type        = string
   sensitive   = true
   description = "Memos Keycloak OIDC client secret (consumed by bootstrap Job — Memos has no OIDC env vars)"
+}
+
+variable "snapotter_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "SnapOtter Keycloak OIDC client secret"
 }
 
 variable "nextexplorer_oauth_client_secret" {
