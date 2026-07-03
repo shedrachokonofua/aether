@@ -667,7 +667,11 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: max by(namespace, replicaset) (kube_replicaset_status_replicas - kube_replicaset_status_ready_replicas)
+              # spec_replicas (desired), not status_replicas (existing pods):
+              # an RS whose pods can't be created at all (e.g. admission
+              # rejection) has status 0-0=0 and never fires on the old expr —
+              # coder sat broken for 65d unalerted this way.
+              expr: max by(namespace, replicaset) (kube_replicaset_spec_replicas - kube_replicaset_status_ready_replicas)
               refId: A
           - refId: B
             datasourceUid: __expr__
