@@ -1624,3 +1624,103 @@ resource "kubectl_manifest" "kyverno_cnpg_backup_contract" {
     }
   })
 }
+
+resource "kubectl_manifest" "kyverno_legacy_postgres_sts_retirement_rbac" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRole"
+    metadata = {
+      name = "kyverno:legacy-postgres-sts-retirement"
+      labels = {
+        "app.kubernetes.io/component"                        = "rbac"
+        "app.kubernetes.io/instance"                         = helm_release.kyverno.name
+        "app.kubernetes.io/part-of"                          = "kyverno"
+        "rbac.kyverno.io/aggregate-to-admission-controller"  = "true"
+        "rbac.kyverno.io/aggregate-to-background-controller" = "true"
+        "rbac.kyverno.io/aggregate-to-reports-controller"    = "true"
+      }
+    }
+    rules = [{
+      apiGroups = ["postgresql.cnpg.io"]
+      resources = ["clusters"]
+      verbs     = ["get", "list", "watch"]
+    }]
+  })
+}
+
+resource "kubectl_manifest" "kyverno_legacy_postgres_sts_retirement" {
+  depends_on = [
+    helm_release.kyverno,
+    kubectl_manifest.kyverno_legacy_postgres_sts_retirement_rbac,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "kyverno.io/v1"
+    kind       = "ClusterPolicy"
+    metadata = {
+      name = "legacy-postgres-sts-retirement"
+      annotations = {
+        "policies.kyverno.io/title"       = "Legacy PostgreSQL StatefulSet Retirement"
+        "policies.kyverno.io/category"    = "Database"
+        "policies.kyverno.io/subject"     = "StatefulSet"
+        "policies.kyverno.io/description" = "Audit legacy hand-managed PostgreSQL StatefulSets that remain in namespaces after a CNPG Cluster exists."
+      }
+    }
+    spec = {
+      validationFailureAction = "Audit"
+      background              = true
+      rules = [{
+        name = "retire-legacy-postgres-sts-after-cnpg-cutover"
+        match = {
+          any = [{
+            resources = {
+              kinds = ["StatefulSet"]
+            }
+          }]
+        }
+        exclude = {
+          any = [{
+            resources = {
+              namespaces = ["kube-system", "kube-public", "kube-node-lease", "cnpg-system"]
+            }
+          }]
+        }
+        context = [{
+          name = "cnpgClusters"
+          apiCall = {
+            urlPath  = "/apis/postgresql.cnpg.io/v1/namespaces/{{ request.object.metadata.namespace }}/clusters"
+            jmesPath = "items[].metadata.name"
+          }
+        }]
+        preconditions = {
+          all = [
+            {
+              key      = "{{ contains(request.object.metadata.name, 'postgres') }}"
+              operator = "Equals"
+              value    = true
+            },
+            {
+              key      = "{{ length(cnpgClusters) }}"
+              operator = "GreaterThan"
+              value    = 0
+            }
+          ]
+        }
+        validate = {
+          message = "Legacy PostgreSQL StatefulSet remains after CNPG cutover; delete it within the retirement window once restore/backups are verified."
+          deny = {
+            conditions = {
+              any = [{
+                key      = "{{ request.operation || 'BACKGROUND' }}"
+                operator = "AnyIn"
+                value    = ["CREATE", "UPDATE", "BACKGROUND"]
+              }]
+            }
+          }
+        }
+      }]
+    }
+  })
+}

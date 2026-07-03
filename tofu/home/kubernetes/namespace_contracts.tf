@@ -206,7 +206,8 @@ locals {
         "deskplane.home.shdr.ch",
       ],
       extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
     "games" = {
@@ -567,6 +568,22 @@ locals {
       source_file             = "tofu/home/kubernetes/personal_apps.tf",
       egress                  = "internal",
       registry_access         = "dockerhub",
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "vaultwarden" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "critical",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      source_file             = "tofu/home/kubernetes/vaultwarden.tf",
+      egress                  = "internal",
+      registry_access         = "dockerhub",
+      hostnames = [
+        "vaultwarden.home.shdr.ch",
+      ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
       }

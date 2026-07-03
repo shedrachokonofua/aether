@@ -45,7 +45,10 @@ locals {
     "anthropic/claude-opus-4.8",
     "anthropic/claude-sonnet-4.6",
     "openrouter/grok-4",
-    "openrouter/gemini-3.1-pro-preview",
+    "clinepass/deepseek-v4-pro",
+    "clinepass/kimi-k2.7-code",
+    "clinepass/qwen3.7-max",
+    "clinepass/mimo-v2.5-pro",
   ]
 }
 

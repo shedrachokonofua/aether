@@ -61,6 +61,36 @@ model_list:
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
 
+  # Clinepass models (https://api.cline.bot — OpenAI-compatible)
+  - model_name: "clinepass/deepseek-v4-pro"
+    litellm_params:
+      model: "openai/cline-pass/deepseek-v4-pro"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/deepseek-v4-flash"
+    litellm_params:
+      model: "openai/cline-pass/deepseek-v4-flash"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/kimi-k2.7-code"
+    litellm_params:
+      model: "openai/cline-pass/kimi-k2.7-code"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/glm-5.2"
+    litellm_params:
+      model: "openai/cline-pass/glm-5.2"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/qwen3.7-max"
+    litellm_params:
+      model: "openai/cline-pass/qwen3.7-max"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/minimax-m3"
+    litellm_params:
+      model: "openai/cline-pass/minimax-m3"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/mimo-v2.5-pro"
+    litellm_params:
+      model: "openai/cline-pass/mimo-v2.5-pro"
+      litellm_credential_name: clinepass_credential
+
   # Ollama Cloud models
   - model_name: "ollama-cloud/kimi-k2.6"
     litellm_params:
@@ -269,6 +299,12 @@ credential_list:
       api_key: os.environ/XIAOMI_API_KEY
     credential_info:
       description: "Xiaomi MiMo"
+  - credential_name: clinepass_credential
+    credential_values:
+      api_base: https://api.cline.bot/api/v1
+      api_key: os.environ/CLINEPASS_API_KEY
+    credential_info:
+      description: "Clinepass (Cline API)"
 
 litellm_settings:
   drop_params: true

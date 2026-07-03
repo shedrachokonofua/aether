@@ -218,6 +218,10 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
             secretKey = random_password.db_backup_s3_secret_key[namespace].result
           }]
           actions = [
+            "List",
+            "Read:${local.db_backup_bucket}",
+            "Write:${local.db_backup_bucket}",
+            "Tagging:${local.db_backup_bucket}",
             "Read:${local.db_backup_bucket}/postgres/${namespace}/*",
             "Write:${local.db_backup_bucket}/postgres/${namespace}/*",
             "List:${local.db_backup_bucket}/postgres/${namespace}/*",

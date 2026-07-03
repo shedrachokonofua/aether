@@ -19,7 +19,7 @@
 locals {
   vcluster_name      = "seven30"
   vcluster_namespace = "vc-seven30"
-  vcluster_version   = "0.31.0"
+  vcluster_version   = "0.35.1"
 
   seven30_gitlab_agent_token = var.secrets["seven30.gitlab_agent_token"]
 

@@ -239,7 +239,10 @@ resource "kubernetes_deployment_v1" "jellyfin" {
             "--cache-dir=/vfs-cache",
             "--vfs-cache-mode=full",
             "--buffer-size=1024M",
-            "--dir-cache-time=1s",
+            # 1s forced a WebDAV PROPFIND (+ DNS lookup) on every stat —
+            # ~80 req/s at idle, burning ~2 cores across jellyfin/nzbdav/
+            # coredns/cilium. New downloads now appear within 2m instead.
+            "--dir-cache-time=2m",
             "--vfs-cache-max-size=5G",
             "--vfs-cache-max-age=180m",
             "--links",
@@ -345,7 +348,9 @@ resource "kubernetes_secret_v1" "rclone_nzbdav" {
     "rclone.conf" = <<-EOT
       [nzb-dav]
       type = webdav
-      url = http://nzbdav.${local.jellyfin_ns}.svc.cluster.local:3000
+      # Trailing dot = absolute name: skips the ndots:5 search-path walk
+      # (~10 DNS queries per lookup, all NXDOMAIN but the last).
+      url = http://nzbdav.${local.jellyfin_ns}.svc.cluster.local.:3000
       vendor = other
       user = ${var.secrets["nzbdav.webdav_username"]}
       pass = ${var.secrets["nzbdav.webdav_password_obscured"]}

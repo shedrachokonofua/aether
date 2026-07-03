@@ -19,12 +19,12 @@ locals {
   vaultwarden_image  = "vaultwarden/server:latest"
   vaultwarden_host   = "vaultwarden.home.shdr.ch"
   vaultwarden_port   = 80
-  vaultwarden_ns     = module.namespace["personal"].name
+  vaultwarden_ns     = module.namespace["vaultwarden"].name
   vaultwarden_labels = { app = "vaultwarden" }
 }
 
 resource "kubernetes_secret_v1" "vaultwarden_env" {
-  depends_on = [module.namespace["personal"]]
+  depends_on = [module.namespace["vaultwarden"]]
 
   metadata {
     name      = "vaultwarden-env"
@@ -47,7 +47,7 @@ resource "kubernetes_secret_v1" "vaultwarden_env" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "vaultwarden_data" {
-  depends_on = [module.namespace["personal"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["vaultwarden"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "vaultwarden-data"
@@ -64,6 +64,23 @@ resource "kubernetes_persistent_volume_claim_v1" "vaultwarden_data" {
     prevent_destroy = true
   }
 }
+resource "kubernetes_persistent_volume_claim_v1" "vaultwarden_data_legacy" {
+  metadata {
+    name      = "vaultwarden-data"
+    namespace = module.namespace["personal"].name
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+    resources { requests = { storage = "5Gi" } }
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 
 resource "kubernetes_deployment_v1" "vaultwarden" {
   depends_on = [

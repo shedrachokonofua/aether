@@ -75,8 +75,12 @@ resource "kubernetes_priority_class_v1" "aether_sandbox" {
     name = "aether-sandbox"
   }
 
-  value             = 0
-  global_default    = true
-  preemption_policy = "Never"
+  value          = 0
+  global_default = true
+  # PreemptLowerPriority at value 0 preempts nothing in practice (no negative
+  # classes exist), but unlike "Never" it doesn't make admission reject pods
+  # that carry the k8s-default preemptionPolicy without a priorityClassName
+  # (e.g. everything synced from a vcluster).
+  preemption_policy = "PreemptLowerPriority"
   description       = "Default lowest-priority class for untrusted, guest, or unclassified workloads."
 }
