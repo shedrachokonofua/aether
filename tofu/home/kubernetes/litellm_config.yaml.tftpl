@@ -311,7 +311,11 @@ litellm_settings:
   turn_off_message_logging: false
   set_verbose: true
   json_logs: true
-  request_timeout: 600
+  # Per-request upstream timeout. Kept tight so a non-stopping generation can't
+  # pin the GPU: at ~200 t/s, 600s allowed ~120k runaway tokens (llama.cpp only
+  # stops when LiteLLM cancels the backend, which this bounds). 120s still covers
+  # a cold model load + a normal completion.
+  request_timeout: 120
 
 general_settings:
   store_prompts_in_spend_logs: true

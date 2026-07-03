@@ -6,7 +6,7 @@
 # Docs: ../mnemo/docs/HANDOFF.md, ../mnemo/docs/DEPLOYMENT.md
 
 locals {
-  mnemo_namespace  = module.namespace["infra"].name
+  mnemo_namespace  = module.namespace["mnemo"].name
   mnemo_host       = "mnemo.home.shdr.ch"
   mnemo_image      = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port       = 4000
@@ -19,8 +19,9 @@ locals {
   mnemo_openwebui_db_host = "${local.openwebui_cnpg_cluster}-rw.${local.openwebui_namespace}.svc.cluster.local"
   mnemo_openwebui_db_url  = "postgresql://${local.postgres_user}:${kubernetes_secret_v1.openwebui_cnpg_app.data["password"]}@${local.mnemo_openwebui_db_host}:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
 
-  mnemo_seaweed_endpoint = "https://s3.seaweed.home.shdr.ch"
-  mnemo_seaweed_bucket   = "mnemo-objects"
+  mnemo_seaweed_endpoint           = "https://s3.seaweed.home.shdr.ch"
+  mnemo_seaweed_bucket             = "mnemo-objects"
+  mnemo_recovery_object_store_name = "${local.mnemo_cnpg}-object-store-recovery"
 
   mnemo_labels = { app = "mnemo" }
 }
@@ -29,7 +30,7 @@ locals {
 
 resource "kubernetes_secret_v1" "mnemo_env" {
   depends_on = [
-    module.namespace["infra"],
+    module.namespace["mnemo"],
     kubernetes_secret_v1.openwebui_cnpg_app,
   ]
 
@@ -52,7 +53,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     SEAWEED_S3_SECRET_KEY = var.secrets["seaweedfs.s3_admin_secret_key"]
 
     # LiteLLM embeddings
-    LITELLM_EMBEDDING_BASE_URL = "http://litellm.${local.mnemo_namespace}.svc.cluster.local:4000"
+    LITELLM_EMBEDDING_BASE_URL = "http://litellm.infra.svc.cluster.local:4000"
     LITELLM_EMBEDDING_API_KEY  = var.secrets["litellm.master_key"]
     LITELLM_EMBEDDING_MODEL    = "text-embedding-3-large"
 
@@ -81,7 +82,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
 
 # CNPG app secret (username/password for the mnemo CNPG cluster)
 resource "kubernetes_secret_v1" "mnemo_cnpg_app" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["mnemo"]]
 
   metadata {
     name      = "mnemo-cnpg-app"
@@ -104,7 +105,6 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
     helm_release.cnpg,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.mnemo_cnpg_app,
-    kubernetes_secret_v1.db_backup_s3["infra"],
   ]
 
   yaml_body = yamlencode({
@@ -136,9 +136,6 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
           secret = {
             name = kubernetes_secret_v1.mnemo_cnpg_app.metadata[0].name
           }
-          # Install required extensions after DB creation (Phase 1 schema).
-          # pg_trgm and unaccent are bundled with PostgreSQL; pgvector needs
-          # the extension installed (available in the CNPG postgres image).
           postInitApplicationSQL = [
             "CREATE EXTENSION IF NOT EXISTS vector",
             "CREATE EXTENSION IF NOT EXISTS pg_trgm",
@@ -146,7 +143,6 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
           ]
         }
       }
-
     }
   })
 
@@ -157,9 +153,91 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
 
 # --- Database Migration + Source Bootstrap -----------------------------------
 
-resource "kubernetes_job_v1" "mnemo_migration" {
+resource "kubernetes_job_v1" "mnemo_restore_legacy_dump" {
   depends_on = [
     kubectl_manifest.mnemo_cnpg_cluster,
+    kubernetes_secret_v1.mnemo_cnpg_app,
+  ]
+
+  metadata {
+    name      = "mnemo-restore-legacy-dump"
+    namespace = local.mnemo_namespace
+    labels    = merge(local.mnemo_labels, { job = "mnemo-restore-legacy-dump" })
+  }
+
+  spec {
+    backoff_limit = 1
+
+    template {
+      metadata {
+        labels = merge(local.mnemo_labels, { job = "mnemo-restore-legacy-dump" })
+      }
+
+      spec {
+        restart_policy       = "Never"
+        enable_service_links = false
+        node_selector        = { "kubernetes.io/arch" = "amd64" }
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65534
+          run_as_group    = 65534
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
+        container {
+          name    = "restore"
+          image   = "postgres:16-alpine"
+          command = ["/bin/sh", "-ec"]
+          args = [<<-EOF
+            until pg_isready -h ${local.mnemo_cnpg}-rw.infra.svc.cluster.local -U ${local.mnemo_db_user} -d ${local.mnemo_db}; do sleep 2; done
+            until pg_isready -h ${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local -U ${local.mnemo_db_user} -d ${local.mnemo_db}; do sleep 2; done
+            pg_dump --format=custom --no-owner --no-privileges --no-comments --host=${local.mnemo_cnpg}-rw.infra.svc.cluster.local --username=${local.mnemo_db_user} --dbname=${local.mnemo_db} \
+              | pg_restore --clean --if-exists --no-owner --no-privileges --role=${local.mnemo_db_user} --host=${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local --username=${local.mnemo_db_user} --dbname=${local.mnemo_db}
+          EOF
+          ]
+
+          env {
+            name = "PGPASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.mnemo_cnpg_app.metadata[0].name
+                key  = "password"
+              }
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = { cpu = "100m", memory = "256Mi" }
+            limits   = { cpu = "1000m", memory = "1Gi" }
+          }
+        }
+      }
+    }
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "30m"
+    update = "30m"
+  }
+}
+
+resource "kubernetes_job_v1" "mnemo_migration" {
+  depends_on = [
+    kubernetes_job_v1.mnemo_restore_legacy_dump,
     kubernetes_secret_v1.mnemo_env,
   ]
 

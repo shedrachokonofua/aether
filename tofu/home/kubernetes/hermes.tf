@@ -8,22 +8,26 @@
 # Tungsten: public Kimi model through LiteLLM -> Ollama Cloud.
 
 locals {
-  hermes_namespace                    = module.namespace["hermes"].name
-  hermes_image                        = "nousresearch/hermes-agent:latest"
-  hermes_port                         = 8642
-  hermes_dashboard_port               = 9119
-  hermes_litellm                      = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
-  hermes_local_llm                    = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.llama_swap_ns}.svc.cluster.local:${local.llama_swap_port}/v1"
-  hermes_jellyfin_url                 = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
-  hermes_firecrawl_url                = "http://${kubernetes_service_v1.firecrawl.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.firecrawl_api_port}"
-  hermes_searxng_url                  = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
-  hermes_matrix_server                = "http://${kubernetes_service_v1.synapse.metadata[0].name}.${local.matrix_ns}.svc.cluster.local:${local.synapse_port}"
-  hermes_homeassistant                = "https://ha.home.shdr.ch"
-  hermes_matrix_owner                 = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
-  hermes_beryl_matrix_home_room       = "!pkLDsPitwNliMhAELi:matrix.home.shdr.ch"
-  hermes_tungsten_skills_root         = "${path.module}/../../../hermes/tungsten/skills"
+  hermes_namespace              = module.namespace["hermes"].name
+  hermes_image                  = "nousresearch/hermes-agent:latest"
+  hermes_port                   = 8642
+  hermes_dashboard_port         = 9119
+  hermes_litellm                = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
+  hermes_local_llm              = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.llama_swap_ns}.svc.cluster.local:${local.llama_swap_port}/v1"
+  hermes_jellyfin_url           = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
+  hermes_firecrawl_url          = "http://${kubernetes_service_v1.firecrawl.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.firecrawl_api_port}"
+  hermes_searxng_url            = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
+  hermes_matrix_server          = "http://${kubernetes_service_v1.synapse.metadata[0].name}.${local.matrix_ns}.svc.cluster.local:${local.synapse_port}"
+  hermes_homeassistant          = "https://ha.home.shdr.ch"
+  hermes_matrix_owner           = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
+  hermes_beryl_matrix_home_room = "!pkLDsPitwNliMhAELi:matrix.home.shdr.ch"
+  hermes_tungsten_skills_root   = "${path.module}/../../../hermes/tungsten/skills"
+  # Mnemo SKILL.md lives in the mnemo repo (single source of truth) and is
+  # vendored at apply time. Requires the mnemo checkout as a sibling of aether.
+  hermes_beryl_skills_root            = "${path.module}/../../../../mnemo/skills"
   hermes_bootstrap_init_base          = "mkdir -p /data /data/sessions /data/memories /data/skills /data/cron /data/logs /data/.npm && cp /bootstrap/config.yaml /data/config.yaml && cp /bootstrap/SOUL.md /data/SOUL.md && cp /bootstrap/AGENTS.md /data/AGENTS.md && chown 10000:10000 /data/config.yaml /data/SOUL.md /data/AGENTS.md && chown -R 10000:10000 /data/.npm && chmod 640 /data/config.yaml && chmod 644 /data/SOUL.md /data/AGENTS.md && chmod 755 /data /data/sessions /data/memories /data/skills /data/cron /data/logs"
   hermes_bootstrap_init_gitlab_skills = "mkdir -p /data/skills/gitlab/gitlab && cp /skills-bootstrap/gitlab-SKILL.md /data/skills/gitlab/gitlab/SKILL.md && chown -R 10000:10000 /data/skills/gitlab && chmod 644 /data/skills/gitlab/gitlab/SKILL.md"
+  hermes_bootstrap_init_mnemo_skills  = "mkdir -p /data/skills/mnemo/mnemo && cp /skills-bootstrap/mnemo-SKILL.md /data/skills/mnemo/mnemo/SKILL.md && chown -R 10000:10000 /data/skills/mnemo && chmod 644 /data/skills/mnemo/mnemo/SKILL.md"
 
   hermes_agents = {
     beryl = {
@@ -107,6 +111,11 @@ locals {
             }
             timeout         = 180
             connect_timeout = 60
+          }
+          mnemo = {
+            url             = "https://mnemo.home.shdr.ch/mcp"
+            timeout         = 60
+            connect_timeout = 15
           }
         }
         auxiliary = {
@@ -321,6 +330,30 @@ resource "kubernetes_config_map_v1" "hermes_tungsten_skills" {
   }
 }
 
+resource "kubernetes_config_map_v1" "hermes_beryl_skills" {
+  depends_on = [module.namespace["hermes"]]
+
+  metadata {
+    name      = "hermes-beryl-skills"
+    namespace = local.hermes_namespace
+  }
+
+  # The mnemo SKILL.md is vendored from the mnemo repo at apply time. This couples
+  # aether's tofu to a sibling mnemo checkout existing wherever `tofu apply` runs.
+  # The precondition turns a missing checkout into an actionable failure rather
+  # than a cryptic file() error.
+  data = {
+    "mnemo-SKILL.md" = file("${local.hermes_beryl_skills_root}/mnemo/SKILL.md")
+  }
+
+  lifecycle {
+    precondition {
+      condition     = fileexists("${local.hermes_beryl_skills_root}/mnemo/SKILL.md")
+      error_message = "mnemo SKILL.md not found at ${local.hermes_beryl_skills_root}/mnemo/SKILL.md — clone the mnemo repo as a sibling of aether (next to ~/projects/aether) before running tofu apply."
+    }
+  }
+}
+
 resource "kubernetes_persistent_volume_claim_v1" "hermes_data" {
   for_each = local.hermes_agents
 
@@ -510,6 +543,8 @@ resource "kubernetes_deployment_v1" "hermes" {
           },
           each.key == "tungsten" ? {
             "checksum/skills" = sha256(jsonencode(kubernetes_config_map_v1.hermes_tungsten_skills.data))
+            } : each.key == "beryl" ? {
+            "checksum/skills" = sha256(jsonencode(kubernetes_config_map_v1.hermes_beryl_skills.data))
           } : {}
         )
       }
@@ -524,7 +559,9 @@ resource "kubernetes_deployment_v1" "hermes" {
           command = [
             "sh",
             "-c",
-            each.key == "tungsten" ? "${local.hermes_bootstrap_init_base} && ${local.hermes_bootstrap_init_gitlab_skills}" : local.hermes_bootstrap_init_base
+            each.key == "tungsten" ? "${local.hermes_bootstrap_init_base} && ${local.hermes_bootstrap_init_gitlab_skills}" :
+            each.key == "beryl" ? "${local.hermes_bootstrap_init_base} && ${local.hermes_bootstrap_init_mnemo_skills}" :
+            local.hermes_bootstrap_init_base
           ]
 
           volume_mount {
@@ -539,7 +576,7 @@ resource "kubernetes_deployment_v1" "hermes" {
           }
 
           dynamic "volume_mount" {
-            for_each = each.key == "tungsten" ? [1] : []
+            for_each = each.key == "tungsten" || each.key == "beryl" ? [1] : []
             content {
               name       = "skills-bootstrap"
               mount_path = "/skills-bootstrap"
@@ -826,11 +863,11 @@ resource "kubernetes_deployment_v1" "hermes" {
         }
 
         dynamic "volume" {
-          for_each = each.key == "tungsten" ? [1] : []
+          for_each = each.key == "tungsten" || each.key == "beryl" ? [1] : []
           content {
             name = "skills-bootstrap"
             config_map {
-              name = kubernetes_config_map_v1.hermes_tungsten_skills.metadata[0].name
+              name = each.key == "tungsten" ? kubernetes_config_map_v1.hermes_tungsten_skills.metadata[0].name : kubernetes_config_map_v1.hermes_beryl_skills.metadata[0].name
             }
           }
         }

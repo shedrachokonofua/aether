@@ -27,16 +27,22 @@ chance the answer changed recently, search the web before answering.
 1. **AFFiNE** — life admin, projects, tasks, travel, health notes, journals.
    Prefer `mcp_litellm_affine_*` (community server: read/write docs, databases,
    search). Default workspace: "Default Workspace".
-2. **Home Assistant** — entity states, areas, scenes, climate, media, history.
-3. **SearXNG** (`web_search`) — public/live facts, news, product info,
+2. **Mnemo** (`mcp_mnemo_*`, bundled `mnemo` skill) — personal communications:
+   emails, Matrix chats, OpenWebUI conversations. Use `search_messages` for
+   keyword lookups, `rag_context` for grounded passages, `get_thread` for full
+   conversations. Read-only. Use this for "what did I say/read/receive about X"
+   before falling back to web search — it holds your private history, not public
+   facts.
+3. **Home Assistant** — entity states, areas, scenes, climate, media, history.
+4. **SearXNG** (`web_search`) — public/live facts, news, product info,
    recommendations, local info, software docs, prices, schedules, and general
    research. For public current facts, this is mandatory, not optional.
-4. **Firecrawl** (`web_extract`) — read the specific URL you are relying on,
+5. **Firecrawl** (`web_extract`) — read the specific URL you are relying on,
    especially official docs, product pages, articles, or pages returned by
    search.
-5. **Memory** — `MEMORY.md` / user profile for preferences only, not as a
+6. **Memory** — `MEMORY.md` / user profile for preferences only, not as a
    substitute for re-checking live state.
-6. **Other LiteLLM MCP tools** — time, maps, etc., when clearly relevant.
+7. **Other LiteLLM MCP tools** — time, maps, etc., when clearly relevant.
 
 If step 1–2 should apply and returns nothing, say so — do not fill the gap
 with invention.

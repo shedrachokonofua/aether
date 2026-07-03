@@ -54,6 +54,12 @@ locals {
       retention = "14d"
       schedule  = "0 0 2 * * *"
     }
+    mnemo_legacy = {
+      namespace = "infra"
+      cluster   = local.mnemo_cnpg
+      retention = "14d"
+      schedule  = "0 0 2 * * *"
+    }
     nextcloud = {
       namespace = local.nextcloud_namespace
       cluster   = local.nextcloud_cnpg_cluster
@@ -76,7 +82,7 @@ locals {
 
   cnpg_scheduled_backup_targets = {
     for name, target in local.cnpg_backup_targets : name => target
-    if name != "mnemo"
+    if !contains(["mnemo", "mnemo_legacy"], name)
   }
 
   cnpg_barman_plugin_name = "barman-cloud.cloudnative-pg.io"
@@ -125,6 +131,32 @@ locals {
       }
     }
   }
+}
+
+resource "kubectl_manifest" "mnemo_recovery_object_store" {
+  depends_on = [
+    helm_release.cnpg_barman_cloud,
+    kubernetes_secret_v1.db_backup_s3["mnemo"],
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "barmancloud.cnpg.io/v1"
+    kind       = "ObjectStore"
+    metadata = {
+      name      = local.mnemo_recovery_object_store_name
+      namespace = local.mnemo_namespace
+      labels = {
+        "app.kubernetes.io/managed-by" = "tofu"
+        "aether.sh/backup-kind"        = "cnpg-recovery"
+      }
+    }
+    spec = {
+      configuration = merge(local.cnpg_backup_specs["mnemo_legacy"].barmanObjectStore, {
+        s3Credentials = local.cnpg_backup_specs["mnemo"].barmanObjectStore.s3Credentials
+      })
+      retentionPolicy = local.cnpg_backup_targets["mnemo_legacy"].retention
+    }
+  })
 }
 
 resource "kubectl_manifest" "cnpg_barman_object_store" {

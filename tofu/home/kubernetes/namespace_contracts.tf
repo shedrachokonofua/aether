@@ -367,6 +367,23 @@ locals {
         "istio.io/dataplane-mode"          = "ambient"
       }
     }
+    "mnemo" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "critical",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      source_file             = "tofu/home/kubernetes/mnemo.tf",
+      egress                  = "allowlist",
+      registry_access         = "gitlab"
+      hostnames = [
+        "mnemo.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "istio-system" = {
       tier                    = "platform",
       owner                   = "aether",

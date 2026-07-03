@@ -1257,11 +1257,16 @@ groups:
         data:
           - refId: A
             relativeTimeRange:
-              from: 300
+              from: 900
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: DCGM_FI_DEV_XID_ERRORS
+              # DCGM_FI_DEV_XID_ERRORS is a latched gauge (last Xid code seen,
+              # held until driver reload) — NOT a count. Alerting on level > 0
+              # re-fires forever on one stale event; changes() fires only when
+              # a NEW Xid lands. max by(...) drops per-pod labels so pod churn
+              # on a shared GPU can't mint duplicate alert instances.
+              expr: max by (Hostname, gpu, err_code, err_msg) (changes(DCGM_FI_DEV_XID_ERRORS[15m]))
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -1287,7 +1292,7 @@ groups:
           severity: critical
         annotations:
           summary: "GPU XID error on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
-          description: "DCGM reported a non-zero XID error count — check dmesg / GPU health"
+          description: "New XID event (code {{ $labels.err_code }}: {{ $labels.err_msg }}) — check talosctl dmesg / GPU health"
 
       # TLS cert expiry — fires 14 days before a probed cert's NotAfter.
       # Targets are scraped by blackbox-exporter via the `tls_connect` module

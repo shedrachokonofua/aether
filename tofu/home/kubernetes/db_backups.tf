@@ -217,7 +217,7 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
             accessKey = random_password.db_backup_s3_access_key[namespace].result
             secretKey = random_password.db_backup_s3_secret_key[namespace].result
           }]
-          actions = [
+          actions = concat([
             "List",
             "Read:${local.db_backup_bucket}",
             "Write:${local.db_backup_bucket}",
@@ -234,7 +234,10 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
             "Write:${local.db_backup_bucket}/cnpg/${namespace}/*",
             "List:${local.db_backup_bucket}/cnpg/${namespace}/*",
             "Tagging:${local.db_backup_bucket}/cnpg/${namespace}/*",
-          ]
+            ], namespace == "mnemo" ? [
+            "Read:${local.db_backup_bucket}/cnpg/infra/${local.mnemo_cnpg}/*",
+            "List:${local.db_backup_bucket}/cnpg/infra/${local.mnemo_cnpg}/*",
+          ] : [])
         }
       ],
     )

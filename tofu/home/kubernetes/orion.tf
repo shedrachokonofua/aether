@@ -78,6 +78,10 @@ resource "kubernetes_secret_v1" "orion_env" {
     LITELLM_API_KEY = var.secrets["litellm.virtual_keys.orion"]
     # Metrics + service discovery → Prometheus (same instance Grafana uses).
     PROMETHEUS_URL = "https://prometheus.home.shdr.ch"
+    # Search "Ask Beryl" → the Hermes Beryl agent's OpenAI-compatible API
+    # (in-cluster; key is the same random_password Hermes uses for its api_server).
+    BERYL_API_URL = "http://hermes-beryl.hermes.svc.cluster.local:8642/v1"
+    BERYL_API_KEY = random_password.hermes_api_server_key["beryl"].result
   }
 
   type = "Opaque"

@@ -55,6 +55,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       OPENROUTER_API_KEY    = var.secrets["litellm.openrouter_api_key"]
       OLLAMA_API_KEY        = var.secrets["litellm.ollama_cloud_api_key"]
       CLINEPASS_API_KEY     = var.secrets["litellm.clinepass_api_key"]
+      XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
       CURSOR_API_KEY        = var.secrets["composer.cursor_api_key"]
       FINVIZ_API_KEY        = var.secrets["finviz_api_key"]
       COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
@@ -168,6 +169,7 @@ resource "kubernetes_deployment_v1" "litellm" {
         annotations = {
           "aether.shdr.ch/config-sha"       = sha256(local.litellm_config_yaml)
           "aether.shdr.ch/database-url-sha" = sha256(local.litellm_database_url)
+          "aether.shdr.ch/env-sha"          = nonsensitive(sha256(jsonencode(kubernetes_secret_v1.litellm_env.data)))
         }
       }
 
@@ -244,6 +246,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "OLLAMA_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "CLINEPASS_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "CLINEPASS_API_KEY"
               }
             }
           }
