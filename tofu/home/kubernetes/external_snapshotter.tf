@@ -13,14 +13,15 @@ locals {
 
     tier="$${SNAPSHOT_TIER:?SNAPSHOT_TIER is required}"
     class="$${SNAPSHOT_CLASS:-ceph-rbd}"
-    stamp="$$(date -u +%Y%m%d%H%M%S)"
+    stamp="$(date -u +%Y%m%d%H%M%S)"
 
-    for ns in $$(kubectl get ns -l "aether.shdr.ch/backup=$${tier}" -o jsonpath='{range .items[*]}{.metadata.name}{"\\n"}{end}'); do
+    for ns in $(kubectl get ns -l "aether.shdr.ch/backup=$${tier}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
       kubectl get pvc -n "$${ns}" -l '!cnpg.io/cluster' -o go-template='{{range .items}}{{if eq .spec.storageClassName "ceph-rbd"}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' |
       while IFS= read -r pvc; do
         [ -n "$${pvc}" ] || continue
-        short="$$(printf '%s' "$${pvc}" | cut -c1-36)"
-        snapshot="$${short}-$${tier}-$${stamp}"
+        short="$(printf '%s' "$${pvc}" | cut -c1-26)"
+        hash="$(printf '%s' "$${pvc}" | cksum | cut -d ' ' -f1)"
+        snapshot="$${short}-$${hash}-$${tier}-$${stamp}"
         cat <<EOF | kubectl create -n "$${ns}" -f -
     apiVersion: snapshot.storage.k8s.io/v1
     kind: VolumeSnapshot
@@ -109,13 +110,9 @@ resource "kubectl_manifest" "ceph_rbd_volume_snapshot_class" {
     driver         = kubernetes_storage_class_v1.ceph_rbd.storage_provisioner
     deletionPolicy = "Delete"
     parameters = {
-      clusterID                                                = local.ceph_fsid
-      "csi.storage.k8s.io/snapshotter-secret-name"             = kubernetes_secret_v1.ceph_csi.metadata[0].name
-      "csi.storage.k8s.io/snapshotter-secret-namespace"        = module.namespace["system"].name
-      "csi.storage.k8s.io/snapshotter-list-secret-name"        = kubernetes_secret_v1.ceph_csi.metadata[0].name
-      "csi.storage.k8s.io/snapshotter-list-secret-namespace"   = module.namespace["system"].name
-      "csi.storage.k8s.io/snapshotter-delete-secret-name"      = kubernetes_secret_v1.ceph_csi.metadata[0].name
-      "csi.storage.k8s.io/snapshotter-delete-secret-namespace" = module.namespace["system"].name
+      clusterID                                         = local.ceph_fsid
+      "csi.storage.k8s.io/snapshotter-secret-name"      = kubernetes_secret_v1.ceph_csi.metadata[0].name
+      "csi.storage.k8s.io/snapshotter-secret-namespace" = module.namespace["system"].name
     }
   })
 }
@@ -246,7 +243,7 @@ resource "kubernetes_cron_job_v1" "volume_snapshot_scheduler" {
 
             container {
               name    = "snapshot"
-              image   = "registry.k8s.io/kubectl:v1.33.2"
+              image   = "docker.io/alpine/k8s:1.33.2"
               command = ["/bin/sh", "/scripts/snapshot.sh"]
 
               env {
