@@ -14,22 +14,12 @@
 #           @ open-design-v0.11.0, pushed to the composer-api project's container
 #           registry since upstream does not publish a public ghcr image.)
 
-resource "kubernetes_namespace_v1" "open_design" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "open-design"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 locals {
   od_image     = "registry.gitlab.home.shdr.ch/so/aether/composer-api/open-design:0.11.0-amd64"
   od_host      = "open-design.home.shdr.ch"
   od_web_port  = 7456
-  od_ns        = kubernetes_namespace_v1.open_design.metadata[0].name
+  od_ns        = module.namespace["open-design"].name
   od_labels    = { app = "open-design" }
   od_api_token = var.secrets["open_design.api_token"]
 
@@ -42,7 +32,7 @@ locals {
 # Secret — GitLab Container Registry pull creds (for the locally-built OD image)
 # ---------------------------------------------------------------------------
 resource "kubernetes_secret_v1" "open_design_registry" {
-  depends_on = [kubernetes_namespace_v1.open_design]
+  depends_on = [module.namespace["open-design"]]
 
   metadata {
     name      = "open-design-registry"
@@ -68,7 +58,7 @@ resource "kubernetes_secret_v1" "open_design_registry" {
 # Secret — daemon env (API token)
 # ---------------------------------------------------------------------------
 resource "kubernetes_secret_v1" "open_design_env" {
-  depends_on = [kubernetes_namespace_v1.open_design]
+  depends_on = [module.namespace["open-design"]]
 
   metadata {
     name      = "open-design-env"
@@ -84,7 +74,7 @@ resource "kubernetes_secret_v1" "open_design_env" {
 # PVC — SQLite + file state
 # ---------------------------------------------------------------------------
 resource "kubernetes_persistent_volume_claim_v1" "open_design_data" {
-  depends_on = [kubernetes_namespace_v1.open_design, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["open-design"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "open-design-data"

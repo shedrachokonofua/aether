@@ -7,7 +7,7 @@
 # rollback/import sources until each app's post-cutover cleanup is complete.
 
 resource "kubernetes_secret_v1" "affine_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.affine]
+  depends_on = [module.namespace["affine"]]
 
   metadata {
     name      = "affine-cnpg-app"
@@ -44,7 +44,7 @@ resource "kubectl_manifest" "affine_cnpg_cluster" {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["affine"]
+      plugins = local.cnpg_plugin_specs["affine"]
       bootstrap = {
         initdb = {
           database = "affine"
@@ -83,7 +83,7 @@ resource "kubectl_manifest" "affine_cnpg_cluster" {
 }
 
 resource "kubernetes_secret_v1" "immich_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.immich]
+  depends_on = [module.namespace["immich"]]
 
   metadata {
     name      = "immich-cnpg-app"
@@ -128,7 +128,7 @@ resource "kubectl_manifest" "immich_cnpg_cluster" {
           wal_compression = "on"
         }
       }
-      backup = local.cnpg_backup_specs["immich"]
+      plugins = local.cnpg_plugin_specs["immich"]
       bootstrap = {
         initdb = {
           database = local.immich_db_name
@@ -163,7 +163,7 @@ resource "kubectl_manifest" "immich_cnpg_cluster" {
 }
 
 resource "kubernetes_secret_v1" "litellm_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "litellm-cnpg-app"
@@ -200,7 +200,7 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["litellm"]
+      plugins = local.cnpg_plugin_specs["litellm"]
       bootstrap = {
         initdb = {
           database      = "litellm"
@@ -237,7 +237,7 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
 }
 
 resource "kubernetes_secret_v1" "openwebui_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "openwebui-cnpg-app"
@@ -274,7 +274,7 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["openwebui"]
+      plugins = local.cnpg_plugin_specs["openwebui"]
       bootstrap = {
         initdb = {
           database = local.postgres_db
@@ -312,7 +312,7 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
 }
 
 resource "kubernetes_secret_v1" "matrix_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.matrix]
+  depends_on = [module.namespace["matrix"]]
 
   metadata {
     name      = "matrix-cnpg-app"
@@ -332,7 +332,7 @@ resource "kubectl_manifest" "matrix_cnpg_cluster" {
     helm_release.cnpg,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.matrix_cnpg_app,
-    kubernetes_service_v1.matrix_postgres,
+    kubernetes_secret_v1.db_backup_s3["matrix"],
   ]
 
   yaml_body = yamlencode({
@@ -349,32 +349,27 @@ resource "kubectl_manifest" "matrix_cnpg_cluster" {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["matrix"]
+      plugins = local.cnpg_plugin_specs["matrix"]
+      # Post-adoption bootstrap path. The original logical import from the
+      # legacy StatefulSet is intentionally gone: application traffic now uses
+      # CNPG, and a future rebuild must recover from the verified CNPG backup
+      # stream instead of an empty or stale legacy service.
       bootstrap = {
-        initdb = {
-          database      = "app"
-          owner         = local.matrix_pg_user
-          localeCType   = "C"
-          localeCollate = "C"
-          secret        = { name = kubernetes_secret_v1.matrix_cnpg_app.metadata[0].name }
-          import = {
-            type      = "monolith"
-            databases = ["matrix", "mautrix_whatsapp", "mautrix_gmessages"]
-            source    = { externalCluster = "matrix-source" }
-          }
+        recovery = {
+          source   = local.matrix_cnpg_cluster
+          database = local.matrix_pg_user
+          owner    = local.matrix_pg_user
+          secret   = { name = kubernetes_secret_v1.matrix_cnpg_app.metadata[0].name }
         }
       }
       externalClusters = [{
-        name = "matrix-source"
-        connectionParameters = {
-          host    = "matrix-postgres.${local.matrix_ns}.svc.cluster.local"
-          user    = local.matrix_pg_user
-          dbname  = local.matrix_pg_user
-          sslmode = "disable"
-        }
-        password = {
-          name = kubernetes_secret_v1.matrix_postgres.metadata[0].name
-          key  = "POSTGRES_PASSWORD"
+        name = local.matrix_cnpg_cluster
+        plugin = {
+          name = local.cnpg_barman_plugin_name
+          parameters = {
+            barmanObjectName = local.cnpg_barman_object_store_names["matrix"]
+            serverName       = local.matrix_cnpg_cluster
+          }
         }
       }]
     }
@@ -386,7 +381,7 @@ resource "kubectl_manifest" "matrix_cnpg_cluster" {
 }
 
 resource "kubernetes_secret_v1" "nextcloud_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-cnpg-app"
@@ -423,7 +418,7 @@ resource "kubectl_manifest" "nextcloud_cnpg_cluster" {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["nextcloud"]
+      plugins = local.cnpg_plugin_specs["nextcloud"]
       bootstrap = {
         initdb = {
           database = local.nextcloud_db_name

@@ -170,5 +170,6 @@ Alerts route through Apprise to ntfy for push notifications.
 | VM High CPU            | warning  | >90% CPU for 5m                  |
 | VM High Memory         | warning  | >90% memory for 5m               |
 | Backup Stale           | warning  | Last backup >24h ago             |
+| Kubernetes ReplicaSet Not Ready | warning  | Desired replicas exceed ready replicas for 15m |
 | GPU High Temperature   | warning  | >85°C for 2m                     |
 | GPU High Memory        | warning  | >95% VRAM for 5m                 |

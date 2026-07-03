@@ -11,7 +11,7 @@ locals {
   vane_image           = "itzcrazykns1337/vane:slim-latest"
   vane_host            = "vane.home.shdr.ch"
   vane_port            = 3000
-  vane_ns              = kubernetes_namespace_v1.personal.metadata[0].name
+  vane_ns              = module.namespace["personal"].name
   vane_labels          = { app = "vane" }
   vane_searxng_url     = "http://searxng.infra.svc.cluster.local:8080"
   vane_openai_base_url = "https://litellm.home.shdr.ch/v1"
@@ -22,7 +22,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "vane_config" {
-  depends_on = [kubernetes_namespace_v1.personal]
+  depends_on = [module.namespace["personal"]]
 
   metadata {
     name      = "vane-config"
@@ -37,7 +37,7 @@ resource "kubernetes_secret_v1" "vane_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "vane_data" {
-  depends_on = [kubernetes_namespace_v1.personal, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["personal"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "vane-data"

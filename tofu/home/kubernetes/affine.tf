@@ -9,15 +9,6 @@
 #   affine_indexer-default-affine-ghfpkn → k8s PVC (Manticore data)
 #   ../files/config.json → read via RBD snapshot and store in k8s Secret
 
-resource "kubernetes_namespace_v1" "affine" {
-  depends_on = [helm_release.cilium]
-  metadata {
-    name = "affine"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 resource "random_password" "affine_db_password" {
   length  = 32
@@ -38,7 +29,7 @@ locals {
   affine_redis_port     = 6379
   affine_manticore_port = 9308
 
-  affine_ns               = kubernetes_namespace_v1.affine.metadata[0].name
+  affine_ns               = module.namespace["affine"].name
   affine_labels           = { app = "affine" }
   affine_pg_labels        = { app = "affine-postgres" }
   affine_redis_labels     = { app = "affine-redis" }
@@ -50,7 +41,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "affine_postgres" {
-  depends_on = [kubernetes_namespace_v1.affine]
+  depends_on = [module.namespace["affine"]]
   metadata {
     name      = "affine-postgres"
     namespace = local.affine_ns
@@ -64,7 +55,7 @@ resource "kubernetes_secret_v1" "affine_postgres" {
 }
 
 resource "kubernetes_secret_v1" "affine_config" {
-  depends_on = [kubernetes_namespace_v1.affine]
+  depends_on = [module.namespace["affine"]]
   metadata {
     name      = "affine-config"
     namespace = local.affine_ns
@@ -115,7 +106,7 @@ resource "kubernetes_secret_v1" "affine_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "affine_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.affine, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["affine"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "affine-postgres-data"
     namespace = local.affine_ns
@@ -129,7 +120,7 @@ resource "kubernetes_persistent_volume_claim_v1" "affine_postgres_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "affine_uploads" {
-  depends_on = [kubernetes_namespace_v1.affine, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["affine"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "affine-uploads"
     namespace = local.affine_ns
@@ -143,7 +134,7 @@ resource "kubernetes_persistent_volume_claim_v1" "affine_uploads" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "affine_indexer" {
-  depends_on = [kubernetes_namespace_v1.affine, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["affine"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "affine-indexer"
     namespace = local.affine_ns
@@ -234,7 +225,7 @@ resource "kubernetes_service_v1" "affine_postgres" {
 
 # Redis
 resource "kubernetes_deployment_v1" "affine_redis" {
-  depends_on = [kubernetes_namespace_v1.affine]
+  depends_on = [module.namespace["affine"]]
   metadata {
     name      = "affine-redis"
     namespace = local.affine_ns

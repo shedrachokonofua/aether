@@ -17,7 +17,8 @@ resource "helm_release" "crossplane" {
   repository       = "https://charts.crossplane.io/stable"
   chart            = "crossplane"
   namespace        = "crossplane-system"
-  create_namespace = true
+  version          = "2.1.3"
+  create_namespace = false
   wait             = true
   timeout          = 600
 

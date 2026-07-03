@@ -10,7 +10,7 @@ locals {
   speaches_image  = "ghcr.io/speaches-ai/speaches:latest-cuda"
   speaches_host   = "speaches.home.shdr.ch"
   speaches_port   = 8000
-  speaches_ns     = kubernetes_namespace_v1.infra.metadata[0].name
+  speaches_ns     = module.namespace["infra"].name
   speaches_labels = { app = "speaches" }
 }
 
@@ -19,7 +19,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "speaches_models" {
-  depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "speaches-models"

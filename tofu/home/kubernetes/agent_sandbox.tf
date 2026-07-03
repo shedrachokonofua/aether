@@ -117,20 +117,6 @@ resource "kubectl_manifest" "agent_sandbox_extensions" {
 # Where Sandbox CRs and their pods live. PodSecurity restricted by default;
 # kata pods comply.
 
-resource "kubernetes_namespace_v1" "sandboxes" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.agent_sandbox_workloads
-
-    labels = {
-      "pod-security.kubernetes.io/enforce"         = "restricted"
-      "pod-security.kubernetes.io/enforce-version" = "latest"
-      "pod-security.kubernetes.io/warn"            = "restricted"
-      "pod-security.kubernetes.io/audit"           = "restricted"
-    }
-  }
-}
 
 # =============================================================================
 # Default-deny NetworkPolicy
@@ -141,7 +127,7 @@ resource "kubernetes_namespace_v1" "sandboxes" {
 resource "kubernetes_network_policy_v1" "sandboxes_default_deny" {
   metadata {
     name      = "default-deny"
-    namespace = kubernetes_namespace_v1.sandboxes.metadata[0].name
+    namespace = module.namespace["sandboxes"].name
   }
 
   spec {
@@ -153,7 +139,7 @@ resource "kubernetes_network_policy_v1" "sandboxes_default_deny" {
 resource "kubernetes_network_policy_v1" "sandboxes_allow_dns" {
   metadata {
     name      = "allow-dns"
-    namespace = kubernetes_namespace_v1.sandboxes.metadata[0].name
+    namespace = module.namespace["sandboxes"].name
   }
 
   spec {
@@ -183,29 +169,6 @@ resource "kubernetes_network_policy_v1" "sandboxes_allow_dns" {
   }
 }
 
-# =============================================================================
-# ResourceQuota — bound the sandbox namespace blast radius
-# =============================================================================
-# Sized for ~2-4 active sandboxes. Bump when you grow.
-
-resource "kubernetes_resource_quota_v1" "sandboxes" {
-  metadata {
-    name      = "sandboxes-quota"
-    namespace = kubernetes_namespace_v1.sandboxes.metadata[0].name
-  }
-
-  spec {
-    hard = {
-      "requests.cpu"           = "8"
-      "requests.memory"        = "16Gi"
-      "limits.cpu"             = "16"
-      "limits.memory"          = "32Gi"
-      "requests.storage"       = "200Gi"
-      "persistentvolumeclaims" = "10"
-      "pods"                   = "20"
-    }
-  }
-}
 
 # =============================================================================
 # LimitRange — default + max container resources
@@ -216,7 +179,7 @@ resource "kubernetes_resource_quota_v1" "sandboxes" {
 resource "kubernetes_limit_range_v1" "sandboxes" {
   metadata {
     name      = "sandboxes-limits"
-    namespace = kubernetes_namespace_v1.sandboxes.metadata[0].name
+    namespace = module.namespace["sandboxes"].name
   }
 
   spec {

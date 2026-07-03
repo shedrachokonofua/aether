@@ -10,7 +10,7 @@ resource "helm_release" "headlamp" {
   repository       = "https://kubernetes-sigs.github.io/headlamp/"
   chart            = "headlamp"
   namespace        = "headlamp"
-  create_namespace = true
+  create_namespace = false
   version          = "0.39.0"
   wait             = true
   timeout          = 300
@@ -22,6 +22,10 @@ resource "helm_release" "headlamp" {
         issuerURL = var.oidc_issuer_url
       }
       extraArgs = ["-oidc-callback-url", "https://headlamp.home.shdr.ch/oidc-callback"]
+    }
+
+    clusterRoleBinding = {
+      create = false
     }
 
     service = {

@@ -169,10 +169,72 @@ locals {
     }
   }
 
-  db_backup_namespaces = toset(distinct(concat(
-    [for target in values(local.db_backup_postgres_targets) : target.namespace],
-    [for target in values(local.db_backup_mongo_targets) : target.namespace]
-  )))
+  db_backup_namespaces = setunion(
+    toset([
+      for namespace, contract in local.namespace_contract_specs : namespace
+      if contract.backup != "none"
+    ]),
+    toset([
+      for _, target in local.cnpg_backup_targets : target.namespace
+    ]),
+  )
+}
+
+resource "random_password" "db_backup_s3_access_key" {
+  for_each = local.db_backup_namespaces
+
+  length  = 20
+  special = false
+}
+
+resource "random_password" "db_backup_s3_secret_key" {
+  for_each = local.db_backup_namespaces
+
+  length  = 40
+  special = false
+}
+
+resource "local_sensitive_file" "seaweedfs_s3_config" {
+  filename        = "${path.module}/../secrets/seaweedfs-s3.json"
+  file_permission = "0600"
+
+  content = jsonencode({
+    identities = concat(
+      [
+        {
+          name = "admin"
+          credentials = [{
+            accessKey = var.secrets["seaweedfs.s3_admin_access_key"]
+            secretKey = var.secrets["seaweedfs.s3_admin_secret_key"]
+          }]
+          actions = ["Admin", "Read", "Write", "List", "Tagging"]
+        }
+      ],
+      [
+        for namespace in sort(tolist(local.db_backup_namespaces)) : {
+          name = "${namespace}-backup"
+          credentials = [{
+            accessKey = random_password.db_backup_s3_access_key[namespace].result
+            secretKey = random_password.db_backup_s3_secret_key[namespace].result
+          }]
+          actions = [
+            "Read:${local.db_backup_bucket}/postgres/${namespace}/*",
+            "Write:${local.db_backup_bucket}/postgres/${namespace}/*",
+            "List:${local.db_backup_bucket}/postgres/${namespace}/*",
+            "Tagging:${local.db_backup_bucket}/postgres/${namespace}/*",
+            "Read:${local.db_backup_bucket}/mongo/${namespace}/*",
+            "Write:${local.db_backup_bucket}/mongo/${namespace}/*",
+            "List:${local.db_backup_bucket}/mongo/${namespace}/*",
+            "Tagging:${local.db_backup_bucket}/mongo/${namespace}/*",
+            "Read:${local.db_backup_bucket}/cnpg/${namespace}/*",
+            "Write:${local.db_backup_bucket}/cnpg/${namespace}/*",
+            "List:${local.db_backup_bucket}/cnpg/${namespace}/*",
+            "Tagging:${local.db_backup_bucket}/cnpg/${namespace}/*",
+          ]
+        }
+      ],
+    )
+  })
 }
 
 resource "kubernetes_secret_v1" "db_backup_s3" {
@@ -187,8 +249,8 @@ resource "kubernetes_secret_v1" "db_backup_s3" {
   }
 
   data = {
-    AWS_ACCESS_KEY_ID                = var.secrets["seaweedfs.s3_admin_access_key"]
-    AWS_SECRET_ACCESS_KEY            = var.secrets["seaweedfs.s3_admin_secret_key"]
+    AWS_ACCESS_KEY_ID                = random_password.db_backup_s3_access_key[each.key].result
+    AWS_SECRET_ACCESS_KEY            = random_password.db_backup_s3_secret_key[each.key].result
     AWS_DEFAULT_REGION               = "us-east-1"
     AWS_EC2_METADATA_DISABLED        = "true"
     AWS_REQUEST_CHECKSUM_CALCULATION = "WHEN_REQUIRED"

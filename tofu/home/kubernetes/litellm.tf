@@ -13,7 +13,7 @@ locals {
   litellm_google_maps_package = "@cablate/mcp-google-map@0.0.52"
   litellm_affine_mcp_image    = "ghcr.io/dawncr0w/affine-mcp-server:latest"
   litellm_host                = "litellm.home.shdr.ch"
-  litellm_ns                  = kubernetes_namespace_v1.infra.metadata[0].name
+  litellm_ns                  = module.namespace["infra"].name
   litellm_labels              = { app = "litellm" }
   litellm_port                = 4000
   litellm_finviz_port         = 8000
@@ -36,7 +36,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "litellm_env" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "litellm-env"
@@ -76,7 +76,7 @@ resource "random_password" "litellm_affine_mcp_http" {
 }
 
 resource "kubernetes_secret_v1" "litellm_config" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "litellm-config"
@@ -91,7 +91,7 @@ resource "kubernetes_secret_v1" "litellm_config" {
 }
 
 resource "kubernetes_secret_v1" "litellm_gitlab_registry" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "litellm-gitlab-registry"
@@ -114,7 +114,7 @@ resource "kubernetes_secret_v1" "litellm_gitlab_registry" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "litellm_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "litellm-postgres-data"

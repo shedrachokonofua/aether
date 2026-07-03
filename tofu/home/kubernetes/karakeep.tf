@@ -15,15 +15,6 @@
 #   karakeep.meili_master_key  (MEILI_MASTER_KEY — 32+ char random string)
 #   litellm.virtual_keys.karakeep (OPENAI_API_KEY for LiteLLM)
 
-resource "kubernetes_namespace_v1" "karakeep" {
-  depends_on = [helm_release.cilium]
-  metadata {
-    name = "karakeep"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 resource "random_password" "karakeep_nextauth_secret" {
   length  = 32
@@ -46,14 +37,14 @@ locals {
   karakeep_chrome_port = 9222
   karakeep_meili_port  = 7700
 
-  karakeep_ns            = kubernetes_namespace_v1.karakeep.metadata[0].name
+  karakeep_ns            = module.namespace["karakeep"].name
   karakeep_labels        = { app = "karakeep" }
   karakeep_chrome_labels = { app = "karakeep-chrome" }
   karakeep_meili_labels  = { app = "karakeep-meilisearch" }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "karakeep_data" {
-  depends_on = [kubernetes_namespace_v1.karakeep, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["karakeep"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "karakeep-data"
     namespace = local.karakeep_ns
@@ -67,7 +58,7 @@ resource "kubernetes_persistent_volume_claim_v1" "karakeep_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "karakeep_meilisearch" {
-  depends_on = [kubernetes_namespace_v1.karakeep, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["karakeep"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "karakeep-meilisearch"
     namespace = local.karakeep_ns
@@ -151,7 +142,7 @@ resource "kubernetes_service_v1" "karakeep_meilisearch" {
 
 # Headless Chrome for link previews
 resource "kubernetes_deployment_v1" "karakeep_chrome" {
-  depends_on = [kubernetes_namespace_v1.karakeep]
+  depends_on = [module.namespace["karakeep"]]
   metadata {
     name      = "karakeep-chrome"
     namespace = local.karakeep_ns

@@ -17,7 +17,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "stremthru" {
-  depends_on = [kubernetes_namespace_v1.media]
+  depends_on = [module.namespace["media"]]
 
   metadata {
     name      = "stremthru"
@@ -37,7 +37,7 @@ resource "kubernetes_secret_v1" "stremthru" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "stremthru_data" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "stremthru-data"

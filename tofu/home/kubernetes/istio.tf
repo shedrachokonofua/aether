@@ -10,19 +10,9 @@ locals {
 }
 
 # Namespace with privileged PodSecurity - required for istio-cni (hostPath, NET_ADMIN) and ztunnel
-resource "kubernetes_namespace_v1" "istio_system" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "istio-system"
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 resource "helm_release" "istio_base" {
-  depends_on = [kubernetes_namespace_v1.istio_system]
+  depends_on = [module.namespace["istio-system"]]
 
   name             = "istio-base"
   repository       = "https://istio-release.storage.googleapis.com/charts"

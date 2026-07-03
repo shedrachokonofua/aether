@@ -1,9 +1,14 @@
 # GitLab Agent for Kubernetes - CI Access Configuration
-# Grants all projects under the "so" group full cluster access.
-# Namespace is derived from $CI_PROJECT_ROOT_NAMESPACE in CI jobs.
+# Jobs under the "so" group are forced through a fixed Kubernetes
+# impersonation identity. RBAC for that identity is declared in
+# tofu/home/kubernetes/gitlab_agent.tf; the agent service account only gets
+# the right to impersonate this identity, not direct cluster-admin.
 
 ci_access:
   groups:
     - id: so
       access_as:
-        agent: {}
+        impersonate:
+          username: gitlab-ci:so
+          groups:
+            - gitlab-ci:so

@@ -17,7 +17,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "aiostreams" {
-  depends_on = [kubernetes_namespace_v1.media]
+  depends_on = [module.namespace["media"]]
 
   metadata {
     name      = "aiostreams"
@@ -38,7 +38,7 @@ resource "kubernetes_secret_v1" "aiostreams" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "aiostreams_data" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "aiostreams-data"

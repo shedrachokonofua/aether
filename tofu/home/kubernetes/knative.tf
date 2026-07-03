@@ -20,7 +20,7 @@ resource "helm_release" "knative_operator" {
   repository       = "https://knative.github.io/operator"
   chart            = "knative-operator"
   namespace        = "knative-operator"
-  create_namespace = true
+  create_namespace = false
   version          = local.knative_operator_version
   wait             = true
   timeout          = 600
@@ -30,24 +30,13 @@ resource "helm_release" "knative_operator" {
 # Knative Serving Namespace
 # =============================================================================
 
-resource "kubernetes_namespace_v1" "knative_serving" {
-  depends_on = [helm_release.knative_operator]
-
-  metadata {
-    name = "knative-serving"
-    labels = {
-      "app.kubernetes.io/name"    = "knative-serving"
-      "app.kubernetes.io/version" = local.knative_version
-    }
-  }
-}
 
 # =============================================================================
 # Gateway API Networking Layer
 # =============================================================================
 
 resource "null_resource" "knative_net_gateway_api" {
-  depends_on = [kubernetes_namespace_v1.knative_serving, kubernetes_manifest.main_gateway]
+  depends_on = [module.namespace["knative-serving"], kubernetes_manifest.main_gateway]
 
   triggers = {
     version = local.knative_operator_version

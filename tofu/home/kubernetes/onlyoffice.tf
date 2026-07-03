@@ -102,11 +102,11 @@ resource "random_password" "onlyoffice_jwt_secret" {
 }
 
 resource "kubernetes_secret_v1" "onlyoffice_jwt" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "onlyoffice-jwt"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -117,11 +117,11 @@ resource "kubernetes_secret_v1" "onlyoffice_jwt" {
 }
 
 resource "kubernetes_secret_v1" "onlyoffice_ai_settings" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "onlyoffice-ai-settings"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -143,7 +143,7 @@ resource "kubernetes_deployment_v1" "onlyoffice" {
 
   metadata {
     name      = "onlyoffice"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.onlyoffice_labels
   }
 
@@ -273,7 +273,7 @@ resource "kubernetes_service_v1" "onlyoffice" {
 
   metadata {
     name      = "onlyoffice"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.onlyoffice_labels
   }
 
@@ -309,7 +309,7 @@ resource "kubernetes_job_v1" "nextcloud_onlyoffice_bootstrap" {
 
   metadata {
     name      = "nextcloud-onlyoffice-bootstrap-${local.nextcloud_onlyoffice_bootstrap_hash}"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   spec {

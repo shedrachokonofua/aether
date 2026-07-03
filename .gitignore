@@ -16,6 +16,7 @@ config/tofu-state.config
 
 secrets/tf-outputs.json
 secrets/aws/
+tofu/home/secrets/
 
 # Local-only dokploy compose snapshot (migration reference)
 .dokploy-ref/

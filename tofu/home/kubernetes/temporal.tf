@@ -40,16 +40,6 @@ locals {
   YAML
 }
 
-resource "kubernetes_namespace_v1" "temporal" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.temporal_namespace
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 # ─── Postgres ────────────────────────────────────────────────────────────────
 
@@ -59,11 +49,11 @@ resource "random_password" "temporal_postgres_password" {
 }
 
 resource "kubernetes_secret_v1" "temporal_postgres" {
-  depends_on = [kubernetes_namespace_v1.temporal]
+  depends_on = [module.namespace["temporal"]]
 
   metadata {
     name      = "temporal-postgres"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
   }
 
   data = {
@@ -76,11 +66,11 @@ resource "kubernetes_secret_v1" "temporal_postgres" {
 }
 
 resource "kubernetes_secret_v1" "temporal_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.temporal]
+  depends_on = [module.namespace["temporal"]]
 
   metadata {
     name      = "temporal-cnpg-app"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
   }
 
   type = "kubernetes.io/basic-auth"
@@ -92,11 +82,11 @@ resource "kubernetes_secret_v1" "temporal_cnpg_app" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "temporal_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.temporal, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["temporal"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "temporal-postgres-data"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
   }
 
   spec {
@@ -116,7 +106,7 @@ resource "kubernetes_stateful_set_v1" "temporal_postgres" {
 
   metadata {
     name      = local.temporal_pg_service
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
     labels    = { app = local.temporal_pg_service }
   }
 
@@ -194,7 +184,7 @@ resource "kubernetes_service_v1" "temporal_postgres" {
 
   metadata {
     name      = local.temporal_pg_service
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
     labels    = { app = local.temporal_pg_service }
   }
 
@@ -224,7 +214,7 @@ resource "kubectl_manifest" "temporal_cnpg_cluster" {
     kind       = "Cluster"
     metadata = {
       name      = local.temporal_cnpg_cluster
-      namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+      namespace = module.namespace["temporal"].name
     }
     spec = {
       instances = 1
@@ -233,7 +223,7 @@ resource "kubectl_manifest" "temporal_cnpg_cluster" {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["temporal"]
+      plugins = local.cnpg_plugin_specs["temporal"]
       bootstrap = {
         initdb = {
           database = local.temporal_pg_db
@@ -279,7 +269,7 @@ resource "kubernetes_job_v1" "temporal_visibility_import" {
 
   metadata {
     name      = "temporal-visibility-import"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
   }
 
   spec {
@@ -392,11 +382,11 @@ resource "kubernetes_job_v1" "temporal_visibility_import" {
 # ─── Temporal server ─────────────────────────────────────────────────────────
 
 resource "kubernetes_config_map_v1" "temporal_dynamic_config" {
-  depends_on = [kubernetes_namespace_v1.temporal]
+  depends_on = [module.namespace["temporal"]]
 
   metadata {
     name      = "temporal-dynamic-config"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
   }
 
   data = {
@@ -409,7 +399,7 @@ resource "kubernetes_deployment_v1" "temporal_server" {
 
   metadata {
     name      = "temporal-server"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
     labels    = { app = "temporal-server" }
   }
 
@@ -513,7 +503,7 @@ resource "kubernetes_service_v1" "temporal_server" {
 
   metadata {
     name      = "temporal-server"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
     labels    = { app = "temporal-server" }
   }
 
@@ -538,7 +528,7 @@ resource "kubernetes_deployment_v1" "temporal_ui" {
 
   metadata {
     name      = "temporal-ui"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
     labels    = { app = "temporal-ui" }
   }
 
@@ -596,7 +586,7 @@ resource "kubernetes_service_v1" "temporal_ui" {
 
   metadata {
     name      = "temporal-ui"
-    namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+    namespace = module.namespace["temporal"].name
     labels    = { app = "temporal-ui" }
   }
 
@@ -621,7 +611,7 @@ resource "kubernetes_manifest" "temporal_ui_route" {
     kind       = "HTTPRoute"
     metadata = {
       name      = "temporal-ui"
-      namespace = kubernetes_namespace_v1.temporal.metadata[0].name
+      namespace = module.namespace["temporal"].name
     }
     spec = {
       parentRefs = [{

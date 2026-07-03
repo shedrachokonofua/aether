@@ -6,15 +6,6 @@
 # Keycloak outages. OAUTH2_USER_CREATION=1 lets first OIDC login auto-create
 # a user; the realm is private so that's safe.
 
-resource "kubernetes_namespace_v1" "miniflux" {
-  depends_on = [helm_release.cilium]
-  metadata {
-    name = "miniflux"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 resource "random_password" "miniflux_postgres_password" {
   length  = 32
@@ -34,7 +25,7 @@ locals {
   miniflux_port    = 8080
   miniflux_pg_port = 5432
 
-  miniflux_ns        = kubernetes_namespace_v1.miniflux.metadata[0].name
+  miniflux_ns        = module.namespace["miniflux"].name
   miniflux_labels    = { app = "miniflux" }
   miniflux_pg_labels = { app = "miniflux-postgres" }
 
@@ -48,7 +39,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "miniflux_postgres" {
-  depends_on = [kubernetes_namespace_v1.miniflux]
+  depends_on = [module.namespace["miniflux"]]
   metadata {
     name      = "miniflux-postgres"
     namespace = local.miniflux_ns
@@ -62,7 +53,7 @@ resource "kubernetes_secret_v1" "miniflux_postgres" {
 }
 
 resource "kubernetes_secret_v1" "miniflux" {
-  depends_on = [kubernetes_namespace_v1.miniflux]
+  depends_on = [module.namespace["miniflux"]]
   metadata {
     name      = "miniflux"
     namespace = local.miniflux_ns
@@ -76,7 +67,7 @@ resource "kubernetes_secret_v1" "miniflux" {
 }
 
 resource "kubernetes_secret_v1" "miniflux_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.miniflux]
+  depends_on = [module.namespace["miniflux"]]
   metadata {
     name      = "miniflux-cnpg-app"
     namespace = local.miniflux_ns
@@ -93,7 +84,7 @@ resource "kubernetes_secret_v1" "miniflux_cnpg_app" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "miniflux_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.miniflux, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["miniflux"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "miniflux-postgres-data"
     namespace = local.miniflux_ns
@@ -197,7 +188,7 @@ resource "kubectl_manifest" "miniflux_cnpg_cluster" {
         size         = "5Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["miniflux"]
+      plugins = local.cnpg_plugin_specs["miniflux"]
       bootstrap = {
         initdb = {
           database = "miniflux"

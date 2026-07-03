@@ -15,7 +15,7 @@ locals {
   immich_namespace = "immich"
   immich_host      = "immich.home.shdr.ch"
 
-  immich_version        = "v3.0.0"
+  immich_version        = "v3.0.1"
   immich_server_image   = "ghcr.io/immich-app/immich-server:${local.immich_version}"
   immich_ml_image       = "ghcr.io/immich-app/immich-machine-learning:${local.immich_version}-cuda"
   immich_postgres_image = "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
@@ -42,16 +42,6 @@ locals {
 # Namespace
 # =============================================================================
 
-resource "kubernetes_namespace_v1" "immich" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.immich_namespace
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 # =============================================================================
 # Secrets
@@ -66,11 +56,11 @@ resource "random_password" "immich_postgres_password" {
 # UI. Mounting a JSON file at IMMICH_CONFIG_FILE makes the listed fields
 # read-only in the UI so OAuth stays declarative across DB resets.
 resource "kubernetes_secret_v1" "immich_config" {
-  depends_on = [kubernetes_namespace_v1.immich]
+  depends_on = [module.namespace["immich"]]
 
   metadata {
     name      = "immich-config"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
   }
 
   data = {
@@ -101,11 +91,11 @@ resource "kubernetes_secret_v1" "immich_config" {
 }
 
 resource "kubernetes_secret_v1" "immich_postgres" {
-  depends_on = [kubernetes_namespace_v1.immich]
+  depends_on = [module.namespace["immich"]]
 
   metadata {
     name      = "immich-postgres"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
   }
 
   data = {
@@ -123,11 +113,11 @@ resource "kubernetes_secret_v1" "immich_postgres" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "immich_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.immich, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["immich"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "immich-postgres-data"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
   }
 
   spec {
@@ -145,11 +135,11 @@ resource "kubernetes_persistent_volume_claim_v1" "immich_postgres_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "immich_ml_cache" {
-  depends_on = [kubernetes_namespace_v1.immich, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["immich"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "immich-ml-cache"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
   }
 
   spec {
@@ -195,11 +185,11 @@ resource "kubernetes_persistent_volume_v1" "immich_library" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "immich_library" {
-  depends_on = [kubernetes_namespace_v1.immich, kubernetes_persistent_volume_v1.immich_library]
+  depends_on = [module.namespace["immich"], kubernetes_persistent_volume_v1.immich_library]
 
   metadata {
     name      = "immich-library"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
   }
 
   spec {
@@ -246,11 +236,11 @@ resource "kubernetes_persistent_volume_v1" "immich_takeout" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "immich_takeout" {
-  depends_on = [kubernetes_namespace_v1.immich, kubernetes_persistent_volume_v1.immich_takeout]
+  depends_on = [module.namespace["immich"], kubernetes_persistent_volume_v1.immich_takeout]
 
   metadata {
     name      = "immich-takeout"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
   }
 
   spec {
@@ -276,7 +266,7 @@ resource "kubernetes_stateful_set_v1" "immich_postgres" {
 
   metadata {
     name      = "immich-postgres"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_postgres_labels
   }
 
@@ -409,7 +399,7 @@ resource "kubernetes_service_v1" "immich_postgres" {
 
   metadata {
     name      = "immich-postgres"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_postgres_labels
   }
 
@@ -431,11 +421,11 @@ resource "kubernetes_service_v1" "immich_postgres" {
 # =============================================================================
 
 resource "kubernetes_deployment_v1" "immich_redis" {
-  depends_on = [kubernetes_namespace_v1.immich]
+  depends_on = [module.namespace["immich"]]
 
   metadata {
     name      = "immich-redis"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_redis_labels
   }
 
@@ -497,7 +487,7 @@ resource "kubernetes_service_v1" "immich_redis" {
 
   metadata {
     name      = "immich-redis"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_redis_labels
   }
 
@@ -526,7 +516,7 @@ resource "kubernetes_deployment_v1" "immich_ml" {
 
   metadata {
     name      = "immich-ml"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_ml_labels
   }
 
@@ -627,7 +617,7 @@ resource "kubernetes_service_v1" "immich_ml" {
 
   metadata {
     name      = "immich-ml"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_ml_labels
   }
 
@@ -659,7 +649,7 @@ resource "kubernetes_deployment_v1" "immich_server" {
 
   metadata {
     name      = "immich-server"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_server_labels
   }
 
@@ -814,7 +804,7 @@ resource "kubernetes_service_v1" "immich_server" {
 
   metadata {
     name      = "immich-server"
-    namespace = kubernetes_namespace_v1.immich.metadata[0].name
+    namespace = module.namespace["immich"].name
     labels    = local.immich_server_labels
   }
 

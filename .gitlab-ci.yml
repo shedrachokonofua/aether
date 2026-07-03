@@ -1,0 +1,10 @@
+stages:
+  - drift
+
+nightly-tofu-drift:
+  stage: drift
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+  script:
+    - nix develop --command task tofu:init
+    - nix develop --command task tofu:plan -- -detailed-exitcode

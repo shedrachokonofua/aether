@@ -12,15 +12,6 @@
 #   yourspotify.spotify_public  (SPOTIFY_PUBLIC client ID)
 #   yourspotify.spotify_secret  (SPOTIFY_SECRET client secret)
 
-resource "kubernetes_namespace_v1" "yourspotify" {
-  depends_on = [helm_release.cilium]
-  metadata {
-    name = "yourspotify"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 locals {
   yourspotify_api_image    = "yooooomi/your_spotify_server"
@@ -34,14 +25,14 @@ locals {
   yourspotify_api_port    = 8080
   yourspotify_mongo_port  = 27017
 
-  yourspotify_ns            = kubernetes_namespace_v1.yourspotify.metadata[0].name
+  yourspotify_ns            = module.namespace["yourspotify"].name
   yourspotify_api_labels    = { app = "yourspotify-api" }
   yourspotify_client_labels = { app = "yourspotify-client" }
   yourspotify_mongo_labels  = { app = "yourspotify-mongo" }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "yourspotify_mongo_data" {
-  depends_on = [kubernetes_namespace_v1.yourspotify, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["yourspotify"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "yourspotify-mongo-data"

@@ -37,12 +37,12 @@ resource "kubectl_manifest" "tetragon_kernel_module_load" {
     spec = {
       kprobes = [
         {
-          call    = "security_kernel_module_request"
-          syscall = false
-          return  = true
-          message = "Automatic kernel module load requested by a pod"
-          tags    = ["security.kernel-module"]
-          args    = [{ index = 0, type = "string" }]
+          call      = "security_kernel_module_request"
+          syscall   = false
+          return    = true
+          message   = "Automatic kernel module load requested by a pod"
+          tags      = ["security.kernel-module"]
+          args      = [{ index = 0, type = "string" }]
           returnArg = { index = 0, type = "int" }
           selectors = [{
             matchNamespaces = [{ namespace = "Pid", operator = "NotIn", values = ["host_ns"] }]
@@ -50,12 +50,12 @@ resource "kubectl_manifest" "tetragon_kernel_module_load" {
           }]
         },
         {
-          call    = "security_kernel_read_file"
-          syscall = false
-          return  = true
-          message = "Explicit kernel module load (finit_module) by a pod"
-          tags    = ["security.kernel-module"]
-          args    = [{ index = 0, type = "file" }, { index = 1, type = "int" }]
+          call      = "security_kernel_read_file"
+          syscall   = false
+          return    = true
+          message   = "Explicit kernel module load (finit_module) by a pod"
+          tags      = ["security.kernel-module"]
+          args      = [{ index = 0, type = "file" }, { index = 1, type = "int" }]
           returnArg = { index = 0, type = "int" }
           selectors = [{
             matchArgs       = [{ index = 1, operator = "Equal", values = ["2"] }]
@@ -85,10 +85,10 @@ resource "kubectl_manifest" "tetragon_unprivileged_userns" {
         args    = [{ index = 0, type = "nop" }]
         selectors = [{
           matchCapabilities = [{
-            type                 = "Effective"
-            operator             = "NotIn"
+            type                  = "Effective"
+            operator              = "NotIn"
             isNamespaceCapability = false
-            values               = ["CAP_SYS_ADMIN"]
+            values                = ["CAP_SYS_ADMIN"]
           }]
           matchActions = [{ action = "Post" }]
         }]
@@ -107,12 +107,12 @@ resource "kubectl_manifest" "tetragon_host_runtime_socket" {
     metadata   = { name = "tetragon-host-runtime-socket-access" }
     spec = {
       kprobes = [{
-        call    = "security_file_permission"
-        syscall = false
-        return  = true
-        message = "Pod accessed host container-runtime socket"
-        tags    = ["security.container-escape"]
-        args    = [{ index = 0, type = "file" }, { index = 1, type = "int" }]
+        call      = "security_file_permission"
+        syscall   = false
+        return    = true
+        message   = "Pod accessed host container-runtime socket"
+        tags      = ["security.container-escape"]
+        args      = [{ index = 0, type = "file" }, { index = 1, type = "int" }]
         returnArg = { index = 0, type = "int" }
         selectors = [{
           matchArgs = [{
@@ -150,12 +150,12 @@ resource "kubectl_manifest" "tetragon_sensitive_file_access" {
         }]
       }
       kprobes = [{
-        call    = "security_file_permission"
-        syscall = false
-        return  = true
-        message = "Sensitive file access in untrusted workload"
-        tags    = ["security.sensitive-files"]
-        args    = [{ index = 0, type = "file" }, { index = 1, type = "int" }]
+        call      = "security_file_permission"
+        syscall   = false
+        return    = true
+        message   = "Sensitive file access in untrusted workload"
+        tags      = ["security.sensitive-files"]
+        args      = [{ index = 0, type = "file" }, { index = 1, type = "int" }]
         returnArg = { index = 0, type = "int" }
         selectors = [{
           matchArgs = [{
@@ -214,11 +214,11 @@ resource "kubectl_manifest" "tetragon_privilege_escalation" {
           args    = [{ index = 0, type = "cred" }]
           selectors = [{
             matchCapabilityChanges = [{
-              type                 = "Effective"
-              operator             = "In"
+              type                  = "Effective"
+              operator              = "In"
               isNamespaceCapability = false
               # CAP_DAC_OVERRIDE omitted: not recognized by Tetragon v1.7's capability parser.
-              values               = ["CAP_SYS_ADMIN", "CAP_SETUID", "CAP_SYS_PTRACE"]
+              values = ["CAP_SYS_ADMIN", "CAP_SETUID", "CAP_SYS_PTRACE"]
             }]
             matchActions = [{ action = "Post", rateLimit = "1m" }]
           }]
@@ -246,27 +246,27 @@ resource "kubectl_manifest" "tetragon_mount_namespace_ops" {
       }
       kprobes = [
         {
-          call    = "sys_mount"
-          syscall = true
-          message = "mount() in untrusted workload"
-          tags    = ["security.namespace-ops"]
-          args    = [{ index = 0, type = "string" }, { index = 1, type = "string" }]
+          call      = "sys_mount"
+          syscall   = true
+          message   = "mount() in untrusted workload"
+          tags      = ["security.namespace-ops"]
+          args      = [{ index = 0, type = "string" }, { index = 1, type = "string" }]
           selectors = [{ matchActions = [{ action = "Post", rateLimit = "30s" }] }]
         },
         {
-          call    = "sys_pivot_root"
-          syscall = true
-          message = "pivot_root() in untrusted workload"
-          tags    = ["security.namespace-ops"]
-          args    = [{ index = 0, type = "string" }, { index = 1, type = "string" }]
+          call      = "sys_pivot_root"
+          syscall   = true
+          message   = "pivot_root() in untrusted workload"
+          tags      = ["security.namespace-ops"]
+          args      = [{ index = 0, type = "string" }, { index = 1, type = "string" }]
           selectors = [{ matchActions = [{ action = "Post" }] }]
         },
         {
-          call    = "sys_setns"
-          syscall = true
-          message = "setns() - joining a namespace"
-          tags    = ["security.namespace-ops"]
-          args    = [{ index = 0, type = "int" }, { index = 1, type = "int" }]
+          call      = "sys_setns"
+          syscall   = true
+          message   = "setns() - joining a namespace"
+          tags      = ["security.namespace-ops"]
+          args      = [{ index = 0, type = "int" }, { index = 1, type = "int" }]
           selectors = [{ matchActions = [{ action = "Post" }] }]
         },
       ]

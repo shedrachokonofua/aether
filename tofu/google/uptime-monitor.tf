@@ -13,14 +13,14 @@ resource "google_compute_instance" "uptime_monitor" {
   machine_type              = "e2-micro"
   zone                      = "us-central1-a" # Free Tier zone
   tags                      = ["uptime-monitor"]
-  allow_stopping_for_update = true # Allows stopping the VM to apply service account scopes
+  allow_stopping_for_update = true      # Allows stopping the VM to apply service account scopes
   desired_status            = "RUNNING" # Forces OpenTofu to keep the VM running/started
 
   boot_disk {
     initialize_params {
       image = "debian-cloud/debian-12"
-      type  = "pd-standard"  # Free Tier HDD
-      size  = 15             # Under 30 GB Free Tier limit
+      type  = "pd-standard" # Free Tier HDD
+      size  = 15            # Under 30 GB Free Tier limit
     }
   }
 
@@ -33,7 +33,7 @@ resource "google_compute_instance" "uptime_monitor" {
 
   metadata = {
     ssh-keys        = "debian:${tls_private_key.uptime_monitor_ssh_key.public_key_openssh}"
-    enable-osconfig = "true"  # Required for VM Manager
+    enable-osconfig = "true" # Required for VM Manager
   }
 
   # Enable VM Service Account scopes for OS Config / monitoring access

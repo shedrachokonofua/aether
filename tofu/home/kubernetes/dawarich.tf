@@ -11,15 +11,6 @@
 # Settings fix: was running RAILS_ENV=development with DATABASE_PASSWORD=password.
 # Tofu generates a proper password. Must do pg_dump/restore for data continuity.
 
-resource "kubernetes_namespace_v1" "dawarich" {
-  depends_on = [helm_release.cilium]
-  metadata {
-    name = "dawarich"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 resource "random_password" "dawarich_postgres_password" {
   length  = 32
@@ -53,7 +44,7 @@ locals {
   dawarich_pg_port    = 5432
   dawarich_redis_port = 6379
 
-  dawarich_ns             = kubernetes_namespace_v1.dawarich.metadata[0].name
+  dawarich_ns             = module.namespace["dawarich"].name
   dawarich_labels         = { app = "dawarich" }
   dawarich_sidekiq_labels = { app = "dawarich-sidekiq" }
   dawarich_pg_labels      = { app = "dawarich-postgres" }
@@ -81,7 +72,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "dawarich_postgres" {
-  depends_on = [kubernetes_namespace_v1.dawarich]
+  depends_on = [module.namespace["dawarich"]]
   metadata {
     name      = "dawarich-postgres"
     namespace = local.dawarich_ns
@@ -95,7 +86,7 @@ resource "kubernetes_secret_v1" "dawarich_postgres" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["dawarich"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "dawarich-postgres-data"
     namespace = local.dawarich_ns
@@ -109,7 +100,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_postgres_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage" {
-  depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["dawarich"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "dawarich-storage"
     namespace = local.dawarich_ns
@@ -122,7 +113,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched" {
-  depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["dawarich"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "dawarich-watched"
     namespace = local.dawarich_ns
@@ -136,7 +127,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched" {
 
 # RWX replacements on CephFS so server + sidekiq schedule independently.
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage_rwx" {
-  depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.cephfs]
+  depends_on = [module.namespace["dawarich"], kubernetes_storage_class_v1.cephfs]
   metadata {
     name      = "dawarich-storage-rwx"
     namespace = local.dawarich_ns
@@ -149,7 +140,7 @@ resource "kubernetes_persistent_volume_claim_v1" "dawarich_storage_rwx" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "dawarich_watched_rwx" {
-  depends_on = [kubernetes_namespace_v1.dawarich, kubernetes_storage_class_v1.cephfs]
+  depends_on = [module.namespace["dawarich"], kubernetes_storage_class_v1.cephfs]
   metadata {
     name      = "dawarich-watched-rwx"
     namespace = local.dawarich_ns
@@ -336,7 +327,7 @@ resource "kubernetes_service_v1" "dawarich_postgres" {
 
 # Redis
 resource "kubernetes_deployment_v1" "dawarich_redis" {
-  depends_on = [kubernetes_namespace_v1.dawarich]
+  depends_on = [module.namespace["dawarich"]]
   metadata {
     name      = "dawarich-redis"
     namespace = local.dawarich_ns

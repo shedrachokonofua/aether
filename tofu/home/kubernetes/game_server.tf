@@ -19,7 +19,7 @@
 
 locals {
   game_server_image  = "docker.io/josh5/steam-headless:latest" # TODO pin by digest once a build is settled (no immutable named tag upstream)
-  game_server_ns     = kubernetes_namespace_v1.games.metadata[0].name
+  game_server_ns     = module.namespace["games"].name
   game_server_labels = { app = "game-server" }
 
   # Reuse the decommissioned VM's IP so existing Moonlight client configs keep
@@ -41,16 +41,6 @@ locals {
 # Namespace — privileged PSA (steam-headless needs privileged + host devices)
 # =============================================================================
 
-resource "kubernetes_namespace_v1" "games" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "games"
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 # =============================================================================
 # Secret — desktop/VNC password (Sunshine creds come from the seeded state file)
@@ -148,7 +138,7 @@ resource "kubernetes_config_map_v1" "game_server_bootfix" {
 # gaming: existing CephFS ROM/ISO/save library at rootPath=/gaming (RWX, static).
 
 resource "kubernetes_persistent_volume_claim_v1" "game_server_home" {
-  depends_on = [kubernetes_namespace_v1.games, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["games"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "game-server-home"
@@ -164,7 +154,7 @@ resource "kubernetes_persistent_volume_claim_v1" "game_server_home" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "game_server_games" {
-  depends_on = [kubernetes_namespace_v1.games, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["games"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "game-server-games"
@@ -210,7 +200,7 @@ resource "kubernetes_persistent_volume_v1" "game_server_gaming" {
         }
         node_stage_secret_ref {
           name      = kubernetes_secret_v1.ceph_csi_fs.metadata[0].name
-          namespace = kubernetes_namespace_v1.ceph_csi_fs.metadata[0].name
+          namespace = module.namespace["ceph-csi-cephfs"].name
         }
       }
     }
@@ -218,7 +208,7 @@ resource "kubernetes_persistent_volume_v1" "game_server_gaming" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "game_server_gaming" {
-  depends_on = [kubernetes_namespace_v1.games]
+  depends_on = [module.namespace["games"]]
 
   metadata {
     name      = "game-server-gaming"
@@ -371,7 +361,7 @@ resource "kubernetes_deployment_v1" "game_server" {
             mount_path = "/mnt/games"
           }
           volume_mount {
-            name       = "gaming"
+            name = "gaming"
             # /var/mnt/gaming matches the path baked into the seeded RPCS3
             # games.yml + Steam shortcuts.vdf (Bazzite resolved /mnt -> /var/mnt),
             # so the emulator library + Big Picture entries work without rewrites.
@@ -465,8 +455,8 @@ resource "kubernetes_service_v1" "game_server" {
   }
 
   spec {
-    type                    = "LoadBalancer"
-    selector                = local.game_server_labels
+    type     = "LoadBalancer"
+    selector = local.game_server_labels
     # The VIP's L2 announcement lease lands on an arbitrary node (e.g. neo), but
     # the pod is GPU-pinned to smith. With "Local" the announcing node drops
     # traffic when it has no local endpoint -> connection refused. "Cluster" lets

@@ -21,19 +21,9 @@ locals {
   }
 }
 
-resource "kubernetes_namespace_v1" "deskplane" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.deskplane_namespace
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 resource "kubernetes_secret_v1" "deskplane_gitlab_registry" {
-  depends_on = [kubernetes_namespace_v1.deskplane]
+  depends_on = [module.namespace["deskplane"]]
 
   metadata {
     name      = "deskplane-gitlab-registry"
@@ -56,7 +46,7 @@ resource "kubernetes_secret_v1" "deskplane_gitlab_registry" {
 }
 
 resource "kubernetes_secret_v1" "deskplane_oidc" {
-  depends_on = [kubernetes_namespace_v1.deskplane]
+  depends_on = [module.namespace["deskplane"]]
 
   metadata {
     name      = "deskplane-oidc"
@@ -72,22 +62,22 @@ resource "kubernetes_secret_v1" "deskplane_oidc" {
 
 resource "helm_release" "deskplane" {
   depends_on = [
-    kubernetes_namespace_v1.deskplane,
+    module.namespace["deskplane"],
     kubernetes_secret_v1.deskplane_gitlab_registry,
     kubernetes_secret_v1.deskplane_oidc,
     kubernetes_storage_class_v1.ceph_rbd,
     kubernetes_manifest.main_gateway,
   ]
 
-  name             = "deskplane"
-  repository       = "oci://${local.deskplane_registry_host}/so/deskplane"
-  chart            = "deskplane"
-  namespace        = local.deskplane_namespace
-  version          = local.deskplane_chart_version
-  wait             = true
-  wait_for_jobs    = false
-  atomic           = true
-  timeout          = 900
+  name          = "deskplane"
+  repository    = "oci://${local.deskplane_registry_host}/so/deskplane"
+  chart         = "deskplane"
+  namespace     = local.deskplane_namespace
+  version       = local.deskplane_chart_version
+  wait          = true
+  wait_for_jobs = false
+  atomic        = true
+  timeout       = 900
 
   values = [yamlencode({
     image = {
@@ -115,7 +105,7 @@ resource "helm_release" "deskplane" {
       host    = local.deskplane_host
       parentRef = {
         namespace = "default"
-        name        = "main-gateway"
+        name      = "main-gateway"
       }
     }
 

@@ -12,7 +12,7 @@ resource "helm_release" "kyverno" {
   repository       = "https://kyverno.github.io/kyverno/"
   chart            = "kyverno"
   namespace        = "kyverno"
-  create_namespace = true
+  create_namespace = false
   version          = "3.7.2"
   wait             = true
   timeout          = 600
@@ -132,7 +132,7 @@ resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_rbac" {
   })
 }
 
-resource "kubectl_manifest" "kyverno_dockerhub_pull_secret" {
+resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_generate" {
   depends_on = [
     helm_release.kyverno,
     kubectl_manifest.kyverno_dockerhub_pull_secret_rbac,
@@ -140,85 +140,176 @@ resource "kubectl_manifest" "kyverno_dockerhub_pull_secret" {
   ]
 
   yaml_body = yamlencode({
-    apiVersion = "kyverno.io/v1"
-    kind       = "ClusterPolicy"
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "GeneratingPolicy"
     metadata = {
       name = "dockerhub-pull-secret"
       annotations = {
         "policies.kyverno.io/title"       = "Docker Hub Pull Secret"
         "policies.kyverno.io/category"    = "Registry"
-        "policies.kyverno.io/subject"     = "Namespace,ServiceAccount,Pod"
-        "policies.kyverno.io/description" = "Clone the Docker Hub pull secret into namespaces and attach it to new ServiceAccounts and Pods."
+        "policies.kyverno.io/subject"     = "Namespace,Secret"
+        "policies.kyverno.io/description" = "Clone the Docker Hub pull secret only into namespaces labeled for Docker Hub registry access."
       }
     }
     spec = {
-      background = true
-      rules = [
+      evaluation = {
+        synchronize = {
+          enabled = true
+        }
+        generateExisting = {
+          enabled = true
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["namespaces"]
+          scope       = "Cluster"
+        }]
+      }
+      matchConditions = [{
+        name       = "dockerhub-registry-access"
+        expression = "has(object.metadata.labels) && \"aether.shdr.ch/registry-access\" in object.metadata.labels && object.metadata.labels[\"aether.shdr.ch/registry-access\"] == \"dockerhub\""
+      }]
+      variables = [
         {
-          name = "clone-dockerhub-pull-secret"
-          match = {
-            any = [{
-              resources = {
-                kinds = ["Namespace"]
-              }
-            }]
-          }
-          exclude = {
-            any = [{
-              resources = {
-                names = [helm_release.kyverno.namespace]
-              }
-            }]
-          }
-          generate = {
-            synchronize = true
-            apiVersion  = "v1"
-            kind        = "Secret"
-            name        = local.dockerhub_pull_secret_name
-            namespace   = "{{ request.object.metadata.name }}"
-            clone = {
-              namespace = helm_release.kyverno.namespace
-              name      = local.dockerhub_pull_secret_name
-            }
-          }
+          name       = "targetNamespace"
+          expression = "object.metadata.name"
         },
         {
-          name = "add-dockerhub-pull-secret-to-serviceaccounts"
-          match = {
-            any = [{
-              resources = {
-                kinds = ["ServiceAccount"]
-              }
-            }]
-          }
-          mutate = {
-            patchStrategicMerge = {
-              imagePullSecrets = [{
-                name = local.dockerhub_pull_secret_name
-              }]
-            }
-          }
-        },
-        {
-          name = "add-dockerhub-pull-secret-to-pods"
-          match = {
-            any = [{
-              resources = {
-                kinds = ["Pod"]
-              }
-            }]
-          }
-          mutate = {
-            patchStrategicMerge = {
-              spec = {
-                imagePullSecrets = [{
-                  name = local.dockerhub_pull_secret_name
-                }]
-              }
-            }
-          }
+          name       = "sourceSecret"
+          expression = "resource.Get(\"v1\", \"secrets\", \"${helm_release.kyverno.namespace}\", \"${local.dockerhub_pull_secret_name}\")"
         },
       ]
+      generate = [{
+        expression = "generator.Apply(variables.targetNamespace, [variables.sourceSecret])"
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_serviceaccounts" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "dockerhub-pull-secret-serviceaccounts"
+      annotations = {
+        "policies.kyverno.io/title"       = "Docker Hub Pull Secret on ServiceAccounts"
+        "policies.kyverno.io/category"    = "Registry"
+        "policies.kyverno.io/subject"     = "ServiceAccount"
+        "policies.kyverno.io/description" = "Attach Docker Hub imagePullSecrets to ServiceAccounts only in namespaces labeled for Docker Hub registry access."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "aether.shdr.ch/registry-access"
+            operator = "In"
+            values   = ["dockerhub"]
+          }]
+        }
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["serviceaccounts"]
+          scope       = "Namespaced"
+        }]
+      }
+      matchConditions = [{
+        name       = "missing-dockerhub-pull-secret"
+        expression = "!has(object.imagePullSecrets) || !object.imagePullSecrets.exists(secret, secret.name == \"${local.dockerhub_pull_secret_name}\")"
+      }]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            (!has(object.imagePullSecrets) ? [
+              JSONPatch{op: "add", path: "/imagePullSecrets", value: []}
+            ] : []) + [
+              JSONPatch{op: "add", path: "/imagePullSecrets/-", value: {"name": "${local.dockerhub_pull_secret_name}"}}
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_pods" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "dockerhub-pull-secret-pods"
+      annotations = {
+        "policies.kyverno.io/title"       = "Docker Hub Pull Secret on Pods"
+        "policies.kyverno.io/category"    = "Registry"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "Attach Docker Hub imagePullSecrets to Pods only in namespaces labeled for Docker Hub registry access."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "aether.shdr.ch/registry-access"
+            operator = "In"
+            values   = ["dockerhub"]
+          }]
+        }
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["pods"]
+          scope       = "Namespaced"
+        }]
+      }
+      matchConditions = [{
+        name       = "missing-dockerhub-pull-secret"
+        expression = "!has(object.spec.imagePullSecrets) || !object.spec.imagePullSecrets.exists(secret, secret.name == \"${local.dockerhub_pull_secret_name}\")"
+      }]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            (!has(object.spec.imagePullSecrets) ? [
+              JSONPatch{op: "add", path: "/spec/imagePullSecrets", value: []}
+            ] : []) + [
+              JSONPatch{op: "add", path: "/spec/imagePullSecrets/-", value: {"name": "${local.dockerhub_pull_secret_name}"}}
+            ]
+          EOT
+        }
+      }]
     }
   })
 }
@@ -540,6 +631,947 @@ resource "kubectl_manifest" "kyverno_ceph_pv_retain" {
             }
           }
         }
+      }]
+    }
+  })
+}
+
+# CEL twin of kyverno_arm_ok_daemonset_pods. The legacy ClusterPolicy remains
+# during rollout; this exercises the promoted MutatingPolicy API with equivalent
+# fail-open behavior before the deprecated policy is removed.
+resource "kubectl_manifest" "kyverno_arm_ok_daemonset_pods_cel" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1alpha1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "arm-ok-daemonset-pods-cel"
+      annotations = {
+        "policies.kyverno.io/title"       = "ARM OK DaemonSet Pods CEL"
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "CEL replacement for labeling DaemonSet-owned Pods as ARM-eligible."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["pods"]
+          scope       = "Namespaced"
+        }]
+      }
+      matchConditions = [
+        {
+          name       = "daemonset-owned"
+          expression = "has(object.metadata.ownerReferences) && object.metadata.ownerReferences.exists(owner, owner.kind == \"DaemonSet\")"
+        },
+        {
+          name       = "not-already-arm-ok"
+          expression = "!has(object.metadata.labels) || !(\"aether.sh/arm-ok\" in object.metadata.labels) || object.metadata.labels[\"aether.sh/arm-ok\"] != \"true\""
+        },
+        {
+          name       = "not-system-excluded"
+          expression = "!(request.namespace in [\"kube-system\", \"kube-public\", \"kube-node-lease\", \"istio-system\", \"system\", \"kyverno\", \"${local.aether_k8s_arch_labeler_namespace}\"])"
+        },
+      ]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            (!has(object.metadata.labels) ? [
+              JSONPatch{op: "add", path: "/metadata/labels", value: {}}
+            ] : []) + [
+              JSONPatch{op: "add", path: "/metadata/labels/" + jsonpatch.escapeKey("aether.sh/arm-ok"), value: "true"}
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_ceph_pv_retain_rbac" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRole"
+    metadata = {
+      name = "kyverno:ceph-pv-retain"
+      labels = {
+        "app.kubernetes.io/component"                        = "rbac"
+        "app.kubernetes.io/instance"                         = helm_release.kyverno.name
+        "app.kubernetes.io/part-of"                          = "kyverno"
+        "rbac.kyverno.io/aggregate-to-admission-controller"  = "true"
+        "rbac.kyverno.io/aggregate-to-background-controller" = "true"
+        "rbac.kyverno.io/aggregate-to-reports-controller"    = "true"
+      }
+    }
+    rules = [{
+      apiGroups = [""]
+      resources = ["persistentvolumes"]
+      verbs     = ["get", "list", "watch"]
+    }]
+  })
+}
+
+# CEL twin of kyverno_ceph_pv_retain. Kept alongside the legacy ClusterPolicy
+# until the CEL policy has soaked, then the legacy Kyverno rule can be deleted.
+resource "kubectl_manifest" "kyverno_ceph_pv_retain_cel" {
+  depends_on = [helm_release.kyverno, kubectl_manifest.kyverno_ceph_pv_retain_rbac]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1alpha1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "ceph-pv-retain-reclaim-cel"
+      annotations = {
+        "policies.kyverno.io/title"       = "Retain Reclaim on Ceph PVs CEL"
+        "policies.kyverno.io/category"    = "Storage"
+        "policies.kyverno.io/subject"     = "PersistentVolume"
+        "policies.kyverno.io/description" = "CEL replacement for mutating dynamically-provisioned Ceph PersistentVolumes to Retain."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["persistentvolumes"]
+          scope       = "Cluster"
+        }]
+      }
+      matchConditions = [
+        {
+          name       = "ceph-storageclass"
+          expression = "has(object.spec.storageClassName) && object.spec.storageClassName in [\"ceph-rbd\", \"cephfs\"]"
+        },
+        {
+          name       = "not-already-retain"
+          expression = "!has(object.spec.persistentVolumeReclaimPolicy) || object.spec.persistentVolumeReclaimPolicy != \"Retain\""
+        },
+      ]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            [
+              JSONPatch{op: "add", path: "/spec/persistentVolumeReclaimPolicy", value: "Retain"}
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_limitrange_rbac" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRole"
+    metadata = {
+      name = "kyverno:namespace-limitrange"
+      labels = {
+        "app.kubernetes.io/component"                        = "rbac"
+        "app.kubernetes.io/instance"                         = helm_release.kyverno.name
+        "app.kubernetes.io/part-of"                          = "kyverno"
+        "rbac.kyverno.io/aggregate-to-background-controller" = "true"
+      }
+    }
+    rules = [{
+      apiGroups = [""]
+      resources = ["limitranges"]
+      verbs     = ["get", "list", "watch", "create", "update", "patch", "delete"]
+    }]
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_limitrange_default" {
+  depends_on = [
+    helm_release.kyverno,
+    kubectl_manifest.kyverno_namespace_limitrange_rbac,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "GeneratingPolicy"
+    metadata = {
+      name = "namespace-default-limitrange"
+      annotations = {
+        "policies.kyverno.io/title"       = "Namespace Default LimitRange"
+        "policies.kyverno.io/category"    = "Resource Management"
+        "policies.kyverno.io/subject"     = "Namespace,LimitRange"
+        "policies.kyverno.io/description" = "Generate a default LimitRange for non-platform namespaces so Pods without explicit requests receive safe baseline resources."
+      }
+    }
+    spec = {
+      evaluation = {
+        synchronize = {
+          enabled = true
+        }
+        generateExisting = {
+          enabled = true
+        }
+      }
+      matchConstraints = {
+        objectSelector = {
+          matchExpressions = [
+            {
+              key      = "aether.shdr.ch/tier"
+              operator = "Exists"
+            },
+            {
+              key      = "aether.shdr.ch/tier"
+              operator = "NotIn"
+              values   = ["platform"]
+            },
+          ]
+        }
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["namespaces"]
+          scope       = "Cluster"
+        }]
+      }
+      matchConditions = [{
+        name       = "non-platform-tier"
+        expression = "has(object.metadata.labels) && \"aether.shdr.ch/tier\" in object.metadata.labels && object.metadata.labels[\"aether.shdr.ch/tier\"] != \"platform\" && object.metadata.name != \"sandboxes\""
+      }]
+      variables = [
+        {
+          name       = "targetNamespace"
+          expression = "object.metadata.name"
+        },
+        {
+          name       = "limitRange"
+          expression = <<-EOT
+            [
+              {
+                "apiVersion": dyn("v1"),
+                "kind": dyn("LimitRange"),
+                "metadata": dyn({
+                  "name": "namespace-defaults",
+                  "namespace": string(variables.targetNamespace)
+                }),
+                "spec": dyn({
+                  "limits": dyn([
+                    dyn({
+                      "type": dyn("Container"),
+                      "defaultRequest": dyn({
+                        "cpu": "100m",
+                        "memory": "256Mi"
+                      }),
+                    })
+                  ])
+                })
+              }
+            ]
+          EOT
+        },
+      ]
+      generate = [{
+        expression = "generator.Apply(variables.targetNamespace, variables.limitRange)"
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_resourcequota_rbac" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRole"
+    metadata = {
+      name = "kyverno:namespace-resourcequota"
+      labels = {
+        "app.kubernetes.io/component"                        = "rbac"
+        "app.kubernetes.io/instance"                         = helm_release.kyverno.name
+        "app.kubernetes.io/part-of"                          = "kyverno"
+        "rbac.kyverno.io/aggregate-to-background-controller" = "true"
+      }
+    }
+    rules = [{
+      apiGroups = [""]
+      resources = ["resourcequotas"]
+      verbs     = ["get", "list", "watch", "create", "update", "patch", "delete"]
+    }]
+  })
+}
+
+locals {
+  namespace_resourcequota_guest = {
+    "requests.cpu"           = "8"
+    "requests.memory"        = "16Gi"
+    "requests.storage"       = "50Gi"
+    "persistentvolumeclaims" = "5"
+    "pods"                   = "25"
+  }
+
+  namespace_resourcequota_sandbox = {
+    "requests.cpu"           = "8"
+    "requests.memory"        = "16Gi"
+    "limits.cpu"             = "16"
+    "limits.memory"          = "32Gi"
+    "requests.storage"       = "200Gi"
+    "persistentvolumeclaims" = "10"
+    "pods"                   = "20"
+  }
+
+  namespace_resourcequota_tenant = {
+    "requests.cpu"           = "32"
+    "requests.memory"        = "64Gi"
+    "requests.storage"       = "250Gi"
+    "persistentvolumeclaims" = "25"
+    "pods"                   = "100"
+  }
+
+  namespace_resourcequota_gitlab_runner = {
+    "requests.cpu"               = "12"
+    "requests.memory"            = "20Gi"
+    "requests.ephemeral-storage" = "96Gi"
+    "limits.cpu"                 = "20"
+    "limits.memory"              = "40Gi"
+    "limits.ephemeral-storage"   = "256Gi"
+    "pods"                       = "20"
+  }
+}
+
+resource "kubectl_manifest" "kyverno_namespace_resourcequota" {
+  depends_on = [
+    helm_release.kyverno,
+    kubectl_manifest.kyverno_namespace_resourcequota_rbac,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "GeneratingPolicy"
+    metadata = {
+      name = "namespace-resourcequota"
+      annotations = {
+        "policies.kyverno.io/title"       = "Namespace ResourceQuota"
+        "policies.kyverno.io/category"    = "Resource Management"
+        "policies.kyverno.io/subject"     = "Namespace,ResourceQuota"
+        "policies.kyverno.io/description" = "Generate ResourceQuota profiles from namespace contract tier labels."
+      }
+    }
+    spec = {
+      evaluation = {
+        synchronize = {
+          enabled = true
+        }
+        generateExisting = {
+          enabled = true
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["namespaces"]
+          scope       = "Cluster"
+        }]
+      }
+      matchConditions = [
+        {
+          name       = "resourcequota-tier-or-gitlab-runner"
+          expression = "object.metadata.name == 'gitlab-runner' || (has(object.metadata.labels) && 'aether.shdr.ch/tier' in object.metadata.labels && object.metadata.labels['aether.shdr.ch/tier'] in ['guest', 'sandbox', 'tenant'])"
+        },
+      ]
+      variables = [
+        {
+          name       = "targetNamespace"
+          expression = "object.metadata.name"
+        },
+        {
+          name       = "quotaHard"
+          expression = <<-EOT
+            object.metadata.name == "gitlab-runner" ?
+              dyn(${jsonencode(local.namespace_resourcequota_gitlab_runner)}) :
+            object.metadata.labels["aether.shdr.ch/tier"] == "sandbox" ?
+              dyn(${jsonencode(local.namespace_resourcequota_sandbox)}) :
+            object.metadata.labels["aether.shdr.ch/tier"] == "tenant" ?
+              dyn(${jsonencode(local.namespace_resourcequota_tenant)}) :
+              dyn(${jsonencode(local.namespace_resourcequota_guest)})
+          EOT
+        },
+        {
+          name       = "resourceQuota"
+          expression = <<-EOT
+            [
+              {
+                "apiVersion": dyn("v1"),
+                "kind": dyn("ResourceQuota"),
+                "metadata": dyn({
+                  "name": "namespace-quota",
+                  "namespace": string(variables.targetNamespace)
+                }),
+                "spec": dyn({
+                  "hard": variables.quotaHard
+                })
+              }
+            ]
+          EOT
+        },
+      ]
+      generate = [{
+        expression = "generator.Apply(variables.targetNamespace, variables.resourceQuota)"
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_priority_controller_template_rbac" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRole"
+    metadata = {
+      name = "kyverno:priority-controller-template"
+      labels = {
+        "app.kubernetes.io/component"                        = "rbac"
+        "app.kubernetes.io/instance"                         = helm_release.kyverno.name
+        "app.kubernetes.io/part-of"                          = "kyverno"
+        "rbac.kyverno.io/aggregate-to-admission-controller"  = "true"
+        "rbac.kyverno.io/aggregate-to-background-controller" = "true"
+        "rbac.kyverno.io/aggregate-to-reports-controller"    = "true"
+      }
+    }
+    rules = [
+      {
+        apiGroups = ["apps"]
+        resources = ["deployments", "daemonsets", "statefulsets", "replicasets"]
+        verbs     = ["get", "list", "watch", "patch", "update"]
+      },
+      {
+        apiGroups = ["batch"]
+        resources = ["cronjobs"]
+        verbs     = ["get", "list", "watch", "patch", "update"]
+      },
+    ]
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_priority_class_default" {
+  depends_on = [
+    kubectl_manifest.kyverno_priority_controller_template_rbac,
+    kubernetes_priority_class_v1.aether_platform,
+    kubernetes_priority_class_v1.aether_app,
+    kubernetes_priority_class_v1.aether_batch,
+    kubernetes_priority_class_v1.aether_sandbox,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "namespace-priority-class-default"
+      annotations = {
+        "policies.kyverno.io/title"       = "Namespace PriorityClass Default"
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Deployment,DaemonSet,StatefulSet,CronJob"
+        "policies.kyverno.io/description" = "Default controller Pod-template priorityClassName from the namespace contract tier. Existing Jobs are immutable, so they are handled by create-time admission only."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "aether.shdr.ch/tier"
+            operator = "In"
+            values   = ["platform"]
+          }]
+        }
+        resourceRules = [
+          {
+            apiGroups   = ["apps"]
+            apiVersions = ["v1"]
+            operations  = ["CREATE", "UPDATE"]
+            resources   = ["deployments", "daemonsets", "statefulsets", "replicasets"]
+            scope       = "Namespaced"
+          },
+          {
+            apiGroups   = ["batch"]
+            apiVersions = ["v1"]
+            operations  = ["CREATE", "UPDATE"]
+            resources   = ["cronjobs"]
+            scope       = "Namespaced"
+          },
+        ]
+      }
+      matchConditions = [{
+        name       = "missing-priority-class"
+        expression = "object.kind == \"CronJob\" ? (!has(object.spec.jobTemplate.spec.template.spec.priorityClassName) || object.spec.jobTemplate.spec.template.spec.priorityClassName == \"\") : (!has(object.spec.template.spec.priorityClassName) || object.spec.template.spec.priorityClassName == \"\")"
+      }]
+      variables = [
+        {
+          name       = "priorityClass"
+          expression = "\"${local.aether_priority_classes.platform}\""
+        },
+        {
+          name       = "priorityClassPath"
+          expression = "object.kind == \"CronJob\" ? \"/spec/jobTemplate/spec/template/spec/priorityClassName\" : \"/spec/template/spec/priorityClassName\""
+        },
+      ]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            [
+              JSONPatch{op: "add", path: variables.priorityClassPath, value: variables.priorityClass}
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_priority_class_default_tier" {
+  for_each = {
+    app = {
+      name           = "namespace-priority-class-default-app"
+      title          = "Namespace App PriorityClass Default"
+      selector_op    = "In"
+      selector_tiers = ["app"]
+      priority_class = local.aether_priority_classes.app
+    }
+    batch = {
+      name           = "namespace-priority-class-default-batch"
+      title          = "Namespace Batch PriorityClass Default"
+      selector_op    = "In"
+      selector_tiers = ["agent"]
+      priority_class = local.aether_priority_classes.batch
+    }
+    sandbox = {
+      name           = "namespace-priority-class-default-sandbox"
+      title          = "Namespace Sandbox PriorityClass Default"
+      selector_op    = "NotIn"
+      selector_tiers = ["platform", "app", "agent"]
+      priority_class = local.aether_priority_classes.sandbox
+    }
+  }
+
+  depends_on = [
+    kubectl_manifest.kyverno_priority_controller_template_rbac,
+    kubernetes_priority_class_v1.aether_app,
+    kubernetes_priority_class_v1.aether_batch,
+    kubernetes_priority_class_v1.aether_sandbox,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = each.value.name
+      annotations = {
+        "policies.kyverno.io/title"       = each.value.title
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Deployment,DaemonSet,StatefulSet,CronJob"
+        "policies.kyverno.io/description" = "Default controller Pod-template priorityClassName from the namespace contract tier. Existing Jobs are immutable, so they are handled by create-time admission only."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "aether.shdr.ch/tier"
+            operator = each.value.selector_op
+            values   = each.value.selector_tiers
+          }]
+        }
+        resourceRules = [
+          {
+            apiGroups   = ["apps"]
+            apiVersions = ["v1"]
+            operations  = ["CREATE", "UPDATE"]
+            resources   = ["deployments", "daemonsets", "statefulsets", "replicasets"]
+            scope       = "Namespaced"
+          },
+          {
+            apiGroups   = ["batch"]
+            apiVersions = ["v1"]
+            operations  = ["CREATE", "UPDATE"]
+            resources   = ["cronjobs"]
+            scope       = "Namespaced"
+          },
+        ]
+      }
+      matchConditions = [{
+        name       = "missing-priority-class"
+        expression = "object.kind == \"CronJob\" ? (!has(object.spec.jobTemplate.spec.template.spec.priorityClassName) || object.spec.jobTemplate.spec.template.spec.priorityClassName == \"\") : (!has(object.spec.template.spec.priorityClassName) || object.spec.template.spec.priorityClassName == \"\")"
+      }]
+      variables = [
+        {
+          name       = "priorityClass"
+          expression = "\"${each.value.priority_class}\""
+        },
+        {
+          name       = "priorityClassPath"
+          expression = "object.kind == \"CronJob\" ? \"/spec/jobTemplate/spec/template/spec/priorityClassName\" : \"/spec/template/spec/priorityClassName\""
+        },
+      ]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            [
+              JSONPatch{op: "add", path: variables.priorityClassPath, value: variables.priorityClass}
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_priority_class_default_job" {
+  depends_on = [
+    helm_release.kyverno,
+    kubernetes_priority_class_v1.aether_platform,
+    kubernetes_priority_class_v1.aether_app,
+    kubernetes_priority_class_v1.aether_batch,
+    kubernetes_priority_class_v1.aether_sandbox,
+  ]
+
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "namespace-priority-class-default-job"
+      annotations = {
+        "policies.kyverno.io/title"       = "Namespace Job PriorityClass Default"
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Job"
+        "policies.kyverno.io/description" = "Default Job Pod-template priorityClassName from the namespace contract tier at create time only. Existing Jobs are immutable."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "aether.shdr.ch/tier"
+            operator = "In"
+            values   = ["platform"]
+          }]
+        }
+        resourceRules = [{
+          apiGroups   = ["batch"]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["jobs"]
+          scope       = "Namespaced"
+        }]
+      }
+      matchConditions = [{
+        name       = "missing-priority-class"
+        expression = "!has(object.spec.template.spec.priorityClassName) || object.spec.template.spec.priorityClassName == \"\""
+      }]
+      variables = [{
+        name       = "priorityClass"
+        expression = "\"${local.aether_priority_classes.platform}\""
+      }]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            [
+              JSONPatch{op: "add", path: "/spec/template/spec/priorityClassName", value: variables.priorityClass}
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_priority_class_default_job_tier" {
+  for_each = {
+    app = {
+      name           = "namespace-priority-class-default-job-app"
+      title          = "Namespace App Job PriorityClass Default"
+      selector_op    = "In"
+      selector_tiers = ["app"]
+      priority_class = local.aether_priority_classes.app
+    }
+    batch = {
+      name           = "namespace-priority-class-default-job-batch"
+      title          = "Namespace Batch Job PriorityClass Default"
+      selector_op    = "In"
+      selector_tiers = ["agent"]
+      priority_class = local.aether_priority_classes.batch
+    }
+    sandbox = {
+      name           = "namespace-priority-class-default-job-sandbox"
+      title          = "Namespace Sandbox Job PriorityClass Default"
+      selector_op    = "NotIn"
+      selector_tiers = ["platform", "app", "agent"]
+      priority_class = local.aether_priority_classes.sandbox
+    }
+  }
+
+  depends_on = [
+    helm_release.kyverno,
+    kubernetes_priority_class_v1.aether_app,
+    kubernetes_priority_class_v1.aether_batch,
+    kubernetes_priority_class_v1.aether_sandbox,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = each.value.name
+      annotations = {
+        "policies.kyverno.io/title"       = each.value.title
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Job"
+        "policies.kyverno.io/description" = "Default Job Pod-template priorityClassName from the namespace contract tier at create time only. Existing Jobs are immutable."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "aether.shdr.ch/tier"
+            operator = each.value.selector_op
+            values   = each.value.selector_tiers
+          }]
+        }
+        resourceRules = [{
+          apiGroups   = ["batch"]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["jobs"]
+          scope       = "Namespaced"
+        }]
+      }
+      matchConditions = [{
+        name       = "missing-priority-class"
+        expression = "!has(object.spec.template.spec.priorityClassName) || object.spec.template.spec.priorityClassName == \"\""
+      }]
+      variables = [{
+        name       = "priorityClass"
+        expression = "\"${each.value.priority_class}\""
+      }]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            [
+              JSONPatch{op: "add", path: "/spec/template/spec/priorityClassName", value: variables.priorityClass}
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_namespace_priority_class_allowed" {
+  depends_on = [
+    helm_release.kyverno,
+    kubernetes_priority_class_v1.aether_platform,
+    kubernetes_priority_class_v1.aether_app,
+    kubernetes_priority_class_v1.aether_batch,
+    kubernetes_priority_class_v1.aether_sandbox,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "ValidatingPolicy"
+    metadata = {
+      name = "namespace-priority-class-allowed"
+      annotations = {
+        "policies.kyverno.io/title"       = "Namespace PriorityClass Allowed"
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "Reject Pods that request a priorityClassName above the namespace contract tier."
+      }
+    }
+    spec = {
+      failurePolicy     = "Fail"
+      validationActions = ["Deny"]
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = false
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["pods"]
+          scope       = "Namespaced"
+        }]
+      }
+      variables = [
+        {
+          name       = "tier"
+          expression = "namespaceObject != null && has(namespaceObject.metadata.labels) && \"aether.shdr.ch/tier\" in namespaceObject.metadata.labels ? namespaceObject.metadata.labels[\"aether.shdr.ch/tier\"] : \"unclassified\""
+        },
+        {
+          name       = "priorityClass"
+          expression = "has(object.spec.priorityClassName) ? object.spec.priorityClassName : \"\""
+        },
+        {
+          name       = "allowedPriorityClasses"
+          expression = "variables.tier == \"platform\" ? ${jsonencode(local.aether_allowed_priority_classes.platform)} : variables.tier == \"app\" ? ${jsonencode(local.aether_allowed_priority_classes.app)} : variables.tier == \"agent\" ? ${jsonencode(local.aether_allowed_priority_classes.batch)} : ${jsonencode(local.aether_allowed_priority_classes.sandbox)}"
+        },
+      ]
+      validations = [{
+        expression = "variables.priorityClass == \"\" || variables.priorityClass in variables.allowedPriorityClasses"
+        message    = "Pod priorityClassName must be at or below the namespace contract tier."
+        reason     = "Forbidden"
+      }]
+    }
+  })
+}
+
+resource "kubectl_manifest" "kyverno_httproute_hostname_contract_rbac" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "rbac.authorization.k8s.io/v1"
+    kind       = "ClusterRole"
+    metadata = {
+      name = "kyverno:httproute-hostname-contract"
+      labels = {
+        "app.kubernetes.io/component"                        = "rbac"
+        "app.kubernetes.io/instance"                         = helm_release.kyverno.name
+        "app.kubernetes.io/part-of"                          = "kyverno"
+        "rbac.kyverno.io/aggregate-to-admission-controller"  = "true"
+        "rbac.kyverno.io/aggregate-to-background-controller" = "true"
+        "rbac.kyverno.io/aggregate-to-reports-controller"    = "true"
+      }
+    }
+    rules = [{
+      apiGroups = ["gateway.networking.k8s.io"]
+      resources = ["httproutes"]
+      verbs     = ["get", "list", "watch"]
+    }]
+  })
+}
+
+resource "kubectl_manifest" "kyverno_httproute_hostname_contract" {
+  depends_on = [helm_release.kyverno, kubectl_manifest.kyverno_httproute_hostname_contract_rbac]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "ValidatingPolicy"
+    metadata = {
+      name = "httproute-hostname-contract"
+      annotations = {
+        "policies.kyverno.io/title"       = "HTTPRoute Hostname Contract"
+        "policies.kyverno.io/category"    = "Networking"
+        "policies.kyverno.io/subject"     = "HTTPRoute"
+        "policies.kyverno.io/description" = "Audit HTTPRoutes whose hostnames are not declared on their namespace contract."
+      }
+    }
+    spec = {
+      failurePolicy     = "Fail"
+      validationActions = ["Audit"]
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = true
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = ["gateway.networking.k8s.io"]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["httproutes"]
+          scope       = "Namespaced"
+        }]
+      }
+      variables = [{
+        name       = "allowedHostnames"
+        expression = "namespaceObject != null && has(namespaceObject.metadata.annotations) && \"aether.shdr.ch/hostnames\" in namespaceObject.metadata.annotations && namespaceObject.metadata.annotations[\"aether.shdr.ch/hostnames\"] != \"\" ? namespaceObject.metadata.annotations[\"aether.shdr.ch/hostnames\"].split(\",\") : []"
+      }]
+      validations = [{
+        expression = "!has(object.spec.hostnames) || object.spec.hostnames.all(hostname, hostname in variables.allowedHostnames)"
+        message    = "HTTPRoute spec.hostnames must be declared in the namespace aether.shdr.ch/hostnames annotation."
+        reason     = "Forbidden"
       }]
     }
   })

@@ -13,12 +13,12 @@ locals {
   memos_image  = "neosmemo/memos:stable"
   memos_host   = "memos.home.shdr.ch"
   memos_port   = 5230
-  memos_ns     = kubernetes_namespace_v1.personal.metadata[0].name
+  memos_ns     = module.namespace["personal"].name
   memos_labels = { app = "memos" }
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "memos_data" {
-  depends_on = [kubernetes_namespace_v1.personal, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["personal"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "memos-data"

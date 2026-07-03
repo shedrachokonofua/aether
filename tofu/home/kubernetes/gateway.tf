@@ -36,9 +36,37 @@ resource "kubernetes_manifest" "gateway_class" {
   }
 }
 
+locals {
+  gateway_allowed_routes_internal = {
+    namespaces = {
+      from = "Selector"
+      selector = {
+        matchLabels = {
+          "aether.shdr.ch/gateway-access" = "internal"
+        }
+      }
+    }
+  }
+
+  gateway_allowed_routes_public = {
+    namespaces = {
+      from = "Selector"
+      selector = {
+        matchLabels = {
+          "aether.shdr.ch/gateway-access-public" = "true"
+        }
+      }
+    }
+  }
+}
+
 # Main Gateway - ingress point for all HTTP traffic
 resource "kubernetes_manifest" "main_gateway" {
   depends_on = [kubernetes_manifest.gateway_class]
+
+  field_manager {
+    force_conflicts = true
+  }
 
   manifest = {
     apiVersion = "gateway.networking.k8s.io/v1"
@@ -54,92 +82,60 @@ resource "kubernetes_manifest" "main_gateway" {
       gatewayClassName = "cilium"
       listeners = [
         {
-          name     = "http"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "*.home.shdr.ch"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "http"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "*.home.shdr.ch"
+          allowedRoutes = local.gateway_allowed_routes_internal
         },
         {
-          name     = "seven30"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "*.seven30.xyz"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "seven30"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "*.seven30.xyz"
+          allowedRoutes = local.gateway_allowed_routes_public
         },
         {
-          name     = "seven30-root"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "seven30.xyz"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "seven30-root"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "seven30.xyz"
+          allowedRoutes = local.gateway_allowed_routes_public
         },
         {
-          name     = "tv"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "tv.shdr.ch"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "tv"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "tv.shdr.ch"
+          allowedRoutes = local.gateway_allowed_routes_public
         },
         {
-          name     = "nextcloud-public"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "nextcloud.shdr.ch"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "nextcloud-public"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "nextcloud.shdr.ch"
+          allowedRoutes = local.gateway_allowed_routes_public
         },
         {
-          name     = "litellm-home"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "litellm.home.shdr.ch"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "litellm-home"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "litellm.home.shdr.ch"
+          allowedRoutes = local.gateway_allowed_routes_internal
         },
         {
-          name     = "mux-ports"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "*.mux.home.shdr.ch"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "mux-ports"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "*.mux.home.shdr.ch"
+          allowedRoutes = local.gateway_allowed_routes_internal
         },
         {
-          name     = "home-root"
-          protocol = "HTTP"
-          port     = 80
-          hostname = "home.shdr.ch"
-          allowedRoutes = {
-            namespaces = {
-              from = "All"
-            }
-          }
+          name          = "home-root"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "home.shdr.ch"
+          allowedRoutes = local.gateway_allowed_routes_internal
         },
       ]
     }

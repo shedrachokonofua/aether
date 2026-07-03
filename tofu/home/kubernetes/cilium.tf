@@ -126,6 +126,146 @@ resource "kubernetes_manifest" "cilium_ip_pool" {
 }
 
 # =============================================================================
+# Cilium NetworkPolicy baseline
+# =============================================================================
+# Cluster-wide allow rules used by later namespace default-deny flips. These
+# rules deliberately do not enable default-deny by themselves; per-namespace
+# CNPs opt endpoints into default-deny after canary observation.
+
+resource "kubernetes_manifest" "cilium_cluster_baseline_network" {
+  depends_on = [helm_release.cilium]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumClusterwideNetworkPolicy"
+    metadata = {
+      name = "aether-cluster-baseline"
+    }
+    spec = {
+      endpointSelector = {}
+      enableDefaultDeny = {
+        ingress = false
+        egress  = false
+      }
+      egress = [
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = "kube-system"
+              "k8s-app"                     = "kube-dns"
+            }
+          }]
+          toPorts = [{
+            ports = [
+              { port = "53", protocol = "ANY" },
+            ]
+          }]
+        },
+        {
+          toEntities = ["kube-apiserver"]
+          toPorts = [{
+            ports = [
+              { port = "443", protocol = "TCP" },
+              { port = "6443", protocol = "TCP" },
+            ]
+          }]
+        },
+      ]
+    }
+  }
+}
+
+# First default-deny canary. Miniflux is small, health-checked, and has a
+# same-namespace CNPG backend; egress stays intentionally broad during the
+# observation window so this step validates gateway/same-namespace ingress
+# before tightening feed-fetch egress.
+resource "kubernetes_manifest" "miniflux_cilium_network_canary" {
+  depends_on = [
+    helm_release.cilium,
+    kubernetes_deployment_v1.miniflux,
+    kubernetes_manifest.cilium_cluster_baseline_network,
+  ]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "namespace-canary"
+      namespace = local.miniflux_ns
+    }
+    spec = {
+      endpointSelector = {}
+      ingress = [
+        {
+          fromEntities = ["ingress"]
+          toPorts = [{
+            ports = [
+              { port = tostring(local.miniflux_port), protocol = "TCP" },
+            ]
+          }]
+        },
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.miniflux_ns
+            }
+          }]
+        },
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = "system"
+            }
+          }]
+        },
+        {
+          # CloudNativePG operator polls each instance manager on :8000; without
+          # this, the default-deny canary leaves clusters healthy but unreconciled.
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.cnpg_namespace
+            }
+          }]
+          toPorts = [{
+            ports = [
+              { port = "8000", protocol = "TCP" },
+            ]
+          }]
+        },
+      ]
+      egress = [
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.miniflux_ns
+            }
+          }]
+        },
+        {
+          toEntities = ["world"]
+        },
+        {
+          toCIDR = ["10.0.2.2/32"]
+          toPorts = [{
+            ports = [
+              { port = "443", protocol = "TCP" },
+            ]
+          }]
+        },
+      ]
+    }
+  }
+}
+
+# =============================================================================
 # RBAC
 # =============================================================================
 

@@ -5,27 +5,17 @@
 # disabled so recommendations are reviewed and copied back into Tofu instead of
 # mutating or evicting Pods at runtime.
 
-resource "kubernetes_namespace_v1" "goldilocks" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "goldilocks"
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "restricted"
-    }
-  }
-}
 
 resource "helm_release" "vpa_recommender" {
   depends_on = [
-    kubernetes_namespace_v1.goldilocks,
+    module.namespace["goldilocks"],
     helm_release.metrics_server,
   ]
 
   name       = "vpa"
   repository = "https://charts.fairwinds.com/stable"
   chart      = "vpa"
-  namespace  = kubernetes_namespace_v1.goldilocks.metadata[0].name
+  namespace  = module.namespace["goldilocks"].name
   version    = "4.12.0"
   wait       = true
   timeout    = 300
@@ -72,7 +62,7 @@ resource "helm_release" "goldilocks" {
   name       = "goldilocks"
   repository = "https://charts.fairwinds.com/stable"
   chart      = "goldilocks"
-  namespace  = kubernetes_namespace_v1.goldilocks.metadata[0].name
+  namespace  = module.namespace["goldilocks"].name
   version    = "10.4.0"
   wait       = true
   timeout    = 300
@@ -116,7 +106,7 @@ resource "kubernetes_manifest" "goldilocks_route" {
     kind       = "HTTPRoute"
     metadata = {
       name      = "goldilocks"
-      namespace = kubernetes_namespace_v1.goldilocks.metadata[0].name
+      namespace = module.namespace["goldilocks"].name
     }
     spec = {
       parentRefs = [{

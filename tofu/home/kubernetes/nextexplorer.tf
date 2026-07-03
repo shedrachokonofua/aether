@@ -37,7 +37,7 @@ resource "random_password" "nextexplorer_admin" {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "nextexplorer" {
-  depends_on = [kubernetes_namespace_v1.media]
+  depends_on = [module.namespace["media"]]
 
   metadata {
     name      = "nextexplorer"
@@ -58,7 +58,7 @@ resource "kubernetes_secret_v1" "nextexplorer" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "nextexplorer_config" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "nextexplorer-config"
@@ -76,7 +76,7 @@ resource "kubernetes_persistent_volume_claim_v1" "nextexplorer_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "nextexplorer_cache" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "nextexplorer-cache"

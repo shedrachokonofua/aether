@@ -5,25 +5,15 @@
 # pin workloads; it evicts eligible Pods and lets the default scheduler choose
 # the replacement placement.
 
-resource "kubernetes_namespace_v1" "descheduler" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "descheduler"
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "restricted"
-    }
-  }
-}
 
 resource "helm_release" "descheduler" {
-  depends_on = [kubernetes_namespace_v1.descheduler]
+  depends_on = [module.namespace["descheduler"]]
 
   name       = "descheduler"
   repository = "https://kubernetes-sigs.github.io/descheduler"
   chart      = "descheduler"
   version    = "0.35.1"
-  namespace  = kubernetes_namespace_v1.descheduler.metadata[0].name
+  namespace  = module.namespace["descheduler"].name
   wait       = true
   timeout    = 300
 

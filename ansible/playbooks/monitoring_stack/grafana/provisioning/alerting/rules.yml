@@ -657,6 +657,82 @@ groups:
           summary: "Proxmox host {{ $labels.id }} is down"
           description: "Proxmox node is not responding"
 
+      - uid: k8s-replicaset-not-ready
+        title: Kubernetes ReplicaSet Not Ready
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: max by(namespace, replicaset) (kube_replicaset_status_replicas - kube_replicaset_status_ready_replicas)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ReplicaSet {{ $labels.namespace }}/{{ $labels.replicaset }} is not ready"
+          description: 'Desired replicas exceed ready replicas for 15 minutes. Check Deployment events for admission/PSA FailedCreate errors.'
+
+      - uid: k8s-pod-create-blocked
+        title: Kubernetes Pod Create Blocked
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: sum by(namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason=~"CreateContainerConfigError|CreateContainerError|InvalidImageName|ErrImagePull|ImagePullBackOff"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is blocked during create/start"
+          description: 'Pod start has been blocked for 15 minutes with reason {{ $labels.reason }}. Admission/PSA FailedCreate needs event metrics; this rule only covers Pods that were created and are stuck before running.'
+
       # Backup Alert
       - uid: backup-stale
         title: Backup Stale

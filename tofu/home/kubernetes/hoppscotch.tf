@@ -10,15 +10,6 @@
 # Security: POSTGRES_PASSWORD was hardcoded 'hoppscotchpass' in Dokploy.
 # New password is Tofu-generated below.
 
-resource "kubernetes_namespace_v1" "hoppscotch" {
-  depends_on = [helm_release.cilium]
-  metadata {
-    name = "hoppscotch"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 resource "random_password" "hoppscotch_postgres_password" {
   length  = 32
@@ -49,7 +40,7 @@ locals {
   hoppscotch_proxy_port = 9159
   hoppscotch_pg_port    = 5432
 
-  hoppscotch_ns           = kubernetes_namespace_v1.hoppscotch.metadata[0].name
+  hoppscotch_ns           = module.namespace["hoppscotch"].name
   hoppscotch_labels       = { app = "hoppscotch" }
   hoppscotch_proxy_labels = { app = "proxyscotch" }
   hoppscotch_pg_labels    = { app = "hoppscotch-postgres" }
@@ -59,7 +50,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "hoppscotch_postgres" {
-  depends_on = [kubernetes_namespace_v1.hoppscotch]
+  depends_on = [module.namespace["hoppscotch"]]
   metadata {
     name      = "hoppscotch-postgres"
     namespace = local.hoppscotch_ns
@@ -73,7 +64,7 @@ resource "kubernetes_secret_v1" "hoppscotch_postgres" {
 }
 
 resource "kubernetes_secret_v1" "hoppscotch_env" {
-  depends_on = [kubernetes_namespace_v1.hoppscotch]
+  depends_on = [module.namespace["hoppscotch"]]
   metadata {
     name      = "hoppscotch-env"
     namespace = local.hoppscotch_ns
@@ -109,7 +100,7 @@ resource "kubernetes_secret_v1" "hoppscotch_env" {
 }
 
 resource "kubernetes_secret_v1" "hoppscotch_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.hoppscotch]
+  depends_on = [module.namespace["hoppscotch"]]
   metadata {
     name      = "hoppscotch-cnpg-app"
     namespace = local.hoppscotch_ns
@@ -122,7 +113,7 @@ resource "kubernetes_secret_v1" "hoppscotch_cnpg_app" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "hoppscotch_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.hoppscotch, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["hoppscotch"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "hoppscotch-postgres-data"
     namespace = local.hoppscotch_ns
@@ -228,7 +219,7 @@ resource "kubectl_manifest" "hoppscotch_cnpg_cluster" {
         size         = "5Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["hoppscotch"]
+      plugins = local.cnpg_plugin_specs["hoppscotch"]
       bootstrap = {
         initdb = {
           database = "hoppscotch"
@@ -371,7 +362,7 @@ resource "kubernetes_service_v1" "hoppscotch" {
 }
 
 resource "kubernetes_deployment_v1" "proxyscotch" {
-  depends_on = [kubernetes_namespace_v1.hoppscotch]
+  depends_on = [module.namespace["hoppscotch"]]
   metadata {
     name      = "proxyscotch"
     namespace = local.hoppscotch_ns

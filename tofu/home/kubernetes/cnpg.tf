@@ -6,34 +6,23 @@
 # one database at a time after backup/restore proof.
 
 locals {
-  cnpg_namespace     = "cnpg-system"
-  cnpg_chart_version = "0.28.3"
-  cnpg_storage_class = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+  cnpg_namespace                  = "cnpg-system"
+  cnpg_chart_version              = "0.28.3"
+  cnpg_barman_cloud_chart_version = "0.7.0"
+  cnpg_storage_class              = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
 }
 
-resource "kubernetes_namespace_v1" "cnpg_system" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.cnpg_namespace
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "restricted"
-      "pod-security.kubernetes.io/audit"   = "restricted"
-      "pod-security.kubernetes.io/warn"    = "restricted"
-    }
-  }
-}
 
 resource "helm_release" "cnpg" {
   depends_on = [
-    kubernetes_namespace_v1.cnpg_system,
+    module.namespace["cnpg-system"],
     kubernetes_storage_class_v1.ceph_rbd,
   ]
 
   name       = "cnpg"
   repository = "https://cloudnative-pg.github.io/charts"
   chart      = "cloudnative-pg"
-  namespace  = kubernetes_namespace_v1.cnpg_system.metadata[0].name
+  namespace  = module.namespace["cnpg-system"].name
   version    = local.cnpg_chart_version
   wait       = true
   timeout    = 600
@@ -44,6 +33,30 @@ resource "helm_release" "cnpg" {
     resources = {
       requests = { cpu = "100m", memory = "128Mi" }
       limits   = { cpu = "500m", memory = "512Mi" }
+    }
+  })]
+}
+
+resource "helm_release" "cnpg_barman_cloud" {
+  depends_on = [
+    helm_release.cert_manager,
+    helm_release.cnpg,
+  ]
+
+  name       = "plugin-barman-cloud"
+  repository = "https://cloudnative-pg.github.io/charts"
+  chart      = "plugin-barman-cloud"
+  namespace  = module.namespace["cnpg-system"].name
+  version    = local.cnpg_barman_cloud_chart_version
+  wait       = true
+  timeout    = 600
+
+  values = [yamlencode({
+    crds = { create = true }
+
+    resources = {
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { cpu = "250m", memory = "256Mi" }
     }
   })]
 }

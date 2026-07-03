@@ -8,12 +8,12 @@ locals {
   bentopdf_image  = "bentopdf/bentopdf-simple:latest"
   bentopdf_host   = "bentopdf.home.shdr.ch"
   bentopdf_port   = 8080
-  bentopdf_ns     = kubernetes_namespace_v1.personal.metadata[0].name
+  bentopdf_ns     = module.namespace["personal"].name
   bentopdf_labels = { app = "bentopdf" }
 }
 
 resource "kubernetes_deployment_v1" "bentopdf" {
-  depends_on = [kubernetes_namespace_v1.personal]
+  depends_on = [module.namespace["personal"]]
 
   metadata {
     name      = "bentopdf"

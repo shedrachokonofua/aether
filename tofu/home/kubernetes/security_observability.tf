@@ -81,27 +81,17 @@ resource "kubernetes_priority_class_v1" "node_agent" {
 }
 
 # Tetragon needs privileged host access for eBPF runtime visibility.
-resource "kubernetes_namespace_v1" "tetragon" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.tetragon_namespace
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 resource "helm_release" "tetragon" {
   depends_on = [
-    kubernetes_namespace_v1.tetragon,
+    module.namespace["tetragon"],
     kubernetes_priority_class_v1.node_agent,
   ]
 
   name       = "tetragon"
   repository = "https://helm.cilium.io"
   chart      = "tetragon"
-  namespace  = kubernetes_namespace_v1.tetragon.metadata[0].name
+  namespace  = module.namespace["tetragon"].name
   version    = "1.7.0"
   wait       = true
   timeout    = 600
@@ -142,24 +132,14 @@ resource "helm_release" "tetragon" {
   })]
 }
 
-resource "kubernetes_namespace_v1" "trivy_operator" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.trivy_operator_namespace
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 resource "helm_release" "trivy_operator" {
-  depends_on = [kubernetes_namespace_v1.trivy_operator]
+  depends_on = [module.namespace["trivy-system"]]
 
   name       = "trivy-operator"
   repository = "https://aquasecurity.github.io/helm-charts/"
   chart      = "trivy-operator"
-  namespace  = kubernetes_namespace_v1.trivy_operator.metadata[0].name
+  namespace  = module.namespace["trivy-system"].name
   version    = "0.33.1"
   wait       = true
   timeout    = 600
@@ -221,20 +201,10 @@ resource "helm_release" "trivy_operator" {
   })]
 }
 
-resource "kubernetes_namespace_v1" "policy_reporter" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.policy_reporter_namespace
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "restricted"
-    }
-  }
-}
 
 resource "helm_release" "policy_reporter" {
   depends_on = [
-    kubernetes_namespace_v1.policy_reporter,
+    module.namespace["policy-reporter"],
     helm_release.kyverno,
     helm_release.trivy_operator,
   ]
@@ -242,7 +212,7 @@ resource "helm_release" "policy_reporter" {
   name       = "policy-reporter"
   repository = "https://kyverno.github.io/policy-reporter"
   chart      = "policy-reporter"
-  namespace  = kubernetes_namespace_v1.policy_reporter.metadata[0].name
+  namespace  = module.namespace["policy-reporter"].name
   version    = "3.7.4"
   wait       = true
   timeout    = 600
@@ -329,7 +299,7 @@ resource "helm_release" "trivy_operator_polr_adapter" {
   name       = "trivy-operator-polr-adapter"
   repository = "https://fjogeleit.github.io/trivy-operator-polr-adapter"
   chart      = "trivy-operator-polr-adapter"
-  namespace  = kubernetes_namespace_v1.policy_reporter.metadata[0].name
+  namespace  = module.namespace["policy-reporter"].name
   version    = "0.11.3"
   wait       = true
   timeout    = 600
@@ -424,7 +394,7 @@ resource "kubernetes_cluster_role_binding_v1" "policy_reporter_trivy_plugin" {
   subject {
     kind      = "ServiceAccount"
     name      = "policy-reporter-trivy-plugin"
-    namespace = kubernetes_namespace_v1.policy_reporter.metadata[0].name
+    namespace = module.namespace["policy-reporter"].name
   }
 }
 
@@ -436,7 +406,7 @@ resource "kubernetes_manifest" "policy_reporter_route" {
     kind       = "HTTPRoute"
     metadata = {
       name      = "policy-reporter"
-      namespace = kubernetes_namespace_v1.policy_reporter.metadata[0].name
+      namespace = module.namespace["policy-reporter"].name
     }
     spec = {
       parentRefs = [{
@@ -462,24 +432,14 @@ resource "kubernetes_manifest" "policy_reporter_route" {
 }
 
 # Kepler uses eBPF and host counters for node/pod energy metrics.
-resource "kubernetes_namespace_v1" "kepler" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.kepler_namespace
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 resource "helm_release" "kepler" {
-  depends_on = [kubernetes_namespace_v1.kepler]
+  depends_on = [module.namespace["kepler"]]
 
   name       = "kepler"
   repository = "https://sustainable-computing-io.github.io/kepler-helm-chart"
   chart      = "kepler"
-  namespace  = kubernetes_namespace_v1.kepler.metadata[0].name
+  namespace  = module.namespace["kepler"].name
   version    = "0.6.1"
   wait       = true
   timeout    = 600

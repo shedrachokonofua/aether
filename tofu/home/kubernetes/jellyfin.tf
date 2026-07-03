@@ -11,7 +11,7 @@ locals {
   jellyfin_host       = "jellyfin.home.shdr.ch"
   jellyfin_public_url = "https://tv.shdr.ch"
   jellyfin_port       = 8096
-  jellyfin_ns         = kubernetes_namespace_v1.media.metadata[0].name
+  jellyfin_ns         = module.namespace["media"].name
   jellyfin_labels     = { app = "jellyfin" }
 
   rclone_image = "rclone/rclone:latest"
@@ -21,24 +21,13 @@ locals {
 # Namespace
 # =============================================================================
 
-resource "kubernetes_namespace_v1" "media" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "media"
-    labels = {
-      "goldilocks.fairwinds.com/enabled"   = "true"
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 # =============================================================================
 # PVCs
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "jellyfin_config" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "jellyfin-config"
@@ -56,7 +45,7 @@ resource "kubernetes_persistent_volume_claim_v1" "jellyfin_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "jellyfin_cache" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "jellyfin-cache"
@@ -104,7 +93,7 @@ resource "kubernetes_persistent_volume_v1" "media_hdd" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "media_hdd" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_persistent_volume_v1.media_hdd]
+  depends_on = [module.namespace["media"], kubernetes_persistent_volume_v1.media_hdd]
 
   metadata {
     name      = "media-hdd"
@@ -343,7 +332,7 @@ resource "kubernetes_deployment_v1" "jellyfin" {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "rclone_nzbdav" {
-  depends_on = [kubernetes_namespace_v1.media]
+  depends_on = [module.namespace["media"]]
 
   metadata {
     name      = "rclone-nzbdav"

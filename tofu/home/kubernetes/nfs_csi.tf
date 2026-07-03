@@ -5,12 +5,12 @@
 # Used for media storage (hdd data from NFS LXC on smith).
 
 resource "helm_release" "csi_driver_nfs" {
-  depends_on = [kubernetes_namespace_v1.system]
+  depends_on = [module.namespace["system"]]
 
   name       = "csi-driver-nfs"
   repository = "https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts"
   chart      = "csi-driver-nfs"
-  namespace  = kubernetes_namespace_v1.system.metadata[0].name
+  namespace  = module.namespace["system"].name
   wait       = true
   timeout    = 300
 }

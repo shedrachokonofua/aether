@@ -19,7 +19,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "lidarr_config" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "lidarr-config"

@@ -68,7 +68,7 @@ resource "helm_release" "otel_collector_daemonset" {
   name       = "otel-daemonset"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
   chart      = "opentelemetry-collector"
-  namespace  = kubernetes_namespace_v1.system.metadata[0].name
+  namespace  = module.namespace["system"].name
   version    = local.otel_chart_version
   wait       = true
   timeout    = 600
@@ -181,7 +181,7 @@ resource "kubernetes_service_v1" "otel_collector_daemonset" {
 
   metadata {
     name      = "otel-daemonset-opentelemetry-collector"
-    namespace = kubernetes_namespace_v1.system.metadata[0].name
+    namespace = module.namespace["system"].name
     labels = {
       "app.kubernetes.io/instance" = "otel-daemonset"
       "app.kubernetes.io/name"     = "opentelemetry-collector"
@@ -231,7 +231,7 @@ resource "helm_release" "otel_collector_deployment" {
   name       = "otel-cluster"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
   chart      = "opentelemetry-collector"
-  namespace  = kubernetes_namespace_v1.system.metadata[0].name
+  namespace  = module.namespace["system"].name
   version    = local.otel_chart_version
   wait       = true
   timeout    = 600
@@ -344,7 +344,7 @@ resource "helm_release" "otel_collector_deployment" {
                 job_name        = "dcgm-exporter"
                 scrape_interval = "30s"
                 static_configs = [{
-                  targets = ["dcgm-exporter.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:9400"]
+                  targets = ["dcgm-exporter.${module.namespace["system"].name}.svc.cluster.local:9400"]
                 }]
               },
               {
@@ -352,7 +352,7 @@ resource "helm_release" "otel_collector_deployment" {
                 scrape_interval = "30s"
                 kubernetes_sd_configs = [{
                   role       = "endpoints"
-                  namespaces = { names = [kubernetes_namespace_v1.system.metadata[0].name] }
+                  namespaces = { names = [module.namespace["system"].name] }
                 }]
                 relabel_configs = [
                   {
@@ -375,7 +375,7 @@ resource "helm_release" "otel_collector_deployment" {
                 job_name        = "kube-state-metrics"
                 scrape_interval = "30s"
                 static_configs = [{
-                  targets = ["${local.kube_state_metrics_name}.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:${local.kube_state_metrics_port}"]
+                  targets = ["${local.kube_state_metrics_name}.${module.namespace["system"].name}.svc.cluster.local:${local.kube_state_metrics_port}"]
                 }]
               },
               {

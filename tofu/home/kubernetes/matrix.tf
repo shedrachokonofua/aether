@@ -16,15 +16,6 @@
 # hermes-bots (infra ns) keep working unchanged — they hit matrix.home.shdr.ch
 # through Caddy, which gets re-pointed at the cluster Gateway VIP post-cutover.
 
-resource "kubernetes_namespace_v1" "matrix" {
-  depends_on = [helm_release.cilium]
-  metadata {
-    name = "matrix"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 locals {
   # Pin postgres minor to match (or exceed) the source VM's version. The source
@@ -37,7 +28,7 @@ locals {
   mautrix_whatsapp_image  = "dock.mau.dev/mautrix/whatsapp:latest"
   mautrix_gmessages_image = "dock.mau.dev/mautrix/gmessages:latest"
 
-  matrix_ns        = kubernetes_namespace_v1.matrix.metadata[0].name
+  matrix_ns        = module.namespace["matrix"].name
   matrix_labels    = { app = "matrix" }
   matrix_pg_labels = { app = "matrix-postgres" }
 
@@ -59,7 +50,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "matrix_postgres" {
-  depends_on = [kubernetes_namespace_v1.matrix]
+  depends_on = [module.namespace["matrix"]]
   metadata {
     name      = "matrix-postgres"
     namespace = local.matrix_ns
@@ -76,7 +67,7 @@ resource "kubernetes_secret_v1" "matrix_postgres" {
 }
 
 resource "kubernetes_config_map_v1" "matrix_postgres_init" {
-  depends_on = [kubernetes_namespace_v1.matrix]
+  depends_on = [module.namespace["matrix"]]
   metadata {
     name      = "matrix-postgres-init"
     namespace = local.matrix_ns
@@ -95,7 +86,7 @@ resource "kubernetes_config_map_v1" "matrix_postgres_init" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "matrix_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.matrix, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["matrix"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "matrix-postgres-data"
     namespace = local.matrix_ns
@@ -177,7 +168,13 @@ resource "kubernetes_service_v1" "matrix_postgres" {
     labels    = local.matrix_pg_labels
   }
   spec {
-    selector = local.matrix_pg_labels
+    # Compatibility service for bridge configs stored on PVCs from the pre-CNPG
+    # migration. The legacy StatefulSet is scaled to zero, so keep the old
+    # hostname routing to the CNPG primary until bridge config is IaC-owned.
+    selector = {
+      "cnpg.io/cluster"      = local.matrix_cnpg_cluster
+      "cnpg.io/instanceRole" = "primary"
+    }
     port {
       port        = local.matrix_pg_port
       target_port = local.matrix_pg_port
@@ -185,6 +182,7 @@ resource "kubernetes_service_v1" "matrix_postgres" {
     type = "ClusterIP"
   }
 }
+
 
 # =============================================================================
 # Synapse — ConfigMap (rendered) + Secret (signing key + doublepuppet) + PVC
@@ -240,7 +238,7 @@ resource "kubernetes_config_map_v1" "synapse_config" {
 }
 
 resource "kubernetes_secret_v1" "synapse_secrets" {
-  depends_on = [kubernetes_namespace_v1.matrix]
+  depends_on = [module.namespace["matrix"]]
   metadata {
     name      = "synapse-secrets"
     namespace = local.matrix_ns
@@ -266,7 +264,7 @@ resource "kubernetes_secret_v1" "synapse_secrets" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "synapse_data" {
-  depends_on = [kubernetes_namespace_v1.matrix, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["matrix"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "synapse-data"
     namespace = local.matrix_ns
@@ -285,7 +283,7 @@ resource "kubernetes_persistent_volume_claim_v1" "synapse_data" {
 # =============================================================================
 
 resource "kubernetes_config_map_v1" "element_config" {
-  depends_on = [kubernetes_namespace_v1.matrix]
+  depends_on = [module.namespace["matrix"]]
   metadata {
     name      = "element-config"
     namespace = local.matrix_ns
@@ -313,7 +311,7 @@ resource "kubernetes_config_map_v1" "element_config" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "mautrix_whatsapp_data" {
-  depends_on = [kubernetes_namespace_v1.matrix, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["matrix"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "mautrix-whatsapp-data"
     namespace = local.matrix_ns
@@ -327,7 +325,7 @@ resource "kubernetes_persistent_volume_claim_v1" "mautrix_whatsapp_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "mautrix_gmessages_data" {
-  depends_on = [kubernetes_namespace_v1.matrix, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["matrix"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {
     name      = "mautrix-gmessages-data"
     namespace = local.matrix_ns

@@ -19,12 +19,12 @@ locals {
   vaultwarden_image  = "vaultwarden/server:latest"
   vaultwarden_host   = "vaultwarden.home.shdr.ch"
   vaultwarden_port   = 80
-  vaultwarden_ns     = kubernetes_namespace_v1.personal.metadata[0].name
+  vaultwarden_ns     = module.namespace["personal"].name
   vaultwarden_labels = { app = "vaultwarden" }
 }
 
 resource "kubernetes_secret_v1" "vaultwarden_env" {
-  depends_on = [kubernetes_namespace_v1.personal]
+  depends_on = [module.namespace["personal"]]
 
   metadata {
     name      = "vaultwarden-env"
@@ -47,7 +47,7 @@ resource "kubernetes_secret_v1" "vaultwarden_env" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "vaultwarden_data" {
-  depends_on = [kubernetes_namespace_v1.personal, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["personal"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "vaultwarden-data"

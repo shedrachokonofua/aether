@@ -47,7 +47,7 @@ resource "helm_release" "cert_manager" {
   repository       = "https://charts.jetstack.io"
   chart            = "cert-manager"
   namespace        = "cert-manager"
-  create_namespace = true
+  create_namespace = false
   version          = "v1.17.1"
   wait             = true
   timeout          = 300
@@ -68,14 +68,22 @@ resource "helm_release" "step_issuer" {
   repository       = "https://smallstep.github.io/helm-charts"
   chart            = "step-issuer"
   namespace        = "cert-manager"
+  version          = "1.10.0"
   create_namespace = false
   wait             = true
   timeout          = 300
+
+  values = [yamlencode({
+    serviceAccount = {
+      create = true
+      name   = "step-issuer"
+    }
+  })]
 }
 
 # Provisioner password for step-issuer to authenticate to step-ca
 resource "kubernetes_secret_v1" "step_ca_provisioner" {
-  depends_on = [kubernetes_namespace_v1.istio_system]
+  depends_on = [module.namespace["istio-system"]]
 
   metadata {
     name      = "step-ca-provisioner"

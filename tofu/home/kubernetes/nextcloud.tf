@@ -95,16 +95,6 @@ locals {
 # Namespace
 # =============================================================================
 
-resource "kubernetes_namespace_v1" "nextcloud" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.nextcloud_namespace
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 # =============================================================================
 # Secrets
@@ -121,11 +111,11 @@ resource "random_password" "nextcloud_admin_password" {
 }
 
 resource "kubernetes_secret_v1" "nextcloud_postgres" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-postgres"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -142,11 +132,11 @@ resource "kubernetes_secret_v1" "nextcloud_postgres" {
 # on first run only. After install, this secret is unused; rotate by changing
 # the admin password inside the Nextcloud UI (not by re-applying tofu).
 resource "kubernetes_secret_v1" "nextcloud_admin" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-admin"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -166,13 +156,13 @@ resource "kubernetes_secret_v1" "nextcloud_admin" {
 # auto-generated config so settings stay declarative across image upgrades.
 resource "kubernetes_secret_v1" "nextcloud_config" {
   depends_on = [
-    kubernetes_namespace_v1.nextcloud,
+    module.namespace["nextcloud"],
     random_password.nextcloud_postgres_password,
   ]
 
   metadata {
     name      = "nextcloud-config"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -188,11 +178,11 @@ resource "kubernetes_secret_v1" "nextcloud_config" {
 # rotation of the supplemental config never touches these values. Mounted as
 # /var/www/html/config/install-state.config.php in every nextcloud pod.
 resource "kubernetes_secret_v1" "nextcloud_install_state" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-install-state"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -214,11 +204,11 @@ resource "kubernetes_secret_v1" "nextcloud_install_state" {
 # OIDC provider config consumed by the post-install Job.
 # Re-runs of the Job are idempotent: it only registers the provider if absent.
 resource "kubernetes_secret_v1" "nextcloud_oidc" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-oidc"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -236,11 +226,11 @@ resource "kubernetes_secret_v1" "nextcloud_oidc" {
 
 # LiteLLM virtual key used by Nextcloud Assistant's OpenAI-compatible provider.
 resource "kubernetes_secret_v1" "nextcloud_ai" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-ai"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -255,11 +245,11 @@ resource "kubernetes_secret_v1" "nextcloud_ai" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "nextcloud_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["nextcloud"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "nextcloud-postgres-data"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   spec {
@@ -280,11 +270,11 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_postgres_data" {
 # the container image at /var/www/html/apps and are read-only; user-installed
 # apps land here and are referenced via apps_paths in nextcloud_config.
 resource "kubernetes_persistent_volume_claim_v1" "nextcloud_custom_apps" {
-  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["nextcloud"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "nextcloud-custom-apps"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   spec {
@@ -331,11 +321,11 @@ resource "kubernetes_persistent_volume_v1" "nextcloud_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "nextcloud_data" {
-  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_persistent_volume_v1.nextcloud_data]
+  depends_on = [module.namespace["nextcloud"], kubernetes_persistent_volume_v1.nextcloud_data]
 
   metadata {
     name      = "nextcloud-data"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   spec {
@@ -361,7 +351,7 @@ resource "kubernetes_stateful_set_v1" "nextcloud_postgres" {
 
   metadata {
     name      = "nextcloud-postgres"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_postgres_labels
   }
 
@@ -448,7 +438,7 @@ resource "kubernetes_service_v1" "nextcloud_postgres" {
 
   metadata {
     name      = "nextcloud-postgres"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_postgres_labels
   }
 
@@ -470,11 +460,11 @@ resource "kubernetes_service_v1" "nextcloud_postgres" {
 # =============================================================================
 
 resource "kubernetes_deployment_v1" "nextcloud_redis" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-redis"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_redis_labels
   }
 
@@ -538,7 +528,7 @@ resource "kubernetes_service_v1" "nextcloud_redis" {
 
   metadata {
     name      = "nextcloud-redis"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_redis_labels
   }
 
@@ -570,7 +560,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
 
   metadata {
     name      = "nextcloud-server"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_server_labels
   }
 
@@ -797,11 +787,11 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
 }
 
 resource "kubernetes_config_map_v1" "nextcloud_opcache" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-opcache"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -824,7 +814,7 @@ resource "kubernetes_service_v1" "nextcloud_server" {
 
   metadata {
     name      = "nextcloud-server"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_server_labels
   }
 
@@ -853,7 +843,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
 
   metadata {
     name      = "nextcloud-cron"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_cron_labels
   }
 
@@ -1017,7 +1007,7 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
 
   metadata {
     name      = "nextcloud-task-worker"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = local.nextcloud_task_worker_labels
   }
 
@@ -1178,7 +1168,7 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
 
   metadata {
     name      = "nextcloud-oidc-bootstrap-${local.nextcloud_oidc_bootstrap_hash}"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   spec {
@@ -1371,7 +1361,7 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
 
   metadata {
     name      = "nextcloud-ai-bootstrap-${local.nextcloud_ai_bootstrap_hash}"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   spec {
@@ -1657,11 +1647,11 @@ resource "random_password" "nextcloud_context_chat_backend_secret" {
 }
 
 resource "kubernetes_secret_v1" "nextcloud_context_chat_backend" {
-  depends_on = [kubernetes_namespace_v1.nextcloud]
+  depends_on = [module.namespace["nextcloud"]]
 
   metadata {
     name      = "nextcloud-context-chat-backend"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   data = {
@@ -1672,11 +1662,11 @@ resource "kubernetes_secret_v1" "nextcloud_context_chat_backend" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "nextcloud_context_chat_backend_data" {
-  depends_on = [kubernetes_namespace_v1.nextcloud, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["nextcloud"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "nextcloud-context-chat-backend-data"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
   }
 
   spec {
@@ -1691,14 +1681,14 @@ resource "kubernetes_persistent_volume_claim_v1" "nextcloud_context_chat_backend
 
 resource "kubernetes_deployment_v1" "nextcloud_context_chat_backend" {
   depends_on = [
-    kubernetes_namespace_v1.nextcloud,
+    module.namespace["nextcloud"],
     kubernetes_persistent_volume_claim_v1.nextcloud_context_chat_backend_data,
     kubernetes_secret_v1.nextcloud_context_chat_backend,
   ]
 
   metadata {
     name      = "nextcloud-context-chat-backend"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = { app = "nextcloud-context-chat-backend" }
   }
 
@@ -1806,7 +1796,7 @@ resource "kubernetes_service_v1" "nextcloud_context_chat_backend" {
 
   metadata {
     name      = "nextcloud-context-chat-backend"
-    namespace = kubernetes_namespace_v1.nextcloud.metadata[0].name
+    namespace = module.namespace["nextcloud"].name
     labels    = { app = "nextcloud-context-chat-backend" }
   }
 

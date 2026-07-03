@@ -249,11 +249,6 @@ locals {
   ])
 }
 
-resource "kubernetes_namespace_v1" "vcluster_seven30" {
-  metadata {
-    name = local.vcluster_namespace
-  }
-}
 
 resource "helm_release" "vcluster_seven30" {
   depends_on = [

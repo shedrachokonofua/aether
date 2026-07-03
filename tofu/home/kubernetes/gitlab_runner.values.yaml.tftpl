@@ -2,6 +2,8 @@ gitlabUrl: ${gitlab_url}
 replicas: 4
 concurrent: 1
 checkInterval: 3
+priorityClassName: ${priority_class_name}
+
 
 # Prefer different nodes for manager pods; ScheduleAnyway still allows 2+ on one node if the scheduler must
 topologySpreadConstraints:
@@ -81,6 +83,7 @@ runners:
         ephemeral_storage_limit_overwrite_max_allowed = "64Gi"
         poll_timeout = 1800
         pull_policy = "if-not-present"
+        priority_class_name = "${priority_class_name}"
 
         [runners.kubernetes.affinity]
           [runners.kubernetes.affinity.node_affinity]

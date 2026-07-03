@@ -6,7 +6,7 @@
 # Docs: ../mnemo/docs/HANDOFF.md, ../mnemo/docs/DEPLOYMENT.md
 
 locals {
-  mnemo_namespace  = kubernetes_namespace_v1.infra.metadata[0].name
+  mnemo_namespace  = module.namespace["infra"].name
   mnemo_host       = "mnemo.home.shdr.ch"
   mnemo_image      = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port       = 4000
@@ -29,7 +29,7 @@ locals {
 
 resource "kubernetes_secret_v1" "mnemo_env" {
   depends_on = [
-    kubernetes_namespace_v1.infra,
+    module.namespace["infra"],
     kubernetes_secret_v1.openwebui_cnpg_app,
   ]
 
@@ -61,7 +61,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     OPENWEBUI_API_KEY      = var.secrets["openwebui.mcpo_api_key"]
 
     # Matrix source (bot user access token)
-    MATRIX_HOMESERVER_URL = "https://${local.mnemo_host}"
+    MATRIX_HOMESERVER_URL = "https://matrix.home.shdr.ch"
     MATRIX_ACCESS_TOKEN   = var.secrets["matrix.mnemo_bot_access_token"]
 
     # Gmail source (OAuth refresh token)
@@ -70,8 +70,9 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     GMAIL_REFRESH_TOKEN = var.secrets["gmail.refresh_token"]
 
     # OTEL (Aether in-cluster collector)
+    # opentelemetry_exporter uses HTTP (:httpc); collector HTTP receiver is 4318 (4317 is gRPC).
     OTEL_SERVICE_NAME           = "mnemo"
-    OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.system.svc.cluster.local:4317"
+    OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.system.svc.cluster.local:4318"
     OTEL_RESOURCE_ATTRIBUTES    = "service.namespace=mnemo,deployment.environment=home"
   }
 
@@ -80,7 +81,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
 
 # CNPG app secret (username/password for the mnemo CNPG cluster)
 resource "kubernetes_secret_v1" "mnemo_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "mnemo-cnpg-app"
@@ -127,7 +128,7 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["mnemo"]
+      plugins = local.cnpg_plugin_specs["mnemo"]
       bootstrap = {
         initdb = {
           database = local.mnemo_db
@@ -340,6 +341,234 @@ resource "kubernetes_job_v1" "mnemo_bootstrap_openwebui" {
     update = "10m"
   }
 }
+resource "kubernetes_job_v1" "mnemo_bootstrap_gmail" {
+  depends_on = [
+    kubernetes_job_v1.mnemo_migration,
+    kubernetes_secret_v1.mnemo_env,
+  ]
+
+  metadata {
+    name      = "mnemo-bootstrap-gmail"
+    namespace = local.mnemo_namespace
+    labels    = merge(local.mnemo_labels, { job = "mnemo-bootstrap-gmail" })
+  }
+
+  spec {
+    backoff_limit = 3
+
+    template {
+      metadata {
+        labels = merge(local.mnemo_labels, { job = "mnemo-bootstrap-gmail" })
+      }
+
+      spec {
+        restart_policy       = "OnFailure"
+        enable_service_links = false
+        node_selector        = { "kubernetes.io/arch" = "amd64" }
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65534
+          run_as_group    = 65534
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
+        container {
+          name              = "bootstrap"
+          image             = local.mnemo_image
+          image_pull_policy = "Always"
+          command = ["/app/bin/mnemo", "eval", <<-EOT
+            Application.ensure_all_started(:mnemo)
+
+            result =
+              Mnemo.Repo.query!("""
+              WITH existing AS (
+                SELECT id
+                FROM source_accounts
+                WHERE source_kind = 'email' AND name = 'default'
+                LIMIT 1
+              ),
+              inserted AS (
+                INSERT INTO source_accounts (source_kind, name, config, enabled, inserted_at, updated_at)
+                SELECT 'email', 'default', '{}'::jsonb, true, now(), now()
+                WHERE NOT EXISTS (SELECT 1 FROM existing)
+                RETURNING id
+              )
+              SELECT id FROM inserted
+              UNION ALL
+              SELECT id FROM existing
+              LIMIT 1
+              """)
+
+            [[source_account_id]] = result.rows
+
+            IO.puts("email source_account_id=" <> Ecto.UUID.cast!(source_account_id))
+
+            job =
+              Mnemo.Jobs.SyncGmail.new(%%{"source_account_id" => Ecto.UUID.cast!(source_account_id)},
+                unique: [
+                  period: 3600,
+                  fields: [:worker, :queue, :args],
+                  states: [:available, :scheduled, :executing, :retryable]
+                ]
+              )
+
+            case Oban.insert(job) do
+              {:ok, job} -> IO.puts("queued gmail sync job " <> Integer.to_string(job.id))
+              {:error, changeset} -> IO.puts("gmail sync job not queued: " <> inspect(changeset.errors))
+            end
+          EOT
+          ]
+
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.mnemo_env.metadata[0].name
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = { cpu = "100m", memory = "256Mi" }
+            limits   = { cpu = "1000m", memory = "1Gi" }
+          }
+        }
+      }
+    }
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "10m"
+    update = "10m"
+  }
+}
+
+
+resource "kubernetes_job_v1" "mnemo_bootstrap_matrix" {
+  depends_on = [
+    kubernetes_job_v1.mnemo_migration,
+    kubernetes_secret_v1.mnemo_env,
+  ]
+
+  metadata {
+    name      = "mnemo-bootstrap-matrix"
+    namespace = local.mnemo_namespace
+    labels    = merge(local.mnemo_labels, { job = "mnemo-bootstrap-matrix" })
+  }
+
+  spec {
+    backoff_limit = 3
+
+    template {
+      metadata {
+        labels = merge(local.mnemo_labels, { job = "mnemo-bootstrap-matrix" })
+      }
+
+      spec {
+        restart_policy       = "OnFailure"
+        enable_service_links = false
+        node_selector        = { "kubernetes.io/arch" = "amd64" }
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65534
+          run_as_group    = 65534
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
+        container {
+          name              = "bootstrap"
+          image             = local.mnemo_image
+          image_pull_policy = "Always"
+          command = ["/app/bin/mnemo", "eval", <<-EOT
+            Application.ensure_all_started(:mnemo)
+
+            result =
+              Mnemo.Repo.query!("""
+              WITH existing AS (
+                SELECT id
+                FROM source_accounts
+                WHERE source_kind = 'matrix' AND name = 'default'
+                LIMIT 1
+              ),
+              inserted AS (
+                INSERT INTO source_accounts (source_kind, name, config, enabled, inserted_at, updated_at)
+                SELECT 'matrix', 'default', jsonb_build_object('homeserver', 'https://matrix.home.shdr.ch'), true, now(), now()
+                WHERE NOT EXISTS (SELECT 1 FROM existing)
+                RETURNING id
+              )
+              SELECT id FROM inserted
+              UNION ALL
+              SELECT id FROM existing
+              LIMIT 1
+              """)
+
+            [[source_account_id]] = result.rows
+
+            IO.puts("matrix source_account_id=" <> Ecto.UUID.cast!(source_account_id))
+
+            job =
+              Mnemo.Jobs.SyncMatrix.new(%%{"source_account_id" => Ecto.UUID.cast!(source_account_id)},
+                unique: [
+                  period: 3600,
+                  fields: [:worker, :queue, :args],
+                  states: [:available, :scheduled, :executing, :retryable]
+                ]
+              )
+
+            case Oban.insert(job) do
+              {:ok, job} -> IO.puts("queued matrix sync job " <> Integer.to_string(job.id))
+              {:error, changeset} -> IO.puts("matrix sync job not queued: " <> inspect(changeset.errors))
+            end
+          EOT
+          ]
+
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.mnemo_env.metadata[0].name
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = { cpu = "100m", memory = "256Mi" }
+            limits   = { cpu = "1000m", memory = "1Gi" }
+          }
+        }
+      }
+    }
+
+    completions = 1
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "10m"
+    update = "10m"
+  }
+}
+
+
 
 # --- Deployment --------------------------------------------------------------
 
@@ -348,6 +577,8 @@ resource "kubernetes_deployment_v1" "mnemo" {
     kubectl_manifest.mnemo_cnpg_cluster,
     kubernetes_job_v1.mnemo_migration,
     kubernetes_job_v1.mnemo_bootstrap_openwebui,
+    kubernetes_job_v1.mnemo_bootstrap_gmail,
+    kubernetes_job_v1.mnemo_bootstrap_matrix,
     kubernetes_secret_v1.mnemo_env,
   ]
 
@@ -417,6 +648,12 @@ resource "kubernetes_deployment_v1" "mnemo" {
         }
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
+    ]
   }
 }
 
@@ -493,7 +730,7 @@ resource "kubernetes_manifest" "mnemo_route" {
 # --- DB Backup Target --------------------------------------------------------
 
 resource "kubectl_manifest" "mnemo_cnpg_backup" {
-  depends_on = [kubectl_manifest.mnemo_cnpg_cluster]
+  depends_on = [kubectl_manifest.mnemo_cnpg_cluster, kubectl_manifest.cnpg_barman_object_store]
 
   yaml_body = yamlencode({
     apiVersion = "postgresql.cnpg.io/v1"
@@ -505,8 +742,11 @@ resource "kubectl_manifest" "mnemo_cnpg_backup" {
     spec = {
       schedule             = "0 0 2 * * *" # Daily at 02:00 UTC; CNPG schedules include seconds.
       backupOwnerReference = "self"
-      method               = "barmanObjectStore"
+      method               = "plugin"
       target               = "primary"
+      pluginConfiguration = {
+        name = local.cnpg_barman_plugin_name
+      }
       cluster = {
         name = local.mnemo_cnpg
       }

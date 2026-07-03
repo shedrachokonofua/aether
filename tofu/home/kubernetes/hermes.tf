@@ -8,7 +8,7 @@
 # Tungsten: public Kimi model through LiteLLM -> Ollama Cloud.
 
 locals {
-  hermes_namespace                    = kubernetes_namespace_v1.infra.metadata[0].name
+  hermes_namespace                    = module.namespace["infra"].name
   hermes_image                        = "nousresearch/hermes-agent:latest"
   hermes_port                         = 8642
   hermes_dashboard_port               = 9119
@@ -255,7 +255,7 @@ resource "random_password" "hermes_api_server_key" {
 resource "kubernetes_secret_v1" "hermes_env" {
   for_each = local.hermes_agents
 
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "hermes-${each.key}-env"
@@ -294,7 +294,7 @@ resource "kubernetes_secret_v1" "hermes_env" {
 resource "kubernetes_config_map_v1" "hermes_bootstrap" {
   for_each = local.hermes_agents
 
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "hermes-${each.key}-bootstrap"
@@ -309,7 +309,7 @@ resource "kubernetes_config_map_v1" "hermes_bootstrap" {
 }
 
 resource "kubernetes_config_map_v1" "hermes_tungsten_skills" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "hermes-tungsten-skills"
@@ -324,7 +324,7 @@ resource "kubernetes_config_map_v1" "hermes_tungsten_skills" {
 resource "kubernetes_persistent_volume_claim_v1" "hermes_data" {
   for_each = local.hermes_agents
 
-  depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "hermes-${each.key}-data"
@@ -346,7 +346,7 @@ resource "kubernetes_persistent_volume_claim_v1" "hermes_data" {
 resource "kubernetes_service_account_v1" "hermes" {
   for_each = local.hermes_agents
 
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "hermes-${each.key}"

@@ -14,7 +14,7 @@ locals {
 
   firecrawl_host         = "firecrawl.home.shdr.ch"
   firecrawl_mcp_host     = "firecrawl-mcp.home.shdr.ch"
-  firecrawl_ns           = kubernetes_namespace_v1.infra.metadata[0].name
+  firecrawl_ns           = module.namespace["infra"].name
   firecrawl_labels       = { app = "firecrawl" }
   firecrawl_cnpg_cluster = "firecrawl-cnpg"
   firecrawl_db_user      = "firecrawl"
@@ -36,7 +36,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "firecrawl_env" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "firecrawl-env"
@@ -55,7 +55,7 @@ resource "kubernetes_secret_v1" "firecrawl_env" {
 }
 
 resource "kubernetes_secret_v1" "firecrawl_cnpg_superuser" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "firecrawl-cnpg-superuser"
@@ -71,7 +71,7 @@ resource "kubernetes_secret_v1" "firecrawl_cnpg_superuser" {
 }
 
 resource "kubernetes_secret_v1" "firecrawl_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "firecrawl-cnpg-app"
@@ -87,7 +87,7 @@ resource "kubernetes_secret_v1" "firecrawl_cnpg_app" {
 }
 
 resource "kubernetes_secret_v1" "firecrawl_gitlab_registry" {
-  depends_on = [kubernetes_namespace_v1.infra]
+  depends_on = [module.namespace["infra"]]
 
   metadata {
     name      = "firecrawl-gitlab-registry"
@@ -110,7 +110,7 @@ resource "kubernetes_secret_v1" "firecrawl_gitlab_registry" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "firecrawl_redis_data" {
-  depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "firecrawl-redis-data"
@@ -132,7 +132,7 @@ resource "kubernetes_persistent_volume_claim_v1" "firecrawl_redis_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "firecrawl_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.infra, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "firecrawl-postgres-data"
@@ -191,7 +191,7 @@ resource "kubectl_manifest" "firecrawl_cnpg_cluster" {
           wal_compression      = "on"
         }
       }
-      backup = local.cnpg_backup_specs["firecrawl"]
+      plugins = local.cnpg_plugin_specs["firecrawl"]
       bootstrap = {
         initdb = {
           database = "postgres"

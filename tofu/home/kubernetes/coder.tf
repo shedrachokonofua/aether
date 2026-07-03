@@ -15,16 +15,6 @@ locals {
   coder_version          = "2.31.9"
 }
 
-resource "kubernetes_namespace_v1" "coder" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.coder_namespace
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-    }
-  }
-}
 
 resource "random_password" "coder_postgres_password" {
   length  = 32
@@ -32,7 +22,7 @@ resource "random_password" "coder_postgres_password" {
 }
 
 resource "kubernetes_secret_v1" "coder_postgres" {
-  depends_on = [kubernetes_namespace_v1.coder]
+  depends_on = [module.namespace["coder"]]
 
   metadata {
     name      = "coder-postgres"
@@ -49,7 +39,7 @@ resource "kubernetes_secret_v1" "coder_postgres" {
 }
 
 resource "kubernetes_secret_v1" "coder_secrets" {
-  depends_on = [kubernetes_namespace_v1.coder]
+  depends_on = [module.namespace["coder"]]
 
   metadata {
     name      = "coder-secrets"
@@ -65,7 +55,7 @@ resource "kubernetes_secret_v1" "coder_secrets" {
 }
 
 resource "kubernetes_secret_v1" "coder_cnpg_app" {
-  depends_on = [kubernetes_namespace_v1.coder]
+  depends_on = [module.namespace["coder"]]
 
   metadata {
     name      = "coder-cnpg-app"
@@ -81,7 +71,7 @@ resource "kubernetes_secret_v1" "coder_cnpg_app" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "coder_postgres_data" {
-  depends_on = [kubernetes_namespace_v1.coder, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["coder"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "coder-postgres-data"
@@ -264,7 +254,7 @@ resource "kubectl_manifest" "coder_cnpg_cluster" {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
-      backup = local.cnpg_backup_specs["coder"]
+      plugins = local.cnpg_plugin_specs["coder"]
       bootstrap = {
         initdb = {
           database = local.coder_postgres_db

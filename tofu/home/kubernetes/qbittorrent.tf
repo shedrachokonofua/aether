@@ -30,7 +30,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "qbittorrent" {
-  depends_on = [kubernetes_namespace_v1.media]
+  depends_on = [module.namespace["media"]]
 
   metadata {
     name      = "qbittorrent"
@@ -52,7 +52,7 @@ resource "kubernetes_secret_v1" "qbittorrent" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "qbittorrent_config" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "qbittorrent-config"
@@ -70,7 +70,7 @@ resource "kubernetes_persistent_volume_claim_v1" "qbittorrent_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "gluetun_config" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "gluetun-config"

@@ -9,7 +9,7 @@ output "cilium_version" {
 
 output "system_namespace" {
   description = "System namespace for platform components"
-  value       = kubernetes_namespace_v1.system.metadata[0].name
+  value       = module.namespace["system"].name
 }
 
 output "storage_class" {
@@ -29,7 +29,7 @@ output "knative_domain" {
 
 output "otel_daemonset_service" {
   description = "OTLP endpoint for apps to send telemetry (within cluster)"
-  value       = "otel-daemonset-opentelemetry-collector.${kubernetes_namespace_v1.system.metadata[0].name}.svc.cluster.local:4317"
+  value       = "otel-daemonset-opentelemetry-collector.${module.namespace["system"].name}.svc.cluster.local:4317"
 }
 
 output "otel_endpoint_external" {
@@ -69,7 +69,7 @@ output "vcluster_seven30_namespace" {
 
 output "gitlab_runner_namespace" {
   description = "Namespace hosting the Kubernetes GitLab runner"
-  value       = kubernetes_namespace_v1.gitlab_runner.metadata[0].name
+  value       = module.namespace["gitlab-runner"].name
 }
 
 output "coder_url" {

@@ -15,23 +15,13 @@ locals {
   gitlab_runner_service_account = "gitlab-runner-k8s"
 }
 
-resource "kubernetes_namespace_v1" "gitlab_runner" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = local.gitlab_runner_namespace
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 resource "kubernetes_secret_v1" "gitlab_runner_auth" {
-  depends_on = [kubernetes_namespace_v1.gitlab_runner]
+  depends_on = [module.namespace["gitlab-runner"]]
 
   metadata {
     name      = local.gitlab_runner_secret_name
-    namespace = kubernetes_namespace_v1.gitlab_runner.metadata[0].name
+    namespace = module.namespace["gitlab-runner"].name
   }
 
   data = {
@@ -41,12 +31,12 @@ resource "kubernetes_secret_v1" "gitlab_runner_auth" {
 }
 
 resource "helm_release" "gitlab_runner" {
-  depends_on = [kubernetes_secret_v1.gitlab_runner_auth]
+  depends_on = [kubernetes_secret_v1.gitlab_runner_auth, kubernetes_priority_class_v1.aether_batch]
 
   name             = local.gitlab_runner_release_name
   repository       = "https://charts.gitlab.io"
   chart            = "gitlab-runner"
-  namespace        = kubernetes_namespace_v1.gitlab_runner.metadata[0].name
+  namespace        = module.namespace["gitlab-runner"].name
   create_namespace = false
   version          = "0.79.1"
   wait             = true
@@ -54,9 +44,10 @@ resource "helm_release" "gitlab_runner" {
 
   values = [templatefile("${path.module}/gitlab_runner.values.yaml.tftpl", {
     gitlab_url           = "https://gitlab.home.shdr.ch/"
-    namespace            = kubernetes_namespace_v1.gitlab_runner.metadata[0].name
+    namespace            = module.namespace["gitlab-runner"].name
     runner_secret_name   = kubernetes_secret_v1.gitlab_runner_auth.metadata[0].name
     service_account_name = local.gitlab_runner_service_account
     runner_app_label     = local.gitlab_runner_release_name
+    priority_class_name  = local.aether_priority_classes.batch
   })]
 }

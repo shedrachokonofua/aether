@@ -17,7 +17,7 @@ resource "helm_release" "kube_state_metrics" {
   name       = local.kube_state_metrics_name
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "kube-state-metrics"
-  namespace  = kubernetes_namespace_v1.system.metadata[0].name
+  namespace  = module.namespace["system"].name
   version    = local.kube_state_metrics_chart_version
   wait       = true
   timeout    = 300

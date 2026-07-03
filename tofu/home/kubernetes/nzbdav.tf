@@ -16,7 +16,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "nzbdav_config" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "nzbdav-config"
@@ -34,7 +34,7 @@ resource "kubernetes_persistent_volume_claim_v1" "nzbdav_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "nzbdav_data" {
-  depends_on = [kubernetes_namespace_v1.media, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "nzbdav-data"
@@ -56,7 +56,7 @@ resource "kubernetes_persistent_volume_claim_v1" "nzbdav_data" {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "nzbdav_webdav" {
-  depends_on = [kubernetes_namespace_v1.media]
+  depends_on = [module.namespace["media"]]
 
   metadata {
     name      = "nzbdav-webdav"

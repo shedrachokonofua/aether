@@ -27,7 +27,7 @@ resource "helm_release" "wasmcloud" {
   repository       = "oci://ghcr.io/wasmcloud/charts"
   chart            = "runtime-operator"
   namespace        = "wasmcloud-system"
-  create_namespace = true
+  create_namespace = false
   version          = "2.0.5"
   wait             = true
   timeout          = 600

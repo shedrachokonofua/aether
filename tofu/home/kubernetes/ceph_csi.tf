@@ -15,27 +15,17 @@ locals {
 # Namespace for platform components
 # =============================================================================
 
-resource "kubernetes_namespace_v1" "system" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "system"
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 # =============================================================================
 # Ceph Credentials Secret
 # =============================================================================
 
 resource "kubernetes_secret_v1" "ceph_csi" {
-  depends_on = [kubernetes_namespace_v1.system]
+  depends_on = [module.namespace["system"]]
 
   metadata {
     name      = "csi-rbd-secret"
-    namespace = kubernetes_namespace_v1.system.metadata[0].name
+    namespace = module.namespace["system"].name
   }
 
   data = {
@@ -49,12 +39,12 @@ resource "kubernetes_secret_v1" "ceph_csi" {
 # =============================================================================
 
 resource "helm_release" "ceph_csi_rbd" {
-  depends_on = [kubernetes_namespace_v1.system]
+  depends_on = [module.namespace["system"]]
 
   name       = "ceph-csi-rbd"
   repository = "https://ceph.github.io/csi-charts"
   chart      = "ceph-csi-rbd"
-  namespace  = kubernetes_namespace_v1.system.metadata[0].name
+  namespace  = module.namespace["system"].name
   wait       = true
   timeout    = 600
 
@@ -96,10 +86,10 @@ resource "kubernetes_storage_class_v1" "ceph_rbd" {
     imageFeatures = "layering"
 
     "csi.storage.k8s.io/provisioner-secret-name"            = kubernetes_secret_v1.ceph_csi.metadata[0].name
-    "csi.storage.k8s.io/provisioner-secret-namespace"       = kubernetes_namespace_v1.system.metadata[0].name
+    "csi.storage.k8s.io/provisioner-secret-namespace"       = module.namespace["system"].name
     "csi.storage.k8s.io/controller-expand-secret-name"      = kubernetes_secret_v1.ceph_csi.metadata[0].name
-    "csi.storage.k8s.io/controller-expand-secret-namespace" = kubernetes_namespace_v1.system.metadata[0].name
+    "csi.storage.k8s.io/controller-expand-secret-namespace" = module.namespace["system"].name
     "csi.storage.k8s.io/node-stage-secret-name"             = kubernetes_secret_v1.ceph_csi.metadata[0].name
-    "csi.storage.k8s.io/node-stage-secret-namespace"        = kubernetes_namespace_v1.system.metadata[0].name
+    "csi.storage.k8s.io/node-stage-secret-namespace"        = module.namespace["system"].name
   }
 }

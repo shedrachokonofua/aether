@@ -12,7 +12,7 @@ locals {
   composer_image         = "registry.gitlab.home.shdr.ch/so/aether/composer-api:latest"
   composer_host          = "composer.home.shdr.ch"
   composer_port          = 8080
-  composer_ns            = kubernetes_namespace_v1.personal.metadata[0].name
+  composer_ns            = module.namespace["personal"].name
   composer_labels        = { app = "composer" }
   composer_registry_host = "registry.gitlab.home.shdr.ch"
   composer_registry_user = var.secrets["gitlab.root_email"]
@@ -20,7 +20,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "composer_gitlab_registry" {
-  depends_on = [kubernetes_namespace_v1.personal]
+  depends_on = [module.namespace["personal"]]
 
   metadata {
     name      = "composer-gitlab-registry"
@@ -43,7 +43,7 @@ resource "kubernetes_secret_v1" "composer_gitlab_registry" {
 }
 
 resource "kubernetes_secret_v1" "composer_env" {
-  depends_on = [kubernetes_namespace_v1.personal]
+  depends_on = [module.namespace["personal"]]
 
   metadata {
     name      = "composer-env"

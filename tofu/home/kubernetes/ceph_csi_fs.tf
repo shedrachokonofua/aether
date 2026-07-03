@@ -12,23 +12,13 @@ locals {
 
 # CephFS CSI lives in its own namespace so its Helm-managed ceph-config
 # ConfigMap doesn't collide with the RBD driver's release in `system`.
-resource "kubernetes_namespace_v1" "ceph_csi_fs" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "ceph-csi-cephfs"
-    labels = {
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 resource "kubernetes_secret_v1" "ceph_csi_fs" {
-  depends_on = [kubernetes_namespace_v1.ceph_csi_fs]
+  depends_on = [module.namespace["ceph-csi-cephfs"]]
 
   metadata {
     name      = "csi-cephfs-secret"
-    namespace = kubernetes_namespace_v1.ceph_csi_fs.metadata[0].name
+    namespace = module.namespace["ceph-csi-cephfs"].name
   }
 
   data = {
@@ -42,12 +32,12 @@ resource "kubernetes_secret_v1" "ceph_csi_fs" {
 }
 
 resource "helm_release" "ceph_csi_fs" {
-  depends_on = [kubernetes_namespace_v1.ceph_csi_fs]
+  depends_on = [module.namespace["ceph-csi-cephfs"]]
 
   name       = "ceph-csi-cephfs"
   repository = "https://ceph.github.io/csi-charts"
   chart      = "ceph-csi-cephfs"
-  namespace  = kubernetes_namespace_v1.ceph_csi_fs.metadata[0].name
+  namespace  = module.namespace["ceph-csi-cephfs"].name
   wait       = true
   timeout    = 600
 
@@ -100,10 +90,10 @@ resource "kubernetes_storage_class_v1" "cephfs" {
     mounter = "fuse"
 
     "csi.storage.k8s.io/provisioner-secret-name"            = kubernetes_secret_v1.ceph_csi_fs.metadata[0].name
-    "csi.storage.k8s.io/provisioner-secret-namespace"       = kubernetes_namespace_v1.ceph_csi_fs.metadata[0].name
+    "csi.storage.k8s.io/provisioner-secret-namespace"       = module.namespace["ceph-csi-cephfs"].name
     "csi.storage.k8s.io/controller-expand-secret-name"      = kubernetes_secret_v1.ceph_csi_fs.metadata[0].name
-    "csi.storage.k8s.io/controller-expand-secret-namespace" = kubernetes_namespace_v1.ceph_csi_fs.metadata[0].name
+    "csi.storage.k8s.io/controller-expand-secret-namespace" = module.namespace["ceph-csi-cephfs"].name
     "csi.storage.k8s.io/node-stage-secret-name"             = kubernetes_secret_v1.ceph_csi_fs.metadata[0].name
-    "csi.storage.k8s.io/node-stage-secret-namespace"        = kubernetes_namespace_v1.ceph_csi_fs.metadata[0].name
+    "csi.storage.k8s.io/node-stage-secret-namespace"        = module.namespace["ceph-csi-cephfs"].name
   }
 }

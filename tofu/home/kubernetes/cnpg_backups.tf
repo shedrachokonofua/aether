@@ -79,12 +79,28 @@ locals {
     if name != "mnemo"
   }
 
+  cnpg_barman_plugin_name = "barman-cloud.cloudnative-pg.io"
+
+  cnpg_barman_object_store_names = {
+    for name, target in local.cnpg_backup_targets : name => "${target.cluster}-object-store"
+  }
+
+  cnpg_plugin_specs = {
+    for name, target in local.cnpg_backup_targets : name => [{
+      name          = local.cnpg_barman_plugin_name
+      isWALArchiver = true
+      parameters = {
+        barmanObjectName = local.cnpg_barman_object_store_names[name]
+      }
+    }]
+  }
+
   cnpg_backup_specs = {
     for name, target in local.cnpg_backup_targets : name => {
       target          = "primary"
       retentionPolicy = target.retention
       barmanObjectStore = {
-        destinationPath = "s3://${local.db_backup_bucket}/cnpg/${target.cluster}"
+        destinationPath = "s3://${local.db_backup_bucket}/cnpg/${target.namespace}/${target.cluster}"
         endpointURL     = local.db_backup_s3_endpoint
         s3Credentials = {
           accessKeyId = {
@@ -111,12 +127,38 @@ locals {
   }
 }
 
+resource "kubectl_manifest" "cnpg_barman_object_store" {
+  for_each = local.cnpg_backup_targets
+
+  depends_on = [
+    helm_release.cnpg_barman_cloud,
+    kubernetes_secret_v1.db_backup_s3,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "barmancloud.cnpg.io/v1"
+    kind       = "ObjectStore"
+    metadata = {
+      name      = local.cnpg_barman_object_store_names[each.key]
+      namespace = each.value.namespace
+      labels = {
+        "app.kubernetes.io/managed-by" = "tofu"
+        "aether.sh/backup-kind"        = "cnpg"
+      }
+    }
+    spec = {
+      configuration   = local.cnpg_backup_specs[each.key].barmanObjectStore
+      retentionPolicy = each.value.retention
+    }
+  })
+}
+
 resource "kubectl_manifest" "cnpg_scheduled_backup" {
   for_each = local.cnpg_scheduled_backup_targets
 
   depends_on = [
-    helm_release.cnpg,
-    kubernetes_secret_v1.db_backup_s3,
+    helm_release.cnpg_barman_cloud,
+    kubectl_manifest.cnpg_barman_object_store,
     kubectl_manifest.affine_cnpg_cluster,
     kubectl_manifest.coder_cnpg_cluster,
     kubectl_manifest.firecrawl_cnpg_cluster,
@@ -144,8 +186,11 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     spec = {
       schedule             = each.value.schedule
       backupOwnerReference = "self"
-      method               = "barmanObjectStore"
+      method               = "plugin"
       target               = "primary"
+      pluginConfiguration = {
+        name = local.cnpg_barman_plugin_name
+      }
       cluster = {
         name = each.value.cluster
       }

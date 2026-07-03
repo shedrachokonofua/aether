@@ -12,14 +12,3 @@
 # hostNetwork or NodePort, so interception is safe. Without the label, ztunnel
 # sees zero traffic and `istio_tcp_connections_opened_total` stays empty.
 
-resource "kubernetes_namespace_v1" "infra" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "infra"
-    labels = {
-      "goldilocks.fairwinds.com/enabled" = "true"
-      "istio.io/dataplane-mode"          = "ambient"
-    }
-  }
-}

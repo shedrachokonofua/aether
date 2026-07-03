@@ -1,0 +1,73 @@
+---
+# Deploy the generated SeaweedFS S3 identity config without recreating the LXC.
+
+- name: Deploy SeaweedFS S3 identity config
+  hosts: smith
+  gather_facts: false
+  vars:
+    seaweedfs_vm: "{{ vm.seaweedfs }}"
+    seaweedfs_s3_config_remote: "/mnt/hdd/seaweedfs/secrets/s3.json"
+    seaweedfs_s3_generated_config_path: "{{ playbook_dir }}/../../../tofu/home/secrets/seaweedfs-s3.json"
+    seaweedfs_s3_generated_config: "{{ lookup('ansible.builtin.file', seaweedfs_s3_generated_config_path, errors='ignore') }}"
+    seaweedfs_s3_admin_config: |
+      {
+        "identities": [
+          {
+            "name": "admin",
+            "credentials": [
+              {
+                "accessKey": "{{ secrets.seaweedfs.s3_admin_access_key }}",
+                "secretKey": "{{ secrets.seaweedfs.s3_admin_secret_key }}"
+              }
+            ],
+            "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+          }
+        ]
+      }
+    seaweedfs_s3_config_content: "{{ (seaweedfs_s3_generated_config | trim | length > 0) | ternary(seaweedfs_s3_generated_config, seaweedfs_s3_admin_config) }}"
+
+  tasks:
+    - name: Fail if generated S3 config is absent
+      ansible.builtin.fail:
+        msg: "Run tofu apply for local_sensitive_file.seaweedfs_s3_config before deploying scoped identities."
+      when: seaweedfs_s3_generated_config | trim | length == 0
+
+    - name: Create SeaweedFS secret directory in LXC
+      ansible.builtin.command: >
+        pct exec {{ seaweedfs_vm.id }}
+        -- /run/current-system/sw/bin/mkdir -p /mnt/hdd/seaweedfs/secrets
+      changed_when: true
+
+    - name: Stage SeaweedFS S3 config on Proxmox host
+      ansible.builtin.copy:
+        src: "{{ seaweedfs_s3_generated_config_path }}"
+        dest: /tmp/seaweedfs-s3.json
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Push SeaweedFS S3 config into LXC
+      ansible.builtin.command: >
+        pct push {{ seaweedfs_vm.id }}
+        /tmp/seaweedfs-s3.json
+        {{ seaweedfs_s3_config_remote }}
+        --perms 0644
+      changed_when: true
+
+    - name: Remove staged SeaweedFS S3 config
+      ansible.builtin.file:
+        path: /tmp/seaweedfs-s3.json
+        state: absent
+      no_log: true
+
+    - name: Restart SeaweedFS LXC to reload S3 identity config
+      ansible.builtin.command: pct reboot {{ seaweedfs_vm.id }}
+      changed_when: true
+
+    - name: Wait for SeaweedFS S3 API
+      ansible.builtin.wait_for:
+        host: "{{ seaweedfs_vm.ip }}"
+        port: "{{ seaweedfs_vm.ports.s3 }}"
+        timeout: 120
+      delegate_to: localhost

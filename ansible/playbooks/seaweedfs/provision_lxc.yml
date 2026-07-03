@@ -16,7 +16,9 @@
     seaweedfs_dataset: "hdd/seaweedfs"
     seaweedfs_mountpoint: "/mnt/hdd/seaweedfs"
     seaweedfs_s3_config_remote: "/mnt/hdd/seaweedfs/secrets/s3.json"
-    seaweedfs_s3_config_content: |
+    seaweedfs_s3_generated_config_path: "{{ playbook_dir }}/../../../tofu/home/secrets/seaweedfs-s3.json"
+    seaweedfs_s3_generated_config: "{{ lookup('ansible.builtin.file', seaweedfs_s3_generated_config_path, errors='ignore') }}"
+    seaweedfs_s3_admin_config: |
       {
         "identities": [
           {
@@ -31,6 +33,7 @@
           }
         ]
       }
+    seaweedfs_s3_config_content: "{{ (seaweedfs_s3_generated_config | trim | length > 0) | ternary(seaweedfs_s3_generated_config, seaweedfs_s3_admin_config) }}"
 
   tasks:
     - name: Check if base image exists on cephfs

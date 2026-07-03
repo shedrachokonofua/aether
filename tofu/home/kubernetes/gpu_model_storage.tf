@@ -18,7 +18,7 @@ locals {
   gpu_model_storage_size = "500Gi"
   gpu_model_storage_path = "/var/mnt/gpu-storage"
   gpu_model_storage_node = "talos-neo"
-  gpu_model_storage_ns   = kubernetes_namespace_v1.infra.metadata[0].name
+  gpu_model_storage_ns   = module.namespace["infra"].name
 }
 
 # =============================================================================
@@ -82,7 +82,7 @@ resource "kubernetes_persistent_volume_v1" "gpu_model_storage" {
 
 resource "kubernetes_persistent_volume_claim_v1" "gpu_model_storage" {
   depends_on = [
-    kubernetes_namespace_v1.infra,
+    module.namespace["infra"],
     kubernetes_persistent_volume_v1.gpu_model_storage,
   ]
 

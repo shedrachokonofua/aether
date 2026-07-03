@@ -7,24 +7,12 @@
 # Runs in Kata Containers for safe nested virtualization / sandboxing.
 # =============================================================================
 
-resource "kubernetes_namespace_v1" "holyclaude" {
-  depends_on = [helm_release.cilium]
-
-  metadata {
-    name = "holyclaude"
-    labels = {
-      "goldilocks.fairwinds.com/enabled"   = "true"
-      # Required because Chromium sandboxing requests SYS_ADMIN/SYS_PTRACE and unconfined seccomp
-      "pod-security.kubernetes.io/enforce" = "privileged"
-    }
-  }
-}
 
 locals {
   holyclaude_image  = "coderluii/holyclaude:latest"
   holyclaude_host   = "holyclaude.home.shdr.ch"
   holyclaude_port   = 3001
-  holyclaude_ns     = kubernetes_namespace_v1.holyclaude.metadata[0].name
+  holyclaude_ns     = module.namespace["holyclaude"].name
   holyclaude_labels = { app = "holyclaude" }
 }
 
@@ -32,7 +20,7 @@ locals {
 # Storage — Credentials and Session State
 # -----------------------------------------------------------------------------
 resource "kubernetes_persistent_volume_claim_v1" "holyclaude_config" {
-  depends_on = [kubernetes_namespace_v1.holyclaude, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["holyclaude"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "holyclaude-config"
@@ -54,7 +42,7 @@ resource "kubernetes_persistent_volume_claim_v1" "holyclaude_config" {
 # Storage — Workspace for Agent Workflows
 # -----------------------------------------------------------------------------
 resource "kubernetes_persistent_volume_claim_v1" "holyclaude_workspace" {
-  depends_on = [kubernetes_namespace_v1.holyclaude, kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["holyclaude"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "holyclaude-workspace"
