@@ -1576,3 +1576,51 @@ resource "kubectl_manifest" "kyverno_httproute_hostname_contract" {
     }
   })
 }
+
+resource "kubectl_manifest" "kyverno_cnpg_backup_contract" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "ValidatingPolicy"
+    metadata = {
+      name = "cnpg-backup-contract"
+      annotations = {
+        "policies.kyverno.io/title"       = "CNPG Backup Contract"
+        "policies.kyverno.io/category"    = "Database"
+        "policies.kyverno.io/subject"     = "Cluster"
+        "policies.kyverno.io/description" = "Reject CNPG clusters in backed-up namespaces unless they declare a Barman backup target."
+      }
+    }
+    spec = {
+      failurePolicy     = "Fail"
+      validationActions = ["Deny"]
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = true
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = ["postgresql.cnpg.io"]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["clusters"]
+          scope       = "Namespaced"
+        }]
+      }
+      variables = [{
+        name       = "namespaceBackup"
+        expression = "namespaceObject != null && has(namespaceObject.metadata.labels) && \"aether.shdr.ch/backup\" in namespaceObject.metadata.labels ? namespaceObject.metadata.labels[\"aether.shdr.ch/backup\"] : \"none\""
+      }]
+      validations = [{
+        expression = "variables.namespaceBackup == \"none\" || (has(object.spec.backup) && has(object.spec.backup.barmanObjectStore)) || (has(object.spec.plugins) && object.spec.plugins.exists(plugin, plugin.name == \"${local.cnpg_barman_plugin_name}\" && has(plugin.parameters) && \"barmanObjectName\" in plugin.parameters && plugin.parameters[\"barmanObjectName\"] != \"\"))"
+        message    = "CNPG clusters in namespaces with aether.shdr.ch/backup != none must declare spec.backup.barmanObjectStore or the Barman Cloud plugin barmanObjectName parameter."
+        reason     = "Forbidden"
+      }]
+    }
+  })
+}
