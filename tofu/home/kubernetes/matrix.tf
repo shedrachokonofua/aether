@@ -13,8 +13,8 @@
 #                       RWO PVCs can be mounted into multiple containers within
 #                       the same Pod.
 #
-# hermes-bots (infra ns) keep working unchanged — they hit matrix.home.shdr.ch
-# through Caddy, which gets re-pointed at the cluster Gateway VIP post-cutover.
+# Hermes agents use the in-cluster synapse service after their namespace move;
+# the public matrix.home.shdr.ch route remains for clients and federation.
 
 
 locals {

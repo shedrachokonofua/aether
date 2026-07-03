@@ -333,6 +333,25 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "hermes" = {
+      tier                    = "agent",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      source_file             = "tofu/home/kubernetes/hermes.tf",
+      egress                  = "allowlist",
+      registry_access         = "dockerhub",
+      hostnames = [
+        "beryl.home.shdr.ch",
+        "beryl-dashboard.home.shdr.ch",
+        "tungsten.home.shdr.ch",
+        "tungsten-dashboard.home.shdr.ch",
+      ],
+      extra_labels = {
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "infra" = {
       tier                    = "app",
       owner                   = "aether",

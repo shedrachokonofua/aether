@@ -5,7 +5,7 @@
 # nextcloud, immich) stay alongside their owning resources.
 
 # `infra` — catch-all for cluster-internal services (docling, comfyui, jupyter,
-# openwebui, litellm, llama-swap, searxng, ups-management, hermes, mux, etc.).
+# openwebui, litellm, llama-swap, searxng, ups-management, mux, etc.).
 #
 # Enrolled in the Istio Ambient mesh so ztunnel intercepts pod traffic
 # transparently (L4 mTLS via SPIFFE). All services here are ClusterIP with no

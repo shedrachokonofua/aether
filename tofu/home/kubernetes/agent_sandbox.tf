@@ -107,9 +107,8 @@ resource "kubectl_manifest" "agent_sandbox_extensions" {
 # =============================================================================
 # RuntimeClass — kata
 # =============================================================================
-# The "kata" RuntimeClass is provisioned by mux.tf (kubernetes_manifest.
-# mux_kata_runtime_class) — first consumer to land it owns the resource.
-# Sandboxes opt in via runtimeClassName: kata.
+# The "kata" RuntimeClass is provisioned as a platform-owned runtime class in
+# runtime_classes.tf. Sandboxes opt in via runtimeClassName: kata.
 
 # =============================================================================
 # Workload namespace — sandboxes

@@ -52,21 +52,6 @@ locals {
   ]
 }
 
-resource "kubernetes_manifest" "mux_kata_runtime_class" {
-  manifest = {
-    apiVersion = "node.k8s.io/v1"
-    kind       = "RuntimeClass"
-    metadata = {
-      name = "kata"
-    }
-    handler = "kata"
-    scheduling = {
-      nodeSelector = {
-        "kubernetes.io/arch" = "amd64"
-      }
-    }
-  }
-}
 
 resource "kubernetes_secret_v1" "mux_env" {
   depends_on = [module.namespace["infra"]]
@@ -143,7 +128,7 @@ resource "kubernetes_persistent_volume_claim_v1" "mux_data" {
 
 resource "kubernetes_deployment_v1" "mux" {
   depends_on = [
-    kubernetes_manifest.mux_kata_runtime_class,
+    kubernetes_manifest.kata_runtime_class,
     kubernetes_config_map_v1.mux_config,
     kubernetes_config_map_v1.mux_port_router,
     kubernetes_secret_v1.mux_env,
