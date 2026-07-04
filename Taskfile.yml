@@ -43,10 +43,21 @@ tasks:
     desc: Unified SSO login (AWS + OpenBao + SSH cert)
     cmds:
       - mkdir -p {{.CACHE_DIR}}/bao {{.CACHE_DIR}}/step
-      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh {{.CLI_ARGS}}
+      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb {{.CLI_ARGS}}
 
   login:status:
     desc: Check auth status
+    cmds:
+      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb --status
+
+  login-legacy:
+    desc: Unified SSO login (legacy bash)
+    cmds:
+      - mkdir -p {{.CACHE_DIR}}/bao {{.CACHE_DIR}}/step
+      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh {{.CLI_ARGS}}
+
+  login-legacy:status:
+    desc: Check auth status (legacy bash)
     cmds:
       - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh --status
 
@@ -56,6 +67,11 @@ tasks:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
         bao {{.CLI_ARGS}}
+
+  ctl:
+    desc: Ops CLI (status, backups, etc.)
+    cmds:
+      - bb scripts/aetherctl.bb {{.CLI_ARGS}}
 
   # ===========================================================================
   # Tofu (only compound operations)

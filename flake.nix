@@ -152,6 +152,7 @@
             jq
             yq-go
             curl
+            babashka
             unzip
             openssh
             git
