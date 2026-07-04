@@ -1577,6 +1577,60 @@ resource "kubectl_manifest" "kyverno_httproute_hostname_contract" {
   })
 }
 
+resource "kubectl_manifest" "kyverno_cloudflared_tunnel_namespace" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "ValidatingPolicy"
+    metadata = {
+      name = "cloudflared-tunnel-namespace"
+      annotations = {
+        "policies.kyverno.io/title"       = "Cloudflared Tunnel Namespace"
+        "policies.kyverno.io/category"    = "Networking"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "Permit cloudflared Pods only in namespaces whose exposure contract is tunnel."
+      }
+    }
+    spec = {
+      failurePolicy     = "Fail"
+      validationActions = ["Deny"]
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = true
+        }
+      }
+      matchConstraints = {
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["pods"]
+          scope       = "Namespaced"
+        }]
+      }
+      variables = [
+        {
+          name       = "namespaceExposure"
+          expression = "namespaceObject != null && has(namespaceObject.metadata.labels) && \"aether.shdr.ch/exposure\" in namespaceObject.metadata.labels ? namespaceObject.metadata.labels[\"aether.shdr.ch/exposure\"] : \"none\""
+        },
+        {
+          name       = "images"
+          expression = "object.spec.containers.map(container, container.image) + (has(object.spec.initContainers) ? object.spec.initContainers.map(container, container.image) : []) + (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers.map(container, container.image) : [])"
+        },
+      ]
+      validations = [{
+        expression = "variables.namespaceExposure == \"tunnel\" || !variables.images.exists(image, image.matches(\"(^|/)cloudflare/cloudflared([:@]|$)\"))"
+        message    = "cloudflare/cloudflared images are allowed only in namespaces labeled aether.shdr.ch/exposure=tunnel."
+        reason     = "Forbidden"
+      }]
+    }
+  })
+}
+
 resource "kubectl_manifest" "kyverno_cnpg_backup_contract" {
   depends_on = [helm_release.kyverno]
 
