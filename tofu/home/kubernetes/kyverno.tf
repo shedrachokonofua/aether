@@ -1541,12 +1541,12 @@ resource "kubectl_manifest" "kyverno_httproute_hostname_contract" {
         "policies.kyverno.io/title"       = "HTTPRoute Hostname Contract"
         "policies.kyverno.io/category"    = "Networking"
         "policies.kyverno.io/subject"     = "HTTPRoute"
-        "policies.kyverno.io/description" = "Audit HTTPRoutes whose hostnames are not declared on their namespace contract."
+        "policies.kyverno.io/description" = "Deny HTTPRoutes whose hostnames are not declared on their namespace contract."
       }
     }
     spec = {
       failurePolicy     = "Fail"
-      validationActions = ["Audit"]
+      validationActions = ["Deny"]
       evaluation = {
         admission = {
           enabled = true

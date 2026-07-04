@@ -167,6 +167,12 @@ locals {
       exposure                = "internal",
       create_s3_backup_secret = false,
       description             = "Colony sibling repo workloads"
+      hostnames = [
+        "colony-api-dev.home.shdr.ch",
+        "colony-dev.home.shdr.ch",
+        "colony-tools-dev.home.shdr.ch",
+        "colony-webhook-dev.home.shdr.ch",
+      ]
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "colony"
@@ -244,6 +250,7 @@ locals {
       registry_access         = "dockerhub",
       hostnames = [
         "deskplane.home.shdr.ch",
+        "desktop.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled"   = "true"
@@ -309,6 +316,9 @@ locals {
       exposure                = "none",
       create_s3_backup_secret = false,
       source_file             = "tofu/home/kubernetes/goldilocks.tf",
+      hostnames = [
+        "goldilocks.home.shdr.ch",
+      ]
       extra_labels = {
         "pod-security.kubernetes.io/enforce" = "restricted"
       }
@@ -353,6 +363,7 @@ locals {
       registry_access         = "dockerhub",
       hostnames = [
         "hoppscotch.home.shdr.ch",
+        "proxyscotch.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
@@ -578,6 +589,7 @@ locals {
       registry_access         = "dockerhub",
       hostnames = [
         "matrix.home.shdr.ch",
+        "element.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
@@ -675,6 +687,8 @@ locals {
       hostnames = [
         "nextcloud.home.shdr.ch",
         "nextcloud-public.home.shdr.ch",
+        "nextcloud.shdr.ch",
+        "onlyoffice.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
@@ -848,6 +862,9 @@ locals {
       exposure                = "none",
       create_s3_backup_secret = false,
       source_file             = "tofu/home/kubernetes/security_observability.tf",
+      hostnames = [
+        "policy-reporter.home.shdr.ch",
+      ]
       extra_labels = {
         "pod-security.kubernetes.io/enforce" = "restricted"
       }
@@ -975,6 +992,8 @@ locals {
       source_file             = "tofu/home/kubernetes/vcluster.tf",
       registry_access         = "dockerhub",
       hostnames = [
+        "*.seven30.xyz",
+        "seven30.xyz",
         "seven30.home.shdr.ch",
         "seven30-root.home.shdr.ch",
       ]
@@ -986,6 +1005,9 @@ locals {
       exposure                = "none",
       create_s3_backup_secret = false,
       source_file             = "tofu/home/kubernetes/wasmcloud.tf"
+      hostnames = [
+        "aether-wasm-hello.apps.home.shdr.ch",
+      ]
       extra_labels = {
         "name" = "wasmcloud-system"
       }
