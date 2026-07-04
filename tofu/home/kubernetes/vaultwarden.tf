@@ -64,22 +64,6 @@ resource "kubernetes_persistent_volume_claim_v1" "vaultwarden_data" {
     prevent_destroy = true
   }
 }
-resource "kubernetes_persistent_volume_claim_v1" "vaultwarden_data_legacy" {
-  metadata {
-    name      = "vaultwarden-data"
-    namespace = module.namespace["personal"].name
-  }
-
-  spec {
-    access_modes       = ["ReadWriteOnce"]
-    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
-    resources { requests = { storage = "5Gi" } }
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
 
 
 resource "kubernetes_deployment_v1" "vaultwarden" {

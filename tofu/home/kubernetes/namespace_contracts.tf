@@ -779,19 +779,6 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "personal" = {
-      tier                    = "app",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "internal",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/personal_apps.tf",
-      egress                  = "internal",
-      registry_access         = "dockerhub",
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
-      }
-    }
     "searxng" = {
       tier                    = "app"
       owner                   = "aether"
