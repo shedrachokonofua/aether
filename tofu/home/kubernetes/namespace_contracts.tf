@@ -470,17 +470,6 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "kepler" = {
-      tier                    = "platform",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/security_observability.tf",
-      extra_labels = {
-        "pod-security.kubernetes.io/enforce" = "privileged"
-      }
-    }
     "knative-operator" = {
       tier                    = "platform",
       owner                   = "aether",

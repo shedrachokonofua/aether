@@ -8,7 +8,7 @@ locals {
   tetragon_namespace        = "tetragon"
   trivy_operator_namespace  = "trivy-system"
   policy_reporter_namespace = "policy-reporter"
-  kepler_namespace          = "kepler"
+  kepler_namespace          = module.namespace["observability"].name
   node_agent_priority_class = "aether-node-agent"
 
   policy_reporter_host = "policy-reporter.home.shdr.ch"
@@ -434,12 +434,12 @@ resource "kubernetes_manifest" "policy_reporter_route" {
 # Kepler uses eBPF and host counters for node/pod energy metrics.
 
 resource "helm_release" "kepler" {
-  depends_on = [module.namespace["kepler"]]
+  depends_on = [module.namespace["observability"]]
 
   name       = "kepler"
   repository = "https://sustainable-computing-io.github.io/kepler-helm-chart"
   chart      = "kepler"
-  namespace  = module.namespace["kepler"].name
+  namespace  = local.kepler_namespace
   version    = "0.6.1"
   wait       = true
   timeout    = 600

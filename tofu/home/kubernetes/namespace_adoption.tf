@@ -78,15 +78,6 @@ moved {
   to   = module.namespace["istio-system"].kubernetes_namespace_v1.this
 }
 
-moved {
-  from = kubernetes_namespace_v1.karakeep
-  to   = module.namespace["karakeep"].kubernetes_namespace_v1.this
-}
-
-moved {
-  from = kubernetes_namespace_v1.kepler
-  to   = module.namespace["kepler"].kubernetes_namespace_v1.this
-}
 
 moved {
   from = kubernetes_namespace_v1.knative_serving
