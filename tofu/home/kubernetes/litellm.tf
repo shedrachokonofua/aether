@@ -14,6 +14,7 @@ locals {
   litellm_google_maps_package = "@cablate/mcp-google-map@0.0.52"
   litellm_affine_mcp_image    = "ghcr.io/dawncr0w/affine-mcp-server:latest"
   litellm_host                = "litellm.home.shdr.ch"
+  litellm_espn_mcp_host       = "espn-mcp.home.shdr.ch"
   litellm_ns                  = module.namespace["litellm"].name
   litellm_labels              = { app = "litellm" }
   litellm_port                = 4000
@@ -585,6 +586,58 @@ resource "kubernetes_service_v1" "litellm" {
       port        = local.litellm_port
       target_port = local.litellm_port
       name        = "http"
+    }
+  }
+}
+
+# Direct access to the espn-mcp sidecar for dev testing, bypassing litellm.
+# Selects the litellm pod and targets the sidecar's 8080 port by name.
+resource "kubernetes_service_v1" "litellm_espn_mcp" {
+  depends_on = [kubernetes_deployment_v1.litellm]
+
+  metadata {
+    name      = "espn-mcp"
+    namespace = local.litellm_ns
+    labels    = local.litellm_labels
+  }
+
+  spec {
+    selector = local.litellm_labels
+
+    port {
+      port        = local.litellm_espn_mcp_port
+      target_port = "espn-mcp"
+      name        = "espn-mcp"
+    }
+  }
+}
+
+resource "kubernetes_manifest" "litellm_espn_mcp_route" {
+  depends_on = [kubernetes_manifest.main_gateway, kubernetes_service_v1.litellm_espn_mcp]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "gateway.networking.k8s.io/v1"
+    kind       = "HTTPRoute"
+    metadata = {
+      name      = "espn-mcp"
+      namespace = local.litellm_ns
+    }
+    spec = {
+      parentRefs = [{
+        name      = "main-gateway"
+        namespace = "default"
+      }]
+      hostnames = [local.litellm_espn_mcp_host]
+      rules = [{
+        backendRefs = [{
+          name = kubernetes_service_v1.litellm_espn_mcp.metadata[0].name
+          port = local.litellm_espn_mcp_port
+        }]
+      }]
     }
   }
 }

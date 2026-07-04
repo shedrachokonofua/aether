@@ -570,6 +570,7 @@ locals {
       registry_access         = "gitlab"
       hostnames = [
         "litellm.home.shdr.ch",
+        "espn-mcp.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled"   = "true"
@@ -773,21 +774,6 @@ locals {
       registry_access         = "gitlab"
       hostnames = [
         "composer.home.shdr.ch",
-      ]
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
-      }
-    }
-    "espn-mcp" = {
-      tier                    = "app"
-      owner                   = "aether"
-      backup                  = "none"
-      exposure                = "internal"
-      create_s3_backup_secret = false
-      source_file             = "tofu/home/kubernetes/espn_mcp.tf"
-      registry_access         = "gitlab"
-      hostnames = [
-        "espn-mcp.home.shdr.ch",
       ]
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
