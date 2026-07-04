@@ -1631,6 +1631,61 @@ resource "kubectl_manifest" "kyverno_cloudflared_tunnel_namespace" {
   })
 }
 
+resource "kubectl_manifest" "kyverno_critical_namespace_image_tags" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "ValidatingPolicy"
+    metadata = {
+      name = "critical-namespace-image-tags"
+      annotations = {
+        "policies.kyverno.io/title"       = "Critical Namespace Image Tags"
+        "policies.kyverno.io/category"    = "Supply Chain"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "Audit floating image tags in backup-critical namespaces before enforcing rollback-safe image references."
+      }
+    }
+    spec = {
+      failurePolicy     = "Fail"
+      validationActions = ["Audit"]
+      evaluation = {
+        admission = {
+          enabled = true
+        }
+        background = {
+          enabled = true
+        }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "aether.shdr.ch/backup"
+            operator = "In"
+            values   = ["critical"]
+          }]
+        }
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE", "UPDATE"]
+          resources   = ["pods"]
+          scope       = "Namespaced"
+        }]
+      }
+      variables = [{
+        name       = "images"
+        expression = "object.spec.containers.map(container, container.image) + (has(object.spec.initContainers) ? object.spec.initContainers.map(container, container.image) : []) + (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers.map(container, container.image) : [])"
+      }]
+      validations = [{
+        expression = "variables.images.all(image, image.contains(\"@sha256:\") || (image.matches(\"^[^:]+(:[0-9]+)?/.*:[^:/@]+$\") && !image.matches(\".*:(latest|main|master|dev|develop|nightly|edge|canary|snapshot)$\")) || (image.matches(\"^[^/:]+:[^:/@]+$\") && !image.matches(\".*:(latest|main|master|dev|develop|nightly|edge|canary|snapshot)$\")))"
+        message    = "Pods in backup-critical namespaces should use a digest or an explicit non-floating tag, not latest/main/dev/nightly-style tags or untagged images."
+        reason     = "Forbidden"
+      }]
+    }
+  })
+}
+
 resource "kubectl_manifest" "kyverno_cnpg_backup_contract" {
   depends_on = [helm_release.kyverno]
 
