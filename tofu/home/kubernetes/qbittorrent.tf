@@ -15,7 +15,7 @@ locals {
   qbittorrent_host          = "qbittorrent.home.shdr.ch"
   qbittorrent_port          = 8080
   qbittorrent_exporter_port = 8090
-  qbittorrent_ns            = local.jellyfin_ns
+  qbittorrent_ns            = module.namespace["qbittorrent"].name
   qbittorrent_labels        = { app = "qbittorrent" }
 
   # Gluetun firewall needs the cluster pod + service CIDRs in OUTBOUND_SUBNETS
@@ -30,7 +30,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "qbittorrent" {
-  depends_on = [module.namespace["media"]]
+  depends_on = [module.namespace["qbittorrent"]]
 
   metadata {
     name      = "qbittorrent"
@@ -52,7 +52,7 @@ resource "kubernetes_secret_v1" "qbittorrent" {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "qbittorrent_config" {
-  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["qbittorrent"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "qbittorrent-config"
@@ -70,7 +70,7 @@ resource "kubernetes_persistent_volume_claim_v1" "qbittorrent_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "gluetun_config" {
-  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["qbittorrent"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "gluetun-config"
@@ -87,6 +87,55 @@ resource "kubernetes_persistent_volume_claim_v1" "gluetun_config" {
   }
 }
 
+resource "kubernetes_persistent_volume_v1" "qbittorrent_media_hdd" {
+  depends_on = [helm_release.csi_driver_nfs]
+
+  metadata {
+    name = "qbittorrent-media-hdd"
+  }
+
+  spec {
+    capacity = { storage = "1Ti" }
+
+    access_modes                     = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+
+    persistent_volume_source {
+      csi {
+        driver        = "nfs.csi.k8s.io"
+        volume_handle = "qbittorrent-media-hdd"
+        read_only     = false
+        volume_attributes = {
+          server = var.nfs_server_ip
+          share  = "/mnt/hdd/data"
+        }
+      }
+    }
+
+    mount_options = ["nfsvers=4.1", "hard", "nointr"]
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "qbittorrent_media_hdd" {
+  depends_on = [module.namespace["qbittorrent"], kubernetes_persistent_volume_v1.qbittorrent_media_hdd]
+
+  metadata {
+    name      = "media-hdd"
+    namespace = local.qbittorrent_ns
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+    volume_name        = kubernetes_persistent_volume_v1.qbittorrent_media_hdd.metadata[0].name
+
+    resources {
+      requests = { storage = "1Ti" }
+    }
+  }
+}
+
 # =============================================================================
 # Deployment — gluetun + qbittorrent + exporter, shared netns
 # =============================================================================
@@ -95,7 +144,7 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
   depends_on = [
     kubernetes_persistent_volume_claim_v1.qbittorrent_config,
     kubernetes_persistent_volume_claim_v1.gluetun_config,
-    kubernetes_persistent_volume_claim_v1.media_hdd,
+    kubernetes_persistent_volume_claim_v1.qbittorrent_media_hdd,
     kubernetes_secret_v1.qbittorrent,
   ]
 
@@ -367,7 +416,7 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
         volume {
           name = "downloads"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.media_hdd.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.qbittorrent_media_hdd.metadata[0].name
           }
         }
       }

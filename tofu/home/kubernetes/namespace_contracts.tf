@@ -594,7 +594,7 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "media" = {
+    "jellyfin" = {
       tier                    = "app",
       owner                   = "aether",
       backup                  = "standard",
@@ -603,7 +603,49 @@ locals {
       source_file             = "tofu/home/kubernetes/jellyfin.tf",
       registry_access         = "dockerhub",
       hostnames = [
+        "jellyfin.home.shdr.ch",
         "tv.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "privileged"
+      }
+    }
+    "media" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Shared media automation stack"
+      registry_access         = "dockerhub",
+      hostnames = [
+        "aiostreams.home.shdr.ch",
+        "files.home.shdr.ch",
+        "lidarr.home.shdr.ch",
+        "nzbdav.home.shdr.ch",
+        "prowlarr.home.shdr.ch",
+        "radarr.home.shdr.ch",
+        "sabnzbd.home.shdr.ch",
+        "sonarr.home.shdr.ch",
+        "stremthru.home.shdr.ch",
+        "tuliprox.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "qbittorrent" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      source_file             = "tofu/home/kubernetes/qbittorrent.tf",
+      egress                  = "internet",
+      registry_access         = "github",
+      hostnames = [
+        "qbittorrent.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled"   = "true"

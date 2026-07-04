@@ -29,7 +29,7 @@ resource "kubernetes_persistent_volume_claim_v1" "tuliprox_data" {
 
   metadata {
     name      = "tuliprox-data"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
   }
 
   spec {
@@ -51,7 +51,7 @@ resource "kubernetes_secret_v1" "tuliprox_config" {
 
   metadata {
     name      = "tuliprox-config"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
   }
 
   data = {
@@ -156,7 +156,7 @@ resource "kubernetes_deployment_v1" "tuliprox" {
 
   metadata {
     name      = "tuliprox"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
     labels    = local.tuliprox_labels
   }
 
@@ -282,7 +282,7 @@ resource "kubernetes_deployment_v1" "tuliprox" {
 resource "kubernetes_service_v1" "tuliprox" {
   metadata {
     name      = "tuliprox"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
     labels    = local.tuliprox_labels
   }
 
@@ -309,7 +309,7 @@ resource "kubernetes_manifest" "tuliprox_route" {
     kind       = "HTTPRoute"
     metadata = {
       name      = "tuliprox"
-      namespace = local.jellyfin_ns
+      namespace = local.media_ns
     }
     spec = {
       parentRefs = [{

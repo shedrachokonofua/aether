@@ -9,7 +9,7 @@ locals {
   sabnzbd_image  = "lscr.io/linuxserver/sabnzbd:latest"
   sabnzbd_host   = "sabnzbd.home.shdr.ch"
   sabnzbd_port   = 8080
-  sabnzbd_ns     = local.jellyfin_ns
+  sabnzbd_ns     = local.media_ns
   sabnzbd_labels = { app = "sabnzbd" }
 }
 

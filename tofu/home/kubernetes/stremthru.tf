@@ -8,7 +8,7 @@ locals {
   stremthru_image  = "docker.io/muniftanjim/stremthru:latest"
   stremthru_host   = "stremthru.home.shdr.ch"
   stremthru_port   = 8080
-  stremthru_ns     = local.jellyfin_ns
+  stremthru_ns     = local.media_ns
   stremthru_labels = { app = "stremthru" }
 }
 

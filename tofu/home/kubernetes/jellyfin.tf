@@ -11,7 +11,8 @@ locals {
   jellyfin_host       = "jellyfin.home.shdr.ch"
   jellyfin_public_url = "https://tv.shdr.ch"
   jellyfin_port       = 8096
-  jellyfin_ns         = module.namespace["media"].name
+  media_ns            = module.namespace["media"].name
+  jellyfin_ns         = module.namespace["jellyfin"].name
   jellyfin_labels     = { app = "jellyfin" }
 
   rclone_image = "rclone/rclone:latest"
@@ -27,7 +28,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "jellyfin_config" {
-  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["jellyfin"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "jellyfin-config"
@@ -45,7 +46,7 @@ resource "kubernetes_persistent_volume_claim_v1" "jellyfin_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "jellyfin_cache" {
-  depends_on = [module.namespace["media"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["jellyfin"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "jellyfin-cache"
@@ -97,13 +98,62 @@ resource "kubernetes_persistent_volume_claim_v1" "media_hdd" {
 
   metadata {
     name      = "media-hdd"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
     volume_name        = kubernetes_persistent_volume_v1.media_hdd.metadata[0].name
+
+    resources {
+      requests = { storage = "1Ti" }
+    }
+  }
+}
+
+resource "kubernetes_persistent_volume_v1" "jellyfin_media_hdd" {
+  depends_on = [helm_release.csi_driver_nfs]
+
+  metadata {
+    name = "jellyfin-media-hdd"
+  }
+
+  spec {
+    capacity = { storage = "1Ti" }
+
+    access_modes                     = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+
+    persistent_volume_source {
+      csi {
+        driver        = "nfs.csi.k8s.io"
+        volume_handle = "jellyfin-media-hdd"
+        read_only     = false
+        volume_attributes = {
+          server = var.nfs_server_ip
+          share  = "/mnt/hdd/data"
+        }
+      }
+    }
+
+    mount_options = ["nfsvers=4.1", "hard", "nointr"]
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "jellyfin_media_hdd" {
+  depends_on = [module.namespace["jellyfin"], kubernetes_persistent_volume_v1.jellyfin_media_hdd]
+
+  metadata {
+    name      = "media-hdd"
+    namespace = local.jellyfin_ns
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+    volume_name        = kubernetes_persistent_volume_v1.jellyfin_media_hdd.metadata[0].name
 
     resources {
       requests = { storage = "1Ti" }
@@ -120,7 +170,7 @@ resource "kubernetes_deployment_v1" "jellyfin" {
     helm_release.nvidia_device_plugin,
     kubernetes_persistent_volume_claim_v1.jellyfin_config,
     kubernetes_persistent_volume_claim_v1.jellyfin_cache,
-    kubernetes_persistent_volume_claim_v1.media_hdd,
+    kubernetes_persistent_volume_claim_v1.jellyfin_media_hdd,
     kubernetes_service_v1.nzbdav,
   ]
 
@@ -301,7 +351,7 @@ resource "kubernetes_deployment_v1" "jellyfin" {
         volume {
           name = "media-hdd"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.media_hdd.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim_v1.jellyfin_media_hdd.metadata[0].name
           }
         }
 
@@ -335,7 +385,7 @@ resource "kubernetes_deployment_v1" "jellyfin" {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "rclone_nzbdav" {
-  depends_on = [module.namespace["media"]]
+  depends_on = [module.namespace["jellyfin"]]
 
   metadata {
     name      = "rclone-nzbdav"
@@ -350,7 +400,7 @@ resource "kubernetes_secret_v1" "rclone_nzbdav" {
       type = webdav
       # Trailing dot = absolute name: skips the ndots:5 search-path walk
       # (~10 DNS queries per lookup, all NXDOMAIN but the last).
-      url = http://nzbdav.${local.jellyfin_ns}.svc.cluster.local.:3000
+      url = http://nzbdav.${local.media_ns}.svc.cluster.local.:3000
       vendor = other
       user = ${var.secrets["nzbdav.webdav_username"]}
       pass = ${var.secrets["nzbdav.webdav_password_obscured"]}

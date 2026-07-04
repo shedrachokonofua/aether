@@ -10,7 +10,7 @@ locals {
   radarr_image  = "lscr.io/linuxserver/radarr:latest"
   radarr_host   = "radarr.home.shdr.ch"
   radarr_port   = 7878
-  radarr_ns     = local.jellyfin_ns
+  radarr_ns     = local.media_ns
   radarr_labels = { app = "radarr" }
 }
 

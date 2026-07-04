@@ -10,7 +10,7 @@ locals {
   sonarr_image  = "lscr.io/linuxserver/sonarr:latest"
   sonarr_host   = "sonarr.home.shdr.ch"
   sonarr_port   = 8989
-  sonarr_ns     = local.jellyfin_ns
+  sonarr_ns     = local.media_ns
   sonarr_labels = { app = "sonarr" }
 }
 

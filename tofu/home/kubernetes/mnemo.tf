@@ -8,8 +8,9 @@
 locals {
   mnemo_namespace  = module.namespace["mnemo"].name
   mnemo_host       = "mnemo.home.shdr.ch"
-  mnemo_image      = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
+  mnemo_image           = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port       = 4000
+  mnemo_chart_version = "0.1.0-7840ebf"
   mnemo_cnpg       = "mnemo-cnpg"
   mnemo_db         = "mnemo"
   mnemo_db_user    = "mnemo"
@@ -23,7 +24,8 @@ locals {
   mnemo_seaweed_bucket             = "mnemo-objects"
   mnemo_recovery_object_store_name = "${local.mnemo_cnpg}-object-store-recovery"
 
-  mnemo_labels = { app = "mnemo" }
+  mnemo_labels           = { app = "mnemo" }
+  gitlab_registry_host   = "registry.gitlab.home.shdr.ch"
 }
 
 # --- Secrets -----------------------------------------------------------------
@@ -75,6 +77,10 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     OTEL_SERVICE_NAME           = "mnemo"
     OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.system.svc.cluster.local:4318"
     OTEL_RESOURCE_ATTRIBUTES    = "service.namespace=mnemo,deployment.environment=home"
+
+    # Meilisearch keyword search index
+    MEILI_MASTER_KEY = var.secrets["meilisearch.master_key"]
+    MEILI_INDEX       = "messages"
   }
 
   type = "Opaque"
@@ -566,9 +572,34 @@ resource "kubernetes_job_v1" "mnemo_bootstrap_matrix" {
 
 
 
-# --- Deployment --------------------------------------------------------------
+# --- GitLab Registry Pull Secret --------------------------------------------
 
-resource "kubernetes_deployment_v1" "mnemo" {
+resource "kubernetes_secret_v1" "mnemo_gitlab_registry" {
+  depends_on = [module.namespace["mnemo"]]
+
+  metadata {
+    name      = "mnemo-gitlab-registry"
+    namespace = local.mnemo_namespace
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        (local.gitlab_registry_host) = {
+          username = var.secrets["gitlab.root_email"]
+          password = var.secrets["gitlab.root_password"]
+          auth     = base64encode("${var.secrets["gitlab.root_email"]}:${var.secrets["gitlab.root_password"]}")
+        }
+      }
+    })
+  }
+}
+
+# --- Helm Release ------------------------------------------------------------
+
+resource "helm_release" "mnemo" {
   depends_on = [
     kubectl_manifest.mnemo_cnpg_cluster,
     kubernetes_job_v1.mnemo_migration,
@@ -576,172 +607,56 @@ resource "kubernetes_deployment_v1" "mnemo" {
     kubernetes_job_v1.mnemo_bootstrap_gmail,
     kubernetes_job_v1.mnemo_bootstrap_matrix,
     kubernetes_secret_v1.mnemo_env,
-  ]
-
-  metadata {
-    name      = "mnemo"
-    namespace = local.mnemo_namespace
-    labels    = local.mnemo_labels
-  }
-
-  spec {
-    replicas = 1
-
-    selector {
-      match_labels = local.mnemo_labels
-    }
-
-    template {
-      metadata {
-        labels = local.mnemo_labels
-        annotations = {
-          "prometheus.io/scrape" = "true"
-          "prometheus.io/port"   = tostring(local.mnemo_port)
-          "prometheus.io/path"   = "/metrics"
-          "checksum/env"         = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.mnemo_env.data)))
-        }
-      }
-
-      spec {
-        automount_service_account_token = false
-        enable_service_links            = false
-        priority_class_name             = local.aether_priority_classes.app
-
-
-        security_context {
-          run_as_non_root = true
-          run_as_user     = 65534
-          run_as_group    = 65534
-          seccomp_profile {
-            type = "RuntimeDefault"
-          }
-        }
-
-        container {
-          name  = "mnemo"
-          image = local.mnemo_image
-
-          port {
-            container_port = local.mnemo_port
-            name           = "http"
-            protocol       = "TCP"
-          }
-
-          env_from {
-            secret_ref {
-              name = kubernetes_secret_v1.mnemo_env.metadata[0].name
-            }
-          }
-
-          security_context {
-            allow_privilege_escalation = false
-            capabilities {
-              drop = ["ALL"]
-            }
-          }
-
-          resources {
-            requests = { cpu = "100m", memory = "256Mi" }
-            limits   = { cpu = "1000m", memory = "1Gi" }
-          }
-
-          liveness_probe {
-            http_get {
-              path = "/health/live"
-              port = local.mnemo_port
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 30
-          }
-
-          readiness_probe {
-            http_get {
-              path = "/health/ready"
-              port = local.mnemo_port
-            }
-            initial_delay_seconds = 15
-            period_seconds        = 10
-          }
-        }
-      }
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [
-      spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
-    ]
-  }
-}
-
-# --- Service -----------------------------------------------------------------
-
-resource "kubernetes_service_v1" "mnemo" {
-  depends_on = [kubernetes_deployment_v1.mnemo]
-
-  metadata {
-    name      = "mnemo"
-    namespace = local.mnemo_namespace
-    labels    = local.mnemo_labels
-  }
-
-  spec {
-    selector = local.mnemo_labels
-
-    port {
-      port        = local.mnemo_port
-      target_port = local.mnemo_port
-      protocol    = "TCP"
-      name        = "http"
-    }
-
-    type = "ClusterIP"
-  }
-}
-
-# --- HTTPRoute ---------------------------------------------------------------
-
-resource "kubernetes_manifest" "mnemo_route" {
-  depends_on = [
+    kubernetes_secret_v1.mnemo_gitlab_registry,
+    kubernetes_storage_class_v1.ceph_rbd,
     kubernetes_manifest.main_gateway,
-    kubernetes_service_v1.mnemo,
   ]
 
-  manifest = {
-    apiVersion = "gateway.networking.k8s.io/v1"
-    kind       = "HTTPRoute"
-    metadata = {
-      name      = "mnemo"
-      namespace = local.mnemo_namespace
-      labels    = local.mnemo_labels
+  name       = "mnemo"
+  repository = "oci://${local.gitlab_registry_host}/so/mnemo"
+  chart      = "mnemo"
+  version    = local.mnemo_chart_version
+  namespace  = local.mnemo_namespace
+  wait       = true
+  atomic     = true
+  timeout    = 900
+
+  values = [yamlencode({
+    image = {
+      repository = "registry.gitlab.home.shdr.ch/so/mnemo"
+      tag        = "latest"
+      pullSecret = kubernetes_secret_v1.mnemo_gitlab_registry.metadata[0].name
     }
-    spec = {
-      parentRefs = [{
-        name      = "main-gateway"
-        namespace = "default"
-      }]
-      hostnames = [local.mnemo_host]
-      rules = [{
-        matches = [{
-          path = {
-            type  = "PathPrefix"
-            value = "/"
-          }
-        }]
-        filters = [{
-          type = "RequestHeaderModifier"
-          requestHeaderModifier = {
-            set = [{ name = "X-Forwarded-Proto", value = "https" }]
-          }
-        }]
-        backendRefs = [{
-          kind = "Service"
-          name = kubernetes_service_v1.mnemo.metadata[0].name
-          port = local.mnemo_port
-        }]
-      }]
+
+    envSecretName = kubernetes_secret_v1.mnemo_env.metadata[0].name
+    port          = local.mnemo_port
+
+    priorityClassName = local.aether_priority_classes.app
+
+    gateway = {
+      host         = local.mnemo_host
+      parentName   = "main-gateway"
+      parentNamespace = "default"
     }
-  }
+
+    resources = {
+      requests = { cpu = "100m", memory = "256Mi" }
+      limits   = { cpu = "1000m", memory = "1Gi" }
+    }
+
+    meili = {
+      image              = "getmeili/meilisearch:v1.12"
+      port               = 7700
+      storageClass       = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+      storageSize        = "5Gi"
+      masterKeySecretName = kubernetes_secret_v1.mnemo_env.metadata[0].name
+      masterKeySecretKey  = "MEILI_MASTER_KEY"
+      resources = {
+        requests = { cpu = "100m", memory = "256Mi" }
+        limits   = { cpu = "1000m", memory = "1Gi" }
+      }
+    }
+  })]
 }
 
 # --- DB Backup Target --------------------------------------------------------

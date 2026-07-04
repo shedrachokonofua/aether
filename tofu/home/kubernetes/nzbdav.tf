@@ -20,7 +20,7 @@ resource "kubernetes_persistent_volume_claim_v1" "nzbdav_config" {
 
   metadata {
     name      = "nzbdav-config"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
   }
 
   spec {
@@ -38,7 +38,7 @@ resource "kubernetes_persistent_volume_claim_v1" "nzbdav_data" {
 
   metadata {
     name      = "nzbdav-data"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
   }
 
   spec {
@@ -60,7 +60,7 @@ resource "kubernetes_secret_v1" "nzbdav_webdav" {
 
   metadata {
     name      = "nzbdav-webdav"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
   }
 
   type = "Opaque"
@@ -84,7 +84,7 @@ resource "kubernetes_deployment_v1" "nzbdav" {
 
   metadata {
     name      = "nzbdav"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
     labels    = local.nzbdav_labels
   }
 
@@ -217,7 +217,7 @@ resource "kubernetes_deployment_v1" "nzbdav" {
 resource "kubernetes_service_v1" "nzbdav" {
   metadata {
     name      = "nzbdav"
-    namespace = local.jellyfin_ns
+    namespace = local.media_ns
     labels    = local.nzbdav_labels
   }
 
@@ -244,7 +244,7 @@ resource "kubernetes_manifest" "nzbdav_route" {
     kind       = "HTTPRoute"
     metadata = {
       name      = "nzbdav"
-      namespace = local.jellyfin_ns
+      namespace = local.media_ns
     }
     spec = {
       parentRefs = [{

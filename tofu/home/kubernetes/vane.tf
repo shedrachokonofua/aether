@@ -15,10 +15,10 @@ locals {
   vane_labels          = { app = "vane" }
   vane_searxng_url     = "http://searxng.searxng.svc.cluster.local:8080"
   vane_openai_base_url = "https://litellm.home.shdr.ch/v1"
-  vane_chat_model_key  = "aether/gemma-4-26b-a4b"
-  vane_chat_model_name = "Gemma 4 26B A4B (LiteLLM)"
-  vane_embedding_key   = "aether/qwen3-embedding:4b"
-  vane_embedding_name  = "Qwen3 Embedding 4B (LiteLLM)"
+  vane_chat_model_key  = "xiaomi/mimo-v2.5-pro"
+  vane_chat_model_name = "MiMo v2.5 Pro (LiteLLM)"
+  vane_embedding_key   = "aether/qwen3-embedding:0.6b"
+  vane_embedding_name  = "Qwen3 Embedding 0.6B (LiteLLM)"
 }
 
 resource "kubernetes_secret_v1" "vane_config" {

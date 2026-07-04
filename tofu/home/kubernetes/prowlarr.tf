@@ -9,7 +9,7 @@ locals {
   prowlarr_image  = "lscr.io/linuxserver/prowlarr:latest"
   prowlarr_host   = "prowlarr.home.shdr.ch"
   prowlarr_port   = 9696
-  prowlarr_ns     = local.jellyfin_ns
+  prowlarr_ns     = local.media_ns
   prowlarr_labels = { app = "prowlarr" }
 }
 

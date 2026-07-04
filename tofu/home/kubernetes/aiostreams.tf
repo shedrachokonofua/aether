@@ -8,7 +8,7 @@ locals {
   aiostreams_image  = "ghcr.io/viren070/aiostreams:latest"
   aiostreams_host   = "aiostreams.home.shdr.ch"
   aiostreams_port   = 3000
-  aiostreams_ns     = local.jellyfin_ns
+  aiostreams_ns     = local.media_ns
   aiostreams_labels = { app = "aiostreams" }
 }
 

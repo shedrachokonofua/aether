@@ -10,7 +10,7 @@ locals {
   lidarr_image  = "lscr.io/linuxserver/lidarr:latest"
   lidarr_host   = "lidarr.home.shdr.ch"
   lidarr_port   = 8686
-  lidarr_ns     = local.jellyfin_ns
+  lidarr_ns     = local.media_ns
   lidarr_labels = { app = "lidarr" }
 }
 
