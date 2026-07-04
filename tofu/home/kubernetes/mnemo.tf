@@ -10,7 +10,8 @@ locals {
   mnemo_host          = "mnemo.home.shdr.ch"
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-e5ebe87a"
+  mnemo_chart_version = "0.1.0-e00e3bc3"
+  mnemo_image_tag     = "e00e3bc3"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
   mnemo_db_user       = "mnemo"
@@ -624,7 +625,7 @@ resource "helm_release" "mnemo" {
   values = [yamlencode({
     image = {
       repository = "registry.gitlab.home.shdr.ch/so/mnemo"
-      tag        = "latest"
+      tag        = local.mnemo_image_tag
       pullSecret = kubernetes_secret_v1.mnemo_gitlab_registry.metadata[0].name
     }
 
@@ -653,10 +654,14 @@ resource "helm_release" "mnemo" {
       masterKeySecretKey  = "MEILI_MASTER_KEY"
       resources = {
         requests = { cpu = "100m", memory = "256Mi" }
-        limits   = { cpu = "1000m", memory = "1Gi" }
+        limits   = { cpu = "1000m", memory = "2Gi" }
       }
     }
   })]
+
+  set = [
+    { name = "image.tag", value = local.mnemo_image_tag }
+  ]
 }
 
 # --- DB Backup Target --------------------------------------------------------
