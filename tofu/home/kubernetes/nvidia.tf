@@ -79,7 +79,7 @@ resource "helm_release" "nvidia_device_plugin" {
   name       = "nvidia-device-plugin"
   repository = "https://nvidia.github.io/k8s-device-plugin"
   chart      = "nvidia-device-plugin"
-  namespace  = module.namespace["system"].name
+  namespace  = module.namespace["gpu-system"].name
   version    = local.nvidia_device_plugin_version
   wait       = true
   timeout    = 300
@@ -134,7 +134,7 @@ resource "helm_release" "dcgm_exporter" {
   name       = "dcgm-exporter"
   repository = "https://nvidia.github.io/dcgm-exporter/helm-charts"
   chart      = "dcgm-exporter"
-  namespace  = module.namespace["system"].name
+  namespace  = module.namespace["gpu-system"].name
   version    = local.dcgm_exporter_version
   wait       = true
   timeout    = 300

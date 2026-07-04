@@ -17,7 +17,7 @@ resource "helm_release" "node_exporter" {
   name       = local.node_exporter_name
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "prometheus-node-exporter"
-  namespace  = module.namespace["system"].name
+  namespace  = module.namespace["observability"].name
   version    = local.node_exporter_chart_version
   wait       = true
   timeout    = 300

@@ -89,6 +89,7 @@ resource "kubernetes_deployment_v1" "ups_management" {
       }
 
       spec {
+        priority_class_name = local.aether_priority_classes.app
         init_container {
           name  = "prepare-nut-config"
           image = "busybox:latest"

@@ -68,7 +68,7 @@ resource "helm_release" "otel_collector_daemonset" {
   name       = "otel-daemonset"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
   chart      = "opentelemetry-collector"
-  namespace  = module.namespace["system"].name
+  namespace  = module.namespace["observability"].name
   version    = local.otel_chart_version
   wait       = true
   timeout    = 600
@@ -181,7 +181,7 @@ resource "kubernetes_service_v1" "otel_collector_daemonset" {
 
   metadata {
     name      = "otel-daemonset-opentelemetry-collector"
-    namespace = module.namespace["system"].name
+    namespace = module.namespace["observability"].name
     labels = {
       "app.kubernetes.io/instance" = "otel-daemonset"
       "app.kubernetes.io/name"     = "opentelemetry-collector"
@@ -214,6 +214,39 @@ resource "kubernetes_service_v1" "otel_collector_daemonset" {
   }
 }
 
+resource "kubernetes_service_v1" "otel_collector_daemonset_legacy_system" {
+  depends_on = [module.namespace["system"]]
+
+  metadata {
+    name      = "otel-daemonset-opentelemetry-collector"
+    namespace = module.namespace["system"].name
+    labels = {
+      "app.kubernetes.io/instance" = "otel-daemonset"
+      "app.kubernetes.io/name"     = "opentelemetry-collector"
+      "component"                  = "agent-collector"
+    }
+  }
+
+  spec {
+    type          = "ExternalName"
+    external_name = "otel-daemonset-opentelemetry-collector.${module.namespace["observability"].name}.svc.cluster.local"
+
+    port {
+      name        = "otlp"
+      port        = 4317
+      target_port = "otlp"
+      protocol    = "TCP"
+    }
+
+    port {
+      name        = "otlp-http"
+      port        = 4318
+      target_port = "otlp-http"
+      protocol    = "TCP"
+    }
+  }
+}
+
 # =============================================================================
 # OTEL Collector - Deployment Mode
 # =============================================================================
@@ -231,7 +264,7 @@ resource "helm_release" "otel_collector_deployment" {
   name       = "otel-cluster"
   repository = "https://open-telemetry.github.io/opentelemetry-helm-charts"
   chart      = "opentelemetry-collector"
-  namespace  = module.namespace["system"].name
+  namespace  = module.namespace["observability"].name
   version    = local.otel_chart_version
   wait       = true
   timeout    = 600
@@ -344,7 +377,7 @@ resource "helm_release" "otel_collector_deployment" {
                 job_name        = "dcgm-exporter"
                 scrape_interval = "30s"
                 static_configs = [{
-                  targets = ["dcgm-exporter.${module.namespace["system"].name}.svc.cluster.local:9400"]
+                  targets = ["dcgm-exporter.${module.namespace["gpu-system"].name}.svc.cluster.local:9400"]
                 }]
               },
               {
@@ -352,7 +385,7 @@ resource "helm_release" "otel_collector_deployment" {
                 scrape_interval = "30s"
                 kubernetes_sd_configs = [{
                   role       = "endpoints"
-                  namespaces = { names = [module.namespace["system"].name] }
+                  namespaces = { names = [module.namespace["observability"].name] }
                 }]
                 relabel_configs = [
                   {
@@ -375,7 +408,7 @@ resource "helm_release" "otel_collector_deployment" {
                 job_name        = "kube-state-metrics"
                 scrape_interval = "30s"
                 static_configs = [{
-                  targets = ["${local.kube_state_metrics_name}.${module.namespace["system"].name}.svc.cluster.local:${local.kube_state_metrics_port}"]
+                  targets = ["${local.kube_state_metrics_name}.${module.namespace["observability"].name}.svc.cluster.local:${local.kube_state_metrics_port}"]
                 }]
               },
               {

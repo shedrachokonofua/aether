@@ -888,6 +888,30 @@ locals {
         "app.kubernetes.io/name" = "shdrch"
       }
     }
+    "gpu-system" = {
+      tier                    = "platform",
+      owner                   = "aether",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      source_file             = "tofu/home/kubernetes/nvidia.tf",
+      registry_access         = "dockerhub",
+      extra_labels = {
+        "pod-security.kubernetes.io/enforce" = "privileged"
+      }
+    }
+    "observability" = {
+      tier                    = "platform",
+      owner                   = "aether",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      source_file             = "tofu/home/kubernetes/otel_collector.tf",
+      registry_access         = "dockerhub",
+      extra_labels = {
+        "pod-security.kubernetes.io/enforce" = "privileged"
+      }
+    }
     "system" = {
       tier                    = "platform",
       owner                   = "aether",
