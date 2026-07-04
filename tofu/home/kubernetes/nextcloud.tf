@@ -31,7 +31,19 @@ locals {
     internal_host = local.nextcloud_internal_host
     service_host  = "nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local"
   })
-  nextcloud_config_hash = substr(sha256(local.nextcloud_config), 0, 12)
+  nextcloud_config_hash    = substr(sha256(local.nextcloud_config), 0, 12)
+  nextcloud_opcache_config = <<-INI
+    opcache.enable=1
+    opcache.enable_cli=0
+    opcache.memory_consumption=256
+    opcache.interned_strings_buffer=32
+    opcache.max_accelerated_files=20000
+    opcache.validate_timestamps=0
+    opcache.save_comments=1
+    opcache.jit=0
+    opcache.jit_buffer_size=0
+  INI
+  nextcloud_opcache_hash   = substr(sha256(local.nextcloud_opcache_config), 0, 12)
 
   nextcloud_server_image   = "nextcloud:34.0.0-apache"
   nextcloud_postgres_image = "postgres:16-alpine"
@@ -581,7 +593,8 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
       metadata {
         labels = local.nextcloud_server_labels
         annotations = {
-          "aether.shdr.ch/config-hash" = local.nextcloud_config_hash
+          "aether.shdr.ch/config-hash"  = local.nextcloud_config_hash
+          "aether.shdr.ch/opcache-hash" = local.nextcloud_opcache_hash
         }
       }
 
@@ -795,17 +808,7 @@ resource "kubernetes_config_map_v1" "nextcloud_opcache" {
   }
 
   data = {
-    "zz-nextcloud-opcache.ini" = <<-INI
-      opcache.enable=1
-      opcache.enable_cli=0
-      opcache.memory_consumption=256
-      opcache.interned_strings_buffer=32
-      opcache.max_accelerated_files=20000
-      opcache.validate_timestamps=0
-      opcache.save_comments=1
-      opcache.jit=tracing
-      opcache.jit_buffer_size=128M
-    INI
+    "zz-nextcloud-opcache.ini" = local.nextcloud_opcache_config
   }
 }
 
