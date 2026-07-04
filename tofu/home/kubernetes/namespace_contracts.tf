@@ -524,6 +524,7 @@ locals {
       backup                  = "none",
       exposure                = "none",
       create_s3_backup_secret = false,
+      registry_access         = ""
       description             = "Kubernetes structural namespace"
     }
     "kube-public" = {
@@ -532,6 +533,7 @@ locals {
       backup                  = "none",
       exposure                = "none",
       create_s3_backup_secret = false,
+      registry_access         = ""
       description             = "Kubernetes structural namespace"
     }
     "kube-system" = {
@@ -540,6 +542,7 @@ locals {
       backup                  = "none",
       exposure                = "none",
       create_s3_backup_secret = false,
+      registry_access         = ""
       description             = "Kubernetes system namespace",
       hostnames = [
         "hubble.home.shdr.ch",
@@ -554,6 +557,7 @@ locals {
       backup                  = "none",
       exposure                = "none",
       create_s3_backup_secret = false,
+      registry_access         = ""
       source_file             = "tofu/home/kubernetes/kyverno.tf"
       extra_labels = {
         "name" = "kyverno"
@@ -1051,17 +1055,18 @@ module "namespace" {
 
   source = "../modules/namespace"
 
-  name                    = each.key
-  tier                    = each.value.tier
-  owner                   = each.value.owner
-  backup                  = each.value.backup
-  exposure                = each.value.exposure
-  description             = try(each.value.description, "")
-  source_file             = try(each.value.source_file, "")
+  name        = each.key
+  tier        = each.value.tier
+  owner       = each.value.owner
+  backup      = each.value.backup
+  exposure    = each.value.exposure
+  description = try(each.value.description, "")
+  source_file = try(each.value.source_file, "")
+  # `null` means "use the contract default"; explicit "" is reserved for pre-owned system namespaces where adding registry labels would create noisy no-op drift.
+  registry_access         = try(each.value.registry_access, "none")
   hostnames               = try(each.value.hostnames, [])
   egress                  = try(each.value.egress, null)
   mesh                    = try(each.value.mesh, null)
-  registry_access         = try(each.value.registry_access, null)
   extra_labels            = try(each.value.extra_labels, {})
   extra_annotations       = try(each.value.extra_annotations, {})
   create_s3_backup_secret = try(each.value.create_s3_backup_secret, false)

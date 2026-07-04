@@ -68,7 +68,7 @@ variable "ns_lifecycle" {
 
 variable "registry_access" {
   type    = string
-  default = null
+  default = "none"
 }
 
 variable "runtime" {

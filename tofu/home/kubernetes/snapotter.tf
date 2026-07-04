@@ -407,6 +407,12 @@ resource "kubernetes_deployment_v1" "snapotter" {
     create = "120m"
     update = "120m"
   }
+
+
+  lifecycle {
+    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+  }
 }
 
 resource "kubernetes_job_v1" "snapotter_ai_bootstrap" {
@@ -638,6 +644,12 @@ PY
   timeouts {
     create = "240m"
     update = "240m"
+  }
+
+
+  lifecycle {
+    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
   }
 }
 

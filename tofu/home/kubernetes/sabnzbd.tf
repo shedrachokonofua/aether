@@ -154,6 +154,12 @@ resource "kubernetes_deployment_v1" "sabnzbd" {
       }
     }
   }
+
+
+  lifecycle {
+    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+  }
 }
 
 # =============================================================================

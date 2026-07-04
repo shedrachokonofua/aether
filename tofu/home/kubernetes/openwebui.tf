@@ -314,6 +314,12 @@ resource "kubernetes_stateful_set_v1" "openwebui_postgres" {
       }
     }
   }
+
+
+  lifecycle {
+    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+  }
 }
 
 resource "kubernetes_service_v1" "openwebui_postgres" {
@@ -917,6 +923,12 @@ resource "kubernetes_deployment_v1" "openwebui" {
         }
       }
     }
+  }
+
+
+  lifecycle {
+    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
   }
 }
 
