@@ -6,16 +6,16 @@
 # Docs: ../mnemo/docs/HANDOFF.md, ../mnemo/docs/DEPLOYMENT.md
 
 locals {
-  mnemo_namespace  = module.namespace["mnemo"].name
-  mnemo_host       = "mnemo.home.shdr.ch"
-  mnemo_image           = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
-  mnemo_port       = 4000
-  mnemo_chart_version = "0.1.0-7840ebf"
-  mnemo_cnpg       = "mnemo-cnpg"
-  mnemo_db         = "mnemo"
-  mnemo_db_user    = "mnemo"
-  mnemo_db_service = "${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local"
-  mnemo_db_url     = "postgresql://${local.mnemo_db_user}:${kubernetes_secret_v1.mnemo_cnpg_app.data["password"]}@${local.mnemo_db_service}:5432/${local.mnemo_db}?sslmode=disable"
+  mnemo_namespace     = module.namespace["mnemo"].name
+  mnemo_host          = "mnemo.home.shdr.ch"
+  mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
+  mnemo_port          = 4000
+  mnemo_chart_version = "0.1.0-e5ebe87a"
+  mnemo_cnpg          = "mnemo-cnpg"
+  mnemo_db            = "mnemo"
+  mnemo_db_user       = "mnemo"
+  mnemo_db_service    = "${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local"
+  mnemo_db_url        = "postgresql://${local.mnemo_db_user}:${kubernetes_secret_v1.mnemo_cnpg_app.data["password"]}@${local.mnemo_db_service}:5432/${local.mnemo_db}?sslmode=disable"
 
   mnemo_openwebui_db_host = "${local.openwebui_cnpg_cluster}-rw.${local.openwebui_namespace}.svc.cluster.local"
   mnemo_openwebui_db_url  = "postgresql://${local.postgres_user}:${kubernetes_secret_v1.openwebui_cnpg_app.data["password"]}@${local.mnemo_openwebui_db_host}:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
@@ -24,8 +24,8 @@ locals {
   mnemo_seaweed_bucket             = "mnemo-objects"
   mnemo_recovery_object_store_name = "${local.mnemo_cnpg}-object-store-recovery"
 
-  mnemo_labels           = { app = "mnemo" }
-  gitlab_registry_host   = "registry.gitlab.home.shdr.ch"
+  mnemo_labels         = { app = "mnemo" }
+  gitlab_registry_host = "registry.gitlab.home.shdr.ch"
 }
 
 # --- Secrets -----------------------------------------------------------------
@@ -80,7 +80,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
 
     # Meilisearch keyword search index
     MEILI_MASTER_KEY = var.secrets["meilisearch.master_key"]
-    MEILI_INDEX       = "messages"
+    MEILI_INDEX      = "messages"
   }
 
   type = "Opaque"
@@ -634,8 +634,8 @@ resource "helm_release" "mnemo" {
     priorityClassName = local.aether_priority_classes.app
 
     gateway = {
-      host         = local.mnemo_host
-      parentName   = "main-gateway"
+      host            = local.mnemo_host
+      parentName      = "main-gateway"
       parentNamespace = "default"
     }
 
@@ -645,10 +645,10 @@ resource "helm_release" "mnemo" {
     }
 
     meili = {
-      image              = "getmeili/meilisearch:v1.12"
-      port               = 7700
-      storageClass       = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
-      storageSize        = "5Gi"
+      image               = "getmeili/meilisearch:v1.12"
+      port                = 7700
+      storageClass        = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+      storageSize         = "5Gi"
       masterKeySecretName = kubernetes_secret_v1.mnemo_env.metadata[0].name
       masterKeySecretKey  = "MEILI_MASTER_KEY"
       resources = {
