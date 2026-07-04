@@ -5,6 +5,7 @@
 
 locals {
   litellm_image               = "ghcr.io/berriai/litellm:1.86.2"
+  litellm_espn_mcp_image      = "registry.gitlab.home.shdr.ch/so/espn-mcp:latest"
   litellm_postgres_image      = "docker.io/postgres:18"
   litellm_finviz_image        = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
   litellm_coingecko_image     = "docker.io/node:22-slim"
@@ -13,7 +14,7 @@ locals {
   litellm_google_maps_package = "@cablate/mcp-google-map@0.0.52"
   litellm_affine_mcp_image    = "ghcr.io/dawncr0w/affine-mcp-server:latest"
   litellm_host                = "litellm.home.shdr.ch"
-  litellm_ns                  = module.namespace["infra"].name
+  litellm_ns                  = module.namespace["litellm"].name
   litellm_labels              = { app = "litellm" }
   litellm_port                = 4000
   litellm_finviz_port         = 8000
@@ -21,6 +22,7 @@ locals {
   litellm_time_mcp_port       = 8003
   litellm_google_maps_port    = 8004
   litellm_affine_mcp_port     = 8005
+  litellm_espn_mcp_port       = 8080
   litellm_postgres_port       = 5432
   litellm_cnpg_cluster        = "litellm-cnpg"
   litellm_db_host             = "${local.litellm_cnpg_cluster}-rw.${local.litellm_ns}.svc.cluster.local"
@@ -511,6 +513,47 @@ resource "kubernetes_deployment_v1" "litellm" {
             limits = {
               cpu    = "500m"
               memory = "512Mi"
+            }
+          }
+        }
+
+        container {
+          name    = "espn-mcp"
+          image   = local.litellm_espn_mcp_image
+          command = ["espn-mcp", "--http", "8080"]
+
+          port {
+            name           = "espn-mcp"
+            container_port = local.litellm_espn_mcp_port
+            protocol       = "TCP"
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/healthz"
+              port = local.litellm_espn_mcp_port
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 10
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/healthz"
+              port = local.litellm_espn_mcp_port
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 30
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "64Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "256Mi"
             }
           }
         }

@@ -40,7 +40,7 @@ locals {
       schedule  = "13 1 * * *"
     }
     firecrawl = {
-      namespace = "infra"
+      namespace = local.firecrawl_ns
       name      = "firecrawl-postgres"
       service   = "${local.firecrawl_cnpg_cluster}-rw"
       user      = local.firecrawl_db_user
@@ -67,7 +67,7 @@ locals {
       schedule  = "28 1 * * *"
     }
     litellm = {
-      namespace = "infra"
+      namespace = local.litellm_ns
       name      = "litellm-postgres"
       service   = "${local.litellm_cnpg_cluster}-rw"
       user      = "litellm"
@@ -103,7 +103,7 @@ locals {
       schedule  = "48 1 * * *"
     }
     openwebui = {
-      namespace = "infra"
+      namespace = local.openwebui_namespace
       name      = "openwebui-postgres"
       service   = "${local.openwebui_cnpg_cluster}-rw"
       user      = local.postgres_user
@@ -143,14 +143,14 @@ locals {
 
   db_backup_sidecar_postgres_services = {
     firecrawl = {
-      namespace         = "infra"
+      namespace         = local.firecrawl_ns
       service           = "firecrawl-postgres-backup"
       labels            = { app = "firecrawl-postgres-backup" }
-      selector          = local.firecrawl_labels
+      selector          = { "cnpg.io/cluster" = local.firecrawl_cnpg_cluster, "cnpg.io/instanceRole" = "primary" }
       publish_not_ready = true
     }
     litellm = {
-      namespace         = "infra"
+      namespace         = local.litellm_ns
       service           = "litellm-postgres-backup"
       labels            = { app = "litellm-postgres-backup" }
       selector          = local.litellm_labels

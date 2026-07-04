@@ -30,6 +30,27 @@ locals {
         "app.kubernetes.io/name" = "aether-k8s-node-remediator"
       }
     }
+    "ai-serving" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "GPU-backed AI serving: ComfyUI, Docling, llama-swap, and Speaches"
+      egress                  = "internet"
+      registry_access         = "github"
+      hostnames = [
+        "comfyui.home.shdr.ch",
+        "docling.home.shdr.ch",
+        "llama-swap.home.shdr.ch",
+        "speaches.home.shdr.ch",
+      ]
+      extra_labels = {
+        "aether.shdr.ch/arch"                = "amd64"
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "affine" = {
       tier                    = "app",
       owner                   = "aether",
@@ -43,6 +64,25 @@ locals {
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "firecrawl" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "critical"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Web crawling and Firecrawl MCP service"
+      egress                  = "internet"
+      registry_access         = "github"
+      hostnames = [
+        "firecrawl.home.shdr.ch",
+        "firecrawl-mcp.home.shdr.ch",
+      ]
+      extra_labels = {
+        "aether.shdr.ch/arch"                = "amd64"
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
     "agent-sandbox-system" = {
@@ -352,21 +392,6 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
-    "infra" = {
-      tier                    = "app",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "internal",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/namespaces.tf",
-      egress                  = "internal",
-      mesh                    = "ambient",
-      registry_access         = "dockerhub",
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
-        "istio.io/dataplane-mode"          = "ambient"
-      }
-    }
     "mnemo" = {
       tier                    = "app",
       owner                   = "aether",
@@ -378,6 +403,41 @@ locals {
       registry_access         = "gitlab"
       hostnames = [
         "mnemo.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
+    "mux" = {
+      tier                    = "agent",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      source_file             = "tofu/home/kubernetes/mux.tf",
+      egress                  = "internet",
+      registry_access         = "dockerhub",
+      hostnames = [
+        "mux.home.shdr.ch",
+        "*.mux.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
+    "jupyter" = {
+      tier                    = "agent",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      source_file             = "tofu/home/kubernetes/jupyter.tf",
+      egress                  = "allowlist"
+      registry_access         = "none"
+      hostnames = [
+        "jupyter.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled"   = "true"
@@ -483,6 +543,40 @@ locals {
       source_file             = "tofu/home/kubernetes/kyverno.tf"
       extra_labels = {
         "name" = "kyverno"
+      }
+    }
+    "litellm" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "critical",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      source_file             = "tofu/home/kubernetes/litellm.tf",
+      egress                  = "allowlist",
+      registry_access         = "gitlab"
+      hostnames = [
+        "litellm.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
+    "openwebui" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "critical"
+      exposure                = "internal"
+      create_s3_backup_secret = true
+      source_file             = "tofu/home/kubernetes/openwebui.tf"
+      egress                  = "allowlist"
+      registry_access         = "github"
+      hostnames = [
+        "openwebui.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
     "matrix" = {
@@ -595,6 +689,96 @@ locals {
         "istio.io/dataplane-mode"          = "ambient"
       }
     }
+    "bentopdf" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/bentopdf.tf"
+      registry_access         = "dockerhub"
+      hostnames = [
+        "bentopdf.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "composer" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/composer.tf"
+      registry_access         = "gitlab"
+      hostnames = [
+        "composer.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "memos" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "standard"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/memos.tf"
+      registry_access         = "dockerhub"
+      hostnames = [
+        "memos.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "orion" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "standard"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/orion.tf"
+      registry_access         = "gitlab"
+      hostnames = [
+        "home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "snapotter" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "standard"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/snapotter.tf"
+      registry_access         = "github"
+      hostnames = [
+        "snapotter.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "vane" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "standard"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/vane.tf"
+      registry_access         = "dockerhub"
+      hostnames = [
+        "vane.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "personal" = {
       tier                    = "app",
       owner                   = "aether",
@@ -604,6 +788,21 @@ locals {
       source_file             = "tofu/home/kubernetes/personal_apps.tf",
       egress                  = "internal",
       registry_access         = "dockerhub",
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "searxng" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/searxng.tf"
+      registry_access         = "dockerhub"
+      hostnames = [
+        "searxng.home.shdr.ch",
+      ]
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
@@ -707,6 +906,22 @@ locals {
       source_file             = "tofu/home/kubernetes/security_observability.tf",
       extra_labels = {
         "pod-security.kubernetes.io/enforce" = "privileged"
+      }
+    }
+    "ups-management" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "none",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      source_file             = "tofu/home/kubernetes/ups.tf",
+      egress                  = "internal",
+      registry_access         = "dockerhub"
+      hostnames = [
+        "peanut.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
     "vc-seven30" = {

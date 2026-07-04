@@ -14,7 +14,7 @@ locals {
   orion_image         = "registry.gitlab.home.shdr.ch/so/orion/main:latest"
   orion_host          = "home.shdr.ch"
   orion_port          = 3000
-  orion_ns            = module.namespace["personal"].name
+  orion_ns            = module.namespace["orion"].name
   orion_labels        = { app = "orion" }
   orion_registry_host = "registry.gitlab.home.shdr.ch"
   orion_registry_user = var.secrets["gitlab.root_email"]
@@ -23,7 +23,7 @@ locals {
 
 # Pull secret for the private GitLab registry (same creds as composer/open-design).
 resource "kubernetes_secret_v1" "orion_gitlab_registry" {
-  depends_on = [module.namespace["personal"]]
+  depends_on = [module.namespace["orion"]]
 
   metadata {
     name      = "orion-gitlab-registry"
@@ -55,7 +55,7 @@ resource "random_password" "orion_session_secret" {
 # Env vars sourced from tofu state + the OIDC client secret var. The OIDC
 # client secret is passed down from the parent module (see talos_cluster.tf).
 resource "kubernetes_secret_v1" "orion_env" {
-  depends_on = [module.namespace["personal"]]
+  depends_on = [module.namespace["orion"]]
 
   metadata {
     name      = "orion-env"
@@ -88,7 +88,7 @@ resource "kubernetes_secret_v1" "orion_env" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "orion_data" {
-  depends_on = [module.namespace["personal"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["orion"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "orion-data"

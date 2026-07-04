@@ -333,6 +333,11 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
             value = "true"
           }
 
+          env {
+            name  = "QBITTORRENT_COOKIE_NAME"
+            value = "QBT_SID_${local.qbittorrent_port}"
+          }
+
           resources {
             requests = {
               cpu    = "50m"

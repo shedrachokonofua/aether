@@ -69,7 +69,7 @@ locals {
     "0",
   ])), 0, 12))
 
-  nextcloud_ai_litellm_url   = "http://litellm.infra.svc.cluster.local:4000/v1"
+  nextcloud_ai_litellm_url   = "http://litellm.litellm.svc.cluster.local:4000/v1"
   nextcloud_ai_default_model = "aether/gemma-4-26b-a4b"
   nextcloud_ai_bootstrap_hash = nonsensitive(substr(sha256(join("|", [
     local.nextcloud_ai_litellm_url,

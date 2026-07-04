@@ -380,29 +380,6 @@ resource "kubernetes_persistent_volume_claim_v1" "hermes_data" {
   }
 }
 
-resource "kubernetes_persistent_volume_claim_v1" "hermes_data_legacy" {
-  for_each = local.hermes_agents
-
-  metadata {
-    name      = "hermes-${each.key}-data"
-    namespace = module.namespace["infra"].name
-  }
-
-  spec {
-    access_modes       = ["ReadWriteOnce"]
-    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
-
-    resources {
-      requests = {
-        storage = "10Gi"
-      }
-    }
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
 
 resource "kubernetes_service_account_v1" "hermes" {
   for_each = local.hermes_agents

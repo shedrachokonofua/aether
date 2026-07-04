@@ -54,12 +54,6 @@ locals {
       retention = "14d"
       schedule  = "0 0 2 * * *"
     }
-    mnemo_legacy = {
-      namespace = "infra"
-      cluster   = local.mnemo_cnpg
-      retention = "14d"
-      schedule  = "0 0 2 * * *"
-    }
     nextcloud = {
       namespace = local.nextcloud_namespace
       cluster   = local.nextcloud_cnpg_cluster
@@ -82,8 +76,10 @@ locals {
 
   cnpg_scheduled_backup_targets = {
     for name, target in local.cnpg_backup_targets : name => target
-    if !contains(["mnemo", "mnemo_legacy"], name)
+    if name != "mnemo"
   }
+
+  cnpg_barman_object_store_targets = local.cnpg_backup_targets
 
   cnpg_barman_plugin_name = "barman-cloud.cloudnative-pg.io"
 
@@ -151,16 +147,16 @@ resource "kubectl_manifest" "mnemo_recovery_object_store" {
       }
     }
     spec = {
-      configuration = merge(local.cnpg_backup_specs["mnemo_legacy"].barmanObjectStore, {
-        s3Credentials = local.cnpg_backup_specs["mnemo"].barmanObjectStore.s3Credentials
+      configuration = merge(local.cnpg_backup_specs["mnemo"].barmanObjectStore, {
+        destinationPath = "s3://${local.db_backup_bucket}/cnpg/infra/${local.mnemo_cnpg}"
       })
-      retentionPolicy = local.cnpg_backup_targets["mnemo_legacy"].retention
+      retentionPolicy = local.cnpg_backup_targets["mnemo"].retention
     }
   })
 }
 
 resource "kubectl_manifest" "cnpg_barman_object_store" {
-  for_each = local.cnpg_backup_targets
+  for_each = local.cnpg_barman_object_store_targets
 
   depends_on = [
     helm_release.cnpg_barman_cloud,

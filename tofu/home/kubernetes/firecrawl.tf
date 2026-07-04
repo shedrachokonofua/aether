@@ -14,7 +14,8 @@ locals {
 
   firecrawl_host         = "firecrawl.home.shdr.ch"
   firecrawl_mcp_host     = "firecrawl-mcp.home.shdr.ch"
-  firecrawl_ns           = module.namespace["infra"].name
+  firecrawl_ns           = module.namespace["firecrawl"].name
+  firecrawl_source_ns    = "infra"
   firecrawl_labels       = { app = "firecrawl" }
   firecrawl_cnpg_cluster = "firecrawl-cnpg"
   firecrawl_db_user      = "firecrawl"
@@ -24,7 +25,7 @@ locals {
   firecrawl_playwright_port = 3000
   firecrawl_postgres_port   = 5432
 
-  firecrawl_db_source_service = "firecrawl-postgres-backup.${local.firecrawl_ns}.svc.cluster.local"
+  firecrawl_db_source_service = "${local.firecrawl_cnpg_cluster}-rw.${local.firecrawl_source_ns}.svc.cluster.local"
   firecrawl_db_service        = "${local.firecrawl_cnpg_cluster}-rw.${local.firecrawl_ns}.svc.cluster.local"
   firecrawl_registry_host     = "registry.gitlab.home.shdr.ch"
   firecrawl_registry_user     = var.secrets["gitlab.root_email"]
@@ -36,7 +37,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "firecrawl_env" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["firecrawl"]]
 
   metadata {
     name      = "firecrawl-env"
@@ -55,7 +56,7 @@ resource "kubernetes_secret_v1" "firecrawl_env" {
 }
 
 resource "kubernetes_secret_v1" "firecrawl_cnpg_superuser" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["firecrawl"]]
 
   metadata {
     name      = "firecrawl-cnpg-superuser"
@@ -71,7 +72,7 @@ resource "kubernetes_secret_v1" "firecrawl_cnpg_superuser" {
 }
 
 resource "kubernetes_secret_v1" "firecrawl_cnpg_app" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["firecrawl"]]
 
   metadata {
     name      = "firecrawl-cnpg-app"
@@ -87,7 +88,7 @@ resource "kubernetes_secret_v1" "firecrawl_cnpg_app" {
 }
 
 resource "kubernetes_secret_v1" "firecrawl_gitlab_registry" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["firecrawl"]]
 
   metadata {
     name      = "firecrawl-gitlab-registry"
@@ -110,7 +111,7 @@ resource "kubernetes_secret_v1" "firecrawl_gitlab_registry" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "firecrawl_redis_data" {
-  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["firecrawl"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "firecrawl-redis-data"
@@ -132,7 +133,7 @@ resource "kubernetes_persistent_volume_claim_v1" "firecrawl_redis_data" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "firecrawl_postgres_data" {
-  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["firecrawl"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "firecrawl-postgres-data"
@@ -208,7 +209,7 @@ resource "kubectl_manifest" "firecrawl_cnpg_cluster" {
         name = "firecrawl-source"
         connectionParameters = {
           host    = local.firecrawl_db_source_service
-          user    = "postgres"
+          user    = local.firecrawl_db_user
           dbname  = "postgres"
           sslmode = "disable"
         }
@@ -482,7 +483,7 @@ resource "kubernetes_deployment_v1" "firecrawl" {
 
           env {
             name  = "SEARXNG_ENDPOINT"
-            value = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.searxng_port}"
+            value = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
           }
 
           resources {

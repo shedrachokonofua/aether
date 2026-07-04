@@ -11,7 +11,7 @@ locals {
   llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v224-cuda-b9592"
   llama_swap_host    = "llama-swap.home.shdr.ch"
   llama_swap_port    = 8080
-  llama_swap_ns      = module.namespace["infra"].name
+  llama_swap_ns      = module.namespace["ai-serving"].name
   llama_swap_subpath = "llama-swap/models"
   llama_swap_labels  = { app = "llama-swap" }
 }

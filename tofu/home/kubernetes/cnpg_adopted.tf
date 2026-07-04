@@ -163,7 +163,7 @@ resource "kubectl_manifest" "immich_cnpg_cluster" {
 }
 
 resource "kubernetes_secret_v1" "litellm_cnpg_app" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["litellm"]]
 
   metadata {
     name      = "litellm-cnpg-app"
@@ -218,7 +218,7 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
       externalClusters = [{
         name = "litellm-source"
         connectionParameters = {
-          host    = "litellm-postgres-backup.${local.litellm_ns}.svc.cluster.local"
+          host    = "litellm-cnpg-rw.infra.svc.cluster.local"
           user    = var.secrets["litellm.database_user"]
           dbname  = "litellm"
           sslmode = "disable"
@@ -237,7 +237,7 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
 }
 
 resource "kubernetes_secret_v1" "openwebui_cnpg_app" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["openwebui"]]
 
   metadata {
     name      = "openwebui-cnpg-app"
@@ -257,7 +257,6 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
     helm_release.cnpg,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.openwebui_cnpg_app,
-    kubernetes_service_v1.openwebui_postgres,
   ]
 
   yaml_body = yamlencode({
@@ -266,10 +265,17 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
     metadata = {
       name      = local.openwebui_cnpg_cluster
       namespace = local.openwebui_namespace
+      labels    = { "aether.sh/arm-ok" = "true" }
     }
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      resources = {
+        claims   = []
+        requests = { cpu = "250m", memory = "256Mi" }
+        limits   = { cpu = "2000m", memory = "2Gi" }
+      }
+      affinity = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
@@ -293,7 +299,7 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
       externalClusters = [{
         name = "openwebui-source"
         connectionParameters = {
-          host    = "openwebui-postgres.${local.openwebui_namespace}.svc.cluster.local"
+          host    = "openwebui-cnpg-rw.infra.svc.cluster.local"
           user    = local.postgres_user
           dbname  = local.postgres_db
           sslmode = "disable"

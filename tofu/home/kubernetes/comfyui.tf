@@ -6,7 +6,7 @@ locals {
   comfyui_image   = "docker.io/yanwk/comfyui-boot:cu129-slim"
   comfyui_host    = "comfyui.home.shdr.ch"
   comfyui_port    = 8188
-  comfyui_ns      = module.namespace["infra"].name
+  comfyui_ns      = module.namespace["ai-serving"].name
   comfyui_subpath = "comfyui/root"
   comfyui_labels  = { app = "comfyui" }
 }

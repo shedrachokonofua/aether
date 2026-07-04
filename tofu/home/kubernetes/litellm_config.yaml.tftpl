@@ -333,6 +333,8 @@ mcp_servers:
     url: "http://localhost:8005/mcp"
     auth_type: bearer_token
     auth_value: "${affine_mcp_http_token}"
+  espn:
+    url: "http://localhost:8080/mcp"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"

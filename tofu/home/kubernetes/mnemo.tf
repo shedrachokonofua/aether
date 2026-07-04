@@ -53,7 +53,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     SEAWEED_S3_SECRET_KEY = var.secrets["seaweedfs.s3_admin_secret_key"]
 
     # LiteLLM embeddings
-    LITELLM_EMBEDDING_BASE_URL = "http://litellm.infra.svc.cluster.local:4000"
+    LITELLM_EMBEDDING_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000"
     LITELLM_EMBEDDING_API_KEY  = var.secrets["litellm.master_key"]
     LITELLM_EMBEDDING_MODEL    = "text-embedding-3-large"
 
@@ -152,94 +152,12 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
 }
 
 # --- Database Migration + Source Bootstrap -----------------------------------
-
-resource "kubernetes_job_v1" "mnemo_restore_legacy_dump" {
-  depends_on = [
-    kubectl_manifest.mnemo_cnpg_cluster,
-    kubernetes_secret_v1.mnemo_cnpg_app,
-  ]
-
-  metadata {
-    name      = "mnemo-restore-legacy-dump"
-    namespace = local.mnemo_namespace
-    labels    = merge(local.mnemo_labels, { job = "mnemo-restore-legacy-dump" })
-  }
-
-  spec {
-    backoff_limit = 1
-
-    template {
-      metadata {
-        labels = merge(local.mnemo_labels, { job = "mnemo-restore-legacy-dump" })
-      }
-
-      spec {
-        restart_policy       = "Never"
-        enable_service_links = false
-        node_selector        = { "kubernetes.io/arch" = "amd64" }
-
-        security_context {
-          run_as_non_root = true
-          run_as_user     = 65534
-          run_as_group    = 65534
-          seccomp_profile {
-            type = "RuntimeDefault"
-          }
-        }
-
-        container {
-          name    = "restore"
-          image   = "postgres:16-alpine"
-          command = ["/bin/sh", "-ec"]
-          args = [<<-EOF
-            until pg_isready -h ${local.mnemo_cnpg}-rw.infra.svc.cluster.local -U ${local.mnemo_db_user} -d ${local.mnemo_db}; do sleep 2; done
-            until pg_isready -h ${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local -U ${local.mnemo_db_user} -d ${local.mnemo_db}; do sleep 2; done
-            pg_dump --format=custom --no-owner --no-privileges --no-comments --host=${local.mnemo_cnpg}-rw.infra.svc.cluster.local --username=${local.mnemo_db_user} --dbname=${local.mnemo_db} \
-              | pg_restore --clean --if-exists --no-owner --no-privileges --role=${local.mnemo_db_user} --host=${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local --username=${local.mnemo_db_user} --dbname=${local.mnemo_db}
-          EOF
-          ]
-
-          env {
-            name = "PGPASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.mnemo_cnpg_app.metadata[0].name
-                key  = "password"
-              }
-            }
-          }
-
-          security_context {
-            allow_privilege_escalation = false
-            capabilities {
-              drop = ["ALL"]
-            }
-          }
-
-          resources {
-            requests = { cpu = "100m", memory = "256Mi" }
-            limits   = { cpu = "1000m", memory = "1Gi" }
-          }
-        }
-      }
-    }
-
-    completions = 1
-  }
-
-  wait_for_completion = true
-
-  timeouts {
-    create = "30m"
-    update = "30m"
-  }
-}
-
 resource "kubernetes_job_v1" "mnemo_migration" {
   depends_on = [
-    kubernetes_job_v1.mnemo_restore_legacy_dump,
+    kubectl_manifest.mnemo_cnpg_cluster,
     kubernetes_secret_v1.mnemo_env,
   ]
+
 
   metadata {
     name      = "mnemo-migrate"
@@ -685,6 +603,20 @@ resource "kubernetes_deployment_v1" "mnemo" {
       }
 
       spec {
+        automount_service_account_token = false
+        enable_service_links            = false
+        priority_class_name             = local.aether_priority_classes.app
+
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65534
+          run_as_group    = 65534
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
         container {
           name  = "mnemo"
           image = local.mnemo_image
@@ -698,6 +630,13 @@ resource "kubernetes_deployment_v1" "mnemo" {
           env_from {
             secret_ref {
               name = kubernetes_secret_v1.mnemo_env.metadata[0].name
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
             }
           }
 

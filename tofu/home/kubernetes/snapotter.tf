@@ -8,7 +8,7 @@ locals {
   snapotter_image = "ghcr.io/snapotter-hq/snapotter:latest"
   snapotter_host  = "snapotter.home.shdr.ch"
   snapotter_port  = 1349
-  snapotter_ns    = module.namespace["personal"].name
+  snapotter_ns    = module.namespace["snapotter"].name
   snapotter_labels = {
     app = "snapotter"
   }
@@ -32,7 +32,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "snapotter_env" {
-  depends_on = [module.namespace["personal"]]
+  depends_on = [module.namespace["snapotter"]]
 
   metadata {
     name      = "snapotter-env"
@@ -79,7 +79,7 @@ resource "kubernetes_secret_v1" "snapotter_env" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "snapotter_data" {
-  depends_on = [module.namespace["personal"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["snapotter"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "snapotter-data"

@@ -4,7 +4,7 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  openwebui_namespace    = "infra"
+  openwebui_namespace    = "openwebui"
   openwebui_host         = "openwebui.home.shdr.ch"
   openwebui_image        = "ghcr.io/open-webui/open-webui:latest"
   mcpo_image             = "ghcr.io/open-webui/mcpo:main"
@@ -70,11 +70,11 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "openwebui_env" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["openwebui"]]
 
   metadata {
     name      = "openwebui-env"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
   }
 
   data = {
@@ -95,11 +95,11 @@ resource "kubernetes_secret_v1" "openwebui_env" {
 }
 
 resource "kubernetes_secret_v1" "openwebui_mcpo_config" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["openwebui"]]
 
   metadata {
     name      = "openwebui-mcpo-config"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
   }
 
   data = {
@@ -110,11 +110,11 @@ resource "kubernetes_secret_v1" "openwebui_mcpo_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "openwebui_data" {
-  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["openwebui"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "openwebui-data"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
   }
 
   spec {
@@ -140,11 +140,11 @@ resource "random_password" "openwebui_terminal_api_key" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "openwebui_terminal_data" {
-  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["openwebui"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "openwebui-terminal-data"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
   }
 
   spec {
@@ -160,11 +160,11 @@ resource "kubernetes_persistent_volume_claim_v1" "openwebui_terminal_data" {
 }
 
 resource "kubernetes_secret_v1" "openwebui_postgres" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["openwebui"]]
 
   metadata {
     name      = "openwebui-postgres"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
   }
 
   data = {
@@ -177,11 +177,11 @@ resource "kubernetes_secret_v1" "openwebui_postgres" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "openwebui_postgres_data" {
-  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["openwebui"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "openwebui-postgres-data"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
   }
 
   spec {
@@ -205,7 +205,7 @@ resource "kubernetes_stateful_set_v1" "openwebui_postgres" {
 
   metadata {
     name      = local.postgres_service
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
     labels = {
       app = local.postgres_service
     }
@@ -321,7 +321,7 @@ resource "kubernetes_service_v1" "openwebui_postgres" {
 
   metadata {
     name      = local.postgres_service
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
     labels = {
       app = local.postgres_service
     }
@@ -353,7 +353,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
 
   metadata {
     name      = "openwebui"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
     labels = {
       app = "openwebui"
     }
@@ -925,7 +925,7 @@ resource "kubernetes_service_v1" "openwebui" {
 
   metadata {
     name      = "openwebui"
-    namespace = module.namespace["infra"].name
+    namespace = module.namespace["openwebui"].name
     labels = {
       app = "openwebui"
     }
@@ -954,7 +954,7 @@ resource "kubernetes_manifest" "openwebui_route" {
     kind       = "HTTPRoute"
     metadata = {
       name      = "openwebui"
-      namespace = module.namespace["infra"].name
+      namespace = module.namespace["openwebui"].name
     }
     spec = {
       parentRefs = [{

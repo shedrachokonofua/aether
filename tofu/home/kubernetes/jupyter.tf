@@ -8,7 +8,7 @@ locals {
   jupyter_image  = "quay.io/jupyter/pytorch-notebook:cuda12-latest"
   jupyter_host   = "jupyter.home.shdr.ch"
   jupyter_port   = 8888
-  jupyter_ns     = module.namespace["infra"].name
+  jupyter_ns     = module.namespace["jupyter"].name
   jupyter_labels = { app = "jupyter" }
 }
 
@@ -17,7 +17,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_persistent_volume_claim_v1" "jupyter_workspace" {
-  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["jupyter"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "jupyter-workspace"

@@ -8,7 +8,7 @@ locals {
   docling_image  = "ghcr.io/docling-project/docling-serve-cu128:main"
   docling_host   = "docling.home.shdr.ch"
   docling_port   = 5001
-  docling_ns     = module.namespace["infra"].name
+  docling_ns     = module.namespace["ai-serving"].name
   docling_labels = { app = "docling" }
 
   # Model cache lives on the talos-neo local-NVMe PV under docling/models/.

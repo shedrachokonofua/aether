@@ -11,9 +11,9 @@ locals {
   vane_image           = "itzcrazykns1337/vane:slim-latest"
   vane_host            = "vane.home.shdr.ch"
   vane_port            = 3000
-  vane_ns              = module.namespace["personal"].name
+  vane_ns              = module.namespace["vane"].name
   vane_labels          = { app = "vane" }
-  vane_searxng_url     = "http://searxng.infra.svc.cluster.local:8080"
+  vane_searxng_url     = "http://searxng.searxng.svc.cluster.local:8080"
   vane_openai_base_url = "https://litellm.home.shdr.ch/v1"
   vane_chat_model_key  = "aether/gemma-4-26b-a4b"
   vane_chat_model_name = "Gemma 4 26B A4B (LiteLLM)"
@@ -22,7 +22,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "vane_config" {
-  depends_on = [module.namespace["personal"]]
+  depends_on = [module.namespace["vane"]]
 
   metadata {
     name      = "vane-config"
@@ -37,7 +37,7 @@ resource "kubernetes_secret_v1" "vane_config" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "vane_data" {
-  depends_on = [module.namespace["personal"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["vane"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "vane-data"

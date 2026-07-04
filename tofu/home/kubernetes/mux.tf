@@ -10,12 +10,12 @@ locals {
   mux_image                 = "docker.io/library/node:22-bookworm"
   mux_version               = "0.24.0"
   mux_host                  = "mux.home.shdr.ch"
-  mux_ns                    = module.namespace["infra"].name
+  mux_ns                    = module.namespace["mux"].name
   mux_labels                = { app = "mux" }
   mux_port                  = 3000
   mux_port_router_port      = 8080
   mux_port_host             = "*.mux.home.shdr.ch"
-  mux_litellm_base_url      = "http://litellm.${module.namespace["infra"].name}.svc.cluster.local:${local.litellm_port}/v1"
+  mux_litellm_base_url      = "http://litellm.${module.namespace["litellm"].name}.svc.cluster.local:${local.litellm_port}/v1"
   mux_default_model         = "litellm:xiaomi/mimo-v2.5-pro"
   mux_port_router_caddyfile = <<-EOT
     :${local.mux_port_router_port} {
@@ -54,7 +54,7 @@ locals {
 
 
 resource "kubernetes_secret_v1" "mux_env" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["mux"]]
 
   metadata {
     name      = "mux-env"
@@ -69,7 +69,7 @@ resource "kubernetes_secret_v1" "mux_env" {
 }
 
 resource "kubernetes_config_map_v1" "mux_config" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["mux"]]
 
   metadata {
     name      = "mux-config"
@@ -94,7 +94,7 @@ resource "kubernetes_config_map_v1" "mux_config" {
 }
 
 resource "kubernetes_config_map_v1" "mux_port_router" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["mux"]]
 
   metadata {
     name      = "mux-port-router"
@@ -107,7 +107,7 @@ resource "kubernetes_config_map_v1" "mux_port_router" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "mux_data" {
-  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["mux"], kubernetes_storage_class_v1.ceph_rbd]
 
   metadata {
     name      = "mux-data"

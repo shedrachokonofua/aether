@@ -4,7 +4,7 @@
 # Migrated from the old podman VM to Kubernetes.
 
 locals {
-  ups_namespace = module.namespace["infra"].name
+  ups_namespace = module.namespace["ups-management"].name
   ups_labels    = { app = "ups-management" }
   ups_host      = "peanut.home.shdr.ch"
 
@@ -14,7 +14,7 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "ups_config" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["ups-management"]]
 
   metadata {
     name      = "ups-config"

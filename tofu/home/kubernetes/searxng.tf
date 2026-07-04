@@ -7,7 +7,7 @@ locals {
   searxng_image  = "docker.io/searxng/searxng:latest"
   searxng_host   = "searxng.home.shdr.ch"
   searxng_port   = 8080
-  searxng_ns     = module.namespace["infra"].name
+  searxng_ns     = module.namespace["searxng"].name
   searxng_labels = { app = "searxng" }
 }
 
@@ -16,7 +16,7 @@ locals {
 # =============================================================================
 
 resource "kubernetes_secret_v1" "searxng_settings" {
-  depends_on = [module.namespace["infra"]]
+  depends_on = [module.namespace["searxng"]]
 
   metadata {
     name      = "searxng-settings"

@@ -72,10 +72,6 @@ moved {
   to   = module.namespace["immich"].kubernetes_namespace_v1.this
 }
 
-moved {
-  from = kubernetes_namespace_v1.infra
-  to   = module.namespace["infra"].kubernetes_namespace_v1.this
-}
 
 moved {
   from = kubernetes_namespace_v1.istio_system
