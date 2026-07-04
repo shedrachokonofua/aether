@@ -673,7 +673,7 @@ resource "helm_release" "mnemo" {
       image               = "getmeili/meilisearch:v1.12"
       port                = 7700
       storageClass        = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
-      storageSize         = "5Gi"
+      storageSize         = "100Gi"
       masterKeySecretName = kubernetes_secret_v1.mnemo_env.metadata[0].name
       masterKeySecretKey  = "MEILI_MASTER_KEY"
       resources = {
