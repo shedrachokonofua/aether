@@ -257,6 +257,20 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "external-secrets" = {
+      tier                    = "platform",
+      owner                   = "aether",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      source_file             = "tofu/home/kubernetes/external_secrets.tf",
+      registry_access         = "github",
+      extra_labels = {
+        "app.kubernetes.io/managed-by"       = "Helm"
+        "app.kubernetes.io/name"             = "external-secrets"
+        "pod-security.kubernetes.io/enforce" = "restricted"
+      }
+    }
     "games" = {
       tier                    = "app",
       owner                   = "aether",
