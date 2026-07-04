@@ -538,15 +538,18 @@ resource "talos_cluster_kubeconfig" "this" {
 module "kubernetes" {
   source = "./kubernetes"
 
-  cluster_name        = local.talos_cluster_name
-  api_vip             = local.talos_api_vip
-  workload_vip        = local.talos_workload_vip
-  vcluster_vip        = local.talos_vcluster_vip
-  oidc_issuer_url     = local.oidc_issuer_url
-  oidc_client_id      = local.oidc_client_id
-  gateway_api_version = local.gateway_api_version
-  kubeconfig_raw      = talos_cluster_kubeconfig.this.kubeconfig_raw
-  secrets             = var.secrets
+  cluster_name              = local.talos_cluster_name
+  api_vip                   = local.talos_api_vip
+  workload_vip              = local.talos_workload_vip
+  vcluster_vip              = local.talos_vcluster_vip
+  oidc_issuer_url           = local.oidc_issuer_url
+  oidc_client_id            = local.oidc_client_id
+  gateway_api_version       = local.gateway_api_version
+  kubeconfig_raw            = talos_cluster_kubeconfig.this.kubeconfig_raw
+  kubernetes_host           = talos_cluster_kubeconfig.this.kubernetes_client_configuration.host
+  kubernetes_ca_certificate = talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate
+  openbao_kv_mount_path     = vault_mount.kv.path
+  secrets                   = var.secrets
 
   # Crossplane Keycloak provider credentials
   keycloak_url                     = "https://auth.shdr.ch"

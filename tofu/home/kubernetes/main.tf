@@ -44,6 +44,10 @@ terraform {
       source  = "hashicorp/random"
       version = ">= 3.6.0"
     }
+    vault = {
+      source  = "hashicorp/vault"
+      version = ">= 5.0.0"
+    }
   }
 }
 
@@ -86,6 +90,23 @@ variable "kubeconfig_raw" {
   type        = string
   sensitive   = true
   description = "Raw kubeconfig for kubectl commands"
+}
+
+variable "kubernetes_host" {
+  type        = string
+  sensitive   = true
+  description = "Kubernetes API server URL for OpenBao Kubernetes auth"
+}
+
+variable "kubernetes_ca_certificate" {
+  type        = string
+  sensitive   = true
+  description = "Base64-encoded Kubernetes API CA certificate for OpenBao Kubernetes auth"
+}
+
+variable "openbao_kv_mount_path" {
+  type        = string
+  description = "OpenBao KV v2 mount path used by External Secrets"
 }
 
 variable "secrets" {

@@ -69,9 +69,9 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │   ├── Knative Functions (FaaS)                                                  │
 │   ├── Crossplane (infrastructure self-service)                                  │
 │   ├── OPA Gatekeeper (policy enforcement)                                       │
-│   ├── Secrets Store CSI (OpenBao secrets as files)                              │
+│   ├── Secrets Store CSI (OpenBao secrets as files; planned)                      │
 │   ├── cert-manager + step-ca issuer                                             │
-│   ├── External Secrets Operator (OpenBao → k8s Secrets)                         │
+│   ├── External Secrets Operator (OpenBao → k8s Secrets; installed)              │
 │   ├── GitLab Agent (CI/CD)                                                      │
 │   └── OTEL Collector DaemonSet (→ external monitoring)                          │
 │                                                                                  │
@@ -336,27 +336,35 @@ spec:
         }
 ```
 
-### Secrets Store CSI (OpenBao Integration)
+### External Secrets Operator (OpenBao Integration)
 
-Mount OpenBao secrets directly as files — never stored in etcd:
+External Secrets Operator is installed and uses namespace-local `SecretStore` resources named
+`openbao`. Each store authenticates to OpenBao via a namespace-local service account token and a
+namespace-scoped OpenBao Kubernetes-auth role; `ClusterSecretStore` is intentionally absent.
 
 ```yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
 metadata:
   name: app-secrets
+  namespace: app-namespace
 spec:
-  provider: vault
-  parameters:
-    vaultAddress: https://bao.home.shdr.ch
-    roleName: k8s-workloads
-    objects: |
-      - objectName: "api-key"
-        secretPath: "secret/data/myapp"
-        secretKey: "key"
+  refreshInterval: 1h
+  secretStoreRef:
+    name: openbao
+    kind: SecretStore
+  target:
+    name: app-secrets
+  data:
+    - secretKey: API_KEY
+      remoteRef:
+        key: aether/kubernetes/app-namespace/app-secrets
+        property: API_KEY
 ```
 
-Pod sees `/mnt/secrets/api-key` — fetched live from OpenBao, never in k8s etcd.
+The first live migration is `kyverno/dockerhub-creds`, sourced from
+`kv/aether/kubernetes/kyverno/dockerhub-creds`. Secrets Store CSI remains a separate future option
+for file-mounted secrets that should not be persisted into etcd.
 
 ### Crossplane (Infrastructure Self-Service)
 
@@ -962,7 +970,7 @@ No SSH, no Ansible, no package managers. Just API calls.
 - [ ] Install OPA Gatekeeper
 - [ ] Install Secrets Store CSI + Vault provider
 - [x] Install cert-manager + step-issuer (step-ca integration for Istio CA)
-- [ ] Install External Secrets Operator
+- [x] Install External Secrets Operator with per-namespace OpenBao SecretStores
 
 ### Phase 3: Observability + Security Scanning
 

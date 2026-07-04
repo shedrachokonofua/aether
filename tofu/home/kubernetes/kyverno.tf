@@ -88,24 +88,62 @@ locals {
   }
 }
 
-resource "kubernetes_secret_v1" "dockerhub_pull_secret_source" {
-  depends_on = [helm_release.kyverno]
+resource "vault_kv_secret_v2" "dockerhub_pull_secret_source" {
+  mount = var.openbao_kv_mount_path
+  name  = "${local.eso_secret_path_prefix}/${helm_release.kyverno.namespace}/${local.dockerhub_pull_secret_name}"
 
-  metadata {
-    name      = local.dockerhub_pull_secret_name
-    namespace = helm_release.kyverno.namespace
-    labels = {
-      "generate.kyverno.io/clone-source" = ""
-    }
-  }
-
-  type = "kubernetes.io/dockerconfigjson"
-
-  data = {
+  data_json = jsonencode({
     ".dockerconfigjson" = jsonencode({
       auths = local.dockerhub_registry_auths
     })
-  }
+  })
+}
+
+resource "kubectl_manifest" "dockerhub_pull_secret_source" {
+  depends_on = [
+    helm_release.kyverno,
+    kubectl_manifest.namespace_secret_store["kyverno"],
+    vault_kv_secret_v2.dockerhub_pull_secret_source,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = local.dockerhub_pull_secret_name
+      namespace = helm_release.kyverno.namespace
+      labels = {
+        "app.kubernetes.io/managed-by"     = "OpenTofu"
+        "generate.kyverno.io/clone-source" = ""
+      }
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        kind = "SecretStore"
+        name = "openbao"
+      }
+      target = {
+        name           = local.dockerhub_pull_secret_name
+        creationPolicy = "Owner"
+        template = {
+          type = "kubernetes.io/dockerconfigjson"
+          metadata = {
+            labels = {
+              "generate.kyverno.io/clone-source" = ""
+            }
+          }
+        }
+      }
+      data = [{
+        secretKey = ".dockerconfigjson"
+        remoteRef = {
+          key      = "${local.eso_secret_path_prefix}/${helm_release.kyverno.namespace}/${local.dockerhub_pull_secret_name}"
+          property = ".dockerconfigjson"
+        }
+      }]
+    }
+  })
 }
 
 resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_rbac" {
@@ -136,7 +174,7 @@ resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_generate" {
   depends_on = [
     helm_release.kyverno,
     kubectl_manifest.kyverno_dockerhub_pull_secret_rbac,
-    kubernetes_secret_v1.dockerhub_pull_secret_source,
+    kubectl_manifest.dockerhub_pull_secret_source,
   ]
 
   yaml_body = yamlencode({
