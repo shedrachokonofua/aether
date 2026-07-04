@@ -32,7 +32,7 @@
     rgw_oidc_provider_url: "https://auth.shdr.ch/realms/aether"
     rgw_oidc_client_ids:
       - "ceph-rgw"   # Direct S3 client
-      - "toolbox"    # CLI toolbox (login.sh)
+      - "toolbox"    # CLI toolbox (login.bb)
     rgw_oidc_claim_prefix: "{{ rgw_oidc_provider_url | regex_replace('^https?://', '') }}"
     rgw_oidc_provider_arn: "arn:aws:iam:::oidc-provider/{{ rgw_oidc_claim_prefix }}"
     rgw_oidc_required_role: "admin"

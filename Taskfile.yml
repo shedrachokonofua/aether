@@ -50,17 +50,6 @@ tasks:
     cmds:
       - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb --status
 
-  login-legacy:
-    desc: Unified SSO login (legacy bash)
-    cmds:
-      - mkdir -p {{.CACHE_DIR}}/bao {{.CACHE_DIR}}/step
-      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh {{.CLI_ARGS}}
-
-  login-legacy:status:
-    desc: Check auth status (legacy bash)
-    cmds:
-      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.sh --status
-
   bao:
     desc: OpenBao CLI
     cmds:
