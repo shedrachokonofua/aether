@@ -10,8 +10,8 @@ locals {
   mnemo_host          = "mnemo.home.shdr.ch"
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-7a051bf7"
-  mnemo_image_tag     = "7a051bf7"
+  mnemo_chart_version = "0.1.0-79f2f131"
+  mnemo_image_tag     = "79f2f131"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
   mnemo_db_user       = "mnemo"
@@ -124,7 +124,7 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
       resources = {
         claims   = []
         requests = { cpu = "250m", memory = "256Mi" }
@@ -679,6 +679,15 @@ resource "helm_release" "mnemo" {
       resources = {
         requests = { cpu = "500m", memory = "512Mi" }
         limits   = { cpu = "4000m", memory = "4Gi" }
+      }
+    }
+
+    backfill = {
+      enabled = true
+      reset   = true
+      resources = {
+        requests = { cpu = "100m", memory = "512Mi" }
+        limits   = { cpu = "1000m", memory = "2Gi" }
       }
     }
   })]
