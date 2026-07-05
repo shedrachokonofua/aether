@@ -123,6 +123,70 @@ resource "helm_release" "nvidia_device_plugin" {
 }
 
 # =============================================================================
+# Kyverno: disable the NVIDIA device-plugin XID health-check loop
+# =============================================================================
+# talos-smith's GPU is a GeForce GTX 1660 SUPER on the open kernel modules, which
+# lack NVML XID event support. The device plugin's health-check goroutine then
+# busy-spins on eventSet.Wait() (returns immediately, no sleep) and burns ~1.5 CPU
+# cores continuously — while the datacenter Blackwell node (talos-neo) blocks
+# properly and stays idle. The nvidia-device-plugin chart (v0.19.0) has no env
+# passthrough, so inject DP_DISABLE_HEALTHCHECKS=xids into the plugin container at
+# admission. Applies to all plugin pods: DaemonSet pods carry no spec.nodeName at
+# CREATE (the scheduler binds the node later), so per-node scoping is not possible
+# at the admission webhook. On talos-neo this trades XID auto-unhealthy detection
+# for DCGM/dmesg-based GPU fault alerting, which is acceptable for this cluster.
+resource "kubectl_manifest" "kyverno_nvidia_dp_disable_healthcheck_geforce" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "kyverno.io/v1"
+    kind       = "ClusterPolicy"
+    metadata = {
+      name = "nvidia-dp-disable-healthcheck-geforce"
+      annotations = {
+        "pod-policies.kyverno.io/autogen-controllers" = "none"
+        "policies.kyverno.io/title"                   = "Disable NVIDIA device-plugin XID health check on GeForce node"
+        "policies.kyverno.io/category"                = "GPU"
+        "policies.kyverno.io/subject"                 = "Pod"
+        "policies.kyverno.io/description"             = "GeForce GTX 1660 SUPER + open kernel modules on talos-smith lack NVML XID event support, so the device-plugin health-check loop busy-spins (~1.5 cores). Injects DP_DISABLE_HEALTHCHECKS=xids into all nvidia-device-plugin pods (DaemonSet pods lack spec.nodeName at admission, so node scoping is not feasible); talos-neo relies on DCGM/dmesg for XID fault detection instead."
+      }
+    }
+    spec = {
+      background = false
+      rules = [{
+        name = "inject-dp-disable-healthchecks"
+        match = {
+          any = [{
+            resources = {
+              kinds      = ["Pod"]
+              namespaces = ["gpu-system"]
+              selector = {
+                matchLabels = {
+                  "app.kubernetes.io/name" = "nvidia-device-plugin"
+                }
+              }
+            }
+          }]
+        }
+        mutate = {
+          patchStrategicMerge = {
+            spec = {
+              containers = [{
+                name = "nvidia-device-plugin-ctr"
+                env = [{
+                  name  = "DP_DISABLE_HEALTHCHECKS"
+                  value = "xids"
+                }]
+              }]
+            }
+          }
+        }
+      }]
+    }
+  })
+}
+
+# =============================================================================
 # DCGM Exporter — GPU Metrics
 # =============================================================================
 # DaemonSet on GPU nodes, exposes Prometheus metrics on port 9400.
