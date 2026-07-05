@@ -160,21 +160,6 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "coder-smoke" = {
-      tier                    = "sandbox",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      description             = "Ephemeral Coder workspace smoke tests",
-      source_file             = "tofu/home/kubernetes/coder.tf",
-      extra_labels = {
-        "pod-security.kubernetes.io/enforce"         = "restricted"
-        "pod-security.kubernetes.io/enforce-version" = "latest"
-        "pod-security.kubernetes.io/warn"            = "restricted"
-        "pod-security.kubernetes.io/audit"           = "restricted"
-      }
-    }
     "colony-dev" = {
       tier                    = "guest",
       owner                   = "colony",
