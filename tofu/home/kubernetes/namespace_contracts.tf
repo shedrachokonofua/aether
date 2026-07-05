@@ -160,6 +160,21 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "coder-smoke" = {
+      tier                    = "sandbox",
+      owner                   = "aether",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Ephemeral Coder workspace smoke tests",
+      source_file             = "tofu/home/kubernetes/coder.tf",
+      extra_labels = {
+        "pod-security.kubernetes.io/enforce"         = "restricted"
+        "pod-security.kubernetes.io/enforce-version" = "latest"
+        "pod-security.kubernetes.io/warn"            = "restricted"
+        "pod-security.kubernetes.io/audit"           = "restricted"
+      }
+    }
     "colony-dev" = {
       tier                    = "guest",
       owner                   = "colony",
@@ -249,7 +264,6 @@ locals {
       source_file             = "tofu/home/kubernetes/deskplane.tf",
       registry_access         = "dockerhub",
       hostnames = [
-        "deskplane.home.shdr.ch",
         "desktop.home.shdr.ch",
       ],
       extra_labels = {
@@ -705,7 +719,6 @@ locals {
       registry_access         = "dockerhub",
       hostnames = [
         "nextcloud.home.shdr.ch",
-        "nextcloud-public.home.shdr.ch",
         "nextcloud.shdr.ch",
         "onlyoffice.home.shdr.ch",
       ],
@@ -748,6 +761,11 @@ locals {
       create_s3_backup_secret = false,
       description             = "Client WordPress site"
       registry_access         = "dockerhub",
+      hostnames = [
+        "osemuehisfarms.com",
+        "www.osemuehisfarms.com",
+        "osemuehisfarms.home.shdr.ch",
+      ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
         "istio.io/dataplane-mode"          = "ambient"
@@ -1013,8 +1031,6 @@ locals {
       hostnames = [
         "*.seven30.xyz",
         "seven30.xyz",
-        "seven30.home.shdr.ch",
-        "seven30-root.home.shdr.ch",
       ]
     }
     "wasmcloud-system" = {
@@ -1075,4 +1091,40 @@ module "namespace" {
 # Convenience alias for legacy references during migration
 locals {
   ns = { for name, mod in module.namespace : name => mod.name }
+
+  # HTTP synthetic probes for concrete internal/public app hostnames — consumed
+  # by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
+  # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
+  synthetic_probe_path_overrides = {
+    "beryl.home.shdr.ch"               = "/health"
+    "colony-api-dev.home.shdr.ch"      = "/health"
+    "colony-tools-dev.home.shdr.ch"    = "/health"
+    "colony-webhook-dev.home.shdr.ch"  = "/health"
+    "composer.home.shdr.ch"            = "/health"
+    "docling.home.shdr.ch"             = "/health"
+    "firecrawl-mcp.home.shdr.ch"       = "/health"
+    "matrix.home.shdr.ch"              = "/_matrix/client/versions"
+    "tungsten.home.shdr.ch"            = "/health"
+  }
+
+  # These endpoints are not meaningful to check with the current GET-based
+  # blackbox HTTP module.
+  synthetic_probe_excluded_hostnames = toset([
+    "espn-mcp.home.shdr.ch",
+  ])
+
+  synthetic_probe_targets = distinct(flatten([
+    for namespace, spec in local.namespace_contract_specs : [
+      for hostname in try(spec.hostnames, []) : {
+        url       = "https://${hostname}${lookup(local.synthetic_probe_path_overrides, hostname, "")}"
+        namespace = namespace
+        hostname  = hostname
+        exposure  = spec.exposure
+        criticality = try(spec.criticality, null) != null ? spec.criticality : (
+          spec.tier == "platform" ? "high" : contains(["sandbox", "guest"], spec.tier) ? "low" : "normal"
+        )
+      } if length(regexall("^\\*\\.", hostname)) == 0 && !contains(local.synthetic_probe_excluded_hostnames, hostname)
+    ]
+    if contains(["internal", "public"], spec.exposure)
+  ]))
 }
