@@ -12,7 +12,7 @@ locals {
   coder_cnpg_cluster     = "coder-cnpg"
   coder_postgres_host    = "${local.coder_cnpg_cluster}-rw.${local.coder_namespace}.svc.cluster.local"
   coder_postgres_url     = "postgresql://${local.coder_postgres_user}:${random_password.coder_postgres_password.result}@${local.coder_postgres_host}:${local.coder_postgres_port}/${local.coder_postgres_db}?sslmode=disable"
-  coder_version          = "2.31.9"
+  coder_version          = "2.34.5"
 }
 
 
@@ -90,160 +90,13 @@ resource "kubernetes_persistent_volume_claim_v1" "coder_postgres_data" {
   }
 }
 
-resource "kubernetes_stateful_set_v1" "coder_postgres" {
-  depends_on = [kubernetes_secret_v1.coder_postgres, kubernetes_persistent_volume_claim_v1.coder_postgres_data]
 
-  metadata {
-    name      = local.coder_postgres_service
-    namespace = local.coder_namespace
-    labels = {
-      app = local.coder_postgres_service
-    }
-  }
-
-  spec {
-    service_name = local.coder_postgres_service
-    replicas     = 1
-
-    selector {
-      match_labels = {
-        app = local.coder_postgres_service
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          app = local.coder_postgres_service
-        }
-      }
-
-      spec {
-        container {
-          name  = "postgres"
-          image = "postgres:16"
-
-          port {
-            container_port = local.coder_postgres_port
-          }
-
-          env {
-            name = "POSTGRES_DB"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.coder_postgres.metadata[0].name
-                key  = "POSTGRES_DB"
-              }
-            }
-          }
-
-          env {
-            name = "POSTGRES_USER"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.coder_postgres.metadata[0].name
-                key  = "POSTGRES_USER"
-              }
-            }
-          }
-
-          env {
-            name = "POSTGRES_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.coder_postgres.metadata[0].name
-                key  = "POSTGRES_PASSWORD"
-              }
-            }
-          }
-
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-
-          readiness_probe {
-            exec {
-              command = ["/bin/sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-          }
-
-          liveness_probe {
-            exec {
-              command = ["/bin/sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
-            }
-            initial_delay_seconds = 30
-            period_seconds        = 20
-          }
-
-          resources {
-            requests = {
-              cpu    = "250m"
-              memory = "512Mi"
-            }
-            limits = {
-              cpu    = "2000m"
-              memory = "2Gi"
-            }
-          }
-
-          volume_mount {
-            name       = "postgres-data"
-            mount_path = "/var/lib/postgresql/data"
-          }
-        }
-
-        volume {
-          name = "postgres-data"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim_v1.coder_postgres_data.metadata[0].name
-          }
-        }
-      }
-    }
-  }
-
-
-  lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
-  }
-}
-
-resource "kubernetes_service_v1" "coder_postgres" {
-  depends_on = [kubernetes_stateful_set_v1.coder_postgres]
-
-  metadata {
-    name      = local.coder_postgres_service
-    namespace = local.coder_namespace
-    labels = {
-      app = local.coder_postgres_service
-    }
-  }
-
-  spec {
-    selector = {
-      app = local.coder_postgres_service
-    }
-
-    port {
-      port        = local.coder_postgres_port
-      target_port = local.coder_postgres_port
-      protocol    = "TCP"
-    }
-
-    type = "ClusterIP"
-  }
-}
 
 resource "kubectl_manifest" "coder_cnpg_cluster" {
   depends_on = [
     helm_release.cnpg,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.coder_cnpg_app,
-    kubernetes_service_v1.coder_postgres,
   ]
 
   yaml_body = yamlencode({
@@ -319,6 +172,25 @@ resource "helm_release" "coder" {
       resources = {
         requests = { cpu = "250m", memory = "256Mi" }
         limits   = { cpu = "2000m", memory = "2Gi" }
+      }
+
+      securityContext = {
+        runAsNonRoot             = true
+        runAsUser                = 1000
+        runAsGroup               = 1000
+        allowPrivilegeEscalation = false
+        capabilities             = { drop = ["ALL"] }
+        seccompProfile           = { type = "RuntimeDefault" }
+      }
+
+      podSecurityContext = {
+        runAsNonRoot = true
+        runAsUser    = 1000
+        runAsGroup   = 1000
+        fsGroup      = 1000
+        seccompProfile = {
+          type = "RuntimeDefault"
+        }
       }
 
       env = [
