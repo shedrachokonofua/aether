@@ -124,13 +124,6 @@ resource "kubernetes_manifest" "main_gateway" {
           allowedRoutes = local.gateway_allowed_routes_internal
         },
         {
-          name          = "mux-ports"
-          protocol      = "HTTP"
-          port          = 80
-          hostname      = "*.mux.home.shdr.ch"
-          allowedRoutes = local.gateway_allowed_routes_internal
-        },
-        {
           name          = "home-root"
           protocol      = "HTTP"
           port          = 80

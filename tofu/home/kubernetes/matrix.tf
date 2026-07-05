@@ -378,7 +378,7 @@ resource "kubernetes_deployment_v1" "matrix" {
         labels = local.matrix_labels
         annotations = {
           # Restart the pod when homeserver.yaml changes — the subPath mount
-          # never refreshes in-place (same pattern as litellm.tf/mux.tf).
+          # never refreshes in-place (same pattern as litellm.tf).
           "aether.shdr.ch/config-sha" = sha256(kubernetes_config_map_v1.synapse_config.data["homeserver.yaml"])
         }
       }

@@ -77,10 +77,6 @@ output "coder_url" {
   value       = "https://${local.coder_host}"
 }
 
-output "mux_url" {
-  description = "Mux public URL via Gateway API"
-  value       = "https://${local.mux_host}"
-}
 
 output "goldilocks_url" {
   description = "Goldilocks resource recommendation dashboard URL"
@@ -120,4 +116,9 @@ output "policy_reporter_version" {
 output "kepler_version" {
   description = "Installed Kepler chart version"
   value       = helm_release.kepler.version
+}
+
+output "synthetic_probe_targets" {
+  description = "HTTP synthetic probe targets from namespace contract hostnames (internal/public exposure only)"
+  value       = local.synthetic_probe_targets
 }

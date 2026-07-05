@@ -57,10 +57,6 @@ moved {
   to   = module.namespace["goldilocks"].kubernetes_namespace_v1.this
 }
 
-moved {
-  from = kubernetes_namespace_v1.holyclaude
-  to   = module.namespace["holyclaude"].kubernetes_namespace_v1.this
-}
 
 moved {
   from = kubernetes_namespace_v1.hoppscotch

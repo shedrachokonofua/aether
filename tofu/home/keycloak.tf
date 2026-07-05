@@ -1207,7 +1207,6 @@ resource "keycloak_openid_client" "orion" {
 
   valid_post_logout_redirect_uris = [
     "http://localhost:5174/*",
-    "https://5174.mux.home.shdr.ch/*",
     "https://home.shdr.ch/*",
   ]
 

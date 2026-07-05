@@ -365,22 +365,6 @@ locals {
         "name" = "headlamp"
       }
     }
-    "holyclaude" = {
-      tier                    = "agent",
-      owner                   = "aether",
-      backup                  = "standard",
-      exposure                = "internal",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/holyclaude.tf",
-      registry_access         = "dockerhub",
-      hostnames = [
-        "holyclaude.home.shdr.ch",
-      ],
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled"   = "true"
-        "pod-security.kubernetes.io/enforce" = "privileged"
-      }
-    }
     "hoppscotch" = {
       tier                    = "app",
       owner                   = "aether",
@@ -442,24 +426,6 @@ locals {
       registry_access         = "gitlab"
       hostnames = [
         "mnemo.home.shdr.ch",
-      ],
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled"   = "true"
-        "pod-security.kubernetes.io/enforce" = "baseline"
-      }
-    }
-    "mux" = {
-      tier                    = "agent",
-      owner                   = "aether",
-      backup                  = "standard",
-      exposure                = "internal",
-      create_s3_backup_secret = true,
-      source_file             = "tofu/home/kubernetes/mux.tf",
-      egress                  = "internet",
-      registry_access         = "dockerhub",
-      hostnames = [
-        "mux.home.shdr.ch",
-        "*.mux.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled"   = "true"
@@ -1096,15 +1062,15 @@ locals {
   # by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
-    "beryl.home.shdr.ch"               = "/health"
-    "colony-api-dev.home.shdr.ch"      = "/health"
-    "colony-tools-dev.home.shdr.ch"    = "/health"
-    "colony-webhook-dev.home.shdr.ch"  = "/health"
-    "composer.home.shdr.ch"            = "/health"
-    "docling.home.shdr.ch"             = "/health"
-    "firecrawl-mcp.home.shdr.ch"       = "/health"
-    "matrix.home.shdr.ch"              = "/_matrix/client/versions"
-    "tungsten.home.shdr.ch"            = "/health"
+    "beryl.home.shdr.ch"              = "/health"
+    "colony-api-dev.home.shdr.ch"     = "/health"
+    "colony-tools-dev.home.shdr.ch"   = "/health"
+    "colony-webhook-dev.home.shdr.ch" = "/health"
+    "composer.home.shdr.ch"           = "/health"
+    "docling.home.shdr.ch"            = "/health"
+    "firecrawl-mcp.home.shdr.ch"      = "/health"
+    "matrix.home.shdr.ch"             = "/_matrix/client/versions"
+    "tungsten.home.shdr.ch"           = "/health"
   }
 
   # These endpoints are not meaningful to check with the current GET-based
