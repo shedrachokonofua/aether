@@ -82,6 +82,51 @@ groups:
           summary: "High CPU usage on {{ $labels.instance }}"
           description: 'CPU usage is {{ $values.B.Value | printf "%.1f" }}%'
 
+      # Regression tripwire for the talos-smith clocksource fix (2026-07-05):
+      # if the guest falls back to acpi_pm, every guest clock read becomes a
+      # PIO vmexit and HOST system-CPU spikes (~41% during the incident vs
+      # ~15% healthy). Legit load (game-server, backups) drives user/iowait,
+      # not sys — so sustained high host-sys% on smith specifically flags the
+      # exit-storm regression. TEMPORARY tripwire: tsc=reliable self-heals at the
+      # next Talos version bump (boot rewrite) — DELETE this rule at that upgrade.
+      - uid: smith-high-system-cpu
+        title: Smith High System CPU (clocksource regression)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: 100 * avg(rate(node_cpu_seconds_total{instance="192.168.2.204:9100",mode="system"}[5m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Smith host system-CPU high ({{ $values.B.Value | printf "%.0f" }}%) — possible talos-smith clocksource regression to acpi_pm'
+          description: 'Healthy ~15%, was ~41% during the acpi_pm PIO-exit storm. Check: talosctl -n 10.0.3.22 read /sys/devices/system/clocksource/clocksource0/current_clocksource (expect tsc, not acpi_pm).'
+
       - uid: host-high-memory
         title: Host High Memory
         condition: C
