@@ -6,10 +6,20 @@ locals {
     "aether.shdr.ch/exposure" = var.exposure
   }
 
+
+  criticality_tier_defaults = {
+    platform     = "high"
+    app          = "normal"
+    agent        = "normal"
+    tenant       = "normal"
+    sandbox      = "low"
+    guest        = "low"
+    unclassified = "low"
+  }
   optional_label_defaults = {
     egress          = var.egress
     arch            = var.arch
-    criticality     = var.criticality
+    criticality     = coalesce(var.criticality, local.criticality_tier_defaults[var.tier])
     lifecycle       = var.ns_lifecycle
     registry_access = var.registry_access
     runtime         = var.runtime

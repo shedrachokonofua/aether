@@ -22,6 +22,7 @@
     ../../../modules/base.nix         # SSH CA, OTEL, common packages
     ../../../modules/step-ca-cert.nix # Certificate auto-renewal (for machine auth)
     ../../../modules/openbao-agent.nix # Secrets from OpenBao
+    ../../../modules/osquery-agent.nix # Fleet-managed osquery endpoint
     ./zeek.nix                         # Zeek network monitor
     ./wazuh.nix                        # Wazuh HIDS stack
   ];
@@ -34,6 +35,7 @@
   
   # OpenBao agent for secrets management (templates defined in wazuh.nix)
   aether.openbao-agent.enable = true;
+  aether.osquery-agent.enable = true;
 
   # Firewall - SSH + Wazuh stack (ports from config/vm.yml)
   networking.firewall = let

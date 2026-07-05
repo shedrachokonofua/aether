@@ -34,5 +34,9 @@ resource "helm_release" "kube_state_metrics" {
       requests = { cpu = "20m", memory = "64Mi" }
       limits   = { cpu = "200m", memory = "256Mi" }
     }
+
+    extraArgs = [
+      "--metric-labels-allowlist=namespaces=[aether.shdr.ch/tier,aether.shdr.ch/owner,aether.shdr.ch/backup,aether.shdr.ch/criticality,aether.shdr.ch/exposure]",
+    ]
   })]
 }

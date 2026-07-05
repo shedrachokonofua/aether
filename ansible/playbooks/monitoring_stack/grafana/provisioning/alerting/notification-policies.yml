@@ -3,14 +3,44 @@ apiVersion: 1
 policies:
   - orgId: 1
     receiver: apprise-standard
-    group_by:
-      - grafana_folder
-      - alertname
+    group_by: [grafana_folder, alertname]
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 4h
     routes:
+      - receiver: kuma-deadman
+        matchers: [alertname = DeadMansSwitch]
+        group_wait: 0s
+        group_interval: 1m
+        repeat_interval: 3m
+        continue: false
       - receiver: apprise-critical
-        matchers:
-          - severity = critical
+        matchers: [channel = page]
+        continue: false
+      - receiver: apprise-digest
+        matchers: [channel = digest]
+        group_wait: 15m
+        group_interval: 12h
+        repeat_interval: 24h
+        continue: false
+      - receiver: apprise-critical
+        matchers: [domain = security, severity = critical]
+        continue: false
+      - receiver: apprise-security
+        matchers: [domain = security]
+        group_wait: 15m
+        group_interval: 12h
+        repeat_interval: 24h
+        continue: false
+      - receiver: apprise-digest
+        matchers: [criticality = low]
+        group_wait: 15m
+        group_interval: 12h
+        repeat_interval: 24h
+        continue: false
+      - receiver: apprise-critical
+        matchers: [criticality = high]
+        continue: false
+      - receiver: apprise-critical
+        matchers: [severity = critical]
         continue: false

@@ -214,3 +214,8 @@ output "tailscale_uptime_monitor_ip" {
   description = "Private Tailscale IP of the uptime monitor VM"
   value       = data.tailscale_device.uptime_monitor.addresses[0]
 }
+
+output "synthetic_probe_targets" {
+  description = "HTTP synthetic probe targets from namespace contract hostnames (internal/public exposure only)"
+  value       = module.home.synthetic_probe_targets
+}

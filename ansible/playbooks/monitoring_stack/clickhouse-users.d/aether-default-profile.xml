@@ -6,6 +6,11 @@
       <query_profiler_cpu_time_period_ns>0</query_profiler_cpu_time_period_ns>
       <memory_profiler_step>0</memory_profiler_step>
       <log_query_views>0</log_query_views>
+      <!-- Batch async inserts: adaptive flush allowed up to 30s (was capped 200ms) so the
+           Zeek/Suricata firehose creates far fewer parts -> much less background merge CPU.
+           30s ingest lag is invisible to the 15m/24h-window IDS alerts. -->
+      <async_insert_busy_timeout_max_ms>30000</async_insert_busy_timeout_max_ms>
+      <async_insert_max_data_size>52428800</async_insert_max_data_size>
     </default>
   </profiles>
 </clickhouse>

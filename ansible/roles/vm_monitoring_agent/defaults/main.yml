@@ -73,3 +73,6 @@ nvidia_gpu_exporter_download_url:
 nvidia_gpu_exporter_binary_path: "/usr/local/bin/nvidia_gpu_exporter"
 nvidia_gpu_exporter_port: 9835
 nvidia_gpu_exporter_scrape_interval: "5s"
+
+# Osquery / Fleet agent (plain osquery enrollment)
+osquery_fleet_hostname: "fleet.home.shdr.ch"

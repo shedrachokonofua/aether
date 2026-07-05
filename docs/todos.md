@@ -78,10 +78,10 @@
   - [ ] Deploy Trivy for CVE scanning
   - [ ] Deploy Ansible Semaphore for controlled deployment
   - [ ] Create Grafana dashboard for unified view
-- [ ] Deploy Fleet/osquery for host visibility ([exploration](exploration/osquery.md))
-  - [ ] Deploy Fleet server on Monitoring Stack
-  - [ ] Add osquery agent to vm_monitoring_agent role
-  - [ ] Configure scheduled queries and policies
+- [x] Deploy Fleet/osquery for host visibility ([exploration](exploration/osquery.md))
+  - [x] Deploy Fleet server on Monitoring Stack
+  - [x] Add osquery agent to vm_monitoring_agent role (+ `nix/modules/osquery-agent.nix` for NixOS hosts)
+  - [x] Configure scheduled queries and policies
 - [ ] Complete Tailscale integration ([exploration](exploration/full-tailscale-integration.md))
   - [ ] Phase 2: Gateway credential security (WIF)
   - [ ] Phase 3: VyOS route for home → Tailnet

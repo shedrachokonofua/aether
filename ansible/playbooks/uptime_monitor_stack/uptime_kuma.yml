@@ -5,6 +5,8 @@
   become: true
   vars_files:
     - monitors.yml
+  roles:
+    - common
   tasks:
     - name: Create uptime-kuma system user
       user:
@@ -124,63 +126,206 @@
         group: uptime-kuma
         mode: '0644'
 
+    - name: Write notification configuration JSON file
+      copy:
+        content: |
+          {{
+            {
+              "name": "SES Email",
+              "config": {
+                "type": "smtp",
+                "smtpHost": "email-smtp.us-east-1.amazonaws.com",
+                "smtpPort": 587,
+                "smtpSecure": false,
+                "smtpUsername": tf_outputs.aws_ses_smtp_username.value,
+                "smtpPassword": tf_outputs.aws_ses_smtp_password.value,
+                "smtpFrom": "notifications@shdr.ch",
+                "smtpTo": secrets.notification_email,
+                "name": "SES Email"
+              }
+            } | to_nice_json
+          }}
+        dest: /opt/uptime-kuma/data/notification.json
+        owner: uptime-kuma
+        group: uptime-kuma
+        mode: '0600'
+      no_log: true
+
     - name: Write monitors sync python script
       copy:
         content: |
           import json
           import sqlite3
           import sys
+          from datetime import datetime, timezone
 
           db_path = "/opt/uptime-kuma/data/kuma.db"
           monitors_file = "/opt/uptime-kuma/data/monitors.json"
+          notification_file = "/opt/uptime-kuma/data/notification.json"
 
           try:
-              with open(monitors_file, 'r') as f:
+              with open(monitors_file, "r") as f:
                   desired_monitors = json.load(f)
           except Exception as e:
               print(f"Error loading monitors file: {e}")
               sys.exit(1)
 
+          try:
+              with open(notification_file, "r") as f:
+                  notification_spec = json.load(f)
+          except Exception as e:
+              print(f"Error loading notification file: {e}")
+              sys.exit(1)
+
           conn = sqlite3.connect(db_path)
           cursor = conn.cursor()
 
-          # Get user_id if an admin has been created
+          def columns(table):
+              cursor.execute(f"PRAGMA table_info({table})")
+              return {row[1] for row in cursor.fetchall()}
+
+          def timestamp():
+              return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+          def filter_columns(table, values):
+              available = columns(table)
+              return {key: value for key, value in values.items() if key in available}
+
+          def upsert_monitor(name, desired):
+              monitor_columns = columns("monitor")
+              cursor.execute("SELECT id FROM monitor WHERE name=?", (name,))
+              row = cursor.fetchone()
+              monitor_id = row[0] if row else None
+
+              set_values = filter_columns("monitor", desired)
+              if monitor_id is None:
+                  keys = ", ".join(set_values.keys())
+                  placeholders = ", ".join("?" for _ in set_values)
+                  cursor.execute(
+                      f"INSERT INTO monitor ({keys}) VALUES ({placeholders})",
+                      tuple(set_values.values()),
+                  )
+                  print(f"Added monitor: {name}")
+                  return cursor.lastrowid
+
+              cursor.execute(
+                  "SELECT * FROM monitor WHERE id=?",
+                  (monitor_id,),
+              )
+              current_row = cursor.fetchone()
+              current = dict(zip([d[0] for d in cursor.description], current_row))
+              changed = any(current.get(key) != value for key, value in set_values.items())
+              if changed:
+                  assignments = ", ".join(f"{key}=?" for key in set_values)
+                  cursor.execute(
+                      f"UPDATE monitor SET {assignments} WHERE id=?",
+                      tuple(set_values.values()) + (monitor_id,),
+                  )
+                  print(f"Updated monitor: {name}")
+              return monitor_id
+
+          def upsert_notification(spec, user_id):
+              config_json = json.dumps(spec["config"], separators=(",", ":"))
+              values = {
+                  "name": spec["name"],
+                  "active": 1,
+                  "is_default": 1,
+                  "config": config_json,
+                  "user_id": user_id,
+                  "apply_existing": 1,
+                  "created_date": timestamp(),
+                  "updated_date": timestamp(),
+              }
+              set_values = filter_columns("notification", values)
+
+              cursor.execute("SELECT id FROM notification WHERE name=?", (spec["name"],))
+              row = cursor.fetchone()
+              if row is None:
+                  keys = ", ".join(set_values.keys())
+                  placeholders = ", ".join("?" for _ in set_values)
+                  cursor.execute(
+                      f"INSERT INTO notification ({keys}) VALUES ({placeholders})",
+                      tuple(set_values.values()),
+                  )
+                  print(f"Added notification provider: {spec['name']}")
+                  return cursor.lastrowid
+
+              notification_id = row[0]
+              update_values = {
+                  key: value
+                  for key, value in set_values.items()
+                  if key not in {"created_date"}
+              }
+              assignments = ", ".join(f"{key}=?" for key in update_values)
+              cursor.execute(
+                  f"UPDATE notification SET {assignments} WHERE id=?",
+                  tuple(update_values.values()) + (notification_id,),
+              )
+              print(f"Updated notification provider: {spec['name']}")
+              return notification_id
+
+          # Get user_id if an admin has been created.
           cursor.execute("SELECT id FROM user LIMIT 1")
           user_row = cursor.fetchone()
           user_id = user_row[0] if user_row else None
 
-          # Get existing monitors
-          cursor.execute("SELECT id, name, url, user_id FROM monitor")
-          existing = {row[1]: (row[0], row[2], row[3]) for row in cursor.fetchall()}
-          desired_names = {m['name'] for m in desired_monitors}
-
-          # Delete monitors not in desired list
-          for name in list(existing.keys()):
+          # Delete monitors not in desired list.
+          cursor.execute("SELECT id, name FROM monitor")
+          existing = {row[1]: row[0] for row in cursor.fetchall()}
+          desired_names = {m["name"] for m in desired_monitors}
+          for name, monitor_id in existing.items():
               if name not in desired_names:
-                  monitor_id, _, _ = existing[name]
                   cursor.execute("DELETE FROM monitor WHERE id=?", (monitor_id,))
                   print(f"Deleted monitor: {name}")
 
-          # Sync monitors
+          # Sync monitors. Push monitors have no URL and use a stable push token.
+          monitor_ids = []
           for m in desired_monitors:
-              name = m['name']
-              url = m['url']
-              m_type = m.get('type', 'http')
-              interval = m.get('interval', 60)
-              
-              if name in existing:
-                  monitor_id, old_url, old_user_id = existing[name]
-                  if old_url != url or (old_user_id is None and user_id is not None):
-                      cursor.execute("UPDATE monitor SET url=?, type=?, interval=?, user_id=? WHERE id=?", (url, m_type, interval, user_id, monitor_id))
-                      print(f"Updated monitor: {name}")
-              else:
-                  cursor.execute("""
-                      INSERT INTO monitor (name, active, url, type, interval, weight, maxretries, ignore_tls, upside_down, maxredirects, accepted_statuscodes_json, retry_interval, user_id)
-                      VALUES (?, 1, ?, ?, ?, 2000, 0, 0, 0, 10, '["200-299"]', 0, ?)
-                  """, (name, url, m_type, interval, user_id))
-                  print(f"Added monitor: {name}")
+              name = m["name"]
+              m_type = m.get("type", "http")
+              interval = m.get("interval", 60)
+              is_push = m_type == "push"
+              desired = {
+                  "name": name,
+                  "active": 1,
+                  "url": "" if is_push else m["url"],
+                  "type": m_type,
+                  "interval": interval,
+                  "weight": 2000,
+                  "maxretries": 0,
+                  "ignore_tls": 0,
+                  "upside_down": 0,
+                  "maxredirects": 10,
+                  "accepted_statuscodes_json": '["200-299"]',
+                  "retry_interval": 0,
+                  "user_id": user_id,
+              }
+              if is_push:
+                  desired["push_token"] = m["push_token"]
+              monitor_ids.append(upsert_monitor(name, desired))
 
-          # Create default status page if it doesn't exist
+          # Create/update the SES notification provider and link it to every monitor.
+          notification_id = upsert_notification(notification_spec, user_id)
+          if "monitor_notification" in {
+              row[0] for row in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+          }:
+              cursor.execute("DELETE FROM monitor_notification WHERE notification_id=?", (notification_id,))
+              link_columns = columns("monitor_notification")
+              for monitor_id in monitor_ids:
+                  link_values = {
+                      "monitor_id": monitor_id,
+                      "notification_id": notification_id,
+                  }
+                  link_values = {key: value for key, value in link_values.items() if key in link_columns}
+                  keys = ", ".join(link_values.keys())
+                  placeholders = ", ".join("?" for _ in link_values)
+                  cursor.execute(
+                      f"INSERT INTO monitor_notification ({keys}) VALUES ({placeholders})",
+                      tuple(link_values.values()),
+                  )
+              print(f"Linked notification provider to {len(monitor_ids)} monitors")
+
+          # Create default status page if it doesn't exist.
           cursor.execute("SELECT id FROM status_page WHERE slug='default'")
           sp_row = cursor.fetchone()
           if not sp_row:
@@ -193,7 +338,7 @@
           else:
               sp_id = sp_row[0]
 
-          # Create default group if it doesn't exist for the status page
+          # Create default group if it doesn't exist for the status page.
           cursor.execute("SELECT id FROM `group` WHERE status_page_id=?", (sp_id,))
           group_row = cursor.fetchone()
           if not group_row:
@@ -206,21 +351,20 @@
           else:
               group_id = group_row[0]
 
-          # Clear old links and link current monitors to the group
+          # Clear old links and link current monitors to the group.
           cursor.execute("DELETE FROM monitor_group WHERE group_id=?", (group_id,))
-          
-          # Fetch all active monitors
+
           cursor.execute("SELECT id FROM monitor WHERE active=1")
           active_monitors = [row[0] for row in cursor.fetchall()]
-          
-          for idx, m_id in enumerate(active_monitors):
+
+          for idx, monitor_id in enumerate(active_monitors):
               cursor.execute("""
                   INSERT INTO monitor_group (monitor_id, group_id, weight)
                   VALUES (?, ?, ?)
-              """, (m_id, group_id, idx * 10))
+              """, (monitor_id, group_id, idx * 10))
           print(f"Linked {len(active_monitors)} monitors to the status page group")
 
-          # Set default entry page to the status page
+          # Set default entry page to the status page.
           cursor.execute("INSERT OR REPLACE INTO setting (key, value, type) VALUES ('entryPage', '\"statusPage-default\"', 'string')")
           print("Set entryPage setting to the default status page")
 

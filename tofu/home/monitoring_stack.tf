@@ -60,3 +60,17 @@ module "monitoring_stack_user" {
   console_password  = random_password.monitoring_stack_console_password.result
   snippet_datastore = "local"
 }
+
+# =============================================================================
+# OpenBao Secrets
+# =============================================================================
+# Synced from SOPS → OpenBao KV → vault-agent on VMs.
+
+resource "vault_kv_secret_v2" "fleet" {
+  mount = vault_mount.kv.path
+  name  = "aether/fleet"
+
+  data_json = jsonencode({
+    enroll_secret = var.secrets["fleet.enroll_secret"]
+  })
+}

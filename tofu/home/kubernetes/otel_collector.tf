@@ -23,6 +23,21 @@ locals {
         { key = "k8s.cluster.name", value = var.cluster_name, action = "insert" }
       ]
     }
+    k8sattributes = {
+      extract = {
+        metadata = ["k8s.namespace.name", "k8s.pod.name", "k8s.node.name"]
+        labels = [
+          { tag_name = "aether.tier", key = "aether.shdr.ch/tier", from = "namespace" },
+          { tag_name = "aether.owner", key = "aether.shdr.ch/owner", from = "namespace" },
+          { tag_name = "aether.criticality", key = "aether.shdr.ch/criticality", from = "namespace" },
+        ]
+      }
+      pod_association = [
+        { sources = [{ from = "resource_attribute", name = "k8s.pod.uid" }] },
+        { sources = [{ from = "resource_attribute", name = "k8s.pod.name" }, { from = "resource_attribute", name = "k8s.namespace.name" }] },
+        { sources = [{ from = "connection" }] },
+      ]
+    }
     "transform/k8s_labels" = {
       metric_statements = [
         { context = "resource", statements = local.otel_k8s_label_statements },
@@ -142,6 +157,14 @@ resource "helm_release" "otel_collector_daemonset" {
                 }
                 static_configs = [{
                   targets = ["$${env:K8S_NODE_IP}:10250"]
+                }]
+                # Drop unused high-cardinality cAdvisor IO series (verified: no dashboard/alert/
+                # recording-rule references, and VPA/Goldilocks only reads cpu+memory). Keeps
+                # container_cpu/memory usage; drops network/fs/blkio IO (net forensics = ClickHouse/Zeek).
+                metric_relabel_configs = [{
+                  source_labels = ["__name__"]
+                  regex         = "container_tasks_state|container_memory_failures_total|container_network_.*|container_fs_.*|container_blkio.*"
+                  action        = "drop"
                 }]
               }
             ]
@@ -412,6 +435,37 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
+                job_name        = "cnpg"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role = "pod"
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_pod_label_cnpg_io_cluster"]
+                    action        = "keep"
+                    regex         = ".+"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+                    action        = "keep"
+                    regex         = "metrics"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_label_cnpg_io_cluster"]
+                    target_label  = "cluster"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    target_label  = "namespace"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "pod"
+                  },
+                ]
+              },
+              {
                 # Tetragon agent is a DaemonSet behind a Service. Scrape
                 # endpoints directly so every node agent is represented rather
                 # than one load-balanced service target.
@@ -461,6 +515,14 @@ resource "helm_release" "otel_collector_deployment" {
                 scrape_interval = "30s"
                 static_configs = [{
                   targets = ["policy-reporter.${local.policy_reporter_namespace}.svc.cluster.local:8080"]
+                }]
+                # Drop per-resource policy_report_result (~36k series, unused in Grafana;
+                # per-resource state stays in PolicyReport CRs + policy-reporter UI).
+                # policy_report_summary (aggregate) is retained.
+                metric_relabel_configs = [{
+                  source_labels = ["__name__"]
+                  regex         = "policy_report_result"
+                  action        = "drop"
                 }]
               },
               {

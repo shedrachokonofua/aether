@@ -62,7 +62,10 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
     send_timestamps: true
-    metric_expiration: 5m
+    # 2m (was 5m): dead pods' series linger in the :8889 exposition metric_expiration-long, and
+    # Prometheus scrapes+parses every one every 30s (was 433k samples vs 205k active). 2m = 4x the
+    # 30s push interval, so no flap; halves the churn-driven serialize(otel)+parse(prom) cost.
+    metric_expiration: 2m
     resource_to_telemetry_conversion:
       enabled: false
     add_metric_suffixes: false

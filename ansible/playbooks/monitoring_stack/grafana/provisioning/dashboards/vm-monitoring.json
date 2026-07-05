@@ -87,7 +87,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -101,7 +103,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "clamp_max(count(system_cpu_time{exported_job=~\"$vm\",cpu=\"cpu0\"}) by (exported_job), 1)",
+          "expr": "clamp_max(count(system_cpu_time_seconds_total{exported_job=~\"$vm\",cpu=\"cpu0\"}) by (exported_job), 1)",
           "legendFormat": "{{exported_job}}",
           "refId": "A"
         }
@@ -152,7 +154,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -166,7 +170,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "system_uptime{exported_job=~\"$vm\"}/86400",
+          "expr": "system_uptime_seconds{exported_job=~\"$vm\"}/86400",
           "legendFormat": "{{exported_job}}",
           "refId": "A"
         }
@@ -209,7 +213,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -223,7 +229,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "count(count(system_cpu_time{exported_job=~\"$vm\"}) by (cpu,exported_job)) by (exported_job)",
+          "expr": "count(count(system_cpu_time_seconds_total{exported_job=~\"$vm\"}) by (cpu,exported_job)) by (exported_job)",
           "legendFormat": "{{exported_job}}",
           "refId": "A"
         }
@@ -449,7 +455,9 @@
           "countRows": false,
           "enablePagination": false,
           "fields": "",
-          "reducer": ["sum"],
+          "reducer": [
+            "sum"
+          ],
           "show": false
         },
         "showHeader": true
@@ -460,7 +468,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(system_memory_usage{exported_job=~\"$vm\",state=\"used\"}) by (exported_job)",
+          "expr": "sum(system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}) by (exported_job)",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -470,7 +478,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(system_memory_usage{exported_job=~\"$vm\"}) by (exported_job)",
+          "expr": "sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -480,7 +488,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "(sum(system_memory_usage{exported_job=~\"$vm\",state=\"used\"}) by (exported_job) / sum(system_memory_usage{exported_job=~\"$vm\"}) by (exported_job)) * 100",
+          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -490,7 +498,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "(sum(system_memory_usage{exported_job=~\"$vm\",state!=\"free\"}) by (exported_job) / sum(system_memory_usage{exported_job=~\"$vm\"}) by (exported_job)) * 100",
+          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state!=\"free\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -576,7 +584,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -640,7 +650,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -767,7 +779,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "(1 - (sum by(exported_job) (rate(system_cpu_time{exported_job=~\"$vm\",state=\"idle\"}[5m])) / sum by(exported_job) (rate(system_cpu_time{exported_job=~\"$vm\"}[5m])))) * 100",
+          "expr": "(1 - (sum by(exported_job) (rate(system_cpu_time_seconds_total{exported_job=~\"$vm\",state=\"idle\"}[5m])) / sum by(exported_job) (rate(system_cpu_time_seconds_total{exported_job=~\"$vm\"}[5m])))) * 100",
           "legendFormat": "{{exported_job}}",
           "refId": "A"
         }
@@ -863,7 +875,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "(sum by(state) (rate(system_cpu_time{exported_job=~\"$vm\",state=~\"user|system|nice|interrupt|softirq|steal|wait|idle\"}[5m])) / ignoring(state) group_left sum(rate(system_cpu_time{exported_job=~\"$vm\",state=~\"user|system|nice|interrupt|softirq|steal|wait|idle\"}[5m]))) * 100",
+          "expr": "(sum by(state) (rate(system_cpu_time_seconds_total{exported_job=~\"$vm\",state=~\"user|system|nice|interrupt|softirq|steal|wait|idle\"}[5m])) / ignoring(state) group_left sum(rate(system_cpu_time_seconds_total{exported_job=~\"$vm\",state=~\"user|system|nice|interrupt|softirq|steal|wait|idle\"}[5m]))) * 100",
           "legendFormat": "{{mode}}",
           "refId": "A"
         }
@@ -976,7 +988,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "(sum(system_memory_usage{exported_job=~\"$vm\",state=\"used\"}) by (exported_job) / sum(system_memory_usage{exported_job=~\"$vm\"}) by (exported_job)) * 100",
+          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
           "legendFormat": "{{exported_job}} - Real Used (Applications)",
           "refId": "A"
         },
@@ -984,7 +996,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "(sum(system_memory_usage{exported_job=~\"$vm\",state!=\"free\"}) by (exported_job) / sum(system_memory_usage{exported_job=~\"$vm\"}) by (exported_job)) * 100",
+          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state!=\"free\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
           "legendFormat": "{{exported_job}} - Total Used (Including Cache)",
           "refId": "B"
         }
@@ -1079,7 +1091,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "system_memory_usage{exported_job=~\"$vm\",state=\"used\"}",
+          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}",
           "legendFormat": "{{exported_job}} - Used",
           "refId": "A"
         },
@@ -1087,7 +1099,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "system_memory_usage{exported_job=~\"$vm\",state=\"buffered\"}",
+          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"buffered\"}",
           "legendFormat": "{{exported_job}} - Buffers",
           "refId": "B"
         },
@@ -1095,7 +1107,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "system_memory_usage{exported_job=~\"$vm\",state=\"cached\"}",
+          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"cached\"}",
           "legendFormat": "{{exported_job}} - Cached",
           "refId": "C"
         },
@@ -1103,7 +1115,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "system_memory_usage{exported_job=~\"$vm\",state=\"free\"}",
+          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"free\"}",
           "legendFormat": "{{exported_job}} - Free",
           "refId": "D"
         }
@@ -1175,7 +1187,9 @@
         "namePlacement": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -1189,7 +1203,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "(sum by(exported_job, device, mountpoint) (system_filesystem_usage{exported_job=~\"$vm\",state=\"used\",type!~\"tmpfs|squashfs\"}) / sum by(exported_job, device, mountpoint) (system_filesystem_usage{exported_job=~\"$vm\",state=~\"used|free\",type!~\"tmpfs|squashfs\"})) * 100",
+          "expr": "(sum by(exported_job, device, mountpoint) (system_filesystem_usage_bytes{exported_job=~\"$vm\",state=\"used\",type!~\"tmpfs|squashfs\"}) / sum by(exported_job, device, mountpoint) (system_filesystem_usage_bytes{exported_job=~\"$vm\",state=~\"used|free\",type!~\"tmpfs|squashfs\"})) * 100",
           "instant": true,
           "legendFormat": "{{exported_job}} - {{mountpoint}}",
           "refId": "A"
@@ -1284,7 +1298,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_disk_io{exported_job=~\"$vm\",direction=\"read\",device!~\"loop.*\"}[5m])",
+          "expr": "rate(system_disk_io_bytes_total{exported_job=~\"$vm\",direction=\"read\",device!~\"loop.*\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - Read",
           "refId": "A"
         },
@@ -1292,7 +1306,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "-rate(system_disk_io{exported_job=~\"$vm\",direction=\"write\",device!~\"loop.*\"}[5m])",
+          "expr": "-rate(system_disk_io_bytes_total{exported_job=~\"$vm\",direction=\"write\",device!~\"loop.*\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - Write",
           "refId": "B"
         }
@@ -1399,7 +1413,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_network_io{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
+          "expr": "rate(system_network_io_bytes_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - RX",
           "refId": "A"
         },
@@ -1407,7 +1421,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "-rate(system_network_io{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
+          "expr": "-rate(system_network_io_bytes_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - TX",
           "refId": "B"
         }
@@ -1501,7 +1515,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_network_packets{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
+          "expr": "rate(system_network_packets_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - RX",
           "refId": "A"
         },
@@ -1509,7 +1523,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "-rate(system_network_packets{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
+          "expr": "-rate(system_network_packets_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - TX",
           "refId": "B"
         }
@@ -1840,7 +1854,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "system_paging_usage{exported_job=~\"$vm\",state=\"used\"}",
+          "expr": "system_paging_usage_bytes{exported_job=~\"$vm\",state=\"used\"}",
           "legendFormat": "{{exported_job}} - {{device}} - Used",
           "refId": "A"
         },
@@ -1848,7 +1862,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "system_paging_usage{exported_job=~\"$vm\",state=\"free\"}",
+          "expr": "system_paging_usage_bytes{exported_job=~\"$vm\",state=\"free\"}",
           "legendFormat": "{{exported_job}} - {{device}} - Free",
           "refId": "B"
         }
@@ -1939,7 +1953,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_paging_operations{exported_job=~\"$vm\",direction=\"page_in\"}[5m])",
+          "expr": "rate(system_paging_operations_total{exported_job=~\"$vm\",direction=\"page_in\"}[5m])",
           "legendFormat": "{{exported_job}} - Page In",
           "refId": "A"
         },
@@ -1947,7 +1961,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "-rate(system_paging_operations{exported_job=~\"$vm\",direction=\"page_out\"}[5m])",
+          "expr": "-rate(system_paging_operations_total{exported_job=~\"$vm\",direction=\"page_out\"}[5m])",
           "legendFormat": "{{exported_job}} - Page Out",
           "refId": "B"
         },
@@ -1955,7 +1969,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_paging_faults{exported_job=~\"$vm\",type=\"minor\"}[5m])",
+          "expr": "rate(system_paging_faults_total{exported_job=~\"$vm\",type=\"minor\"}[5m])",
           "legendFormat": "{{exported_job}} - Minor Faults",
           "refId": "C"
         },
@@ -1963,7 +1977,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_paging_faults{exported_job=~\"$vm\",type=\"major\"}[5m])",
+          "expr": "rate(system_paging_faults_total{exported_job=~\"$vm\",type=\"major\"}[5m])",
           "legendFormat": "{{exported_job}} - Major Faults",
           "refId": "D"
         }
@@ -2067,7 +2081,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_disk_operations{exported_job=~\"$vm\",direction=\"read\",device!~\"loop.*\"}[5m])",
+          "expr": "rate(system_disk_operations_total{exported_job=~\"$vm\",direction=\"read\",device!~\"loop.*\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - Read",
           "refId": "A"
         },
@@ -2075,7 +2089,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "-rate(system_disk_operations{exported_job=~\"$vm\",direction=\"write\",device!~\"loop.*\"}[5m])",
+          "expr": "-rate(system_disk_operations_total{exported_job=~\"$vm\",direction=\"write\",device!~\"loop.*\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - Write",
           "refId": "B"
         }
@@ -2174,7 +2188,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_disk_io_time{exported_job=~\"$vm\",device!~\"loop.*\"}[5m]) * 1000",
+          "expr": "rate(system_disk_io_time_seconds_total{exported_job=~\"$vm\",device!~\"loop.*\"}[5m]) * 1000",
           "legendFormat": "{{exported_job}} - {{device}}",
           "refId": "A"
         }
@@ -2468,7 +2482,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_network_dropped{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
+          "expr": "rate(system_network_dropped_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - RX Dropped",
           "refId": "A"
         },
@@ -2476,7 +2490,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "-rate(system_network_dropped{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
+          "expr": "-rate(system_network_dropped_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - TX Dropped",
           "refId": "B"
         },
@@ -2484,7 +2498,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "rate(system_network_errors{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
+          "expr": "rate(system_network_errors_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - RX Errors",
           "refId": "C"
         },
@@ -2492,7 +2506,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "-rate(system_network_errors{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
+          "expr": "-rate(system_network_errors_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
           "legendFormat": "{{exported_job}} - {{device}} - TX Errors",
           "refId": "D"
         }
@@ -2634,97 +2648,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 78
-      },
-      "id": 35,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "11.5.2",
-      "targets": [
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "rate(system_processes_created{exported_job=~\"$vm\"}[5m])",
-          "legendFormat": "{{exported_job}} - Process Creation Rate",
-          "refId": "A"
-        }
-      ],
-      "title": "Process Creation Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
           "custom": {
             "align": "center",
             "cellOptions": {
@@ -2811,7 +2734,9 @@
           "countRows": false,
           "enablePagination": false,
           "fields": "",
-          "reducer": ["sum"],
+          "reducer": [
+            "sum"
+          ],
           "show": false
         },
         "showHeader": true
@@ -2822,7 +2747,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk(10, rate(process_cpu_time{exported_job=~\"$vm\"}[5m]) * 100) by (process_executable_name)",
+          "expr": "topk(10, rate(process_cpu_time_seconds_total{exported_job=~\"$vm\"}[5m]) * 100) by (process_executable_name)",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -2832,7 +2757,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk(10, process_memory_usage{exported_job=~\"$vm\"}) by (process_executable_name)",
+          "expr": "topk(10, process_memory_usage_bytes{exported_job=~\"$vm\"}) by (process_executable_name)",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -2998,7 +2923,9 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": ["sum"],
+          "reducer": [
+            "sum"
+          ],
           "show": false
         },
         "showHeader": true,
@@ -3015,7 +2942,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "avg by (container_name, container_image_name, container_id, service_name, exported_job) (container_cpu_percent{service_name=~\"$vm\"} or container_cpu_percent{exported_job=~\"$vm\"} or container_cpu_utilization{exported_job=~\"$vm\"}*100)",
+          "expr": "avg by (container_name, container_image_name, container_id, service_name, exported_job) (container_cpu_percent_ratio{service_name=~\"$vm\"} or container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}*100)",
           "format": "table",
           "instant": true,
           "legendFormat": "CPU %",
@@ -3025,7 +2952,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "avg by (container_name, container_image_name, service_name, exported_job) (container_memory_percent{service_name=~\"$vm\"} or container_memory_percent{exported_job=~\"$vm\"})",
+          "expr": "avg by (container_name, container_image_name, service_name, exported_job) (container_memory_percent_ratio{service_name=~\"$vm\"} or container_memory_percent_ratio{exported_job=~\"$vm\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "Memory %",
@@ -3035,7 +2962,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "avg by (container_name, container_image_name, service_name, exported_job) (container_memory_usage_total{service_name=~\"$vm\"} or container_memory_usage_total{exported_job=~\"$vm\"})",
+          "expr": "avg by (container_name, container_image_name, service_name, exported_job) (container_memory_usage_total_bytes{service_name=~\"$vm\"} or container_memory_usage_total_bytes{exported_job=~\"$vm\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "Memory Usage",
@@ -3064,7 +2991,11 @@
           }
         }
       ],
-      "type": "table"
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3157,13 +3088,17 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "container_cpu_percent{exported_job=~\"$vm\"} or container_cpu_utilization{exported_job=~\"$vm\"}*100",
+          "expr": "container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}*100",
           "legendFormat": "{{container_name}}",
           "refId": "A"
         }
       ],
       "title": "Container CPU Usage",
-      "type": "timeseries"
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3236,7 +3171,10 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [10, 10],
+                  "dash": [
+                    10,
+                    10
+                  ],
                   "fill": "dash"
                 }
               },
@@ -3275,13 +3213,17 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "container_memory_usage_total{exported_job=~\"$vm\"}",
+          "expr": "container_memory_usage_total_bytes{exported_job=~\"$vm\"}",
           "legendFormat": "{{container_name}}",
           "refId": "A"
         }
       ],
       "title": "Container Memory Usage",
-      "type": "timeseries"
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3368,7 +3310,10 @@
       "id": 41,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -3401,7 +3346,11 @@
         }
       ],
       "title": "Container Network I/O",
-      "type": "timeseries"
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3488,7 +3437,10 @@
       "id": 42,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -3521,7 +3473,11 @@
         }
       ],
       "title": "Container Block I/O",
-      "type": "timeseries"
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3563,7 +3519,9 @@
         "orientation": "horizontal",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3578,13 +3536,17 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "count(count by (container_name) (container_cpu_percent{exported_job=~\"$vm\"} or container_cpu_utilization{exported_job=~\"$vm\"}))",
+          "expr": "count(count by (container_name) (container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}))",
           "legendFormat": "Running Containers",
           "refId": "A"
         }
       ],
       "title": "Container Running Count",
-      "type": "stat"
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3626,7 +3588,9 @@
         "orientation": "horizontal",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3640,13 +3604,17 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "count(count by (container_name) (container_cpu_percent{exported_job=~\"$vm\"} or container_cpu_utilization{exported_job=~\"$vm\"}))",
+          "expr": "count(count by (container_name) (container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}))",
           "instant": true,
           "refId": "A"
         }
       ],
       "title": "Container Count",
-      "type": "stat"
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3690,7 +3658,9 @@
         "orientation": "horizontal",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3704,13 +3674,17 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "avg(container_cpu_percent{exported_job=~\"$vm\"} or container_cpu_utilization{exported_job=~\"$vm\"}*100)",
+          "expr": "avg(container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}*100)",
           "instant": true,
           "refId": "A"
         }
       ],
       "title": "Avg Container CPU",
-      "type": "stat"
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3752,7 +3726,9 @@
         "orientation": "horizontal",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3766,13 +3742,17 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(container_memory_usage_total{exported_job=~\"$vm\"})",
+          "expr": "sum(container_memory_usage_total_bytes{exported_job=~\"$vm\"})",
           "instant": true,
           "refId": "A"
         }
       ],
       "title": "Total Container Memory",
-      "type": "stat"
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3821,7 +3801,9 @@
         "orientation": "horizontal",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -3843,7 +3825,11 @@
         }
       ],
       "title": "Total Network I/O",
-      "type": "stat"
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
       "fieldConfig": {
@@ -3917,7 +3903,10 @@
       "id": 48,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -3935,16 +3924,20 @@
             "type": "prometheus",
             "uid": "$datasource"
           },
-          "expr": "container_memory_percent{exported_job=~\"$vm\"}",
+          "expr": "container_memory_percent_ratio{exported_job=~\"$vm\"}",
           "legendFormat": "{{container_name}}",
           "refId": "A"
         }
       ],
       "title": "Container Memory Usage %",
-      "type": "timeseries"
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      }
     },
     {
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -3954,7 +3947,8 @@
       "id": 49,
       "panels": [],
       "title": "GPU Metrics (NVIDIA)",
-      "type": "row"
+      "type": "row",
+      "description": "VM GPU metrics (nvidia_smi_*) are not collected on this fleet. GPU monitoring is available via DCGM_FI_* metrics in Kubernetes only."
     },
     {
       "datasource": {
@@ -3995,7 +3989,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4069,7 +4065,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4140,7 +4138,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4211,7 +4211,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4282,7 +4284,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4353,7 +4357,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4519,7 +4525,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4584,7 +4592,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4662,7 +4672,9 @@
         "namePlacement": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4800,7 +4812,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4871,7 +4885,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -4942,7 +4958,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -5013,7 +5031,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["last"],
+          "calcs": [
+            "last"
+          ],
           "fields": "",
           "values": false
         },
@@ -5966,7 +5986,7 @@
         "datasource": {
           "uid": "$datasource"
         },
-        "definition": "label_values(system_cpu_time, exported_job)",
+        "definition": "label_values(system_cpu_time_seconds_total, exported_job)",
         "description": "Select VM(s) to monitor",
         "includeAll": true,
         "label": "VM",
@@ -5974,7 +5994,7 @@
         "name": "vm",
         "options": [],
         "query": {
-          "query": "label_values(system_cpu_time, exported_job)",
+          "query": "label_values(system_cpu_time_seconds_total, exported_job)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
@@ -5992,6 +6012,6 @@
   "timezone": "browser",
   "title": "Virtual Machines",
   "uid": "vm-monitoring-main",
-  "version": 43,
+  "version": 45,
   "weekStart": ""
 }

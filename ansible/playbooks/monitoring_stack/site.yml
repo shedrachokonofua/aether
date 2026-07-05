@@ -12,14 +12,17 @@
     - vm_monitoring_agent
   tasks:
     # === Directory Setup ===
-    - name: Create prometheus directory
+    - name: Create prometheus directories
       become: true
       file:
-        path: ./prometheus/data
+        path: "{{ item }}"
         state: directory
         mode: "0777"
         owner: aether
         group: aether
+      loop:
+        - ./prometheus/data
+        - ./prometheus/rules
       tags: [prometheus]
 
     - name: Create loki directory
@@ -118,11 +121,18 @@
       tags: [clickhouse]
 
     # === Configuration Files ===
-    - name: Copy prometheus config
-      copy:
-        src: ./prometheus.yml
+    - name: Template prometheus config
+      template:
+        src: ./prometheus.yml.j2
         dest: ./prometheus/prometheus.yml
         mode: "0755"
+      tags: [prometheus]
+
+    - name: Copy prometheus rules
+      copy:
+        src: ./prometheus-rules/
+        dest: ./prometheus/rules/
+        mode: "0644"
       tags: [prometheus]
 
     - name: Copy blackbox-exporter config
@@ -194,8 +204,18 @@
 
     - name: Copy grafana alerting provisioning
       copy:
-        src: ./grafana/provisioning/alerting/
-        dest: ./grafana/provisioning/alerting/
+        src: "./grafana/provisioning/alerting/{{ item }}"
+        dest: "./grafana/provisioning/alerting/{{ item }}"
+        mode: "0644"
+      loop:
+        - rules.yml
+        - notification-policies.yml
+      tags: [grafana]
+
+    - name: Template grafana contact points
+      template:
+        src: ./grafana/provisioning/alerting/contact-points.yml.j2
+        dest: ./grafana/provisioning/alerting/contact-points.yml
         mode: "0644"
       tags: [grafana]
 
@@ -299,12 +319,18 @@
         volumes:
           - prometheus_storage.volume:/prometheus
           - /home/aether/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+          - /home/aether/prometheus/rules:/etc/prometheus/rules:Z
         command:
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
           - "--web.console.libraries=/etc/prometheus/console_libraries"
           - "--web.console.templates=/etc/prometheus/consoles"
           - "--web.enable-lifecycle"
+        env:
+          # GOGC=200: verified ~0.15 core less GC CPU (16% vs ~20% VM). Costs ~2GB RSS (prom ~4.8GB);
+          # box has 7GB+ free so it's a good RAM-for-CPU trade on this power-optimized stack.
+          GOGC: "200"
+          GOMEMLIMIT: "5GiB" # soft cap: runtime tightens GC (not OOM) if heap spikes on WAL-replay/compaction/heavy query
         state: quadlet
       tags: [prometheus]
 
@@ -355,6 +381,9 @@
         pull: always
         volumes:
           - /home/aether/otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
+        env:
+          GOGC: "200" # ~0.15 core less GC CPU for ~+2GB RSS; box has ample free RAM.
+          GOMEMLIMIT: "3GiB" # Go-runtime safety net above otel's memory_limiter (2GiB) processor
         state: quadlet
       tags: [otel]
 
@@ -409,6 +438,12 @@
         state: quadlet
         volumes:
           - /home/aether/pve-exporter/pve.yml:/etc/prometheus/pve.yml:Z
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [pve-exporter]
 
     - name: Start PBS exporter

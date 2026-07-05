@@ -44,6 +44,12 @@
         name: fleet_redis_storage
         state: quadlet
 
+
+    - name: Remove stale Fleet MySQL recovery container before startup
+      containers.podman.podman_container:
+        name: fleet_mysql_recovery
+        state: absent
+        force_delete: true
     # === Containers ===
     - name: Start Fleet MySQL
       containers.podman.podman_container:
@@ -106,13 +112,116 @@
         state: restarted
         scope: user
 
-    - name: Wait for MySQL to be ready
+    - name: Wait for MySQL socket to be ready
       shell: |
-        podman exec fleet_mysql mysqladmin ping -h 127.0.0.1 -u fleet -p'{{ secrets.fleet.mysql_password }}' --silent
+        podman exec fleet_mysql mysqladmin ping -h 127.0.0.1 --silent
       register: mysql_ready
       until: mysql_ready.rc == 0
       retries: 30
       delay: 2
+
+    - name: Check Fleet MySQL root credentials
+      shell: |
+        podman exec -e MYSQL_PWD={{ secrets.fleet.mysql_root_password | quote }} fleet_mysql \
+          mysql -h 127.0.0.1 -u root --protocol=tcp -NBe 'SELECT 1'
+      register: fleet_mysql_root_auth
+      failed_when: false
+      changed_when: false
+      no_log: true
+
+    - name: Recover Fleet MySQL root credentials from declared secrets
+      when: fleet_mysql_root_auth.rc != 0
+      block:
+        - name: Stop Fleet pod for MySQL credential recovery
+          systemd:
+            name: fleet-pod
+            state: stopped
+            scope: user
+
+        - name: Remove stale Fleet MySQL recovery container
+          containers.podman.podman_container:
+            name: fleet_mysql_recovery
+            state: absent
+            force_delete: true
+
+        - name: Start Fleet MySQL recovery container
+          containers.podman.podman_container:
+            name: fleet_mysql_recovery
+            image: docker.io/mysql:8.0
+            pull: always
+            state: started
+            detach: true
+            volumes:
+              - fleet_mysql_storage:/var/lib/mysql:Z
+            command:
+              - "--skip-grant-tables"
+              - "--default-authentication-plugin=mysql_native_password"
+              - "--sql-mode="
+
+        - name: Wait for Fleet MySQL recovery socket
+          shell: |
+            podman exec fleet_mysql_recovery mysqladmin --protocol=socket -S /var/run/mysqld/mysqld.sock ping --silent
+          register: fleet_mysql_recovery_ready
+          until: fleet_mysql_recovery_ready.rc == 0
+          retries: 30
+          delay: 2
+
+        - name: Reset Fleet MySQL root credentials
+          shell: |
+            podman exec fleet_mysql_recovery mysql -u root --protocol=socket -S /var/run/mysqld/mysqld.sock -e {{ (
+              "FLUSH PRIVILEGES; "
+              ~ "CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY " ~ (secrets.fleet.mysql_root_password | to_json) ~ "; "
+              ~ "CREATE USER IF NOT EXISTS 'root'@'localhost' IDENTIFIED BY " ~ (secrets.fleet.mysql_root_password | to_json) ~ "; "
+              ~ "ALTER USER 'root'@'%' IDENTIFIED BY " ~ (secrets.fleet.mysql_root_password | to_json) ~ "; "
+              ~ "ALTER USER 'root'@'localhost' IDENTIFIED BY " ~ (secrets.fleet.mysql_root_password | to_json) ~ "; "
+              ~ "CREATE DATABASE IF NOT EXISTS fleet; "
+              ~ "CREATE USER IF NOT EXISTS 'fleet'@'%' IDENTIFIED BY " ~ (secrets.fleet.mysql_password | to_json) ~ "; "
+              ~ "ALTER USER 'fleet'@'%' IDENTIFIED BY " ~ (secrets.fleet.mysql_password | to_json) ~ "; "
+              ~ "GRANT ALL PRIVILEGES ON fleet.* TO 'fleet'@'%'; "
+              ~ "FLUSH PRIVILEGES;"
+            ) | quote }}
+          no_log: true
+
+        - name: Remove Fleet MySQL recovery container
+          containers.podman.podman_container:
+            name: fleet_mysql_recovery
+            state: absent
+            force_delete: true
+
+        - name: Restart Fleet pod after MySQL credential recovery
+          systemd:
+            name: fleet-pod
+            state: restarted
+            scope: user
+
+        - name: Wait for MySQL socket after credential recovery
+          shell: |
+            podman exec fleet_mysql mysqladmin ping -h 127.0.0.1 --silent
+          register: mysql_recovered_ready
+          until: mysql_recovered_ready.rc == 0
+          retries: 30
+          delay: 2
+    - name: Reconcile Fleet MySQL credentials
+      shell: |
+        podman exec -e MYSQL_PWD={{ secrets.fleet.mysql_root_password | quote }} fleet_mysql \
+          mysql -h 127.0.0.1 -u root --protocol=tcp -e {{ (
+            "CREATE DATABASE IF NOT EXISTS fleet; "
+            ~ "CREATE USER IF NOT EXISTS 'fleet'@'%' IDENTIFIED BY " ~ (secrets.fleet.mysql_password | to_json) ~ "; "
+            ~ "ALTER USER 'fleet'@'%' IDENTIFIED BY " ~ (secrets.fleet.mysql_password | to_json) ~ "; "
+            ~ "GRANT ALL PRIVILEGES ON fleet.* TO 'fleet'@'%'; "
+            ~ "FLUSH PRIVILEGES;"
+          ) | quote }}
+      no_log: true
+
+    - name: Wait for Fleet MySQL credentials to work
+      shell: |
+        podman exec -e MYSQL_PWD={{ secrets.fleet.mysql_password | quote }} fleet_mysql \
+          mysql -h 127.0.0.1 -u fleet --protocol=tcp -NBe 'SELECT 1'
+      register: mysql_auth_ready
+      until: mysql_auth_ready.rc == 0
+      retries: 15
+      delay: 2
+      no_log: true
 
     - name: Initialize Fleet database (idempotent)
       containers.podman.podman_container:
@@ -136,6 +245,50 @@
         state: restarted
         scope: user
       when: fleet_db_init is changed
+
+    # Fleet encrypts MDM config assets (e.g. the auto-generated SCEP challenge)
+    # with FLEET_SERVER_PRIVATE_KEY. If that key was rotated while assets
+    # encrypted under the old key remain in the DB, startup fails with
+    # "decrypting mdm config asset ...: cipher: message authentication failed"
+    # and the server crash-loops. No Apple/Windows MDM is enrolled in this lab
+    # (this playbook configures osquery only), so clearing the stale assets is
+    # safe: Fleet regenerates them under the current key on next boot.
+    - name: Probe Fleet health before MDM asset recovery
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/healthz"
+        method: GET
+        status_code: [200]
+      register: fleet_health_precheck
+      until: fleet_health_precheck.status == 200
+      retries: 6
+      delay: 5
+      failed_when: false
+      tags: [fleet-init]
+
+    - name: Recover Fleet from rotated server private key
+      when: fleet_health_precheck.status != 200
+      tags: [fleet-init]
+      block:
+        - name: Capture Fleet server logs
+          command: podman logs --tail 40 fleet
+          register: fleet_recovery_logs
+          changed_when: false
+          failed_when: false
+
+        - name: Clear stale Fleet MDM config assets under old private key
+          when: "'message authentication failed' in (fleet_recovery_logs.stdout | default('') ~ fleet_recovery_logs.stderr | default(''))"
+          shell: |
+            podman exec -e MYSQL_PWD={{ secrets.fleet.mysql_password | quote }} fleet_mysql \
+              mysql -h 127.0.0.1 -u fleet --protocol=tcp fleet -e 'DELETE FROM mdm_config_assets'
+          no_log: true
+          register: fleet_mdm_assets_cleared
+
+        - name: Restart Fleet server after MDM asset recovery
+          systemd:
+            name: fleet
+            state: restarted
+            scope: user
+          when: fleet_mdm_assets_cleared is changed
 
     # === Fleet Initialization ===
     - name: Wait for Fleet to be ready
@@ -179,5 +332,196 @@
       when: fleet_setup.status == 422
       tags: [fleet-init]
 
-    # Note: Enroll secret and SAML SSO should be configured manually via the Fleet UI
-    # at https://fleet.home.shdr.ch after initial setup
+    # === Fleet Configuration as Code ===
+    - name: Login to Fleet API
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/fleet/login"
+        method: POST
+        body_format: json
+        return_content: true
+        body:
+          email: "{{ secrets.fleet.admin_email }}"
+          password: "{{ secrets.fleet.admin_password }}"
+        status_code: 200
+      register: fleet_login
+      no_log: true
+      tags: [fleet-config]
+
+    - name: Configure Fleet global enroll secret
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/fleet/spec/enroll_secret"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ fleet_login.json.token }}"
+        body_format: json
+        body:
+          spec:
+            secrets:
+              - secret: "{{ secrets.fleet.enroll_secret }}"
+        status_code: 200
+      no_log: true
+      tags: [fleet-config]
+
+    - name: Configure Fleet agent file integrity options
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/fleet/config"
+        method: PATCH
+        headers:
+          Authorization: "Bearer {{ fleet_login.json.token }}"
+        body_format: json
+        body:
+          agent_options:
+            config:
+              options:
+                disable_events: false
+                enable_file_events: true
+              file_paths:
+                etc:
+                  - "/etc/%%"
+                ssh:
+                  - "/root/.ssh/%%"
+                  - "/home/%/.ssh/%%"
+                localbin:
+                  - "/usr/local/bin/%%"
+        status_code: 200
+      no_log: true
+      tags: [fleet-config]
+
+    - name: Configure Fleet starter policies
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/fleet/spec/policies"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ fleet_login.json.token }}"
+        body_format: json
+        body:
+          specs:
+            - name: ssh-permit-root-login-disabled
+              description: "SSH root password login is not explicitly enabled"
+              query: "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM augeas WHERE node LIKE '/files/etc/ssh/sshd_config%' AND label = 'PermitRootLogin' AND value = 'yes');"
+              platform: linux
+              critical: false
+            - name: no-world-readable-ssh-private-keys
+              description: "SSH private keys are not world-readable"
+              query: "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM file WHERE (path LIKE '/home/%/.ssh/id_%' OR path LIKE '/root/.ssh/id_%') AND path NOT LIKE '%.pub' AND mode NOT IN ('0600','0400'));"
+              platform: linux
+              critical: false
+            - name: osquery-fim-active
+              description: "osquery file integrity monitoring is active"
+              query: "SELECT 1 FROM osquery_events WHERE name = 'file_events' AND active = 1;"
+              platform: linux
+              critical: false
+        status_code: 200
+      tags: [fleet-config]
+
+    - name: Configure Fleet scheduled baseline queries
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/fleet/spec/queries"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ fleet_login.json.token }}"
+        body_format: json
+        body:
+          specs:
+            - name: lab-baseline-listening-ports
+              description: "Hourly listening socket inventory"
+              query: "SELECT * FROM listening_ports;"
+              platform: linux
+              interval: 3600
+              logging: snapshot
+              observer_can_run: false
+            - name: lab-baseline-users
+              description: "Daily local user inventory"
+              query: "SELECT * FROM users;"
+              platform: linux
+              interval: 86400
+              logging: snapshot
+              observer_can_run: false
+            - name: lab-baseline-rpm-packages
+              description: "Daily RPM package inventory"
+              query: "SELECT * FROM rpm_packages;"
+              platform: linux
+              interval: 86400
+              logging: snapshot
+              observer_can_run: false
+            - name: lab-baseline-deb-packages
+              description: "Daily Debian package inventory"
+              query: "SELECT * FROM deb_packages;"
+              platform: linux
+              interval: 86400
+              logging: snapshot
+              observer_can_run: false
+            - name: lab-baseline-crontab
+              description: "Daily cron inventory"
+              query: "SELECT * FROM crontab;"
+              platform: linux
+              interval: 86400
+              logging: snapshot
+              observer_can_run: false
+            - name: lab-baseline-authorized-keys
+              description: "Daily SSH authorized key inventory"
+              query: "SELECT * FROM authorized_keys;"
+              platform: linux
+              interval: 86400
+              logging: snapshot
+              observer_can_run: false
+            - name: lab-baseline-file-events
+              description: "Differential file integrity events"
+              query: "SELECT * FROM file_events;"
+              platform: linux
+              interval: 300
+              logging: differential
+              observer_can_run: false
+        status_code: 200
+      tags: [fleet-config]
+
+    - name: List Fleet global policies
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/fleet/global/policies"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ fleet_login.json.token }}"
+        return_content: true
+        status_code: 200
+      register: fleet_global_policies
+      tags: [fleet-config]
+
+    - name: Initialize Fleet managed policy id list
+      set_fact:
+        fleet_managed_policy_names:
+          - ssh-permit-root-login-disabled
+          - no-world-readable-ssh-private-keys
+          - osquery-fim-active
+        fleet_policy_ids: []
+      tags: [fleet-config]
+
+    - name: Collect Fleet managed policy ids
+      set_fact:
+        fleet_policy_ids: "{{ fleet_policy_ids + [item.id] }}"
+      loop: "{{ fleet_global_policies.json.policies }}"
+      when: item.name in fleet_managed_policy_names
+      tags: [fleet-config]
+
+    - name: Assert Fleet managed policies were created
+      assert:
+        that:
+          - fleet_policy_ids | length == fleet_managed_policy_names | length
+        fail_msg: "Expected Fleet managed policies {{ fleet_managed_policy_names }}, got IDs {{ fleet_policy_ids }} from {{ fleet_global_policies.json.policies | map(attribute='name') | list }}"
+      tags: [fleet-config]
+
+    - name: Configure Fleet failing policy webhook
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.fleet }}/api/v1/fleet/config"
+        method: PATCH
+        headers:
+          Authorization: "Bearer {{ fleet_login.json.token }}"
+        body_format: json
+        body:
+          webhook_settings:
+            failing_policies_webhook:
+              enable_failing_policies_webhook: true
+              destination_url: "http://{{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}/security"
+              policy_ids: "{{ fleet_policy_ids }}"
+              host_batch_size: 0
+        status_code: 200
+      tags: [fleet-config]

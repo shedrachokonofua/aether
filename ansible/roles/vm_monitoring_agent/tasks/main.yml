@@ -1,6 +1,7 @@
 ---
 # For VyOS systems using network_cli, we need to use SSH for system operations
 - name: Setup monitoring agent tasks
+  tags: [monitoring-agent]
   block:
     # Gather facts if not already gathered (needed for VyOS with network_cli)
     - name: Gather facts for system
@@ -24,6 +25,14 @@
         is_fedora_based: "{{ ansible_os_family == 'RedHat' or ansible_distribution in ['Fedora'] }}"
         is_rpm_ostree_based: "{{ rpm_ostree_check.stat.exists or ansible_distribution in ['Bazzite'] }}"
         has_podman: "{{ podman_check.stat.exists | default(false) }}"
+
+    - name: Install and configure osquery for Fleet
+      include_tasks: osquery.yml
+      when:
+        - osquery_enabled | default(true)
+        - not is_rpm_ostree_based
+        - ansible_distribution != 'VyOS'
+        - ansible_network_os | default('') != 'vyos'
 
     - name: Check if Docker is installed
       stat:

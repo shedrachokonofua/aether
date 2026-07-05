@@ -12,3 +12,10 @@
     state: restarted
     daemon_reload: yes
   become: true
+
+- name: restart osquery
+  systemd:
+    name: osqueryd
+    state: restarted
+    daemon_reload: yes
+  become: true

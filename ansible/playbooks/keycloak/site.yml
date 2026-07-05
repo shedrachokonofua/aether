@@ -15,6 +15,11 @@
     - role: vm_monitoring_agent
       vars:
         podman_metrics_enabled: false
+        file_log_patterns:
+          - "/var/log/*.log"
+          - "/var/log/keycloak/*.log"
+          - "/var/lib/docker/containers/*/*-json.log"
+          - "/run/containers/storage/overlay-containers/*/userdata/ctr.log"
 
 - name: Deploy Keycloak
   import_playbook: deploy_keycloak.yml

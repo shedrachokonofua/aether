@@ -1,6 +1,9 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 30s # was 15s; no dashboard/alert uses a sub-2m rate window (verified), so 30s is numerically identical -> halves ingest on proxmox/ceph/node/blackbox jobs. Per-job overrides remain (smart 60s).
   evaluation_interval: 15s
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
 
 scrape_configs:
   - job_name: "prometheus"
@@ -12,6 +15,8 @@ scrape_configs:
       - targets: ["otel_collector:8888"]
 
   - job_name: "otel-metrics"
+    scrape_interval: 30s # source pushes at 30s; 15s global double-scraped ~277k series (pure waste)
+    scrape_timeout: 25s # 277k-series exposition scrapes in ~6s; default 10s timeout flapped under load -> whole job (incl. monitoring-stack hostmetrics) dropped out. 25s (<30s interval) gives headroom.
     static_configs:
       - targets: ["otel_collector:8889"]
 
@@ -101,3 +106,29 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: localhost:9115
+
+{% if tf_outputs.synthetic_probe_targets.value | default([]) | length > 0 %}
+  # blackbox-exporter — HTTP availability probes for namespace-contract apps.
+  # Targets are rendered from tf_outputs.synthetic_probe_targets (tofu output).
+  - job_name: "blackbox-http-apps"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+{% for target in tf_outputs.synthetic_probe_targets.value | default([]) %}
+      - targets:
+          - "{{ target.url }}"
+        labels:
+          probe_namespace: "{{ target.namespace }}"
+          probe_exposure: "{{ target.exposure }}"
+          probe_criticality: "{{ target.criticality }}"
+          probe_hostname: "{{ target.hostname }}"
+{% endfor %}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: localhost:9115
+{% endif %}

@@ -1,5 +1,9 @@
 apiVersion: 1
 
+deleteDatasources:
+  - name: Loki
+    orgId: 1
+
 datasources:
   # === Org 1: Aether (full access) ===
   - name: Prometheus
@@ -12,6 +16,7 @@ datasources:
 
   - name: Loki
     type: loki
+    uid: loki
     access: proxy
     orgId: 1
     url: http://localhost:3100

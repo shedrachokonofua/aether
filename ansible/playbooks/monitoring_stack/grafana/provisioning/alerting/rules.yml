@@ -6,6 +6,43 @@ groups:
     folder: Alerts
     interval: 1m
     rules:
+
+      - uid: deadman-heartbeat
+        title: DeadMansSwitch
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: vector(1)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        labels: {}
+        annotations:
+          summary: "Heartbeat — if Kuma stops receiving this, home monitoring is down"
+
       # Host Alerts
       - uid: host-high-cpu
         title: Host High CPU
@@ -205,7 +242,7 @@ groups:
         data:
           - refId: A
             relativeTimeRange:
-              from: 3600
+              from: 300
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
@@ -671,7 +708,14 @@ groups:
               # an RS whose pods can't be created at all (e.g. admission
               # rejection) has status 0-0=0 and never fires on the old expr —
               # coder sat broken for 65d unalerted this way.
-              expr: max by(namespace, replicaset) (kube_replicaset_spec_replicas - kube_replicaset_status_ready_replicas)
+              expr: |
+                (
+                  max by(namespace, replicaset) (
+                    kube_replicaset_spec_replicas - kube_replicaset_status_ready_replicas
+                  ) > 0
+                )
+                * on(namespace) group_left(tier, owner, criticality)
+                  topk by (namespace) (1, aether:namespace_contract:info)
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -709,7 +753,14 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: sum by(namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason=~"CreateContainerConfigError|CreateContainerError|InvalidImageName|ErrImagePull|ImagePullBackOff"})
+              expr: |
+                (
+                  sum by(namespace, pod, reason) (
+                    kube_pod_container_status_waiting_reason{reason=~"CreateContainerConfigError|CreateContainerError|InvalidImageName|ErrImagePull|ImagePullBackOff"}
+                  )
+                )
+                * on(namespace) group_left(tier, owner, criticality)
+                  topk by (namespace) (1, aether:namespace_contract:info)
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -736,6 +787,181 @@ groups:
         annotations:
           summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is blocked during create/start"
           description: 'Pod start has been blocked for 15 minutes with reason {{ $labels.reason }}. Admission/PSA FailedCreate needs event metrics; this rule only covers Pods that were created and are stuck before running.'
+
+
+      - uid: k8s-pod-rejected-psa
+        title: Kubernetes Pod Rejected By PSA
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum by (k8s_namespace_name, aether_tier, aether_owner, aether_criticality) (
+                  count_over_time(
+                    {k8s_cluster_name="aether-k8s"}
+                      | event_domain="k8s"
+                      |= "FailedCreate"
+                      |= "violates PodSecurity"
+                    [15m]
+                  )
+                ) > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Pods in {{ $labels.k8s_namespace_name }} are being silently rejected by PSA"
+          description: "Kubernetes Events show FailedCreate PodSecurity admission rejections for this namespace"
+      - uid: k8s-namespace-unclassified
+        title: Kubernetes Namespace Unclassified
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: aether:namespace_contract:info{tier=~"|unclassified"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+          domain: governance
+        annotations:
+          summary: "Namespace {{ $labels.namespace }} has no contract labels — quarantine candidate"
+          description: "Namespace contract labels are missing or still unclassified"
+
+      - uid: k8s-metrics-pipeline-dead
+        title: Kubernetes Metrics Pipeline Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: absent(kube_namespace_labels{exported_job="kube-state-metrics"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Kubernetes metrics pipeline is blind"
+          description: "Prometheus cannot see kube-state-metrics namespace labels; ksm, otel-cluster, central OTel, or Prometheus scrape may be down"
+
+      - uid: k8s-cronjob-failing
+        title: Kubernetes CronJob Failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  (
+                    max by(namespace, job_name) (kube_job_status_failed) > 0
+                    and on(namespace, job_name)
+                    (time() - max by(namespace, job_name) (kube_job_status_start_time) < 6 * 3600)
+                  )
+                  * on(namespace, job_name) group_left(owner_name)
+                    max by(namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob"})
+                )
+                * on(namespace) group_left(tier, owner, criticality)
+                  topk by (namespace) (1, aether:namespace_contract:info)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "CronJob {{ $labels.namespace }}/{{ $labels.owner_name }} is failing"
+          description: "A recent Job owned by CronJob {{ $labels.namespace }}/{{ $labels.owner_name }} has failed for at least one hour"
 
       # Backup Alert
       - uid: backup-stale
@@ -788,27 +1014,31 @@ groups:
             model:
               expr: |
                 (
-                  max by(namespace, job_name, owner_name, reason) (
-                    (kube_job_status_failed{job_name=~"db-backup-.*", reason!=""} > 0)
-                    * on(namespace, job_name) group_left(owner_name)
-                      kube_job_owner{owner_kind="CronJob", owner_name=~"db-backup-.*"}
-                  )
-                )
-                unless on(namespace, job_name, owner_name)
-                (
-                  max by(namespace, job_name, owner_name) (
-                    kube_job_status_start_time{job_name=~"db-backup-.*"}
-                    * on(namespace, job_name) group_left(owner_name)
-                      kube_job_owner{owner_kind="CronJob", owner_name=~"db-backup-.*"}
-                  )
-                  < on(namespace, owner_name) group_left()
-                    max by(namespace, owner_name) (
-                      label_replace(
-                        kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"},
-                        "owner_name", "$1", "cronjob", "(.*)"
-                      )
+                  (
+                    max by(namespace, job_name, owner_name, reason) (
+                      (kube_job_status_failed{job_name=~"db-backup-.*", reason!=""} > 0)
+                      * on(namespace, job_name) group_left(owner_name)
+                        max by(namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob", owner_name=~"db-backup-.*"})
                     )
+                  )
+                  unless on(namespace, job_name, owner_name)
+                  (
+                    max by(namespace, job_name, owner_name) (
+                      kube_job_status_start_time{job_name=~"db-backup-.*"}
+                      * on(namespace, job_name) group_left(owner_name)
+                        max by(namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob", owner_name=~"db-backup-.*"})
+                    )
+                    < on(namespace, owner_name) group_left()
+                      max by(namespace, owner_name) (
+                        label_replace(
+                          kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"},
+                          "owner_name", "$1", "cronjob", "(.*)"
+                        )
+                      )
+                  )
                 )
+                * on(namespace) group_left(tier, owner, criticality)
+                  topk by (namespace) (1, aether:namespace_contract:info)
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -832,6 +1062,7 @@ groups:
         for: 5m
         labels:
           severity: critical
+          channel: page
         annotations:
           summary: "DB backup job failed in {{ $labels.namespace }}"
           description: "Job {{ $labels.job_name }} failed: {{ $labels.reason }}"
@@ -846,7 +1077,12 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: (time() - last_over_time(kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"}[2h])) / 3600
+              expr: |
+                (
+                  (time() - last_over_time(kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"}[2h])) / 3600
+                )
+                * on(namespace) group_left(tier, owner, criticality)
+                  topk by (namespace) (1, aether:namespace_contract:info)
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -870,6 +1106,7 @@ groups:
         for: 15m
         labels:
           severity: critical
+          channel: page
         annotations:
           summary: "Stale DB backup for {{ $labels.namespace }}/{{ $labels.cronjob }}"
           description: 'Last successful DB backup was {{ $values.B.Value | printf "%.0f" }} hours ago'
@@ -884,7 +1121,14 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: last_over_time(kube_cronjob_next_schedule_time{cronjob=~"db-backup-.*"}[2h]) unless on(namespace, cronjob) last_over_time(kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"}[2h])
+              expr: |
+                (
+                  last_over_time(kube_cronjob_next_schedule_time{cronjob=~"db-backup-.*"}[2h])
+                  unless on(namespace, cronjob)
+                  last_over_time(kube_cronjob_status_last_successful_time{cronjob=~"db-backup-.*"}[2h])
+                )
+                * on(namespace) group_left(tier, owner, criticality)
+                  topk by (namespace) (1, aether:namespace_contract:info)
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -908,9 +1152,776 @@ groups:
         for: 36h
         labels:
           severity: critical
+          channel: page
         annotations:
           summary: "DB backup has never succeeded for {{ $labels.namespace }}/{{ $labels.cronjob }}"
           description: "No successful DB backup has been observed for this CronJob"
+
+      - uid: cnpg-wal-archiving-failing
+        title: CNPG WAL Archiving Failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  sum by(namespace, cluster) (
+                    increase(cnpg_pg_stat_archiver_failed_count_total[30m])
+                  ) > 3
+                )
+                * on(namespace) group_left(backup)
+                  topk by (namespace) (1, aether:namespace_contract:info{backup=~"critical|standard"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "CNPG WAL archiving is failing for {{ $labels.namespace }}/{{ $labels.cluster }}"
+          description: "WAL archiving failures are increasing; point-in-time recovery may be at risk"
+
+      - uid: cnpg-backup-stale
+        title: CNPG Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  (time() - max by(namespace, cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)) > 26 * 3600
+                )
+                * on(namespace) group_left(backup)
+                  topk by (namespace) (1, aether:namespace_contract:info{backup=~"critical|standard"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "CNPG backup is stale for {{ $labels.namespace }}/{{ $labels.cluster }}"
+          description: "Last available Barman Cloud plugin backup is older than 26 hours"
+
+      - uid: cnpg-last-backup-failed
+        title: CNPG Last Backup Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  max by(namespace, cluster) (barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp)
+                  > max by(namespace, cluster) (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)
+                )
+                * on(namespace) group_left(backup)
+                  topk by (namespace) (1, aether:namespace_contract:info{backup=~"critical|standard"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Last CNPG backup failed for {{ $labels.namespace }}/{{ $labels.cluster }}"
+          description: "CNPG reports a failed backup newer than the last available backup"
+
+      # Security soak promotion: after 14 days with no unexplained hits,
+      # promote ids-suricata-severity1, wazuh-high-severity, and tetragon-escape-signal
+      # from warning/security-digest to critical/page in one reviewed commit.
+
+      - uid: ids-suricata-severity1
+        title: IDS Suricata Severity 1
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM suricata.alert
+                WHERE Timestamp >= now() - INTERVAL 15 MINUTE
+                  AND alert_severity = 1
+                  AND alert_signature_id NOT IN (0)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Suricata severity-1 IDS alert observed"
+          description: "ClickHouse saw one or more unsuppressed Suricata severity-1 alerts in the last 15 minutes"
+
+      - uid: ids-suricata-daily-review
+        title: IDS Suricata Daily Review
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM suricata.alert
+                WHERE Timestamp >= now() - INTERVAL 24 HOUR
+                  AND alert_severity IN (1, 2)
+                  AND alert_signature_id NOT IN (0)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Suricata severity 1/2 alerts need daily review"
+          description: "ClickHouse saw {{ $values.B.Value }} unsuppressed Suricata severity 1/2 alerts in the last 24 hours"
+
+      - uid: ids-zeek-notice
+        title: IDS Zeek Notice
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM zeek.notice
+                WHERE Timestamp >= now() - INTERVAL 1 HOUR
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Zeek notices require security review"
+          description: "ClickHouse saw {{ $values.B.Value }} Zeek notices in the last hour"
+
+      - uid: ids-suricata-pipeline-stalled
+        title: IDS Suricata Pipeline Stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ifNull(dateDiff('minute', max(Timestamp), now()), 999999) AS value
+                FROM suricata.flow
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [60]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Suricata ClickHouse pipeline is stale"
+          description: "No Suricata flow rows have landed in ClickHouse for more than 60 minutes"
+
+      - uid: ids-zeek-pipeline-stalled
+        title: IDS Zeek Pipeline Stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ifNull(dateDiff('minute', max(Timestamp), now()), 999999) AS value
+                FROM zeek.conn
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [60]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Zeek ClickHouse pipeline is stale"
+          description: "No Zeek conn rows have landed in ClickHouse for more than 60 minutes"
+
+      - uid: wazuh-high-severity
+        title: Wazuh High Severity
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                count_over_time(
+                  {service_name="intrusion-detection-stack"}
+                    | json
+                    | CONTAINER_NAME="wazuh"
+                    | line_format "{{.MESSAGE}}"
+                    | json
+                    | rule_level >= 12
+                  [15m]
+                ) > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Wazuh high-severity event observed"
+          description: "Wazuh emitted one or more rule level >= 12 events in the last 15 minutes"
+
+      - uid: tetragon-escape-signal
+        title: Tetragon Escape Signal
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                sum by (policy, namespace, pod) (
+                  increase(
+                    tetragon_policy_events_total{policy=~"tetragon-(host-runtime-socket|kernel-module-load|unprivileged-userns-create)", binary!="/app/mcp-time"}[15m]
+                  )
+                ) > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Tetragon escape-class policy {{ $labels.policy }} fired"
+          description: "Policy fired in {{ $labels.namespace }}/{{ $labels.pod }}"
+
+      - uid: tetragon-untrusted-activity
+        title: Tetragon Untrusted Activity
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 43200
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                sum by (policy, namespace) (
+                  increase(
+                    tetragon_policy_events_total{policy=~"tetragon-(sensitive-file-access|privilege-escalation|mount-namespace-ops)"}[12h]
+                  )
+                ) > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Tetragon untrusted-tier activity {{ $labels.policy }} observed"
+          description: "Policy fired in {{ $labels.namespace }} in the last 12 hours"
+
+      - uid: tetragon-pipeline-dead
+        title: Tetragon Pipeline Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: absent(tetragon_events_total)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tetragon metrics pipeline is dead"
+          description: "Prometheus has no tetragon_events_total samples"
+
+      - uid: trivy-scanner-dead
+        title: Trivy Scanner Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: absent_over_time(trivy_image_vulnerabilities[24h])
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Trivy vulnerability scanner metrics are absent"
+          description: "Prometheus has not seen trivy_image_vulnerabilities samples for 24 hours"
+
+      - uid: trivy-critical-vulns-exposed
+        title: Trivy Critical Vulns Exposed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  max by (namespace, image_repository) (
+                    trivy_image_vulnerabilities{severity="Critical"}
+                  ) > 0
+                )
+                * on(namespace) group_left(backup, exposure)
+                  topk by (namespace) (1, (aether:namespace_contract:info{backup="critical"} or aether:namespace_contract:info{exposure="public"}))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Critical image CVEs in {{ $labels.namespace }}/{{ $labels.image_repository }}"
+          description: "Trivy reports critical vulnerabilities in a backup-critical or public namespace"
+
+      - uid: keycloak-login-failure-burst
+        title: Keycloak Login Failure Burst
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                count_over_time(
+                  {service_name="keycloak"}
+                    | log_file_name="keycloak.log"
+                    |= "LOGIN_ERROR"
+                  [10m]
+                ) > 20
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Keycloak login failures exceed threshold"
+          description: "More than 20 LOGIN_ERROR events were logged by Keycloak in the last 10 minutes"
+
+      - uid: netpol-denials
+        title: Network Policy Denials
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: ((sum by (source_namespace) (rate(hubble_drop_total{reason="POLICY_DENIED", source_namespace!=""}[15m])) > 0.1) * on(source_namespace) group_left(tier, criticality, owner) topk by (source_namespace) (1, label_replace(aether:namespace_contract:info, "source_namespace", "$1", "namespace", "(.*)"))) or (sum(rate(hubble_drop_total{reason="POLICY_DENIED"}[15m])) > 0.1)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Network policy dropping {{ $labels.source_namespace }} traffic ({{ $labels.criticality }} criticality)"
+          description: "Cilium reports POLICY_DENIED drops >0.1/s sourced from namespace {{ $labels.source_namespace }} (tier={{ $labels.tier }}, owner={{ $labels.owner }}). Ingress-side denials populate destination_namespace instead; drill down via Hubble flows in Grafana."
+
+      - uid: fleet-server-errors
+        title: Fleet Server Errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                count_over_time(
+                  {service_name="monitoring-stack"}
+                    |= "\"CONTAINER_NAME\":\"fleet\""
+                    |~ "(?i)(level=error|error)"
+                  [30m]
+                ) > 10
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Fleet server is logging repeated errors"
+          description: "Fleet emitted more than 10 error-like log lines in the last 30 minutes on monitoring-stack"
 
       - uid: restic-metrics-exporter-down
         title: Restic Metrics Exporter Down
@@ -1298,10 +2309,91 @@ groups:
           summary: "GPU XID error on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
           description: "New XID event (code {{ $labels.err_code }}: {{ $labels.err_msg }}) — check talosctl dmesg / GPU health"
 
+
+      # HTTP synthetic probes — public apps page on sustained failure.
+      # Targets come from synthetic_probe_targets (blackbox-http-apps job).
+      - uid: probe-failed-public
+        title: Probe Failed Public
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: probe_success{job="blackbox-http-apps", probe_exposure="public"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Public app probe failed for {{ $labels.probe_hostname }}"
+          description: "blackbox http_2xx probe to {{ $labels.instance }} (namespace {{ $labels.probe_namespace }}) has been failing for 5 minutes"
+
+      - uid: probe-failed-internal
+        title: Probe Failed Internal
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: probe_success{job="blackbox-http-apps", probe_exposure="internal"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Internal app probe failed for {{ $labels.probe_hostname }}"
+          description: "blackbox http_2xx probe to {{ $labels.instance }} (namespace {{ $labels.probe_namespace }}) has been failing for 10 minutes"
+
       # TLS cert expiry — fires 14 days before a probed cert's NotAfter.
       # Targets are scraped by blackbox-exporter via the `tls_connect` module
       # (see ansible/playbooks/monitoring_stack/blackbox.yml + the
-      # `blackbox-tls` job in prometheus.yml). Lab learned this matters in
+      # `blackbox-tls` job in prometheus.yml.j2). Lab learned this matters in
       # the Apr 2026 OpenBao outage: server cert silently rolled past
       # NotAfter and every machine using openbao-agent stopped renewing.
       - uid: tls-cert-expiring-soon

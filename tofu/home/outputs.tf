@@ -151,3 +151,8 @@ output "hermes_k8s_dashboard_urls" {
   description = "Hermes Agent dashboard URLs running in Kubernetes"
   value       = module.kubernetes.hermes_dashboard_urls
 }
+
+output "synthetic_probe_targets" {
+  description = "HTTP synthetic probe targets from namespace contract hostnames (internal/public exposure only)"
+  value       = module.kubernetes.synthetic_probe_targets
+}

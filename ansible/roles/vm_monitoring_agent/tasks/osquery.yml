@@ -1,0 +1,158 @@
+---
+- name: Install osquery prerequisites (Debian-based)
+  apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: yes
+  become: true
+  when: is_debian_based
+
+- name: Install osquery prerequisites (Fedora-based)
+  dnf:
+    name:
+      - ca-certificates
+      - curl
+    state: present
+  become: true
+  when: is_fedora_based
+
+- name: Create apt keyring directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: is_debian_based
+
+- name: Add osquery apt key
+  get_url:
+    url: https://pkg.osquery.io/deb/pubkey.gpg
+    dest: /etc/apt/keyrings/osquery.asc
+    mode: "0644"
+  become: true
+  when: is_debian_based
+
+- name: Add osquery apt repository
+  deb822_repository:
+    name: osquery
+    types: deb
+    uris: https://pkg.osquery.io/deb
+    suites: deb
+    components: main
+    architectures: amd64
+    signed_by: /etc/apt/keyrings/osquery.asc
+  become: true
+  when: is_debian_based
+
+- name: Install osquery (Debian-based)
+  apt:
+    name: osquery
+    state: present
+    update_cache: yes
+  become: true
+  when: is_debian_based
+
+- name: Add osquery rpm GPG key
+  rpm_key:
+    key: https://pkg.osquery.io/rpm/GPG
+    state: present
+  become: true
+  when: is_fedora_based
+
+- name: Add osquery yum repository
+  yum_repository:
+    name: osquery-s3
+    description: osquery RPM repository
+    baseurl: https://s3.amazonaws.com/osquery-packages/rpm/$basearch/
+    gpgcheck: yes
+    gpgkey: https://pkg.osquery.io/rpm/GPG
+    enabled: yes
+  become: true
+  when: is_fedora_based
+
+- name: Install osquery (Fedora-based)
+  dnf:
+    name: osquery
+    state: present
+  become: true
+  when: is_fedora_based
+
+- name: Set osquery TLS CA bundle path
+  set_fact:
+    osquery_tls_server_certs: >-
+      {{
+        '/etc/pki/tls/certs/ca-bundle.crt'
+        if is_fedora_based
+        else '/etc/ssl/certs/ca-certificates.crt'
+      }}
+
+- name: Create osquery configuration directory
+  file:
+    path: /etc/osquery
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Load sops-decrypted Fleet enroll secret
+  # setup_vm_monitoring_agents.yml does not run the `common` role, so the
+  # ambient `secrets` var is not sops-decrypted (enroll_secret would be raw
+  # ENC[...] ciphertext). Decrypt it here explicitly, controller-side.
+  community.sops.load_vars:
+    file: "{{ aether_root }}/secrets/secrets.yml"
+    name: fleet_sops
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Write osquery Fleet enroll secret
+  copy:
+    content: "{{ fleet_sops.fleet.enroll_secret }}"
+    dest: /etc/osquery/enroll_secret
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  notify: restart osquery
+
+- name: Write osquery Fleet flags
+  copy:
+    dest: /etc/osquery/osquery.flags
+    owner: root
+    group: root
+    mode: "0644"
+    # Canonical flag set mirrors nix/modules/osquery-agent.nix.
+    content: |
+      --tls_hostname={{ osquery_fleet_hostname }}
+      --tls_server_certs={{ osquery_tls_server_certs }}
+      --enroll_secret_path=/etc/osquery/enroll_secret
+      --enroll_tls_endpoint=/api/osquery/enroll
+      --config_plugin=tls
+      --config_tls_endpoint=/api/osquery/config
+      --config_refresh=300
+      --logger_plugin=tls
+      --logger_tls_endpoint=/api/osquery/log
+      --logger_tls_period=60
+      --distributed_plugin=tls
+      --distributed_tls_read_endpoint=/api/osquery/distributed/read
+      --distributed_tls_write_endpoint=/api/osquery/distributed/write
+      --distributed_interval=60
+      --disable_events=false
+      --enable_file_events=true
+      --host_identifier=hostname
+  become: true
+  notify: restart osquery
+
+- name: Enable and start osqueryd
+  systemd:
+    name: osqueryd
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  become: true

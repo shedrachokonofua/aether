@@ -9,10 +9,8 @@
     <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
   </text_log>
 
-  <trace_log>
-    <symbolize>false</symbolize>
-    <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-  </trace_log>
+  <!-- CH-internal CPU profiling traces; only for deep-debugging ClickHouse itself. Disabled. -->
+  <trace_log remove="1"/>
 
   <part_log>
     <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
@@ -27,24 +25,20 @@
   </query_views_log>
 
   <metric_log>
+    <collect_interval_milliseconds>10000</collect_interval_milliseconds>
     <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
   </metric_log>
 
   <asynchronous_metric_log>
+    <collect_interval_milliseconds>10000</collect_interval_milliseconds>
     <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
   </asynchronous_metric_log>
 
-  <query_metric_log>
-    <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
-  </query_metric_log>
+  <query_metric_log remove="1"/>
 
-  <background_schedule_pool_log>
-    <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
-  </background_schedule_pool_log>
+  <background_schedule_pool_log remove="1"/>
 
-  <processors_profile_log>
-    <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
-  </processors_profile_log>
+  <processors_profile_log remove="1"/>
 
   <asynchronous_insert_log>
     <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>

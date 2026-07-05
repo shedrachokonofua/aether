@@ -35,3 +35,9 @@ monitors:
     url: "https://seven30.xyz"
     type: "http"
     interval: 60
+
+
+  - name: "aether-monitoring-heartbeat"
+    type: "push"
+    interval: 600
+    push_token: "{{ secrets.uptime_kuma_deadman_push_token }}"

@@ -10,6 +10,9 @@ urls:
   - "ntfy://{{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}/system":
       tag: system
 
+  - "ntfy://{{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}/security":
+      tag: security-feed
+
   - "matrixs://{{ secrets.matrix.aether_bot_user }}:{{ secrets.matrix.aether_bot_password }}@matrix.home.shdr.ch/#alerts":
       tag: chat
 
@@ -21,3 +24,4 @@ groups:
   - standard: alerts, chat
   - quiet: chat
   - push: alerts
+  - security: security-feed, chat

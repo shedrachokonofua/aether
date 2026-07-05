@@ -30,6 +30,9 @@ log=console,file
 log-file={{ keycloak_log_dir }}/keycloak.log
 log-level=INFO
 
+# Emit failed-login security events to keycloak.log for Loki alerting.
+spi-events-listener-jboss-logging-error-level=warn
+
 # Cache
 cache=local
 

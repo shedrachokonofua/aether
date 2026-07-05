@@ -1,4 +1,17 @@
 modules:
+  # HTTP edge-chain probe for namespace-contract hostnames. Redirects and auth
+  # challenges count as reachable: this checks DNS → Caddy/gateway → app edge,
+  # while TLS validity still feeds probe_ssl_earliest_cert_expiry.
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: [200, 201, 202, 203, 204, 301, 302, 303, 307, 308, 401, 403]
+      follow_redirects: false
+      fail_if_ssl: false
+      fail_if_not_ssl: true
+      preferred_ip_protocol: ip4
+
   # TLS handshake against host:port. Surfaces probe_ssl_earliest_cert_expiry
   # (unix timestamp), which is the metric the cert-expiry alert rule reads.
   tls_connect:

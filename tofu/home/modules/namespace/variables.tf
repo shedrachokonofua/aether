@@ -59,6 +59,11 @@ variable "arch" {
 variable "criticality" {
   type    = string
   default = null
+
+  validation {
+    condition     = var.criticality == null || contains(["high", "normal", "low"], var.criticality)
+    error_message = "Criticality must be one of high, normal, low."
+  }
 }
 
 variable "ns_lifecycle" {

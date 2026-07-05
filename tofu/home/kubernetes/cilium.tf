@@ -38,7 +38,7 @@ resource "helm_release" "cilium" {
       metrics = {
         enableOpenMetrics = true
         enabled = [
-          "drop",
+          "drop:sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity;labelsContext=source_namespace,destination_namespace",
           "tcp",
           "flow",
           "port-distribution",

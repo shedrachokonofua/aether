@@ -1,0 +1,15 @@
+groups:
+  - name: namespace-contract
+    interval: 30s
+    rules:
+      - record: aether:namespace_contract:info
+        expr: |
+          max by (namespace, tier, owner, backup, criticality, exposure) (
+            label_replace(label_replace(label_replace(label_replace(label_replace(
+              kube_namespace_labels{exported_job="kube-state-metrics"},
+              "tier", "$1", "label_aether_shdr_ch_tier", "(.*)"),
+              "owner", "$1", "label_aether_shdr_ch_owner", "(.*)"),
+              "backup", "$1", "label_aether_shdr_ch_backup", "(.*)"),
+              "criticality", "$1", "label_aether_shdr_ch_criticality", "(.*)"),
+              "exposure", "$1", "label_aether_shdr_ch_exposure", "(.*)")
+          )
