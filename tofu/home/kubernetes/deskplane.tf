@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-5cd7980c"
+  deskplane_chart_version  = "0.1.0-2c382aa4"
   deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -113,125 +113,6 @@ resource "helm_release" "deskplane" {
       storageClassName = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
     }
 
-    catalog = {
-      images = [
-        {
-          name        = "chrome"
-          displayName = "Chrome"
-          image       = "kasmweb/chrome:1.17.0"
-          runtime = {
-            type          = "kasmvnc"
-            port          = 6901
-            scheme        = "https"
-            passwordEnv   = "VNC_PW"
-            skipTLSVerify = true
-          }
-          persistence = {
-            defaultMountPath = "/home/kasm-user"
-          }
-          environment = {
-            KASM_SVC_AUDIO   = "1"
-            KASM_SVC_UPLOADS = "1"
-          }
-        },
-        {
-          name        = "firefox"
-          displayName = "Firefox"
-          image       = "kasmweb/firefox:1.17.0"
-          runtime = {
-            type          = "kasmvnc"
-            port          = 6901
-            scheme        = "https"
-            passwordEnv   = "VNC_PW"
-            skipTLSVerify = true
-          }
-          persistence = {
-            defaultMountPath = "/home/kasm-user"
-          }
-          environment = {
-            KASM_SVC_AUDIO   = "1"
-            KASM_SVC_UPLOADS = "1"
-          }
-        },
-        {
-          name        = "brave"
-          displayName = "Brave"
-          image       = "kasmweb/brave:1.17.0"
-          runtime = {
-            type          = "kasmvnc"
-            port          = 6901
-            scheme        = "https"
-            passwordEnv   = "VNC_PW"
-            skipTLSVerify = true
-          }
-          persistence = {
-            defaultMountPath = "/home/kasm-user"
-          }
-          environment = {
-            KASM_SVC_AUDIO   = "1"
-            KASM_SVC_UPLOADS = "1"
-          }
-        },
-        {
-          name        = "kali"
-          displayName = "Kali Linux"
-          image       = "kasmweb/core-kali-rolling:1.17.0"
-          runtime = {
-            type          = "kasmvnc"
-            port          = 6901
-            scheme        = "https"
-            passwordEnv   = "VNC_PW"
-            skipTLSVerify = true
-          }
-          persistence = {
-            defaultMountPath = "/home/kasm-user"
-          }
-          environment = {
-            KASM_SVC_AUDIO   = "1"
-            KASM_SVC_UPLOADS = "1"
-          }
-        },
-        {
-          name        = "tor"
-          displayName = "Tor Browser"
-          image       = "kasmweb/tor-browser:1.17.0"
-          runtime = {
-            type          = "kasmvnc"
-            port          = 6901
-            scheme        = "https"
-            passwordEnv   = "VNC_PW"
-            skipTLSVerify = true
-          }
-          persistence = {
-            defaultMountPath = "/home/kasm-user"
-          }
-          environment = {
-            KASM_SVC_AUDIO   = "1"
-            KASM_SVC_UPLOADS = "1"
-          }
-        },
-        {
-          name        = "terminal"
-          displayName = "Terminal"
-          image       = "kasmweb/desktop:1.17.0"
-          runtime = {
-            type          = "kasmvnc"
-            port          = 6901
-            scheme        = "https"
-            passwordEnv   = "VNC_PW"
-            skipTLSVerify = true
-          }
-          persistence = {
-            defaultMountPath = "/home/kasm-user"
-          }
-          environment = {
-            KASM_SVC_AUDIO   = "1"
-            KASM_SVC_UPLOADS = "1"
-          }
-        },
-      ]
-    }
-
     profiles = [
       {
         name = "default"
@@ -273,4 +154,72 @@ resource "helm_release" "deskplane" {
       }
     ]
   })]
+}
+
+# =============================================================================
+# KVM device plugin — foundation for KVM-backed sessions (e.g. Windows XP+)
+# =============================================================================
+# generic-device-plugin advertises /dev/kvm and /dev/net/tun as schedulable
+# extended resources (devic.es/kvm, devic.es/net-tun) so VM-backed session pods
+# can request hardware virtualization WITHOUT privileged or hostPath /dev in the
+# session pod. The plugin itself must run privileged to register with the kubelet
+# device-plugin socket, so it lives in kube-system (no PSA enforce) rather than
+# the baseline-enforced deskplane namespace. Scoped to the amd64 session node.
+resource "kubectl_manifest" "deskplane_kvm_device_plugin" {
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: generic-device-plugin
+      namespace: kube-system
+      labels:
+        app.kubernetes.io/name: generic-device-plugin
+        app.kubernetes.io/managed-by: OpenTofu
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: generic-device-plugin
+      updateStrategy:
+        type: RollingUpdate
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: generic-device-plugin
+        spec:
+          priorityClassName: system-node-critical
+          nodeSelector:
+            kubernetes.io/hostname: talos-smith
+          containers:
+            - name: generic-device-plugin
+              image: ghcr.io/squat/generic-device-plugin@sha256:dc192e164c69b03f156765793a1be62ca437709ae477b27ca7d8f3dcf5021576
+              args:
+                - --device
+                - '{"name":"kvm","groups":[{"paths":[{"path":"/dev/kvm"}]}]}'
+                - --device
+                - '{"name":"net-tun","groups":[{"paths":[{"path":"/dev/net/tun"}]}]}'
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 10Mi
+                limits:
+                  cpu: 50m
+                  memory: 20Mi
+              ports:
+                - containerPort: 8080
+                  name: http
+              securityContext:
+                privileged: true
+              volumeMounts:
+                - name: device-plugin
+                  mountPath: /var/lib/kubelet/device-plugins
+                - name: dev
+                  mountPath: /dev
+          volumes:
+            - name: device-plugin
+              hostPath:
+                path: /var/lib/kubelet/device-plugins
+            - name: dev
+              hostPath:
+                path: /dev
+  YAML
 }
