@@ -40,6 +40,7 @@ resource "kubectl_manifest" "affine_cnpg_cluster" {
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
@@ -420,6 +421,7 @@ resource "kubectl_manifest" "nextcloud_cnpg_cluster" {
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class

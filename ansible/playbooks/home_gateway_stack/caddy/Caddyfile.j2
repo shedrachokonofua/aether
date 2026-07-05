@@ -17,7 +17,12 @@
 }
 
 home.shdr.ch {
-  redir https://grafana.home.shdr.ch/d/home/home 302
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 caddy.home.shdr.ch {
@@ -66,6 +71,33 @@ office-switch.home.shdr.ch {
 
 dns.home.shdr.ch {
   reverse_proxy {{ vm.adguard.ip }}:{{ vm.adguard.ports.admin }}
+}
+
+seaweed.home.shdr.ch {
+  reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.filer }} {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+s3.seaweed.home.shdr.ch {
+  reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.s3 }} {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+master.seaweed.home.shdr.ch {
+  reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.master }} {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 ap.home.shdr.ch {
