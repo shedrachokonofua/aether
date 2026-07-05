@@ -175,6 +175,7 @@ Alerts route through Apprise to ntfy for push notifications.
 | Kubernetes ReplicaSet Not Ready | warning  | Desired replicas exceed ready replicas for 15m |
 | GPU High Temperature   | warning  | >85°C for 2m                     |
 | GPU High Memory        | warning  | >95% VRAM for 5m                 |
+| Smith Clocksource Regression | warning | talos-smith host system-CPU >30% for 15m — acpi_pm PIO-exit-storm tripwire (temporary; remove at next Talos bump) |
 
 ## Alert routing contract
 
