@@ -1,14 +1,12 @@
 # GitLab Agent for Kubernetes - CI Access Configuration
-# Jobs under the "so" group are forced through a fixed Kubernetes
-# impersonation identity. RBAC for that identity is declared in
-# tofu/home/kubernetes/gitlab_agent.tf; the agent service account only gets
-# the right to impersonate this identity, not direct cluster-admin.
+# NOTE: `access_as: impersonate` is a GitLab Premium feature; on CE the KAS
+# rejects it with "agentKey is not allowed". So CI jobs run as the agent
+# service account, and the scoped deployer ClusterRole is bound directly to
+# that service account in tofu/home/kubernetes/gitlab_agent.tf (same
+# permission set the impersonation identity would have had).
 
 ci_access:
   groups:
     - id: so
       access_as:
-        impersonate:
-          username: gitlab-ci:so
-          groups:
-            - gitlab-ci:so
+        agent: {}

@@ -97,6 +97,48 @@ resource "kubernetes_cluster_role_binding_v1" "gitlab_ci_deployer" {
     kind      = "Group"
     name      = local.gitlab_ci_impersonation_group
   }
+
+  # `access_as: impersonate` is Premium-only; on GitLab CE, CI jobs run as the
+  # agent service account, so the scoped deployer role binds to it directly.
+  subject {
+    kind      = "ServiceAccount"
+    name      = "gitlab-agent"
+    namespace = "gitlab-agent"
+  }
+}
+
+# agentk replicas use a coordination lease for leader election; the minimal
+# impersonator ClusterRole doesn't cover it, so grant it in-namespace only.
+resource "kubernetes_role_v1" "gitlab_agent_leader_election" {
+  metadata {
+    name      = "gitlab-agent-leader-election"
+    namespace = "gitlab-agent"
+  }
+
+  rule {
+    api_groups = ["coordination.k8s.io"]
+    resources  = ["leases"]
+    verbs      = ["get", "list", "watch", "create", "update", "patch", "delete"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "gitlab_agent_leader_election" {
+  metadata {
+    name      = "gitlab-agent-leader-election"
+    namespace = "gitlab-agent"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.gitlab_agent_leader_election.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "gitlab-agent"
+    namespace = "gitlab-agent"
+  }
 }
 
 resource "helm_release" "gitlab_agent" {
