@@ -17,3 +17,111 @@
 
     - name: Enable Proxmox Snippets
       command: pvesm set local --content images,rootdir,vztmpl,backup,iso,snippets
+
+    # ---------------------------------------------------------------
+    # KSM: disabled on smith only. smith's guests (talos-smith k8s node,
+    # etc.) have volatile memory KSM cannot dedup — it merges ~178 pages
+    # while ksmd burns ~0.5 core scanning millions of pages. niobe/trinity
+    # dedup ~480k pages effectively (ksmd idle), so KSM stays on there.
+    # ---------------------------------------------------------------
+    - name: Disable KSM tuner on smith (ineffective there, wastes CPU)
+      ansible.builtin.systemd:
+        name: ksmtuned
+        state: stopped
+        enabled: false
+      when: inventory_hostname == "smith"
+      tags: [ksm]
+
+    - name: Stop KSM scanning and unmerge pages on smith
+      ansible.builtin.shell: echo 2 > /sys/kernel/mm/ksm/run
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: inventory_hostname == "smith"
+      tags: [ksm]
+
+    # ---------------------------------------------------------------
+    # CPU governor: move OFF Proxmox's default 'performance' (which pins
+    # every core near max freq 24/7 — measured 16c @ ~4.1GHz on smith,
+    # base 2.2GHz) to the most power-efficient DYNAMIC governor each host
+    # supports. Fleet is heterogeneous:
+    #   acpi-cpufreq (smith)          -> schedutil
+    #   intel_pstate / amd-pstate-epp -> powersave gov + balance_performance EPP
+    #     (on pstate drivers 'powersave' IS the dynamic HWP mode; 'performance'
+    #      pins max clock). A boot-time oneshot applies it — no persistent sysfs.
+    # ---------------------------------------------------------------
+    - name: Remove legacy schedutil-only governor unit
+      ansible.builtin.systemd:
+        name: cpu-governor-schedutil.service
+        state: stopped
+        enabled: false
+      failed_when: false
+      tags: [cpufreq]
+
+    - name: Delete legacy governor unit file
+      ansible.builtin.file:
+        path: /etc/systemd/system/cpu-governor-schedutil.service
+        state: absent
+      tags: [cpufreq]
+
+    - name: Install power-efficient CPU governor script
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/aether-cpu-governor.sh
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          # Pick the most power-efficient dynamic governor each policy supports.
+          for p in /sys/devices/system/cpu/cpu*/cpufreq; do
+            [ -d "$p" ] || continue
+            avail=$(cat "$p/scaling_available_governors" 2>/dev/null)
+            case " $avail " in
+              *" schedutil "*)
+                echo schedutil > "$p/scaling_governor" 2>/dev/null ;;
+              *)
+                echo powersave > "$p/scaling_governor" 2>/dev/null
+                [ -w "$p/energy_performance_preference" ] && echo balance_performance > "$p/energy_performance_preference" 2>/dev/null ;;
+            esac
+          done
+          exit 0
+      tags: [cpufreq]
+
+    - name: Install power governor oneshot unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/cpu-power-governor.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Set power-efficient CPU governor (schedutil or powersave+EPP)
+          After=sysinit.target
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          ExecStart=/usr/local/sbin/aether-cpu-governor.sh
+
+          [Install]
+          WantedBy=multi-user.target
+      tags: [cpufreq]
+
+    - name: Enable and start power governor unit
+      ansible.builtin.systemd:
+        name: cpu-power-governor.service
+        daemon_reload: true
+        enabled: true
+        state: started
+      tags: [cpufreq]
+
+    # ---------------------------------------------------------------
+    # KVM halt-polling disabled on smith: vcpus spin up to 200us before
+    # halting on idle, burning CPU/power for a wakeup-latency optimization
+    # this power-focused host doesn't need. smith-only (other hosts may run
+    # latency-sensitive VMs). Runtime value set live via sysfs; modprobe.d
+    # persists it across reboots (applied on module load).
+    # ---------------------------------------------------------------
+    - name: Persist KVM halt_poll_ns=0 on smith
+      ansible.builtin.copy:
+        dest: /etc/modprobe.d/kvm-halt-poll.conf
+        mode: "0644"
+        content: "options kvm halt_poll_ns=0\n"
+      when: inventory_hostname == "smith"
+      tags: [kvm]

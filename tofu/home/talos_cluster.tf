@@ -401,6 +401,20 @@ resource "talos_machine_configuration_apply" "this" {
         )
       }),
     ],
+
+    # extraKernelArgs for nodes that declare them (data-driven via config/vm.yml).
+    # talos-smith pins `tsc=reliable`: as the busiest host its TSC watchdog
+    # false-trips on CPU-busy boots and demotes the invariant Zen2 TSC, falling
+    # to non-vDSO acpi_pm — every guest clock_gettime then becomes a port-0x608
+    # PIO vmexit (~300k/s, ~60% of KVM exits on smith). Strategic-merges into the
+    # base machine.install above; takes effect on `talosctl upgrade` (boot rewrite).
+    try(each.value.extra_kernel_args, null) != null ? [yamlencode({
+      machine = {
+        install = {
+          extraKernelArgs = each.value.extra_kernel_args
+        }
+      }
+    })] : [],
     # CI disk: partition and mount at /var/mnt/ci. Linux compacts virtio names
     # by enumeration order, so virtio3's guest device depends on the lower
     # numbered disks attached to the VM.
