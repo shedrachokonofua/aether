@@ -782,6 +782,11 @@ groups:
         noDataState: OK
         execErrState: Error
         for: 15m
+        # Series gaps during node churn (drain, metrics-pipeline restarts)
+        # were resetting the Pending clock via Normal(MissingSeries) — the
+        # 2026-07-07 wordpress outage sat not-ready 30m without firing this
+        # way. Tolerate 5 missed evals (5m at 1m interval) before resolving.
+        missingSeriesEvalsToResolve: 5
         labels:
           severity: critical
         annotations:
@@ -833,6 +838,101 @@ groups:
           summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is blocked during create/start"
           description: 'Pod start has been blocked for 15 minutes with reason {{ $labels.reason }}. Admission/PSA FailedCreate needs event metrics; this rule only covers Pods that were created and are stuck before running.'
 
+
+      # Slow-burn crashloops: step-issuer restarted 16x over 35h (2026-07-07)
+      # with zero signal, then turned a routine pod move into a mesh outage.
+      # 24h window catches both fast loops and slow rot; restart counters
+      # survive metric gaps (monotonic), unlike waiting_reason snapshots.
+      - uid: k8s-container-restart-loop
+        title: Kubernetes Container Restart Loop
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  sum by(namespace, pod, container) (
+                    increase(kube_pod_container_status_restarts_total[24h])
+                  ) >= 5
+                )
+                * on(namespace) group_left(tier, owner, criticality)
+                  topk by (namespace) (1, aether:namespace_contract:info)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} is restart-looping"
+          description: "{{ $values.B.Value | printf \"%.0f\" }} restarts in 24h. Slow crashloops rot silently until a reschedule turns them into an outage — check logs before that happens."
+
+      # Ambient mesh CA outage: ztunnel cannot mint workload identities, so
+      # every pod that (re)schedules in an ambient namespace comes up unable
+      # to talk mTLS. Exact minute-zero signal of the 2026-07-07 wordpress
+      # outage (istio-csr restart -> "identity error: signing gRPC error").
+      # Existing workloads keep cached certs, so this stays invisible until
+      # something moves — alert on the log signal, not the wreckage.
+      - uid: mesh-identity-signing-failure
+        title: Mesh Identity Signing Failure
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: sum(count_over_time({k8s_namespace_name="istio-system", k8s_container_name="istio-proxy"} |= `identity error` [10m]))
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [3]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ztunnel cannot obtain workload identities from the mesh CA"
+          description: "ztunnel logs show sustained identity-signing failures. New/rescheduled pods in ambient namespaces (infra, osemu) cannot establish mTLS. Check cert-manager-istio-csr and step-issuer in cert-manager namespace."
 
       - uid: k8s-pod-rejected-psa
         title: Kubernetes Pod Rejected By PSA
@@ -2406,7 +2506,7 @@ groups:
               to: 0
             datasourceUid: PBFA97CFB590B2093
             model:
-              expr: probe_success{job="blackbox-http-apps", probe_exposure="internal"}
+              expr: probe_success{job="blackbox-http-apps", probe_exposure=~"internal|tunnel"}
               refId: A
           - refId: B
             datasourceUid: __expr__

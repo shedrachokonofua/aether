@@ -1075,6 +1075,6 @@ locals {
         )
       } if length(regexall("^\\*\\.", hostname)) == 0 && !contains(local.synthetic_probe_excluded_hostnames, hostname)
     ]
-    if contains(["internal", "public"], spec.exposure)
+    if contains(["internal", "public", "tunnel"], spec.exposure)
   ]))
 }
