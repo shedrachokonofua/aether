@@ -404,6 +404,16 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
+                # Caddy admin API (:2019/metrics) on the home gateway VM.
+                # Exposes per-host HTTP request counters (caddy_http_response_duration_seconds_count, etc.)
+                # used for edge traffic attribution and S3 flood diagnosis.
+                job_name        = "caddy"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["${local.vm.home_gateway_stack.ip}:2019"]
+                }]
+              },
+              {
                 job_name        = "node-exporter"
                 scrape_interval = "30s"
                 kubernetes_sd_configs = [{
