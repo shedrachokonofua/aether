@@ -336,7 +336,7 @@ resource "kubernetes_deployment_v1" "karakeep" {
           }
 
           resources {
-            requests = { cpu = "100m", memory = "256Mi" }
+            requests = { cpu = "100m", memory = "1.5Gi" }
             limits   = { cpu = "2", memory = "2Gi" }
           }
 

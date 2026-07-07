@@ -391,8 +391,8 @@ resource "kubernetes_deployment_v1" "game_server" {
               # An 8-core request floors its CFS weight under contention; with
               # no CPU *limit* it still bursts higher when the node is idle, and
               # neighbors reclaim these cycles whenever nobody is streaming.
-              cpu              = "8"
-              memory           = "4Gi"
+              cpu              = "4"
+              memory           = "8Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {

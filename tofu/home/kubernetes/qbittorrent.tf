@@ -298,7 +298,7 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
 
           resources {
             requests = {
-              cpu    = "200m"
+              cpu    = "75m"
               memory = "2Gi"
             }
             limits = {

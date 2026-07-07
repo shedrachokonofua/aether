@@ -640,8 +640,8 @@ resource "kubernetes_deployment_v1" "hermes" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "1Gi"
+              cpu    = "25m"
+              memory = "512Mi"
             }
             limits = {
               cpu    = "2"
@@ -789,7 +789,7 @@ resource "kubernetes_deployment_v1" "hermes" {
 
           resources {
             requests = {
-              cpu    = "250m"
+              cpu    = "25m"
               memory = "512Mi"
             }
             limits = {

@@ -107,8 +107,8 @@ resource "kubernetes_deployment_v1" "jupyter" {
 
           resources {
             requests = {
-              cpu              = "1"
-              memory           = "2Gi"
+              cpu              = "50m"
+              memory           = "1Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {

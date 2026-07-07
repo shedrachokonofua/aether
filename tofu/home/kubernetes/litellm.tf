@@ -337,8 +337,8 @@ resource "kubernetes_deployment_v1" "litellm" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "1Gi"
+              cpu    = "250m"
+              memory = "2Gi"
             }
             limits = {
               cpu    = "4000m"
@@ -387,6 +387,17 @@ resource "kubernetes_deployment_v1" "litellm" {
               }
             }
           }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "256Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
         }
 
         container {
@@ -413,6 +424,17 @@ resource "kubernetes_deployment_v1" "litellm" {
             name  = "COINGECKO_ENVIRONMENT"
             value = "demo"
           }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "512Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "1Gi"
+            }
+          }
         }
 
         container {
@@ -423,6 +445,17 @@ resource "kubernetes_deployment_v1" "litellm" {
           port {
             container_port = local.litellm_time_mcp_port
             name           = "time-mcp"
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "64Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "256Mi"
+            }
           }
         }
 
@@ -446,6 +479,17 @@ resource "kubernetes_deployment_v1" "litellm" {
                   name = kubernetes_secret_v1.litellm_env.metadata[0].name
                   key  = "GOOGLE_MAPS_API_KEY"
                 }
+              }
+            }
+
+            resources {
+              requests = {
+                cpu    = "50m"
+                memory = "512Mi"
+              }
+              limits = {
+                cpu    = "500m"
+                memory = "1Gi"
               }
             }
           }

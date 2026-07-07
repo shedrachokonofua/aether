@@ -665,7 +665,7 @@ resource "helm_release" "mnemo" {
     }
 
     resources = {
-      requests = { cpu = "100m", memory = "256Mi" }
+      requests = { cpu = "100m", memory = "1Gi" }
       limits   = { cpu = "1000m", memory = "1Gi" }
     }
 

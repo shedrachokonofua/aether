@@ -131,7 +131,7 @@ resource "kubernetes_deployment_v1" "stremthru" {
 
           resources {
             requests = {
-              cpu    = "50m"
+              cpu    = "150m"
               memory = "512Mi"
             }
             limits = {

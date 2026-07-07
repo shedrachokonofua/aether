@@ -444,7 +444,7 @@ resource "kubernetes_deployment_v1" "dawarich" {
           }
 
           resources {
-            requests = { cpu = "200m", memory = "512Mi" }
+            requests = { cpu = "50m", memory = "512Mi" }
             limits   = { cpu = "2", memory = "4Gi" }
           }
 
@@ -536,7 +536,7 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
           }
 
           resources {
-            requests = { cpu = "100m", memory = "256Mi" }
+            requests = { cpu = "100m", memory = "512Mi" }
             limits   = { cpu = "1", memory = "2Gi" }
           }
         }

@@ -468,7 +468,7 @@ resource "kubernetes_deployment_v1" "matrix" {
           # 4 containers. Revisit after a week of soak.
 
           resources {
-            requests = { cpu = "200m", memory = "512Mi" }
+            requests = { cpu = "75m", memory = "512Mi" }
             limits   = { cpu = "2", memory = "2Gi" }
           }
         }

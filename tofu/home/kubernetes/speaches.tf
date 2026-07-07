@@ -114,8 +114,8 @@ resource "kubernetes_deployment_v1" "speaches" {
 
           resources {
             requests = {
-              cpu              = "1"
-              memory           = "2Gi"
+              cpu              = "50m"
+              memory           = "1.5Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {

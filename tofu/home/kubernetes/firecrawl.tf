@@ -331,8 +331,8 @@ resource "kubernetes_deployment_v1" "firecrawl" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "1Gi"
+              cpu    = "25m"
+              memory = "512Mi"
             }
             limits = {
               cpu    = "4000m"
@@ -488,8 +488,8 @@ resource "kubernetes_deployment_v1" "firecrawl" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "2Gi"
+              cpu    = "100m"
+              memory = "3Gi"
             }
             limits = {
               cpu    = "4000m"

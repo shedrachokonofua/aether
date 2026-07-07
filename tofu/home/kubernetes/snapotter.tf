@@ -354,7 +354,7 @@ resource "kubernetes_deployment_v1" "snapotter" {
           resources {
             requests = {
               cpu                 = "500m"
-              memory              = "4Gi"
+              memory              = "3.5Gi"
               "ephemeral-storage" = "2Gi"
               "nvidia.com/gpu"    = "1"
             }

@@ -105,7 +105,7 @@ resource "kubernetes_deployment_v1" "sonarr" {
 
           resources {
             requests = {
-              cpu    = "200m"
+              cpu    = "100m"
               memory = "512Mi"
             }
             limits = {

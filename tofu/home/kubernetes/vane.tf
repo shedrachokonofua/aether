@@ -256,7 +256,7 @@ resource "kubernetes_deployment_v1" "vane" {
           }
 
           resources {
-            requests = { cpu = "100m", memory = "512Mi" }
+            requests = { cpu = "100m", memory = "768Mi" }
             limits   = { cpu = "1", memory = "1Gi" }
           }
 

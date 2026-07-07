@@ -175,7 +175,7 @@ resource "kubernetes_deployment_v1" "open_design" {
           }
 
           resources {
-            requests = { cpu = "200m", memory = "256Mi" }
+            requests = { cpu = "25m", memory = "256Mi" }
             limits   = { cpu = "1000m", memory = "1024Mi" }
           }
 

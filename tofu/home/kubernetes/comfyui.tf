@@ -103,8 +103,8 @@ resource "kubernetes_deployment_v1" "comfyui" {
 
           resources {
             requests = {
-              cpu              = "2"
-              memory           = "8Gi"
+              cpu              = "250m"
+              memory           = "4Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {

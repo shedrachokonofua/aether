@@ -243,8 +243,8 @@ resource "kubernetes_deployment_v1" "onlyoffice" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "1Gi"
+              cpu    = "50m"
+              memory = "1.5Gi"
             }
             limits = {
               cpu    = "3"

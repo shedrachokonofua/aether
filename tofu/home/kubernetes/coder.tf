@@ -170,7 +170,7 @@ resource "helm_release" "coder" {
       }
 
       resources = {
-        requests = { cpu = "250m", memory = "256Mi" }
+        requests = { cpu = "50m", memory = "256Mi" }
         limits   = { cpu = "2000m", memory = "2Gi" }
       }
 

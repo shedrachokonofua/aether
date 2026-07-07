@@ -105,7 +105,7 @@ resource "kubernetes_deployment_v1" "radarr" {
 
           resources {
             requests = {
-              cpu    = "200m"
+              cpu    = "50m"
               memory = "512Mi"
             }
             limits = {

@@ -151,8 +151,8 @@ resource "kubernetes_deployment_v1" "docling" {
 
           resources {
             requests = {
-              cpu              = "1"
-              memory           = "2Gi"
+              cpu              = "250m"
+              memory           = "4Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {

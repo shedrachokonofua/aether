@@ -488,7 +488,7 @@ resource "kubernetes_deployment_v1" "temporal_server" {
           }
 
           resources {
-            requests = { cpu = "200m", memory = "512Mi" }
+            requests = { cpu = "100m", memory = "256Mi" }
             limits   = { cpu = "2000m", memory = "2Gi" }
           }
 

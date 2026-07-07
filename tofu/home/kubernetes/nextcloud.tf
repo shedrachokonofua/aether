@@ -754,8 +754,8 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "1.5Gi"
+              cpu    = "50m"
+              memory = "768Mi"
             }
             limits = {
               cpu    = "2"
@@ -1799,7 +1799,7 @@ resource "kubernetes_deployment_v1" "nextcloud_context_chat_backend" {
           resources {
             requests = {
               cpu    = "100m"
-              memory = "256Mi"
+              memory = "1.5Gi"
             }
             limits = {
               cpu    = "2"

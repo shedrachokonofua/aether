@@ -601,8 +601,8 @@ resource "kubernetes_deployment_v1" "immich_ml" {
 
           resources {
             requests = {
-              cpu              = "250m"
-              memory           = "4Gi"
+              cpu              = "50m"
+              memory           = "1Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {
@@ -789,8 +789,8 @@ resource "kubernetes_deployment_v1" "immich_server" {
 
           resources {
             requests = {
-              cpu    = "500m"
-              memory = "1Gi"
+              cpu    = "50m"
+              memory = "2Gi"
             }
             limits = {
               cpu    = "4"
