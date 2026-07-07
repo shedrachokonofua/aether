@@ -58,6 +58,7 @@ flowchart LR
         OAI[OpenAI]
         ANT[Anthropic]
         OR[OpenRouter]
+        ZAI[Z.AI]
     end
 
     subgraph MCP["MCP Tools"]
@@ -68,7 +69,7 @@ flowchart LR
 
     OWUI & API --> LLM
     LLM --> LS & RR
-    LLM --> OAI & ANT & OR
+    LLM --> OAI & ANT & OR & ZAI
     LLM --> TIME & FC & GMAPS
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0

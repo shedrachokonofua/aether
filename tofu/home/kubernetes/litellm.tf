@@ -59,6 +59,8 @@ resource "kubernetes_secret_v1" "litellm_env" {
       OLLAMA_API_KEY        = var.secrets["litellm.ollama_cloud_api_key"]
       CLINEPASS_API_KEY     = var.secrets["litellm.clinepass_api_key"]
       XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
+      ALIBABA_API_KEY       = var.secrets["litellm.alibaba_api_key"]
+      ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
       CURSOR_API_KEY        = var.secrets["composer.cursor_api_key"]
       FINVIZ_API_KEY        = var.secrets["finviz_api_key"]
       COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
@@ -269,6 +271,26 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "XIAOMI_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "ALIBABA_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "ALIBABA_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "ZAI_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "ZAI_API_KEY"
               }
             }
           }

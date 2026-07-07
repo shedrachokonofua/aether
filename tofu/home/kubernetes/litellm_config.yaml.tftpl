@@ -91,6 +91,34 @@ model_list:
       model: "openai/cline-pass/mimo-v2.5-pro"
       litellm_credential_name: clinepass_credential
 
+  # Alibaba models (https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1)
+  - model_name: "alibaba/deepseek-v4-pro"
+    litellm_params:
+      model: "openai/deepseek-v4-pro"
+      litellm_credential_name: alibaba_credential
+  - model_name: "alibaba/deepseek-v4-flash"
+    litellm_params:
+      model: "openai/deepseek-v4-flash"
+      litellm_credential_name: alibaba_credential
+  - model_name: "alibaba/kimi-k2.7-code"
+    litellm_params:
+      model: "openai/kimi-k2.7-code"
+      litellm_credential_name: alibaba_credential
+  - model_name: "alibaba/glm-5.2"
+    litellm_params:
+      model: "openai/glm-5.2"
+      litellm_credential_name: alibaba_credential
+  - model_name: "alibaba/qwen3.7-max"
+    litellm_params:
+      model: "openai/qwen3.7-max"
+      litellm_credential_name: alibaba_credential
+
+  # Z.AI models (native LiteLLM provider)
+  - model_name: "zai/glm-5.2"
+    litellm_params:
+      model: "zai/glm-5.2"
+      litellm_credential_name: zai_credential
+
   # Ollama Cloud models
   - model_name: "ollama-cloud/kimi-k2.6"
     litellm_params:
@@ -299,6 +327,18 @@ credential_list:
       api_key: os.environ/XIAOMI_API_KEY
     credential_info:
       description: "Xiaomi MiMo"
+  - credential_name: alibaba_credential
+    credential_values:
+      api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/ALIBABA_API_KEY
+    credential_info:
+      description: "Alibaba Model-as-a-Service"
+  - credential_name: zai_credential
+    credential_values:
+      api_base: https://api.z.ai/api/coding/paas/v4
+      api_key: os.environ/ZAI_API_KEY
+    credential_info:
+      description: "Z.AI"
   - credential_name: clinepass_credential
     credential_values:
       api_base: https://api.cline.bot/api/v1
