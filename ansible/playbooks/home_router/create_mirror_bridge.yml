@@ -4,9 +4,17 @@
 #
 # The vmbr_mirror bridge connects:
 #   - VyOS eth2 (mirror output)
-#   - IDS Stack eth1 (promiscuous capture)
+#   - IDS Stack ens19 (promiscuous capture)
 #
 # No other VMs should be attached to this bridge.
+#
+# CRITICAL: mirrored traffic carries foreign source MACs. If the bridge
+# learns them (default: port learning=on), every mirrored unicast frame's
+# dst MAC resolves to the port it arrived on and gets dropped — only
+# broadcast/multicast reaches the IDS. Ports are tap devices recreated on
+# every VM start, so learning must be re-disabled whenever a port attaches.
+# A udev rule + helper script handle that; the bridge-level ageing_time 0
+# flushes/never-ages the FDB.
 
 - name: Create IDS mirror bridge on Proxmox
   hosts: oracle
@@ -30,10 +38,9 @@
                   bridge-ports none
                   bridge-stp off
                   bridge-fd 0
-                  # Disable MAC learning - mirror traffic has foreign MACs
+                  # Never age the FDB; ports attach with learning disabled
+                  # (see vmbr-mirror-portfix udev rule)
                   post-up ip link set vmbr_mirror type bridge ageing_time 0
-                  post-up for i in /sys/class/net/vmbr_mirror/brif/*/learning; do echo 0 > $i; done 2>/dev/null || true
-                  post-up for i in /sys/class/net/vmbr_mirror/brif/*/flood; do echo 1 > $i; done 2>/dev/null || true
       register: bridge_config
 
     - name: Apply bridge config if changed
@@ -44,13 +51,77 @@
       command: ip link show vmbr_mirror
       changed_when: false
 
+    - name: Install mirror-port fix helper script
+      copy:
+        dest: /usr/local/sbin/vmbr-mirror-portfix
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          # Disable MAC learning on ports of vmbr_mirror so mirrored unicast
+          # (foreign MACs) is flooded to the IDS instead of dropped.
+          # Called by udev on tap attach, and directly for one-shot fixes.
+          # $1 (optional): specific port device; default: all current ports.
+          set -u
+          fix_port() {
+            local dev="$1"
+            # tap may not be enslaved yet when udev fires; wait up to 10s
+            for _ in $(seq 20); do
+              master=$(ip -o link show "$dev" 2>/dev/null | grep -o 'master [^ ]*' | cut -d' ' -f2)
+              [ -n "${master:-}" ] && break
+              sleep 0.5
+            done
+            [ "${master:-}" = "vmbr_mirror" ] || return 0
+            bridge link set dev "$dev" learning off
+            bridge link set dev "$dev" flood on mcast_flood on
+            bridge fdb flush dev "$dev" 2>/dev/null || true
+            logger -t vmbr-mirror-portfix "disabled learning on $dev (vmbr_mirror)"
+          }
+          ip link set vmbr_mirror type bridge ageing_time 0 2>/dev/null || true
+          if [ $# -ge 1 ]; then
+            fix_port "$1"
+          else
+            for p in /sys/class/net/vmbr_mirror/brif/*; do
+              [ -e "$p" ] || continue
+              fix_port "$(basename "$p")"
+            done
+            # Flush stale learned entries (permanent/self entries survive)
+            ip link set vmbr_mirror type bridge ageing_time 1 2>/dev/null || true
+            sleep 1
+            ip link set vmbr_mirror type bridge ageing_time 0 2>/dev/null || true
+          fi
+
+    - name: Install udev rule to fix ports as they attach
+      copy:
+        dest: /etc/udev/rules.d/99-vmbr-mirror-portfix.rules
+        mode: "0644"
+        content: |
+          # VM tap ports join vmbr_mirror with learning=on (kernel default);
+          # mirrored foreign-MAC traffic then poisons the FDB and unicast is
+          # dropped. Fix every tap as it appears; the script no-ops for taps
+          # that end up on other bridges.
+          SUBSYSTEM=="net", ACTION=="add", KERNEL=="tap*", RUN+="/bin/sh -c '/usr/local/sbin/vmbr-mirror-portfix %k &'"
+      register: udev_rule
+
+    - name: Reload udev rules
+      command: udevadm control --reload
+      when: udev_rule.changed
+
     - name: Apply mirror-friendly settings to existing bridge ports
+      command: /usr/local/sbin/vmbr-mirror-portfix
+      changed_when: false
+
+    - name: Verify port state
       shell: |
-        ip link set vmbr_mirror type bridge ageing_time 0
-        for i in /sys/class/net/vmbr_mirror/brif/*/learning; do echo 0 > $i; done 2>/dev/null || true
-        for i in /sys/class/net/vmbr_mirror/brif/*/flood; do echo 1 > $i; done 2>/dev/null || true
+        set -e
+        fail=0
+        for p in /sys/class/net/vmbr_mirror/brif/*/learning; do
+          [ "$(cat "$p")" = "0" ] || { echo "learning still on: $p"; fail=1; }
+        done
+        [ "$(cat /sys/class/net/vmbr_mirror/bridge/ageing_time)" = "0" ] || { echo "ageing_time not 0"; fail=1; }
+        exit $fail
+      register: port_verify
       changed_when: false
 
     - name: Display bridge status
       debug:
-        msg: "vmbr_mirror bridge is ready for IDS mirror traffic"
+        msg: "vmbr_mirror ready: learning off on all ports, ageing_time 0"

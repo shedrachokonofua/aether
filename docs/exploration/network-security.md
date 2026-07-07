@@ -92,6 +92,21 @@ set interfaces ethernet eth1 mirror-ingress eth2
 set interfaces ethernet eth1 mirror-egress eth2
 ```
 
+**Mirror delivery path (Proxmox `vmbr_mirror`):** VyOS eth2 and the IDS
+VM's ens19 are the only two ports on an isolated bridge (`vmbr_mirror`,
+created by `ansible/playbooks/home_router/create_mirror_bridge.yml`).
+Mirrored frames carry foreign source MACs, so the bridge MUST NOT learn
+them: with learning on, every mirrored unicast frame's dst MAC resolves
+to the port it arrived on and is dropped — Zeek then sees only
+broadcast/multicast (this exact failure shipped undetected until
+2026-07; fixed by disabling learning per port). Tap ports are recreated
+with kernel defaults (learning=on) on every VM start, so the playbook
+installs a udev rule (`99-vmbr-mirror-portfix.rules`) + helper
+(`/usr/local/sbin/vmbr-mirror-portfix`) on the Proxmox host that
+disables learning whenever a tap joins the bridge. Sanity check: `sudo
+tcpdump -i ens19 -nn 'vlan and tcp port 443'` on the IDS VM must show
+inter-VLAN unicast, not just ARP/broadcast.
+
 **What it detects:**
 
 - Port scans and reconnaissance
