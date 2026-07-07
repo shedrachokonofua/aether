@@ -10,8 +10,8 @@ locals {
   mnemo_host          = "mnemo.home.shdr.ch"
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-79f2f131"
-  mnemo_image_tag     = "79f2f131"
+  mnemo_chart_version = "0.1.0-885c065c"
+  mnemo_image_tag     = "885c065c"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
   mnemo_db_user       = "mnemo"
