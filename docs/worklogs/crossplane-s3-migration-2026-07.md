@@ -26,9 +26,29 @@ report the exact command + output, do not improvise.**
 - Repos: aether = `~/projects/aether`, seven30 infra = `~/projects/seven30/infra`.
 - ALL commands run inside the dev shell: `nix develop --command bash -c '<cmd>'`
   from the repo root. Tools do not exist on the bare host.
-- **No merge requests.** Commit directly to `main` and push. For seven30 tofu
-  changes, apply locally with `task tofu:apply` after pushing (supported path
-  per seven30 README).
+- **No merge requests.** Commit directly to `main` and push.
+- **seven30 applies go through CI**, never locally — every seven30 repo
+  (infra and projects) already has a GitLab pipeline for its IaC. After
+  pushing to main the pipeline runs validate + plan automatically; the
+  `apply` job is `when: manual`. Play it by job ID via the API (run from the
+  repo in question so `:id` resolves to that project):
+
+  ```bash
+  glab auth status                                     # must be logged in to gitlab.home.shdr.ch
+  PIPELINE=$(glab api 'projects/:id/pipelines?ref=main&per_page=1' | jq -r '.[0].id')
+  glab api "projects/:id/pipelines/$PIPELINE/jobs" \
+    | jq -r '.[] | "\(.id)\t\(.name)\t\(.status)"'     # wait until plan = success
+  JOB=$(glab api "projects/:id/pipelines/$PIPELINE/jobs" | jq -r '.[] | select(.name=="apply") | .id')
+  glab api -X POST "projects/:id/jobs/$JOB/play" >/dev/null
+  # poll until success/failed:
+  glab api "projects/:id/jobs/$JOB" | jq -r .status
+  # on failed: glab api "projects/:id/jobs/$JOB/trace" for the log, then STOP and report
+  ```
+
+  If `glab auth status` fails, STOP and ask the user to run `task login` in
+  the infra repo. Never run `task tofu:apply` locally for seven30.
+- aether tofu applies remain local (`task tofu:plan` / `task tofu:apply`) —
+  that is aether's normal workflow.
 - Never print secret values. Extract into shell vars, use, unset. If a command
   would echo a secret, redirect to /dev/null.
 - Auth: run `task login:status` first in each repo. If SSH/AWS/Bao entries are
@@ -62,7 +82,7 @@ Caps the flood while the migration lands.
    ```
 
 2. Commit to main (`fix(crossplane): cap aws provider reconcile rate at 1/s`),
-   push, then `task tofu:apply` from the infra repo root.
+   push, then trigger the CI apply job (see Global rules).
 
 3. **Gate**: within ~10 minutes RGW request rate must drop well below 126 req/s.
    From aether repo root:
@@ -377,7 +397,11 @@ Only start after Phase 3 gate = PASS.
       serves — `aws s3api head-bucket --bucket <name>` (provisioner creds)
       succeeds; the app using it still works.
 
-   e. Commit + push each repo directly to main. No MRs.
+   e. Commit + push each repo directly to main. No MRs. Apply via that
+      repo's own CI pipeline (play the manual `apply` job — see Global
+      rules; run glab from inside that repo). NOTE: the `tofu import` steps
+      in (c) run against remote state, so run them locally BEFORE pushing —
+      the CI apply then sees an already-converged plan.
 
    Special cases: `BucketWebsiteConfiguration` and `BucketPublicAccessBlock`
    MRs (if present in the vcluster) map to `aws_s3_bucket_website_configuration`
@@ -387,7 +411,7 @@ Only start after Phase 3 gate = PASS.
    delete the `provider-aws-s3` and `provider-aws-iam` Provider objects, the
    `aws-slow-poll` DeploymentRuntimeConfig, the `ceph-rgw` ProviderConfig(s),
    and the ESO ExternalSecret feeding `crossplane-ceph-rgw-creds`. Keep
-   everything Keycloak. `task tofu:apply`, commit, push.
+   everything Keycloak. Commit, push, trigger the CI apply job.
 
 4. **Gate**: `kubectl -n vc-seven30 get pods | grep provider-aws` → nothing
    (in host-cluster context: the vc-seven30 namespace loses those pods). RGW
