@@ -39,7 +39,7 @@ resource "kubectl_manifest" "affine_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
       affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
       storage = {
         size         = "10Gi"
@@ -270,7 +270,7 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
       resources = {
         claims   = []
         requests = { cpu = "250m", memory = "256Mi" }
@@ -420,7 +420,7 @@ resource "kubectl_manifest" "nextcloud_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
       affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
       storage = {
         size         = "20Gi"

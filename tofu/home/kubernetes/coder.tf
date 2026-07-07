@@ -91,7 +91,6 @@ resource "kubernetes_persistent_volume_claim_v1" "coder_postgres_data" {
 }
 
 
-
 resource "kubectl_manifest" "coder_cnpg_cluster" {
   depends_on = [
     helm_release.cnpg,
@@ -108,7 +107,7 @@ resource "kubectl_manifest" "coder_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.13"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
       affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
       storage = {
         size         = "20Gi"
