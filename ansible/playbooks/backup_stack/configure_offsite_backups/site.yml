@@ -898,6 +898,183 @@
           AWS_EC2_METADATA_DISABLED=true
       no_log: true
 
+    - name: Create SeaweedFS DB dump sync script
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/seaweed-db-dumps-sync
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/usr/bin/env python3
+          import concurrent.futures
+          import datetime
+          import hashlib
+          import hmac
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          ENDPOINT = "{{ seaweed_db_dump_endpoint }}"
+          BUCKET = "{{ seaweed_db_dump_bucket }}"
+          DEST = Path("{{ seaweed_db_dump_sync_dir }}") / BUCKET
+          AWS = "/usr/bin/aws"
+
+          def run(args, **kwargs):
+              return subprocess.run(
+                  args,
+                  check=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  text=True,
+                  **kwargs,
+              )
+
+          def collapse_repeated_prefix(key):
+              parts = key.split("/")
+              best = 0
+              for width in range(1, (len(parts) // 2) + 1):
+                  if parts[:width] == parts[width : width * 2]:
+                      best = width
+              if best:
+                  return "/".join(parts[best:])
+              return key
+
+          def list_objects():
+              proc = run([
+                  AWS,
+                  "--endpoint-url",
+                  ENDPOINT,
+                  "s3api",
+                  "list-objects-v2",
+                  "--bucket",
+                  BUCKET,
+                  "--output",
+                  "json",
+              ])
+              return json.loads(proc.stdout).get("Contents", [])
+          def signing_key(secret_key, datestamp):
+              key = ("AWS4" + secret_key).encode("utf-8")
+              for value in (datestamp, os.environ.get("AWS_DEFAULT_REGION", "us-east-1"), "s3", "aws4_request"):
+                  key = hmac.new(key, value.encode("utf-8"), hashlib.sha256).digest()
+              return key
+
+          def signed_get_url(key):
+              parsed = urllib.parse.urlparse(ENDPOINT)
+              host = parsed.netloc
+              now = datetime.datetime.utcnow()
+              amzdate = now.strftime("%Y%m%dT%H%M%SZ")
+              datestamp = now.strftime("%Y%m%d")
+              payload_hash = hashlib.sha256(b"").hexdigest()
+              canonical_uri = "/" + urllib.parse.quote(f"{BUCKET}/{key}", safe="/~")
+              canonical_headers = (
+                  f"host:{host}\n"
+                  f"x-amz-content-sha256:{payload_hash}\n"
+                  f"x-amz-date:{amzdate}\n"
+              )
+              signed_headers = "host;x-amz-content-sha256;x-amz-date"
+              canonical_request = "\n".join([
+                  "GET",
+                  canonical_uri,
+                  "",
+                  canonical_headers,
+                  signed_headers,
+                  payload_hash,
+              ])
+              region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+              credential_scope = f"{datestamp}/{region}/s3/aws4_request"
+              string_to_sign = "\n".join([
+                  "AWS4-HMAC-SHA256",
+                  amzdate,
+                  credential_scope,
+                  hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+              ])
+              signature = hmac.new(
+                  signing_key(os.environ["AWS_SECRET_ACCESS_KEY"], datestamp),
+                  string_to_sign.encode("utf-8"),
+                  hashlib.sha256,
+              ).hexdigest()
+              headers = {
+                  "Authorization": (
+                      "AWS4-HMAC-SHA256 "
+                      f"Credential={os.environ['AWS_ACCESS_KEY_ID']}/{credential_scope}, "
+                      f"SignedHeaders={signed_headers}, Signature={signature}"
+                  ),
+                  "x-amz-content-sha256": payload_hash,
+                  "x-amz-date": amzdate,
+              }
+              url = urllib.parse.urljoin(ENDPOINT.rstrip("/") + "/", canonical_uri.lstrip("/"))
+              return url, headers
+
+          def download(key, target):
+              tmp = target.with_name(f".{target.name}.tmp")
+              tmp.parent.mkdir(parents=True, exist_ok=True)
+              if tmp.exists():
+                  tmp.unlink()
+              url, headers = signed_get_url(key)
+              request = urllib.request.Request(url, headers=headers, method="GET")
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  with tmp.open("wb") as out:
+                      shutil.copyfileobj(response, out, length=1024 * 1024)
+              tmp.replace(target)
+
+          def main():
+              DEST.mkdir(parents=True, exist_ok=True)
+              expected = {}
+
+              for obj in list_objects():
+                  key = obj["Key"]
+                  if key.endswith("/"):
+                      continue
+                  normalized = collapse_repeated_prefix(key)
+                  if normalized in expected:
+                      continue
+                  expected[normalized] = int(obj.get("Size", 0))
+
+              downloads = []
+              for key, size in sorted(expected.items()):
+                  target = DEST / key
+                  if target.exists() and target.stat().st_size == size:
+                      continue
+                  downloads.append((key, target))
+
+              downloaded = 0
+              if downloads:
+                  with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                      future_to_key = {
+                          executor.submit(download, key, target): key
+                          for key, target in downloads
+                      }
+                      for future in concurrent.futures.as_completed(future_to_key):
+                          future.result()
+                          downloaded += 1
+
+              removed = 0
+              for path in sorted(DEST.rglob("*"), reverse=True):
+                  if path.is_dir():
+                      try:
+                          path.rmdir()
+                      except OSError:
+                          pass
+                      continue
+                  rel = path.relative_to(DEST).as_posix()
+                  if rel not in expected:
+                      path.unlink()
+                      removed += 1
+
+              print(f"synced {len(expected)} objects to {DEST}; downloaded={downloaded}; removed={removed}")
+
+          if __name__ == "__main__":
+              try:
+                  main()
+              except subprocess.CalledProcessError as exc:
+                  sys.stderr.write(exc.stderr)
+                  raise
+
     - name: Create SeaweedFS DB dump sync service
       ansible.builtin.copy:
         dest: /etc/systemd/system/seaweed-db-dumps-sync.service
@@ -913,7 +1090,7 @@
           [Service]
           Type=oneshot
           EnvironmentFile=/etc/seaweed-db-dumps-sync.env
-          ExecStart=/usr/bin/aws --endpoint-url {{ seaweed_db_dump_endpoint }} s3 sync s3://{{ seaweed_db_dump_bucket }} {{ seaweed_db_dump_sync_dir }}/{{ seaweed_db_dump_bucket }} --delete --no-progress
+          ExecStart=/usr/local/sbin/seaweed-db-dumps-sync
       notify: Reload systemd
 
     - name: Create SeaweedFS DB dump sync timer
