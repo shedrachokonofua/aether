@@ -400,6 +400,21 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "holmesgpt" = {
+      tier                    = "agent",
+      owner                   = "aether",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "HolmesGPT standalone incident forensics (read-only investigator)",
+      source_file             = "tofu/home/kubernetes/holmesgpt.tf",
+      egress                  = "allowlist",
+      registry_access         = "dockerhub",
+      extra_labels = {
+        "aether.shdr.ch/arch"                = "amd64"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "mnemo" = {
       tier                    = "app",
       owner                   = "aether",
