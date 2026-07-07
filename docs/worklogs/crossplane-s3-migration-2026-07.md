@@ -84,23 +84,19 @@ report the exact command + output, do not improvise.**
   state, resources named `spike-*` only, deleted at the end of the phase) is
   the ONLY permitted local apply/destroy touching seven30 — it is not part
   of any real stack or pipeline. Nothing else is exempt.
-- **Review every commit with codex before committing.** In the repo being
-  committed, after staging, run:
+- **Review every commit with codex before committing — staged diff only.**
+  In the repo being committed, after staging exactly the files you intend
+  to commit, run:
 
   ```bash
-  codex review --uncommitted
+  git diff --staged --no-ext-diff | codex exec "Review this staged diff before commit. Flag bugs, broken YAML/HCL, leaked secrets, and contradictions with the crossplane->tofu S3 migration runbook. End with verdict: CLEAN or FINDINGS."
   ```
 
-  NOTE: this codex version (0.142.5) rejects combining `--uncommitted` /
-  `--commit` with a custom prompt — run it bare. Custom instructions are
-  only possible via `codex exec "<prompt>" < file` (used for the tofu plan
-  reviews above).
-
-  SCOPE: `--uncommitted` reviews staged + unstaged + untracked — it will
-  sweep up unrelated dirty files from other work in the tree. The commit
-  gate applies only to findings on files you are actually committing;
-  findings on files outside your staged set do not block the commit, but
-  MUST be reported to the user verbatim.
+  This reviews only what will actually be committed. Do NOT use
+  `codex review --uncommitted` as the commit gate — in a dirty repo it
+  sweeps unrelated unstaged/untracked files. (Also, codex-cli 0.142.5
+  rejects combining `--uncommitted`/`--commit` with a custom prompt;
+  `codex exec "<prompt>"` with piped stdin is the supported shape.)
 
   (codex comes from the host node install, not flake.nix; it resolves inside
   the dev shell — verified codex-cli 0.142.5.) Fix anything it flags as a
