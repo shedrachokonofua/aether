@@ -28,27 +28,58 @@ report the exact command + output, do not improvise.**
   from the repo root. Tools do not exist on the bare host.
 - **No merge requests.** Commit directly to `main` and push.
 - **seven30 applies go through CI**, never locally — every seven30 repo
-  (infra and projects) already has a GitLab pipeline for its IaC. After
-  pushing to main the pipeline runs validate + plan automatically; the
-  `apply` job is `when: manual`. Play it by job ID via the API (run from the
-  repo in question so `:id` resolves to that project):
+  (infra and projects) already has a GitLab pipeline for its IaC. The CI
+  templates run `tofu plan -out=plan.cache` and the manual `apply` job
+  applies that cache — so TARGETING MUST BE BAKED INTO THE PLAN: create the
+  pipeline explicitly with `TF_CLI_ARGS_plan` carrying the `-target` flags
+  (pipeline variables become job env vars; tofu appends `TF_CLI_ARGS_plan`
+  to `plan`). Never play the apply job of the auto-created push pipeline —
+  its plan is untargeted. Full sequence (run from the repo in question so
+  `:id` resolves to that project):
 
   ```bash
-  glab auth status                                     # must be logged in to gitlab.home.shdr.ch
-  PIPELINE=$(glab api 'projects/:id/pipelines?ref=main&per_page=1' | jq -r '.[0].id')
+  glab auth status    # must be logged in to gitlab.home.shdr.ch; else STOP, ask user to run task login
+  # 1. targeted pipeline (repeat -target=... inside the value as needed)
+  PIPELINE=$(glab api -X POST projects/:id/pipeline \
+    -f ref=main \
+    -f 'variables[][key]=TF_CLI_ARGS_plan' \
+    -f 'variables[][value]=-target=<addr1> -target=<addr2>' | jq -r .id)
+  # sanity: variables must be attached; if empty, STOP and report
+  glab api "projects/:id/pipelines/$PIPELINE/variables" | jq .
+  # 2. wait for the plan job to succeed
   glab api "projects/:id/pipelines/$PIPELINE/jobs" \
-    | jq -r '.[] | "\(.id)\t\(.name)\t\(.status)"'     # wait until plan = success
+    | jq -r '.[] | "\(.id)\t\(.name)\t\(.status)"'
+  # 3. codex reviews the plan diff BEFORE apply — use the plan.txt ARTIFACT
+  # (exact render of plan.cache, which is what apply executes), never the
+  # job trace. TF_ROOT is `tofu` in the shared ci-templates; if the project
+  # overrides TF_ROOT, adjust the artifact path accordingly.
+  PLAN_JOB=$(glab api "projects/:id/pipelines/$PIPELINE/jobs" | jq -r '.[] | select(.name=="plan") | .id')
+  glab api "projects/:id/jobs/$PLAN_JOB/artifacts/tofu/plan.txt" > /tmp/ci-plan.txt
+  codex exec "Review this OpenTofu plan output. Expected scope: ONLY <the resources this phase says it touches>. Flag any resource outside that scope, any destroy not called for by the phase, and any secret value echoed in the diff. End with verdict: CLEAN or FINDINGS." < /tmp/ci-plan.txt
+  # FINDINGS or out-of-scope changes -> STOP, do not play apply, report.
+  # 4. only on CLEAN: play THIS pipeline's apply job
   JOB=$(glab api "projects/:id/pipelines/$PIPELINE/jobs" | jq -r '.[] | select(.name=="apply") | .id')
   glab api -X POST "projects/:id/jobs/$JOB/play" >/dev/null
-  # poll until success/failed:
-  glab api "projects/:id/jobs/$JOB" | jq -r .status
-  # on failed: glab api "projects/:id/jobs/$JOB/trace" for the log, then STOP and report
+  glab api "projects/:id/jobs/$JOB" | jq -r .status   # poll until success/failed
+  # on failed: glab api "projects/:id/jobs/$JOB/trace", then STOP and report
   ```
 
-  If `glab auth status` fails, STOP and ask the user to run `task login` in
-  the infra repo. Never run `task tofu:apply` locally for seven30.
-- aether tofu applies remain local (`task tofu:plan` / `task tofu:apply`) —
-  that is aether's normal workflow.
+- **aether tofu applies are local and targeted, with codex reviewing the
+  plan before apply.** Never a bare `task tofu:apply`. Pattern (the repo
+  already uses `task tofu:apply -- -target=...` elsewhere, e.g.
+  `tofu:apply:gitlab-runner`):
+
+  ```bash
+  task tofu:plan -- -target=<addr1> -target=<addr2> -out=/tmp/phase.plan
+  # render the SAVED plan (the exact bytes apply will execute), review that:
+  tofu -chdir=tofu show -no-color /tmp/phase.plan > /tmp/phase-plan.txt
+  codex exec "Review this OpenTofu plan output. Expected scope: ONLY <the resources this phase says it touches>. Flag anything out of scope, any uncalled-for destroy, any secret echoed. End with verdict: CLEAN or FINDINGS." < /tmp/phase-plan.txt
+  # FINDINGS -> STOP and report. CLEAN -> apply the reviewed plan file verbatim:
+  task tofu:apply -- /tmp/phase.plan
+  ```
+
+  Applying the saved plan file guarantees exactly the reviewed diff is what
+  executes.
 - **Spike exception**: Phase 3's throwaway spike (`tofu-spike-rgw/`, local
   state, resources named `spike-*` only, deleted at the end of the phase) is
   the ONLY permitted local apply/destroy touching seven30 — it is not part
@@ -57,8 +88,19 @@ report the exact command + output, do not improvise.**
   committed, after staging, run:
 
   ```bash
-  codex review --uncommitted "Reviewing changes for the crossplane->tofu S3 migration. Flag bugs, broken YAML/HCL, secrets in diff, and deviations from the migration plan. Be concise."
+  codex review --uncommitted
   ```
+
+  NOTE: this codex version (0.142.5) rejects combining `--uncommitted` /
+  `--commit` with a custom prompt — run it bare. Custom instructions are
+  only possible via `codex exec "<prompt>" < file` (used for the tofu plan
+  reviews above).
+
+  SCOPE: `--uncommitted` reviews staged + unstaged + untracked — it will
+  sweep up unrelated dirty files from other work in the tree. The commit
+  gate applies only to findings on files you are actually committing;
+  findings on files outside your staged set do not block the commit, but
+  MUST be reported to the user verbatim.
 
   (codex comes from the host node install, not flake.nix; it resolves inside
   the dev shell — verified codex-cli 0.142.5.) Fix anything it flags as a
@@ -462,8 +504,16 @@ Only start after Phase 3 gate = PASS.
 
 3. Read `~/projects/aether/tofu/home/kubernetes/crossplane.tf` fully. Remove
    the AWS provider packages, ProviderConfig, and their credential plumbing —
-   keep any non-AWS Crossplane usage. `task tofu:plan` from aether root,
-   review that ONLY crossplane AWS items are destroyed, then `task tofu:apply`.
+   keep any non-AWS Crossplane usage. Discover the exact state addresses to
+   target:
+
+   ```bash
+   nix develop --command bash -c 'tofu -chdir=tofu state list | grep -i crossplane | grep -i aws'
+   ```
+
+   Then run the targeted plan→codex→apply flow from Global rules with one
+   `-target=` per address found. Expected plan scope: ONLY destroys of those
+   crossplane AWS items — anything else in the plan is a FINDING (stop).
    Gate: `kubectl -n crossplane-system get pods | grep provider-aws` → nothing.
 
 4. The orphaned static-site bucket/role are now unmanaged. Append a note to
