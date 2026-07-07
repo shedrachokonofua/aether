@@ -49,6 +49,22 @@ report the exact command + output, do not improvise.**
   the infra repo. Never run `task tofu:apply` locally for seven30.
 - aether tofu applies remain local (`task tofu:plan` / `task tofu:apply`) —
   that is aether's normal workflow.
+- **Spike exception**: Phase 3's throwaway spike (`tofu-spike-rgw/`, local
+  state, resources named `spike-*` only, deleted at the end of the phase) is
+  the ONLY permitted local apply/destroy touching seven30 — it is not part
+  of any real stack or pipeline. Nothing else is exempt.
+- **Review every commit with codex before committing.** In the repo being
+  committed, after staging, run:
+
+  ```bash
+  codex review --uncommitted "Reviewing changes for the crossplane->tofu S3 migration. Flag bugs, broken YAML/HCL, secrets in diff, and deviations from the migration plan. Be concise."
+  ```
+
+  (codex comes from the host node install, not flake.nix; it resolves inside
+  the dev shell — verified codex-cli 0.142.5.) Fix anything it flags as a
+  bug or a leaked secret before committing; if a finding is unclear or would
+  change the plan's design, STOP and report instead of improvising. Style
+  nits may be ignored.
 - Never print secret values. Extract into shell vars, use, unset. If a command
   would echo a secret, redirect to /dev/null.
 - Auth: run `task login:status` first in each repo. If SSH/AWS/Bao entries are
@@ -294,7 +310,9 @@ last unknown. Throwaway — local state, deleted afterward.
    this point runs as the provisioner role, which is the point.
 
 3. In `tofu-spike-rgw/` (same shell, seven30 repo has `tofu` in its dev shell —
-   run from `~/projects/seven30/infra` via `nix develop`):
+   run from `~/projects/seven30/infra` via `nix develop`). This local
+   apply/destroy is the sanctioned Spike exception in Global rules — local
+   state, `spike-*` resources only, never the real stack:
 
    ```bash
    tofu init
