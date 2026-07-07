@@ -53,8 +53,8 @@ Deploy Kubernetes not for high availability (already solved via Proxmox HA + Cep
 │                          KUBERNETES (3-node Talos on Ceph)                       │
 │                                                                                  │
 │   Nodes:                                                                         │
-│   ├── talos-trinity — 24GB RAM, 8 vCPU, Control + Worker, 10.0.3.16            │
-│   ├── talos-neo     — 24GB RAM, 32+ vCPU, GPU, Control + Worker, 10.0.3.17    │
+│   ├── talos-trinity — 32GB RAM, 8 vCPU, Control + Worker, 10.0.3.16            │
+│   ├── talos-neo     — 64GB RAM, 32+ vCPU, GPU, Control + Worker, 10.0.3.17    │
 │   └── talos-niobe   — 24GB RAM, 8 vCPU, Control + Worker, 10.0.3.18           │
 │                                                                                  │
 │   Load Balancer VIP: 10.0.3.19 (Cilium L2, HA failover)                         │

@@ -334,7 +334,7 @@ talos_neo:
   role: "controlplane"
   node: "neo"
   cores: 32
-  memory: 49152
+  memory: 65536
   # GPU node still carries heavier image/runtime churn than the other CI nodes.
   # CI build scratch lives on ci_disk_gb, not on this root disk.
   disk_gb: 256
