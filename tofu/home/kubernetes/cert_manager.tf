@@ -78,6 +78,16 @@ resource "helm_release" "step_issuer" {
       create = true
       name   = "step-issuer"
     }
+    # Chart default is a 100m CPU limit. CFS throttling starved the
+    # leader-election renewal goroutine during reconcile bursts -> "leader
+    # election lost" -> exit(1); 16 restarts over 35h, and the 2026-07-07
+    # mesh CA outage rode one of those gaps. No CPU limit for controllers
+    # that self-terminate on lease loss; memory limit retained.
+    resources = {
+      requests = { cpu = "50m", memory = "64Mi" }
+      # cpu = null strips the chart-default 100m limit (helm merge semantics)
+      limits = { cpu = null, memory = "192Mi" }
+    }
   })]
 }
 
