@@ -32,6 +32,11 @@ resource "proxmox_virtual_environment_vm" "blockchain_stack" {
 
   stop_on_destroy = true
 
+  # Powered off 2026-07-05 to reclaim smith host resources (idle crypto stack,
+  # ~2.9% CPU + 8 vCPU/16GB allocation). Graceful ACPI shutdown via the provider
+  # (LND/bitcoind/monerod flush cleanly). Re-enable by setting started = true.
+  started = false
+
   cpu {
     cores = local.vm.blockchain_stack.cores
     type  = "host"
