@@ -224,7 +224,7 @@ its job).
          "Action": "sts:AssumeRoleWithWebIdentity",
          "Condition": {
            "StringEquals": {"gitlab.home.shdr.ch:aud": "https://gitlab.home.shdr.ch"},
-           "StringLike":   {"gitlab.home.shdr.ch:sub": "project_path:so/seven30/*"}
+           "StringLike":   {"gitlab.home.shdr.ch:sub": "project_path:seven30/*"}
          }
        }]
      }
@@ -240,12 +240,7 @@ its job).
      {
        "Version": "2012-10-17",
        "Statement": [
-         {"Effect": "Allow", "Action": ["s3:*"], "Resource": "*"},
-         {"Effect": "Allow", "Action": [
-            "iam:CreateRole","iam:DeleteRole","iam:GetRole","iam:UpdateAssumeRolePolicy",
-            "iam:PutRolePolicy","iam:DeleteRolePolicy","iam:GetRolePolicy","iam:ListRolePolicies",
-            "iam:ListRoles","iam:ListAttachedRolePolicies","iam:AttachRolePolicy","iam:DetachRolePolicy"
-          ], "Resource": "*"}
+         {"Effect": "Allow", "Action": ["s3:*", "iam:*"], "Resource": "*"}
        ]
      }
      ```
