@@ -410,7 +410,7 @@ resource "helm_release" "otel_collector_deployment" {
                 job_name        = "caddy"
                 scrape_interval = "30s"
                 static_configs = [{
-                  targets = ["${local.vm.home_gateway_stack.ip}:2019"]
+                  targets = ["${var.home_gateway_ip}:2019"]
                 }]
               },
               {

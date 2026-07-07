@@ -175,6 +175,11 @@ variable "litellm_google_maps_enabled" {
   description = "Whether to deploy LiteLLM's Google Maps MCP sidecar"
 }
 
+variable "home_gateway_ip" {
+  type        = string
+  description = "IP of the home gateway VM (Caddy admin :2019, rotating proxy, etc.)"
+}
+
 variable "coder_oauth_client_secret" {
   type        = string
   sensitive   = true
