@@ -267,6 +267,94 @@
       no_log: true
 
     # =======================================================================
+    # 3b. seven30-provisioner role (keyless CI for crossplane->tofu migration)
+    # =======================================================================
+    # Allows seven30 GitLab CI to assume this role via OIDC web identity and
+    # provision S3 buckets + IAM roles on Ceph RGW without static credentials.
+    # Scopes sub claim to seven30/* projects. See
+    # docs/worklogs/crossplane-s3-migration-2026-07.md.
+
+    - name: Build seven30-provisioner trust policy
+      ansible.builtin.set_fact:
+        seven30_provisioner_trust_policy:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Federated: "arn:aws:iam::{{ seven30_account.id }}:oidc-provider/gitlab.home.shdr.ch"
+              Action: "sts:AssumeRoleWithWebIdentity"
+              Condition:
+                StringEquals:
+                  "gitlab.home.shdr.ch:aud": "https://gitlab.home.shdr.ch"
+                StringLike:
+                  "gitlab.home.shdr.ch:sub": "project_path:seven30/*"
+      run_once: true
+
+    - name: Check if seven30-provisioner role exists
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam get-role --role-name seven30-provisioner >/dev/null 2>&1 && echo EXISTS || echo MISSING
+      register: seven30_provisioner_role_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Create seven30-provisioner role
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-role \
+            --role-name seven30-provisioner \
+            --assume-role-policy-document '{{ seven30_provisioner_trust_policy | to_json }}' \
+            --max-session-duration 43200
+      when: seven30_provisioner_role_check.stdout == "MISSING"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Update seven30-provisioner role trust policy (idempotent)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam update-assume-role-policy \
+            --role-name seven30-provisioner \
+            --policy-document '{{ seven30_provisioner_trust_policy | to_json }}'
+      when: seven30_provisioner_role_check.stdout == "EXISTS"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+    - name: Attach IAM/S3 policy to seven30-provisioner
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.seven30_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.seven30_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam put-role-policy \
+            --role-name seven30-provisioner \
+            --policy-name provisioner \
+            --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":"*"},{"Effect":"Allow","Action":["iam:CreateRole","iam:DeleteRole","iam:GetRole","iam:UpdateAssumeRolePolicy","iam:PutRolePolicy","iam:DeleteRolePolicy","iam:GetRolePolicy","iam:ListRolePolicies","iam:ListRoles","iam:ListAttachedRolePolicies","iam:AttachRolePolicy","iam:DetachRolePolicy"],"Resource":"*"}]}'
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+
+    # =======================================================================
     # 4. Write account_id + creds to OpenBao (if not already done)
     # =======================================================================
 
