@@ -608,7 +608,6 @@ locals {
         "aiostreams.home.shdr.ch",
         "files.home.shdr.ch",
         "lidarr.home.shdr.ch",
-        "nzbdav.home.shdr.ch",
         "prowlarr.home.shdr.ch",
         "radarr.home.shdr.ch",
         "sabnzbd.home.shdr.ch",

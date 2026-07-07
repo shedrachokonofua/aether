@@ -171,7 +171,6 @@ resource "kubernetes_deployment_v1" "jellyfin" {
     kubernetes_persistent_volume_claim_v1.jellyfin_config,
     kubernetes_persistent_volume_claim_v1.jellyfin_cache,
     kubernetes_persistent_volume_claim_v1.jellyfin_media_hdd,
-    kubernetes_service_v1.nzbdav,
   ]
 
   metadata {
@@ -241,12 +240,6 @@ resource "kubernetes_deployment_v1" "jellyfin" {
             mount_path = "/media/hdd"
           }
 
-          volume_mount {
-            name              = "nzbdav"
-            mount_path        = "/mnt/nzbdav"
-            read_only         = true
-            mount_propagation = "HostToContainer"
-          }
 
           resources {
             requests = {
@@ -279,60 +272,6 @@ resource "kubernetes_deployment_v1" "jellyfin" {
           }
         }
 
-        # Rclone sidecar — mounts nzbdav WebDAV as FUSE filesystem
-        container {
-          name  = "rclone-nzbdav"
-          image = local.rclone_image
-
-          command = ["rclone", "mount", "nzb-dav:", "/mnt/nzbdav",
-            "--config=/config/rclone.conf",
-            "--cache-dir=/vfs-cache",
-            "--vfs-cache-mode=full",
-            "--buffer-size=1024M",
-            # 1s forced a WebDAV PROPFIND (+ DNS lookup) on every stat —
-            # ~80 req/s at idle, burning ~2 cores across jellyfin/nzbdav/
-            # coredns/cilium. New downloads now appear within 2m instead.
-            "--dir-cache-time=2m",
-            "--vfs-cache-max-size=5G",
-            "--vfs-cache-max-age=180m",
-            "--links",
-            "--use-cookies",
-            "--allow-other",
-            "--allow-non-empty",
-          ]
-
-          security_context {
-            privileged = true
-          }
-
-          volume_mount {
-            name              = "nzbdav"
-            mount_path        = "/mnt/nzbdav"
-            mount_propagation = "Bidirectional"
-          }
-
-          volume_mount {
-            name       = "rclone-vfs-cache"
-            mount_path = "/vfs-cache"
-          }
-
-          volume_mount {
-            name       = "rclone-config"
-            mount_path = "/config"
-            read_only  = true
-          }
-
-          resources {
-            requests = {
-              cpu    = "50m"
-              memory = "128Mi"
-            }
-            limits = {
-              cpu    = "500m"
-              memory = "2Gi"
-            }
-          }
-        }
 
         volume {
           name = "config"
@@ -355,26 +294,6 @@ resource "kubernetes_deployment_v1" "jellyfin" {
           }
         }
 
-        volume {
-          name = "nzbdav"
-          empty_dir {
-            size_limit = "10Gi"
-          }
-        }
-
-        volume {
-          name = "rclone-vfs-cache"
-          empty_dir {
-            size_limit = "6Gi"
-          }
-        }
-
-        volume {
-          name = "rclone-config"
-          secret {
-            secret_name = kubernetes_secret_v1.rclone_nzbdav.metadata[0].name
-          }
-        }
       }
     }
   }
@@ -386,33 +305,6 @@ resource "kubernetes_deployment_v1" "jellyfin" {
   }
 }
 
-# =============================================================================
-# Rclone Secret
-# =============================================================================
-
-resource "kubernetes_secret_v1" "rclone_nzbdav" {
-  depends_on = [module.namespace["jellyfin"]]
-
-  metadata {
-    name      = "rclone-nzbdav"
-    namespace = local.jellyfin_ns
-  }
-
-  type = "Opaque"
-
-  data = {
-    "rclone.conf" = <<-EOT
-      [nzb-dav]
-      type = webdav
-      # Trailing dot = absolute name: skips the ndots:5 search-path walk
-      # (~10 DNS queries per lookup, all NXDOMAIN but the last).
-      url = http://nzbdav.${local.media_ns}.svc.cluster.local.:3000
-      vendor = other
-      user = ${var.secrets["nzbdav.webdav_username"]}
-      pass = ${var.secrets["nzbdav.webdav_password_obscured"]}
-    EOT
-  }
-}
 
 # =============================================================================
 # Service
