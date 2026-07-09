@@ -476,6 +476,37 @@ resource "helm_release" "otel_collector_deployment" {
                 ]
               },
               {
+                # mnemo PromEx /metrics (search/RAG latency + quality histograms,
+                # Phoenix/Ecto/Oban/BEAM). Added 2026-07-09 with the Postgres
+                # search cutover — PromEx existed before but was never scraped.
+                job_name        = "mnemo"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role       = "pod"
+                  namespaces = { names = [local.mnemo_namespace] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_pod_label_app", "__meta_kubernetes_pod_label_component"]
+                    action        = "keep"
+                    regex         = "mnemo;app"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+                    action        = "keep"
+                    regex         = "http"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    target_label  = "namespace"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "pod"
+                  },
+                ]
+              },
+              {
                 # Tetragon agent is a DaemonSet behind a Service. Scrape
                 # endpoints directly so every node agent is represented rather
                 # than one load-balanced service target.

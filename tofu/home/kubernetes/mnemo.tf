@@ -10,8 +10,8 @@ locals {
   mnemo_host          = "mnemo.home.shdr.ch"
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-07415e0b"
-  mnemo_image_tag     = "07415e0b"
+  mnemo_chart_version = "0.1.0-2841df50"
+  mnemo_image_tag     = "2841df50"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
   mnemo_db_user       = "mnemo"
@@ -78,10 +78,6 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     OTEL_SERVICE_NAME           = "mnemo"
     OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.system.svc.cluster.local:4318"
     OTEL_RESOURCE_ATTRIBUTES    = "service.namespace=mnemo,deployment.environment=home"
-
-    # Meilisearch keyword search index
-    MEILI_MASTER_KEY = var.secrets["meilisearch.master_key"]
-    MEILI_INDEX      = "messages"
   }
 
   type = "Opaque"
@@ -667,28 +663,6 @@ resource "helm_release" "mnemo" {
     resources = {
       requests = { cpu = "100m", memory = "1Gi" }
       limits   = { cpu = "1000m", memory = "1Gi" }
-    }
-
-    meili = {
-      image               = "getmeili/meilisearch:v1.12"
-      port                = 7700
-      storageClass        = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
-      storageSize         = "100Gi"
-      masterKeySecretName = kubernetes_secret_v1.mnemo_env.metadata[0].name
-      masterKeySecretKey  = "MEILI_MASTER_KEY"
-      resources = {
-        requests = { cpu = "500m", memory = "512Mi" }
-        limits   = { cpu = "4000m", memory = "4Gi" }
-      }
-    }
-
-    backfill = {
-      enabled = true
-      reset   = false
-      resources = {
-        requests = { cpu = "100m", memory = "512Mi" }
-        limits   = { cpu = "1000m", memory = "2Gi" }
-      }
     }
   })]
 
