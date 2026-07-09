@@ -407,28 +407,50 @@ Only start after Phase 3 gate = PASS.
       Gate: `kubectl get <kind> <name> -o jsonpath='{.spec.deletionPolicy}'`
       → `Orphan` for every MR.
 
-   b. Add the provider block from Phase 3 (plus any ignore_changes found) to
-      the project's tofu, with `assume_role_with_web_identity` for CI:
+   b. Add a plain env-cred AWS provider (same flags/endpoints as the Phase 3
+      spike, NO `assume_role_with_web_identity` block). **Proven finding
+      (local `tofu validate`, 2026-07-08):** terraform-provider-aws does client-side ARN
+      validation and REJECTS RGW's non-12-digit account id
+      (`RGW54357707893720224`) in an `assume_role_with_web_identity`
+      block. The AWS CLI is lax on ARN format, so acquire creds via the CLI
+      first, export them, then run tofu with the plain provider:
 
       ```hcl
       provider "aws" {
-        # ... same flags/endpoints as spike ...
-        assume_role_with_web_identity {
-          role_arn                = "arn:aws:iam::RGW54357707893720224:role/seven30-provisioner"
-          session_name            = "tofu-${var.project_name}"
-          web_identity_token_file = "/tmp/gitlab-oidc-token"
+        region                      = "us-east-1"
+        s3_use_path_style           = true
+        skip_credentials_validation = true
+        skip_requesting_account_id  = true
+        skip_region_validation      = true
+        skip_metadata_api_check     = true
+        endpoints {
+          s3  = "https://s3.home.shdr.ch"
+          iam = "https://s3.home.shdr.ch"
+          sts = "https://s3.home.shdr.ch"
         }
       }
       ```
 
-      and in `.gitlab-ci.yml` for the tofu jobs:
+      and in `.gitlab-ci.yml` for the tofu jobs (CLI assume-role → env creds
+      → tofu; see the `validate-rgw-tofu` job in seven30/infra for the
+      working reference):
 
       ```yaml
       id_tokens:
         GITLAB_OIDC_TOKEN:
           aud: https://gitlab.home.shdr.ch
       before_script:
-        - echo -n "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
+        - apk add --no-cache -q aws-cli    # opentofu image is alpine
+        - |
+          CREDS=$(aws sts assume-role-with-web-identity \
+            --role-arn "arn:aws:iam::RGW54357707893720224:role/seven30-provisioner" \
+            --role-session-name "tofu-${CI_PIPELINE_ID}" \
+            --web-identity-token "$GITLAB_OIDC_TOKEN" \
+            --endpoint-url https://s3.home.shdr.ch \
+            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
+          export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | cut -f1)
+          export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | cut -f2)
+          export AWS_SESSION_TOKEN=$(echo "$CREDS" | cut -f3)
       ```
 
    c. Write `aws_s3_bucket` / `aws_s3_bucket_policy` / `aws_iam_role` /
