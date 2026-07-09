@@ -360,23 +360,41 @@ last unknown. Throwaway — local state, deleted afterward.
      `lifecycle { ignore_changes = [<those attributes>] }` block to the
      affected resource, re-run apply + plan. If clean now → PASS with note:
      these ignore_changes must be carried into Phase 4 resources.
-   - Hard error (exit 1) on plan/apply/destroy → FAIL. Record output. Fallback
+   - Hard error (exit 1) on **plan or apply** → FAIL. Record output. Fallback
      decision is pre-made: migrate ONLY buckets to tofu and KEEP
      `provider-aws-iam` in Crossplane (it converges fine; measured ~2% of the
      flood). Report which call failed and stop this phase.
+   - **Known exception (validated 2026-07-09, job 12970):** a hard error on
+     `destroy` of `aws_iam_role` specifically — RGW returns `405` on
+     `ListInstanceProfilesForRole` — is NOT a FAIL. Create/refresh/import all
+     work; only provider-driven role *deletion* breaks. Proceed, and handle
+     role removal per the Phase 4 role-destroy caveat. Any *other* destroy
+     error IS a FAIL.
 
-5. Cleanup: `tofu destroy -auto-approve` (expect: 3 destroyed — this also
-   tests DeleteRole via the provider). Then `rm -rf tofu-spike-rgw/` and
-   `unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN`.
-   Verify no residue:
-   `aws iam list-roles` (with root creds re-exported) must NOT contain
-   `spike-tofu-role`; `aws s3api head-bucket --bucket spike-tofu-test` must 404.
+5. Cleanup: `tofu destroy -auto-approve` destroys the bucket, bucket_policy,
+   and role_policy cleanly, then errors on the `aws_iam_role` destroy with the
+   RGW `405` above (expected — role_policy destroys first in dependency order,
+   so it is already gone). Remove the now-policy-less role via CLI, then drop
+   the spike dir and creds:
+
+   ```bash
+   aws iam delete-role --role-name spike-tofu-role --endpoint-url https://s3.home.shdr.ch
+   rm -rf tofu-spike-rgw/
+   unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+   ```
+
+   Verify no residue: `aws iam list-roles --endpoint-url https://s3.home.shdr.ch`
+   (root creds re-exported) must NOT contain `spike-tofu-role`;
+   `aws s3api head-bucket --bucket spike-tofu-test --endpoint-url https://s3.home.shdr.ch`
+   must 404.
 
 ---
 
 ## Phase 4 — migrate seven30 project resources [half day]
 
 Only start after Phase 3 gate = PASS.
+
+**Phase 3 result (2026-07-09, job 12970):** the keyless OIDC → CLI env-cred path creates all four resource types (bucket, bucket_policy, iam_role, iam_role_policy) against RGW, and the refresh plan is idempotent — **zero phantom drift**. The migration premise is validated end-to-end in CI. One caveat carried into step c below: role *destroy*.
 
 1. Discover every Crossplane S3/IAM CRD declaration in seven30 repos:
 
@@ -465,9 +483,27 @@ Only start after Phase 3 gate = PASS.
       tofu plan   # must show no changes (or only known-ignorable diffs)
       ```
 
+   **Role-destroy caveat (job 12970):** `tofu destroy` of `aws_iam_role` fails
+   on RGW — the provider calls `ListInstanceProfilesForRole`, which RGW answers
+   with `405`. Create / refresh / import all work; only provider-driven role
+   *deletion* breaks (the same class of RGW limitation that stuck Crossplane on
+   delete). Buckets, bucket_policy, and role_policy all destroy cleanly through
+   tofu. Mitigation is two-part: (1) add `lifecycle { prevent_destroy = true }`
+   to every `aws_iam_role` — this only blocks an accidental `tofu
+   destroy`/replacement **while the block still exists**; it is not itself a
+   deletion mechanism. (2) To actually decommission a role, **in this order**:
+   first remove its `aws_iam_role_policy` block and apply (the inline policy
+   destroys cleanly via tofu); then `tofu state rm aws_iam_role.<x>` (tofu stops
+   managing the role and never issues the failing destroy); then remove the role
+   block from the config; then delete the now-policy-less role out-of-band with
+   `aws iam delete-role --role-name <x> --endpoint-url https://s3.home.shdr.ch`
+   (proven in jobs 12948/12970). Skipping the `state rm` is the trap: the next
+   `tofu plan` sees a role in state but not config, tries to destroy it, and
+   hits the same `405`.
+
    d. Delete the `kubectl_manifest` resources from the project tofu, apply.
       The MRs disappear; RGW objects survive (Orphan). Gate: bucket still
-      serves — `aws s3api head-bucket --bucket <name>` (provisioner creds)
+      serves — `aws s3api head-bucket --bucket <name> --endpoint-url https://s3.home.shdr.ch` (provisioner creds)
       succeeds; the app using it still works.
 
    e. Commit + push each repo directly to main. No MRs. Apply via that
@@ -580,7 +616,7 @@ explicit user approval first** (live-op on shared infra).
 - [ ] Phase 0: RGW idle rate < 60 req/s (interim)
 - [ ] Phase 1: kestra-storage-s3 gone from vcluster AND RGW
 - [ ] Phase 2: seven30-provisioner exists, playbook idempotent
-- [ ] Phase 3: tofu plan clean against RGW (or documented fallback taken)
+- [x] Phase 3: tofu create + refresh idempotent against RGW (job 12970; role-destroy caveat documented)
 - [ ] Phase 4: seven30 buckets/roles tofu-managed, provider-aws-* gone from vcluster, RGW rate < 30 req/s
 - [ ] Phase 5: host-cluster provider-aws-* gone, shdr.ch still 200
 - [ ] Phase 6: neo RGW back (3/3 backends), caddy scrape alive
