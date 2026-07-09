@@ -454,6 +454,8 @@ Only start after Phase 3 gate = PASS.
       working reference):
 
       ```yaml
+      variables:
+        AWS_DEFAULT_REGION: us-east-1    # iam CLI needs a region; s3 infers from endpoint (job 12979)
       id_tokens:
         GITLAB_OIDC_TOKEN:
           aud: https://gitlab.home.shdr.ch
