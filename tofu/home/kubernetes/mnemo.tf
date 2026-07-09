@@ -10,8 +10,8 @@ locals {
   mnemo_host          = "mnemo.home.shdr.ch"
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-2841df50"
-  mnemo_image_tag     = "2841df50"
+  mnemo_chart_version = "0.1.0-12825a03"
+  mnemo_image_tag     = "12825a03"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
   mnemo_db_user       = "mnemo"
@@ -59,6 +59,11 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     LITELLM_EMBEDDING_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000"
     LITELLM_EMBEDDING_API_KEY  = var.secrets["litellm.master_key"]
     LITELLM_EMBEDDING_MODEL    = "text-embedding-3-large"
+
+    # Reranker (llama-swap, cross-encoder /rerank). Explicit pin: the client's
+    # compiled-in default still says llama-swap.infra.svc — dead since the
+    # ai-serving namespace split. Broken reranker = RAG fails (by design).
+    RERANKER_BASE_URL = "http://llama-swap.ai-serving.svc.cluster.local:8080"
 
     # OpenWebUI source (read-only API access)
     OPENWEBUI_DATABASE_URL = local.mnemo_openwebui_db_url
@@ -128,7 +133,10 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
       }
       affinity = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
       storage = {
-        size         = "10Gi"
+        # 10Gi → 30Gi (2026-07-09): the messages table rewrite for the
+        # is_bulk generated column needs a full second copy of the table +
+        # WAL burst; 10Gi filled mid-migration and took postgres down.
+        size         = "30Gi"
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["mnemo"]

@@ -85,10 +85,58 @@ and untouched).
 
 ## Open items
 
-- **RAG reranker gateway is down** (`Req.TransportError`, ~9 s failing calls)
-  — pre-existing, surfaced by the new `mnemo.rag_context` span/metrics.
-  Keyword search is unaffected. Fix the reranker service (ai-serving).
+- ~~RAG reranker gateway down~~ — fixed in the follow-up below
+  (`RERANKER_BASE_URL` pinned to ai-serving).
 - Secondary finding: k8s RBD client traffic (10.0.3.x → ceph on 192.168.2.x)
   transits the `router` VM (~220 MB/s during the incident) and is mirrored
   into the IDS stack — every byte of k8s storage IO pays a routed-VM hop.
 
+
+## Follow-up (2026-07-09 afternoon): bulk detection, reranker, and the is_bulk migration incident
+
+mnemo commits `a0ac78ab` (broader bulk/newsletter detection: Gmail labels +
+automated-sender patterns + unsubscribe-footer, via `api.message_is_bulk/3`),
+`ba280380` (chart deploy strategy → Recreate), `7ef0add5` + `12825a03`
+(is_bulk stored generated column; recency-bounded candidate pool +
+`plan_cache_mode=force_custom_plan` on `api.search_messages`). 78% of the
+314k-message corpus is bulk — default exclusion carries its weight.
+
+RAG reranker fixed: mnemo's client default still pointed at
+`llama-swap.infra.svc` (dead since the ai-serving namespace split);
+`RERANKER_BASE_URL` now pinned in `mnemo.tf`. RAG fails fast when the
+reranker is down — deliberate, per owner decision (no degraded mode).
+
+### Incident: is_bulk column migration took down mnemo-cnpg
+
+The `GENERATED … STORED` column = full rewrite of the 6.9GB messages table.
+Chain of failures, each worth remembering:
+
+1. **RollingUpdate + boot-time DDL deadlocks**: the new pod's ALTER queued an
+   ACCESS EXCLUSIVE lock behind the old pod's live connections; the old pod
+   wouldn't die until the new one was ready. Chart now deploys Recreate.
+2. **The pending exclusive lock browned out everything**: all later readers
+   queue behind a pending AccessExclusiveLock; even health checks stalled.
+3. **Aborted rewrites + WAL burst filled the 10Gi PVC** → postgres down,
+   CNPG phase "Not enough disk space". Storage now 30Gi in `mnemo.tf`; the
+   fenced operator did not resize the PVC itself — patched to the declared
+   size by hand (`FileSystemResizePending` resolves on pod restart).
+4. **Zombie backends**: dead client pods left 6 server-side ALTERs — one
+   held the lock 16 minutes (doomed to roll back on client EOF), five
+   queued. `pg_terminate_backend` for all, then the migration was run
+   manually via psql (exact SQL from the shipped migration file +
+   `schema_migrations` insert): **ALTER took 14m10s solo** — helm's 900s
+   deadline could never fit it. Boot-time migrations that rewrite big
+   tables need a manual/controlled path.
+5. Post-rewrite hygiene: `VACUUM ANALYZE messages` (hint bits + stats).
+
+### Performance findings (instrumentation-driven)
+
+- plpgsql cached generic plans cannot prune the `$n IS NULL OR col = $n`
+  filter pattern → `plan_cache_mode=force_custom_plan` pinned on the
+  function (in its definition, so CREATE OR REPLACE keeps it).
+- Ranking every tsquery match detoasts a tsvector per row; stopword-class
+  queries (30k matches) took 13s+. Candidate pool is now the newest
+  `candidate_limit` matches (timestamp top-N, no detoast), ranked after.
+- Steady state on live data: worst-case adversarial query 229ms warm,
+  realistic queries 25–950ms, facets ~1.2s. Ceph at baseline throughout
+  verification (r-lat 0.49ms).
