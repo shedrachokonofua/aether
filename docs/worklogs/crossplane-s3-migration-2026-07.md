@@ -631,6 +631,12 @@ explicit user approval first** (live-op on shared infra).
    `curl -s -o /dev/null -w "%{http_code}" http://192.168.2.205:7480/` → 200,
    and Caddy error logs stop showing dial errors to .205.
 
+   **RESOLVED 2026-07-09 — stale; neo RGW is healthy.** Verified `rgw: 3 daemons
+   active (3 hosts)`, `:7480` serving RADOS-backed S3, `radosgw-admin user list`
+   works, mon quorum + 6/6 OSDs up. The Jul-4 19:57 daemon restart already fixed
+   it; no action needed. (Cluster is `HEALTH_WARN` for unrelated reasons: osd.3
+   slow BlueStore ops, a pending `require-osd-release tentacle`, 8 recent crashes.)
+
 2. **Caddy metrics scrape dead since 2026-07-04 19:40Z**
    (`up{exported_job="caddy"}` absent; edge observability blind).
    The scrape path is: Caddy admin `:2019` on home-gateway-stack → an OTel
@@ -648,6 +654,18 @@ explicit user approval first** (live-op on shared infra).
    restart, then gate: Prometheus query `up{exported_job="caddy"}` returns 1
    within 2 minutes.
 
+   **RESOLVED 2026-07-09 — the scrape belongs on the *gateway VM* agent, not k8s.**
+   Root cause: Jul-4 stripped the `caddy`/`unifi`/`rotating-proxy`
+   `prometheus_scrape_configs` from the gateway `vm_monitoring_agent` (its live
+   `otel-config.yml` was left scraping only `node:9100`); that agent is the only
+   collector that can reach `localhost:2019`. Fix: re-applied the
+   `home_gateway_stack` `vm_monitoring_agent` role (`--tags monitoring-agent
+   --limit home-gateway-stack`, IaC — the restart is the role's handler, not an
+   ad-hoc mutation) → `up{exported_job="caddy"}=1`, per-host metrics flowing. An
+   earlier misplaced scrape on the k8s cluster collector (cannot route to
+   `10.0.2.2:2019`) was reverted (`7f3fe0a` + targeted apply of
+   `helm_release.otel_collector_deployment`).
+
 ---
 
 ## Completion checklist
@@ -658,5 +676,5 @@ explicit user approval first** (live-op on shared infra).
 - [x] Phase 3: tofu create + refresh idempotent against RGW (job 12970; role-destroy caveat documented)
 - [ ] Phase 4: seven30 buckets/roles tofu-managed, provider-aws-* gone from vcluster, RGW rate < 30 req/s
 - [ ] Phase 5: host-cluster provider-aws-* gone, shdr.ch still 200
-- [ ] Phase 6: neo RGW back (3/3 backends), caddy scrape alive
+- [x] Phase 6: neo RGW healthy (3/3, was already up); caddy scrape restored on gateway agent (`up=1`)
 - [ ] DESIGN-0001 superseded note, aether docs swept
