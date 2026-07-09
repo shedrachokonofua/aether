@@ -412,6 +412,35 @@ Only start after Phase 3 gate = PASS.
    done
    ```
 
+   **Discovered scope (local checkouts, 2026-07-09)** — grep of the CRD groups
+   above across `~/projects/seven30/*/tofu/`. Re-verify against live MRs after
+   `task login`; a repo may declare more than it has applied.
+
+   | Repo | Buckets | Roles (each + RolePolicy) | Notes |
+   |---|---|---|---|
+   | `crucible` | `seven30-crucible-interviews` | `kestra-crucible-s3`, `seven30-crucible-s3` | also a **`BucketCorsConfiguration`** → `aws_s3_bucket_cors_configuration` (NOT covered by the Phase 3 smoke test — import + `tofu plan` this type carefully) |
+   | `demo` | `seven30-demo-uploads` | `kestra-demo-s3`, `seven30-demo-s3` | — |
+   | `scout` | `scout-raw-data`, `scout` | `seven30-scout-s3`, `kestra-scout-s3` | `~/projects/seven30/scout-latest/` is a **duplicate checkout of the same `seven30/scout.git`** (identical `storage.tf`) — migrate `scout` once; ignore `scout-latest`. |
+
+   Platform-level IAM lives in `infra/tofu` and is outside the per-project loop
+   above — handled in Phase 4 step 3, but **not as a blind teardown**:
+   - Roles `seven30-s3-readonly`, `seven30-s3-admin` (`crossplane.tf`) and
+     `kestra-base` (`kestra.tf`) — migrate/orphan like the project roles.
+   - The `OpenIDConnectProvider`s `keycloak-seven30` (`auth.shdr.ch/realms/seven30`)
+     and `k8s-seven30` (`k8s.seven30.xyz`) in `crossplane.tf` are **live RGW
+     trust anchors** — for the *runtime* roles, not this migration's CI path:
+     `seven30-s3-readonly`/`seven30-s3-admin` federate the Keycloak one
+     (seven30-cli S3 access) and `kestra-base` federates the k8s one (Kestra
+     pod IRSA). The migration's own `seven30-provisioner` trusts the separate
+     `gitlab.home.shdr.ch` provider (Ansible playbook) — unaffected. Removing
+     provider-aws without first importing these to tofu
+     (`aws_iam_openid_connect_provider`) — or orphaning + documenting them —
+     **breaks S3 CLI auth and Kestra role-chaining**. This type is **not**
+     covered by the Phase 3 smoke test (same as CORS): import and `tofu plan`
+     it explicitly before any teardown.
+   - The `infra/tofu/roles.tf` `Role`s are `role.keycloak.crossplane.io`
+     (Keycloak, not AWS) — leave them.
+
 2. For EACH repo found, in this exact order:
 
    a. Set every S3/IAM MR to Orphan **first** (so nothing deletes real
@@ -518,7 +547,15 @@ Only start after Phase 3 gate = PASS.
    MRs (if present in the vcluster) map to `aws_s3_bucket_website_configuration`
    and `aws_s3_bucket_public_access_block`. Same import-first flow.
 
-3. Remove the AWS half of Crossplane from `~/projects/seven30/infra/tofu/crossplane.tf`:
+3. Remove the AWS half of Crossplane from `~/projects/seven30/infra/tofu/crossplane.tf`.
+   **Precondition — do NOT pull the provider first:** every platform AWS MR in
+   `infra/tofu` (roles `seven30-s3-readonly`/`seven30-s3-admin`/`kestra-base`
+   and the `keycloak-seven30`/`k8s-seven30` OIDC providers, per the step-1
+   inventory) must already be handled — imported to tofu-native **or** set to
+   `deletionPolicy: Orphan` and documented as unmanaged, exactly like the
+   project resources in step 2. Removing the provider packages while any of
+   these is still Crossplane-managed with the default Delete policy tears down
+   live RGW roles and trust anchors. Only once no un-orphaned AWS MRs remain:
    delete the `provider-aws-s3` and `provider-aws-iam` Provider objects, the
    `aws-slow-poll` DeploymentRuntimeConfig, the `ceph-rgw` ProviderConfig(s),
    and the ESO ExternalSecret feeding `crossplane-ceph-rgw-creds`. Keep
