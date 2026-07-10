@@ -17,7 +17,7 @@ router config — ships early because it is really just Track B work that can st
 
 ## Current state (audited)
 
-Two Podman pods, 13 containers:
+Two Podman pods, 13 containers (3 of which exist solely to run Fleet — decommissioned below, before the migration):
 
 | Pod | Containers | Published ports |
 | --- | --- | --- |
@@ -91,6 +91,27 @@ lives outside the monitoring VM entirely.
    later upgrade via the two-tier PKI issuing mounts.
 4. **A6 — VyOS producer**: point at `https://otel.home.shdr.ch` (+ token) like every other
    producer; removes the plain-HTTP hop and the direct-IP coupling. Router config; survives.
+5. **A9 — Fleet decommission** (decision: axed — MySQL + Redis + server + ~200 lines of
+   init logic to run SQL queries; FIM/HIDS is already Wazuh's job, CVE scanning is Trivy's;
+   the unique loss is ad-hoc SQL forensics and failing-policy digests, accepted).
+   Decommission playbook following the repo convention
+   (`ansible/playbooks/monitoring_stack/decommission_fleet.yml`, cf. media_stack pattern):
+   1. Remove osquery from producers: `osquery_enabled: false` sweep via
+      `setup_vm_monitoring_agents.yml` (then delete `osquery.yml` from the role);
+      remove `aether.osquery-agent.enable` from ids-stack + delete
+      `nix/modules/osquery-agent.nix` after redeploys
+   2. Stop/remove the fleet pod + volumes on the VM; delete `fleet.yml` import from
+      `site.yml`
+   3. Delete the `fleet.home.shdr.ch` Caddy route; remove `vm.monitoring_stack.ports.fleet`
+      and the 8084 publish
+   4. Remove `vault_kv_secret_v2.fleet` (monitoring_stack.tf) + SOPS `fleet.enroll_secret`
+      + the OpenBao mirror
+   5. Docs sweep: `monitoring.md` Fleet sections — including **retiring the Fleet migration
+      rule** ("coverage must never regress") which becomes void — and the security-triage
+      digest bucket line for failing-policy webhooks; grep Grafana rules/dashboards for
+      fleet references
+   Doing this pre-migration deletes fleet.nix, the MySQL dump step, and the 8084 surface
+   from Track B entirely.
 
 ## Deferred into the migration (accepted interim risk)
 
@@ -101,7 +122,7 @@ of as Fedora edits:
 | --- | --- |
 | A1 — `0777` dir modes | named volumes + tmpfiles rules with per-service ownership |
 | A3 — unpublish internal ports (3100, 9090, 8123, 8888, 8889, 9115, 9221, 10019, 8080) | quadlet pod simply never publishes them (after A4 clears consumers) |
-| A7 — Fleet plaintext hop, MySQL `--sql-mode=""` | fleet.nix: vault-agent-rendered step-ca cert (SANs `fleet.home.shdr.ch` + VM IP) with `FLEET_SERVER_TLS=true`, then AdGuard rewrite points `fleet.home.shdr.ch` directly at the VM and the Caddy route is deleted (osquery agents verify the step root); MySQL flags corrected in the oneshot init |
+| ~~A7 — Fleet plaintext hop, MySQL~~ | Superseded by A9: Fleet is decommissioned pre-migration; nothing to secure or port |
 | A8 — PVE/PBS `verify_ssl: false` | pinned CA in exporters.nix config |
 
 **Explicit risk acceptance**: world-writable data dirs, unauthenticated ingest (until the
@@ -137,7 +158,7 @@ collector change is owned by this plan. Amendment note added to the forwarder do
 Provision:  tofu nixos_cloud_config module → step-ca machine cert via cloud-init
             proxmox VM from cephfs:iso/nixos-base-vm.qcow2.img
 Configure:  nix/hosts/niobe/monitoring-stack/{default,prometheus,loki,tempo,grafana,
-            otel,clickhouse,janus,exporters,fleet}.nix
+            otel,clickhouse,janus,exporters}.nix
 Modules:    vm-hardware + vm-common + base + step-ca-cert + openbao-agent + osquery-agent
 Containers: virtualisation.quadlet.* (quadlet-nix), pinned images from A2
 Secrets:    vault_kv_secret_v2 (already: fleet) → vault-agent templates → /run/secrets/
@@ -149,7 +170,6 @@ Deploy:     new Taskfile target via _nixos-deploy (rsync + nixos-rebuild --targe
 | Gap | Decision |
 | --- | --- |
 | No quadlet **pod** in the repo yet | quadlet-nix supports pod units — use one, preserving today's shared-netns/localhost semantics exactly (no config rewrites of localhost references). Fall back to a named network + container-DNS only if the pod unit proves broken in the soak. |
-| Fleet MySQL init/recovery (~200 lines of Ansible) | Port to a oneshot systemd unit + vault-agent-rendered credentials; drop the recovery path (fresh install on new VM + data import makes it dead code). |
 | Grafana tenant/org provisioning (`grafana_tenant.yml`) | It is an include fragment coupled to `site.yml` vars and the inventory alias — extract into a standalone playbook with its own host/vars so it can target the temp Nix host during soak and the final host after cutover. Porting the imperative API calls to Nix has no payoff. |
 | Central collector config is secret-heavy Jinja2 | vault-agent template rendering the full `otel_config.yml` (ClickHouse password) + the A5 token env file, same pattern as wazuh.nix templates. |
 | `otel-agent.nix` auto-imported by `base.nix` | Configure with its OTLP receiver disabled on this host (mirrors today's `otlp_receiver_enabled: false`) — agent ships host metrics/journald, central collector owns 4317/4318. |
@@ -166,7 +186,6 @@ pinned image versions on both sides (A2), then validate with real queries before
 | --- | --- | --- | --- |
 | Loki chunks/index | loki volume | 90d | two-phase rsync (below) |
 | ClickHouse (zeek/suricata) | clickhouse volume | 365d | two-phase rsync; same CH tag both sides; verify with row counts per table |
-| Fleet MySQL | fleet mysql volume | n/a | `mysqldump` → import → verify host count in Fleet UI |
 | Grafana DB | grafana volume | n/a | copy sqlite (service accounts, tenant orgs) even with dashboards codified |
 | Prometheus TSDB | prometheus_storage | 15d | two-phase rsync if convenient; acceptable loss window |
 | Tempo blocks | tempo volume | 7d | acceptable loss; skip |
@@ -203,12 +222,10 @@ one — no reissue choreography.
 6. Flip `config/vm.yml` → `tofu apply` → router + gateway playbook runs. Producers
    reconnect via unchanged DNS.
 7. Verify: OTLP ingest resumes (`otelcol_receiver_accepted_*`), journal forwarder polls
-   green, Fleet hosts re-check-in (requires `aether.openbao-agent.enable = true` **and**
-   `aether.osquery-agent.enable = true` on the new host — importing the modules alone is a
-   no-op), synthetic firing alert traverses Grafana → ntfy, DeadMansSwitch heartbeat
+   green, synthetic firing alert traverses Grafana → ntfy, DeadMansSwitch heartbeat
    resumes at Kuma; close the maintenance window.
 8. Decommission the Fedora VM only after the full `docs/nixos.md` Definition of Done
-   (all **8** criteria) — including the Fleet migration rule (coverage must not regress).
+   (all **8** criteria).
 
 ### Deliverables checklist
 
@@ -262,6 +279,7 @@ Track B starts when its three prerequisites are green and absorbs the deferred i
 | Re-IP the new VM to 10.0.2.3 at cutover | Requires network reconfig + cert reissue on a bootstrapped NixOS guest; templated references make an IP change in `config/vm.yml` strictly cheaper |
 | Named podman network instead of quadlet pod | Would force rewriting every inter-container localhost reference; quadlet-nix pod units preserve semantics |
 | Porting Grafana tenant API provisioning to Nix | Imperative API calls; hybrid Ansible ownership is the repo norm |
+| Keeping Fleet (port to fleet.nix) | 3 containers + MySQL/Redis + init choreography for ad-hoc SQL forensics; FIM/HIDS = Wazuh, CVEs = Trivy; heaviest single item in the migration for the least value |
 | Removing Caddy from `grafana.home.shdr.ch` too | Human/browser plane: needs a browser-trusted cert + tailscale binding; its failure mode is inconvenience (emergency access = ssh/direct-IP), unlike ingest where gateway-down means fleet-wide blindness |
 
 ## Related

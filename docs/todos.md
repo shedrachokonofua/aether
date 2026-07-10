@@ -21,6 +21,7 @@
   - [ ] Re-point Caddy route consumers (Goldilocks/Holmes/Orion) through Janus; drop raw routes
   - [ ] OTLP ingest bearer-token authn + direct receiver TLS (drop Caddy from ingest path; AdGuard rewrite, vcluster netpol, producers-first incl. vcluster + agent self-telemetry)
   - [ ] VyOS OTel producer -> https://otel.home.shdr.ch
+  - [ ] Decommission Fleet (osquery agents off, fleet pod removed, route/secret/docs sweep; FIM/HIDS stays on Wazuh, CVEs on Trivy)
 - [ ] Enable Proxmox HA for critical VMs ([exploration](exploration/proxmox-ha.md))
   - [ ] Convert Trinity to local-zfs
   - [ ] Convert Oracle to local-zfs
