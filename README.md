@@ -6,10 +6,6 @@ Tailscale.
 
 <img src="docs/rack.jpg" alt="Home server rack" width="400">
 
-The repository is the source of truth for what Aether declares. Documentation
-provides orientation; it is not proof that a resource has been applied or is
-currently healthy. Use live system queries when those distinctions matter.
-
 ## Features
 
 | Area | Declared platform |
