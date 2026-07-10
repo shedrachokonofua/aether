@@ -6,7 +6,6 @@
   - [ ] Add x509-certificate-exporter to vm_monitoring_agent role
   - [ ] Add cert expiry rules to Grafana alerting (<30% lifetime remaining)
   - [ ] Add cert renewal daemon health rules (systemd unit down)
-- [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
 - [ ] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection ([exploration](exploration/journal-forwarder.md))
   - [ ] Publish versioned forwarder release + SHA-256 from CI (no `latest`)
   - [ ] Create `pki-journal-client` OpenBao mount (Tofu) + sign intermediate with step-ca root
@@ -33,22 +32,13 @@
   - [ ] Configure cert renewal hook (systemd reload)
   - [ ] Remove Caddy proxy route for auth.shdr.ch
   - [ ] Update AdGuard DNS to point directly at Keycloak
-- [ ] Enroll Cockpit with step-ca (SSH user cert, auto-renewal)
 - [ ] Codify existing Grafana dashboards in Ansible (currently manual: Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
-- [ ] Integrate SSO (OIDC-native apps)
-  - [ ] LiteLLM
-  - [ ] Dokploy
-  - [ ] Infisical
-  - [ ] Element
-  - [ ] Affine
-  - [ ] N8N
 - [ ] Enable SSH certificate auth for GitLab git push
   - [ ] Configure gitlab_sshd to trust step-ca user CA
     - [ ] Copy ssh_user_ca_key.pub to GitLab config
     - [ ] Add gitlab_sshd trusted_cert_file in gitlab.rb.j2
   - [ ] Update gitlab.yml playbook to deploy CA pubkey
   - [ ] Test step ssh login → git push workflow
-- [ ] Replace Jellyseer, Sonarr, Radarr with MediaManager
 
 ## P2
 
@@ -57,44 +47,11 @@
   - [ ] Phase 1: freeze new step-ca provisioners; update trust-model.md with issuing-tier policy
   - [ ] Phase 2: `pki-machine` mount; migrate machine certs opportunistically with NixOS migrations
   - [ ] Add mount intermediate CAs to cert-expiry alerting; enable PKI tidy
-- [ ] Deploy Kubernetes cluster ([exploration](exploration/kubernetes.md))
-  - [x] Provision 3 Talos VMs via Tofu (Trinity, Niobe, Neo)
-  - [x] Bootstrap Talos cluster
-  - [x] Install Cilium CNI with L2 announcements + LoadBalancer VIP
-  - [x] Install Gateway API CRDs + main-gateway
-  - [x] Install Ceph CSI for persistent storage
-  - [x] Install Knative Serving (scale-to-zero)
-  - [ ] Install Knative Eventing
-  - [x] Install Crossplane + Ceph RGW/Keycloak providers
-  - [x] Install Kyverno (policy enforcement; ARM-pool guardrails)
-  - [x] Install cert-manager + step-ca StepIssuer (via step-issuer + istio-csr)
-  - [x] Deploy OTEL Collectors (DaemonSet + Deployment) → Monitoring Stack
-  - [x] Enable Hubble UI via Gateway API
-  - [x] Deploy Headlamp dashboard with Keycloak OIDC
-  - [x] Register GitLab Agent
-  - [x] Create k8s dashboards in Grafana
-  - [x] Migrate AI Tool Stack, Messaging Stack to Knative
-  - [x] Migrate Media Stack (rffmpeg → GPU Workstation for transcoding)
-  - [x] Migrate Dokku/Dokploy apps to Knative Services / native Deployments
-  - [x] Configure multi-tenancy (namespaces, quotas, Cilium NetworkPolicies)
-  - [ ] Add ARM worker pool from Raspberry Pis ([exploration](exploration/raspberry-pi.md))
-    - [x] Wire baremetal Talos node support in Tofu (`platform: baremetal`, per-arch schematics)
-    - [x] Add Pi 4/5 Talos schematics (generic + `rpi_5` overlay)
-    - [x] Provision talos-mouse (Pi 4) — flashed, joined, labeled
-    - [x] Provision talos-dozer (Pi 5) — flashed, joined, labeled
-    - [x] Provision talos-tank (Pi 5) — flashed, joined, labeled
-    - [x] Provision talos-sparks (CM4 Lite / Mini Base) — flashed, joined, labeled
-    - [x] Move Pi nodes from office switch to main rack
-    - [x] Land Kyverno ARM pool guardrails (`arm-pool-guardrails`, `arm-ok-daemonset-pods`)
 - [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))
   - [ ] Deploy WUD for container update visibility
   - [ ] Deploy Trivy for CVE scanning
   - [ ] Deploy Ansible Semaphore for controlled deployment
   - [ ] Create Grafana dashboard for unified view
-- [x] Deploy Fleet/osquery for host visibility ([exploration](exploration/osquery.md))
-  - [x] Deploy Fleet server on Monitoring Stack
-  - [x] Add osquery agent to vm_monitoring_agent role (+ `nix/modules/osquery-agent.nix` for NixOS hosts)
-  - [x] Configure scheduled queries and policies
 - [ ] Complete Tailscale integration ([exploration](exploration/full-tailscale-integration.md))
   - [ ] Phase 2: Gateway credential security (WIF)
   - [ ] Phase 3: VyOS route for home → Tailnet
@@ -120,10 +77,6 @@
   - [ ] qBittorrent
   - [ ] SABnzbd
   - [ ] Prowlarr
-  - [ ] Homarr
-- [ ] Deploy rffmpeg server on GPU Workstation (Jellyfin remote transcoding)
-- [ ] Add TTS/STT inference to GPU Workstation
-- [x] Integrate Matter/Thread border router into IoT stack (OTBR + python-matter-server on iot-management-stack)
 
 ## P3
 
@@ -135,14 +88,7 @@
   - [ ] Migrate Gateway Stack (Caddy, Tailscale, HAProxy)
   - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao) via nixos-generators LXC
   - [ ] Migrate Monitoring Stack ([exploration](exploration/monitoring-stack-nix.md) Track B; prereqs: journal forwarder, codified dashboards, pinned images; absorbs deferred hardening: dir ownership, port non-publication, Fleet TLS, exporter TLS verify)
-  - [ ] Migrate Dev Workstation
   - [ ] Migrate IoT Stack
-  - [ ] Deploy Desktop VM on Trinity ([exploration](exploration/desktop-vm.md))
-    - [ ] Configure iGPU passthrough (freed from Media Stack)
-    - [ ] NixOS with KDE/GNOME/Hyprland configs
-    - [ ] Sunshine for streaming
-    - [ ] Distrobox for multi-distro dev
-- [ ] Move dev workstation to Neo
 - [ ] Refactor public gateway as "Soren"
   - [ ] Rename to Soren in docs, Ansible, Tailscale
   - [ ] Upgrade Lightsail instance to micro ($5/mo)
