@@ -94,6 +94,10 @@ lives outside the monitoring VM entirely.
 5. **A9 — Fleet decommission** (decision: axed — MySQL + Redis + server + ~200 lines of
    init logic to run SQL queries; FIM/HIDS is already Wazuh's job, CVE scanning is Trivy's;
    the unique loss is ad-hoc SQL forensics and failing-policy digests, accepted).
+   **Precondition — verify the compensating control**: confirm Wazuh *agent* enrollment
+   actually covers the hosts Fleet's osquery watched (server-side is deployed; fleet-wide
+   agent coverage is unaudited). Any gap = enroll Wazuh agents there first, or the FIM
+   claim below is fiction.
    Decommission playbook following the repo convention
    (`ansible/playbooks/monitoring_stack/decommission_fleet.yml`, cf. media_stack pattern):
    1. Remove osquery from producers: `osquery_enabled: false` sweep via
