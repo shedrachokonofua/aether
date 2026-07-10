@@ -57,7 +57,18 @@ lives outside the monitoring VM entirely.
    (tofu/home/kubernetes/*.tf). Re-point them through Janus (tenant-scoped, JWT-authed) or
    grant a scoped path, then delete the raw Prometheus/Loki/ClickHouse/otel-metrics Caddy
    routes. This is k8s + gateway work; it must precede port closure on either platform.
-3. **A5 — OTLP ingest authn** (the big one): `bearertokenauth` on the central collector.
+3. **A5 — OTLP ingest authn + Caddy decoupling** (the big one): `bearertokenauth` AND
+   native receiver TLS on the central collector, removing the home-gateway dependency from
+   the ingest path. Today every producer pushes through Caddy on 10.0.2.2 — the
+   observability pipeline has a runtime dependency on an unrelated VM, circularly including
+   that VM's own health signal; gateway down = fleet-wide telemetry blackout. Fix in the
+   same rollout (producers are touched once): collector receivers get
+   `tls: {cert_file, key_file}` (step-ca cert, vault-agent-renewed), AdGuard rewrites
+   `otel.home.shdr.ch` → the VM IP, the Caddy route is deleted, the vcluster egress netpol
+   L7 SNI allowance follows the new destination (`vcluster_network_policy.tf:81`), and
+   producers gain `ca_file` = step root where the system store lacks it (Fedora VM agents,
+   k8s collectors; nix hosts already trust it). VyOS rule 22 already permits routed
+   producers to reach 4317/4318 directly.
    ~90% of this work is producer-side and survives the migration untouched; the collector
    config carries over in the parity migration. Collector side is three pieces, not one:
    the extension declared under `extensions:`, the token sourced at runtime (env var from a
@@ -90,7 +101,7 @@ of as Fedora edits:
 | --- | --- |
 | A1 — `0777` dir modes | named volumes + tmpfiles rules with per-service ownership |
 | A3 — unpublish internal ports (3100, 9090, 8123, 8888, 8889, 9115, 9221, 10019, 8080) | quadlet pod simply never publishes them (after A4 clears consumers) |
-| A7 — Fleet plaintext hop, MySQL `--sql-mode=""` | fleet.nix: vault-agent-rendered step-ca cert (SANs `fleet.home.shdr.ch` + VM IP), Caddy upstream to `https://` with step root trust; MySQL flags corrected in the oneshot init |
+| A7 — Fleet plaintext hop, MySQL `--sql-mode=""` | fleet.nix: vault-agent-rendered step-ca cert (SANs `fleet.home.shdr.ch` + VM IP) with `FLEET_SERVER_TLS=true`, then AdGuard rewrite points `fleet.home.shdr.ch` directly at the VM and the Caddy route is deleted (osquery agents verify the step root); MySQL flags corrected in the oneshot init |
 | A8 — PVE/PBS `verify_ssl: false` | pinned CA in exporters.nix config |
 
 **Explicit risk acceptance**: world-writable data dirs, unauthenticated ingest (until the
@@ -228,6 +239,8 @@ Track B starts when its three prerequisites are green and absorbs the deferred i
 
 - **A5 enforcement flip** is the only hardening step that can cause fleet-wide telemetry
   loss — hence producers-first ordering + refused-metric alert + soak before enforcing.
+  The DNS cutover (Caddy → direct) is separately safe: rewrite the name, watch
+  `otelcol_receiver_accepted_*`, revert the rewrite to roll back.
 - **Port non-publication in B** breaks Goldilocks/Holmes/Orion if A4 consumer re-pointing
   has not landed first — A4 is a hard ordering constraint on the migration.
 - **Deferral window**: the accepted interim exposure is open until cutover; the
@@ -249,6 +262,7 @@ Track B starts when its three prerequisites are green and absorbs the deferred i
 | Re-IP the new VM to 10.0.2.3 at cutover | Requires network reconfig + cert reissue on a bootstrapped NixOS guest; templated references make an IP change in `config/vm.yml` strictly cheaper |
 | Named podman network instead of quadlet pod | Would force rewriting every inter-container localhost reference; quadlet-nix pod units preserve semantics |
 | Porting Grafana tenant API provisioning to Nix | Imperative API calls; hybrid Ansible ownership is the repo norm |
+| Removing Caddy from `grafana.home.shdr.ch` too | Human/browser plane: needs a browser-trusted cert + tailscale binding; its failure mode is inconvenience (emergency access = ssh/direct-IP), unlike ingest where gateway-down means fleet-wide blindness |
 
 ## Related
 
