@@ -31,6 +31,7 @@ Trust anchor for step-ca certificates, enabling certificate-based AWS authentica
 | Profile             | Role                | Trusted CN       | Permissions         |
 | ------------------- | ------------------- | ---------------- | ------------------- |
 | openbao-auto-unseal | openbao-auto-unseal | bao.home.shdr.ch | KMS Encrypt/Decrypt |
+| offsite-backup      | offsite-backup      | backup-stack.home.shdr.ch | Scoped access to the offsite S3 bucket |
 
 ### KMS Keys
 
@@ -57,9 +58,12 @@ Lightsail instance in us-east-1b running Amazon Linux 2023 on nano bundle, servi
 S3 bucket for offsite backups of home storage layer and virtual machines with:
 
 - Server-side encryption (AES256)
-- Immediate transition to Glacier Flexible Retrieval
-- **Current**: Dedicated IAM user with minimal required permissions (stored/encrypted via SOPS)
-- **Planned**: Backup Server auth via AWS IAM Roles Anywhere (step-ca certificate-based) to remove static credentials (see `docs/todos.md`)
+- Versioning enabled so deletes retain recoverable noncurrent objects
+- Restic data packs under `restic/data/` and `restic-v2/data/` transition to
+  S3 Glacier Deep Archive after one day; repository metadata remains immediately readable
+- IAM Roles Anywhere authentication using the step-ca certificate for
+  `backup-stack.home.shdr.ch`, with fresh temporary credentials minted for each
+  Restic process
 - Public access blocked
 
 ## Email

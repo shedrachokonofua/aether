@@ -19,7 +19,7 @@ Use docs to learn intent and vocabulary. Use the authoritative paths to decide w
 | Identity and trust | `docs/trust-model.md`, `docs/secrets.md` | Keycloak/OpenBao Tofu, step-ca/Keycloak/OpenBao playbooks, `.sops.yaml` |
 | NixOS systems | `docs/nixos.md` | `flake.nix` `nixosConfigurations`, `nix/hosts/`, `nix/modules/`, Taskfile deploy targets |
 | AWS | `docs/aws.md` | `tofu/aws/*.tf` |
-| Google Cloud | related service docs | `tofu/google/*.tf`, root `tofu/main.tf` module wiring |
+| Google Cloud | `docs/google-cloud.md` | `tofu/google/*.tf`, root `tofu/main.tf` module wiring |
 | Cloudflare | `docs/cloudflare.md` | `tofu/cloudflare.tf` |
 | AI/GPU services | `docs/ai-ml.md` | matching `tofu/home/kubernetes/*.tf`, GPU node declarations in `config/vm.yml` |
 | Communications | `docs/communication.md` | Kubernetes Matrix resources, notifications playbooks/Tofu, AWS SES |
