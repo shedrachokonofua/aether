@@ -64,6 +64,10 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     # compiled-in default still says llama-swap.infra.svc — dead since the
     # ai-serving namespace split. Broken reranker = RAG fails (by design).
     RERANKER_BASE_URL = "http://llama-swap.ai-serving.svc.cluster.local:8080"
+    # Qwen3-Reranker-4B (2026-07-09): bge-v2-m3 scored literal matches
+    # ("Family") above inferential ones ("fallen off Dr. Rehal's roster" for
+    # "who is my family doctor"); qwen3 orders them correctly — verified A/B.
+    RERANKER_MODEL = "qwen3-reranker-4b"
 
     # OpenWebUI source (read-only API access)
     OPENWEBUI_DATABASE_URL = local.mnemo_openwebui_db_url

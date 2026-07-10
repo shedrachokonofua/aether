@@ -158,6 +158,25 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --reranking
           ttl: 120
 
+        # Qwen3-Reranker: unlike bge-v2-m3 it handles inferential relevance
+        # ("fell off Dr. Rehal's roster" ⇒ "my family doctor") instead of
+        # lexical overlap only — the ceiling mnemo RAG hit on 2026-07-09.
+        # Voodisss conversion is the verified one (official
+        # convert_hf_to_gguf.py: cls.output.weight + pooling_type=RANK;
+        # most community GGUFs are broken, near-zero scores). Q4_K_M is
+        # within 1% of F16 on MTEB rerank per the repo's benchmark.
+        "qwen3-reranker-4b":
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf Voodisss/Qwen3-Reranker-4B-GGUF-llama_cpp
+            -hff Qwen3-Reranker-4B-Q4_K_M.gguf
+            -ngl 99
+            --reranking
+            --pooling rank
+            --embedding
+          ttl: 120
+
         "gemma-4-31b":
           # MTP speculative decoding: ~1.4x+ faster generation, same accuracy.
           # MTP draft GGUFs live in the same HF repo; the gemma4-assistant
@@ -260,6 +279,8 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # evicts the chat model when embedding starts (exclusive default).
           emb: "qwen3-embedding-0.6b"
           rr: "bge-reranker-v2-m3"
+          # mnemo's reranker; bge stays for AFFiNE (routed by name via LiteLLM).
+          qrr: "qwen3-reranker-4b"
         evict_costs:
           q3627: 25
           q36: 25
@@ -268,9 +289,11 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           q35: 10
           emb: 2
           rr: 3
+          qrr: 4
         sets:
-          # One chat model + embedding + reranker — AFFiNE copilot pattern.
-          llm: "(q3627 | q36 | g31 | g26 | q35) & emb & rr"
+          # One chat model + embedding + a reranker — either reranker may be
+          # co-resident so mnemo RAG / AFFiNE calls never evict the chat model.
+          llm: "(q3627 | q36 | g31 | g26 | q35) & emb & (rr | qrr)"
     YAML
   }
 }

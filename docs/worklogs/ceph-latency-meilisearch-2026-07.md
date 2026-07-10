@@ -181,3 +181,20 @@ Also hit during deploys: `proxmox_virtual_environment_download_file.talos_iso`
 refresh now fails (upstream URL 404s) — pre-existing, breaks any targeted
 apply that refreshes it; worked around with `-refresh=false`. Needs its own
 fix.
+
+### Reranker upgraded to Qwen3-Reranker-4B (2026-07-09, late)
+
+The bge ceiling was removed rather than accepted: llama-swap now serves
+`qwen3-reranker-4b` (Voodisss Q4_K_M GGUF — the verified official-script
+conversion with `cls.output.weight` + `pooling_type=RANK`; most community
+GGUFs are broken; flags `--reranking --pooling rank --embedding`). Direct
+A/B on the failing pair: qwen3 ranks the Rehal roster email ABOVE "Family"
+/ chat fragments — the inference bge could not make. mnemo pinned via
+`RERANKER_MODEL`; bge stays for AFFiNE; llama-swap matrix allows either
+reranker co-resident (`(rr | qrr)`) so RAG calls don't evict chat models.
+
+End state for "who is my family doctor" at MCP-default limit 10: zero junk,
+top hits are the user's own Harbourfront enrollment email and
+family-physician guidance mail. Entity answer is one get_thread away;
+keyword search answers it directly. Chunk/embed backfill still draining
+toward full-corpus coverage (self-healing 30-min cron).
