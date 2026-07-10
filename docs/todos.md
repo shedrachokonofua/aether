@@ -43,6 +43,12 @@
 
 ## P2
 
+- [ ] Remove east-west NAT masquerade — real source identity on mgmt net ([exploration](exploration/east-west-nat-removal.md))
+  - [ ] Phase 0: live verification (pve-firewall, existing routes, conntrack snapshot)
+  - [ ] Phase 1: consolidate return routes into one templated mechanism; add backup-stack, bazzite-builder, nfs
+  - [ ] Phase 2: VyOS MGMT-ROUTED-HOSTS address group + NAT exclude rule 95
+  - [ ] Phase 3: verify real sources + fallback masquerade for unmanaged devices
+  - [ ] Phase 4: networking.md rewrite; retire journal-forwarder VyOS pre-NAT workaround
 - [ ] Remove idle Knative Serving and operator resources (no declared or live KServices as of 2026-07-10)
 - [ ] Adopt two-tier PKI: step-ca root tier, OpenBao issuing tier ([exploration](exploration/two-tier-pki.md))
   - [ ] Phase 0: `pki-journal-client` mount (with forwarder deployment)
