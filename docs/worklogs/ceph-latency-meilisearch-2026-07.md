@@ -140,3 +140,44 @@ Chain of failures, each worth remembering:
 - Steady state on live data: worst-case adversarial query 229ms warm,
   realistic queries 25–950ms, facets ~1.2s. Ceph at baseline throughout
   verification (r-lat 0.49ms).
+
+## RAG overhaul (2026-07-09 evening) — five stacked causes, measured and fixed
+
+"Why does RAG return substack footers?" decomposed into five independent
+defects (mnemo commits f5be49f7, 9928f0d6, c12ddb72, 385f0f51, e39ff546):
+
+1. **Index was 61% newsletter junk** — purged bulk chunks/embeddings/
+   search_documents; `ChunkMessage` skips bulk at ingest; `api.rag_context`
+   excludes bulk defensively (+ `plan_cache_mode` pin).
+2. **Coverage was ~5%** — chunking was gated on the Gmail backfill and
+   absent for Matrix. New `BackfillChunks` drain (newest-first, 30-min cron,
+   self-healing) chunks everything non-bulk AND re-enqueues chunks whose
+   embed jobs died (11.5k orphans from the 07-01 text-embedding-3-small
+   era). Embeddings 24k → 47k+ and climbing at ~8/s (local qwen3 via
+   llama-swap, zero external cost).
+3. **Retrieval ordering starved semantic hits** — lexical-first sort with a
+   strict-AND tsquery that never matches question phrasings. Now reciprocal
+   rank fusion (k=60) of vector + content-word (len>=4) disjunctive FTS;
+   rerank window floor 40 → 120.
+4. **Query embeddings ignored qwen3's asymmetric-retrieval convention** —
+   instruct-prefix on the query side only (no re-embedding needed) moved
+   the target chunk from vector rank #1200 to #36.
+5. **Reranker was DNS-dead** (fixed earlier: `RERANKER_BASE_URL` →
+   ai-serving).
+
+Verified end state for "who is my family doctor": top results are genuinely
+relevant (family-physician emails, GP explainers) and the answer chunk
+reaches the reranker. Remaining ceiling, isolated by direct A/B:
+**bge-reranker-v2-m3 scores literal matches ("Family", -2.46) above
+inferential ones ("fallen off Dr. Rehal's roster", -6.97)** while acing
+clear-cut pairs (Paris test +7.9/-10.8) — a model-quality limit, not a
+pipeline bug. Options: Qwen3-Reranker on llama-swap (llama.cpp support is
+fragile: most community GGUFs lack cls.output.weight; needs --pooling rank
+--embedding and a verified conversion) or lean on the MCP consumer
+combining rag_context with keyword search (which answers the Rehal
+question in one query).
+
+Also hit during deploys: `proxmox_virtual_environment_download_file.talos_iso`
+refresh now fails (upstream URL 404s) — pre-existing, breaks any targeted
+apply that refreshes it; worked around with `-refresh=false`. Needs its own
+fix.
