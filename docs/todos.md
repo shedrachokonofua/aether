@@ -12,7 +12,7 @@
   - [ ] Create `pki-journal-client` OpenBao mount (Tofu) + sign intermediate with step-ca root
   - [ ] Add `journal_gateway` role (Proxmox hosts: mTLS; public gateway: tailnet-bound)
   - [ ] Deploy vault-agent + forwarder to monitoring stack
-  - [ ] Join monitoring stack to tailnet (`tag:monitoring`) + ACL to public gateway :19531
+  - [ ] Join monitoring stack to tailnet (`tag:monitoring`) + ACL to public gateway and uptime monitor :19531
   - [ ] Add forwarder alerts (poll stale/errors/absent) + document in monitoring.md
 
 ## P1

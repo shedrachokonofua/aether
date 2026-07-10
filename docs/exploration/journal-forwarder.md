@@ -1,7 +1,7 @@
 # Journal Log Forwarding (otel-journal-gatewayd-forwarder)
 
 Implementation plan for pull-based journal log collection from the hosts that run no local
-OTEL agent: the five Proxmox hosts and the public gateway. Closes the P0 gap where these
+OTEL agent: the five Proxmox hosts and the cloud VMs (AWS public-gateway, GCP uptime-monitor). Closes the P0 gap where these
 machines expose metrics (node/SMART exporters) but ship no logs.
 
 Source project: `gitlab.home.shdr.ch/shdrch/otel-journal-gatewayd-forwarder` — Rust, static
@@ -43,7 +43,8 @@ existing `routing/logs` connector and land in Loki by default.
 | Target | Collected? | Why |
 | --- | --- | --- |
 | niobe, trinity, oracle, smith, neo | ✅ forwarder | No agent today; hypervisors stay agent-free |
-| public-gateway | ✅ forwarder | No agent today; over Tailscale |
+| public-gateway (AWS) | ✅ forwarder | No agent today; over Tailscale |
+| uptime-monitor (GCP) | ✅ forwarder | No agent today; over Tailscale — pull keeps its dead-man independence |
 | All VMs | ❌ | `vm_monitoring_agent` journald receiver already ships these — adding them would duplicate |
 | VyOS router | ❌ | Dedicated OTEL collector already deployed |
 | NixOS hosts (IDS, blockchain, AdGuard) | ❌ | `otel-agent.nix` already ships journald |
@@ -61,6 +62,7 @@ router entirely.
 | --- | --- |
 | forwarder → Proxmox hosts | gatewayd native mTLS; trust anchor = dedicated journal-client intermediate |
 | forwarder → public-gateway | Tailscale identity (`tag:monitoring → tag:public-gateway:19531`); gatewayd bound to the tailscale IP only |
+| forwarder → uptime-monitor | Tailscale identity (`tag:monitoring → tag:uptime-monitor:19531`); gatewayd bound to the tailscale IP only |
 | forwarder → OTLP | loopback, plain HTTP |
 
 Because gatewayd's verifier is chain-only, **the trust anchor is the entire authorization
@@ -122,18 +124,18 @@ steps 1–3 are a ceremony, recorded here as the runbook.
 3. **`tofu/tailscale.tf`** — add `tag:monitoring` (admin-sourced), OAuth client for
    monitoring-stack with `depends_on = [tailscale_acl.tailnet_acl]` (uptime-monitor pattern —
    client creation must not race the tag declaration), ACL rule
-   `tag:monitoring → tag:public-gateway:19531`, and a
+   `tag:monitoring → tag:{public-gateway,uptime-monitor}:19531`, and a
    `data "tailscale_device" "public_gateway"` lookup exported via tf_outputs so the forwarder
    config consumes a declared tailscale IP, never a hand-copied one.
-4. **`ansible/roles/journal_gateway/`** (new, OS-generic: Debian/Proxmox + AL2023)
+4. **`ansible/roles/journal_gateway/`** (new, OS-generic: Debian/Proxmox + AL2023 + Debian cloud)
    - install `systemd-journal-gateway` (deb) / `systemd-journal-remote` (AL2023)
-   - socket drop-in: `ListenStream=` bound to mgmt IP (Proxmox) / tailscale IP (public gateway)
+   - socket drop-in: `ListenStream=` bound to mgmt IP (Proxmox) / tailscale IP (public gateway, uptime-monitor)
    - Proxmox: service drop-in with `--cert/--key/--trust`, step-ca server cert + renew timer
      (reuse the openbao-cert-renew pattern), `--trust` = journal-client intermediate —
      fetched by the role from the mount's public CA endpoint
      (`https://bao.home.shdr.ch/v1/pki-journal-client/ca/pem`) and deployed as a file;
      intermediate rotation = re-run role with old+new certs bundled
-   - public gateway: no TLS args; tailnet binding is the authn boundary
+   - cloud VMs (public gateway, uptime-monitor): no TLS args; tailnet binding is the authn boundary
 5. **`ansible/roles/otel_journal_forwarder/`** (new)
    - pinned binary from GitLab package registry + SHA-256 verification
    - `config.toml.j2` (below), dedicated `ojgf` system user, hardened unit
@@ -152,7 +154,8 @@ steps 1–3 are a ceremony, recorded here as the runbook.
 7. **monitoring-stack playbook** — add both roles to `site.yml`; tailscaled install + join
    (`tag:monitoring`, mirror the public_gateway tailscale playbook); scrape
    `127.0.0.1:9091` via the VM agent's `prometheus_scrape_configs`.
-8. **`ansible/playbooks/public_gateway_stack/site.yml`** — import `journal_gateway`.
+8. **`ansible/playbooks/public_gateway_stack/site.yml`** — import `journal_gateway`; apply the
+   same role to `uptime-monitor` from its configure playbook (`task configure:uptime-monitor`).
 9. **Grafana alerts** — see below.
 10. **Docs** — `docs/monitoring.md` "Journal Forwarder" subsection; tick `docs/todos.md`.
 
@@ -178,6 +181,12 @@ labels = { instance_type = "proxmox_host" }
 name = "public-gateway"
 url  = "http://<tailscale-ip>:19531"   # tf_outputs.tailscale_public_gateway_ip (device lookup)
 tls  = {}   # explicit empty block opts this source out of the global mTLS identity
+labels = { instance_type = "vps" }
+
+[[sources]]
+name = "uptime-monitor"
+url  = "http://<tailscale-ip>:19531"   # tf_outputs.tailscale_uptime_monitor_ip (existing lookup)
+tls  = {}
 labels = { instance_type = "vps" }
 ```
 
@@ -213,7 +222,7 @@ missed renewal).
    `otel-journal-gatewayd-forwarder --validate` then `--once`; confirm records in Loki
    (filter on the `host.name` resource attribute for `niobe` — Loki's OTLP mapping keeps it
    as structured metadata, not an index label) and metrics on `:9091`.
-5. Roll remaining Proxmox hosts, then public gateway (tailscale join first).
+5. Roll remaining Proxmox hosts, then the cloud VMs (public gateway, uptime-monitor).
 6. Land alerts + docs.
 
 ## Risks
