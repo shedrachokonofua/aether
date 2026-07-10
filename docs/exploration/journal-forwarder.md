@@ -36,7 +36,10 @@ flowchart LR
 ```
 
 No changes to the central collector, Loki, Tempo, or Grafana datasources — logs enter the
-existing `routing/logs` connector and land in Loki by default.
+existing `routing/logs` connector and land in Loki by default. (Amendment: when the
+[monitoring-stack hardening plan](monitoring-stack-nix.md) lands OTLP ingest auth (A5), the
+forwarder config gains `otlp_headers = { Authorization = "Bearer <token>" }` rendered by
+vault-agent; the collector-side change is owned by that plan.)
 
 ## Scope
 
