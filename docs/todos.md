@@ -20,7 +20,7 @@
 - [ ] Monitoring pre-migration hardening — survivable subset ([exploration](exploration/monitoring-stack-nix.md))
   - [ ] Pin all 13 container images (10 floating tags) — Track B prerequisite
   - [ ] Re-point Caddy route consumers (Goldilocks/Holmes/Orion) through Janus; drop raw routes
-  - [ ] OTLP ingest bearer-token authn (producers-first; incl. vcluster + agent self-telemetry)
+  - [ ] OTLP ingest bearer-token authn + direct receiver TLS (drop Caddy from ingest path; AdGuard rewrite, vcluster netpol, producers-first incl. vcluster + agent self-telemetry)
   - [ ] VyOS OTel producer -> https://otel.home.shdr.ch
 - [ ] Enable Proxmox HA for critical VMs ([exploration](exploration/proxmox-ha.md))
   - [ ] Convert Trinity to local-zfs
