@@ -2,6 +2,15 @@
 
 Exploration of workflow orchestration tools for platform automation, scheduled jobs, and event-driven pipelines on Kubernetes.
 
+> **Historical selection document (2026-07-10):** Kestra OSS is now declared
+> in `tofu/home/kubernetes/kestra.tf` and runs as a standalone deployment with
+> CNPG, Ceph RBD storage, basic API auth, and direct Tofu-created Kubernetes
+> Secrets. The current route has no forward-auth layer. The first owned workflow
+> is the automated incident path in sibling `../inquest`, whose own Tofu state
+> applies the Kestra flows. Sections below describing ESO, forward-auth,
+> deployment phases, or future workflow migrations are original design context,
+> not current state or committed roadmap.
+
 ## Goal
 
 Deploy workflow orchestration to enable:
@@ -445,7 +454,7 @@ spec:
 | Kestra   | Automation  | Platform glue, scheduled jobs, AI pipelines |
 | Argo     | Infra       | K8s-native when RBAC/multi-tenant needed |
 
-## Implementation Phases
+## Historical Implementation Phases
 
 ### Phase 1: Deploy Kestra
 
@@ -489,13 +498,16 @@ spec:
 
 ## Related Documents
 
-- `kubernetes.md` — K8s cluster where Kestra runs
-- `agentic-incident-response.md` — Temporal for durable incident workflows
+- `../paas.md` — K8s cluster and current Kestra platform
+- `agentic-incident-response.md` — superseded AIAgent/Fleet incident design
+- `../../../inquest/README.md` — implemented Inquest workflow
 - `../trust-model.md` — Identity for secrets access
 - `../monitoring.md` — Prometheus/Loki that Kestra queries
-- `../paas.md` — Current n8n/Windmill/Dokku being retired
 
 ## Status
 
-**Exploration complete.** Deploy Kestra as part of Kubernetes platform rollout. Argo available as secondary option for K8s-native requirements.
-
+**Selection implemented, broader migration unverified.** Kestra is deployed and
+Inquest is its first declared workflow. The remaining checklists above are
+historical proposals; verify each candidate against current IaC before treating
+it as planned work. Argo remains an evaluated option, not a declared platform
+component.

@@ -10,7 +10,7 @@ The stack hosts the following applications:
 ## Usage
 
 ```bash
-task configure:aws:public-gateway
+task configure:public-gateway
 ```
 
 ## Sub-Playbooks
@@ -18,11 +18,11 @@ task configure:aws:public-gateway
 ### Deploy Tailscale
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/public_gateway_stack/tailscale/site.yml
+task ansible:playbook -- public_gateway_stack/tailscale/site.yml
 ```
 
 ### Deploy Caddy
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/public_gateway_stack/caddy/site.yml
+task ansible:playbook -- public_gateway_stack/caddy/site.yml
 ```

@@ -170,7 +170,7 @@ Do these **in order** before `task tofu:apply`:
 
 - [ ] **Provision RGW user + bucket**:
   ```bash
-  task ansible:run -- playbooks/configure_ceph_rgw_accounts.yml --tags nextcloud
+  task ansible:playbook -- configure_ceph_rgw_accounts.yml --tags nextcloud
   ```
   This creates the `nextcloud` RGW user (using the creds from secrets.yml) and
   the `nextcloud` bucket. Idempotent — safe to re-run.

@@ -9,7 +9,7 @@ This playbook deploys [step-ca](https://smallstep.com/docs/step-ca), a private C
 ## Usage
 
 ```bash
-task provision:home:step-ca
+task provision:step-ca
 ```
 
 ## Sub-Playbooks
@@ -19,7 +19,7 @@ task provision:home:step-ca
 Creates the Fedora LXC container on Proxmox.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/step_ca/provision_lxc.yml
+task ansible:playbook -- step_ca/provision_lxc.yml
 ```
 
 ### Bootstrap LXC
@@ -27,7 +27,7 @@ task ansible:playbook -- ./ansible/playbooks/step_ca/provision_lxc.yml
 Configures SSH access and Python for Ansible.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/step_ca/bootstrap_lxc.yml
+task ansible:playbook -- step_ca/bootstrap_lxc.yml
 ```
 
 ### Deploy step-ca
@@ -35,7 +35,7 @@ task ansible:playbook -- ./ansible/playbooks/step_ca/bootstrap_lxc.yml
 Installs step-ca, initializes the PKI, and configures provisioners.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/step_ca/deploy_step_ca.yml
+task ansible:playbook -- step_ca/deploy_step_ca.yml
 ```
 
 ## Provisioners

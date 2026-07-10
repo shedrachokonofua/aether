@@ -5,7 +5,7 @@ This playbook is for setting up and deploying the [VyOS](https://vyos.io/) route
 ## Usage
 
 ```bash
-task provision:home:router
+task provision:router
 ```
 
 ## Sub-Playbooks
@@ -15,7 +15,7 @@ task provision:home:router
 This sets up a fedora VM with the necessary tools to pack the VyOS cloud image.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/provision_vyos_packer.yml
+task ansible:playbook -- home_router/provision_vyos_packer.yml
 ```
 
 ### Pack VyOS image
@@ -23,7 +23,7 @@ task ansible:playbook -- ./ansible/playbooks/home_router/provision_vyos_packer.y
 This clones the VyOS iso image and packer-vyos repository into the VyOS packer VM, builds the VyOS cloud image, and copies the image to the Proxmox cluster.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/pack_vyos.yml
+task ansible:playbook -- home_router/pack_vyos.yml
 ```
 
 ### Provision Router
@@ -31,7 +31,7 @@ task ansible:playbook -- ./ansible/playbooks/home_router/pack_vyos.yml
 This provisions the VyOS router VM on the Proxmox cluster.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/provision_router.yml
+task ansible:playbook -- home_router/provision_router.yml
 ```
 
 ### Apply network configuration
@@ -39,7 +39,7 @@ task ansible:playbook -- ./ansible/playbooks/home_router/provision_router.yml
 This applies the network configuration to the router.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/configure_router.yml
+task ansible:playbook -- home_router/configure_router.yml
 ```
 
 ### Configure OTEL Monitoring
@@ -47,7 +47,7 @@ task ansible:playbook -- ./ansible/playbooks/home_router/configure_router.yml
 This deploys an OpenTelemetry Collector container on VyOS for metrics and log collection. Uses VyOS's native container system (Podman-based) and persists configuration in `/config` to survive upgrades.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/configure_otel.yml
+task ansible:playbook -- home_router/configure_otel.yml
 ```
 
 **What it monitors:**
@@ -60,5 +60,5 @@ task ansible:playbook -- ./ansible/playbooks/home_router/configure_otel.yml
 This tears down the VyOS packer VM and deletes the disk.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_router/destroy_vyos_packer.yml
+task ansible:playbook -- home_router/destroy_vyos_packer.yml
 ```

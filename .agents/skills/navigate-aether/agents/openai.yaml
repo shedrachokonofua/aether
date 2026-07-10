@@ -1,0 +1,4 @@
+interface:
+  display_name: "Navigate Aether"
+  short_description: "Map Aether architecture and ownership"
+  default_prompt: "Use $navigate-aether to map an Aether component to its runtime, authoritative code, dependencies, observability, and relevant documentation."

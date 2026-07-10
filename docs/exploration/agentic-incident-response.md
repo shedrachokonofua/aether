@@ -2,6 +2,15 @@
 
 AI-assisted diagnosis triggered by infrastructure alerts, with human-in-the-loop for all actions.
 
+> **Superseded exploration (2026-07-10):** This document describes an unbuilt
+> Kestra AIAgent + Grafana MCP + Fleet design. The implemented automated path
+> lives in sibling [`inquest`](https://gitlab.home.shdr.ch/so/inquest): Grafana -> Kestra
+> flow -> GitLab incident -> Holmes RCA -> human-reviewed remediation. Aether
+> owns the Kestra/Holmes/Grafana/secret/network platform; Inquest owns flow IaC
+> and the incident lifecycle. Interactive investigations are implemented by
+> [`$investigate-aether`](../../.agents/skills/investigate-aether/SKILL.md).
+> Do not use the architecture or implementation steps below as current state.
+
 ## Goal
 
 Transform alerts from "something is wrong" into "here's what's wrong and how to fix it":
@@ -829,18 +838,22 @@ Simpler than before: no OPA to write policies for, no remediation flows to maint
 - `network-security.md` — Suricata/Wazuh for security context
 - `../monitoring.md` — Grafana alerting stack
 - `../communication.md` — Matrix/ntfy for notifications
+- `../../.agents/skills/investigate-aether/SKILL.md` — current interactive investigation workflow
+- `../../../inquest/README.md` — current automated incident pipeline
+- `../../../inquest/docs/operator.md` — current operator loop
 
 ## Status
 
-**Exploration phase.** Depends on Kestra deployment from workflow-orchestration.md. Fleet already deployed.
+**Superseded.** Kestra and Fleet are deployed, but the current Inquest flow does
+not use the AIAgent, Grafana MCP, or Fleet design below. See the sibling Inquest
+flow code and Aether platform IaC for current state.
 
 ## Implementation
 
 ### Prerequisites
 
-1. Deploy Kestra (per workflow-orchestration.md)
-2. Verify Fleet is accessible from Kestra (already deployed)
-3. Verify Grafana MCP server is accessible
+Historical only. Do not implement from this section without a new reviewed
+design that accounts for the current Inquest deployment.
 
 ### Steps
 

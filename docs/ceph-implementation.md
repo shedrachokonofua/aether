@@ -2,6 +2,10 @@
 
 Step-by-step manual implementation of Ceph distributed storage on Proxmox.
 
+This is an implementation/runbook document, not a current VM inventory. Use
+`config/vm.yml`, `tofu/home/`, and `docs/virtual-machines.md` for current guest
+declarations and placement.
+
 ## Prerequisites
 
 - Proxmox cluster with 3+ nodes
@@ -236,33 +240,12 @@ qm move_disk <vmid> virtio0 ceph-vm-disks --delete
 pct move_volume <vmid> rootfs ceph-vm-disks --delete
 ```
 
-### VMs to Migrate
+### Current Placement
 
-| VMID | Name            | Size  | Status |
-| ---- | --------------- | ----- | ------ |
-| 1005 | dokploy         | 256GB | ✅     |
-| 1006 | gitlab          | 128GB | ✅     |
-| 1009 | iot-management  | 32GB  | ✅     |
-| 1010 | dev-workstation | 256GB | ✅     |
-| 1014 | game-server     | 256GB | ✅     |
-| 1015 | cockpit         | 32GB  | ✅     |
-| 1016 | notifications-stack | 64GB  | ✅     |
-| 1018 | ai-tool-stack   | 128GB | Removed after K8s migration |
-| 1019 | ups-management  | 32GB  | ✅     |
-| 1020 | media-stack     | 128GB | ✅     |
-| 1024 | smallweb        | 16GB  | Removed |
-
-### VMs NOT on Ceph (by design)
-
-| VMID | Name             | Storage         | Reason                          |
-| ---- | ---------------- | --------------- | ------------------------------- |
-| 1001 | vyos-router      | Oracle local    | Critical infrastructure         |
-| 1002 | gateway-stack    | Oracle local    | Critical infrastructure         |
-| 1003 | monitoring-stack | Niobe local     | Must alert when Ceph is down    |
-| 1007 | backup-stack     | Smith local-lvm | Backups must work if Ceph fails |
-| 1023 | keycloak         | Oracle local    | Critical infrastructure         |
-| 1025 | step-ca          | Oracle local    | Critical infrastructure         |
-| 1026 | openbao          | Oracle local    | Critical infrastructure         |
+The original migration inventory is no longer maintained here because several
+listed VMs were decommissioned or moved to Kubernetes. See
+`docs/virtual-machines.md` for code-grounded guest declarations. Inspect the
+current Tofu disk blocks and live Proxmox storage before moving any disk.
 
 ---
 

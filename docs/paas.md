@@ -28,6 +28,8 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Hubble UI      | Cilium network observability UI                       |
 | GitLab Agent   | CI/CD deploys via GitLab KAS tunnel                   |
 | Crossplane     | Infrastructure control plane (Ceph RGW S3-compatible) |
+| Kestra OSS     | YAML automation plane and Inquest flow runtime         |
+| HolmesGPT      | Read-only Kubernetes/Prometheus/Loki investigation agent |
 
 Goldilocks is advisory only: it creates VPA objects with `updateMode: Off` in
 namespaces labeled `goldilocks.fairwinds.com/enabled=true`. Resource changes
@@ -51,3 +53,10 @@ job requests so per-node scans can run on the ARM pool without hard arch pins.
 - Hubble UI: `https://hubble.home.shdr.ch`
 - Goldilocks: `https://goldilocks.home.shdr.ch`
 - Policy Reporter: `https://policy-reporter.home.shdr.ch`
+- Kestra: `https://kestra.home.shdr.ch`
+
+Kestra's platform resources are owned by
+`tofu/home/kubernetes/kestra.tf`. The automated Grafana alert workflow is owned
+by sibling `../inquest`: its flow IaC creates or updates GitLab incident issues
+and calls Holmes for a human-verified RCA. See `docs/monitoring.md` for the
+interactive and automated investigation boundaries.

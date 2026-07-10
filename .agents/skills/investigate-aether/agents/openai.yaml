@@ -1,0 +1,4 @@
+interface:
+  display_name: "Investigate Aether"
+  short_description: "Investigate Aether with live evidence"
+  default_prompt: "Use $investigate-aether to investigate an Aether incident using Grafana, telemetry, Kubernetes, and host evidence, independently verifying any Inquest RCA."

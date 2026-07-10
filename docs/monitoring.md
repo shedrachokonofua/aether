@@ -70,13 +70,15 @@ flowchart TB
 | Prometheus | 15 days   | Default TSDB retention                      |
 | Loki       | 90 days   | Compactor deletes after 2h                  |
 | Tempo      | 7 days    | Block retention in compactor                |
-| ClickHouse | 365 days  | TTL on tables, hourly aggregates for 1 year |
+| ClickHouse | Per table | 14-90d raw; selected hourly aggregates retain 90-365d (see ClickHouse SQL) |
 
 ## Monitoring Agents
 
 ### VM Monitoring Agent
 
-Deployed to all VMs via `vm_monitoring_agent` role. Runs OTEL Collector with prometheus receiver for local scraping, pushes all telemetry via OTLP.
+Fedora/Debian VMs use the `vm_monitoring_agent` Ansible role; NixOS guests use
+`nix/modules/otel-agent.nix`. Both run a local OTel Collector and push telemetry
+to the central OTLP endpoint. Exact receivers vary by host declaration.
 
 **Collects:**
 
@@ -121,12 +123,20 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 
 | Source           | VM              | Metrics                     |
 | ---------------- | --------------- | --------------------------- |
-| AdGuard Exporter | Gateway Stack   | DNS queries, blocked count  |
+| AdGuard Exporter | AdGuard LXCs    | DNS queries, blocked count  |
 | HAProxy Exporter | Gateway Stack   | Backend health, connections |
 | Postfix Exporter | Notifications Stack | Mail queue, delivery stats  |
 | Caddy metrics    | Multiple        | Request rates, latencies    |
 
 ## Dashboards
+
+The repository currently provisions six dashboard JSON files: Home, Virtual
+Machines, Ceph, Kubernetes, Security Triage, and IDS Monitoring. The live
+Grafana API also retains the other dashboards listed below, but they are not all
+represented in `grafana/provisioning/dashboards/`; they are useful live surfaces,
+not fully reproducible IaC. Conversely, the declared Virtual Machines dashboard
+was not returned by live search on 2026-07-09. Reconcile that drift before
+describing the complete dashboard set as code-owned.
 
 | Dashboard       | Purpose                                       |
 | --------------- | --------------------------------------------- |
@@ -148,9 +158,54 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 | Security Triage | **Single actionable security surface** — firing security-alert queue (`domain=security`) + per-head signal stats & recent-event tables (Suricata, Zeek, Hubble, Tetragon, Trivy, Wazuh, Keycloak) + drill-down links (uid `security-triage`) |
 | Home            | Cross-cutting triage: firing alerts, namespace-contract risk map, saturation/headroom, signal-path health (uid `home`) |
 
+## Agent Investigations
+
+The supported interactive investigation workflow is the repo-local
+[`$investigate-aether`](../.agents/skills/investigate-aether/SKILL.md) skill. It
+uses Grafana as the read-only correlation surface, then selects Prometheus,
+Loki, Tempo, ClickHouse, Kubernetes, Fleet, Talos, SSH, or a service API based
+on the symptom. Use
+[`$navigate-aether`](../.agents/skills/navigate-aether/SKILL.md) first when the
+component's placement or ownership is unclear.
+
+From the repository root:
+
+```bash
+G=.agents/skills/investigate-aether/scripts/grafana-read.bb
+nix develop -c "$G" dashboards
+nix develop -c "$G" alerts        # active instances; omits DeadMansSwitch
+nix develop -c "$G" alerts --all  # includes the intentional heartbeat
+nix develop -c "$G" rules         # provisioned rule definitions
+nix develop -c "$G" contact-points # receiver metadata; URLs are omitted
+nix develop -c "$G" prom 'count by (job) (up)'
+nix develop -c "$G" loki-labels
+nix develop -c "$G" tempo-services
+```
+
+The helper discovers datasource UIDs dynamically and obtains the Viewer token
+from SOPS without printing it. Grafana's ClickHouse datasource uses a separate
+local-only `grafana_readonly` identity with server-enforced schema grants and
+resource limits; the writable `aether` identity remains limited to ingestion
+and administration. Investigation remains read-only. IaC remediation and any
+explicitly approved live patch follow `AGENTS.md`.
+
+The automated path is implemented by sibling
+[`inquest`](https://gitlab.home.shdr.ch/so/inquest): Grafana dual-delivers page-class alerts to
+Kestra, Inquest creates or updates `so/aether/incidents` issues, and Holmes
+posts a read-only RCA for human verification. Aether owns Kestra, Holmes,
+Grafana routing, secrets, and network policy; Inquest owns the flow IaC and
+incident lifecycle. This path is separate from, and not a prerequisite for,
+interactive `$investigate-aether` work. The older
+[`agentic-incident-response.md`](exploration/agentic-incident-response.md)
+document is a superseded AIAgent/Fleet exploration.
+
 ## Alerting
 
-Alerts route through Apprise to ntfy for push notifications.
+Alerts route through Apprise to ntfy for push notifications. The
+`apprise-critical` contact point also contains the Inquest webhook receiver, so
+page-class alerts are delivered to both the human paging path and the automated
+incident path. Standard, digest, and non-critical security receivers remain
+Apprise-only.
 
 ### Severity Levels
 
@@ -269,8 +324,8 @@ the old Fedora VM. Fleet coverage must never regress across a migration.**
 A namespace's `hostnames` + contract labels (`tier`, `owner`, `backup`,
 `exposure`, optional `criticality`) live in
 `tofu/home/kubernetes/namespace_contracts.tf`. Adding a hostname there
-automatically (a) mints a blackbox HTTP synthetic probe for `internal`/`public`
-apps (wildcard `*.` hostnames are excluded — they are routing policy, not
+automatically (a) mints a blackbox HTTP synthetic probe for `internal`,
+`public`, and `tunnel` apps (wildcard `*.` hostnames are excluded — they are routing policy, not
 probeable endpoints) via the `synthetic_probe_targets` output consumed by
 `prometheus.yml.j2`, and (b) feeds the `probe_criticality`/`probe_exposure`
 labels that decide whether a probe failure pages (`probe-failed-public`) or

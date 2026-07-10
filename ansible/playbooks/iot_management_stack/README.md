@@ -7,5 +7,5 @@ This playbook is for configuring the IoT management stack virtual machine. The I
 ## Usage
 
 ```bash
-task configure:home:iot-management-stack
+task configure:iot
 ```

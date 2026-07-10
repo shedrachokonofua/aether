@@ -6,16 +6,35 @@ Private cloud IaC. Code is the source of truth. Docs drift; the repo doesn't.
 
 This is a **Nix + go-task** workspace. All CLI tools come from `flake.nix` — do not `brew install` or `pip install` anything.
 
-- Enter the dev shell: `nix develop` (or use direnv). Inside it: `tofu`, `ansible`, `sops`, `bao`, `kubectl`, `talosctl`, `step`, `aws`, `yq`, `jq`, `task`, etc.
-- **Run every command inside the dev shell.** None of these tools exist on the bare host. If you're not sure direnv is active, wrap one-shots: `nix develop --command bash -c '<command>'`. Don't fall back to `brew`-installed versions — they'll have wrong versions or be missing entirely.
+- Enter the dev shell: `nix develop` (or use direnv). Inside it: `tofu`, `ansible`, `sops`, `bao`, `kubectl`, `talosctl`, `step`, `aws`, `yq`, `jq`, `bb`, `task`, etc.
+- **Run every command inside the dev shell.** None of these tools exist on the bare host. Prefer `nix develop --command <tool> ...`; for shell expressions use `nix develop --command bash -c '<command>'`. Keep the inner shell non-login: on macOS, `bash -lc` or `zsh -lc` reruns `path_helper`, which moves `/opt/homebrew/bin` ahead of the Nix store and can silently select Homebrew tools. Don't fall back to `brew`-installed versions — they'll have wrong versions or be missing entirely.
 - Workflows live in `Taskfile.yml`. Prefer `task <name>` over raw commands when one exists (e.g. `task tofu:plan`, `task login`, `task se`).
 - `task login` gets AWS + OpenBao + SSH cert in one shot. Creds are cached: AWS ~12h, SSH cert ~16h, Bao TTL varies. Only re-run if a command fails with auth errors — check first with `task login:status`.
+- Do not use Ansible `--start-at-task` on secret-dependent playbooks. It can skip `common : Load secrets` and leave SOPS ciphertext in variables; use the playbook's tags so prerequisite loaders still run.
 
 ## Where to look
 
 - **Hosts / IPs** → `ansible/inventory/hosts.yml` (resolves from `config/vm.yml` and `secrets/tf-outputs.json`). Don't hardcode IPs; reference them by name.
 - **Lab overview** → `README.md` and `docs/` for context only. If docs and code disagree, **trust the code**.
 - **Updating docs:** after every major task (migration, decommission, new component, topology change), sweep `docs/` for anything the change invalidated and update it. Only write what you've confirmed via code, command output, or direct user statement — no speculation. If you can't verify a section, leave it alone or flag it to the user.
+
+## Repo skills
+
+Repo-local agent skills live under `.agents/skills/`:
+
+- **`$navigate-aether`** maps a component to its runtime, authoritative IaC,
+  configuration owner, Taskfile workflow, dependencies, observability, and
+  relevant docs. Use it for architecture, placement, ownership, and source
+  discovery.
+- **`$investigate-aether`** performs read-only, evidence-first incident and
+  health investigations through Grafana, Prometheus, Loki, Tempo, ClickHouse,
+  Kubernetes, Fleet, Talos, SSH, and service APIs.
+
+Use `$navigate-aether` first when placement or ownership is unclear, then
+`$investigate-aether` when the question requires current live evidence. The
+guardrails in this file still apply to both skills. The unattended alert path
+lives in sibling `../inquest`; treat its Holmes RCA as evidence to verify, not
+as a substitute for an interactive investigation.
 
 ## kubectl context
 
@@ -69,7 +88,7 @@ How to access:
 | Grafana       | `https://grafana.home.shdr.ch`       | Primary entry point. SSO via Keycloak. All datasources pre-wired.  |
 | Prometheus    | `https://prometheus.home.shdr.ch`    | Query API at `/api/v1/query` and `/api/v1/query_range`.            |
 | Loki          | `https://loki.home.shdr.ch`          | LogQL via `/loki/api/v1/query_range`.                              |
-| ClickHouse    | `https://clickhouse.home.shdr.ch`    | HTTP interface (port 8123). User `aether`; password in Bao.        |
+| ClickHouse    | `https://clickhouse.home.shdr.ch`    | HTTP interface (port 8123). The SOPS-backed `aether` identity is reserved for ingestion/admin; investigations use Grafana's `grafana_readonly` datasource identity. |
 | Fleet         | `https://fleet.home.shdr.ch`         | osquery management UI + API.                                       |
 | OTel ingest   | `https://otel-metrics.home.shdr.ch`  | HTTP/gRPC receivers (for shipping, not querying).                  |
 

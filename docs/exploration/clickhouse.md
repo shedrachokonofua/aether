@@ -913,13 +913,13 @@ Added Suricata to ClickHouse due to slow Loki queries causing CPU spikes on dash
 
 ```bash
 # Deploy router with Suricata OTEL config
-task deploy:home-router
+task provision:router
 
 # Deploy monitoring stack (creates Suricata tables on startup)
-task deploy:monitoring-stack
+task configure:monitoring
 
 # Deploy home gateway (Caddy routes)
-task deploy:home-gateway-stack
+task configure:gateway
 ```
 
 **Schema auto-init:** Both `zeek.ingest` and `suricata.ingest` tables plus all MVs are created at container startup. No manual SQL execution needed.

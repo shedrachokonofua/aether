@@ -1,5 +1,10 @@
 # Media Stack → Talos k8s Migration
 
+> Historical worklog: the migration and VM decommission are complete. The
+> referenced `ansible/playbooks/media_stack/` files were removed after the
+> Kubernetes replacements became authoritative. Do not use this document as a
+> current runbook.
+
 Migrate **qbittorrent, prowlarr, sabnzbd, aiostreams, stremthru** off the
 `media-stack` VM (10.0.3.5, vmid 1020, podman quadlets) to Talos k8s, keeping
 all on-disk state. Same playbook pattern as
@@ -132,7 +137,7 @@ if you need to read individual files without booting anything.
 3. `tofu apply` → 5 Deployments come up empty.
 4. Run decommission playbook → tarballs land in `/tmp/media-stack-export/`.
 5. `kubectl cp` + `tar xzf` each tarball into its PVC, restart Deployments.
-6. Flip Caddyfile routes, run `task ansible:run -- playbooks/home_gateway_stack/site.yml`.
+6. Flip Caddyfile routes, run `task configure:caddy`.
 7. Smoke test: qbit WebUI auth + active torrents, prowlarr indexers, sabnzbd
    queue, aiostreams + stremthru endpoints reachable.
 8. Drop quadlet playbooks from `media_stack/site.yml`.

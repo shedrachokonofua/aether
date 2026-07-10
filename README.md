@@ -211,34 +211,34 @@ These steps set up the base infrastructure necessary for provisioning the cloud.
 
 ### Provision Home Network
 
-1. Manually apply rack switch configuration ([README](docs/home.md#rack-switch))
+1. Manually apply rack switch configuration ([Networking](docs/networking.md#rack-switch))
 
 1. Provision router ([README](ansible/playbooks/home_router/README.md))
 
    ```bash
-   task provision:home:router
+   task provision:router
    ```
 
-1. Manually apply office switch configuration ([README](docs/home.md#office-switch))
+1. Manually apply office switch configuration ([Networking](docs/networking.md#office-switch))
 
 ### Provision Home Network File System
 
 1. Provision NFS ([README](ansible/playbooks/network_file_server/README.md))
 
    ```bash
-   task provision:home:nfs
+   task provision:nfs
    ```
 
 ### Provision Certificate Authority ([README](ansible/playbooks/step_ca/README.md))
 
 ```bash
-task provision:home:step-ca
+task provision:step-ca
 ```
 
 ### Provision OpenBao ([README](ansible/playbooks/openbao/README.md))
 
 ```bash
-task provision:home:openbao
+task provision:openbao
 ```
 
 After first-time init, save recovery keys to `secrets/openbao-recovery-keys.yml` and encrypt:
@@ -257,10 +257,10 @@ task tofu:apply
 bao token revoke -self  # revoke root token after bootstrap
 ```
 
-### Provision Keycloak ([README](ansible/playbooks/keycloak/README.md))
+### Provision Keycloak ([playbook](ansible/playbooks/keycloak/site.yml))
 
 ```bash
-task provision:home:keycloak
+task provision:keycloak
 ```
 
 ### Provision Infrastructure
@@ -280,5 +280,5 @@ task tofu:apply
 ### Configure Infrastructure
 
 ```bash
-task configure
+task configure:all
 ```

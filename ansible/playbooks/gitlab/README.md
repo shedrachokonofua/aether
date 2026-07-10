@@ -7,7 +7,7 @@ This playbook is for configuring the GitLab virtual machine. GitLab is a fedora 
 ## Usage
 
 ```bash
-task configure:home:gitlab
+task configure:gitlab
 ```
 
 ## Sub-Playbooks
@@ -17,7 +17,7 @@ task configure:home:gitlab
 Deploys the main GitLab CE instance with all required configurations.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gitlab/gitlab.yml
+task ansible:playbook -- gitlab/gitlab.yml
 ```
 
 ### Deploy GitLab Runners
@@ -28,5 +28,5 @@ OpenTofu in `tofu/home/kubernetes`.
 Configures and registers GitLab runners for CI/CD pipeline execution.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/gitlab/runners.yml
+task ansible:playbook -- gitlab/runners.yml
 ```

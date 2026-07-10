@@ -5,14 +5,16 @@ This playbook will configure the backup stack virtual machine. The backup stack 
 - Proxmox Backup Server
 - Restic + Backrest (offsite S3 backups)
 
-This playbook also configures ZFS snapshots and replication on Smith using sanoid and syncoid.
+The current site configures PBS, Proxmox backup jobs, Backrest/Restic offsite
+backup, and scheduled Talos etcd snapshots. Sanoid remains planned in the
+backup strategy and is not deployed by this site.
 
-See [high-level overview](../../../docs/home.md#Backups) for more details.
+See the [backup overview](../../../docs/backups.md) for the current architecture.
 
 ## Usage
 
 ```bash
-task configure:home:backup-stack
+task configure:backup
 ```
 
 ## Sub-Playbooks
@@ -22,7 +24,7 @@ task configure:home:backup-stack
 Installs Proxmox Backup Server and creates vm backup datastore
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_pbs.yml
+task ansible:playbook -- backup_stack/configure_pbs.yml
 ```
 
 ### Configure proxmox cluster backups
@@ -30,15 +32,7 @@ task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_pbs.yml
 Adds proxmox backup server as a storage target to the proxmox cluster and creates a backup job schedule.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_proxmox_backups.yml
-```
-
-### Configure ZFS snapshots
-
-Installs Sanoid and configures scheduled ZFS snapshots for all datasets.
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_zfs_snapshots.yml
+task ansible:playbook -- backup_stack/configure_proxmox_backups.yml
 ```
 
 ### Configure offsite backups
@@ -58,7 +52,7 @@ Configures Restic and Backrest for offsite backups to S3. Uses IAM Roles Anywher
 - Terraform applied with IAM role and Roles Anywhere profile
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/backup_stack/configure_offsite_backups/site.yml
+task ansible:playbook -- backup_stack/configure_offsite_backups/site.yml
 ```
 
 **Web UI:** `https://backrest.home.shdr.ch`
