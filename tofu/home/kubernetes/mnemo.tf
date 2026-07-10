@@ -10,8 +10,8 @@ locals {
   mnemo_host          = "mnemo.home.shdr.ch"
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-e39ff546"
-  mnemo_image_tag     = "e39ff546"
+  mnemo_chart_version = "0.1.0-66908767"
+  mnemo_image_tag     = "66908767"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
   mnemo_db_user       = "mnemo"
@@ -69,9 +69,13 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     # "who is my family doctor"); qwen3 orders them correctly — verified A/B.
     RERANKER_MODEL = "qwen3-reranker-4b"
 
-    # OpenWebUI source (read-only API access)
+    # OpenWebUI source (read-only API access). USER_IDS: OpenWebUI is
+    # multi-user — without the allowlist every household account's private
+    # LLM chats get ingested (2026-07-09 incident: 5 other accounts found;
+    # purged). Shedrach's openwebui user id only.
     OPENWEBUI_DATABASE_URL = local.mnemo_openwebui_db_url
     OPENWEBUI_API_KEY      = var.secrets["openwebui.mcpo_api_key"]
+    OPENWEBUI_USER_IDS     = "b7f57dc0-1575-4467-8d46-82100ec33a80"
 
     # Matrix source (bot user access token)
     MATRIX_HOMESERVER_URL = "https://matrix.home.shdr.ch"

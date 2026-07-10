@@ -198,3 +198,23 @@ top hits are the user's own Harbourfront enrollment email and
 family-physician guidance mail. Entity answer is one get_thread away;
 keyword search answers it directly. Chunk/embed backfill still draining
 toward full-corpus coverage (self-healing 30-min cron).
+
+## Household-privacy incident: OpenWebUI multi-user ingest (2026-07-09, late)
+
+While cross-examining the archive, discovered mnemo's OpenWebUI sync
+ingested **every account's** chats from the shared instance — five other
+household members' private LLM conversations (221 user messages across 52
+conversations) were searchable in the personal memory archive via every
+consumer (MCP, hermes, API). Attribution was correct per-identity; the
+scope was wrong.
+
+Fix (mnemo `66908767` + aether): `changed_chats_since` filters by
+`OPENWEBUI_USER_IDS` (set to the owner's account in `mnemo.tf`); other
+accounts' conversations/messages/chunks/embeddings/raw_items purged in one
+transaction (52 convs / 677 msgs / 2,642 embeddings). Verified: only the
+owner's identity remains in the openwebui source; filtered sync prevents
+re-ingestion.
+
+Also surfaced: identity linking is the next mnemo gap — one person spans
+email addresses, a bridged WhatsApp number, an OpenWebUI account, and a
+nickname, with no unifying person record for search/RAG to lean on.
