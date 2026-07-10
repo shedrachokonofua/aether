@@ -40,7 +40,7 @@ tasks:
   # Auth (multi-step flows worth wrapping)
   # ===========================================================================
   login:
-    desc: Unified SSO login (AWS + OpenBao + SSH cert)
+    desc: Unified SSO login (AWS, Google WIF, OpenBao, Ceph RGW, SSH cert)
     cmds:
       - mkdir -p {{.CACHE_DIR}}/bao {{.CACHE_DIR}}/step
       - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb {{.CLI_ARGS}}
@@ -504,10 +504,3 @@ tasks:
     desc: Upgrade Proxmox VE 8 to 9 (serial, one node at a time)
     cmds:
       - ansible-playbook ansible/playbooks/upgrade_pve_8_to_9.yml {{.CLI_ARGS}}
-
-  configure:all:
-    cmds:
-      - task: configure:gateway
-      - task: configure:monitoring
-      - task: configure:gitlab
-      - task: configure:backup

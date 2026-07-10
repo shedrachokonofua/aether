@@ -15,7 +15,7 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Cilium         | CNI, kube-proxy replacement, L2 LoadBalancer VIP      |
 | Gateway API    | Cluster ingress via Cilium GatewayClass               |
 | Ceph CSI       | RBD storage provisioning (default StorageClass)       |
-| Knative        | Serverless/scale-to-zero serving                      |
+| Knative        | Installed but unused; no KServices are declared        |
 | OTEL Collector | Cluster + node telemetry to external monitoring stack |
 | Metrics Server | metrics.k8s.io for HPA/VPA, kubectl top, Headlamp     |
 | VPA Recommender | VPA recommendation engine only; updater/admission disabled |
@@ -36,6 +36,12 @@ namespaces labeled `goldilocks.fairwinds.com/enabled=true`. Resource changes
 stay manual and flow back through OpenTofu. VPA reads live resource metrics from
 metrics-server and uses Prometheus-backed cAdvisor history for restart/backfill
 context.
+
+Knative Serving currently has no declared consumers. A live check on 2026-07-10
+found zero Knative Services while the serving and operator control planes were
+still running. Keep it out of application architecture claims; its removal is a
+separate IaC decision because applying that change deletes live platform
+resources.
 
 Tetragon, Trivy Operator, Policy Reporter, and Kepler are observability/reporting
 components only. They do not block admissions, mutate workloads, or enforce

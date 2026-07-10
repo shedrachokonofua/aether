@@ -34,7 +34,7 @@ Use `rg --files` to inspect candidate directories. Check nested `AGENTS.md` file
 
 ## Workflow Facts
 
-- `task login:status` checks cached SSH, OpenBao, AWS, Google WIF, and Ceph S3 access. `task login` is the unified AWS + OpenBao + SSH flow; refresh only the missing/expired access rather than logging in speculatively.
+- `task login:status` checks cached SSH, OpenBao, AWS, Google WIF, and Ceph S3 access. `task login` is the unified flow for all five; refresh only the missing or expired access rather than logging in speculatively.
 - `task login -- --ssh` is the narrow SSH-certificate refresh when SSH is the only missing access.
 - Prefer a Taskfile target when one exists; re-list targets rather than copying a doc command.
 - `task tofu:plan` and `task tofu:apply` run from the root state in `tofu/` and load cached Bao/Google credentials.

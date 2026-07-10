@@ -312,7 +312,7 @@ blockchain_stack:
 # =============================================================================
 # Talos Kubernetes Cluster
 # =============================================================================
-# 3-node cluster with combined control plane + worker roles
+# 3-node VM control plane, 1 additional VM worker, and 4 bare-metal ARM workers
 # Cilium CNI with L2 announcements for VIP (10.0.3.19)
 
 talos_trinity:
