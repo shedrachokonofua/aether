@@ -22,50 +22,6 @@ Tailscale.
 | Cloud services | **AWS:** public ingress, SES, identity, budgets, offsite backup<br>**Google Cloud:** uptime monitoring, identity federation, budgets, APIs<br>**Cloudflare:** DNS and edge services |
 | Automation | OpenTofu, Ansible, NixOS, Talos, go-task, GitLab CI/CD |
 
-## Architecture
-
-```mermaid
-flowchart TB
-    subgraph trust["Trust plane"]
-        direction LR
-        keycloak["Keycloak SSO"] ~~~ pki["step-ca PKI / mTLS / SSH certs"] ~~~ secrets["OpenBao / SOPS"]
-    end
-
-    subgraph control["Control plane - this repository"]
-        direction LR
-        git["Git / GitLab CI"] --> task["go-task"] --> iac["OpenTofu / Ansible / NixOS / Talos"]
-    end
-
-    subgraph edge["Edge plane"]
-        direction LR
-        public["Cloudflare -> Lightsail Caddy + CrowdSec"] -- "Tailscale" --> homegw["Home Caddy gateway"]
-        dns["AdGuard DNS / VyOS routing"] --> homegw
-    end
-
-    subgraph runtime["Runtime plane"]
-        direction LR
-        pve["Proxmox cluster<br/>trinity / neo / niobe / smith / oracle"]
-        k8s["Talos Kubernetes<br/>3 control-plane VMs + smith worker + 4 Pi workers"]
-        cloud["AWS / Google Cloud"]
-    end
-
-    subgraph data["Data plane"]
-        direction LR
-        primary["Ceph / ZFS / NFS / CNPG"] --> backup["PBS / Backrest / Restic"] --> offsite["Encrypted S3 + Glacier offsite"]
-    end
-
-    subgraph obs["Observability plane"]
-        direction LR
-        ingest["OTel / Fleet / Zeek / Suricata"] --> stores["Prometheus / Loki / Tempo / ClickHouse"] --> grafana["Grafana"]
-    end
-
-    trust -. "identity / certificates / secrets" .-> control
-    control == "provisions + configures" ==> runtime
-    edge == "routes user traffic" ==> runtime
-    runtime ==> data
-    runtime == "telemetry" ==> obs
-```
-
 Feature declarations are spread across multiple ownership layers. Start with
 [`config/vm.yml`](config/vm.yml), [`tofu/`](tofu), [`ansible/`](ansible),
 [`nix/`](nix), and [`Taskfile.yml`](Taskfile.yml), then use the focused docs
