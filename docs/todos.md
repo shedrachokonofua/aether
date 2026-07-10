@@ -42,6 +42,7 @@
 
 ## P2
 
+- [ ] Remove idle Knative Serving and operator resources (no declared or live KServices as of 2026-07-10)
 - [ ] Adopt two-tier PKI: step-ca root tier, OpenBao issuing tier ([exploration](exploration/two-tier-pki.md))
   - [ ] Phase 0: `pki-journal-client` mount (with forwarder deployment)
   - [ ] Phase 1: freeze new step-ca provisioners; update trust-model.md with issuing-tier policy

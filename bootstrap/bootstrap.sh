@@ -2,11 +2,13 @@
 set -e
 
 # Bootstrap Aether AWS infrastructure
-# Prerequisites: Run 'aws login' first to authenticate
+# Prerequisite: provide pre-existing human AWS credentials through the standard
+# AWS environment or profile chain. Unified `task login` depends on resources
+# and outputs created after this backend bootstrap.
 
 echo "Checking AWS authentication..."
 aws sts get-caller-identity --no-cli-pager || {
-    echo "Not authenticated. Run 'aws login' first."
+    echo "No AWS bootstrap credentials found. Configure a human AWS profile or environment credentials first."
     exit 1
 }
 

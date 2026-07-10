@@ -10,6 +10,9 @@
 #   - talos-niobe   (10.0.3.18) - Control plane + Worker
 #   - talos-smith   (10.0.3.22) - Worker + GPU (GTX 1660 Super)
 #   - talos-mouse   (10.0.3.25) - ARM Worker (Raspberry Pi 4)
+#   - talos-dozer   (10.0.3.24) - ARM Worker (Raspberry Pi 5)
+#   - talos-tank    (10.0.3.23) - ARM Worker (Raspberry Pi 5)
+#   - talos-sparks  (10.0.3.26) - ARM Worker (Raspberry Pi 4)
 #   - API VIP       (10.0.3.20) - Talos native VIP for kubectl/API server
 #   - Workload VIP  (10.0.3.19) - Cilium L2 announced LoadBalancer IP
 

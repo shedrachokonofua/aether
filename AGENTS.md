@@ -9,7 +9,7 @@ This is a **Nix + go-task** workspace. All CLI tools come from `flake.nix` — d
 - Enter the dev shell: `nix develop` (or use direnv). Inside it: `tofu`, `ansible`, `sops`, `bao`, `kubectl`, `talosctl`, `step`, `aws`, `yq`, `jq`, `bb`, `task`, etc.
 - **Run every command inside the dev shell.** None of these tools exist on the bare host. Prefer `nix develop --command <tool> ...`; for shell expressions use `nix develop --command bash -c '<command>'`. Keep the inner shell non-login: on macOS, `bash -lc` or `zsh -lc` reruns `path_helper`, which moves `/opt/homebrew/bin` ahead of the Nix store and can silently select Homebrew tools. Don't fall back to `brew`-installed versions — they'll have wrong versions or be missing entirely.
 - Workflows live in `Taskfile.yml`. Prefer `task <name>` over raw commands when one exists (e.g. `task tofu:plan`, `task login`, `task se`).
-- `task login` gets AWS + OpenBao + SSH cert in one shot. Creds are cached: AWS ~12h, SSH cert ~16h, Bao TTL varies. Only re-run if a command fails with auth errors — check first with `task login:status`.
+- `task login` gets AWS, Google WIF, OpenBao, Ceph RGW, and an SSH certificate in one shot. Credentials are cached; only re-run when `task login:status` or a command shows missing or expired access.
 - Do not use Ansible `--start-at-task` on secret-dependent playbooks. It can skip `common : Load secrets` and leave SOPS ciphertext in variables; use the playbook's tags so prerequisite loaders still run.
 
 ## Where to look

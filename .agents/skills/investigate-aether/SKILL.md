@@ -55,7 +55,7 @@ nix develop -c kubectl config current-context
 
 Check Kubernetes context only for cluster work; it must be `admin@aether-k8s`. Do not refresh otherwise-working credentials preemptively. Resolve host aliases and addresses from inventory/shared config, never memory.
 
-`task login` is the unified AWS + OpenBao + SSH flow. Use `task login -- --ssh` when only the SSH certificate is missing. Use `task k8s:auth` only to repair wrong/stale Kubernetes or Talos configuration because it overwrites local kubeconfig and talosconfig.
+`task login` is the unified AWS, Google WIF, OpenBao, Ceph RGW, and SSH flow. Use `task login -- --ssh` when only the SSH certificate is missing. Use `task k8s:auth` only to repair wrong/stale Kubernetes or Talos configuration because it overwrites local kubeconfig and talosconfig.
 
 ### 3. Start at Grafana
 
