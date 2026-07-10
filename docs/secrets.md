@@ -77,7 +77,7 @@ Age Key → decrypts → Recovery Keys → unseals → OpenBao → unlocks → E
 | Scenario                        | Solution                             |
 | ------------------------------- | ------------------------------------ |
 | OpenBao up, authenticated       | Normal workflow (`task login`)       |
-| OpenBao up, need admin          | `task bao:root-token` → provide keys |
+| OpenBao up, need recovery root  | Approved `bao operator generate-root` workflow with recovery keys |
 | OpenBao sealed, AWS available   | Auto-unseal on restart               |
 | OpenBao sealed, AWS unavailable | Manual unseal with recovery keys     |
 | OpenBao down, AWS available     | SOPS falls back to KMS               |

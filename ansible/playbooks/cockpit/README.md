@@ -5,5 +5,5 @@ This playbook will configure the Cockpit virtual machine. Cockpit is a fedora vm
 ## Usage
 
 ```bash
-task configure:home:cockpit
+task configure:cockpit
 ```

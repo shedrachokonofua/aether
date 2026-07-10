@@ -352,8 +352,6 @@ tasks:
   configure:uptime-monitor:
     desc: Deploy and configure the GCP Uptime Monitor (Uptime Kuma + Tailscale + Cloudflare Tunnel)
     cmds: [ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml]
-  provision:game-server:
-    cmds: [ansible-playbook ansible/playbooks/game_server/site.yml]
   provision:step-ca:
     cmds: [ansible-playbook ansible/playbooks/step_ca/site.yml]
   provision:step-ca-trust:

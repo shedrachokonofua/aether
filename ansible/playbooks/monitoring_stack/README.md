@@ -13,5 +13,5 @@ This playbook will configure the monitoring stack virtual machine. The monitorin
 ## Usage
 
 ```bash
-task configure:home:monitoring
+task configure:monitoring
 ```

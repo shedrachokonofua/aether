@@ -5,6 +5,12 @@
   vars:
     # Disable OTLP receiver in vm_monitoring_agent - central collector handles it
     otlp_receiver_enabled: false
+    clickhouse_admin_user: aether
+    clickhouse_grafana_user: grafana_readonly
+    clickhouse_grafana_role: grafana_readonly_role
+    clickhouse_grafana_databases:
+      - zeek
+      - suricata
   roles:
     - common
     - vm_baseline
@@ -193,7 +199,7 @@
         src: ./grafana/provisioning/datasources/datasource.yml.j2
         dest: ./grafana/provisioning/datasources/datasource.yml
         mode: "0644"
-      tags: [grafana]
+      tags: [grafana, clickhouse-grafana-reader]
 
     - name: Copy grafana dashboards provisioning
       copy:
@@ -519,6 +525,91 @@
           tenant-proxy,
           monitoring-pod,
         ]
+
+    - name: Wait for ClickHouse to be ready
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.clickhouse }}/ping"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: clickhouse_health
+      until:
+        - clickhouse_health.status == 200
+        - clickhouse_health.content | trim == "Ok."
+      retries: 30
+      delay: 5
+      tags: [clickhouse, grafana, clickhouse-grafana-reader]
+
+    - name: Validate Grafana ClickHouse credential is decrypted
+      assert:
+        that:
+          - secrets.clickhouse.grafana_readonly_password is string
+          - secrets.clickhouse.grafana_readonly_password | length >= 32
+          - not secrets.clickhouse.grafana_readonly_password.startswith('ENC[')
+        fail_msg: >-
+          The Grafana ClickHouse credential is unavailable or still encrypted;
+          run the tagged play normally so common : Load secrets executes.
+      register: clickhouse_grafana_secret_check
+      tags: [clickhouse, grafana, clickhouse-grafana-reader]
+
+    # Exact replacement prevents out-of-band grants from accumulating on this
+    # IaC-owned agent-facing identity.
+    - name: Reconcile Grafana ClickHouse read-only access
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --query
+          - |
+            CREATE ROLE OR REPLACE {{ clickhouse_grafana_role }} SETTINGS
+              readonly = 1,
+              max_execution_time = 30 MIN 1 MAX 60 CHANGEABLE_IN_READONLY,
+              max_memory_usage = 2000000000,
+              max_threads = 4,
+              max_concurrent_queries_for_user = 8,
+              max_rows_to_read = 100000000,
+              max_bytes_to_read = 5000000000,
+              max_result_rows = 10000,
+              result_overflow_mode = 'throw';
+            {% for database in clickhouse_grafana_databases %}
+            GRANT SELECT ON {{ database }}.* TO {{ clickhouse_grafana_role }};
+            GRANT SHOW DATABASES ON {{ database }}.* TO {{ clickhouse_grafana_role }};
+            GRANT SHOW TABLES ON {{ database }}.* TO {{ clickhouse_grafana_role }};
+            GRANT SHOW COLUMNS ON {{ database }}.* TO {{ clickhouse_grafana_role }};
+            {% endfor %}
+            CREATE USER OR REPLACE {{ clickhouse_grafana_user }}
+              IDENTIFIED WITH sha256_hash BY '{{ secrets.clickhouse.grafana_readonly_password | hash("sha256") }}'
+              HOST LOCAL GRANTEES NONE;
+            GRANT {{ clickhouse_grafana_role }} TO {{ clickhouse_grafana_user }};
+            ALTER USER {{ clickhouse_grafana_user }} DEFAULT ROLE {{ clickhouse_grafana_role }};
+      no_log: true
+      when:
+        - clickhouse_grafana_secret_check is defined
+        - clickhouse_grafana_secret_check is succeeded
+      tags: [clickhouse, grafana, clickhouse-grafana-reader]
+
+    - name: Restart Grafana for ClickHouse reader changes
+      systemd:
+        name: grafana
+        state: restarted
+        scope: user
+      when: "'clickhouse-grafana-reader' in ansible_run_tags"
+      tags: [clickhouse-grafana-reader]
+
+    - name: Wait for Grafana after ClickHouse reader changes
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/health"
+        method: GET
+        status_code: 200
+      register: clickhouse_grafana_health
+      until: clickhouse_grafana_health.status == 200
+      retries: 30
+      delay: 5
+      when: "'clickhouse-grafana-reader' in ansible_run_tags"
+      tags: [clickhouse-grafana-reader]
 
     # === Grafana Tenant Orgs ===
     - name: Wait for Grafana to be ready

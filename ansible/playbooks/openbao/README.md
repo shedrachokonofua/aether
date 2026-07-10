@@ -11,7 +11,7 @@ This playbook deploys [OpenBao](https://openbao.org/), the community-driven open
 ## Usage
 
 ```bash
-task provision:home:openbao
+task provision:openbao
 ```
 
 ## Sub-Playbooks
@@ -21,7 +21,7 @@ task provision:home:openbao
 Creates the Fedora LXC container on Proxmox.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/openbao/provision_lxc.yml
+task ansible:playbook -- openbao/provision_lxc.yml
 ```
 
 ### Bootstrap LXC
@@ -29,7 +29,7 @@ task ansible:playbook -- ./ansible/playbooks/openbao/provision_lxc.yml
 Configures SSH access and Python for Ansible.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/openbao/bootstrap_lxc.yml
+task ansible:playbook -- openbao/bootstrap_lxc.yml
 ```
 
 ### Deploy OpenBao
@@ -37,7 +37,7 @@ task ansible:playbook -- ./ansible/playbooks/openbao/bootstrap_lxc.yml
 Installs OpenBao, configures TLS from step-ca, and sets up the service.
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/openbao/deploy_openbao.yml
+task ansible:playbook -- openbao/deploy_openbao.yml
 ```
 
 ### Initialize OpenBao (First Time Only)
@@ -51,7 +51,7 @@ ssh root@10.0.2.9 'BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/etc/openbao.d/tls
 Save recovery keys to `secrets/openbao-recovery-keys.yml` and encrypt:
 
 ```bash
-task sops:encrypt -- secrets/openbao-recovery-keys.yml
+sops -e -i secrets/openbao-recovery-keys.yml
 ```
 
 > [!CAUTION]
@@ -62,7 +62,7 @@ task sops:encrypt -- secrets/openbao-recovery-keys.yml
 Deploys the AWS KMS stack for auto-unseal (requires step-ca trust anchor).
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/openbao/provision_aws_kms.yml
+task ansible:playbook -- openbao/provision_aws_kms.yml
 ```
 
 ## SOPS Integration
@@ -79,8 +79,8 @@ Transit + OIDC auth is configured via Tofu (`tofu/home/openbao_sops.tf`) during 
 ### Usage
 
 ```bash
-task bao:login  # via UI at https://bao.home.shdr.ch
-task sops:view -- secrets/secrets.yml
+task login
+task sv
 ```
 
 ## Recovery
@@ -89,17 +89,16 @@ Recovery keys and root token are stored in `secrets/openbao-recovery-keys.yml` (
 
 | Scenario           | Action                                                       |
 | ------------------ | ------------------------------------------------------------ |
-| Daily access       | `task bao:login` (OIDC via UI)                               |
+| Daily access       | `task login` (unified cached authentication)                 |
 | Admin/bootstrap    | Decrypt file, use `root_token`                               |
 | Root token expired | Decrypt file, use `recovery_keys` to generate new root token |
 
 ```bash
 # View recovery credentials
-task sops:view -- secrets/openbao-recovery-keys.yml
+sops -d secrets/openbao-recovery-keys.yml
 
-# Generate new root token (if needed)
-task bao:root-token
-task bao:root-token:provide-keys  # enter 3 of 5 keys
+# Generate a root token only during approved recovery. There is no Taskfile
+# wrapper; use the OpenBao `bao operator generate-root` recovery workflow.
 ```
 
 ## Required Secrets

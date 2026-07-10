@@ -1,36 +1,74 @@
-# Virtual Machines
+# Virtual Machines and LXCs
 
-All VMs and LXCs run on Proxmox VE across the five-host cluster. Storage is either local to the node or on Ceph distributed storage.
+`config/vm.yml` is the shared source of truth for declared Proxmox guest names,
+placement, sizing, addresses, and ports. This document summarizes those
+declarations; it does not claim that every guest is currently running.
 
-## Resource Allocation
+Verify live status through Proxmox/Prometheus and applied ownership through Tofu
+state or the relevant provisioning playbook.
 
-| Name                    | Host    | Type | RAM   | Storage                      | Storage Location | vCPU | GPU         | HA            | Notes                                                                                           | Status      |
-| ----------------------- | ------- | ---- | ----- | ---------------------------- | ---------------- | ---- | ----------- | ------------- | ----------------------------------------------------------------------------------------------- | ----------- |
-| Router                  | Oracle  | VM   | 4GB   | 128GB                        | Node             | 8    | None        | PLANNED - ZFS | VyOs                                                                                            | LIVE        |
-| Gateway Stack           | Oracle  | VM   | 4GB   | 128GB                        | Node             | 8    | None        | PLANNED - ZFS | UniFi Network Server, Caddy, AdGuard, Tailscale subnet router, HAProxy, WireProxy               | LIVE        |
-| Development Workstation | Trinity | VM   | 16GB  | 256GB                        | Ceph             | 8    | None        | LIVE - Ceph   | Coder Server                                                                                    | LIVE        |
-| Gaming Server           | Smith   | VM   | 16GB  | 256GB                        | Node - NVME      | 12   | Passthrough | N/A           | Bazzite VM: Steam, PS, PS2, PS3 simulation                                                      | LIVE        |
-| AI Tool Stack           | Neo     | VM   | 8GB   | 128GB                        | Ceph             | 4    | None        | LIVE - Ceph   | LiteLLM, MCPO; OpenWebUI / search / crawl on K8s                                                | LIVE        |
-| Monitoring Stack        | Niobe   | VM   | 4GB   | 128GB                        | Node             | 4    | None        | PLANNED - ZFS | Prometheus, Grafana, Loki, Tempo, Otel Collector                                                | LIVE        |
-| Gitlab                  | Trinity | VM   | 8GB   | 128GB                        | Ceph             | 8    | None        | LIVE - Ceph   | VCS, CI/CD, Package Registry                                                                    | LIVE        |
-| IoT Management Stack    | Niobe   | VM   | 2GB   | 32GB                         | Ceph             | 4    | USB         | N/A           | Home Assistant, Zwave2mqtt, OpenThread Border Router                                            | IN PROGRESS |
-| Dokploy                 | Trinity | VM   | 16GB  | 256GB                        | Ceph             | 8    | None        | LIVE - Ceph   | GUI based PaaS, sandbox + 3rd party apps(N8N, Owntracks, Windmill, Vaultwarden, etc..)          | LIVE        |
-| Media Stack             | Trinity | VM   | 4GB   | 128GB                        | Ceph             | 8    | None        | LIVE - Ceph   | qBittorrent + VPN, Jellyfin, Calibre-Web, SABnzbd, immich                                       | LIVE        |
-| Network File Server     | Smith   | LXC  | 1GB   | 10GB + NVME, HDD mountpoints | Node - NVME, HDD | 2    | None        | N/A           | NFS Server, SMB Server                                                                          | LIVE        |
-| Backup Server           | Smith   | LXC  | 2GB   | 20GB + NVME, HDD mountpoints | Node - NVME, HDD | 4    | None        | N/A           | Rclone, Proxmox Backup Server                                                                   | LIVE        |
-| Keycloak                | Oracle  | LXC  | 2GB   | 32GB                         | Node             | 2    | None        | PLANNED - ZFS | Identity Provider: OAuth2/OIDC, user management, service accounts                               | LIVE        |
-| Notifications Stack     | Niobe   | VM   | 2GB   | 64GB                         | Ceph             | 2    | None        | LIVE - Ceph   | ntfy, Apprise, Postfix (SES relay) — Matrix moved to k8s 2026-06-11                             | LIVE        |
-| Cockpit                 | Niobe   | VM   | 1GB   | 32GB                         | Ceph             | 1    | None        | LIVE - Ceph   | Cockpit                                                                                         | LIVE        |
-| step-ca                 | Oracle  | LXC  | 1GB   | 16GB                         | Node             | 2    | None        | PLANNED - ZFS | Private CA: SSH certs, X.509, OIDC/JWK provisioners                                             | LIVE        |
-| OpenBao                 | Oracle  | LXC  | 2GB   | 32GB                         | Node             | 2    | None        | PLANNED - ZFS | Secrets management: KV, dynamic credentials, Keycloak OIDC auth                                 | LIVE        |
-| AdGuard                 | Oracle  | LXC  | 1GB   | 20GB                         | Node             | 1    | None        | PLANNED - ZFS | Primary AdGuard Home resolver, DNS filtering, AdGuard Exporter                                  | LIVE        |
-| AdGuard Secondary       | Trinity | LXC  | 2GB   | 20GB                         | Node             | 1    | None        | PLANNED - ZFS | Secondary AdGuard Home resolver, same Nix config as primary                                     | DECLARED    |
+## Service Guests
 
-**HA Legend:** LIVE - Ceph = Proxmox HA enabled, PLANNED - ZFS = Needs ZFS reinstall (see [proxmox-ha.md](exploration/proxmox-ha.md)), N/A = Hardware passthrough or must survive storage failure
+Memory and disk values below are the declared guest memory and root disk. Storage
+services may have additional passthrough devices, datasets, or mount points.
 
-## Totals
+| Config key | Guest | Node | Type | vCPU | Memory | Root disk | Provisioning owner |
+| --- | --- | --- | --- | ---: | ---: | ---: | --- |
+| `router` | `vyos-router` | Oracle | VM | 8 | 2 GiB | 128 GB | Ansible router playbooks |
+| `home_gateway_stack` | `home-gateway-stack` | Oracle | VM | 4 | 4 GiB | 128 GB | `tofu/home/gateway_stack.tf` |
+| `monitoring_stack` | `monitoring-stack` | Niobe | VM | 4 | 16 GiB | 256 GB | `tofu/home/monitoring_stack.tf` |
+| `nfs` | `network-file-server` | Smith | LXC | 2 | 1 GiB | 10 GB | Ansible network-file-server playbooks |
+| `gitlab` | `gitlab` | Trinity | VM | 8 | 8 GiB | 256 GB | `tofu/home/gitlab.tf` |
+| `backup_stack` | `backup-stack` | Smith | LXC | 4 | 8 GiB | 20 GB | `tofu/home/backup_stack.tf` |
+| `iot_management_stack` | `iot-management-stack` | Niobe | VM | 4 | 2 GiB | 32 GB | `tofu/home/iot_management_stack.tf` |
+| `cockpit` | `cockpit` | Niobe | VM | 1 | 1 GiB | 32 GB | `tofu/home/cockpit.tf` |
+| `notifications_stack` | `notifications-stack` | Niobe | VM | 2 | 2 GiB | 64 GB | `tofu/home/notifications_stack.tf` |
+| `seaweedfs` | `seaweedfs` | Smith | LXC | 4 | 4 GiB | 32 GB | Ansible SeaweedFS provisioning |
+| `keycloak` | `keycloak` | Oracle | LXC | 2 | 2 GiB | 32 GB | Ansible Keycloak provisioning |
+| `step_ca` | `step-ca` | Oracle | LXC | 2 | 512 MiB | 16 GB | Ansible step-ca provisioning |
+| `openbao` | `openbao` | Oracle | LXC | 2 | 512 MiB | 32 GB | Ansible OpenBao provisioning |
+| `adguard` | `adguard` | Oracle | LXC | 1 | 1 GiB | 20 GB | Ansible provision, NixOS configure |
+| `adguard_secondary` | `adguard-secondary` | Trinity | LXC | 1 | 2 GiB | 20 GB | Ansible provision, NixOS configure |
+| `bastion` | `bastion` | Oracle | LXC | 2 | 2 GiB | 32 GB | Ansible provision, NixOS configure |
+| `ids_stack` | `intrusion-detection-stack` | Oracle | VM | 4 | 4 GiB | 128 GB | OpenTofu provision, NixOS configure |
+| `blockchain_stack` | `blockchain-stack` | Smith | VM | 8 | 16 GiB | 256 GB | OpenTofu provision, NixOS configure |
 
-| Metric | Allocated | Available |
-| ------ | --------- | --------- |
-| RAM    | 144GB     | 400GB     |
-| vCPU   | 103       | 100       |
+## Talos VMs
+
+Four x86 Talos guests join the four bare-metal ARM workers documented in
+`docs/hosts.md`.
+
+| Config key | Guest | Proxmox node | Role | vCPU | Memory | Root disk | GPU |
+| --- | --- | --- | --- | ---: | ---: | ---: | --- |
+| `talos_trinity` | `talos-trinity` | Trinity | control plane | 8 | 32 GiB | 128 GB | - |
+| `talos_neo` | `talos-neo` | Neo | control plane | 32 | 64 GiB | 256 GB | RTX Pro 6000 Blackwell |
+| `talos_niobe` | `talos-niobe` | Niobe | control plane | 8 | 24 GiB | 128 GB | - |
+| `talos_smith` | `talos-smith` | Smith | worker | 12 | 32 GiB | 128 GB | GTX 1660 Super |
+
+These guests are declared by `tofu/home/talos_cluster.tf`; Kubernetes workloads
+are declared under `tofu/home/kubernetes/`.
+
+## Temporary Builders
+
+| Config key | Guest | Node | Type | vCPU | Memory | Root disk | Owner |
+| --- | --- | --- | --- | ---: | ---: | ---: | --- |
+| `vyos_packer` | `vyos-packer` | Oracle | VM | 4 | 4 GiB | 10 GB | Ansible router image workflow |
+| `bazzite_builder` | `bazzite-builder` | Smith | VM | 8 | 4 GiB | 64 GB | Ansible game-server image workflow |
+
+Builders are workflow inputs and should not be treated as long-lived service
+capacity without live verification.
+
+## Removed VM Workloads
+
+The old Development Workstation/Coder, Dokploy, media-stack, AI-tool-stack, and
+standalone gaming-server VM entries are absent from `config/vm.yml`. Their
+retained names in migration comments or legacy playbooks are not current guest
+declarations. Current application replacements are primarily under
+`tofu/home/kubernetes/`; consult `docs/paas.md` and service-specific IaC.
+
+## Declared Totals
+
+Across the 24 service, Talos, and builder entries summarized above,
+`config/vm.yml` declares 135 vCPU, 241,664 MiB of memory, and 2,208 GB of root
+disk. These are allocation declarations, not measurements of live usage or
+physical headroom.

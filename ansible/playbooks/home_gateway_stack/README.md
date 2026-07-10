@@ -1,47 +1,35 @@
-# Gateway Stack
+# Home Gateway Stack
 
-This playbook is for configuring the gateway stack virtual machine. The gateway stack is a fedora vm that hosts the following applications deployed as podman quadlets:
+This playbook configures the Fedora `home-gateway-stack` VM declared in
+`config/vm.yml` and provisioned by `tofu/home/gateway_stack.tf`.
 
-- Adguard Home: DNS server, ad blocker, and web filter
-- Unifi Network Application: Network controller for managing home wifi access point. Has a mongodb instance.
-- Caddy: Reverse proxy for home network
-- Tailscale Subnet Router: Gateway between the home network and the tailscale network.
-- Rotating Proxy: SOCKS5 proxy that rotates between ProtonVPN servers for anonymity.
+Current services:
+
+- UniFi Network Application and MongoDB
+- Caddy reverse proxy
+- Tailscale subnet routing
+- dnsmasq for peer-tailnet split DNS
+- HAProxy/WireProxy rotating SOCKS5 proxy
+- VM OpenTelemetry monitoring agent
+
+AdGuard is not part of this VM. The primary and secondary resolvers are separate
+NixOS LXCs under `nix/hosts/` and deploy through `task configure:adguard*`.
 
 ## Usage
 
 ```bash
-task configure:home:gateway
+task configure:gateway
 ```
 
-## Sub-Playbooks
-
-### Deploy Unifi Network Controller
+## Focused Configuration
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/unifi/site.yml
+task configure:caddy
+task configure:dnsmasq
+task ansible:playbook -- home_gateway_stack/unifi/site.yml
+task ansible:playbook -- home_gateway_stack/tailscale/site.yml
+task ansible:playbook -- home_gateway_stack/rotating-proxy/site.yml
 ```
 
-### Deploy Adguard Home
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/adguard/site.yml
-```
-
-### Deploy Caddy
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/caddy/site.yml
-```
-
-### Deploy Tailscale Subnet Router
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/tailscale/site.yml
-```
-
-### Deploy Rotating Proxy
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/home_gateway_stack/rotating-proxy/site.yml
-```
+Use Taskfile targets where available so the repository Ansible configuration and
+environment are loaded.

@@ -1,42 +1,30 @@
-# Messaging Stack
+# Notifications Stack
 
-This playbook will configure the messaging stack virtual machine. The messaging stack is a fedora vm that hosts the following applications deployed as podman quadlets:
+This playbook configures the Fedora `notifications-stack` VM declared in
+`config/vm.yml` and provisioned by `tofu/home/notifications_stack.tf`.
 
-- Apprise: Unified notification gateway API
-- Matrix Synapse: Federated messaging server with Element web client
-- Mautrix WhatsApp Bridge: Matrix bridge for WhatsApp messaging
-- Mautrix Google Messages Bridge: Matrix bridge for Google Messages
-- ntfy: Push notification server
-- Postfix: SMTP relay using A WS SES
+Current VM services:
+
+- Apprise notification gateway
+- ntfy push notifications
+- Postfix relay through AWS SES
+- VM OpenTelemetry monitoring agent
+
+Matrix Synapse and its bridges moved to Talos Kubernetes and are declared in
+`tofu/home/kubernetes/matrix.tf`. The old Matrix playbook and decommission
+playbook remain only as migration history.
 
 ## Usage
 
 ```bash
-task configure:home:messaging
+task configure:notifications-stack
 ```
 
-## Sub-Playbooks
-
-### Deploy Apprise Gateway
+## Focused Configuration
 
 ```bash
-task ansible:playbook -- ./ansible/playbooks/messaging_stack/apprise.yml
-```
-
-### Deploy Matrix
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/messaging_stack/matrix.yml
-```
-
-### Deploy ntfy
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/messaging_stack/ntfy.yml
-```
-
-### Deploy Postfix Relay
-
-```bash
-task ansible:playbook -- ./ansible/playbooks/messaging_stack/postfix.yml
+task configure:notifications
+task ansible:playbook -- notifications_stack/apprise.yml
+task ansible:playbook -- notifications_stack/ntfy.yml
+task ansible:playbook -- notifications_stack/hermes_bots.yml
 ```

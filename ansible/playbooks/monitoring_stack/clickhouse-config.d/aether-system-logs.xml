@@ -1,4 +1,9 @@
 <clickhouse>
+  <!-- Keep role/profile constraint merging explicit across image upgrades. -->
+  <access_control_improvements>
+    <settings_constraints_replace_previous>true</settings_constraints_replace_previous>
+  </access_control_improvements>
+
   <!-- Keep ClickHouse's own diagnostic tables from competing with IDS/log storage. -->
   <logger>
     <level>information</level>

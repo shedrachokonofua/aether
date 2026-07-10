@@ -1,224 +1,132 @@
 # NixOS
 
-Declarative, reproducible infrastructure. Terraform for the OS.
+NixOS is the preferred target OS for suitable long-lived Aether VMs and LXCs.
+OpenTofu or Ansible still provisions the Proxmox guest; Nix declares the guest OS
+and service configuration.
 
-## Vision
+## Direction
 
-Replace imperative configuration (Ansible playbooks, Docker toolbox) with purely declarative Nix. The entire system—from CLI tools to VM configurations—becomes version-controlled, reproducible, and atomically rollbackable.
+Move most long-lived Fedora service VMs/LXCs to NixOS over time. Do not describe
+a service as migrated until all of these exist:
 
-```
-Before: Ansible describes how to reach state → drift possible → rollback = snapshot
-After:  NixOS declares what state IS       → no drift      → rollback = built-in
-```
+1. A host configuration under `nix/hosts/`
+2. An exposed `nixosConfigurations` entry in `flake.nix`
+3. A reproducible provisioning and Taskfile deployment path
+4. Secret and monitoring integration
+5. Live verification after deployment
 
-## Guiding Principles
+Until then, the current Tofu/Ansible path remains authoritative. NixOS migration
+does not imply removing Ansible where it still owns provisioning or integration.
 
-| Principle          | Meaning                                                                            |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| **Config = State** | The Nix configuration IS the system, not a description of steps to reach it        |
-| **Reproducible**   | `flake.lock` pins exact versions; rebuild anywhere, get identical results          |
-| **Atomic**         | Changes apply all-or-nothing; partial failures impossible                          |
-| **Rollback-first** | Every change creates a generation; instant recovery via `nixos-rebuild --rollback` |
-| **One Dependency** | Host needs only Nix installed; everything else comes from the flake                |
+## Tool Responsibilities
 
-## End State
+| Concern | Current owner |
+| --- | --- |
+| Reproducible CLI environment | `flake.nix`, `flake.lock`, `nix develop` |
+| VM/LXC provisioning | OpenTofu or the existing Ansible provisioning playbook |
+| NixOS configuration | `nix/hosts/`, `nix/modules/`, `flake.nix` |
+| Multi-step deployment | `Taskfile.yml` `_nixos-deploy` and public configure/deploy targets |
+| Containers on NixOS | Podman/Quadlet where the host configuration declares them |
+| NixOS secrets | OpenBao agent and/or sops-nix as declared by the host modules |
+| Kubernetes secrets | OpenBao/Kubernetes resources declared by Tofu |
+| Non-NixOS systems | Their established Ansible, Tofu, VyOS, Talos, or Proxmox path |
 
-### Tool Responsibilities
+## Current NixOS Coverage
 
-| Concern               | Tool                        |
-| --------------------- | --------------------------- |
-| Provision VM/LXC      | OpenTofu (Proxmox provider) |
-| Configure OS          | NixOS                       |
-| Container runtime     | Podman (via quadlet-nix)    |
-| Package versions      | Nix (flake.lock)            |
-| Secrets (NixOS)       | sops-nix                    |
-| Secrets (K8s)         | OpenBao                     |
-| Deploy multiple hosts | colmena (when at scale)     |
+`flake.nix` currently exposes five deployable configurations:
 
-### What Becomes NixOS
+| Flake target | Placement | Taskfile path |
+| --- | --- | --- |
+| `adguard` | Oracle LXC | `task configure:adguard` / `task deploy:adguard` |
+| `adguard-secondary` | Trinity LXC | `task configure:adguard-secondary` / `task deploy:adguard-secondary` |
+| `bastion` | Oracle LXC | `task configure:bastion` / `task deploy:bastion` |
+| `ids-stack` | Oracle VM | `task configure:ids-stack` / `task deploy:ids-stack` |
+| `blockchain-stack` | Smith VM | `task configure:blockchain-stack` / `task deploy:blockchain-stack` |
 
-| Target           | Current               | Becomes       | Status      |
-| ---------------- | --------------------- | ------------- | ----------- |
-| CLI Toolbox      | Docker container      | `nix develop` | ✅ Complete |
-| AdGuard          | Part of Gateway Stack | NixOS LXC     | ✅ Complete |
-| IDS Stack        | —                     | NixOS VM      | ✅ Complete |
-| Gateway Stack    | Fedora + Ansible      | NixOS VM      | Planned     |
-| Monitoring Stack | Fedora + Ansible      | NixOS VM      | Planned     |
-| Identity Stack   | LXCs (Fedora)         | NixOS LXCs    | Planned     |
-| Dev Workstation  | Fedora + Ansible      | NixOS VM      | Backlog     |
-
-### What Stays As-Is
-
-| Target          | OS            | Why Not NixOS                     |
-| --------------- | ------------- | --------------------------------- |
-| VyOS Router     | VyOS          | Purpose-built network OS          |
-| Gaming Server   | Bazzite       | Purpose-built immutable gaming OS |
-| GPU Workstation | Fedora        | NVIDIA driver complexity          |
-| K8s Nodes       | Talos         | Purpose-built for Kubernetes      |
-| Proxmox Hosts   | Debian        | Too risky, minimal benefit        |
-| Smith LXCs      | Fedora/Debian | Storage infrastructure, stable    |
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              WORKSTATION                                     │
-│                                                                              │
-│  $ nix develop          ← Enter reproducible shell (replaces Docker)        │
-│  $ task tofu:plan       ← Taskfile still works                              │
-│  $ task nix:deploy -- adguard  ← Deploy NixOS config                        │
-│                                                                              │
-│  flake.nix              ← Single source of truth for tools + hosts          │
-│  flake.lock             ← Pinned versions (reproducibility)                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-                              │
-                              │ SSH (nixos-rebuild --target-host)
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         NIXOS FOUNDATIONAL LAYER                             │
-│                                                                              │
-│   Oracle:                    Niobe:                    Trinity:              │
-│   ├── adguard.nix ✅         ├── monitoring.nix        ├── adguard-secondary │
-│   ├── ids-stack.nix ✅       │   ├── Prometheus        │   └── Coder        │
-│   │   └── Zeek               │   ├── Grafana           │                    │
-│   │                          │   ├── Loki              ├── media.nix        │
-│   ├── gateway.nix            │   └── OTEL              │   ├── Jellyfin     │
-│   │   ├── Caddy              │                         │   └── qBit+VPN     │
-│   │   ├── Tailscale          └── iot.nix               │                    │
-│   │   └── HAProxy                └── Home Assistant    │                    │
-│   │                                                                          │
-│   ├── keycloak.nix (LXC)                                                    │
-│   ├── step-ca.nix (LXC)                                                     │
-│   └── openbao.nix (LXC)                                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-                              │
-              trusts (OIDC, certs, secrets)
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    KUBERNETES + OTHER WORKLOADS                              │
-│   Talos K8s, VyOS, GPU Workstation, Gaming Server                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Repository Structure
-
-```
-aether/
-├── flake.nix                     # Flake root (dev shell + host configs)
-├── flake.lock                    # Pinned dependencies
-├── nix/
-│   ├── hosts/                    # Per-host configurations
-│   │   ├── common/
-│   │   │   └── adguard-resolver.nix # Shared DNS resolver config
-│   │   ├── oracle/
-│   │   │   ├── adguard.nix       # Primary DNS server (LXC)
-│   │   │   └── ids-stack.nix     # Network security (VM)
-│   │   └── trinity/
-│   │       └── adguard-secondary.nix # Secondary DNS server (LXC)
-│   ├── modules/                  # Reusable modules
-│   │   ├── base.nix              # SSH CA, users, firewall, common packages
-│   │   ├── otel-agent.nix        # OTEL Collector with Prometheus scraping
-│   │   ├── vm-common.nix         # cloud-init, qemu-guest-agent
-│   │   └── vm-hardware.nix       # Boot/filesystem for nixos-rebuild
-│   └── images/                   # Base images for Proxmox
-│       ├── vm-base.nix           # qcow2 image (cloud-init enabled)
-│       └── lxc-base.nix          # Proxmox LXC template
-│
-├── ansible/                      # Remaining (VyOS, GPU Workstation, Proxmox hosts)
-├── tofu/                         # VM/LXC provisioning (unchanged)
-└── ...
-```
-
-## Dev Shell
-
-The Nix flake provides a reproducible CLI environment with all infrastructure tools:
+Verify the list rather than relying on this table:
 
 ```bash
-# Enter dev shell (or auto-enter via direnv)
-nix develop
-
-# Tools are available directly
-task tofu:plan
-task ansible:playbook -- ...
+nix develop -c nix eval --json .#nixosConfigurations --apply builtins.attrNames | jq -r '.[]'
 ```
 
-With `direnv`, the shell auto-activates when entering the project:
+Files under `nix/hosts/` that are not exposed by `flake.nix` and lack a Taskfile
+path are work in progress, not deployable coverage.
 
-```bash
-$ cd ~/projects/aether
-direnv: loading .envrc
-direnv: using flake
-# Tools available automatically in every terminal tab
+## Migration Candidates
+
+The established direction is to migrate suitable Fedora services, including the
+gateway, monitoring, and identity stacks. Other long-lived Fedora VMs should be
+assessed using the same pattern. This is a target architecture, not a committed
+order or statement of current runtime.
+
+Keep purpose-built platforms on their established OS unless the IaC explicitly
+changes:
+
+- VyOS router
+- Talos Kubernetes nodes
+- Proxmox hosts
+- Bazzite build/gaming workflows
+
+Storage and hardware-sensitive guests require case-by-case migration plans.
+
+## Repository Layout
+
+```text
+flake.nix                         dev shell and exposed NixOS configurations
+flake.lock                        pinned inputs
+nix/images/                       Proxmox VM/LXC base images
+nix/hosts/common/                 shared host configuration
+nix/hosts/oracle/                 AdGuard, bastion, and IDS configurations
+nix/hosts/trinity/                secondary AdGuard configuration
+nix/hosts/smith/                  blockchain and in-progress storage configs
+nix/modules/                      base, VM, OTel, OpenBao, osquery, and secret modules
+config/vm.yml                     shared placement, sizing, address, and port facts
+Taskfile.yml                      supported build, provision, configure, and deploy flows
 ```
 
-| Aspect          | Docker Toolbox     | nix develop       |
-| --------------- | ------------------ | ----------------- |
-| Startup time    | Container spin-up  | Instant (cached)  |
-| SSH agent       | Volume mount dance | Just works        |
-| Tool versions   | Dockerfile         | flake.lock        |
-| Disk usage      | ~500MB image       | Shared /nix/store |
-| Host dependency | Docker daemon      | Nix only          |
+## Images
 
-## Base Images
-
-Build VM and LXC templates with SSH CA trust baked in:
+Build and upload the repository base images through Taskfile targets:
 
 ```bash
-# Build qcow2 for Proxmox VMs (cloud-init enabled)
-SSH_CA_PUBKEY="$(ssh root@step-ca cat /etc/step-ca/certs/ssh_user_ca_key.pub)" \
-  nix build .#vm-base-image --impure
-
-# Build Proxmox LXC template
-SSH_CA_PUBKEY="..." nix build .#lxc-base-image --impure
+task nix:build-vm-image
+task nix:upload-vm-image
+task nix:build-lxc-image
+task nix:upload-lxc-image
 ```
 
 ## Deployment
 
-Deploy NixOS configurations to running VMs/LXCs:
+Use the target-specific Taskfile workflow, not a raw copied
+`nixos-rebuild --target-host` command. `_nixos-deploy` obtains the SSH CA key,
+rsyncs the repository without secrets/generated state, and runs the build on the
+Linux target so deployment works from macOS.
 
 ```bash
-# Deploy to target host
-SSH_CA_PUBKEY="$(ssh root@step-ca cat /etc/step-ca/certs/ssh_user_ca_key.pub)" \
-  nixos-rebuild switch --flake .#adguard --target-host root@adguard --impure
+task login:status
+task configure:adguard
+task configure:bastion
+task configure:ids-stack
 ```
 
-## Migration Progress
+Use `task deploy:<target>` only when both provisioning and configuration are
+intended. Check `task --list-all` for the current supported targets.
 
-| Phase | Target                    | Status      | Notes                                  |
-| ----- | ------------------------- | ----------- | -------------------------------------- |
-| 1     | Dev shell (`nix develop`) | ✅ Complete | Replaced Docker toolbox                |
-| 2     | AdGuard LXCs              | ✅ Complete | Primary + secondary DNS config, OTEL, Prometheus |
-| 3     | IDS Stack VM              | ✅ Complete | Zeek via quadlet-nix, Suricata on VyOS |
-| 4     | Gateway Stack             | Planned     | Caddy, Tailscale, HAProxy              |
-| 5     | Identity Stack (LXCs)     | Planned     | Keycloak, step-ca, OpenBao             |
-| 6     | Monitoring Stack          | Planned     | Prometheus, Grafana, Loki, Tempo       |
-| 7     | Remaining VMs             | Backlog     | IoT, Media, Dev Workstation            |
+## Migration Definition of Done
 
-Each phase is independent. Ansible remains for non-NixOS targets indefinitely.
-
-## Secrets Management
-
-| Scope           | Tool                                                     |
-| --------------- | -------------------------------------------------------- |
-| NixOS VMs/LXCs  | sops-nix (age-encrypted in repo, decrypts at activation) |
-| K8s workloads   | OpenBao                                                  |
-| Ansible targets | SOPS (existing flow)                                     |
-
-sops-nix integrates seamlessly—secrets decrypt at activation time and never touch the Nix store.
-
-## Comparison
-
-| Aspect               | Ansible + Fedora        | NixOS                             |
-| -------------------- | ----------------------- | --------------------------------- |
-| Drift                | Possible between runs   | Impossible—config IS state        |
-| Rollback             | PBS snapshot or re-run  | `nixos-rebuild --rollback`        |
-| Reproducibility      | Best effort             | Guaranteed (flake.lock)           |
-| Partial failures     | Service half-configured | Atomic—all or nothing             |
-| Container management | podman_pod/podman_container module | quadlet-nix (declarative systemd) |
+- Guest provisioning is reproducible from the current checkout.
+- The flake evaluation and target build succeed.
+- Secrets render without entering the Nix store.
+- SSH CA trust, OTel, and Fleet/osquery coverage are present where applicable.
+- Service data and rollback paths are documented and tested.
+- DNS, proxy, identity, storage, and backup dependencies still work.
+- The old Fedora guest/path is removed only after live verification.
+- `docs/`, inventory, Taskfile targets, and obsolete Ansible ownership are updated.
 
 ## Related Documents
 
-- [Virtual Machines](virtual-machines.md) — VM/LXC allocation
-- [Trust Model](trust-model.md) — Identity architecture
-- [Secrets](secrets.md) — Encryption key hierarchy
-- [exploration/nixos.md](exploration/nixos.md) — Detailed technical exploration
+- [Virtual Machines](virtual-machines.md)
+- [Monitoring](monitoring.md)
+- [Trust Model](trust-model.md)
+- [Secrets](secrets.md)
+- [NixOS exploration](exploration/nixos.md) for historical design context

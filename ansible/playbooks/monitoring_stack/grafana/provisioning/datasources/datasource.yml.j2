@@ -42,8 +42,9 @@ datasources:
     jsonData:
       host: localhost
       port: 9000
-      username: aether
+      username: "{{ clickhouse_grafana_user }}"
+      queryTimeout: 30
     secureJsonData:
-      password: "{{ secrets.clickhouse.password }}"
+      password: "{{ secrets.clickhouse.grafana_readonly_password }}"
 
 # Tenant datasources are created via Grafana HTTP API after org creation.

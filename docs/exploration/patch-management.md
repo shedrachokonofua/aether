@@ -229,7 +229,7 @@ Not just containers — also need to track OS-level updates.
 VyOS uses an immutable rebuild approach via `ansible/playbooks/home_router/`:
 
 ```
-task provision:home:router
+task provision:router
     │
     ├─► Provision Fedora packer VM
     ├─► Build VyOS cloud image from latest ISO
@@ -238,7 +238,7 @@ task provision:home:router
     └─► Destroy packer VM
 ```
 
-**Upgrade workflow:** When a new VyOS release is available, run `task provision:home:router` to rebuild from the latest ISO. Config is stored in Ansible, so the new VM gets the same configuration applied automatically.
+**Upgrade workflow:** When a new VyOS release is available, run `task provision:router` to rebuild from the latest ISO. Config is stored in Ansible, so the new VM gets the same configuration applied automatically.
 
 ### Existing: DNF Automatic Role
 

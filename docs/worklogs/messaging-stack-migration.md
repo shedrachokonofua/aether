@@ -244,7 +244,7 @@ gmessages data → /tmp/messaging-stack-export/mautrix-gmessages-data.tar.gz
    so `matrix.home.shdr.ch` and `element.home.shdr.ch` point at the cluster
    Gateway VIP (`var.workload_vip`, same as the media stack flip). Apply:
    ```bash
-   task ansible:run -- playbooks/home_gateway_stack/site.yml
+   task configure:caddy
    ```
 10. **Smoke test from outside** — Element web client at `https://element.home.shdr.ch`
     logs in, rooms list, bridge bots are present. Send a test WhatsApp + Google
@@ -253,7 +253,7 @@ gmessages data → /tmp/messaging-stack-export/mautrix-gmessages-data.tar.gz
     - Delete `matrix.yml` from `ansible/playbooks/messaging_stack/`
     - Drop the `import_playbook: matrix.yml` line from `messaging_stack/site.yml`
     - Drop synapse scrape from the `vm_monitoring_agent` block in `site.yml`
-    - Re-run `task configure:home:messaging` so monitoring-agent forgets the
+    - Re-run `task configure:notifications-stack` so monitoring-agent forgets the
       stale targets and `matrix-pod` quadlet files are gone
 12. **Drop the RBD snapshot** once you're satisfied (~1 week of soak):
     ```bash

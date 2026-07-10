@@ -9,7 +9,7 @@ Ceph provides distributed storage for HA-capable workloads across the cluster.
 ```mermaid
 flowchart TB
     subgraph Consumers
-        HAVMs[13 HA VMs]
+        HAVMs[Selected VM disks]
         CephFSMounts[CephFS Mounts]
     end
 
@@ -52,15 +52,16 @@ flowchart TB
 
 ### CephFS Mounts
 
-VMs that mount CephFS for shared data access:
+Current declared CephFS consumers:
 
-| VM              | Mount Point | Use Case                  |
-| --------------- | ----------- | ------------------------- |
-| dev-workstation | /mnt/cephfs | Projects, shared data     |
-| talos-neo (GPU PV) | local NVMe (`gpu-model-storage`) | Model weights, ComfyUI state |
-| media-stack     | /mnt/cephfs | Media files               |
-| game-server     | /mnt/cephfs | Game saves, configuration |
-| backup-stack    | /mnt/cephfs | Offsite backup source     |
+| Consumer | Mount/claim | Use case |
+| --- | --- | --- |
+| `backup-stack` LXC | `/mnt/cephfs` | CephFS backup source |
+| Kubernetes game server | static `cephfs-static` PV/PVC | Existing game data |
+| Dawarich on Kubernetes | dynamic `cephfs` PVCs | Shared application storage |
+
+Kubernetes media services use Ceph RBD for application/config PVCs and Smith NFS
+for bulk media. `talos-neo` GPU model storage is node-local NVMe, not CephFS.
 
 ### ZFS (Smith HDD)
 
@@ -120,7 +121,8 @@ node-local storage to remain independent of Ceph/NFS latency.
 | Niobe  | Monitoring Stack                            | Must alert when Ceph has issues                      |
 | Smith  | Backup Stack                                | Must work if Ceph fails                              |
 
-**Note:** Most workload VMs (GitLab, messaging, media, etc.) now run on Ceph for HA capability.
+**Note:** Many application workloads now run on Kubernetes with Ceph RBD PVCs.
+Core infrastructure remains node-local where it must operate during Ceph failure.
 
 ### Talos Control Plane and CI
 
