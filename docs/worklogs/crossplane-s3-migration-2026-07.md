@@ -159,6 +159,13 @@ Caps the flood while the migration lands.
 The Role MR `kestra-storage-s3` has been failing deletion since ≥ Jun 30. The
 delete was already intended; complete it on both ends.
 
+**RESOLVED 2026-07-09.** The stuck delete (`deletionTimestamp` set 2026-04-28,
+`AsyncDeleteFailure` hot-loop) was because the RGW-side role still existed. Fix:
+deleted the RGW role via CLI (`iam delete-role`; it had no inline policies) — the
+provider's next reconcile then succeeded, released `finalizer.managedresource.crossplane.io`,
+and GC'd the MR itself (no manual finalizer patch needed). Verified: RGW
+`NoSuchEntity`, MR `NotFound`, provider `kestra-storage-s3` errors → 0.
+
 1. In `~/projects/seven30/infra` (after `task login`):
 
    ```bash
@@ -671,7 +678,7 @@ explicit user approval first** (live-op on shared infra).
 ## Completion checklist
 
 - [ ] Phase 0: RGW idle rate < 60 req/s (interim)
-- [ ] Phase 1: kestra-storage-s3 gone from vcluster AND RGW
+- [x] Phase 1: kestra-storage-s3 gone from vcluster AND RGW (2026-07-09)
 - [ ] Phase 2: seven30-provisioner exists, playbook idempotent
 - [x] Phase 3: tofu create + refresh idempotent against RGW (job 12970; role-destroy caveat documented)
 - [ ] Phase 4: seven30 buckets/roles tofu-managed, provider-aws-* gone from vcluster, RGW rate < 30 req/s
