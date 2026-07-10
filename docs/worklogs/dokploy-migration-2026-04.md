@@ -369,7 +369,7 @@ Same RBD snapshot method used this session works. Volumes to capture:
 - Talos cluster: `aether-k8s`
 - API VIP: `10.0.3.20`
 - Workload VIP (Cilium L2): `10.0.3.19` — all `*.apps.home.shdr.ch` traffic lands here
-- Nodes: talos-trinity/neo/niobe (CP+worker), talos-smith (worker+GPU GTX 1660), talos-mouse (ARM Pi)
+- Nodes: talos-trinity/neo/niobe (CP+worker), talos-smith (worker+GPU GTX 1660), mouse (ARM Pi)
 - GPU nodes: neo (RTX Pro 6000, primary ML), smith (GTX 1660 Super, secondary)
 - Storage classes: `ceph-rbd` (default for PVCs), `nfs-hdd` (large media on smith NFS LXC)
 

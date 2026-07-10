@@ -12,12 +12,12 @@ The Pis are not control-plane nodes, not Ceph storage nodes, and not a replaceme
 
 | Node           | Hardware       | RAM | Role                 | IP        | MAC               |
 | -------------- | -------------- | --- | -------------------- | --------- | ----------------- |
-| `talos-tank`   | Pi 5           | 4GB | ARM worker           | 10.0.3.23 | D8:3A:DD:EE:47:E6 |
-| `talos-dozer`  | Pi 5           | 4GB | ARM worker           | 10.0.3.24 | 2C:CF:67:02:B6:2C |
-| `talos-mouse`  | Pi 4           | 4GB | ARM worker           | 10.0.3.25 | 2C:CF:67:AC:E1:EF |
-| `talos-sparks` | CM4 Lite / Mini Base | 4GB | ARM worker | 10.0.3.26 | 2C:CF:67:78:73:CE |
+| `tank`         | Pi 5           | 4GB | ARM worker           | 10.0.3.23 | D8:3A:DD:EE:47:E6 |
+| `dozer`        | Pi 5           | 4GB | ARM worker           | 10.0.3.24 | 2C:CF:67:02:B6:2C |
+| `mouse`        | Pi 4           | 4GB | ARM worker           | 10.0.3.25 | 2C:CF:67:AC:E1:EF |
+| `sparks`       | CM4 Lite / Mini Base | 4GB | ARM worker | 10.0.3.26 | 2C:CF:67:78:73:CE |
 
-`talos-sparks` is a Raspberry Pi CM4 SKU `CM4104000`: 4GB RAM, Lite/no eMMC, with wireless. It is currently on a Mini Base carrier and boots from microSD. Longer-term, swap to a proper CM4 carrier (Waveshare Mini Base Board B or similar) when the Pi shelf goes into the main rack. CM4 PCIe is Gen2 x1 (~400MB/s ceiling), so storage stays modest: microSD or a small 2242 NVMe. Per the storage policy, this node is Ceph end-to-end and holds no local persistent state.
+`sparks` is a Raspberry Pi CM4 SKU `CM4104000`: 4GB RAM, Lite/no eMMC, with wireless. It is currently on a Mini Base carrier and boots from microSD. Longer-term, swap to a proper CM4 carrier (Waveshare Mini Base Board B or similar) when the Pi shelf goes into the main rack. CM4 PCIe is Gen2 x1 (~400MB/s ceiling), so storage stays modest: microSD or a small 2242 NVMe. Per the storage policy, this node is Ceph end-to-end and holds no local persistent state.
 
 All ARM workers live on the Services VLAN:
 
@@ -119,7 +119,7 @@ installed OS does not indicate support for Raspberry Pi 5
 
 ## First Working Node: Mouse
 
-The first successful node is `talos-mouse`, a Raspberry Pi 4.
+The first successful node is `mouse`, a Raspberry Pi 4.
 
 The microSD currently appears on the Mac as:
 
@@ -148,7 +148,7 @@ After flashing:
 Mouse was first discovered on DHCP as `10.0.3.245`, then configured as:
 
 ```text
-hostname: talos-mouse
+hostname: mouse
 static IP: 10.0.3.25/24
 gateway: 10.0.3.1
 DNS: 10.0.3.1
@@ -159,7 +159,7 @@ install disk: /dev/mmcblk0
 Dozer was first discovered on DHCP as `10.0.3.246`, then configured as:
 
 ```text
-hostname: talos-dozer
+hostname: dozer
 static IP: 10.0.3.24/24
 gateway: 10.0.3.1
 DNS: 10.0.3.1
@@ -170,7 +170,7 @@ install disk: /dev/mmcblk0
 Tank was first discovered on DHCP as `10.0.3.247`, then configured as:
 
 ```text
-hostname: talos-tank
+hostname: tank
 static IP: 10.0.3.23/24
 gateway: 10.0.3.1
 DNS: 10.0.3.1
@@ -181,7 +181,7 @@ install disk: /dev/mmcblk0
 Sparks was first discovered on DHCP as `10.0.3.248`, then configured as:
 
 ```text
-hostname: talos-sparks
+hostname: sparks
 static IP: 10.0.3.26/24
 gateway: 10.0.3.1
 DNS: 10.0.3.1
@@ -230,10 +230,10 @@ Raspberry Pis join as worker-only nodes:
 
 | Node           | Role        | Pool  |
 | -------------- | ----------- | ----- |
-| `talos-tank`   | worker only | `arm` |
-| `talos-dozer`  | worker only | `arm` |
-| `talos-mouse`  | worker only | `arm` |
-| `talos-sparks` | worker only | `arm` |
+| `tank`         | worker only | `arm` |
+| `dozer`        | worker only | `arm` |
+| `mouse`        | worker only | `arm` |
+| `sparks`       | worker only | `arm` |
 
 Use labels:
 
@@ -456,11 +456,11 @@ Do not run Ceph daemons on the Pis. Treat the Pi boot media as OS-only and repla
 
 ## Implementation Steps
 
-1. Flash `talos-mouse` with the Talos Raspberry Pi ARM64 image.
+1. Flash `mouse` with the Talos Raspberry Pi ARM64 image.
 2. Boot Mouse on VLAN 3 and find its DHCP IP.
 3. Add repo support for bare-metal ARM Talos workers distinct from Proxmox VM Talos nodes.
 4. Generate/apply worker config for Mouse:
-   - hostname `talos-mouse`
+   - hostname `mouse`
    - static IP `10.0.3.25/24`
    - gateway `10.0.3.1`
    - DNS `10.0.3.1`
@@ -471,7 +471,7 @@ Do not run Ceph daemons on the Pis. Treat the Pi boot media as OS-only and repla
    - node labels include `kubernetes.io/arch=arm64`
 6. Add `aether.sh/node-pool=arm` and `aether.sh/hardware=rpi` labels.
 7. Let DaemonSets settle and inspect actual overhead.
-8. Repeat for `talos-tank` and `talos-dozer` using the Pi 5 `rpi_5` overlay image.
+8. Repeat for `tank` and `dozer` using the Pi 5 `rpi_5` overlay image.
 9. Add Kyverno guardrails for small ARM-safe workloads.
 
 ## Open Questions

@@ -335,10 +335,10 @@ ARM worker IP/MAC mapping observed from the rack:
 
 | Node           | IP        | MAC               |
 | -------------- | --------- | ----------------- |
-| `talos-tank`   | 10.0.3.23 | D8:3A:DD:EE:47:E6 |
-| `talos-dozer`  | 10.0.3.24 | 2C:CF:67:02:B6:2C |
-| `talos-mouse`  | 10.0.3.25 | 2C:CF:67:AC:E1:EF |
-| `talos-sparks` | 10.0.3.26 | 2C:CF:67:78:73:CE |
+| `tank`         | 10.0.3.23 | D8:3A:DD:EE:47:E6 |
+| `dozer`        | 10.0.3.24 | 2C:CF:67:02:B6:2C |
+| `mouse`        | 10.0.3.25 | 2C:CF:67:AC:E1:EF |
+| `sparks`       | 10.0.3.26 | 2C:CF:67:78:73:CE |
 
 ### Office Switch
 

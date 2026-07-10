@@ -260,8 +260,8 @@ Talos nodes (10.0.3.0/24, VLAN 3)
   10.0.3.18  talos-niobe     CP
   10.0.3.20  VIP             (down right now; CLAUDE.md still says .19, verify after recovery)
   10.0.3.22  talos-smith     worker (amd64)
-  10.0.3.23  talos-tank      worker (arm64, Pi)
-  10.0.3.24  talos-dozer     worker (arm64, Pi)
-  10.0.3.25  talos-mouse     worker (arm64, Pi)
-  10.0.3.26  talos-sparks    worker (arm64, Pi)
+  10.0.3.23  tank            worker (arm64, Pi)
+  10.0.3.24  dozer           worker (arm64, Pi)
+  10.0.3.25  mouse           worker (arm64, Pi)
+  10.0.3.26  sparks          worker (arm64, Pi)
 ```
