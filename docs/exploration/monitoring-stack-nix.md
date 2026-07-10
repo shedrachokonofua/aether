@@ -5,12 +5,15 @@ Two-track plan for the `monitoring-stack` VM (10.0.2.3, Fedora, Niobe). After th
 for every hypervisor, 90 days of fleet logs, tailnet membership, and a vault-agent identity —
 it becomes the highest-value target in the estate while currently being one of the softest.
 
-The tracks run at different tempos and MUST NOT be coupled:
+Hardening work is filtered by **survivability**: anything whose implementation would be
+rewritten by the migration is deferred INTO the migration (accepted interim risk, recorded
+below); anything that survives — image pins, consumer re-pointing, producer-side OTLP auth,
+router config — ships early because it is really just Track B work that can start now.
 
-- **Track A — hardening**: independently shippable fixes on the existing Fedora VM via
-  `task configure:monitoring`. No migration dependency.
+- **Pre-migration work**: survivable subset, ships on the current Fedora VM / adjacent
+  systems via existing playbooks.
 - **Track B — NixOS migration**: the existing P3 todo, executed blue-green with the
-  ids-stack/blockchain-stack recipe. Inherits Track A decisions as its spec.
+  ids-stack/blockchain-stack recipe; absorbs the deferred hardening natively.
 
 ## Current state (audited)
 
@@ -41,34 +44,28 @@ Mitigating context: the VM sits on VLAN 2 (TRUSTED zone) — exposure is LAN-int
 "trusted VLAN" is the same argument the journal-forwarder plan just rejected for hypervisor
 journals, and this box will hold strictly more sensitive material.
 
-## Track A — Hardening (Fedora, now)
+## Pre-migration work (survives the migration)
 
-Ordered by risk/effort ratio. A1/A2 are independent commits; A3 and A4 are **one ordered
-rollout** (route consumers block port closures); A5–A8 are independent.
+Nothing here is Fedora-specific throwaway; each item is either a Track B prerequisite or
+lives outside the monitoring VM entirely.
 
-1. **A1 — directory modes**: `0777` → `0750`/`0755` with explicit owner per service UID.
-   Verify containers still write (several images run non-root with fixed UIDs — set owners
-   to match, not world-write).
-2. **A2 — pin images**: record current running digests, pin all 13 images (10 currently
-   floating) in a single vars block. Prerequisite for Track B and for Renovate visibility.
-3. **A3+A4 — route/port rationalization** (one sequence, consumers first):
-   1. Inventory every consumer of the Caddy monitoring routes — known today: Goldilocks,
-      HolmesGPT, Orion hit `prometheus.`/`loki.` routes (tofu/home/kubernetes/*.tf); the
-      `grafana_tenant` provisioning hits Janus on the VM
-   2. Re-point k8s consumers through Janus (tenant-scoped, JWT-authed) or grant them a
-      scoped path; delete the raw Prometheus/Loki/ClickHouse/otel-metrics Caddy routes
-   3. THEN unpublish ports with no remaining external consumer: 3100, 9090, 8123, 8888,
-      8889, 9115, 9221, 10019, **and 8080** (Janus is consumed pod-locally by Grafana and
-      by the tenant playbook on-host; no Caddy route exists for it)
-   4. End state: published = 4317/4318 (ingest), 3000 (Grafana via Caddy), 8084 (Fleet via
-      Caddy). Prometheus lifecycle API (H5) becomes unreachable as a side effect.
-4. **A5 — OTLP ingest authn** (the big one): `bearertokenauth` on the central collector.
-   Collector side is three pieces, not one: the extension declared under `extensions:`, the
-   token sourced at runtime (env var from a root-owned `0600` EnvironmentFile rendered from
-   OpenBao KV `kv/aether/otel-ingest` — never inline in the 0644 config), the extension
-   listed in `service.extensions`, and `auth: {authenticator: bearertokenauth}` on both
-   receivers. Producer rollout is producers-first, enforce-last (an unexpected header is
-   harmless; a missing one after enforcement is an outage). **Complete producer inventory**:
+1. **A2 — pin images**: record current running digests, pin all 13 images (10 currently
+   floating) in a single vars block. Hard Track B prerequisite (quadlet configs and the
+   volume-copy strategy both require frozen versions) and gives Renovate visibility.
+2. **A4 — route-consumer re-pointing**: inventory every consumer of the Caddy monitoring
+   routes — known today: Goldilocks, HolmesGPT, Orion hit `prometheus.`/`loki.` routes
+   (tofu/home/kubernetes/*.tf). Re-point them through Janus (tenant-scoped, JWT-authed) or
+   grant a scoped path, then delete the raw Prometheus/Loki/ClickHouse/otel-metrics Caddy
+   routes. This is k8s + gateway work; it must precede port closure on either platform.
+3. **A5 — OTLP ingest authn** (the big one): `bearertokenauth` on the central collector.
+   ~90% of this work is producer-side and survives the migration untouched; the collector
+   config carries over in the parity migration. Collector side is three pieces, not one:
+   the extension declared under `extensions:`, the token sourced at runtime (env var from a
+   root-owned `0600` EnvironmentFile rendered from OpenBao KV `kv/aether/otel-ingest` —
+   never inline in the 0644 config), the extension listed in `service.extensions`, and
+   `auth: {authenticator: bearertokenauth}` on both receivers. Producer rollout is
+   producers-first, enforce-last (an unexpected header is harmless; a missing one after
+   enforcement is an outage). **Complete producer inventory**:
    | Producer | Config surface | Token delivery |
    | --- | --- | --- |
    | 12 Ansible VM agents (`setup_vm_monitoring_agents.yml`) | `vm_monitoring_agent` exporter **and** its `service.telemetry` OTLP metrics exporter | root-owned 0600 env file; config references `${env:...}` |
@@ -77,21 +74,30 @@ rollout** (route consumers block port closures); A5–A8 are independent.
    | vcluster collector (`vcluster.tf:171`) | vcluster values | same Secret pattern |
    | VyOS collector (`configure_otel.yml`) | template | 0600 config on the router |
    | journal forwarder | `otlp_headers` | vault-agent-rendered config (amend forwarder plan — see cross-plan note) |
-   Then: flip receivers to require auth; alert on `otelcol_receiver_refused_*` during soak.
-   Decision: bearer token over mTLS — config-only at every producer; mTLS remains a later
-   upgrade via the two-tier PKI issuing mounts.
-5. **A6 — VyOS producer**: point at `https://otel.home.shdr.ch` (+ token) like every other
-   producer; removes the plain-HTTP hop and the direct-IP coupling.
-6. **A7 — Fleet hop**: enable `FLEET_SERVER_TLS` with a step-ca cert (SANs:
-   `fleet.home.shdr.ch` + VM IP; vault-agent renders after the forwarder work lands the
-   agent here); Caddy upstream flips to `https://` with the step root in its trust; health
-   check + documented plaintext rollback. MySQL `sql-mode` restored to default; Redis stays
-   pod-internal.
-7. **A8 — PVE/PBS exporter TLS**: trust the Proxmox/PBS API certs properly (pinned CA)
-   instead of `verify_ssl: false`. Low urgency — read-only monitoring tokens.
+   Enforcement flip happens wherever the collector lives at that moment (Fedora if Track B
+   has not cut over yet, else the Nix host); alert on `otelcol_receiver_refused_*` during
+   soak. Decision: bearer token over mTLS — config-only at every producer; mTLS remains a
+   later upgrade via the two-tier PKI issuing mounts.
+4. **A6 — VyOS producer**: point at `https://otel.home.shdr.ch` (+ token) like every other
+   producer; removes the plain-HTTP hop and the direct-IP coupling. Router config; survives.
 
-Deliberately NOT in Track A: rootless→root conversions, pod restructuring, config-format
-changes — those land once, in Nix, in Track B.
+## Deferred into the migration (accepted interim risk)
+
+These fixes would be rewritten by Track B, so they land natively in the Nix configs instead
+of as Fedora edits:
+
+| Deferred item | Lands in Track B as |
+| --- | --- |
+| A1 — `0777` dir modes | named volumes + tmpfiles rules with per-service ownership |
+| A3 — unpublish internal ports (3100, 9090, 8123, 8888, 8889, 9115, 9221, 10019, 8080) | quadlet pod simply never publishes them (after A4 clears consumers) |
+| A7 — Fleet plaintext hop, MySQL `--sql-mode=""` | fleet.nix: vault-agent-rendered step-ca cert (SANs `fleet.home.shdr.ch` + VM IP), Caddy upstream to `https://` with step root trust; MySQL flags corrected in the oneshot init |
+| A8 — PVE/PBS `verify_ssl: false` | pinned CA in exporters.nix config |
+
+**Explicit risk acceptance**: world-writable data dirs, unauthenticated ingest (until the
+A5 flip), broadly published ports, and the plaintext Fleet hop persist on the Fedora box
+until cutover — all LAN-internal (VLAN 2). Tripwire: if Track B has not cut over within a
+quarter, revisit this deferral — each item is <1h as an Ansible edit and was fully
+specified in this doc's git history.
 
 ### Cross-plan amendment
 
@@ -208,22 +214,24 @@ one — no reissue choreography.
 
 ```mermaid
 flowchart LR
-    F["journal-forwarder plan<br/>(P0)"] --> A["Track A hardening"]
+    F["journal-forwarder plan<br/>(P0)"] --> A["pre-migration work<br/>(A2/A4/A5/A6)"]
     F --> B
     D["dashboards codified<br/>(P1 todo)"] --> B["Track B nix migration"]
     A -->|"A2 pins, A5 auth decisions"| B
 ```
 
-A1/A2 ship immediately; A3+A4 as one consumer-first sequence; A5 after the forwarder
-(its `otlp_headers` is one of the producers). Track B starts when its three prerequisites
-are green.
+A2 ships immediately; A4 consumer re-pointing next (unblocks port non-publication in B);
+A5 producer rollout after the forwarder (its `otlp_headers` is one of the producers).
+Track B starts when its three prerequisites are green and absorbs the deferred items.
 
 ## Risks
 
 - **A5 enforcement flip** is the only hardening step that can cause fleet-wide telemetry
   loss — hence producers-first ordering + refused-metric alert + soak before enforcing.
-- **A3 port closures** break Goldilocks/Holmes/Orion if the consumer re-pointing (A4 half)
-  is skipped — that is why they are one sequence, not two items.
+- **Port non-publication in B** breaks Goldilocks/Holmes/Orion if A4 consumer re-pointing
+  has not landed first — A4 is a hard ordering constraint on the migration.
+- **Deferral window**: the accepted interim exposure is open until cutover; the
+  one-quarter tripwire above bounds it.
 - **Cutover telemetry loss** is bounded but nonzero (memory-only k8s buffers); accepted
   and minimized via two-phase copy.
 - **ClickHouse/Loki version drift** between old/new corrupts the volume-copy strategy —
@@ -233,7 +241,8 @@ are green.
 
 | Alternative | Rejected because |
 | --- | --- |
-| One combined track (harden in Nix only) | Holds cheap urgent fixes (0777, unauthenticated OTLP) hostage to the biggest migration in the repo |
+| Harden everything on Fedora first (original Track A) | A1/A3/A7/A8 implementations are rewritten by the migration — pure throwaway; only the survivable subset ships early |
+| Defer everything to Nix (no early work) | A2 is a hard migration prerequisite; A4/A5/A6 live outside the VM and survive — deferring them just delays the highest-value fix (ingest authn) for no savings |
 | mTLS for OTLP ingest now | 20+ producers need cert material vs a config-only token; revisit on two-tier PKI issuing mounts |
 | Native NixOS services at migration time | Doubles the diff: platform change + packaging change; parity-first, nativize per-service later |
 | In-place reinstall of 10.0.2.3 | No rollback; blue-green costs one VM slot and gives full soak + trivial revert |

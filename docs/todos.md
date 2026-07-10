@@ -17,13 +17,11 @@
 
 ## P1
 
-- [ ] Harden monitoring stack (Track A of [exploration](exploration/monitoring-stack-nix.md))
-  - [ ] Fix 0777 data/config dir modes
-  - [ ] Pin all 13 container images (10 floating tags)
-  - [ ] Route/port rationalization: re-point Caddy route consumers (Goldilocks/Holmes/Orion), then close 3100/9090/8123/8888/8889/9115/9221/10019/8080
-  - [ ] OTLP ingest bearer-token authn (producers-first rollout; incl. vcluster + agent self-telemetry)
+- [ ] Monitoring pre-migration hardening — survivable subset ([exploration](exploration/monitoring-stack-nix.md))
+  - [ ] Pin all 13 container images (10 floating tags) — Track B prerequisite
+  - [ ] Re-point Caddy route consumers (Goldilocks/Holmes/Orion) through Janus; drop raw routes
+  - [ ] OTLP ingest bearer-token authn (producers-first; incl. vcluster + agent self-telemetry)
   - [ ] VyOS OTel producer -> https://otel.home.shdr.ch
-  - [ ] Fleet TLS hop + MySQL sql-mode; PVE/PBS exporter TLS verify
 - [ ] Enable Proxmox HA for critical VMs ([exploration](exploration/proxmox-ha.md))
   - [ ] Convert Trinity to local-zfs
   - [ ] Convert Oracle to local-zfs
@@ -136,7 +134,7 @@
   - [x] Blockchain Stack VM - bitcoind, monerod, Fulcrum (quadlet)
   - [ ] Migrate Gateway Stack (Caddy, Tailscale, HAProxy)
   - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao) via nixos-generators LXC
-  - [ ] Migrate Monitoring Stack ([exploration](exploration/monitoring-stack-nix.md) Track B; prereqs: journal forwarder, codified dashboards, pinned images)
+  - [ ] Migrate Monitoring Stack ([exploration](exploration/monitoring-stack-nix.md) Track B; prereqs: journal forwarder, codified dashboards, pinned images; absorbs deferred hardening: dir ownership, port non-publication, Fleet TLS, exporter TLS verify)
   - [ ] Migrate Dev Workstation
   - [ ] Migrate IoT Stack
   - [ ] Deploy Desktop VM on Trinity ([exploration](exploration/desktop-vm.md))
