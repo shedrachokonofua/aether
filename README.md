@@ -8,19 +8,63 @@ Tailscale.
 
 ## Features
 
-| Area | Declared platform |
+| Area | Components |
 | --- | --- |
-| Compute | Five Proxmox hosts: Trinity, Neo, and Niobe run schedulable amd64 Talos control-plane VMs; Smith runs the amd64 Talos GPU worker VM; Oracle hosts core and edge guests such as VyOS, the home gateway, identity, DNS, bastion, and IDS services. Four bare-metal Raspberry Pi ARM workers, `mouse`, `dozer`, `tank`, and `sparks`, complete the same Talos cluster |
-| Kubernetes | Cilium, Gateway API, Istio Ambient, vcluster, wasmCloud, CloudNativePG, Ceph/NFS CSI, external secrets, policy enforcement, and workload architecture guardrails |
-| Network and edge | VyOS routing and firewalling, VLAN segmentation, AdGuard DNS, Tailscale, Cloudflare, a home Caddy gateway, and an AWS Lightsail public gateway protected by CrowdSec |
-| Storage and backup | ZFS, Ceph RBD/CephFS/RGW, NFS/SMB, Proxmox Backup Server, Kubernetes volume and database backups, and Restic/Backrest offsite backups to encrypted, versioned S3 with Deep Archive lifecycle rules |
-| Identity and secrets | Keycloak SSO, step-ca PKI and SSH certificates, OpenBao, SOPS recipients backed by OpenBao Transit, AWS KMS, and an offline Age recovery key |
-| Observability | Grafana as the primary correlation surface over Prometheus metrics, Loki logs, Tempo traces, ClickHouse Zeek/Suricata data, plus Fleet and OpenTelemetry pipelines |
-| Runtime security | Suricata, Zeek, CrowdSec, Tetragon, Trivy Operator, Policy Reporter, Kyverno, and Kepler |
-| AI and GPU | Local inference through llama-swap, model routing through LiteLLM, OpenWebUI, ComfyUI, Docling, Speaches, and Jupyter on NVIDIA-backed Kubernetes nodes |
-| Applications | GitLab, Matrix and bridges, Home Assistant with Z-Wave and Matter services, Jellyfin, Sunshine game streaming, Nextcloud, Immich, and other Kubernetes and VM/LXC workloads |
-| Cloud services | AWS public ingress, SES, identity, budgets, and offsite backup; Google uptime monitoring, identity federation, budgets, and API resources; Cloudflare DNS and edge services |
-| Automation | OpenTofu, Ansible, NixOS, Talos, go-task, and GitLab CI/CD |
+| Compute | **Proxmox hosts:** `trinity`, `neo`, `niobe`, `smith`, `oracle`<br>**Talos control-plane VMs:** `trinity`, `neo`, `niobe`<br>**Talos worker VM:** `smith`<br>**Bare-metal ARM workers:** `mouse`, `dozer`, `tank`, `sparks`<br>**Core and edge host:** `oracle` |
+| Kubernetes | **Network and ingress:** Cilium, Gateway API, Istio Ambient<br>**Platform:** vcluster, wasmCloud, CloudNativePG<br>**Storage:** Ceph CSI, NFS CSI<br>**Policy and secrets:** Kyverno, External Secrets, architecture guardrails |
+| Network and edge | **Routing:** VyOS, VLANs, Tailscale<br>**DNS:** AdGuard<br>**Internal ingress:** home Caddy gateway<br>**Public ingress:** Cloudflare, AWS Lightsail, CrowdSec |
+| Storage and backup | **Storage:** ZFS, Ceph RBD, CephFS, Ceph RGW, NFS, SMB<br>**Local backup:** Proxmox Backup Server, Kubernetes volume and database backups<br>**Offsite:** Restic, Backrest, encrypted and versioned S3, Glacier Deep Archive |
+| Identity and secrets | **Identity:** Keycloak SSO<br>**PKI:** step-ca, mTLS, SSH certificates<br>**Secrets:** OpenBao, SOPS, OpenBao Transit, AWS KMS, offline Age recovery key |
+| Observability | **Primary UI:** Grafana<br>**Metrics:** Prometheus<br>**Logs:** Loki<br>**Traces:** Tempo<br>**Network telemetry:** ClickHouse, Zeek, Suricata<br>**Host and pipeline:** Fleet, OpenTelemetry |
+| Runtime security | Suricata, Zeek, CrowdSec, Tetragon, Trivy Operator, Policy Reporter, Kyverno, Kepler |
+| AI and GPU | **Inference:** llama-swap<br>**Routing:** LiteLLM<br>**Interfaces and tools:** OpenWebUI, ComfyUI, Docling, Speaches, Jupyter<br>**GPU nodes:** `neo`, `smith` |
+| Applications | **Development:** GitLab<br>**Communication:** Matrix and bridges<br>**Home:** Home Assistant, Z-Wave, Matter<br>**Media:** Jellyfin, Sunshine<br>**Files and photos:** Nextcloud, Immich |
+| Cloud services | **AWS:** public ingress, SES, identity, budgets, offsite backup<br>**Google Cloud:** uptime monitoring, identity federation, budgets, APIs<br>**Cloudflare:** DNS and edge services |
+| Automation | OpenTofu, Ansible, NixOS, Talos, go-task, GitLab CI/CD |
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph trust["Trust plane"]
+        direction LR
+        keycloak["Keycloak SSO"] ~~~ pki["step-ca PKI / mTLS / SSH certs"] ~~~ secrets["OpenBao / SOPS"]
+    end
+
+    subgraph control["Control plane - this repository"]
+        direction LR
+        git["Git / GitLab CI"] --> task["go-task"] --> iac["OpenTofu / Ansible / NixOS / Talos"]
+    end
+
+    subgraph edge["Edge plane"]
+        direction LR
+        public["Cloudflare -> Lightsail Caddy + CrowdSec"] -- "Tailscale" --> homegw["Home Caddy gateway"]
+        dns["AdGuard DNS / VyOS routing"] --> homegw
+    end
+
+    subgraph runtime["Runtime plane"]
+        direction LR
+        pve["Proxmox cluster<br/>trinity / neo / niobe / smith / oracle"]
+        k8s["Talos Kubernetes<br/>3 control-plane VMs + smith worker + 4 Pi workers"]
+        cloud["AWS / Google Cloud"]
+    end
+
+    subgraph data["Data plane"]
+        direction LR
+        primary["Ceph / ZFS / NFS / CNPG"] --> backup["PBS / Backrest / Restic"] --> offsite["Encrypted S3 + Glacier offsite"]
+    end
+
+    subgraph obs["Observability plane"]
+        direction LR
+        ingest["OTel / Fleet / Zeek / Suricata"] --> stores["Prometheus / Loki / Tempo / ClickHouse"] --> grafana["Grafana"]
+    end
+
+    trust -. "identity / certificates / secrets" .-> control
+    control == "provisions + configures" ==> runtime
+    edge == "routes user traffic" ==> runtime
+    runtime ==> data
+    runtime == "telemetry" ==> obs
+```
 
 Feature declarations are spread across multiple ownership layers. Start with
 [`config/vm.yml`](config/vm.yml), [`tofu/`](tofu), [`ansible/`](ansible),
