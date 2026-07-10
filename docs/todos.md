@@ -7,10 +7,13 @@
   - [ ] Add cert expiry rules to Grafana alerting (<30% lifetime remaining)
   - [ ] Add cert renewal daemon health rules (systemd unit down)
 - [ ] Make host_monitoring_agent role OS-generic (Debian + Amazon Linux)
-- [ ] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection
-  - [ ] Add journal-gatewayd to host_monitoring_agent role
-  - [ ] Deploy forwarder to monitoring stack
-  - [ ] Configure sources for all Proxmox hosts + public gateway
+- [ ] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection ([exploration](exploration/journal-forwarder.md))
+  - [ ] Publish versioned forwarder release + SHA-256 from CI (no `latest`)
+  - [ ] Create `pki-journal-client` OpenBao mount (Tofu) + sign intermediate with step-ca root
+  - [ ] Add `journal_gateway` role (Proxmox hosts: mTLS; public gateway: tailnet-bound)
+  - [ ] Deploy vault-agent + forwarder to monitoring stack
+  - [ ] Join monitoring stack to tailnet (`tag:monitoring`) + ACL to public gateway :19531
+  - [ ] Add forwarder alerts (poll stale/errors/absent) + document in monitoring.md
 
 ## P1
 
@@ -44,6 +47,11 @@
 
 ## P2
 
+- [ ] Adopt two-tier PKI: step-ca root tier, OpenBao issuing tier ([exploration](exploration/two-tier-pki.md))
+  - [ ] Phase 0: `pki-journal-client` mount (with forwarder deployment)
+  - [ ] Phase 1: freeze new step-ca provisioners; update trust-model.md with issuing-tier policy
+  - [ ] Phase 2: `pki-machine` mount; migrate machine certs opportunistically with NixOS migrations
+  - [ ] Add mount intermediate CAs to cert-expiry alerting; enable PKI tidy
 - [ ] Deploy Kubernetes cluster ([exploration](exploration/kubernetes.md))
   - [x] Provision 3 Talos VMs via Tofu (Trinity, Niobe, Neo)
   - [x] Bootstrap Talos cluster
