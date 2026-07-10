@@ -14,7 +14,7 @@ currently healthy. Use live system queries when those distinctions matter.
 
 | Area | Declared platform |
 | --- | --- |
-| Compute | Five Proxmox hosts running three schedulable amd64 Talos control-plane VMs and one amd64 Talos GPU worker VM, plus four bare-metal Raspberry Pi ARM workers in the same cluster |
+| Compute | Five Proxmox hosts: Trinity, Neo, and Niobe run schedulable amd64 Talos control-plane VMs; Smith runs the amd64 Talos GPU worker VM; Oracle hosts core and edge guests such as VyOS, the home gateway, identity, DNS, bastion, and IDS services. Four bare-metal Raspberry Pi ARM workers complete the same Talos cluster |
 | Kubernetes | Cilium, Gateway API, Istio Ambient, vcluster, wasmCloud, CloudNativePG, Ceph/NFS CSI, external secrets, policy enforcement, and workload architecture guardrails |
 | Network and edge | VyOS routing and firewalling, VLAN segmentation, AdGuard DNS, Tailscale, Cloudflare, a home Caddy gateway, and an AWS Lightsail public gateway protected by CrowdSec |
 | Storage and backup | ZFS, Ceph RBD/CephFS/RGW, NFS/SMB, Proxmox Backup Server, Kubernetes volume and database backups, and Restic/Backrest offsite backups to encrypted, versioned S3 with Deep Archive lifecycle rules |
