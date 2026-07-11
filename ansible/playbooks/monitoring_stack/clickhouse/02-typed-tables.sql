@@ -16,7 +16,9 @@ CREATE TABLE IF NOT EXISTS zeek.conn (
   conn_state LowCardinality(String),
   history String,
   orig_pkts UInt64,
-  resp_pkts UInt64
+  resp_pkts UInt64,
+  -- ClickHouse typed-row acceptance time (MV now64(3)); not Zeek event time.
+  IngestedAt DateTime64(3, 'UTC')
 ) ENGINE = MergeTree()
 ORDER BY
   (Timestamp, id_orig_h) TTL Timestamp + INTERVAL 14 DAY;

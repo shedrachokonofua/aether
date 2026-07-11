@@ -446,6 +446,8 @@ GROUP BY source_ip;
 
 The MV transformation is **synchronous** — data appears in typed table immediately after INSERT completes.
 
+For Argos / Zeek `conn`, producer acknowledgement must wait for async-insert flush (`wait_for_async_insert=1` on the OTEL `clickhouse/zeek` exporter and the ClickHouse default profile). Without that wait, ACK can precede buffer flush even though the MV itself is synchronous. See `docs/monitoring.md` (§ Zeek `conn.IngestedAt`) and `clickhouse-migrations/09-zeek-conn-ingested-at.sql`.
+
 ### Additional Typed Tables
 
 ```sql

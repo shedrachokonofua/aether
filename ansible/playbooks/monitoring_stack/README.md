@@ -15,3 +15,8 @@ This playbook will configure the monitoring stack virtual machine. The monitorin
 ```bash
 task configure:monitoring
 ```
+
+## ClickHouse schema
+
+- `clickhouse/*.sql` is copied to the host `clickhouse/init/` and mounted as `/docker-entrypoint-initdb.d` (runs only on empty data volumes).
+- Live migrations that must not re-run on greenfield init live in `clickhouse-migrations/` (e.g. `09-zeek-conn-ingested-at.sql`). Apply those manually with `clickhouse-client` per the file runbook and `docs/monitoring.md`.

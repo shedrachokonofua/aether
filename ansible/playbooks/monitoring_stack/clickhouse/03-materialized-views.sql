@@ -17,7 +17,8 @@ SELECT
   LogAttributes ['conn_state'] AS conn_state,
   LogAttributes ['history'] AS history,
   toUInt64OrZero(LogAttributes ['orig_pkts']) AS orig_pkts,
-  toUInt64OrZero(LogAttributes ['resp_pkts']) AS resp_pkts
+  toUInt64OrZero(LogAttributes ['resp_pkts']) AS resp_pkts,
+  now64(3) AS IngestedAt
 FROM
   zeek.ingest
 WHERE
