@@ -4,6 +4,11 @@
 # External snapshotter CRDs/controller plus a small label-driven scheduler for
 # crash-consistent RBD snapshots. CNPG instance PVCs are intentionally excluded;
 # PostgreSQL restores must use Barman bootstrap.recovery.
+#
+# The scheduler job runs a Ceph-safety preflight (Jul 3-4 2026: the first full
+# snapshot pass stalled neo's NVMe controllers and aborted both of its OSDs)
+# and verifies each created snapshot reaches readyToUse, so a wedged storage
+# pipeline fails the job loudly instead of silently piling on load.
 
 locals {
   external_snapshotter_version     = "v8.2.0"
@@ -14,7 +19,30 @@ locals {
     tier="$${SNAPSHOT_TIER:?SNAPSHOT_TIER is required}"
     class="$${SNAPSHOT_CLASS:-ceph-rbd}"
     stamp="$(date -u +%Y%m%d%H%M%S)"
+    created=/tmp/created-snapshots.txt
+    : > "$${created}"
 
+    # ---- Preflight ---------------------------------------------------------
+    # Refuse to add snapshot load to an unhealthy storage pipeline; a failing
+    # job here is the canary.
+
+    # 1. Snapshot controller must be available.
+    kubectl -n kube-system wait deployment/snapshot-controller \
+      --for=condition=Available --timeout=120s
+
+    # 2. Any scheduled snapshot from a PREVIOUS run still not ready means the
+    #    CSI/Ceph pipeline is wedged (this run's names carry a fresh stamp, so
+    #    everything matched here is at least one schedule-period old).
+    stuck="$(kubectl get volumesnapshot -A -l 'aether.shdr.ch/snapshot-schedule' \
+      -o go-template='{{range .items}}{{if not .status}}{{.metadata.namespace}}/{{.metadata.name}}{{"\n"}}{{else if not .status.readyToUse}}{{.metadata.namespace}}/{{.metadata.name}}{{"\n"}}{{end}}{{end}}')"
+    if [ -n "$${stuck}" ]; then
+      echo "PREFLIGHT FAILED: snapshots from previous runs are not ready:" >&2
+      echo "$${stuck}" >&2
+      echo "Storage pipeline may be unhealthy (check 'ceph -s' and OSD/kernel logs on the PVE hosts); aborting." >&2
+      exit 1
+    fi
+
+    # ---- Create --------------------------------------------------------------
     for ns in $(kubectl get ns -l "aether.shdr.ch/backup=$${tier}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
       kubectl get pvc -n "$${ns}" -l '!cnpg.io/cluster' -o go-template='{{range .items}}{{if eq .spec.storageClassName "ceph-rbd"}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' |
       while IFS= read -r pvc; do
@@ -35,8 +63,24 @@ locals {
       source:
         persistentVolumeClaimName: $${pvc}
     EOF
+        echo "$${ns} $${snapshot}" >> "$${created}"
       done
     done
+
+    # ---- Verify --------------------------------------------------------------
+    # RBD snapshots become ready in seconds when Ceph is healthy. Waiting with a
+    # timeout makes this job FAIL loudly instead of leaving wedged snapshots for
+    # the next run's preflight to trip over.
+    rc=0
+    while read -r ns name; do
+      [ -n "$${ns}" ] || continue
+      if ! kubectl -n "$${ns}" wait "volumesnapshot/$${name}" \
+          --for=jsonpath='{.status.readyToUse}'=true --timeout=180s; then
+        echo "TIMEOUT waiting for $${ns}/$${name} to become ready" >&2
+        rc=1
+      fi
+    done < "$${created}"
+    exit "$${rc}"
   EOT
 }
 
@@ -229,6 +273,11 @@ resource "kubernetes_cron_job_v1" "volume_snapshot_scheduler" {
       }
 
       spec {
+        # Bound retries/runtime: a failed preflight or verify must surface as
+        # a failed Job (alertable), not retry-spam the storage pipeline.
+        backoff_limit           = 1
+        active_deadline_seconds = 1800
+
         template {
           metadata {
             labels = {
