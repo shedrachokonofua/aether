@@ -81,7 +81,7 @@ Keel posts update notifications to the Apprise gateway
 Because Apprise reserves the `type` field for its severity enum and rejects
 Keel's `type="deployment update"`, the endpoint remaps it to the title
 (`&:type=title`) and feeds `message` to the body (`&:message=body`), routed to
-the `quiet` group (Matrix chat only, no push).
+the `standard` group (ntfy `/alerts` push + Matrix `#alerts`).
 
 ### Access
 
