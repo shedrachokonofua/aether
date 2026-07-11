@@ -66,13 +66,14 @@ resource "helm_release" "keel" {
     # severity enum and rejects Keel's `type="deployment update"`, so the remap
     # consumes it as the title (`:type=title`, == Keel's `name`) and feeds
     # `message` -> body (`:message=body`); the other keys are ignored. Routed to
-    # the `quiet` group (Matrix chat only — image updates are informational, no
-    # push fatigue). Level `success` sends one message per applied update (plus
-    # failures), skipping the info-level "preparing to update" chatter.
+    # the `standard` group (ntfy /alerts push + Matrix #alerts) so updates
+    # actually reach a device, not just chat. Level `success` sends one message
+    # per applied update (plus failures), skipping the info-level "preparing to
+    # update" chatter.
     notificationLevel = "success"
     webhook = {
       enabled  = true
-      endpoint = "https://apprise.home.shdr.ch/notify/aether?tags=quiet&:message=body&:type=title"
+      endpoint = "https://apprise.home.shdr.ch/notify/aether?tags=standard&:message=body&:type=title"
     }
   })]
 }
