@@ -107,4 +107,3 @@
   - [ ] Rename to Soren in docs, Ansible, Tailscale
   - [ ] Upgrade Lightsail instance to micro ($5/mo)
   - [ ] Add Uptime Kuma for external monitoring
-- [ ] Move Tofu state to Ceph RGW
