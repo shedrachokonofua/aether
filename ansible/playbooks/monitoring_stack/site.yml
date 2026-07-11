@@ -395,7 +395,7 @@
           - /home/aether/otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
         env:
           GOGC: "200" # ~0.15 core less GC CPU for ~+2GB RSS; box has ample free RAM.
-          GOMEMLIMIT: "3GiB" # Go-runtime safety net above otel's memory_limiter (2GiB) processor
+          GOMEMLIMIT: "3GiB" # MUST stay below the memory_limiter soft refusal (limit-spike = 3200MiB): GC fights heap growth before the limiter drops data (2026-07-11 incident)
         state: quadlet
       tags: [otel]
 

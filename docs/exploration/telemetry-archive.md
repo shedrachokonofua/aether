@@ -3,13 +3,14 @@
 Plan for tiering ClickHouse cold data to SeaweedFS S3, completing the storage taxonomy:
 **Ceph = hot application tier; SeaweedFS = backup/cold tier; telemetry archive is a
 cold-tier load.** Phase 0 (metrics → ClickHouse `metrics` db, 365d TTL, local disk) went live 2026-07-11
-and was **reverted the same day**: the fan-out pushed the central collector past its 2 GiB
-`memory_limiter` soft limit, which then refused ALL ingest — k8s metrics pipeline dead,
-receiver refusing ~12k pts/s for ~80 min. The `metrics` db, schema, and grants remain;
-the exporter is defined but detached from the pipeline. Re-enable requires (new
-preconditions): raise `limit_mib` with measured headroom for the exporter's working set,
-add a `sending_queue` sized for ClickHouse insert latency so CH slowness never
-backpressures the shared pipeline, and soak on a low-volume subset first.
+suffered a same-day incident (collector heap past the 2 GiB `memory_limiter` → ALL
+ingest refused, k8s pipeline dead ~80 min), and was **re-enabled the same day with
+guards**: limiter 4096/896 (soft refusal 3200 MiB), container `GOMEMLIMIT: 3GiB`
+deliberately below it so GC fights heap growth before the limiter drops data, and a
+bounded `sending_queue` (drops archive batches instead of backpressuring the hot path;
+retry window 60s). Soak-verified: RSS plateaued ~3.0 GiB, zero refusals under full load.
+Root lesson encoded here: the archive is best-effort by construction — any future
+archive exporter (phase 2 logs) gets the same queue-and-drop posture from day one.
 
 ## Current state (verified live; retention corrected per review)
 

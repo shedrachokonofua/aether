@@ -9,8 +9,13 @@ receivers:
 processors:
   memory_limiter:
     check_interval: 5s
-    limit_mib: 2048
-    spike_limit_mib: 512
+    # 4096/896 (was 2048/512): the 2026-07-11 clickhouse/metrics incident — collector
+    # heap hit 2374MiB and the limiter refused ALL ingest. Soft refusal is now
+    # limit-spike = 3200MiB, deliberately ABOVE the container GOMEMLIMIT (3GiB) so the
+    # Go GC fights heap growth before the limiter ever drops data. VM has 16GiB;
+    # worst-case stack (prom 5G + otel ~4G + CH 3G) still fits.
+    limit_mib: 4096
+    spike_limit_mib: 896
 
   batch:
     timeout: 10s
@@ -136,11 +141,18 @@ exporters:
     create_schema: true
     ttl: 8760h
     timeout: 10s
+    # Bounded queue: if ClickHouse inserts slow down, archive batches DROP (queue full)
+    # instead of backpressuring the shared pipeline — the hot path is sacred, the
+    # archive is best-effort. Short retry window for the same reason.
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 100
     retry_on_failure:
       enabled: true
       initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
+      max_interval: 15s
+      max_elapsed_time: 60s
 
 service:
   telemetry:
@@ -150,11 +162,11 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      # clickhouse/metrics DISABLED 2026-07-11: fan-out pushed collector RSS past the
-      # 2GiB memory_limiter soft limit -> limiter refused ALL ingest (k8s pipeline dead,
-      # receiver refusing ~12k pts/s). Re-enable only per telemetry-archive.md phase-0
-      # preconditions: raised limit_mib + sending_queue sized for CH insert latency.
-      exporters: [prometheus]
+      # clickhouse/metrics re-enabled 2026-07-11 after the memory_limiter incident,
+      # with guards: limiter 4096/896 (GOMEMLIMIT 3GiB below the 3200MiB soft refusal)
+      # and a bounded sending_queue that drops archive batches rather than
+      # backpressuring ingest. History: telemetry-archive.md phase 0.
+      exporters: [prometheus, clickhouse/metrics]
 
     # Ingest logs and route based on source
     logs:

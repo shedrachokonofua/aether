@@ -44,7 +44,7 @@
 ## P2
 
 - [ ] ClickHouse cold tier on SeaweedFS ([exploration](exploration/telemetry-archive.md))
-  - [ ] Phase 0: metrics fan-out (REVERTED 2026-07-11: collector memory_limiter incident; re-enable needs raised limit_mib + sending_queue)
+  - [x] Phase 0: metrics fan-out live (re-enabled 2026-07-11 post-incident: limiter 4096/896, GOMEMLIMIT governor, bounded queue)
   - [ ] Measure steady-state metrics ingest rate (1 week)
   - [ ] Phase 1: s3 disk + `tiered` policy; metrics tables first, then zeek/suricata
   - [ ] Phase 2: logs fan-out to archive (Loki stays 90d hot path)
