@@ -277,7 +277,13 @@ overrides. Current app rules:
 **Authoring Loki alert rules — two gotchas (learned the hard way):**
 
 1. **Wrap `count_over_time(...)` in `sum(...)`.** A bare range query returns one series *per log stream*, trips Loki's 500-series cap, and puts the rule in `Error` state (which pages via `execErrState: Error`) — not `NoData`. Always `sum(count_over_time({...} |= "..." [30m]))`.
-2. **Grafana file-provisioning is upsert-only.** Removing a rule from `rules.yml` does **not** delete it from Grafana — not even on restart. Orphans must be deleted via the provisioning API/UI. Deletion has no clean IaC path today; treat removed rules as manual cleanup.
+2. **Grafana file-provisioning is upsert-only for `groups`.** Removing a rule from a `groups` block does **not** delete it from Grafana (even on restart) — it orphans, stuck in `error`/`firing`. The clean IaC fix is a top-level **`deleteRules`** block in the provisioning file (sibling of `groups`):
+   ```yaml
+   deleteRules:
+     - orgId: 1
+       uid: <rule-uid>
+   ```
+   Re-provision + restart Grafana; the rule is removed with no admin auth or DB access. Remove the `deleteRules` tombstone afterward once confirmed. (Note: Grafana admin here is Keycloak-OIDC only — there is no working static admin credential in SOPS, so API/CLI/basic-auth deletion paths are dead ends; `deleteRules` is the way.)
 
 
 
