@@ -10,7 +10,7 @@ locals {
   mnemo_host          = "mnemo.home.shdr.ch"
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-66908767"
+  mnemo_chart_version = "0.1.0-4d3d617e"
   mnemo_image_tag     = "latest"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
@@ -662,6 +662,7 @@ resource "helm_release" "mnemo" {
     image = {
       repository = "registry.gitlab.home.shdr.ch/so/mnemo"
       tag        = local.mnemo_image_tag
+      pullPolicy = "Always"
       pullSecret = kubernetes_secret_v1.mnemo_gitlab_registry.metadata[0].name
     }
 
