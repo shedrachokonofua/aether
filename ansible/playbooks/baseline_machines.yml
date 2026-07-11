@@ -125,3 +125,78 @@
         content: "options kvm halt_poll_ns=0\n"
       when: inventory_hostname == "smith"
       tags: [kvm]
+
+    # ---------------------------------------------------------------
+    # NVMe stability + kdump (Jul 3-4 2026 incident): during the first
+    # full volume-snapshot pass, all three of neo's NVMe controllers
+    # (2x WD SN5000 OSD disks AND the Samsung 9100 PRO boot disk) threw
+    # kernel I/O command timeouts; nvme_reset_work soft-locked a CPU,
+    # both OSDs aborted ("KernelDevice: Unexpected IO error"), and the
+    # host had to be hard-rebooted twice. Multiple vendors incl. the
+    # boot disk => platform-level (NVMe APST / PCIe ASPM power-state
+    # transitions under sustained load), not a single bad drive.
+    # Both fixes only take effect at the NEXT REBOOT of each host; this
+    # playbook stages grub drop-ins and runs update-grub, nothing more.
+    # ---------------------------------------------------------------
+    - name: Ensure grub drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/default/grub.d
+        state: directory
+        mode: "0755"
+      tags: [nvme, kdump]
+
+    - name: Pin NVMe/PCIe power states on neo (grub drop-in)
+      ansible.builtin.copy:
+        dest: /etc/default/grub.d/aether-nvme-stability.cfg
+        mode: "0644"
+        content: |
+          # Managed by ansible (baseline_machines.yml, tag: nvme).
+          # Jul 3-4 2026: NVMe controller stalls under sustained Ceph
+          # snapshot load wedged this host twice (kernel I/O timeouts on
+          # nvme0/1/2, soft-lockup in nvme_reset_work). Disable NVMe APST
+          # and PCIe ASPM so devices never enter the flaky low-power states.
+          # NOTE: costs some idle power on this host — deliberate tradeoff
+          # against the fleet powersave-governor work (b0350ba).
+          GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT nvme_core.default_ps_max_latency_us=0 pcie_aspm=off"
+      when: inventory_hostname == "neo"
+      notify: Update grub
+      tags: [nvme]
+
+    - name: Install kdump-tools
+      ansible.builtin.apt:
+        name: kdump-tools
+        state: present
+      tags: [kdump]
+
+    # zz- prefix: grub-mkconfig sources /etc/default/grub.d/*.cfg in
+    # alphabetical order and the kernel honors the LAST crashkernel= on
+    # the cmdline; this must override the 384M-:128M default shipped in
+    # the package's kdump-tools.cfg (too small for these hosts' module set).
+    - name: Reserve crash kernel memory (grub drop-in)
+      ansible.builtin.copy:
+        dest: /etc/default/grub.d/zz-aether-kdump.cfg
+        mode: "0644"
+        content: |
+          # Managed by ansible (baseline_machines.yml, tag: kdump).
+          GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT crashkernel=512M"
+      notify: Update grub
+      tags: [kdump]
+
+    - name: Enable kdump capture
+      ansible.builtin.lineinfile:
+        path: /etc/default/kdump-tools
+        regexp: "^#?USE_KDUMP="
+        line: "USE_KDUMP=1"
+      tags: [kdump]
+
+    # enabled only — starting it now would fail: the crashkernel memory
+    # reservation does not exist until the host reboots.
+    - name: Enable kdump-tools at boot
+      ansible.builtin.systemd:
+        name: kdump-tools
+        enabled: true
+      tags: [kdump]
+
+  handlers:
+    - name: Update grub
+      ansible.builtin.command: update-grub
