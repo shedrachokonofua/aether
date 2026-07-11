@@ -1,8 +1,11 @@
 # =============================================================================
 # Docling — Document Parsing & OCR
 # =============================================================================
-# GPU-accelerated document conversion service (PDF, DOCX, images → structured
-# text). Used by OpenWebUI for content extraction.
+# Document conversion service (PDF, DOCX, images → structured text). Used by
+# OpenWebUI for content extraction. The VLM step is delegated to the always-on
+# qwen3.6-27b on llama-swap (vision tower loaded) via vlm_pipeline_model_api —
+# docling itself holds no GPU. Before 2026-07-11 it ran Qwen2.5-VL-3B inline,
+# holding ~15.5GB VRAM around the clock for ~5 conversions/week.
 
 locals {
   docling_image  = "ghcr.io/docling-project/docling-serve-cu128:main"
@@ -33,7 +36,6 @@ locals {
 # =============================================================================
 
 resource "kubernetes_deployment_v1" "docling" {
-  depends_on = [helm_release.nvidia_device_plugin]
 
   metadata {
     name      = "docling"
@@ -58,8 +60,8 @@ resource "kubernetes_deployment_v1" "docling" {
       }
 
       spec {
-        runtime_class_name = "nvidia"
-
+        # No GPU: the VLM runs remotely on llama-swap. Node pin stays only
+        # because the models PV is talos-neo local NVMe.
         node_selector = local.gpu_neo_node_selector
 
         # Seed the model PV from the image's baked cache (first run only) and
@@ -141,6 +143,12 @@ resource "kubernetes_deployment_v1" "docling" {
             value = local.docling_models_path
           }
 
+          # ApiVlmOptions (remote VLM) is gated behind this flag in docling core.
+          env {
+            name  = "DOCLING_SERVE_ENABLE_REMOTE_SERVICES"
+            value = "true"
+          }
+
           # OpenWebUI hits the sync /v1/convert/file endpoint. VLM runs are
           # ~15-30s on this GPU but can stretch on larger PDFs; default 120s
           # is too tight, set to 30 minutes so big uploads still complete sync.
@@ -151,12 +159,14 @@ resource "kubernetes_deployment_v1" "docling" {
 
           resources {
             requests = {
-              cpu              = "250m"
-              memory           = "4Gi"
-              "nvidia.com/gpu" = "1"
+              cpu    = "250m"
+              memory = "4Gi"
             }
+            # Explicit limits (no nvidia.com/gpu): an omitted limits block is
+            # left unmanaged by the provider, which kept the old GPU limit live.
             limits = {
-              "nvidia.com/gpu" = "1"
+              cpu    = "4"
+              memory = "8Gi"
             }
           }
 
