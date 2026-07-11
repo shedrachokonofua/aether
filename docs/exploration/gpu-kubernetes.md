@@ -79,7 +79,7 @@ LiteLLM Gateway (K8s, litellm.apps.home.shdr.ch)
 | Docling | Deployment | yes | Always-on, light |
 | ComfyUI | Knative Service | yes | Scale-to-zero |
 | JupyterLab | Knative Service | yes | Scale-to-zero, PVC for workspace |
-| Jellyfin (future) | Deployment | yes | Media stack migration, replaces rffmpeg |
+| Jellyfin | Deployment | yes | Migrated from media-stack VM; GPU transcoding via NVENC, rebelcore/jellyfin_exporter sidecar for Prometheus metrics |
 
 **Killed:** ClearML, SwarmUI
 
