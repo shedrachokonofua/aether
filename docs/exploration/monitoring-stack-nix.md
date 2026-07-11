@@ -189,7 +189,7 @@ pinned image versions on both sides (A2), then validate with real queries before
 | Dataset | Volume | Retention | Strategy |
 | --- | --- | --- | --- |
 | Loki chunks/index | loki volume | 90d | two-phase rsync (below) |
-| ClickHouse (zeek/suricata) | clickhouse volume | 365d | two-phase rsync; same CH tag both sides; verify with row counts per table |
+| ClickHouse (zeek/suricata/metrics) | clickhouse volume | per-table 14–365d | two-phase rsync of the FULL volume — if the [SeaweedFS cold tier](telemetry-archive.md) has landed, local disk still holds S3-disk metadata (only the s3 cache dir is disposable); same CH tag both sides; verify with row counts per table |
 | Grafana DB | grafana volume | n/a | copy sqlite (service accounts, tenant orgs) even with dashboards codified |
 | Prometheus TSDB | prometheus_storage | 30d | two-phase rsync if convenient; acceptable loss window |
 | Tempo blocks | tempo volume | 7d | acceptable loss; skip |
