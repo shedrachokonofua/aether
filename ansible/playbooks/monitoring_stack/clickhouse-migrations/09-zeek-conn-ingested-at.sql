@@ -14,7 +14,9 @@
 --   3. Pause / buffer Zeek→OTEL→ClickHouse producers (or stop OTEL clickhouse/zeek
 --      exporter briefly) so ingest.ingest is quiet.
 --   4. Re-run the backfill INSERT once more for catch-up.
---   5. DROP old zeek.conn_mv; EXCHANGE TABLES; RENAME conn_mv_v2 → conn_mv.
+--   5. DROP old zeek.conn_mv; EXCHANGE TABLES; DROP conn_mv_v2; recreate
+--      zeek.conn_mv TO zeek.conn (do NOT only RENAME — ClickHouse MVs bind the
+--      target table by name, so after EXCHANGE conn_mv_v2 still targets conn_v2).
 --   6. Resume producers. Verify checklist in docs/monitoring.md.
 --   7. After soak, DROP TABLE zeek.conn_v2 (holds pre-swap leftover under that name).
 --
@@ -95,7 +97,30 @@ DROP TABLE IF EXISTS zeek.conn_mv;
 
 EXCHANGE TABLES zeek.conn AND zeek.conn_v2;
 
-RENAME TABLE zeek.conn_mv_v2 TO zeek.conn_mv;
+-- MV target is name-bound: after EXCHANGE, conn_mv_v2 still writes TO zeek.conn_v2
+-- (the leftover table). Drop and recreate against the live typed table name.
+DROP TABLE IF EXISTS zeek.conn_mv_v2;
+
+CREATE MATERIALIZED VIEW zeek.conn_mv TO zeek.conn AS
+SELECT
+    Timestamp,
+    LogAttributes['uid'] AS uid,
+    toIPv4OrDefault(LogAttributes['id.orig_h']) AS id_orig_h,
+    toUInt16OrZero(LogAttributes['id.orig_p']) AS id_orig_p,
+    toIPv4OrDefault(LogAttributes['id.resp_h']) AS id_resp_h,
+    toUInt16OrZero(LogAttributes['id.resp_p']) AS id_resp_p,
+    LogAttributes['proto'] AS proto,
+    LogAttributes['service'] AS service,
+    toFloat64OrZero(LogAttributes['duration']) AS duration,
+    toUInt64OrZero(LogAttributes['orig_bytes']) AS orig_bytes,
+    toUInt64OrZero(LogAttributes['resp_bytes']) AS resp_bytes,
+    LogAttributes['conn_state'] AS conn_state,
+    LogAttributes['history'] AS history,
+    toUInt64OrZero(LogAttributes['orig_pkts']) AS orig_pkts,
+    toUInt64OrZero(LogAttributes['resp_pkts']) AS resp_pkts,
+    now64(3) AS IngestedAt
+FROM zeek.ingest
+WHERE LogAttributes['log.file.name'] LIKE '%conn.log';
 
 -- After verification soak (see docs/monitoring.md):
 -- DROP TABLE IF EXISTS zeek.conn_v2;

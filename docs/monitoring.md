@@ -80,7 +80,7 @@ flowchart TB
 | Topic | Contract |
 | --- | --- |
 | Greenfield DDL | `clickhouse/02-typed-tables.sql` + `clickhouse/03-materialized-views.sql` |
-| Live cutover | `clickhouse-migrations/09-zeek-conn-ingested-at.sql` (shadow `conn_v2` + `EXCHANGE TABLES`; **not** in `docker-entrypoint-initdb.d`) |
+| Live cutover | `clickhouse-migrations/09-zeek-conn-ingested-at.sql` (shadow `conn_v2` + `EXCHANGE TABLES`, then recreate `conn_mv TO zeek.conn`; **not** in `docker-entrypoint-initdb.d`) |
 | Historical rows | At cutover, `IngestedAt = toDateTime64(Timestamp, 3, 'UTC')` |
 | Producer ack → typed visibility | OTEL `clickhouse/zeek` uses `async_insert: true` with `wait_for_async_insert=1`; MVs remain synchronous on INSERT. Successful exporter acknowledgement implies the typed `zeek.conn` row is query-visible. |
 | Visibility SLO | Conservative **60s** (2× server `async_insert_busy_timeout_max_ms` of 30s). With wait-on-flush, post-ack visibility is immediate; the SLO bounds end-to-end batching delay for watermark planning. |
