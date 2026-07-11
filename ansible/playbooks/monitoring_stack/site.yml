@@ -11,6 +11,7 @@
     clickhouse_grafana_databases:
       - zeek
       - suricata
+      - metrics
   roles:
     - common
     - vm_baseline
