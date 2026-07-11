@@ -69,6 +69,11 @@ resource "kubernetes_deployment_v1" "composer" {
     name      = "composer"
     namespace = local.composer_ns
     labels    = local.composer_labels
+    annotations = {
+      "keel.sh/policy"   = "force"
+      "keel.sh/trigger"  = "poll"
+      "keel.sh/matchTag" = "true"
+    }
   }
 
   spec {
@@ -158,8 +163,13 @@ resource "kubernetes_deployment_v1" "composer" {
 
 
   lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+    ignore_changes = [
+      # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
+      spec[0].template[0].spec[0].priority_class_name,
+      # Keel force-updates rewrite these on a new :latest digest; tofu must not revert them.
+      metadata[0].annotations["kubernetes.io/change-cause"],
+      spec[0].template[0].metadata[0].annotations["keel.sh/update-time"],
+    ]
   }
 }
 

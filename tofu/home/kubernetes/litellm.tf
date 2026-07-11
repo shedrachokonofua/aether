@@ -155,6 +155,14 @@ resource "kubernetes_deployment_v1" "litellm" {
     name      = "litellm"
     namespace = local.litellm_ns
     labels    = local.litellm_labels
+    annotations = {
+      "keel.sh/policy"   = "force"
+      "keel.sh/trigger"  = "poll"
+      "keel.sh/matchTag" = "true"
+      # Only our GitLab sidecars auto-update; third-party :latest sidecars
+      # (mcp-time, affine, node-based) are excluded by container-name regex.
+      "keel.sh/monitorContainers" = "^(espn-mcp|finviz-mcp-server)$"
+    }
   }
 
   spec {
@@ -355,8 +363,9 @@ resource "kubernetes_deployment_v1" "litellm" {
         }
 
         container {
-          name  = "finviz-mcp-server"
-          image = local.litellm_finviz_image
+          name              = "finviz-mcp-server"
+          image             = local.litellm_finviz_image
+          image_pull_policy = "Always"
 
           port {
             container_port = local.litellm_finviz_port
@@ -585,9 +594,10 @@ resource "kubernetes_deployment_v1" "litellm" {
         }
 
         container {
-          name    = "espn-mcp"
-          image   = local.litellm_espn_mcp_image
-          command = ["espn-mcp", "--http", "8080"]
+          name              = "espn-mcp"
+          image             = local.litellm_espn_mcp_image
+          command           = ["espn-mcp", "--http", "8080"]
+          image_pull_policy = "Always"
 
           port {
             name           = "espn-mcp"
@@ -637,8 +647,13 @@ resource "kubernetes_deployment_v1" "litellm" {
 
 
   lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+    ignore_changes = [
+      # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
+      spec[0].template[0].spec[0].priority_class_name,
+      # Keel force-updates rewrite these on a new :latest digest; tofu must not revert them.
+      metadata[0].annotations["kubernetes.io/change-cause"],
+      spec[0].template[0].metadata[0].annotations["keel.sh/update-time"],
+    ]
   }
 }
 

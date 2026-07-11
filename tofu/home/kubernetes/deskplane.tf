@@ -11,7 +11,7 @@ locals {
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
   deskplane_chart_version  = "0.1.0-1141c217"
-  deskplane_image_tag      = "1141c217"
+  deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
   deskplane_registry_pass  = var.secrets["gitlab.root_password"]
@@ -154,6 +154,35 @@ resource "helm_release" "deskplane" {
       }
     ]
   })]
+}
+
+# Keel opt-in for the chart-produced Deployments (controller + serve both run
+# the so/deskplane image). The chart exposes no annotation/label passthrough, so
+# attach keel.sh/* config to the live Deployment metadata via server-side apply.
+# The field manager owns only these keys, so Keel's keel.sh/update-time +
+# kubernetes.io/change-cause writes never fight tofu. Registry auth reuses the
+# chart's imagePullSecret.
+resource "kubernetes_annotations" "deskplane_keel" {
+  for_each = toset(["deskplane-controller", "deskplane-serve"])
+
+  depends_on = [helm_release.deskplane]
+
+  api_version = "apps/v1"
+  kind        = "Deployment"
+
+  metadata {
+    name      = each.value
+    namespace = local.deskplane_namespace
+  }
+
+  annotations = {
+    "keel.sh/policy"   = "force"
+    "keel.sh/trigger"  = "poll"
+    "keel.sh/matchTag" = "true"
+  }
+
+  field_manager = "keel-optin"
+  force         = true
 }
 
 # =============================================================================
