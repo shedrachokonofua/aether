@@ -274,6 +274,12 @@ overrides. Current app rules:
 | Jellyfin strm Link Resolution Rot | warning | `Unable to find linked item` [1h] > 200 | Loki |
 | Jellyfin Server Down | critical | `jellyfin_up == 0` for 5m | Prometheus (rebelcore/jellyfin_exporter) |
 
+**Authoring Loki alert rules — two gotchas (learned the hard way):**
+
+1. **Wrap `count_over_time(...)` in `sum(...)`.** A bare range query returns one series *per log stream*, trips Loki's 500-series cap, and puts the rule in `Error` state (which pages via `execErrState: Error`) — not `NoData`. Always `sum(count_over_time({...} |= "..." [30m]))`.
+2. **Grafana file-provisioning is upsert-only.** Removing a rule from `rules.yml` does **not** delete it from Grafana — not even on restart. Orphans must be deleted via the provisioning API/UI. Deletion has no clean IaC path today; treat removed rules as manual cleanup.
+
+
 
 ## Alert routing contract
 
