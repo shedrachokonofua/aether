@@ -462,8 +462,10 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           }
 
           env {
-            name  = "OPENAI_BASE_URL"
-            value = "https://litellm.home.shdr.ch/v1"
+            name = "OPENAI_BASE_URL"
+            # Cluster DNS, not the LAN hairpin — required by the egress policy
+            # below and per namespace-strategy §8.2 hairpin conversion.
+            value = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
           }
 
           env {
@@ -542,8 +544,10 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           }
 
           env {
-            name  = "FIRECRAWL_API_URL"
-            value = "https://firecrawl.home.shdr.ch"
+            name = "FIRECRAWL_API_URL"
+            # The API container lives in this same pod — localhost, not the LAN
+            # hairpin (which the egress policy below deliberately blocks).
+            value = "http://localhost:${local.firecrawl_api_port}"
           }
 
           resources {
@@ -649,6 +653,85 @@ resource "kubernetes_manifest" "firecrawl_mcp_route" {
           port = local.firecrawl_mcp_port
         }]
       }]
+    }
+  }
+}
+
+# =============================================================================
+# Egress boundary (answer-engine plan, companion MR 2)
+# =============================================================================
+# Firecrawl scrapes untrusted, attacker-suggested URLs, so its namespace is the
+# authoritative SSRF boundary for consumers like orion: internet-only egress —
+# no RFC1918/link-local/loopback destinations — plus its declared in-cluster
+# dependencies (own-namespace pods, searxng, litellm). The cluster baseline
+# CCNP keeps DNS and kube-apiserver reachable under default-deny (Cilium
+# policies union). Rollback: revert this resource and re-apply.
+resource "kubernetes_manifest" "firecrawl_egress_boundary" {
+  depends_on = [helm_release.cilium, module.namespace["firecrawl"]]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "firecrawl-egress-boundary"
+      namespace = local.firecrawl_ns
+    }
+    spec = {
+      endpointSelector = {}
+      enableDefaultDeny = {
+        ingress = false
+        egress  = true
+      }
+      egress = [
+        {
+          # The scrape surface: the public internet, explicitly excluding
+          # private, link-local (cloud metadata), and loopback ranges.
+          toCIDRSet = [{
+            cidr = "0.0.0.0/0"
+            except = [
+              "10.0.0.0/8",
+              "172.16.0.0/12",
+              "192.168.0.0/16",
+              "169.254.0.0/16",
+              "127.0.0.0/8",
+            ]
+          }]
+        },
+        {
+          # Same-namespace: CNPG postgres, redis, playwright.
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.firecrawl_ns
+            }
+          }]
+        },
+        {
+          # SEARXNG_ENDPOINT (deep-research search).
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.searxng_ns
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.searxng_port), protocol = "TCP" }]
+          }]
+        },
+        {
+          # OPENAI_BASE_URL (LLM extraction) via cluster DNS.
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.litellm_ns
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.litellm_port), protocol = "TCP" }]
+          }]
+        },
+      ]
     }
   }
 }
