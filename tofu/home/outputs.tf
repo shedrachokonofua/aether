@@ -153,6 +153,6 @@ output "hermes_k8s_dashboard_urls" {
 }
 
 output "synthetic_probe_targets" {
-  description = "HTTP synthetic probe targets from namespace contract hostnames (internal/public exposure only)"
-  value       = module.kubernetes.synthetic_probe_targets
+  description = "HTTP synthetic probe targets from Kubernetes namespace contracts and explicit off-Kubernetes services"
+  value       = distinct(concat(module.kubernetes.synthetic_probe_targets, local.synthetic_probe_off_k8s_targets))
 }
