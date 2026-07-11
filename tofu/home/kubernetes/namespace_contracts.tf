@@ -415,6 +415,25 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "kestra" = {
+      tier                    = "platform",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      description             = "Kestra OSS automation plane (Inquest + platform workflows)",
+      source_file             = "tofu/home/kubernetes/kestra.tf",
+      egress                  = "allowlist",
+      registry_access         = "dockerhub",
+      hostnames = [
+        "kestra.home.shdr.ch",
+      ],
+      extra_labels = {
+        "aether.shdr.ch/arch"                = "amd64"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+        "goldilocks.fairwinds.com/enabled"   = "true"
+      }
+    }
     "keel" = {
       tier                    = "platform",
       owner                   = "aether",
@@ -741,6 +760,7 @@ locals {
         "osemuehisfarms.home.shdr.ch",
       ],
       extra_labels = {
+        "aether.shdr.ch/gateway-access"    = "internal"
         "goldilocks.fairwinds.com/enabled" = "true"
         "istio.io/dataplane-mode"          = "ambient"
       }
@@ -1066,8 +1086,8 @@ module "namespace" {
 locals {
   ns = { for name, mod in module.namespace : name => mod.name }
 
-  # HTTP synthetic probes for concrete internal/public app hostnames — consumed
-  # by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
+  # HTTP synthetic probes for concrete internal/public/tunnel app hostnames —
+  # consumed by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
     "beryl.home.shdr.ch"              = "/health"
@@ -1078,6 +1098,8 @@ locals {
     "docling.home.shdr.ch"            = "/health"
     "firecrawl-mcp.home.shdr.ch"      = "/health"
     "matrix.home.shdr.ch"             = "/_matrix/client/versions"
+    "kestra.home.shdr.ch"             = "/health"
+    "searxng.home.shdr.ch"            = "/healthz"
     "tungsten.home.shdr.ch"           = "/health"
   }
 

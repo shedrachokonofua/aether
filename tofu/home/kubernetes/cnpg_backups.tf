@@ -24,6 +24,12 @@ locals {
       retention = "14d"
       schedule  = "0 20 2 * * *"
     }
+    kestra = {
+      namespace = local.kestra_ns
+      cluster   = local.kestra_cnpg_cluster
+      retention = "14d"
+      schedule  = "0 22 2 * * *"
+    }
     immich = {
       namespace = local.immich_namespace
       cluster   = local.immich_cnpg_cluster
@@ -191,6 +197,7 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     kubectl_manifest.coder_cnpg_cluster,
     kubectl_manifest.firecrawl_cnpg_cluster,
     kubectl_manifest.hoppscotch_cnpg_cluster,
+    kubectl_manifest.kestra_cnpg_cluster,
     kubectl_manifest.immich_cnpg_cluster,
     kubectl_manifest.litellm_cnpg_cluster,
     kubectl_manifest.matrix_cnpg_cluster,
