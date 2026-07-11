@@ -146,6 +146,44 @@ resource "kubectl_manifest" "dockerhub_pull_secret_source" {
   })
 }
 
+locals {
+  # Kyverno's label-gated generator covers established DockerHub namespaces, but
+  # these newer namespaces missed clone materialization while their ServiceAccounts
+  # were already mutated. Keep this narrow bootstrap until the generator bug is
+  # retired or replaced; do not fan this out to every namespace and duplicate the
+  # cloned credential in state.
+  dockerhub_pull_secret_bootstrap_namespaces = toset([
+    "holmesgpt",
+    "kestra",
+  ])
+}
+
+resource "kubernetes_secret_v1" "dockerhub_pull_secret_bootstrap" {
+  for_each = local.dockerhub_pull_secret_bootstrap_namespaces
+
+  depends_on = [
+    module.namespace,
+    kubectl_manifest.dockerhub_pull_secret_source,
+  ]
+
+  metadata {
+    name      = local.dockerhub_pull_secret_name
+    namespace = module.namespace[each.key].name
+    labels = {
+      "app.kubernetes.io/managed-by"     = "OpenTofu"
+      "generate.kyverno.io/clone-source" = ""
+    }
+  }
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = local.dockerhub_registry_auths
+    })
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+}
+
 resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_rbac" {
   depends_on = [helm_release.kyverno]
 
@@ -615,6 +653,71 @@ resource "kubectl_manifest" "kyverno_arm_ok_daemonset_pods" {
     }
   })
 }
+
+# Trivy Operator creates one scan Pod per workload and one container per image.
+# Those containers share the chart-provided /tmp emptyDir; Trivy derives temp
+# paths from PID, and every container process starts as PID 1, so one scanner can
+# delete /tmp/trivy-* while another scanner still needs it. Give each scan
+# container an isolated subPath while leaving the shared /tmp/scan result volume
+# untouched. FailurePolicy=Ignore keeps this an observability repair, not an app
+# admission dependency.
+resource "kubectl_manifest" "kyverno_trivy_scan_pod_tmp_subpaths" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "kyverno.io/v1"
+    kind       = "ClusterPolicy"
+    metadata = {
+      name = "trivy-scan-pod-tmp-subpaths"
+      annotations = {
+        "policies.kyverno.io/title"       = "Trivy Scan Pod Tmp Subpaths"
+        "policies.kyverno.io/category"    = "Security"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "Isolate /tmp for each Trivy vulnerability scan container so multi-container scan jobs cannot race on /tmp/trivy-* cleanup."
+      }
+    }
+    spec = {
+      failurePolicy = "Ignore"
+      background    = false
+      rules = [{
+        name = "isolate-scan-container-tmp"
+        match = {
+          any = [{
+            resources = {
+              kinds      = ["Pod"]
+              namespaces = [local.trivy_operator_namespace]
+            }
+          }]
+        }
+        preconditions = {
+          all = [
+            {
+              key      = "{{ starts_with(request.object.metadata.labels.\"job-name\" || '', 'scan-vulnerabilityreport-') }}"
+              operator = "Equals"
+              value    = true
+            },
+            {
+              key      = "{{ request.object.spec.volumes[?name=='tmp'] | length(@) }}"
+              operator = "GreaterThan"
+              value    = 0
+            }
+          ]
+        }
+        mutate = {
+          foreach = [{
+            list = "request.object.spec.containers"
+            patchesJson6902 = yamlencode([{
+              op    = "add"
+              path  = "/spec/containers/{{ elementIndex }}/volumeMounts/0/subPathExpr"
+              value = "{{ element.name }}"
+            }])
+          }]
+        }
+      }]
+    }
+  })
+}
+
 
 # Force reclaimPolicy=Retain on dynamically-provisioned Ceph PVs. A StorageClass's
 # reclaimPolicy is immutable, so rather than maintain a second SC we mutate the PV
