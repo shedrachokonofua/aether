@@ -2593,11 +2593,11 @@ groups:
             datasourceUid: loki
             model:
               expr: |
-                count_over_time(
+                sum(count_over_time(
                   {k8s_namespace_name="jellyfin"}
                     |= "Invalid stream, skipping"
                   [1h]
-                )
+                ))
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -2637,11 +2637,11 @@ groups:
             datasourceUid: loki
             model:
               expr: |
-                count_over_time(
+                sum(count_over_time(
                   {k8s_namespace_name="jellyfin"}
                     |~ "SyncStreams finished .* streams=0"
                   [1h]
-                )
+                ))
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -2669,50 +2669,6 @@ groups:
         annotations:
           summary: "Jellyfin playback attempts returning zero usable streams"
           description: "{{ $values.B.Value }} SyncStreams results returned zero streams in the last hour. Users click play and nothing happens — worst-case UX with no error surfaced."
-
-      - uid: jellyfin-strm-link-rot
-        title: Jellyfin strm Link Resolution Rot
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 3600
-              to: 0
-            datasourceUid: loki
-            model:
-              expr: |
-                count_over_time(
-                  {k8s_namespace_name="jellyfin"}
-                    |= "Unable to find linked item"
-                  [1h]
-                )
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model:
-              type: reduce
-              expression: A
-              reducer: last
-              refId: B
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator:
-                    type: gt
-                    params: [200]
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 10m
-        labels:
-          severity: warning
-          domain: media
-        annotations:
-          summary: "Jellyfin strm-link library resolution is rotting"
-          description: "{{ $values.B.Value }} Unable to find linked item warnings in the last hour (>200). strm entries pointing at torrentio/mediafusion/comet/premiumize URLs are dead — refresh library or repair Gelato provider configs."
 
       - uid: jellyfin-down
         title: Jellyfin Server Down

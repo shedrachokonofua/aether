@@ -62,6 +62,8 @@ Summarize/group active alerts before dumping instances. `DeadMansSwitch` is inte
 Use `grafana-read.bb contact-points` to inspect receiver identity and type without
 printing receiver settings or secret-bearing webhook URLs.
 
+An alert in `Error` state (distinct from `Firing`) usually means its query failed, not that an incident is active. A Loki rule that trips `maximum number of series (500) reached` has a malformed query (e.g. a bare `count_over_time(...)` with no `sum()` wrapper) — route it to the alert owner as an authoring bug, not an outage. Likewise, a benign high-volume signal such as jellyfin's `InvalidAuthProvider` (normal `jellyfin-plugin-sso` log noise, not failed logins) is not an incident.
+
 If Grafana itself is unhealthy, query the backing service or the monitoring VM only after proving the Grafana path failed. A transient readiness failure should be retried before declaring an outage.
 
 ## Provisioning Sources
