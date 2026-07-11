@@ -54,15 +54,8 @@ resource "random_password" "orion_session_secret" {
 
 # Env vars sourced from tofu state + the OIDC client secret var. The OIDC
 # client secret is passed down from the parent module (see talos_cluster.tf).
-resource "kubernetes_secret_v1" "orion_env" {
-  depends_on = [module.namespace["orion"]]
-
-  metadata {
-    name      = "orion-env"
-    namespace = local.orion_ns
-  }
-
-  data = {
+locals {
+  orion_env = {
     OIDC_ISSUER          = "https://auth.shdr.ch/realms/aether"
     OIDC_CLIENT_ID       = "orion"
     OIDC_CLIENT_SECRET   = var.orion_oauth_client_secret
@@ -73,9 +66,16 @@ resource "kubernetes_secret_v1" "orion_env" {
     # News widget → self-hosted Miniflux (API key minted in Miniflux, stored in SOPS).
     MINIFLUX_URL     = "https://miniflux.home.shdr.ch"
     MINIFLUX_API_KEY = var.secrets["miniflux.orion_api_key"]
-    # AI summary / search → self-hosted LiteLLM (dedicated orion virtual key in SOPS).
-    LITELLM_URL     = "https://litellm.home.shdr.ch/v1"
+    # LLM + web search → LiteLLM and SearXNG over cluster DNS (hairpin via the
+    # LAN Caddy VM removed per namespace-strategy §8.2 / answer-engine Slice 13).
+    LITELLM_URL     = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
     LITELLM_API_KEY = var.secrets["litellm.virtual_keys.orion"]
+    SEARXNG_URL     = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
+    # Answer engine (orion docs/plans/answer-engine.md): one resident chat
+    # model for every pipeline call, and Firecrawl for page extraction.
+    ANSWER_MODEL      = "aether/qwen3.6-27b"
+    FIRECRAWL_URL     = "http://${kubernetes_service_v1.firecrawl.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.firecrawl_api_port}"
+    FIRECRAWL_API_KEY = var.secrets["firecrawl.api_key"]
     # Metrics + service discovery → Prometheus (same instance Grafana uses).
     PROMETHEUS_URL = "https://prometheus.home.shdr.ch"
     # Search "Ask Beryl" → the Hermes Beryl agent's OpenAI-compatible API
@@ -83,6 +83,17 @@ resource "kubernetes_secret_v1" "orion_env" {
     BERYL_API_URL = "http://hermes-beryl.hermes.svc.cluster.local:8642/v1"
     BERYL_API_KEY = random_password.hermes_api_server_key["beryl"].result
   }
+}
+
+resource "kubernetes_secret_v1" "orion_env" {
+  depends_on = [module.namespace["orion"]]
+
+  metadata {
+    name      = "orion-env"
+    namespace = local.orion_ns
+  }
+
+  data = local.orion_env
 
   type = "Opaque"
 }
@@ -131,7 +142,14 @@ resource "kubernetes_deployment_v1" "orion" {
     }
 
     template {
-      metadata { labels = local.orion_labels }
+      metadata {
+        labels = local.orion_labels
+        annotations = {
+          # Roll the pod when the env secret changes — env_from alone does not
+          # restart the container, and keel only reacts to image digests.
+          "aether.shdr.ch/env-checksum" = nonsensitive(sha256(jsonencode(local.orion_env)))
+        }
+      }
 
       spec {
         enable_service_links = false
@@ -232,6 +250,66 @@ resource "kubernetes_manifest" "orion_route" {
         }]
         backendRefs = [{ name = "orion", port = local.orion_port }]
       }]
+    }
+  }
+}
+
+# Declared egress for the answer engine's in-cluster flows (orion → litellm,
+# searxng, firecrawl). Additive-only: enableDefaultDeny=false mirrors the
+# cluster-baseline pattern — these rules pre-authorize the flows for the
+# namespace-strategy default-deny flip without changing behavior today.
+resource "kubernetes_manifest" "orion_answer_egress" {
+  depends_on = [helm_release.cilium, module.namespace["orion"]]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "orion-answer-egress"
+      namespace = local.orion_ns
+    }
+    spec = {
+      endpointSelector = {}
+      enableDefaultDeny = {
+        ingress = false
+        egress  = false
+      }
+      egress = [
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.litellm_ns
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.litellm_port), protocol = "TCP" }]
+          }]
+        },
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.searxng_ns
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.searxng_port), protocol = "TCP" }]
+          }]
+        },
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.firecrawl_ns
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.firecrawl_api_port), protocol = "TCP" }]
+          }]
+        },
+      ]
     }
   }
 }
