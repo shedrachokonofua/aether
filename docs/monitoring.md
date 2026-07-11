@@ -67,7 +67,7 @@ flowchart TB
 
 | Backend    | Retention | Notes                                       |
 | ---------- | --------- | ------------------------------------------- |
-| Prometheus | 15 days   | Default TSDB retention                      |
+| Prometheus | 30 days   | `--storage.tsdb.retention.time=30d` — covers 14d soak reviews with prior-context margin |
 | Loki       | 90 days   | Compactor deletes after 2h                  |
 | Tempo      | 7 days    | Block retention in compactor                |
 | ClickHouse | Per table | 14-90d raw; selected hourly aggregates retain 90-365d (see ClickHouse SQL) |
