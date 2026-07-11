@@ -6,47 +6,63 @@ Tailscale.
 
 <img src="docs/rack.jpg" alt="Home server rack" width="400">
 
+- [Topology](#topology)
+- [Features](#features)
+- [Getting Started](#getting-started)
+- [Repository Layout](#repository-layout)
+- [Common Workflows](#common-workflows)
+- [Documentation](#documentation)
+
+## Topology
+
+- **Proxmox VE cluster** — five x86 hosts: `trinity` and `niobe` (compute),
+  `neo` (GPU compute), `smith` (bulk storage + GPU), `oracle` (core
+  infrastructure and edge).
+- **Talos Kubernetes** — control-plane VMs on `trinity`, `neo`, and `niobe`, a
+  worker VM on `smith`, and four bare-metal Raspberry Pi workers: `mouse`,
+  `dozer`, `tank`, `sparks`.
+- **GPUs** — RTX Pro 6000 on `neo` and GTX 1660 Super on `smith`, passed
+  through to their Talos VMs.
+
+Details in [Hosts](docs/hosts.md); VM placement in
+[`config/vm.yml`](config/vm.yml).
+
 ## Features
 
 | Area | Components |
 | --- | --- |
-| Compute | **Proxmox hosts:** `trinity`, `neo`, `niobe`, `smith`, `oracle`<br>**Talos control-plane VMs:** `trinity`, `neo`, `niobe`<br>**Talos worker VM:** `smith`<br>**Bare-metal ARM workers:** `mouse`, `dozer`, `tank`, `sparks`<br>**Core and edge host:** `oracle` |
-| Kubernetes | **Network and ingress:** Cilium, Gateway API, Istio Ambient<br>**Platform:** vcluster, wasmCloud, CloudNativePG<br>**Storage:** Ceph CSI, NFS CSI<br>**Policy and secrets:** Kyverno, External Secrets, architecture guardrails |
-| Network and edge | **Routing:** VyOS, VLANs, Tailscale<br>**DNS:** AdGuard<br>**Internal ingress:** home Caddy gateway<br>**Public ingress:** Cloudflare, AWS Lightsail, CrowdSec |
-| Storage and backup | **Storage:** ZFS, Ceph RBD, CephFS, Ceph RGW, NFS, SMB<br>**Local backup:** Proxmox Backup Server, Kubernetes volume and database backups<br>**Offsite:** Restic, Backrest, encrypted and versioned S3, Glacier Deep Archive |
-| Identity and secrets | **Identity:** Keycloak SSO<br>**PKI:** step-ca, mTLS, SSH certificates<br>**Secrets:** OpenBao, SOPS, OpenBao Transit, AWS KMS, offline Age recovery key |
-| Observability | **Primary UI:** Grafana<br>**Metrics:** Prometheus<br>**Logs:** Loki<br>**Traces:** Tempo<br>**Network telemetry:** ClickHouse, Zeek, Suricata<br>**Host and pipeline:** Fleet, OpenTelemetry |
+| Kubernetes | Cilium, Gateway API, Istio Ambient, vcluster, wasmCloud, CloudNativePG, Ceph and NFS CSI, Kyverno, External Secrets |
+| Network and edge | VyOS, VLANs, Tailscale, AdGuard, Caddy home gateway, Cloudflare, AWS Lightsail, CrowdSec |
+| Storage and backup | ZFS, Ceph (RBD, CephFS, RGW), NFS, SMB, Proxmox Backup Server, Restic, Backrest, versioned S3, Glacier Deep Archive |
+| Identity and secrets | Keycloak SSO, step-ca, mTLS, SSH certificates, OpenBao, SOPS, AWS KMS, offline Age recovery key |
+| Observability | Grafana, Prometheus, Loki, Tempo, ClickHouse, Zeek, Suricata, Fleet, OpenTelemetry |
 | Runtime security | Suricata, Zeek, CrowdSec, Tetragon, Trivy Operator, Policy Reporter, Kyverno, Kepler |
-| AI and GPU | **Inference:** llama-swap<br>**Routing:** LiteLLM<br>**Interfaces and tools:** OpenWebUI, ComfyUI, Docling, Speaches, Jupyter<br>**GPU nodes:** `neo`, `smith` |
-| Applications | **Development:** GitLab<br>**Communication:** Matrix and bridges<br>**Home:** Home Assistant, Z-Wave, Matter<br>**Media:** Jellyfin, Sunshine<br>**Files and photos:** Nextcloud, Immich |
-| Cloud services | **AWS:** public ingress, SES, identity, budgets, offsite backup<br>**Google Cloud:** uptime monitoring, identity federation, budgets, APIs<br>**Cloudflare:** DNS and edge services |
+| AI and GPU | llama-swap, LiteLLM, OpenWebUI, ComfyUI, Docling, Speaches, Jupyter |
+| Applications | GitLab, Matrix, Home Assistant, Z-Wave, Matter, Jellyfin, Sunshine, Nextcloud, Immich |
+| Cloud | AWS, Google Cloud, Cloudflare — public ingress, SES, identity federation, uptime monitoring, budgets, offsite backup |
 | Automation | OpenTofu, Ansible, NixOS, Talos, go-task, GitLab CI/CD |
 
-Feature declarations are spread across multiple ownership layers. Start with
-[`config/vm.yml`](config/vm.yml), [`tofu/`](tofu), [`ansible/`](ansible),
-[`nix/`](nix), and [`Taskfile.yml`](Taskfile.yml), then use the focused docs
-below. Historical material under `docs/exploration/` and `docs/worklogs/` is not
-current-state documentation.
+## Getting Started
 
-## Start Here
-
-[Nix](https://nixos.org/) is the only host dependency. The flake supplies
-OpenTofu, Ansible, SOPS, OpenBao, AWS and Google CLIs, `kubectl`, `talosctl`,
-Helm, Babashka, go-task, and the remaining workspace tools.
+[Nix](https://nixos.org/) is the only host dependency — the flake pins
+OpenTofu, Ansible, SOPS, OpenBao, the AWS and Google CLIs, `kubectl`,
+`talosctl`, Helm, Babashka, go-task, and the rest of the toolchain.
 
 ```bash
-# Enter the pinned toolchain. Direnv may do this automatically.
-nix develop
-
-# Existing environment: reuse cached credentials when they are still valid.
-task login:status
-task login                 # only when status or a command shows auth is missing
-
-# Discover supported workflows, including tasks without descriptions.
-task --list-all
+nix develop        # enter the pinned toolchain (direnv may do this automatically)
+task login:status  # check cached credentials
+task login         # Keycloak device auth -> AWS, Google WIF, OpenBao, Ceph RGW, SSH certificate
+task --list-all    # discover supported workflows, including tasks without descriptions
 ```
 
-Before Kubernetes or Talos work, verify the exact cluster context:
+- Blank environment with no OpenTofu state yet? `task login` will not work —
+  start with [Bootstrap](#bootstrap-blank-environment).
+- Read [`AGENTS.md`](AGENTS.md) before making changes: state-lock,
+  live-patching, authentication, and shared-repository guardrails live there.
+
+### Kubernetes Context
+
+Verify the exact cluster context before Kubernetes or Talos work:
 
 ```bash
 kubectl config current-context    # expect: admin@aether-k8s
@@ -61,62 +77,60 @@ task k8s:auth
 kubectl config current-context
 ```
 
-Read [`AGENTS.md`](AGENTS.md) before making changes. It contains the
-state-lock, live-patching, authentication, and shared-repository guardrails.
+## Repository Layout
 
-## Source Of Truth
-
-| Concern | Authoritative paths |
+| Path | What lives there |
 | --- | --- |
-| Shared VM, LXC, and Talos facts | [`config/vm.yml`](config/vm.yml) |
-| SSH inventory and host groups | [`ansible/inventory/hosts.yml`](ansible/inventory/hosts.yml) |
-| Root cloud and home module wiring | [`tofu/main.tf`](tofu/main.tf) |
-| Proxmox, Talos, identity, and home infrastructure | [`tofu/home/`](tofu/home) |
-| Kubernetes platform and applications | [`tofu/home/kubernetes/`](tofu/home/kubernetes) |
-| AWS and Google resources | [`tofu/aws/`](tofu/aws), [`tofu/google/`](tofu/google) |
-| Host and service configuration | [`ansible/playbooks/`](ansible/playbooks), [`ansible/roles/`](ansible/roles) |
-| NixOS systems and reusable modules | [`nix/hosts/`](nix/hosts), [`nix/modules/`](nix/modules), [`flake.nix`](flake.nix) |
-| Supported workflows | [`Taskfile.yml`](Taskfile.yml) |
-| Encrypted secret policy and data | [`.sops.yaml`](.sops.yaml), `secrets/secrets.yml` |
-
-OpenTofu uses one root state under `tofu/`. Home addresses begin with
-`module.home`; Kubernetes addresses begin with `module.home.module.kubernetes`.
-Even a targeted operation parses all loaded configuration, so `-target` does
-not isolate unrelated syntax or provider errors.
+| [`config/vm.yml`](config/vm.yml) | Shared VM, LXC, and Talos facts |
+| [`tofu/`](tofu) | OpenTofu root; module wiring in [`main.tf`](tofu/main.tf) |
+| [`tofu/home/`](tofu/home) | Proxmox, Talos, identity, and home infrastructure |
+| [`tofu/home/kubernetes/`](tofu/home/kubernetes) | Kubernetes platform and applications |
+| [`tofu/aws/`](tofu/aws), [`tofu/google/`](tofu/google) | AWS and Google Cloud resources |
+| [`ansible/`](ansible) | Host and service configuration; inventory at [`inventory/hosts.yml`](ansible/inventory/hosts.yml) |
+| [`nix/`](nix) | NixOS hosts and reusable modules |
+| [`Taskfile.yml`](Taskfile.yml) | Supported workflows |
+| [`.sops.yaml`](.sops.yaml), `secrets/` | Encrypted secret policy and data |
+| [`docs/`](docs) | Orientation docs — see [Documentation](#documentation) |
 
 ## Common Workflows
 
-Use narrowly scoped tasks. There is deliberately no `configure:all`: gateway,
-monitoring, GitLab, backup, identity, and other subsystems have independent
-failure domains and should not be changed as one operation.
+- Prefer a `task` target over the underlying command — tasks supply cached
+  tokens, generated outputs, inventory settings, and required environment.
+- Do not use Ansible `--start-at-task` on secret-dependent playbooks; use the
+  playbook's tags so prerequisite secret loaders still run.
+
+### OpenTofu
 
 ```bash
-# OpenTofu
 task tofu:plan
 task tofu:apply
+```
 
-# Examples of scoped host/service configuration
+- One root state under `tofu/`: home addresses begin with `module.home`,
+  Kubernetes addresses with `module.home.module.kubernetes`.
+- Even a targeted operation parses all loaded configuration — `-target` does
+  not isolate unrelated syntax or provider errors.
+
+### Scoped Configuration
+
+There is deliberately no `configure:all`: gateway, monitoring, GitLab, backup,
+identity, and other subsystems have independent failure domains and are
+changed one at a time.
+
+```bash
+# Ansible-managed hosts and services
 task configure:gateway
 task configure:monitoring
 task configure:backup
 task configure:keycloak
 
-# Examples of scoped NixOS deployment
+# NixOS hosts
 task configure:adguard
 task configure:bastion
 task configure:ids-stack
 ```
 
-Prefer a Taskfile workflow over the underlying command because tasks supply
-cached tokens, generated outputs, inventory settings, and other required
-environment. Do not use Ansible `--start-at-task` on secret-dependent
-playbooks; use supported tags so prerequisite secret loaders still run.
-
-### Secrets And Login
-
-`task login` performs Keycloak device authentication and obtains the configured
-AWS, Google Workload Identity Federation, OpenBao, Ceph RGW, and SSH
-credentials. Individual providers may be skipped when they are not configured.
+### Secrets
 
 ```bash
 task sv              # view secrets/secrets.yml
@@ -126,33 +140,29 @@ task sl              # list keys without printing values
 task sops:rotate     # rewrap encrypted files with current .sops.yaml recipients
 ```
 
-The Age private key is an offline bootstrap and recovery recipient, not a
-day-to-day credential. Follow [Secrets](docs/secrets.md) and the bootstrap
-procedures rather than copying recovery material into the repository.
+- The Age private key is an offline bootstrap and recovery recipient, not a
+  day-to-day credential — see [Secrets](docs/secrets.md) for recipients and
+  recovery procedures.
 
-### Initial Backend Bootstrap
+### Bootstrap (Blank Environment)
 
-Initial bootstrap comes before unified login. `task login` relies on identity
-resources and OpenTofu outputs that do not exist in a blank environment.
-
-With pre-existing human AWS administrator credentials available through the
-standard AWS environment or profile chain, `task bootstrap` creates or updates
-the AWS CloudFormation stack for the remote OpenTofu backend, writes
-`config/tofu-state.config`, and initializes the root. It does not provision the
-rest of Aether.
+`task login` depends on identity resources and OpenTofu outputs that do not
+exist in a blank environment. Bootstrap first, with human AWS administrator
+credentials available through the standard environment or profile chain:
 
 ```bash
-aws sts get-caller-identity
-task bootstrap
+aws sts get-caller-identity   # confirm admin credentials
+task bootstrap                # backend CloudFormation stack + config/tofu-state.config + root init
 ```
 
-The first root apply also needs the bootstrap credentials required by providers
-whose federated identities have not been created yet. For Google Cloud, that is
-a human Application Default Credential from
-`gcloud auth application-default login`. After the identity resources have
-been applied and outputs written, use `task login` for normal keyless access.
-Run only the scoped provisioning or configuration tasks for each subsystem
-being introduced.
+- `task bootstrap` only prepares the remote OpenTofu backend; it does not
+  provision the rest of Aether.
+- The first root apply also needs bootstrap credentials for providers whose
+  federated identities do not exist yet — for Google Cloud, a human
+  Application Default Credential from `gcloud auth application-default login`.
+- After the identity resources are applied and outputs written, switch to
+  `task login` for normal keyless access, and provision each subsystem with
+  its scoped task.
 
 ## Documentation
 
@@ -170,7 +180,7 @@ being introduced.
 | [NixOS](docs/nixos.md) | Declarative systems and migration direction |
 | [UPS](docs/ups.md) | Power monitoring and shutdown behavior |
 
-### Operations And Services
+### Operations and Services
 
 | Doc | Scope |
 | --- | --- |
@@ -180,7 +190,7 @@ being introduced.
 | [GitLab Kubernetes Runner](docs/gitlab-k8s-runner.md) | Runner architecture and operations |
 | [Bastion](docs/bastion.md) | Administrative access path |
 
-### Trust And External Systems
+### Trust and External Systems
 
 | Doc | Scope |
 | --- | --- |
