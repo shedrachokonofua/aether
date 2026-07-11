@@ -2617,7 +2617,7 @@ groups:
                     params: [5]
               refId: C
         noDataState: OK
-        execErrState: Error
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
@@ -2661,7 +2661,7 @@ groups:
                     params: [0]
               refId: C
         noDataState: OK
-        execErrState: Error
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
@@ -2700,7 +2700,7 @@ groups:
                     params: [1]
               refId: C
         noDataState: Alerting
-        execErrState: Error
+        execErrState: OK
         for: 5m
         labels:
           severity: critical
