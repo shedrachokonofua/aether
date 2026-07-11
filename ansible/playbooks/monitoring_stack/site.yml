@@ -329,6 +329,11 @@
         command:
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
+          # 30d (was 15d default): the 14d security-rule soak window barely fit inside
+          # default retention, so promotion reviews lost the pre-soak context. 30d covers
+          # soak + prior fortnight and widens Argos's feature-extraction window.
+          # Disk: ~15-22GB extra at current series counts.
+          - "--storage.tsdb.retention.time=30d"
           - "--web.console.libraries=/etc/prometheus/console_libraries"
           - "--web.console.templates=/etc/prometheus/consoles"
           - "--web.enable-lifecycle"
