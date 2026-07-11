@@ -5,7 +5,7 @@
 # personalities, and model backends.
 #
 # Beryl: fully local inference through llama-swap; LiteLLM MCP for tools.
-# Tungsten: public Kimi model through LiteLLM -> Ollama Cloud.
+# Tungsten: public GLM-5.2 model through LiteLLM -> Ollama Cloud.
 
 locals {
   hermes_namespace              = module.namespace["hermes"].name
@@ -189,7 +189,7 @@ locals {
       config = yamlencode({
         model = {
           provider       = "custom"
-          default        = "ollama-cloud/kimi-k2.6"
+          default        = "ollama-cloud/glm-5.2"
           base_url       = local.hermes_litellm
           api_key        = "$${OPENAI_API_KEY}"
           context_length = 256000

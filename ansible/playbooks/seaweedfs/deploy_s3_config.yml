@@ -61,13 +61,18 @@
         state: absent
       no_log: true
 
-    - name: Restart SeaweedFS LXC to reload S3 identity config
-      ansible.builtin.command: pct reboot {{ seaweedfs_vm.id }}
+    # Prefer unit restart over LXC reboot. HUP/reload alone has been observed
+    # not to pick up new identities; restart re-reads s3.json with a brief
+    # S3 blip instead of bouncing the whole container.
+    - name: Restart SeaweedFS S3 service to pick up identity config
+      ansible.builtin.command: >
+        pct exec {{ seaweedfs_vm.id }}
+        -- /run/current-system/sw/bin/systemctl restart seaweedfs-s3.service
       changed_when: true
 
     - name: Wait for SeaweedFS S3 API
       ansible.builtin.wait_for:
         host: "{{ seaweedfs_vm.ip }}"
         port: "{{ seaweedfs_vm.ports.s3 }}"
-        timeout: 120
+        timeout: 60
       delegate_to: localhost

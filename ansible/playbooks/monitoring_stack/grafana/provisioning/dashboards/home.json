@@ -38,7 +38,7 @@
       "type": "stat",
       "title": "Targets Up %",
       "id": 2,
-      "description": "Central Prometheus's own scrape targets reporting up (node, PVE, Ceph, PBS, blackbox, OTel endpoint, self). Excludes k8s metrics re-exported through the OTel collector (exported_job=*) whose count churns with pod lifecycle — see the Kubernetes dashboard for those. Not the Fleet/osquery server.",
+      "description": "Central Prometheus's own scrape targets reporting up (node, PVE, Ceph, PBS, blackbox, OTel endpoint, self). Excludes k8s metrics re-exported through the OTel collector (exported_job=*) whose count churns with pod lifecycle \u2014 see the Kubernetes dashboard for those. Not the Fleet/osquery server.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -780,6 +780,155 @@
       }
     },
     {
+      "type": "timeseries",
+      "title": "App availability \u2014 instant vs rolling 24h",
+      "id": 33,
+      "description": "Minute-by-minute fleet probe success shows active outages; rolling 24h matches the App Avail 24h stat and shows historical drag.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "100*avg(probe_success{job=\"blackbox-http-apps\"})",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "legendFormat": "instant availability"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "100*avg(avg_over_time(probe_success{job=\"blackbox-http-apps\"}[24h]))",
+          "refId": "B",
+          "instant": false,
+          "range": true,
+          "legendFormat": "rolling 24h"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 95,
+          "max": 100,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 99
+              },
+              {
+                "color": "green",
+                "value": 99.9
+              }
+            ]
+          },
+          "custom": {
+            "fillOpacity": 12,
+            "showPoints": "never",
+            "lineWidth": 2,
+            "stacking": {
+              "mode": "none"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "availability %"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "instant availability"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 8
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rolling 24h"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "min",
+            "mean",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "type": "row",
       "title": "What's degrading \u2014 capacity headroom & network",
       "id": 16,
@@ -788,7 +937,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 40
       }
     },
     {
@@ -800,7 +949,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 33
+        "y": 41
       },
       "datasource": {
         "type": "prometheus",
@@ -868,7 +1017,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 33
+        "y": 41
       },
       "datasource": {
         "type": "prometheus",
@@ -936,7 +1085,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 33
+        "y": 41
       },
       "datasource": {
         "type": "prometheus",
@@ -991,7 +1140,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 41
+        "y": 49
       }
     },
     {
@@ -1003,7 +1152,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 42
+        "y": 50
       },
       "targets": [
         {
@@ -1085,7 +1234,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 42
+        "y": 50
       },
       "targets": [
         {
@@ -1168,7 +1317,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 58
       }
     },
     {
@@ -1180,7 +1329,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 51
+        "y": 59
       },
       "datasource": {
         "type": "prometheus",
@@ -1235,7 +1384,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 51
+        "y": 59
       },
       "datasource": {
         "type": "prometheus",
@@ -1303,7 +1452,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 51
+        "y": 59
       },
       "datasource": {
         "type": "prometheus",
@@ -1367,7 +1516,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 67
       }
     },
     {
@@ -1378,7 +1527,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 68
       },
       "options": {
         "mode": "markdown",
