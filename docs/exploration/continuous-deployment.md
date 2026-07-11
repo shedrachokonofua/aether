@@ -17,7 +17,7 @@ More exists than expected:
 | --- | --- |
 | GitLab mirror + CI | `so/aether` runs CI — `.gitlab-ci.yml` has a scheduled nightly `tofu plan -detailed-exitcode` job, but it declares **no auth at all** (no `id_tokens`, no Bao login, no AWS creds, no toolchain bootstrap; the Taskfile it calls expects a laptop-cached token). Presumed broken — phase 0 replaces it with a *proven* authenticated plan job |
 | Canonical repo | GitHub (`shedrachokonofua/aether`) is the only local remote — external source of truth survives estate loss. Verify mirror direction/automation GitHub↔GitLab |
-| CI → Bao identity | `vault_jwt_auth_backend.gitlab` live. `seven30-ci` proves the *shape* (transit decrypt + KV policy, TTL 900s, built for CI tofu applies) but is **bound to `project_path = seven30/*` — unusable by `so/aether`**; `so-ci` (in-flight) is read-only Inquest KV, no transit. New `aether-ci-plan` / `aether-ci-apply` policies + roles are required work, not reuse |
+| CI → Bao identity | `vault_jwt_auth_backend.gitlab` live, and existing CI JWT roles elsewhere in the estate prove the *shape* (transit decrypt + KV policy, short TTL, built for CI tofu applies) — **none are bound to `so/aether`**; `so-ci` (in-flight) is read-only Inquest KV, no transit. New `aether-ci-plan` / `aether-ci-apply` policies + roles are required work, not reuse |
 | CI → certs/SSH | step-ca `gitlab-ci` OIDC provisioner live, **with an SSH certificate template** (`ssh_gitlab_ci.tpl`) — CI-minted SSH certs were already designed |
 | CI → AWS | Roles Anywhere trusts step-ca; a CI cert can assume a role for the S3/DynamoDB backend (new profile needed) |
 | Runner | `gitlab-runner-k8s`: privileged, in-cluster, built for image builds/e2e — **wrong actuator** (self-modification hazard: applies that disturb the cluster kill their own runner) |
@@ -123,7 +123,7 @@ flowchart TD
 | Job | Identity chain | Blast radius |
 | --- | --- | --- |
 | MR plan / drift | GitLab JWT → Bao `jwt-gitlab` role `aether-ci-plan` → transit decrypt + read; CI cert → Roles Anywhere → S3 state read | Near-full **read** of estate |
-| Apply (manual) | Same chain, role `aether-ci-apply`: `bound_claims = { project_path = "so/aether", ref_protected = "true", ref = "main" }`, bound audience `https://bao.home.shdr.ch`, TTL ~900s. Phase 0 **tests** that unprotected-ref tokens are rejected — the claim set is designed and verified, not assumed (the seven30 role has no such binding today) | God-cred (SOPS decrypt is all-or-nothing) — relocated from daily-driver laptop to single-purpose actuator |
+| Apply (manual) | Same chain, role `aether-ci-apply`: `bound_claims = { project_path = "so/aether", ref_protected = "true", ref = "main" }`, bound audience `https://bao.home.shdr.ch`, TTL ~900s. Phase 0 **tests** that unprotected-ref tokens are rejected — the claim set is designed and verified, not assumed (no existing GitLab JWT role carries such a binding today) | God-cred (SOPS decrypt is all-or-nothing) — relocated from daily-driver laptop to single-purpose actuator |
 | Ansible/nix deploy jobs (later phase) | GitLab JWT → step-ca `gitlab-ci` provisioner → **SSH cert** (template exists); principals scoped per job class, not blanket root | Per-host |
 
 Honesty note: there is no scoped-down apply credential while tofu reads the whole SOPS
@@ -212,4 +212,3 @@ those plans are unchanged.
 - `../exploration/journal-forwarder.md`, `monitoring-stack-nix.md`, `two-tier-pki.md`,
   `east-west-nat-removal.md` — the plan-doc backlog this pipeline will actuate as MR streams
 - `../trust-model.md` — CI plane (GitLab JWT → step-ca/Bao) this design rides on
-- `tofu/home/openbao_seven30.tf` — the proven CI-apply credential pattern
