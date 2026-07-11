@@ -752,11 +752,11 @@ explicit user approval first** (live-op on shared infra).
 
 ## Completion checklist
 
-- [ ] Phase 0: RGW idle rate < 60 req/s (interim)
+- [x] Phase 0: interim rate cap applied; now moot — flood eliminated at source (provider-aws gone from both clusters)
 - [x] Phase 1: kestra-storage-s3 gone from vcluster AND RGW (2026-07-09)
-- [ ] Phase 2: seven30-provisioner exists, playbook idempotent
+- [x] Phase 2: `seven30-provisioner` role present + proven — drove every Phase 4/5 keyless CI apply via GitLab-OIDC STS
 - [x] Phase 3: tofu create + refresh idempotent against RGW (job 12970; role-destroy caveat documented)
 - [x] Phase 4: **complete (2026-07-11)** — ALL seven30 S3/IAM tofu-native (crucible/demo/scout apps + platform `kestra-base`/`seven30-s3-admin`/`seven30-s3-readonly` + `keycloak-seven30`/`k8s-seven30` OIDC anchors); provider-aws-s3/iam + family gone from vcluster, ProviderConfig/ESO removed, idle ~37 req/s observe traffic eliminated. server-side `*-premig-bak` backups taken
 - [x] Phase 5: **complete (2026-07-11)** — host-cluster static-site MRs orphaned+deleted (RGW objects intact, `shdr.ch` 200); provider-aws-s3/iam + `ceph-rgw` ProviderConfig + creds secret removed via tofu (commit `5e96c13`) + family provider removed live. Only `provider-keycloak` remains, zero `*.aws.upbound.io` CRDs
 - [x] Phase 6: neo RGW healthy (3/3, was already up); caddy scrape restored on gateway agent (`up=1`)
-- [ ] DESIGN-0001 superseded note, aether docs swept
+- [x] DESIGN-0001 marked `superseded` (seven30/infra `1bb8d4e`); aether docs swept — `paas.md` + `exploration/kubernetes.md` (`1926b4a`)
