@@ -840,21 +840,6 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "vane" = {
-      tier                    = "app"
-      owner                   = "aether"
-      backup                  = "standard"
-      exposure                = "internal"
-      create_s3_backup_secret = false
-      source_file             = "tofu/home/kubernetes/vane.tf"
-      registry_access         = "dockerhub"
-      hostnames = [
-        "vane.home.shdr.ch",
-      ]
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
-      }
-    }
     "searxng" = {
       tier                    = "app"
       owner                   = "aether"
