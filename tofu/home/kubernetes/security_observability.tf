@@ -65,6 +65,8 @@ locals {
     containerSecurityContext  = local.trivy_scan_job_container_security_context
     nodeCollectorVolumeMounts = local.trivy_node_collector_volume_mounts
     nodeCollectorVolumes      = local.trivy_node_collector_volumes
+    trivyMode                 = "ClientServer"
+    trivyScanPodTmpSubpaths   = true
     trivyScannerResourceHints = "25m-1Mi"
   }))
 }
@@ -152,6 +154,7 @@ resource "helm_release" "trivy_operator" {
       scanJobTimeout                               = "10m"
       scanJobsConcurrentLimit                      = 4
       scanNodeCollectorLimit                       = 1
+      builtInTrivyServer                           = true
       scannerReportTTL                             = "168h"
       vulnerabilityScannerEnabled                  = true
       configAuditScannerEnabled                    = true
@@ -189,10 +192,15 @@ resource "helm_release" "trivy_operator" {
     }
 
     trivy = {
-      slow          = true
-      ignoreUnfixed = false
-      timeout       = "10m0s"
-      severity      = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+      mode                   = "ClientServer"
+      clientServerSkipUpdate = true
+      storageClassName       = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+      storageSize            = "5Gi"
+      priorityClassName      = local.node_agent_priority_class
+      slow                   = true
+      ignoreUnfixed          = false
+      timeout                = "10m0s"
+      severity               = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
       resources = {
         requests = { cpu = "25m", memory = "1Mi" }
         limits   = { cpu = "1", memory = "1Gi" }
