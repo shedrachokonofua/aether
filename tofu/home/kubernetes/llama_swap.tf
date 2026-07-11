@@ -33,6 +33,14 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
       logToStdout: both
       globalTTL: 300
 
+      # Warm the pinned pair at boot; both are members of the llm matrix set
+      # (chat & emb), so they co-reside instead of swapping each other out.
+      hooks:
+        on_startup:
+          preload:
+            - "qwen3.6-27b"
+            - "qwen3-embedding-0.6b"
+
       models:
         "qwen3.6-27b":
           # MTP (multi-token prediction) speculative decoding: ~1.4-2.2x faster
@@ -50,7 +58,11 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --ctx-size 262144
             --spec-type draft-mtp
             --spec-draft-n-max 2
-          ttl: 900
+          # Pinned (ttl 0 = never unload): the hourly briefing agent was
+          # cycling this model 24x/day (load -> 15min TTL -> unload), so every
+          # interactive call (Beryl, AFFiNE, Orion) paid the ~11s cold load.
+          # 96GB Blackwell, 3-day peak usage 63GB - pinning fits comfortably.
+          ttl: 0
           filters:
             setParamsByID:
               "qwen3.6-27b":
@@ -266,7 +278,9 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             -ngl 99
             --embedding
             --pooling last
-          ttl: 600
+          # Pinned alongside the chat model (~1GB): kills the measured 3.4s
+          # cold-swap on AFFiNE/mnemo/Vane embedding calls.
+          ttl: 0
 
       matrix:
         vars:
