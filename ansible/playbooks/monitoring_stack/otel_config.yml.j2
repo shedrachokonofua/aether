@@ -162,11 +162,13 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      # clickhouse/metrics re-enabled 2026-07-11 after the memory_limiter incident,
-      # with guards: limiter 4096/896 (GOMEMLIMIT 3GiB below the 3200MiB soft refusal)
-      # and a bounded sending_queue that drops archive batches rather than
-      # backpressuring ingest. History: telemetry-archive.md phase 0.
-      exporters: [prometheus, clickhouse/metrics]
+      # clickhouse/metrics DETACHED 2026-07-11 (second time): queue pinned 100/100,
+      # ~7M points dropped, 2 consumers in continuous insert churn = sustained CPU tax
+      # on the 4-core VM while the archive missed >50% of the stream. Root fix is a
+      # dedicated archive pipeline with large batches (~50k), pinned collector image,
+      # and repo-owned schema — see telemetry-archive.md phase 0 preconditions.
+      # The memory guards (limiter 4096/896, GOMEMLIMIT alignment) stay.
+      exporters: [prometheus]
 
     # Ingest logs and route based on source
     logs:

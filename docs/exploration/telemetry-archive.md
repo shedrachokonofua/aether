@@ -3,14 +3,31 @@
 Plan for tiering ClickHouse cold data to SeaweedFS S3, completing the storage taxonomy:
 **Ceph = hot application tier; SeaweedFS = backup/cold tier; telemetry archive is a
 cold-tier load.** Phase 0 (metrics → ClickHouse `metrics` db, 365d TTL, local disk) went live 2026-07-11
-suffered a same-day incident (collector heap past the 2 GiB `memory_limiter` → ALL
-ingest refused, k8s pipeline dead ~80 min), and was **re-enabled the same day with
-guards**: limiter 4096/896 (soft refusal 3200 MiB), container `GOMEMLIMIT: 3GiB`
-deliberately below it so GC fights heap growth before the limiter drops data, and a
-bounded `sending_queue` (drops archive batches instead of backpressuring the hot path;
-retry window 60s). Soak-verified: RSS plateaued ~3.0 GiB, zero refusals under full load.
-Root lesson encoded here: the archive is best-effort by construction — any future
-archive exporter (phase 2 logs) gets the same queue-and-drop posture from day one.
+went through two same-day incidents and is currently **DETACHED**:
+
+1. **Memory**: collector heap blew past the 2 GiB `memory_limiter` (the exporterhelper
+   *default* sending_queue — 1000 batches — was silently enabled and ballooned) → the
+   limiter refused ALL ingest, k8s pipeline dead ~80 min. Fixed: limiter 4096/896 with
+   `GOMEMLIMIT: 3GiB` below the soft-refusal line, bounded queue. **These guards stay.**
+2. **CPU/throughput**: with the bounded queue (100), ClickHouse insert throughput could
+   not keep pace — queue pinned at 100/100, ~7M points dropped in ~30 min (>50% of the
+   stream), 2 consumers in continuous insert churn = sustained CPU creep on the 4-core
+   VM, for an archive that was incomplete anyway. Detached again.
+
+**Re-enable design (replaces naive fan-out)** — the insert pattern is the root problem
+(each 2048-point batch fans into 5 tiny per-type inserts; ClickHouse wants few, large
+inserts):
+
+- Dedicated archive pipeline (`metrics/archive`) with its own `batch/archive` processor
+  (~50k points / 30s timeout) so ClickHouse receives large inserts
+- Pinned collector image + repo-owned schema (`create_schema: false`) — unchanged preconditions
+- Bounded queue + 60s retry (keep), consumers sized after a **local insert-throughput
+  benchmark** against the same CH version — do not discover throughput in production a third time
+- Success criteria: enqueue_failed rate = 0, queue depth < 20% steady, VM CPU delta < 5%,
+  collector RSS < 3.2 GiB
+
+Lesson encoded: the archive is best-effort by construction; any future archive exporter
+(phase 2 logs) inherits this pipeline shape, not the naive fan-out.
 
 ## Current state (verified live; retention corrected per review)
 

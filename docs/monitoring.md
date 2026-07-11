@@ -71,7 +71,7 @@ flowchart TB
 | Loki       | 90 days   | Compactor deletes after 2h                  |
 | Tempo      | 7 days    | Block retention in compactor                |
 | ClickHouse | Per table | 14-90d raw; selected hourly aggregates retain 90-365d (see ClickHouse SQL) |
-| ClickHouse (`metrics` db) | 365 days | otel fan-out (best-effort: bounded queue, drops before backpressure); Prometheus is the 30d hot path. Cold-tier to SeaweedFS planned — exploration/telemetry-archive.md |
+| ClickHouse (`metrics` db) | 365 days | fan-out DETACHED pending archive-pipeline redesign (2×2026-07-11 incidents — exploration/telemetry-archive.md); schema/grants in place; Prometheus is the 30d hot path |
 
 ## Monitoring Agents
 
