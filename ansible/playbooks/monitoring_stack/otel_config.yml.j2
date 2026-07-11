@@ -22,6 +22,15 @@ processors:
     send_batch_size: 2048
     send_batch_max_size: 4096
 
+  # Archive-only batching: ClickHouse wants FEW, LARGE inserts (benchmarked
+  # 2026-07-11 on live CH 26.6.1.1193: 50k-row blocks at 180-310k rows/s = ~38x
+  # headroom over the 7.4k pts/s stream). The 2048-point hot-path batch produced
+  # 5 tiny per-type inserts each and drowned the exporter (queue pinned, CPU churn).
+  batch/archive:
+    timeout: 30s
+    send_batch_size: 50000
+    send_batch_max_size: 100000
+
   # Selectively promote essential resource attributes to metric labels
   # This avoids the cardinality explosion from full resource_to_telemetry_conversion
   transform/metrics:
@@ -126,11 +135,10 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 300s
 
-  # Long-term metrics archive: 1y TTL in ClickHouse alongside the 30d Prometheus
-  # hot path. create_schema owns the otel metric tables (gauge/sum/histogram/...)
-  # in the `metrics` database; TTL applied at table creation. Cold-tier storage
-  # policy (SeaweedFS) is planned separately — see
-  # docs/exploration/monitoring-stack-nix.md + telemetry archive plan.
+  # Long-term metrics archive: 365d TTL in ClickHouse alongside the 30d Prometheus
+  # hot path. Schema is REPO-OWNED (clickhouse/metrics-schema.sql, applied via the
+  # init dir / reconcile) — create_schema stays false so the alpha exporter can
+  # never mutate production schema. TTL lives in the DDL.
   clickhouse/metrics:
     endpoint: tcp://localhost:9000
     username: aether
@@ -138,16 +146,16 @@ exporters:
     database: metrics
     async_insert: true
     compress: lz4
-    create_schema: true
-    ttl: 8760h
-    timeout: 10s
+    create_schema: false
+    timeout: 30s
     # Bounded queue: if ClickHouse inserts slow down, archive batches DROP (queue full)
     # instead of backpressuring the shared pipeline — the hot path is sacred, the
     # archive is best-effort. Short retry window for the same reason.
     sending_queue:
       enabled: true
       num_consumers: 2
-      queue_size: 100
+      # 10 batches x ~50k points ~= 500k points bounded (~200-400MB worst case).
+      queue_size: 10
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -159,16 +167,19 @@ service:
     logs:
       level: warn
   pipelines:
+    # Hot path: untouched by the archive — separate pipeline below.
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      # clickhouse/metrics DETACHED 2026-07-11 (second time): queue pinned 100/100,
-      # ~7M points dropped, 2 consumers in continuous insert churn = sustained CPU tax
-      # on the 4-core VM while the archive missed >50% of the stream. Root fix is a
-      # dedicated archive pipeline with large batches (~50k), pinned collector image,
-      # and repo-owned schema — see telemetry-archive.md phase 0 preconditions.
-      # The memory guards (limiter 4096/896, GOMEMLIMIT alignment) stay.
       exporters: [prometheus]
+
+    # Archive path (best-effort by construction): own large-batch processor so CH
+    # gets few, huge inserts; bounded queue drops before backpressure. History of
+    # the two 2026-07-11 incidents + redesign rationale: telemetry-archive.md.
+    metrics/archive:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/metrics, batch/archive]
+      exporters: [clickhouse/metrics]
 
     # Ingest logs and route based on source
     logs:

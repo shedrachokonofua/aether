@@ -44,7 +44,7 @@
 ## P2
 
 - [ ] ClickHouse cold tier on SeaweedFS ([exploration](exploration/telemetry-archive.md))
-  - [ ] Phase 0: metrics fan-out (2x detached 2026-07-11: memory then CPU/throughput; needs dedicated archive pipeline w/ ~50k batches, pinned collector, owned schema, local CH insert benchmark)
+  - [x] Phase 0: metrics archive live (2026-07-11, third attempt: dedicated 50k-batch pipeline, pinned collector, repo-owned schema, benchmark-gated; soak criteria all green)
   - [ ] Measure steady-state metrics ingest rate (1 week)
   - [ ] Phase 1: s3 disk + `tiered` policy; metrics tables first, then zeek/suricata
   - [ ] Phase 2: logs fan-out to archive (Loki stays 90d hot path)
