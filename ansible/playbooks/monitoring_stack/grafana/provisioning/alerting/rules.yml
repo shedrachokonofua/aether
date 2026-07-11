@@ -2578,3 +2578,221 @@ groups:
         annotations:
           summary: "TLS cert on {{ $labels.instance }} expires in {{ $values.B.Value | printf \"%.1f\" }}d"
           description: "Renew before NotAfter — see docs/bastion.md (lessons learned from the OpenBao incident)."
+      # =====================================================================
+      # Jellyfin — UX / auth / debrid-link observability
+      # =====================================================================
+
+      - uid: jellyfin-auth-provider-broken
+        title: Jellyfin SSO Auth Provider Broken
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                count_over_time(
+                  {k8s_namespace_name="jellyfin"}
+                    |= "InvalidAuthProvider"
+                  [30m]
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+          domain: media
+        annotations:
+          summary: "Jellyfin SSO provider is unregistered — users cannot authenticate"
+          description: "InvalidAuthProvider warnings fired {{ $values.B.Value }} times in the last 30m. The jellyfin-plugin-sso provider failed to load; affected users (e.g. risheene) are locked out of fresh logins. Restart Jellyfin and reinstall/update the SSO plugin."
+
+      - uid: jellyfin-gelato-stream-failures
+        title: Jellyfin Gelato Stream Resolution Failures
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                count_over_time(
+                  {k8s_namespace_name="jellyfin"}
+                    |= "Invalid stream, skipping"
+                  [1h]
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: media
+        annotations:
+          summary: "Jellyfin Gelato debrid providers are failing"
+          description: "{{ $values.B.Value }} Invalid stream skipping events in the last hour — debrid provider rot (torrentio/mediafusion/comet/premiumize). Playback attempts fail before transcoding starts."
+
+      - uid: jellyfin-gelato-no-streams
+        title: Jellyfin Click-Play-No-Streams
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                count_over_time(
+                  {k8s_namespace_name="jellyfin"}
+                    |~ "SyncStreams finished .* streams=0"
+                  [1h]
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: media
+        annotations:
+          summary: "Jellyfin playback attempts returning zero usable streams"
+          description: "{{ $values.B.Value }} SyncStreams results returned zero streams in the last hour. Users click play and nothing happens — worst-case UX with no error surfaced."
+
+      - uid: jellyfin-strm-link-rot
+        title: Jellyfin strm Link Resolution Rot
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                count_over_time(
+                  {k8s_namespace_name="jellyfin"}
+                    |= "Unable to find linked item"
+                  [1h]
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [200]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          domain: media
+        annotations:
+          summary: "Jellyfin strm-link library resolution is rotting"
+          description: "{{ $values.B.Value }} Unable to find linked item warnings in the last hour (>200). strm entries pointing at torrentio/mediafusion/comet/premiumize URLs are dead — refresh library or repair Gelato provider configs."
+
+      - uid: jellyfin-down
+        title: Jellyfin Server Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: jellyfin_up
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          domain: media
+        annotations:
+          summary: "Jellyfin exporter reports server unreachable"
+          description: "jellyfin_up has been 0 for 5 minutes. The exporter cannot reach the Jellyfin API — either the server is down or the API key is invalid."
