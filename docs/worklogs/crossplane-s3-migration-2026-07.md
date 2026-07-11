@@ -418,6 +418,29 @@ roles guarded with `prevent_destroy`.
   kestra flow, scout ConfigMap) that had accumulated on main — those stay for scout's
   own next apply. Data intact (scout-raw-data 660 obj/290.5 MiB, scout 134.7 MiB).
 
+**Platform IAM + provider teardown (2026-07-11):** the seven30-account trust
+anchors + base roles — `kestra-base` (+assume policy), `seven30-s3-admin`,
+`seven30-s3-readonly`, and the `keycloak-seven30` (auth.shdr.ch/realms/seven30)
++ `k8s-seven30` OIDC providers — migrated to `infra/tofu/rgw_iam.tf` the same way
+(orphan -> import -> delete wrappers, staged: migrate first, tear down second).
+OIDC de-risk first: RGW **does** support `iam:GetOpenIDConnectProvider` /
+`ListOpenIDConnectProviders`, so `aws_iam_openid_connect_provider` imports
+cleanly (thumbprints hardcoded to RGW's stored case exactly — keycloak
+lowercase, k8s uppercase — for a no-op import). Gotcha: an import-block `id`
+**cannot be sensitive**, so the OIDC ARN uses a literal account, not
+`${local.rgw_account_id}` (vault-sourced). Stage 2 then removed
+`provider-aws-s3`/`-iam`, ProviderConfig `ceph-rgw`, the RGW-creds ESO, and the
+slow-poll DeploymentRuntimeConfig from `crossplane.tf`; the auto-installed
+`upbound-provider-family-aws` (no dependents, never in tofu) was removed live
+with `kubectl delete provider.pkg.crossplane.io`. Result: **zero provider-aws in
+the vcluster** (only `provider-keycloak` remains), zero `*.aws.upbound.io` CRDs,
+and the idle ~37 req/s upjet-observe RGW traffic is gone. All 6 buckets / 10
+roles / 4 OIDC providers verified intact; trust anchors unchanged (thumbprints +
+client lists confirmed via `iam get-*`). CI gotcha: `glab -f "variables[][key]"`
+can't set the pipeline `variables[]` array — for `TF_CLI_ARGS_plan` targeting,
+set a **project** CI var (removed after) since infra's `changes`-gated builds run
+on api-source pipelines but stay manual on push.
+
 Data safety: before each cutover, buckets were snapshotted **server-side** (RGW->RGW
 `aws s3 sync`, no bytes through the operator box) to `*-premig-bak` buckets
 (`scout-raw-data-premig-bak`, `scout-premig-bak`, `seven30-demo-uploads-premig-bak`).
@@ -713,7 +736,7 @@ explicit user approval first** (live-op on shared infra).
 - [x] Phase 1: kestra-storage-s3 gone from vcluster AND RGW (2026-07-09)
 - [ ] Phase 2: seven30-provisioner exists, playbook idempotent
 - [x] Phase 3: tofu create + refresh idempotent against RGW (job 12970; role-destroy caveat documented)
-- [x] Phase 4: crucible + demo + scout buckets/roles tofu-managed (2026-07-11); server-side `*-premig-bak` backups taken. Remaining: provider-aws-* removal from vcluster + platform base roles (`kestra-base`, `seven30-s3-admin/readonly`)
+- [x] Phase 4: **complete (2026-07-11)** — ALL seven30 S3/IAM tofu-native (crucible/demo/scout apps + platform `kestra-base`/`seven30-s3-admin`/`seven30-s3-readonly` + `keycloak-seven30`/`k8s-seven30` OIDC anchors); provider-aws-s3/iam + family gone from vcluster, ProviderConfig/ESO removed, idle ~37 req/s observe traffic eliminated. server-side `*-premig-bak` backups taken
 - [ ] Phase 5: host-cluster provider-aws-* gone, shdr.ch still 200
 - [x] Phase 6: neo RGW healthy (3/3, was already up); caddy scrape restored on gateway agent (`up=1`)
 - [ ] DESIGN-0001 superseded note, aether docs swept
