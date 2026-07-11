@@ -2582,50 +2582,6 @@ groups:
       # Jellyfin — UX / auth / debrid-link observability
       # =====================================================================
 
-      - uid: jellyfin-auth-provider-broken
-        title: Jellyfin SSO Auth Provider Broken
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 1800
-              to: 0
-            datasourceUid: loki
-            model:
-              expr: |
-                count_over_time(
-                  {k8s_namespace_name="jellyfin"}
-                    |= "InvalidAuthProvider"
-                  [30m]
-                )
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model:
-              type: reduce
-              expression: A
-              reducer: last
-              refId: B
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator:
-                    type: gt
-                    params: [0]
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 0s
-        labels:
-          severity: critical
-          domain: media
-        annotations:
-          summary: "Jellyfin SSO provider is unregistered — users cannot authenticate"
-          description: "InvalidAuthProvider warnings fired {{ $values.B.Value }} times in the last 30m. The jellyfin-plugin-sso provider failed to load; affected users (e.g. risheene) are locked out of fresh logins. Restart Jellyfin and reinstall/update the SSO plugin."
-
       - uid: jellyfin-gelato-stream-failures
         title: Jellyfin Gelato Stream Resolution Failures
         condition: C
