@@ -676,6 +676,25 @@ pass `TF_CLI_ARGS_plan`.
 
 ---
 
+## Residue (Phase 5 host cluster)
+
+The aether host-cluster static-site set is now **unmanaged** (Crossplane MRs
+orphaned + deleted 2026-07-11; RGW objects untouched, `shdr.ch` serves 200):
+`static-site-24` (bucket + `-policy` + `-website` + `-public-access`) and role
+`static-site-24-ci` (+ `-ci-policy`). Future changes go through the RGW-accounts
+playbook or tofu-native (owner's choice). The bucket serves `shdr.ch` via the
+public Caddy → RGW website endpoint, no k8s dependency.
+
+**Provider-package teardown pending (not applied):** `tofu/home/kubernetes/crossplane.tf`
+is edited to remove `provider-aws-s3`/`-iam`, the `ceph-rgw` ProviderConfig, and the
+`crossplane-aws-creds` secret (keycloak/helm retained). Not yet planned/applied — the
+aether working tree has broken uncommitted WIP (`jellyfin.tf` uses `ports {` instead of
+`port {`; `otel_collector.tf` also dirty) that fails `tofu plan` for the whole stack, and
+`task login` creds are stale. Once those clear, run:
+`task tofu:plan -- -target=module.home.module.kubernetes.{kubectl_manifest.crossplane_providerconfig_ceph_rgw,kubernetes_manifest.crossplane_provider_aws_iam,kubernetes_manifest.crossplane_provider_aws_s3,kubernetes_secret_v1.crossplane_aws_creds,time_sleep.wait_for_crossplane_provider_crds}`
+(expect ONLY those 5 destroys), then apply. Meanwhile the packages are **idle** (zero MRs
+→ no RGW observe traffic), so there is no flood cost to the delay.
+
 ## Phase 6 — unrelated fixes discovered during the investigation [do last]
 
 These are independent of the migration. Diagnose, report; **restarts need
@@ -737,6 +756,6 @@ explicit user approval first** (live-op on shared infra).
 - [ ] Phase 2: seven30-provisioner exists, playbook idempotent
 - [x] Phase 3: tofu create + refresh idempotent against RGW (job 12970; role-destroy caveat documented)
 - [x] Phase 4: **complete (2026-07-11)** — ALL seven30 S3/IAM tofu-native (crucible/demo/scout apps + platform `kestra-base`/`seven30-s3-admin`/`seven30-s3-readonly` + `keycloak-seven30`/`k8s-seven30` OIDC anchors); provider-aws-s3/iam + family gone from vcluster, ProviderConfig/ESO removed, idle ~37 req/s observe traffic eliminated. server-side `*-premig-bak` backups taken
-- [ ] Phase 5: host-cluster provider-aws-* gone, shdr.ch still 200
+- [~] Phase 5: host-cluster static-site MRs orphaned+deleted, RGW objects intact, shdr.ch 200, provider-aws now idle (zero MRs) (2026-07-11). **Pending**: `tofu apply` to drop the idle provider packages — code staged in `tofu/home/kubernetes/crossplane.tf`, blocked on unrelated broken WIP (`jellyfin.tf` `ports{}`, `otel_collector.tf`) + stale creds (`task login`)
 - [x] Phase 6: neo RGW healthy (3/3, was already up); caddy scrape restored on gateway agent (`up=1`)
 - [ ] DESIGN-0001 superseded note, aether docs swept
