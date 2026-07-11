@@ -233,6 +233,24 @@ Apprise-only.
 | GPU High Memory        | warning  | >95% VRAM for 5m                 |
 | Smith Clocksource Regression | warning | talos-smith host system-CPU >30% for 15m — acpi_pm PIO-exit-storm tripwire (temporary; remove at next Talos bump) |
 
+### App-level alert rules
+
+App-specific LogQL/PromQL rules are provisioned alongside the infrastructure
+rules in the same `Infrastructure` group
+(`ansible/playbooks/monitoring_stack/grafana/provisioning/alerting/rules.yml`).
+They carry `domain=media` (or their app domain) and route via the default
+catch-all to `apprise-standard` unless they carry `channel`/`domain=security`
+overrides. Current app rules:
+
+| Alert | Severity | Condition | Source |
+| --- | --- | --- | --- |
+| Jellyfin SSO Auth Provider Broken | critical | `InvalidAuthProvider` in jellyfin ns [30m] > 0 | Loki |
+| Jellyfin Gelato Stream Resolution Failures | warning | `Invalid stream, skipping` [1h] > 5 | Loki |
+| Jellyfin Click-Play-No-Streams | warning | `SyncStreams finished … streams=0` [1h] > 0 | Loki |
+| Jellyfin strm Link Resolution Rot | warning | `Unable to find linked item` [1h] > 200 | Loki |
+| Jellyfin Server Down | critical | `jellyfin_up == 0` for 5m | Prometheus (rebelcore/jellyfin_exporter) |
+
+
 ## Alert routing contract
 
 Alerts are routed by label, not by hard-coded receiver. Every rule carries

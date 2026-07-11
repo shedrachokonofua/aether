@@ -30,6 +30,8 @@ resource "kubernetes_secret_v1" "aiostreams" {
     secret_key       = var.secrets["aiostreams.secret_key"]
     realdebrid_token = var.secrets["stremthru.realdebrid_api_token"]
     premiumize_key   = var.secrets["stremthru.premiumize_api_key"]
+    tvdb_key         = var.secrets["aiostreams.tvdb_api_key"]
+    torbox_key       = var.secrets["stremthru.torbox_api_key"]
   }
 }
 
@@ -144,6 +146,26 @@ resource "kubernetes_deployment_v1" "aiostreams" {
               secret_key_ref {
                 name = kubernetes_secret_v1.aiostreams.metadata[0].name
                 key  = "premiumize_key"
+              }
+            }
+          }
+
+          env {
+            name = "TVDB_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.aiostreams.metadata[0].name
+                key  = "tvdb_key"
+              }
+            }
+          }
+
+          env {
+            name = "DEFAULT_TORBOX_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.aiostreams.metadata[0].name
+                key  = "torbox_key"
               }
             }
           }
