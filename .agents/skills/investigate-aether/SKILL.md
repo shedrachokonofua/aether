@@ -22,7 +22,7 @@ Investigate from current evidence, not repository speculation. Start narrow, cor
 
 ## Inquest Boundary
 
-- Sibling `../inquest` owns unattended alert intake, severity gating,
+- Sibling `../inquest` owns unattended alert intake, fan-out,
   fingerprint dedupe, Kestra flows, the GitLab `so/aether/incidents` lifecycle,
   and the Holmes call. Aether owns the platform and integration those flows use.
 - This skill is the human-invoked read-only path. For an Inquest alert or issue,
