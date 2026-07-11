@@ -3,7 +3,13 @@
 Plan for tiering ClickHouse cold data to SeaweedFS S3, completing the storage taxonomy:
 **Ceph = hot application tier; SeaweedFS = backup/cold tier; telemetry archive is a
 cold-tier load.** Phase 0 (metrics → ClickHouse `metrics` db, 365d TTL, local disk) went live 2026-07-11
-went through two same-day incidents and is currently **DETACHED**:
+went through two same-day incidents, was redesigned, and is **LIVE (third attempt,
+soak-passed)**. Final shape: pinned collector (0.156.0), repo-owned schema
+(`clickhouse/metrics-schema.sql`, `create_schema: false`), dedicated `metrics/archive`
+pipeline with `batch/archive` (50k/30s), bounded queue (10 × ~50k pts), memory guards
+from incident 1. Benchmark on live CH 26.6.1.1193: 50k-row blocks at 180–310k rows/s
+(~38× headroom). Soak results: enqueue_failed 0, queue 0/10, RSS 2.1–2.3 GiB, CPU delta
+~+3% VM, zero drops at 965k rows/4min in parts averaging 214k rows. Incident history:
 
 1. **Memory**: collector heap blew past the 2 GiB `memory_limiter` (the exporterhelper
    *default* sending_queue — 1000 batches — was silently enabled and ballooned) → the
