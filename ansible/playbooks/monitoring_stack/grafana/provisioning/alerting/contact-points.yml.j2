@@ -20,6 +20,14 @@ contactPoints:
           url: "https://apprise.home.shdr.ch/notify/aether?tags=critical&:message=body"
           httpMethod: POST
         disableResolveMessage: false
+      # Inquest: parallel investigation path (issue + Holmes). Ack must stay fast.
+      # URL path key is the Kestra webhook trigger secret (SOPS inquest.webhook_key).
+      - uid: inquest-webhook
+        type: webhook
+        settings:
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
+          httpMethod: POST
+        disableResolveMessage: false
 
   - orgId: 1
     name: apprise-digest
