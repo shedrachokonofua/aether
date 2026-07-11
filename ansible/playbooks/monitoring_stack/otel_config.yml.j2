@@ -150,7 +150,11 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      exporters: [prometheus, clickhouse/metrics]
+      # clickhouse/metrics DISABLED 2026-07-11: fan-out pushed collector RSS past the
+      # 2GiB memory_limiter soft limit -> limiter refused ALL ingest (k8s pipeline dead,
+      # receiver refusing ~12k pts/s). Re-enable only per telemetry-archive.md phase-0
+      # preconditions: raised limit_mib + sending_queue sized for CH insert latency.
+      exporters: [prometheus]
 
     # Ingest logs and route based on source
     logs:
