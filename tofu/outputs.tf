@@ -216,6 +216,6 @@ output "tailscale_uptime_monitor_ip" {
 }
 
 output "synthetic_probe_targets" {
-  description = "HTTP synthetic probe targets from namespace contract hostnames (internal/public exposure only)"
+  description = "HTTP synthetic probe targets from Kubernetes namespace contracts and explicit off-Kubernetes services"
   value       = module.home.synthetic_probe_targets
 }
