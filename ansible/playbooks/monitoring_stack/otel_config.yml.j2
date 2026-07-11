@@ -121,6 +121,27 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 300s
 
+  # Long-term metrics archive: 1y TTL in ClickHouse alongside the 30d Prometheus
+  # hot path. create_schema owns the otel metric tables (gauge/sum/histogram/...)
+  # in the `metrics` database; TTL applied at table creation. Cold-tier storage
+  # policy (SeaweedFS) is planned separately — see
+  # docs/exploration/monitoring-stack-nix.md + telemetry archive plan.
+  clickhouse/metrics:
+    endpoint: tcp://localhost:9000
+    username: aether
+    password: "{{ secrets.clickhouse.password }}"
+    database: metrics
+    async_insert: true
+    compress: lz4
+    create_schema: true
+    ttl: 8760h
+    timeout: 10s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
 service:
   telemetry:
     logs:
@@ -129,7 +150,7 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      exporters: [prometheus]
+      exporters: [prometheus, clickhouse/metrics]
 
     # Ingest logs and route based on source
     logs:
