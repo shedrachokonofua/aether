@@ -401,6 +401,38 @@ last unknown. Throwaway — local state, deleted afterward.
 
 Only start after Phase 3 gate = PASS.
 
+**Phase 4 result (2026-07-11): all three seven30 app repos migrated tofu-native.**
+Method per repo: `kubectl patch` the live MRs to `deletionPolicy: Orphan` -> `import {}`
+blocks adopt the RGW objects into tofu state -> delete the `kubectl_manifest` wrappers
+in the same apply. CI assumes `seven30-provisioner` via the shared `.rgw-assume-role`
+(ci-templates.yml) + a `GITLAB_OIDC_TOKEN` id_token on the plan/apply jobs. Buckets +
+roles guarded with `prevent_destroy`.
+
+- **crucible** — `seven30-crucible-interviews` (+CORS) + 2 roles + 2 policies. Hardened
+  after cutover: `force_destroy=false`, versioning enabled, `prevent_destroy`.
+- **demo** (pipeline 3415) — `seven30-demo-uploads` + 2 roles + 2 policies. 5 imported,
+  5 wrappers destroyed. Bucket data intact (57.4 KiB).
+- **scout** (pipeline 3419) — `scout-raw-data` + `scout` + 2 roles + 2 policies. 6
+  imported, 6 wrappers destroyed. Applied with `TF_CLI_ARGS_plan=-target=...` (12
+  targets) to **exclude** 3 unrelated pending scout-dev drifts (grafana dashboard,
+  kestra flow, scout ConfigMap) that had accumulated on main — those stay for scout's
+  own next apply. Data intact (scout-raw-data 660 obj/290.5 MiB, scout 134.7 MiB).
+
+Data safety: before each cutover, buckets were snapshotted **server-side** (RGW->RGW
+`aws s3 sync`, no bytes through the operator box) to `*-premig-bak` buckets
+(`scout-raw-data-premig-bak`, `scout-premig-bak`, `seven30-demo-uploads-premig-bak`).
+Delete these once the migrations are trusted.
+
+Caveat (recurring): after each apply the Role MRs stick in `Terminating` — the
+Crossplane finalizer won't clear because provider-aws hits `ReconcileError` doing a
+final observe (RGW IAM `405` quirk), even though `Orphan` shouldn't touch the external
+role. Cleared by `kubectl patch ... -p '{"metadata":{"finalizers":[]}}'` (Orphan means
+the RGW role survives; verified all roles still present via `iam get-role`).
+
+Gotcha: `glab api -f "variables[][key]=..."` and `--input` both silently drop the
+`variables[]` array on pipeline-create — use `curl` with a JSON body + the glab token to
+pass `TF_CLI_ARGS_plan`.
+
 **Phase 3 result (2026-07-09, job 12970):** the keyless OIDC → CLI env-cred path creates all four resource types (bucket, bucket_policy, iam_role, iam_role_policy) against RGW, and the refresh plan is idempotent — **zero phantom drift**. The migration premise is validated end-to-end in CI. One caveat carried into step c below: role *destroy*.
 
 1. Discover every Crossplane S3/IAM CRD declaration in seven30 repos:
@@ -681,7 +713,7 @@ explicit user approval first** (live-op on shared infra).
 - [x] Phase 1: kestra-storage-s3 gone from vcluster AND RGW (2026-07-09)
 - [ ] Phase 2: seven30-provisioner exists, playbook idempotent
 - [x] Phase 3: tofu create + refresh idempotent against RGW (job 12970; role-destroy caveat documented)
-- [ ] Phase 4: seven30 buckets/roles tofu-managed, provider-aws-* gone from vcluster, RGW rate < 30 req/s
+- [x] Phase 4: crucible + demo + scout buckets/roles tofu-managed (2026-07-11); server-side `*-premig-bak` backups taken. Remaining: provider-aws-* removal from vcluster + platform base roles (`kestra-base`, `seven30-s3-admin/readonly`)
 - [ ] Phase 5: host-cluster provider-aws-* gone, shdr.ch still 200
 - [x] Phase 6: neo RGW healthy (3/3, was already up); caddy scrape restored on gateway agent (`up=1`)
 - [ ] DESIGN-0001 superseded note, aether docs swept
