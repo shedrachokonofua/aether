@@ -175,10 +175,15 @@ service:
 
     # Archive path (best-effort by construction): own large-batch processor so CH
     # gets few, huge inserts; bounded queue drops before backpressure. History of
-    # the two 2026-07-11 incidents + redesign rationale: telemetry-archive.md.
+    # the 2026-07-11 incidents + redesign rationale: telemetry-archive.md.
+    # NO transform/metrics here: it's a heavy per-datapoint OTTL pass whose only job
+    # is promoting resource attrs to datapoint attrs so PROMETHEUS sees labels. The
+    # CH exporter reads ResourceAttributes into its own column directly, so the
+    # transform is pure waste on this path (ran twice on the full stream = the +15%
+    # CPU regression at settle). Dropping it is cheaper AND more correct for CH.
     metrics/archive:
       receivers: [otlp]
-      processors: [memory_limiter, transform/metrics, batch/archive]
+      processors: [memory_limiter, batch/archive]
       exporters: [clickhouse/metrics]
 
     # Ingest logs and route based on source
