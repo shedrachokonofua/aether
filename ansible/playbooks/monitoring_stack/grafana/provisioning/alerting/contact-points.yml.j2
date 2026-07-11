@@ -1,5 +1,11 @@
 apiVersion: 1
 
+# This heartbeat was briefly routed to Inquest. Delete the stale receiver so
+# the intentional three-minute DeadMansSwitch remains Uptime Kuma-only.
+deleteContactPoints:
+  - orgId: 1
+    uid: inquest-deadman
+
 contactPoints:
   - orgId: 1
     name: apprise-standard
@@ -8,6 +14,13 @@ contactPoints:
         type: webhook
         settings:
           url: "https://apprise.home.shdr.ch/notify/aether?tags=standard&:message=body"
+          httpMethod: POST
+        disableResolveMessage: false
+      # Inquest mirrors every actionable aether alert into the incident workflow.
+      - uid: inquest-standard
+        type: webhook
+        settings:
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
           httpMethod: POST
         disableResolveMessage: false
 
@@ -38,6 +51,12 @@ contactPoints:
           url: "https://apprise.home.shdr.ch/notify/aether?tags=quiet&:message=body"
           httpMethod: POST
         disableResolveMessage: false
+      - uid: inquest-digest
+        type: webhook
+        settings:
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
+          httpMethod: POST
+        disableResolveMessage: false
 
   - orgId: 1
     name: apprise-security
@@ -46,6 +65,12 @@ contactPoints:
         type: webhook
         settings:
           url: "https://apprise.home.shdr.ch/notify/aether?tags=security&:message=body"
+          httpMethod: POST
+        disableResolveMessage: false
+      - uid: inquest-security
+        type: webhook
+        settings:
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
           httpMethod: POST
         disableResolveMessage: false
 

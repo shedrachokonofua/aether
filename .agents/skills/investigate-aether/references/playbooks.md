@@ -75,14 +75,14 @@ Completion: name the failing exchange and the authoritative configuration that c
 1. Start from the Grafana alert fingerprint and `so/aether/incidents` issue
    timeline; distinguish Grafana facts, Kestra state, Holmes analysis, and human
    comments.
-2. Run `grafana-read.bb contact-points` and confirm the alert routes to the live
-   `inquest-webhook` receiver without exposing its URL key.
+2. Run `grafana-read.bb contact-points` and confirm the alert's contact point has
+   an `inquest-*` receiver without exposing its URL key.
 3. Match the fingerprint and timestamps to the `aether.inquest/alert-intake`
    and `process-alert` Kestra executions.
 4. If the pipeline succeeded, independently verify the Holmes RCA through
    Grafana and the smallest relevant live surface.
 5. If the pipeline failed, locate the first failed hop: Grafana delivery,
-   intake gating, Kestra subflow, GitLab issue API, Holmes request, or Apprise
+   intake fan-out, Kestra subflow, GitLab issue API, Holmes request, or Apprise
    notification. Do not trigger, retry, or edit anything during diagnosis.
 
 Completion: state separately whether the infrastructure incident is understood,

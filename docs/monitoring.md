@@ -215,9 +215,9 @@ and administration. Investigation remains read-only. IaC remediation and any
 explicitly approved live patch follow `AGENTS.md`.
 
 The automated path is implemented by sibling
-[`inquest`](https://gitlab.home.shdr.ch/so/inquest): Grafana dual-delivers page-class alerts to
-Kestra, Inquest creates or updates `so/aether/incidents` issues, and Holmes
-posts a read-only RCA for human verification. Aether owns Kestra, Holmes,
+[`inquest`](https://gitlab.home.shdr.ch/so/inquest): Grafana dual-delivers every actionable
+alert to Kestra, Inquest creates or updates `so/aether/incidents` issues, and
+Holmes posts a read-only RCA for human verification. Aether owns Kestra, Holmes,
 Grafana routing, secrets, and network policy; Inquest owns the flow IaC and
 incident lifecycle. This path is separate from, and not a prerequisite for,
 interactive `$investigate-aether` work. The older
@@ -226,11 +226,11 @@ document is a superseded AIAgent/Fleet exploration.
 
 ## Alerting
 
-Alerts route through Apprise to ntfy for push notifications. The
-`apprise-critical` contact point also contains the Inquest webhook receiver, so
-page-class alerts are delivered to both the human paging path and the automated
-incident path. Standard, digest, and non-critical security receivers remain
-Apprise-only.
+Alerts route through Apprise to ntfy for push notifications. Every
+`apprise-*` contact point also contains the Inquest webhook receiver, so critical,
+standard, digest, and security alerts are delivered to both their existing human
+path and the automated incident path. `kuma-deadman` remains exclusively the
+always-firing Uptime Kuma heartbeat; it is not an incident source.
 
 ### Severity Levels
 
