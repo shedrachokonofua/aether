@@ -191,7 +191,7 @@ pinned image versions on both sides (A2), then validate with real queries before
 | Loki chunks/index | loki volume | 90d | two-phase rsync (below) |
 | ClickHouse (zeek/suricata) | clickhouse volume | 365d | two-phase rsync; same CH tag both sides; verify with row counts per table |
 | Grafana DB | grafana volume | n/a | copy sqlite (service accounts, tenant orgs) even with dashboards codified |
-| Prometheus TSDB | prometheus_storage | 15d | two-phase rsync if convenient; acceptable loss window |
+| Prometheus TSDB | prometheus_storage | 30d | two-phase rsync if convenient; acceptable loss window |
 | Tempo blocks | tempo volume | 7d | acceptable loss; skip |
 
 ### Cutover (blue-green)
