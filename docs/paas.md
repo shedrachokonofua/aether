@@ -30,6 +30,7 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Crossplane     | Infrastructure control plane (Ceph RGW S3-compatible) |
 | Kestra OSS     | YAML automation plane and Inquest flow runtime         |
 | HolmesGPT      | Read-only Kubernetes/Prometheus/Loki investigation agent |
+| Keel           | Auto-updates our GitLab `:latest` app images on new digests |
 
 Goldilocks is advisory only: it creates VPA objects with `updateMode: Off` in
 namespaces labeled `goldilocks.fairwinds.com/enabled=true`. Resource changes
@@ -49,6 +50,38 @@ runtime policy.
 
 Trivy's node collector is configured with Talos-safe host paths and small scan
 job requests so per-node scans can run on the ARM pool without hard arch pins.
+
+### Image auto-updates (Keel)
+
+Keel (`tofu/home/kubernetes/keel.tf`, namespace `keel`) force-updates a curated
+set of workloads when the digest behind their `:latest` tag changes in the
+private GitLab registry. Only our own CI-built images opt in: orion, composer,
+litellm's `espn-mcp` + `finviz-mcp-server` sidecars, mnemo, and deskplane
+(controller + serve). Third-party `:latest` sidecars in the litellm pod are
+excluded via `keel.sh/monitorContainers`.
+
+Opt-in is per-workload metadata — `keel.sh/policy=force`, `keel.sh/trigger=poll`,
+`keel.sh/matchTag=true`. Native Deployments (orion/composer/litellm) carry the
+annotations inline; Helm-managed Deployments (mnemo/deskplane) get them via
+`kubernetes_annotations` because their charts expose no annotation passthrough.
+Keel polls every minute using each workload's existing image pull secret, so no
+cluster-wide registry credential is configured.
+
+Keel owns the running build, not OpenTofu. It keeps the image string at
+`:latest` (no tofu image diff) and triggers rollouts by writing
+`keel.sh/update-time` (pod template) and `kubernetes.io/change-cause`
+(Deployment); both are suppressed via `lifecycle.ignore_changes` on the native
+Deployments and fall outside the `kubernetes_annotations` field manager on the
+Helm ones, so Keel never fights tofu. Consequence: tofu state no longer records
+which digest is live, and rollback means repushing or repinning the tag rather
+than a tofu revert.
+
+Keel posts update notifications to the Apprise gateway
+(`notificationLevel: success` → one message per applied update, plus failures).
+Because Apprise reserves the `type` field for its severity enum and rejects
+Keel's `type="deployment update"`, the endpoint remaps it to the title
+(`&:type=title`) and feeds `message` to the body (`&:message=body`), routed to
+the `quiet` group (Matrix chat only, no push).
 
 ### Access
 

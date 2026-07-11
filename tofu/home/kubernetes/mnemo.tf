@@ -11,7 +11,7 @@ locals {
   mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
   mnemo_port          = 4000
   mnemo_chart_version = "0.1.0-66908767"
-  mnemo_image_tag     = "66908767"
+  mnemo_image_tag     = "latest"
   mnemo_cnpg          = "mnemo-cnpg"
   mnemo_db            = "mnemo"
   mnemo_db_user       = "mnemo"
@@ -685,6 +685,33 @@ resource "helm_release" "mnemo" {
   set = [
     { name = "image.tag", value = local.mnemo_image_tag }
   ]
+}
+
+# Keel opt-in for the chart-produced Deployment. The mnemo chart exposes no
+# annotation/label passthrough, so attach the keel.sh/* config to the live
+# Deployment metadata via server-side apply. Keel's Kubernetes provider reads
+# these and force-updates on a new :latest digest; registry auth reuses the
+# chart's imagePullSecret. This field manager owns only these keys, so Keel's
+# keel.sh/update-time + kubernetes.io/change-cause writes never fight tofu.
+resource "kubernetes_annotations" "mnemo_keel" {
+  depends_on = [helm_release.mnemo]
+
+  api_version = "apps/v1"
+  kind        = "Deployment"
+
+  metadata {
+    name      = "mnemo"
+    namespace = local.mnemo_namespace
+  }
+
+  annotations = {
+    "keel.sh/policy"   = "force"
+    "keel.sh/trigger"  = "poll"
+    "keel.sh/matchTag" = "true"
+  }
+
+  field_manager = "keel-optin"
+  force         = true
 }
 
 # --- DB Backup Target --------------------------------------------------------

@@ -415,6 +415,15 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "keel" = {
+      tier                    = "platform",
+      owner                   = "aether",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Keel image auto-updater (force-poll :latest GitLab images)",
+      source_file             = "tofu/home/kubernetes/keel.tf"
+    }
     "mnemo" = {
       tier                    = "app",
       owner                   = "aether",
