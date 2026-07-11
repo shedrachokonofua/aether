@@ -79,11 +79,12 @@ resource "helm_release" "holmesgpt" {
       }
     }
 
-    # Deep-merged over chart defaults (kubernetes/core+logs, internet, bash
-    # stay enabled with the chart's read-only ServiceAccount).
+    # Deep-merged over chart defaults. Disable bash: alert-driven prompts can
+    # carry attacker-controlled annotations/logs (Inquest); keep RO k8s + Prom/Loki.
     toolsets = {
       # Requires the Robusta SaaS platform - not deployed here.
       robusta = { enabled = false }
+      bash    = { enabled = false }
       "prometheus/metrics" = {
         enabled = true
         subtype = "prometheus"
@@ -96,4 +97,56 @@ resource "helm_release" "holmesgpt" {
       }
     }
   })]
+}
+
+# Restrict Holmes API to Kestra (Inquest) and Hermes (tungsten interactive).
+resource "kubernetes_manifest" "holmes_ingress_policy" {
+  depends_on = [helm_release.holmesgpt, module.namespace["kestra"], module.namespace["hermes"]]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "holmes-api-ingress"
+      namespace = local.holmes_ns
+    }
+    spec = {
+      endpointSelector = {
+        matchLabels = { app = "holmes" }
+      }
+      ingress = [
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = module.namespace["kestra"].name
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = "5050", protocol = "TCP" }]
+          }]
+        },
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = module.namespace["hermes"].name
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = "5050", protocol = "TCP" }]
+          }]
+        },
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = "system"
+            }
+          }]
+        },
+      ]
+    }
+  }
 }
