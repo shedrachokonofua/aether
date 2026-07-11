@@ -125,6 +125,12 @@ resource "kubernetes_service_account_v1" "external_secrets_reader" {
       "app.kubernetes.io/managed-by" = "OpenTofu"
     }
   }
+
+  lifecycle {
+    # Kyverno attaches DockerHub pull secrets by namespace label. Own the
+    # service account identity here, but leave registry credentials to Kyverno.
+    ignore_changes = [image_pull_secret]
+  }
 }
 
 resource "kubectl_manifest" "namespace_secret_store" {

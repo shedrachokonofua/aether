@@ -267,6 +267,12 @@ resource "kubernetes_manifest" "searxng_route" {
       }]
       hostnames = [local.searxng_host]
       rules = [{
+        filters = [{
+          type = "RequestHeaderModifier"
+          requestHeaderModifier = {
+            remove = ["X-Real-IP", "X-Forwarded-For"]
+          }
+        }]
         backendRefs = [{
           name = kubernetes_service_v1.searxng.metadata[0].name
           port = local.searxng_port

@@ -3,8 +3,10 @@
 # =============================================================================
 # Dedicated runner for container image builds that should move off the VM-based
 # Podman runner first. The instance runner itself must be created in GitLab with:
-#   - run untagged jobs: enabled
-#   - tag list: buildah
+#   - run untagged jobs: enabled (lint/test/e2e that need nested privileged pods)
+#   - tag list: buildah (optional explicit tag for image-build jobs)
+# Executor config sets privileged=true so untagged e2e can `podman run --privileged`
+# (systemd-in-container). Do not rely on a separate `privileged`-tagged runner.
 # This release only consumes the runner authentication token.
 
 locals {
