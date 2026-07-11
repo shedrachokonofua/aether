@@ -115,6 +115,11 @@ resource "kubernetes_deployment_v1" "orion" {
     name      = "orion"
     namespace = local.orion_ns
     labels    = local.orion_labels
+    annotations = {
+      "keel.sh/policy"   = "force"
+      "keel.sh/trigger"  = "poll"
+      "keel.sh/matchTag" = "true"
+    }
   }
 
   spec {
@@ -182,6 +187,9 @@ resource "kubernetes_deployment_v1" "orion" {
       # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
       spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
       spec[0].template[0].spec[0].priority_class_name,
+      # Keel force-updates rewrite these on a new :latest digest; tofu must not revert them.
+      metadata[0].annotations["kubernetes.io/change-cause"],
+      spec[0].template[0].metadata[0].annotations["keel.sh/update-time"],
     ]
   }
 }
