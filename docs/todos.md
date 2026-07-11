@@ -43,6 +43,13 @@
 
 ## P2
 
+- [ ] Continuous deployment — repo as primary interface ([exploration](exploration/continuous-deployment.md))
+  - [ ] Phase 0: GitLab governance audit; verify existing drift job auth; split drift signals; `aether-ci-*` Bao roles
+  - [ ] Phase 1: state decomposition (5-7 stacks) + Terramate; contracts into k8s-apps
+  - [ ] Phase 2: plan-on-MR (changed stacks + nix closure builds)
+  - [ ] Phase 3: actuator runner outside k8s; artifact-pinned manual apply jobs
+  - [ ] Phase 4: ansible/nix deploy lanes via CI SSH certs
+  - [ ] Phase 5: conftest policy checks on plan JSON
 - [ ] ClickHouse cold tier on SeaweedFS ([exploration](exploration/telemetry-archive.md))
   - [x] Phase 0: metrics archive live (2026-07-11, third attempt: dedicated 50k-batch pipeline, pinned collector, repo-owned schema, benchmark-gated; soak criteria all green)
   - [ ] Measure steady-state metrics ingest rate (1 week)
