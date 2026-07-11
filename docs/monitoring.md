@@ -73,6 +73,30 @@ flowchart TB
 | ClickHouse | Per table | 14-90d raw; selected hourly aggregates retain 90-365d (see ClickHouse SQL) |
 | ClickHouse (`metrics` db) | 365 days | dedicated `metrics/archive` pipeline (50k batches, bounded queue, best-effort by construction); Prometheus is the 30d hot path. Cold-tier to SeaweedFS planned — exploration/telemetry-archive.md |
 
+### Zeek `conn.IngestedAt` (Argos ingestion cursor)
+
+`zeek.conn.IngestedAt` is `DateTime64(3, 'UTC')` set by the typed-table materialized view as `now64(3)` when ClickHouse accepts the row into typed storage. It is **not** Zeek sensor event time (`Timestamp`) and **not** OTEL collection time.
+
+| Topic | Contract |
+| --- | --- |
+| Greenfield DDL | `clickhouse/02-typed-tables.sql` + `clickhouse/03-materialized-views.sql` |
+| Live cutover | `clickhouse-migrations/09-zeek-conn-ingested-at.sql` (shadow `conn_v2` + `EXCHANGE TABLES`; **not** in `docker-entrypoint-initdb.d`) |
+| Historical rows | At cutover, `IngestedAt = toDateTime64(Timestamp, 3, 'UTC')` |
+| Producer ack → typed visibility | OTEL `clickhouse/zeek` uses `async_insert: true` with `wait_for_async_insert=1`; MVs remain synchronous on INSERT. Successful exporter acknowledgement implies the typed `zeek.conn` row is query-visible. |
+| Visibility SLO | Conservative **60s** (2× server `async_insert_busy_timeout_max_ms` of 30s). With wait-on-flush, post-ack visibility is immediate; the SLO bounds end-to-end batching delay for watermark planning. |
+| Argos settle floor | `ARGOS_INGEST_SETTLE_SECONDS >= max(300, 2 × visibility_slo) = 300`. Default Argos `evaluation_interval` is 3600s; `2 × 60 < 3600` holds. |
+
+**Cutover verification (after applying `09-…` on a live volume):**
+
+1. Pre-cutover row: `IngestedAt` is non-null and equals event `Timestamp` (ms UTC).
+2. Insert a fixture with an old event `Timestamp` after cutover; `IngestedAt` is near `now64(3)`, not the old event time.
+3. Two fixtures on opposite half-open `IngestedAt` boundaries are each selected by exactly one `[start,end)` discovery window.
+4. Live `count()` on `zeek.conn` keeps rising; OTEL Zeek exporter shows no insert errors; Grafana panels that filter on `Timestamp` are unchanged.
+5. Stress: after an acknowledged insert, the typed row is visible before any configured safe cutoff derived from the visibility SLO.
+6. No post-cutover row has `IngestedAt` earlier than the cutover boundary.
+
+Do not apply `09-…` without an explicit live-change approval (pause producers per the SQL runbook header).
+
 ## Monitoring Agents
 
 ### VM Monitoring Agent

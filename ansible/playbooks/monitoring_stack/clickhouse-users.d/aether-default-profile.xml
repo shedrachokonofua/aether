@@ -8,9 +8,12 @@
       <log_query_views>0</log_query_views>
       <!-- Batch async inserts: adaptive flush allowed up to 30s (was capped 200ms) so the
            Zeek/Suricata firehose creates far fewer parts -> much less background merge CPU.
-           30s ingest lag is invisible to the 15m/24h-window IDS alerts. -->
+           wait_for_async_insert=1 makes producer ACK wait for flush; typed MVs are sync on
+           INSERT, so successful ACK implies zeek.* typed-row query visibility (Argos contract).
+           Argos ingest_settle floor remains >= 300s (>= 2x this max flush). -->
       <async_insert_busy_timeout_max_ms>30000</async_insert_busy_timeout_max_ms>
       <async_insert_max_data_size>52428800</async_insert_max_data_size>
+      <wait_for_async_insert>1</wait_for_async_insert>
     </default>
   </profiles>
 </clickhouse>
