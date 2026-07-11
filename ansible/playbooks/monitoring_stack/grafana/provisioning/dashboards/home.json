@@ -354,7 +354,7 @@
       "type": "stat",
       "title": "Site Power",
       "id": 7,
-      "description": "Live site power draw (Kepler).",
+      "description": "Live rack power draw, measured at the UPS (CP1500PFCRM2U, 1000W rated).",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -367,7 +367,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "sum(rate(kepler_node_platform_joules_total[5m]))",
+          "expr": "max(network_ups_tools_ups_load) * 10",
           "refId": "A",
           "instant": true,
           "range": false
@@ -1322,9 +1322,9 @@
     },
     {
       "type": "timeseries",
-      "title": "Power draw (W) by node",
+      "title": "Power draw (W) \u2014 measured",
       "id": 24,
-      "description": "Kepler node power, stacked = site total.",
+      "description": "Red line = whole-rack wall draw (UPS). Stacked areas = measured CPU package power (RAPL) per Proxmox host + GPU power (DCGM). Excludes ARM SBCs, drives, and PSU losses, so stacked total < UPS.",
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -1341,11 +1341,33 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "sum by(instance)(rate(kepler_node_platform_joules_total[5m]))",
+          "expr": "sum by(instance)(rate(node_rapl_package_joules_total{job=\"proxmox-hosts-node\"}[5m]))",
           "refId": "A",
           "instant": false,
           "range": true,
-          "legendFormat": "{{instance}}"
+          "legendFormat": "{{instance}} CPU"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sum by(Hostname)(DCGM_FI_DEV_POWER_USAGE)",
+          "refId": "B",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{Hostname}} GPU"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "max(network_ups_tools_ups_load) * 10",
+          "refId": "C",
+          "instant": false,
+          "range": true,
+          "legendFormat": "UPS total (wall)"
         }
       ],
       "fieldConfig": {
@@ -1359,7 +1381,37 @@
             }
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UPS total (wall)"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "mode": "none"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1666,7 +1718,7 @@
       "type": "stat",
       "title": "24h Energy (kWh)",
       "id": 31,
-      "description": "Total site energy over the last 24h (Kepler).",
+      "description": "Rack energy over the last 24h, from UPS average load.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -1679,7 +1731,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "sum(increase(kepler_node_platform_joules_total[24h]))/3600000",
+          "expr": "max(avg_over_time(network_ups_tools_ups_load[24h])) * 0.24",
           "refId": "A",
           "instant": true,
           "range": false
