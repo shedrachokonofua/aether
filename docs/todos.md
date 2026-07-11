@@ -43,6 +43,12 @@
 
 ## P2
 
+- [ ] ClickHouse cold tier on SeaweedFS ([exploration](exploration/telemetry-archive.md))
+  - [x] Phase 0: metrics -> ClickHouse `metrics` db, 1y TTL (live 2026-07-11)
+  - [ ] Measure steady-state metrics ingest rate (1 week)
+  - [ ] Phase 1: s3 disk + `tiered` policy; metrics tables first, then zeek/suricata
+  - [ ] Phase 2: logs fan-out to archive (Loki stays 90d hot path)
+  - [ ] Phase 3 (optional): clickhouse-cold bucket into restic offsite sync
 - [ ] Remove east-west NAT masquerade — real source identity on mgmt net ([exploration](exploration/east-west-nat-removal.md))
   - [ ] Phase 0: live verification (pve-firewall, existing routes, conntrack snapshot)
   - [ ] Phase 1: consolidate return routes into one templated mechanism; add backup-stack, bazzite-builder, nfs
