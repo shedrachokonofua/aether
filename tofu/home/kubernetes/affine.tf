@@ -147,73 +147,8 @@ resource "kubernetes_persistent_volume_claim_v1" "affine_indexer" {
 }
 
 # PGVector Postgres
-resource "kubernetes_stateful_set_v1" "affine_postgres" {
-  depends_on = [kubernetes_secret_v1.affine_postgres, kubernetes_persistent_volume_claim_v1.affine_postgres_data]
-  metadata {
-    name      = "affine-postgres"
-    namespace = local.affine_ns
-    labels    = local.affine_pg_labels
-  }
-  spec {
-    service_name = "affine-postgres"
-    # Legacy pre-CNPG database retained only for rollback.
-    replicas = 0
-    selector { match_labels = local.affine_pg_labels }
-    template {
-      metadata { labels = local.affine_pg_labels }
-      spec {
-        container {
-          name  = "postgres"
-          image = local.affine_pg_image
-          env_from {
-            secret_ref {
-              name = kubernetes_secret_v1.affine_postgres.metadata[0].name
-            }
-          }
-          env {
-            name  = "POSTGRES_INITDB_ARGS"
-            value = "--data-checksums"
-          }
-          env {
-            name  = "POSTGRES_HOST_AUTH_METHOD"
-            value = "trust"
-          }
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-          port { container_port = local.affine_pg_port }
-          volume_mount {
-            name       = "data"
-            mount_path = "/var/lib/postgresql/data"
-          }
-          readiness_probe {
-            exec { command = ["/bin/sh", "-c", "pg_isready -U affine -d affine"] }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-          }
-          resources {
-            requests = { cpu = "100m", memory = "256Mi" }
-            limits   = { cpu = "2", memory = "2Gi" }
-          }
-        }
-        volume {
-          name = "data"
-          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.affine_postgres_data.metadata[0].name }
-        }
-      }
-    }
-  }
-
-
-  lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
-  }
-}
 
 resource "kubernetes_service_v1" "affine_postgres" {
-  depends_on = [kubernetes_stateful_set_v1.affine_postgres]
   metadata {
     name      = "affine-postgres"
     namespace = local.affine_ns
