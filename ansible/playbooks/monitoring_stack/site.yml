@@ -418,6 +418,23 @@
           GF_SECURITY_ADMIN_PASSWORD: "{{ secrets.grafana_password }}"
       tags: [grafana]
 
+    # Grafana file provisioning does not reconcile an omitted receiver from an
+    # existing contact point. Keep the DeadMansSwitch heartbeat Kuma-only.
+    - name: Remove stale Inquest DeadMansSwitch receiver
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/v1/provisioning/contact-points/inquest-deadman"
+        method: DELETE
+        user: "{{ secrets.grafana.username | default('shdrch') }}"
+        password: "{{ secrets.grafana_password }}"
+        force_basic_auth: true
+        status_code: [202, 204, 404]
+      register: stale_inquest_receiver
+      until: stale_inquest_receiver.status in [202, 204, 404]
+      retries: 30
+      delay: 2
+      no_log: true
+      tags: [grafana]
+
     # === Tenant Query Proxy (Janus) ===
     - name: Start Janus multi-service proxy
       containers.podman.podman_container:
