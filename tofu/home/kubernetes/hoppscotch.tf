@@ -126,64 +126,7 @@ resource "kubernetes_persistent_volume_claim_v1" "hoppscotch_postgres_data" {
   lifecycle { prevent_destroy = true }
 }
 
-resource "kubernetes_stateful_set_v1" "hoppscotch_postgres" {
-  depends_on = [kubernetes_secret_v1.hoppscotch_postgres, kubernetes_persistent_volume_claim_v1.hoppscotch_postgres_data]
-  metadata {
-    name      = "hoppscotch-postgres"
-    namespace = local.hoppscotch_ns
-    labels    = local.hoppscotch_pg_labels
-  }
-  spec {
-    service_name = "hoppscotch-postgres"
-    replicas     = 1
-    selector { match_labels = local.hoppscotch_pg_labels }
-    template {
-      metadata { labels = local.hoppscotch_pg_labels }
-      spec {
-        container {
-          name  = "postgres"
-          image = local.hoppscotch_pg_image
-          env_from {
-            secret_ref {
-              name = kubernetes_secret_v1.hoppscotch_postgres.metadata[0].name
-            }
-          }
-          env {
-            name  = "PGDATA"
-            value = "/var/lib/postgresql/data/pgdata"
-          }
-          port { container_port = local.hoppscotch_pg_port }
-          volume_mount {
-            name       = "data"
-            mount_path = "/var/lib/postgresql/data"
-          }
-          readiness_probe {
-            exec { command = ["/bin/sh", "-c", "pg_isready -U hoppscotch -d hoppscotch"] }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-          }
-          resources {
-            requests = { cpu = "100m", memory = "256Mi" }
-            limits   = { cpu = "1", memory = "1Gi" }
-          }
-        }
-        volume {
-          name = "data"
-          persistent_volume_claim { claim_name = kubernetes_persistent_volume_claim_v1.hoppscotch_postgres_data.metadata[0].name }
-        }
-      }
-    }
-  }
-
-
-  lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
-  }
-}
-
 resource "kubernetes_service_v1" "hoppscotch_postgres" {
-  depends_on = [kubernetes_stateful_set_v1.hoppscotch_postgres]
   metadata {
     name      = "hoppscotch-postgres"
     namespace = local.hoppscotch_ns
