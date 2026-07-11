@@ -461,7 +461,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(k8s_node_cpu_utilization{host_name=~\"$node\"}) / sum(kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
+          "expr": "sum(k8s_node_cpu_utilization_ratio{host_name=~\"$node\"}) / sum(kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
           "legendFormat": "% used",
           "refId": "A"
         },
@@ -477,7 +477,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(k8s_node_cpu_utilization{host_name=~\"$node\"})",
+          "expr": "sum(k8s_node_cpu_utilization_ratio{host_name=~\"$node\"})",
           "legendFormat": "cores used",
           "refId": "B"
         },
@@ -667,7 +667,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(k8s_node_memory_working_set{host_name=~\"$node\"}) / sum(k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})",
+          "expr": "sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"}) / sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
           "legendFormat": "% used",
           "refId": "A"
         },
@@ -683,7 +683,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(k8s_node_memory_working_set{host_name=~\"$node\"})",
+          "expr": "sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"})",
           "legendFormat": "used",
           "refId": "B"
         },
@@ -699,7 +699,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum(k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})",
+          "expr": "sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
           "legendFormat": "total",
           "refId": "C"
         }
@@ -1678,7 +1678,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_cpu_utilization{host_name=~\"$node\"}",
+          "expr": "k8s_node_cpu_utilization_ratio{host_name=~\"$node\"}",
           "format": "table",
           "instant": true,
           "refId": "B"
@@ -1687,7 +1687,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_memory_working_set{host_name=~\"$node\"} / (k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})",
+          "expr": "k8s_node_memory_working_set_bytes{host_name=~\"$node\"} / (k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
           "format": "table",
           "instant": true,
           "refId": "C"
@@ -1696,7 +1696,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"}",
+          "expr": "k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"}",
           "format": "table",
           "instant": true,
           "refId": "D"
@@ -1705,7 +1705,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_filesystem_usage{host_name=~\"$node\"} / k8s_node_filesystem_capacity{host_name=~\"$node\"}",
+          "expr": "k8s_node_filesystem_usage_bytes{host_name=~\"$node\"} / k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
           "format": "table",
           "instant": true,
           "refId": "E"
@@ -1714,7 +1714,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_filesystem_capacity{host_name=~\"$node\"}",
+          "expr": "k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
           "format": "table",
           "instant": true,
           "refId": "F"
@@ -1902,7 +1902,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_cpu_utilization{host_name=~\"$node\"}",
+          "expr": "k8s_node_cpu_utilization_ratio{host_name=~\"$node\"}",
           "legendFormat": "{{host_name}}",
           "refId": "A"
         }
@@ -1996,7 +1996,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_memory_working_set{host_name=~\"$node\"} / (k8s_node_memory_working_set{host_name=~\"$node\"} + k8s_node_memory_available{host_name=~\"$node\"})",
+          "expr": "k8s_node_memory_working_set_bytes{host_name=~\"$node\"} / (k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
           "legendFormat": "{{host_name}}",
           "refId": "A"
         }
@@ -2075,7 +2075,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_filesystem_usage{host_name=~\"$node\"} / k8s_node_filesystem_capacity{host_name=~\"$node\"}",
+          "expr": "k8s_node_filesystem_usage_bytes{host_name=~\"$node\"} / k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
           "instant": true,
           "legendFormat": "{{host_name}}",
           "refId": "A"
@@ -2181,7 +2181,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum by (host_name) (rate(k8s_pod_network_io{direction=\"receive\",host_name=~\"$node\"}[$__rate_interval]))",
+          "expr": "sum by (host_name) (rate(k8s_pod_network_io_bytes_total{direction=\"receive\",host_name=~\"$node\"}[$__rate_interval]))",
           "legendFormat": "{{host_name}} rx",
           "refId": "A"
         },
@@ -2189,7 +2189,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum by (host_name) (rate(k8s_pod_network_io{direction=\"transmit\",host_name=~\"$node\"}[$__rate_interval]))",
+          "expr": "sum by (host_name) (rate(k8s_pod_network_io_bytes_total{direction=\"transmit\",host_name=~\"$node\"}[$__rate_interval]))",
           "legendFormat": "{{host_name}} tx",
           "refId": "B"
         }
@@ -2927,7 +2927,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_cpu_utilization{service_namespace=~\"$namespace\"}))",
+          "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_cpu_utilization_ratio{service_namespace=~\"$namespace\"}))",
           "legendFormat": "{{service_name}}",
           "refId": "A"
         }
@@ -3019,7 +3019,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"}))",
+          "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"}))",
           "legendFormat": "{{service_name}}",
           "refId": "A"
         }
@@ -3157,7 +3157,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"}) / on (service_name, service_namespace) group_left() sum by (service_name, service_namespace) (k8s_container_memory_limit{service_namespace=~\"$namespace\"}) > 0.5)",
+          "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"}) / on (service_name, service_namespace) group_left() sum by (service_name, service_namespace) (k8s_container_memory_limit_bytes{service_namespace=~\"$namespace\"}) > 0.5)",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -3166,7 +3166,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum by (service_name, service_namespace) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"})",
+          "expr": "sum by (service_name, service_namespace) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"})",
           "format": "table",
           "instant": true,
           "refId": "B"
@@ -3175,7 +3175,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum by (service_name, service_namespace) (k8s_container_memory_limit{service_namespace=~\"$namespace\"})",
+          "expr": "sum by (service_name, service_namespace) (k8s_container_memory_limit_bytes{service_namespace=~\"$namespace\"})",
           "format": "table",
           "instant": true,
           "refId": "C"
@@ -3302,7 +3302,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum by (service_namespace) (k8s_pod_cpu_utilization{service_namespace=~\"$namespace\"})",
+          "expr": "sum by (service_namespace) (k8s_pod_cpu_utilization_ratio{service_namespace=~\"$namespace\"})",
           "legendFormat": "{{service_namespace}} used",
           "refId": "A"
         },
@@ -3401,7 +3401,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum by (service_namespace) (k8s_pod_memory_working_set{service_namespace=~\"$namespace\"})",
+          "expr": "sum by (service_namespace) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"})",
           "legendFormat": "{{service_namespace}} used",
           "refId": "A"
         },
@@ -3409,7 +3409,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "sum by (service_namespace) (k8s_container_memory_request{service_namespace=~\"$namespace\"})",
+          "expr": "sum by (service_namespace) (k8s_container_memory_request_bytes{service_namespace=~\"$namespace\"})",
           "legendFormat": "{{service_namespace}} requested",
           "refId": "B"
         }
@@ -3514,7 +3514,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io{service_namespace=~\"$namespace\", direction=\"receive\"}[$__rate_interval])))",
+          "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io_bytes_total{service_namespace=~\"$namespace\", direction=\"receive\"}[$__rate_interval])))",
           "legendFormat": "{{service_name}}",
           "refId": "A"
         }
@@ -3606,7 +3606,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io{service_namespace=~\"$namespace\", direction=\"transmit\"}[$__rate_interval])))",
+          "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io_bytes_total{service_namespace=~\"$namespace\", direction=\"transmit\"}[$__rate_interval])))",
           "legendFormat": "{{service_name}}",
           "refId": "A"
         }
@@ -3697,7 +3697,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk(10, sum by (service_name, direction) (rate(k8s_pod_network_errors{service_namespace=~\"$namespace\"}[$__rate_interval])) > 0)",
+          "expr": "topk(10, sum by (service_name, direction) (rate(k8s_pod_network_errors_total{service_namespace=~\"$namespace\"}[$__rate_interval])) > 0)",
           "legendFormat": "{{service_name}} {{direction}}",
           "refId": "A"
         }
@@ -3789,7 +3789,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_filesystem_usage{service_namespace=~\"$namespace\"}))",
+          "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_filesystem_usage_bytes{service_namespace=~\"$namespace\"}))",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -3904,7 +3904,7 @@
           "datasource": {
             "uid": "$datasource"
           },
-          "expr": "k8s_node_filesystem_usage{host_name=~\"$node\"} / k8s_node_filesystem_capacity{host_name=~\"$node\"}",
+          "expr": "k8s_node_filesystem_usage_bytes{host_name=~\"$node\"} / k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
           "legendFormat": "{{host_name}}",
           "refId": "A"
         }
