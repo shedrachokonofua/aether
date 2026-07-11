@@ -361,15 +361,23 @@
     - name: Start Loki
       containers.podman.podman_container:
         name: loki
-        image: docker.io/grafana/loki:latest
+        # Pinned (was :latest) 2026-07-11: a fresh :latest pull on a pod restart
+        # start-timed-out and killed the log sink, cascading to k8s-metrics-dead.
+        # Renovate bumps this.
+        image: docker.io/grafana/loki:3.7.3
         pod: monitoring-stack.pod
-        pull: always
+        pull: missing
         command:
           - "-config.file=/etc/loki/config.yml"
         volumes:
           - /home/aether/loki/loki_config.yml:/etc/loki/config.yml:Z
           - /home/aether/loki/data:/var/lib/loki:Z
         state: quadlet
+        # WAL replay under mass-restart contention needs headroom past the default.
+        quadlet_options:
+          - |
+            [Service]
+            TimeoutStartSec=300
       tags: [loki]
 
     - name: Start tempo
