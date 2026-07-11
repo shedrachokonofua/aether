@@ -3,7 +3,7 @@
 Inquest is the unattended alert pipeline in sibling `../inquest`:
 
 ```text
-Grafana page-class receiver -> Kestra alert-intake -> process-alert
+Grafana actionable-alert receiver -> Kestra alert-intake -> process-alert
   -> GitLab so/aether/incidents -> Holmes RCA comment -> human review
 ```
 
@@ -14,7 +14,7 @@ investigation.
 
 | Concern | Authoritative source |
 | --- | --- |
-| Alert gating, fan-out, dedupe, issue updates, Holmes request | `../inquest/flows/` |
+| Alert intake, fan-out, dedupe, issue updates, Holmes request | `../inquest/flows/` |
 | Flow deployment | `../inquest/tofu/main.tf`, `../inquest/.gitlab-ci.yml` |
 | Operator contract | `../inquest/README.md`, `../inquest/docs/operator.md` |
 | Kestra runtime, credentials, and flow environment | `tofu/home/kubernetes/kestra.tf`, `tofu/home/openbao_so_ci.tf` |
