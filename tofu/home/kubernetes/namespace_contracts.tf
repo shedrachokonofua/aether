@@ -1098,7 +1098,7 @@ locals {
     "docling.home.shdr.ch"            = "/health"
     "firecrawl-mcp.home.shdr.ch"      = "/health"
     "matrix.home.shdr.ch"             = "/_matrix/client/versions"
-    "kestra.home.shdr.ch"             = "/health"
+    "kestra.home.shdr.ch"             = "/ui/"
     "searxng.home.shdr.ch"            = "/healthz"
     "tungsten.home.shdr.ch"           = "/health"
   }
