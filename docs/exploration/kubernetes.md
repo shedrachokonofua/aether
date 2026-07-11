@@ -398,6 +398,11 @@ Turns Kubernetes into a universal control plane for external infrastructure. App
 | provider-cloudflare | DNS records                        |
 | provider-kubernetes | K8s resources (for compositions)   |
 
+> **2026-07 update:** `provider-aws-s3`/`provider-aws-iam` were **removed** — S3
+> bucket + IAM provisioning moved to tofu-native (AWS provider → Ceph RGW via STS;
+> keyless). Crossplane now manages **Keycloak only**. The S3/IAM flows described
+> below are historical. See `docs/worklogs/crossplane-s3-migration-2026-07.md`.
+
 **Example: Static Site with Auth + DB**
 
 Developer commits this to their app repo:
