@@ -97,9 +97,10 @@
           # Restart policy
           - set container name otel-collector restart on-failure
 
-          # Container arguments - point to config file
-          - set container name otel-collector argument '--config=/etc/otel/config.yml'
-          - set container name otel-collector argument '--feature-gates=+filelog.allowFileDeletion'
+          # Container arguments. VyOS `argument` is a single-valued leaf — a
+          # second `set` REPLACES the first, so config + feature gate must be
+          # one combined string.
+          - set container name otel-collector argument '--config=/etc/otel/config.yml --feature-gates=+filelog.allowFileDeletion'
 
           # Mount the config directory
           - set container name otel-collector volume otel-config source /config/otel
