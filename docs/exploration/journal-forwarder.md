@@ -4,6 +4,23 @@ Implementation plan for pull-based journal log collection from the hosts that ru
 OTEL agent: the five Proxmox hosts and the cloud VMs (AWS public-gateway, GCP uptime-monitor). Closes the P0 gap where these
 machines expose metrics (node/SMART exporters) but ship no logs.
 
+> **Status (2026-07): implemented and deployed.** Three deviations from the plan
+> below, driven by discovery during rollout:
+> 1. **Cloud transport is routed WireGuard, not Tailscale.** Tailscale was retired
+>    on the AWS/GCP nodes; cloud sources are reached at their routed site IPs
+>    (`10.1.0.10`, `10.2.0.10`) over the WireGuard fabric. No `tag:monitoring`
+>    client is added. The nftables/VyOS `CLOUD`-zone rules are the authn boundary.
+> 2. **Proxmox mTLS is terminated by ghostunnel, not gatewayd `--trust`.** Debian
+>    systemd is built with openssl (`-GNUTLS`), so gatewayd's `--trust` is
+>    unavailable at runtime. gatewayd serves plain HTTP on loopback and ghostunnel
+>    terminates client-cert mTLS (the `pki-journal-client` intermediate is the
+>    trust anchor; Go accepts it as an anchor without the root, unlike OpenSSL).
+> 3. **Cursors are seeded to the journal tail on fresh deploy** so long-uptime
+>    hosts don't backfill weeks of stale entries that Loki rejects as too old.
+>
+> Deployment: `task configure:journal-gateways` + `task configure:journal-forwarder`.
+> See [monitoring.md](../monitoring.md) → "Journal Forwarder".
+
 Source project: `gitlab.home.shdr.ch/shdrch/otel-journal-gatewayd-forwarder` — Rust, static
 musl binary, polls `systemd-journal-gatewayd` endpoints and emits OTLP/HTTP JSON with
 crash-safe per-source cursors.
@@ -182,13 +199,13 @@ labels = { instance_type = "proxmox_host" }
 
 [[sources]]
 name = "public-gateway"
-url  = "http://<tailscale-ip>:19531"   # tf_outputs.tailscale_public_gateway_ip (device lookup)
+url  = "http://10.1.0.10:19531"   # routed WireGuard site IP (AWS)
 tls  = {}   # explicit empty block opts this source out of the global mTLS identity
 labels = { instance_type = "vps" }
 
 [[sources]]
 name = "uptime-monitor"
-url  = "http://<tailscale-ip>:19531"   # tf_outputs.tailscale_uptime_monitor_ip (existing lookup)
+url  = "http://10.2.0.10:19531"   # routed WireGuard site IP (GCP)
 tls  = {}
 labels = { instance_type = "vps" }
 ```
