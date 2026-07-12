@@ -48,6 +48,18 @@ processors:
           # Tenant scoping
           - set(attributes["service_namespace"], resource.attributes["service.namespace"]) where resource.attributes["service.namespace"] != nil
 
+  # Journal-forwarder logs arrive with service.name = the systemd unit and the
+  # host in host.name. Rewrite service.name to the host so these sources match
+  # the fleet convention (VM agents set service.name = hostname); the unit stays
+  # in the journald_unit_name attribute. Scoped by instance_type, which only the
+  # forwarder sets, so zeek/suricata/VM/k8s logs are untouched.
+  transform/journal_forwarder_identity:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], attributes["host.name"]) where attributes["instance_type"] != nil and attributes["host.name"] != nil
+
 connectors:
   # Route logs based on source - single decision point
   routing/logs:
@@ -192,7 +204,7 @@ service:
     # Ingest logs and route based on source
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, transform/journal_forwarder_identity, batch]
       exporters: [routing/logs]
 
     # Zeek logs -> ClickHouse
