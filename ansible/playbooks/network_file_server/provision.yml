@@ -102,3 +102,35 @@
         state: started
         timeout: 300
       ignore_errors: true
+
+    - name: Wait for NetworkManager inside NFS LXC
+      ansible.builtin.command:
+        argv:
+          - pct
+          - exec
+          - "{{ vm.nfs.id }}"
+          - --
+          - nmcli
+          - general
+          - status
+      register: nfs_networkmanager_status
+      until: nfs_networkmanager_status.rc == 0
+      retries: 12
+      delay: 5
+
+    - name: Enforce static Gigahub-side eth0 profile through NetworkManager
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          profile_uuid="$(pct exec {{ vm.nfs.id }} -- nmcli -t -f UUID,DEVICE connection show |
+            awk -F: '$2 == "eth0" && $1 != "--" { print $1; exit }')"
+          test -n "$profile_uuid"
+          # NetworkManager treats gateway + never-default as mutually exclusive;
+          # never-default is intentional because eth1 owns the only default route.
+          pct exec {{ vm.nfs.id }} -- nmcli connection modify uuid "$profile_uuid" \
+            ipv4.method manual \
+            ipv4.addresses "{{ vm.nfs.ip.gigahub }}/24" \
+            ipv4.gateway "{{ vm.nfs.gateway.gigahub }}" \
+            ipv4.never-default yes
+          pct exec {{ vm.nfs.id }} -- nmcli connection up uuid "$profile_uuid"
+        executable: /bin/bash
