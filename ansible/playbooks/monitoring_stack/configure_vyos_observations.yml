@@ -73,3 +73,12 @@
           GOGC: "200"
           GOMEMLIMIT: "3GiB"
         state: quadlet
+
+    # The quadlet state only regenerates the unit; a running collector keeps
+    # its loaded configuration until restarted. This playbook exists solely to
+    # change the observation route, so always restart.
+    - name: Restart central OTel Collector for routing changes
+      ansible.builtin.systemd:
+        name: otel_collector
+        state: restarted
+        scope: user
