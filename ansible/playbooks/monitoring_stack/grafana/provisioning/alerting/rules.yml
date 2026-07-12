@@ -3493,3 +3493,133 @@ groups:
         annotations:
           summary: "mnemo Matrix appservice transaction ID/body-hash conflict"
           description: "A transaction ID was reused with different content — a delivery-contract violation. Investigate Synapse retry behavior immediately."
+
+  # ===========================================================================
+  - orgId: 1
+    name: Journal Forwarder
+    folder: Alerts
+    interval: 1m
+    rules:
+      # No successful export from a source in 15m. Every live host logs
+      # something within 15m, so a stale source means the gatewayd is down,
+      # the mTLS/WireGuard path broke, or a cert renewal was missed.
+      - uid: journal-forwarder-poll-stale
+        title: Journal Forwarder Poll Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: time() - ojgf_last_success_timestamp_seconds
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [900]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: monitoring
+        annotations:
+          summary: "Journal forwarder source {{ $labels.source }} has not exported in >15m"
+          description: 'No successful OTLP export from {{ $labels.source }} for {{ $values.B.Value | printf "%.0f" }}s. Check the source gatewayd, the WireGuard/mTLS path, and cert renewal.'
+
+      # Sustained poll failures against a source (gatewayd down, TLS expiry,
+      # network path broken). TLS-expiry failures surface here by design.
+      - uid: journal-forwarder-poll-errors
+        title: Journal Forwarder Poll Errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: increase(ojgf_poll_errors_total[15m])
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [10]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: monitoring
+        annotations:
+          summary: "Journal forwarder poll errors for {{ $labels.source }}"
+          description: '{{ $values.B.Value | printf "%.0f" }} poll errors in 15m against {{ $labels.source }}. Check gatewayd reachability and certificate validity.'
+
+      # The forwarder metrics endpoint is entirely gone: service down or the
+      # scrape broke. absent() returns 1 only when no series exist.
+      - uid: journal-forwarder-absent
+        title: Journal Forwarder Absent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: absent(ojgf_last_poll_timestamp_seconds)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          domain: monitoring
+        annotations:
+          summary: "Journal forwarder metrics absent"
+          description: "No ojgf_* metrics on monitoring-stack for >10m — the otel-journal-gatewayd-forwarder service is down or its scrape broke."
