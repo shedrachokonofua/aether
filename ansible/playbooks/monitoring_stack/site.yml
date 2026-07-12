@@ -273,6 +273,13 @@
         mode: "0644"
       tags: [clickhouse]
 
+    - name: Label VyOS observation schema for the ClickHouse container
+      ansible.builtin.file:
+        path: /home/aether/clickhouse/init/09-vyos-observations.sql
+        setype: container_file_t
+      become: true
+      tags: [clickhouse, vyos-exporter]
+
     - name: Copy ClickHouse config overrides
       copy:
         src: ./clickhouse-config.d/

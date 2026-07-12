@@ -25,6 +25,12 @@
         dest: /home/aether/clickhouse/init/09-vyos-observations.sql
         mode: "0644"
 
+    - name: Label VyOS observation schema for the ClickHouse container
+      ansible.builtin.file:
+        path: /home/aether/clickhouse/init/09-vyos-observations.sql
+        setype: container_file_t
+      become: true
+
     - name: Wait for ClickHouse
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.clickhouse }}/ping"
