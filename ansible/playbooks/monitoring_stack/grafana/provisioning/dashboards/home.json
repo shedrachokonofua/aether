@@ -1583,7 +1583,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Drill-down\n\n**Security:** [Security Triage](/d/security-triage) \u00b7 [IDS Monitoring](/d/ids-monitoring) \u00b7 [Fleet](https://fleet.home.shdr.ch)\n\n**Platform:** [Kubernetes](/d/kubernetes-main) \u00b7 [Ceph](/d/ceph-monitoring-main) \u00b7 [Proxmox](/d/Dp7Cd57Zza) \u00b7 [Hosts](/d/rYdddlPWk) \u00b7 [Disk Health](/d/ce8j0dmrrej9cc) \u00b7 [PBS](/d/f0814b49-4e9a-4efa-89c0-061221f25af5)\n\n**Edge/apps:** [Reverse Proxy](/d/fed94ifiv8h6oc) \u00b7 [DNS](/d/AdGuard-Home-Exporter) \u00b7 [HAProxy](/d/rEqu1u5ue) \u00b7 [UPS](/d/j4a-DMWRk)\n\n**Alerting:** [all rules](/alerting/list) \u00b7 `channel`/`domain`/`criticality` \u2192 Apprise (ntfy+Matrix); `DeadMansSwitch` firing = BY DESIGN (Kuma heartbeat). Ceph OSD-down = dead NVMe on neo (hardware)."
+        "content": "### Drill-down\n\n**Security:** [Security Triage](/d/security-triage) \u00b7 [IDS Monitoring](/d/ids-monitoring) \u00b7 [Fleet](https://fleet.home.shdr.ch)\n\n**Platform:** [Kubernetes](/d/kubernetes-main) \u00b7 [Ceph](/d/ceph-monitoring-main) \u00b7 [Proxmox](/d/Dp7Cd57Zza) \u00b7 [Hosts](/d/rYdddlPWk) \u00b7 [Disk Health](/d/ce8j0dmrrej9cc) \u00b7 [PBS](/d/f0814b49-4e9a-4efa-89c0-061221f25af5) \u00b7 [Certificates](/d/certificates/certificates)\n\n**Edge/apps:** [Reverse Proxy](/d/fed94ifiv8h6oc) \u00b7 [DNS](/d/AdGuard-Home-Exporter) \u00b7 [HAProxy](/d/rEqu1u5ue) \u00b7 [UPS](/d/j4a-DMWRk)\n\n**Alerting:** [all rules](/alerting/list) \u00b7 `channel`/`domain`/`criticality` \u2192 Apprise (ntfy+Matrix); `DeadMansSwitch` firing = BY DESIGN (Kuma heartbeat). Ceph OSD-down = dead NVMe on neo (hardware)."
       }
     },
     {
@@ -1652,9 +1652,9 @@
     },
     {
       "type": "stat",
-      "title": "Nearest Cert Expiry (days)",
+  "title": "Certificate Issues",
       "id": 30,
-      "description": "Soonest TLS cert expiry across probed endpoints.",
+  "description": "Expired local certificates, failed renewal units, or Kubernetes certificates near expiry and not Ready. Zero is healthy.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -1667,7 +1667,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "min((probe_ssl_earliest_cert_expiry-time())/86400)",
+      "expr": "(count(x509_cert_expired == 1) or vector(0)) + (count(systemd_unit_state{state=\"failed\",name=~\"(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\\\.(service|timer)\"} == 1) or vector(0)) + (count((certmanager_certificate_expiration_timestamp_seconds-time() < 3600) and on(namespace,name,issuer_group,issuer_kind,issuer_name) (max by(namespace,name,issuer_group,issuer_kind,issuer_name) (certmanager_certificate_ready_status{condition=\"True\"}) == 0)) or vector(0))",
           "refId": "A",
           "instant": true,
           "range": false
@@ -1675,25 +1675,15 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+      "unit": "short",
           "color": {
             "mode": "thresholds"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 7
-              },
-              {
-                "color": "green",
-                "value": 14
-              }
+          { "color": "green", "value": null },
+          { "color": "red", "value": 1 }
             ]
           }
         },

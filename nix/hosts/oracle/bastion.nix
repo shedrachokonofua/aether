@@ -23,6 +23,15 @@ in
 
   networking.hostName = "bastion";
 
+  # Keep .home.shdr.ch on the lab split-DNS path. Public resolvers return the
+  # external Cloudflare address for OTLP, where the internal collector TLS
+  # policy correctly rejects the connection.
+  networking.nameservers = [
+    facts.vm.bastion.gateway
+    facts.vm.adguard.ip
+    facts.vm.adguard_secondary.ip
+  ];
+
   # step-ca cert is bootstrapped at LXC provisioning time (Ansible pct push);
   # this module just keeps it renewed and bounces vault-agent on rotation.
   aether.step-ca-cert = {

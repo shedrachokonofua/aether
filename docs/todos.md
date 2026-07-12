@@ -2,10 +2,10 @@
 
 ## P0
 
-- [ ] Certificate expiry alerting (step-ca file certs)
-  - [ ] Add x509-certificate-exporter to vm_monitoring_agent role
-  - [ ] Add cert expiry rules to Grafana alerting (<30% lifetime remaining)
-  - [ ] Add cert renewal daemon health rules (systemd unit down)
+- [x] Certificate expiry alerting (step-ca file certs)
+  - [x] Add x509-certificate-exporter to vm_monitoring_agent role
+  - [x] Add cert expiry rules to Grafana alerting (<30% lifetime remaining)
+  - [x] Add cert renewal daemon health rules (systemd unit down)
 - [ ] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection ([exploration](exploration/journal-forwarder.md))
   - [ ] Publish versioned forwarder release + SHA-256 from CI (no `latest`)
   - [ ] Create `pki-journal-client` OpenBao mount (Tofu) + sign intermediate with step-ca root

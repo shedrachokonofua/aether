@@ -77,6 +77,7 @@ flake.lock                        pinned inputs
 nix/images/                       Proxmox VM/LXC base images
 nix/hosts/common/                 shared host configuration
 nix/hosts/oracle/                 AdGuard, bastion, and IDS configurations
+nix/hosts/neo/                    generic Nix remote builder
 nix/hosts/trinity/                secondary AdGuard configuration
 nix/hosts/smith/                  blockchain and in-progress storage configs
 nix/modules/                      base, VM, OTel, OpenBao, osquery, and secret modules
@@ -99,11 +100,20 @@ task nix:upload-lxc-image
 
 Use the target-specific Taskfile workflow, not a raw copied
 `nixos-rebuild --target-host` command. `_nixos-deploy` obtains the SSH CA key,
-rsyncs the repository without secrets/generated state, and runs the build on the
-Linux target so deployment works from macOS.
+rsyncs the repository without secrets/generated state, builds closures on the
+generic `nix-builder`, and copies them to the destination so deployment works
+from macOS without starving production VMs. The builder itself uses the direct
+target-build fallback for initial provisioning and recovery.
+
+The builder is an on-demand VM on Neo. Configure workflows start it through
+Proxmox, refresh its activity marker, and reuse its persistent `/nix/store`.
+An internal timer powers it off after one hour without an active Nix build.
+Use `task nix:builder:start` and `task nix:builder:stop` for manual lifecycle
+control.
 
 ```bash
 task login:status
+task deploy:nix-builder
 task configure:adguard
 task configure:bastion
 task configure:ids-stack

@@ -11,6 +11,8 @@ This role installs and configures the OpenTelemetry Collector on Linux systems t
 - Collects journald logs from specified systemd units
 - Collects file logs from configurable patterns
 - Persistent cursor storage for reliable log collection
+- Optional explicit X.509 certificate and renewal-unit monitoring via the
+  `certificate_monitoring` role
 - Support for immutable operating systems (rpm-ostree)
 
 ## Requirements

@@ -1,0 +1,359 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    { "title": "Home", "type": "link", "url": "/d/home/home" }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Certificate posture",
+      "id": 1,
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Public TLS nearest expiry",
+      "description": "Soonest expiry seen by blackbox TLS probes. Short-lived machine and Kubernetes certificates are tracked separately.",
+      "id": 2,
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "min((probe_ssl_earliest_cert_expiry-time())/86400)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 7 },
+              { "color": "green", "value": 14 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Expired",
+      "description": "Expired local certificate files. Zero is healthy.",
+      "id": 3,
+      "gridPos": { "h": 5, "w": 4, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "count(x509_cert_expired == 1) or vector(0)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "wideLayout": true }
+    },
+    {
+      "type": "stat",
+      "title": "Machine identity lifetime",
+      "description": "Minimum percent of lifetime remaining across short-lived VM/LXC machine certificates.",
+      "id": 4,
+      "gridPos": { "h": 5, "w": 4, "x": 10, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "min(((x509_cert_not_after-time())/clamp_min(x509_cert_not_after-x509_cert_not_before,1))*100)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 50 }] }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "wideLayout": true }
+    },
+    {
+      "type": "stat",
+      "title": "Renewal failures",
+      "description": "Failed certificate renewal services or timers.",
+      "id": 5,
+      "gridPos": { "h": 5, "w": 4, "x": 14, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "count(systemd_unit_state{state=\"failed\",name=~\"(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\\\.(service|timer)\"} == 1) or vector(0)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "wideLayout": true }
+    },
+    {
+      "type": "stat",
+      "title": "Kubernetes Ready",
+      "description": "cert-manager Certificate resources currently Ready.",
+      "id": 6,
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "count(certmanager_certificate_ready_status{condition=\"True\"} == 1) or vector(0)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value", "wideLayout": true }
+    },
+    {
+      "type": "row",
+      "title": "Certificate inventory",
+      "id": 7,
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "VM / LXC certificate expiry",
+      "description": "Leaf and chain certificates exported from watched files, soonest first.",
+      "id": 8,
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 7 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "min by (host_name,subject_CN,issuer_CN,filepath) ((x509_cert_not_after-time())/86400)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "filterable": true },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 7 }, { "color": "green", "value": 14 }] }
+        },
+        "overrides": []
+      },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "days", "desc": false }] },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "days", "host_name": "host", "subject_CN": "subject", "issuer_CN": "issuer", "filepath": "file" }
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Kubernetes certificate expiry",
+      "description": "cert-manager Certificate resources, soonest first.",
+      "id": 9,
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 7 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "min by (namespace,name,issuer_name) ((certmanager_certificate_expiration_timestamp_seconds-time())/86400)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "filterable": true },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 7 }, { "color": "green", "value": 14 }] }
+        },
+        "overrides": []
+      },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "days", "desc": false }] },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "Value": "days", "namespace": "namespace", "name": "certificate", "issuer_name": "issuer" }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Renewal health and runway",
+      "id": 10,
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "VM / LXC expiry runway",
+      "description": "Days remaining for the soonest certificate in each watched file.",
+      "id": 11,
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 17 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "min by (host_name,filepath) ((x509_cert_not_after-time())/86400)",
+          "legendFormat": "{{host_name}} {{filepath}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "decimals": 1,
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "asc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Kubernetes expiry runway",
+      "description": "Days remaining for each cert-manager Certificate resource.",
+      "id": 12,
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 17 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "min by (namespace,name) ((certmanager_certificate_expiration_timestamp_seconds-time())/86400)",
+          "legendFormat": "{{namespace}}/{{name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "decimals": 1,
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "asc" } }
+    },
+    {
+      "type": "table",
+      "title": "Renewal units",
+      "description": "Current active state for monitored certificate renewal services and timers.",
+      "id": 13,
+      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 26 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (host_name,name) (systemd_unit_state{state=\"active\",name=~\"(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\\\.(service|timer)\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "filterable": true },
+          "mappings": [{ "options": { "0": { "color": "red", "text": "inactive" }, "1": { "color": "green", "text": "active" } }, "type": "value" }]
+        },
+        "overrides": []
+      },
+      "options": { "showHeader": true },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": { "excludeByName": { "Time": true }, "renameByName": { "Value": "state", "host_name": "host", "name": "unit" } }
+        }
+      ]
+    },
+    {
+      "type": "alertlist",
+      "title": "Certificate alerts",
+      "description": "Current certificate and renewal alert instances.",
+      "id": 14,
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 26 },
+      "options": {
+        "alertInstanceLabelFilter": "",
+        "alertName": "certificate|renewal|X.509",
+        "dashboardAlerts": false,
+        "groupBy": ["alertname"],
+        "groupMode": "default",
+        "maxItems": 20,
+        "showInstances": true,
+        "sortOrder": 1,
+        "stateFilter": { "error": true, "firing": true, "noData": true, "normal": false, "pending": true }
+      }
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["certificates", "pki", "aether"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Certificates",
+  "uid": "certificates",
+  "version": 0,
+  "weekStart": ""
+}

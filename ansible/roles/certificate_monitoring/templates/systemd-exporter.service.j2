@@ -1,0 +1,26 @@
+[Unit]
+Description=Aether systemd renewal-unit exporter
+Documentation=https://github.com/prometheus-community/systemd_exporter
+After=dbus.service
+Requires=dbus.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart={{ systemd_exporter_binary_path }} --web.listen-address={{ systemd_exporter_listen_address }} --systemd.collector.unit-include={{ systemd_exporter_unit_regex | quote }}
+Restart=always
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

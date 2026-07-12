@@ -1,0 +1,23 @@
+web:
+  enableStats: false
+server:
+  listen: "{{ x509_certificate_exporter_listen_address }}"
+log:
+  level: info
+  format: text
+sources:
+{% for path in x509_certificate_exporter_watch_files %}
+  - kind: file
+    name: "{{ path }}"
+    paths:
+      - "{{ path }}"
+    followSymlinks: true
+{% endfor %}
+metrics:
+  exposeNotBefore: true
+  exposeExpired: true
+  exposePerCertError: true
+cache:
+  filePoll:
+    interval: 30s
+    skipUnchanged: true
