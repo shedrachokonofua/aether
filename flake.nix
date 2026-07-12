@@ -95,6 +95,15 @@
             sshCaModule
           ];
         };
+        nix-builder = nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = sharedSpecialArgs;
+          modules = [
+            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            ./nix/hosts/neo/nix-builder.nix
+            sshCaModule
+          ];
+        };
         ids-stack = nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = sharedSpecialArgs;

@@ -376,6 +376,43 @@ tasks:
   # ===========================================================================
   # NixOS Deploy Helper (internal)
   # ===========================================================================
+  nix:builder:start:
+    desc: Start the generic Nix builder on Neo and wait for SSH
+    vars:
+      BUILDER_ID:
+        sh: yq '.nix_builder.id' config/vm.yml
+      BUILDER_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
+      NODE_IP:
+        sh: yq '.all.children.home.children.machines.hosts.neo.ansible_host' ansible/inventory/hosts.yml
+    cmds:
+      - |
+        set -euo pipefail
+        SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        STATUS=$(ssh $SSH_OPTS root@{{.NODE_IP}} "qm status {{.BUILDER_ID}}" | awk '{print $2}')
+        if [ "$STATUS" != "running" ]; then
+          ssh $SSH_OPTS root@{{.NODE_IP}} "qm start {{.BUILDER_ID}}"
+        fi
+        for attempt in $(seq 1 30); do
+          if ssh $SSH_OPTS -o ConnectTimeout=2 root@{{.BUILDER_IP}} true 2>/dev/null; then
+            ssh $SSH_OPTS root@{{.BUILDER_IP}} "mkdir -p /var/lib/nix-builder && touch /var/lib/nix-builder/last-use"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "nix-builder did not become reachable within 60 seconds" >&2
+        exit 1
+
+  nix:builder:stop:
+    desc: Power off the generic Nix builder immediately
+    vars:
+      BUILDER_ID:
+        sh: yq '.nix_builder.id' config/vm.yml
+      NODE_IP:
+        sh: yq '.all.children.home.children.machines.hosts.neo.ansible_host' ansible/inventory/hosts.yml
+    cmds:
+      - ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.NODE_IP}} "qm shutdown {{.BUILDER_ID}} --timeout 60"
+
   _nixos-deploy:
     internal: true
     desc: |
@@ -386,40 +423,73 @@ tasks:
       STEP_CA_IP:
         sh: yq '.step_ca.ip' config/vm.yml
       REMOTE_PATH: '{{.REMOTE_PATH | default "/root/aether"}}'
+      BUILD_IP: '{{.BUILD_IP | default ""}}'
+      REMOTE_BUILD_PATH: '{{.REMOTE_BUILD_PATH | default "/root/aether-build"}}'
     cmds:
       - |
         set -euo pipefail
         SSH_CA_PUBKEY=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.STEP_CA_IP}} cat /etc/step-ca/certs/ssh_user_ca_key.pub)
-        rsync -aH --delete \
-          -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-          --exclude=.git \
-          --exclude=.terraform \
-          --exclude=secrets/ \
-          --exclude=tofu/.terraform \
-          --exclude=node_modules \
-          ./ root@{{.TARGET_IP}}:{{.REMOTE_PATH}}/
-        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.TARGET_IP}} \
-          "cd {{.REMOTE_PATH}} && SSH_CA_PUBKEY=\"$SSH_CA_PUBKEY\" nix --extra-experimental-features 'nix-command flakes' run nixpkgs#nixos-rebuild -- switch --flake .#{{.FLAKE_TARGET}} --impure"
+        if [ -n "{{.BUILD_IP}}" ]; then
+          task nix:builder:start
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.BUILD_IP}} \
+            "mkdir -p /var/lib/nix-builder && touch /var/lib/nix-builder/last-use"
+          rsync -aH --delete --delete-excluded \
+            -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            --exclude=.git \
+            --exclude=.terraform \
+            --exclude=secrets/ \
+            --exclude=tofu/.terraform \
+            --exclude=node_modules \
+            ./ root@{{.BUILD_IP}}:{{.REMOTE_BUILD_PATH}}/
+          SYSTEM_PATH=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.BUILD_IP}} \
+            "cd {{.REMOTE_BUILD_PATH}} && SSH_CA_PUBKEY=\"$SSH_CA_PUBKEY\" nix --extra-experimental-features 'nix-command flakes' build --print-out-paths .#nixosConfigurations.\"{{.FLAKE_TARGET}}\".config.system.build.toplevel --no-link --impure")
+          export NIX_SSHOPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          nix copy --no-check-sigs \
+            --from ssh-ng://root@{{.BUILD_IP}} \
+            --to ssh-ng://root@{{.TARGET_IP}} \
+            "$SYSTEM_PATH"
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.TARGET_IP}} \
+            "nix-env -p /nix/var/nix/profiles/system --set '$SYSTEM_PATH' && '$SYSTEM_PATH/bin/switch-to-configuration' switch"
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.BUILD_IP}} \
+            "touch /var/lib/nix-builder/last-use"
+        else
+          rsync -aH --delete --delete-excluded \
+            -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            --exclude=.git \
+            --exclude=.terraform \
+            --exclude=secrets/ \
+            --exclude=tofu/.terraform \
+            --exclude=node_modules \
+            ./ root@{{.TARGET_IP}}:{{.REMOTE_PATH}}/
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{.TARGET_IP}} \
+            "cd {{.REMOTE_PATH}} && SSH_CA_PUBKEY=\"$SSH_CA_PUBKEY\" nix --extra-experimental-features 'nix-command flakes' run nixpkgs#nixos-rebuild -- switch --flake .#{{.FLAKE_TARGET}} --impure"
+        fi
 
   configure:adguard:
     desc: Deploy NixOS configuration to AdGuard LXC
     vars:
       TARGET_IP:
         sh: yq '.adguard.ip' config/vm.yml
+      BUILD_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
     cmds:
       - task: _nixos-deploy
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
+          BUILD_IP: "{{.BUILD_IP}}"
           FLAKE_TARGET: adguard
   configure:adguard-secondary:
     desc: Deploy NixOS configuration to secondary AdGuard LXC
     vars:
       TARGET_IP:
         sh: yq '.adguard_secondary.ip' config/vm.yml
+      BUILD_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
     cmds:
       - task: _nixos-deploy
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
+          BUILD_IP: "{{.BUILD_IP}}"
           FLAKE_TARGET: adguard-secondary
   deploy:adguard:
     desc: Full deploy - provision LXC + configure NixOS
@@ -436,29 +506,60 @@ tasks:
     vars:
       TARGET_IP:
         sh: yq '.bastion.ip' config/vm.yml
+      BUILD_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
     cmds:
       - task: _nixos-deploy
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
+          BUILD_IP: "{{.BUILD_IP}}"
           FLAKE_TARGET: bastion
+  configure:bastion-cert:
+    desc: Reissue and install the bastion step-ca machine certificate
+    cmds:
+      - ansible-playbook ansible/playbooks/bastion/reissue_machine_cert.yml {{.CLI_ARGS}}
   deploy:bastion:
     desc: Full deploy - provision bastion LXC + configure NixOS
     cmds:
       - task: provision:bastion
       - task: configure:bastion
+  configure:nix-builder:
+    desc: Deploy the generic NixOS remote builder on Neo
+    vars:
+      TARGET_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
+    cmds:
+      - task: nix:builder:start
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          FLAKE_TARGET: nix-builder
+  deploy:nix-builder:
+    desc: Provision and configure the generic NixOS remote builder on Neo
+    cmds:
+      - task: tofu:apply
+        vars:
+          {
+            CLI_ARGS: "-target=module.home.proxmox_virtual_environment_vm.nix_builder",
+          }
+      - task: configure:nix-builder
   provision:ids-mirror-bridge:
     desc: Create isolated bridge for IDS mirror traffic (one-time)
     cmds:
       [ansible-playbook ansible/playbooks/home_router/create_mirror_bridge.yml]
   configure:ids-stack:
-    desc: Deploy NixOS configuration to IDS Stack VM
+    desc: Build IDS Stack on nix-builder, copy the closure, and activate it
     vars:
       TARGET_IP:
         sh: yq '.ids_stack.ip' config/vm.yml
+      BUILD_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
     cmds:
       - task: _nixos-deploy
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
+          BUILD_IP: "{{.BUILD_IP}}"
+          REMOTE_BUILD_PATH: /root/aether-build
           FLAKE_TARGET: ids-stack
   deploy:ids-stack:
     desc: Full deploy - provision VM + configure NixOS
@@ -472,10 +573,13 @@ tasks:
     vars:
       TARGET_IP:
         sh: yq '.blockchain_stack.ip' config/vm.yml
+      BUILD_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
     cmds:
       - task: _nixos-deploy
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
+          BUILD_IP: "{{.BUILD_IP}}"
           FLAKE_TARGET: blockchain-stack
   deploy:blockchain-stack:
     desc: Full deploy - provision VM + configure NixOS
