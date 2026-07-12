@@ -72,7 +72,7 @@ Co-founders access studio services via **Tailscale node sharing** — the home g
 | DNS wildcard | Done | `*.seven30.xyz` → public gateway IP (proxied) |
 | Public Caddy | Done | `seven30.xyz, *.seven30.xyz` → home gateway `:9443` |
 | Home Caddy `:9443` | Done | `seven30.xyz` → static landing page (`/srv/seven30`) |
-| Tailscale SSO | Done | Phase 1 of `full-tailscale-integration.md` |
+| Tailscale SSO | Done | SSO/OIDC section of [`../tailscale.md`](../tailscale.md) |
 | Tailscale ACL | Done | Terraform-managed, deny-by-default |
 
 ## Access Model
@@ -591,5 +591,5 @@ Start with Seven30 as the only studio. If a second one appears and trust is simi
 ## Related Documents
 
 - `kubernetes.md` — Host cluster architecture, platform components
-- `full-tailscale-integration.md` — Tailscale SSO, gateway auth, ACL structure
+- `../tailscale.md` — Tailscale SSO/OIDC, ACLs, DNS, DR runbook
 - `../trust-model.md` — Identity architecture (Keycloak, OIDC flows)
