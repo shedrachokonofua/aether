@@ -15,31 +15,6 @@
     state: present
   become: true
 
-- name: Locate the systemd-journal-gatewayd binary
-  ansible.builtin.stat:
-    path: "{{ item }}"
-  loop:
-    - /usr/lib/systemd/systemd-journal-gatewayd
-    - /lib/systemd/systemd-journal-gatewayd
-    - /usr/libexec/systemd/systemd-journal-gatewayd
-  register: journal_gateway_bin_candidates
-  become: true
-
-- name: Resolve the gatewayd binary path
-  ansible.builtin.set_fact:
-    journal_gateway_binary: >-
-      {{ (journal_gateway_bin_candidates.results
-          | selectattr('stat.exists', 'equalto', true)
-          | map(attribute='stat.path') | list | first) }}
-
-- name: Fail when the gatewayd binary is missing
-  ansible.builtin.assert:
-    that:
-      - journal_gateway_binary is defined
-      - journal_gateway_binary | length > 0
-    fail_msg: "systemd-journal-gatewayd binary not found on {{ inventory_hostname }}."
-    quiet: true
-
 - name: Create gatewayd socket drop-in directory
   ansible.builtin.file:
     path: /etc/systemd/system/systemd-journal-gatewayd.socket.d
@@ -61,13 +36,71 @@
     - reload journal-gatewayd systemd
     - restart journal-gatewayd socket
 
+# Debian systemd is openssl-built, so gatewayd's own --trust (client mTLS) is
+# unavailable. Remove any mTLS service drop-in; TLS is handled by ghostunnel.
+- name: Remove obsolete gatewayd mTLS service drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/system/systemd-journal-gatewayd.service.d/override.conf
+    state: absent
+  become: true
+  notify:
+    - reload journal-gatewayd systemd
+    - restart journal-gatewayd service
+
 # ---------------------------------------------------------------------------
-# TLS mode (Proxmox hosts): step-ca server cert + renewal + journal-client trust
+# TLS mode (Proxmox hosts): ghostunnel mTLS terminator in front of loopback gatewayd
 # ---------------------------------------------------------------------------
-- name: Configure gatewayd mTLS
+- name: Configure gatewayd mTLS (ghostunnel)
   when: journal_gateway_tls_enabled | bool
   become: true
   block:
+    - name: Download pinned ghostunnel binary
+      ansible.builtin.get_url:
+        url: "{{ journal_gateway_ghostunnel_download_url }}"
+        dest: /tmp/ghostunnel-linux-amd64
+        checksum: "sha256:{{ journal_gateway_ghostunnel_sha256 }}"
+        mode: "0644"
+
+    - name: Install ghostunnel binary
+      ansible.builtin.copy:
+        src: /tmp/ghostunnel-linux-amd64
+        dest: "{{ journal_gateway_ghostunnel_binary }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      notify: restart journal-gatewayd ghostunnel
+
+    - name: Check for step-cli
+      ansible.builtin.stat:
+        path: /usr/bin/step
+      register: journal_gateway_step_stat
+
+    - name: Install step-cli
+      when: not journal_gateway_step_stat.stat.exists
+      block:
+        - name: Download step-cli
+          ansible.builtin.get_url:
+            url: "{{ journal_gateway_step_download_url }}"
+            dest: /tmp/step_linux_amd64.tar.gz
+            mode: "0644"
+            timeout: 120
+
+        - name: Extract step-cli
+          ansible.builtin.unarchive:
+            src: /tmp/step_linux_amd64.tar.gz
+            dest: /tmp
+            remote_src: true
+
+        - name: Install step-cli binary
+          ansible.builtin.copy:
+            src: /tmp/step_linux_amd64/bin/step
+            dest: /usr/bin/step
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0755"
+
     - name: Create gatewayd TLS and step directories
       ansible.builtin.file:
         path: "{{ item }}"
@@ -129,7 +162,7 @@
       args:
         creates: "{{ journal_gateway_cert_path }}"
       no_log: true
-      notify: restart journal-gatewayd service
+      notify: restart journal-gatewayd ghostunnel
 
     - name: Enforce gatewayd key permissions
       ansible.builtin.file:
@@ -139,42 +172,40 @@
         mode: "0600"
 
     - name: Fetch the journal-client CA (trust anchor)
+      # The public CA endpoint is only reachable from the routed VLANs, not the
+      # Gigahub network the hypervisors sit on. Fetch on the controller (the CA
+      # pem is public, non-secret) and template it onto the host.
       ansible.builtin.uri:
         url: "{{ journal_gateway_pki_ca_pem_url }}"
         return_content: true
+        validate_certs: false
+      delegate_to: localhost
+      become: false
       register: journal_gateway_ca_response
 
     - name: Set journal-client CA fact
       ansible.builtin.set_fact:
         journal_gateway_ca_pem: "{{ journal_gateway_ca_response.content | trim }}"
 
-    - name: Render the gatewayd trust bundle
+    - name: Render the journal-client trust bundle
       ansible.builtin.template:
         src: trust-bundle.crt.j2
         dest: "{{ journal_gateway_trust_path }}"
         owner: root
         group: root
         mode: "0644"
-      notify: restart journal-gatewayd service
+      notify: restart journal-gatewayd ghostunnel
 
-    - name: Create gatewayd service drop-in directory
-      ansible.builtin.file:
-        path: /etc/systemd/system/systemd-journal-gatewayd.service.d
-        state: directory
-        owner: root
-        group: root
-        mode: "0755"
-
-    - name: Enable gatewayd mTLS via service drop-in
+    - name: Install ghostunnel systemd unit
       ansible.builtin.template:
-        src: service-override.conf.j2
-        dest: /etc/systemd/system/systemd-journal-gatewayd.service.d/override.conf
+        src: ghostunnel.service.j2
+        dest: "/etc/systemd/system/{{ journal_gateway_ghostunnel_service }}"
         owner: root
         group: root
         mode: "0644"
       notify:
         - reload journal-gatewayd systemd
-        - restart journal-gatewayd service
+        - restart journal-gatewayd ghostunnel
 
     - name: Install gatewayd certificate renewal service
       ansible.builtin.template:
@@ -190,28 +221,38 @@
         path: /tmp/journal-gateway-step-root.pem
         state: absent
 
-    - name: Enable and start the gatewayd certificate renewal daemon
-      ansible.builtin.systemd:
-        name: "{{ journal_gateway_cert_renew_service }}.service"
-        enabled: true
-        state: started
-        daemon_reload: true
+    - name: Remove obsolete stunnel terminator artifacts
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/aether-journal-stunnel.service
+        - /etc/stunnel/journal-gateway.conf
+      register: journal_gateway_stunnel_removed
 
-# ---------------------------------------------------------------------------
-# Plain mode (cloud VMs): remove any stale mTLS drop-in
-# ---------------------------------------------------------------------------
-- name: Remove gatewayd mTLS service drop-in when TLS is disabled
-  ansible.builtin.file:
-    path: /etc/systemd/system/systemd-journal-gatewayd.service.d/override.conf
-    state: absent
-  become: true
-  when: not journal_gateway_tls_enabled | bool
-  notify:
-    - reload journal-gatewayd systemd
-    - restart journal-gatewayd service
+    - name: Stop and disable the obsolete stunnel terminator
+      ansible.builtin.systemd:
+        name: aether-journal-stunnel.service
+        state: stopped
+        enabled: false
+        daemon_reload: true
+      failed_when: false
+      when: journal_gateway_stunnel_removed is changed
+
+    - name: Remove ghostunnel temporary binary
+      ansible.builtin.file:
+        path: /tmp/ghostunnel-linux-amd64
+        state: absent
 
 - name: Flush journal-gatewayd handlers
   ansible.builtin.meta: flush_handlers
+
+- name: Reset any failed gatewayd units before (re)starting
+  ansible.builtin.command:
+    cmd: systemctl reset-failed systemd-journal-gatewayd.socket systemd-journal-gatewayd.service {{ journal_gateway_ghostunnel_service }}
+  become: true
+  changed_when: false
+  failed_when: false
 
 - name: Enable and start the gatewayd socket
   ansible.builtin.systemd:
@@ -220,3 +261,21 @@
     state: started
     daemon_reload: true
   become: true
+
+- name: Enable and start the ghostunnel mTLS terminator
+  ansible.builtin.systemd:
+    name: "{{ journal_gateway_ghostunnel_service }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: journal_gateway_tls_enabled | bool
+
+- name: Enable and start the gatewayd certificate renewal daemon
+  ansible.builtin.systemd:
+    name: "{{ journal_gateway_cert_renew_service }}.service"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: journal_gateway_tls_enabled | bool
