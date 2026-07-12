@@ -660,12 +660,18 @@ resource "kubernetes_manifest" "firecrawl_mcp_route" {
 # =============================================================================
 # Egress boundary (answer-engine plan, companion MR 2)
 # =============================================================================
-# Firecrawl scrapes untrusted, attacker-suggested URLs, so its namespace is the
-# authoritative SSRF boundary for consumers like orion: internet-only egress —
-# no RFC1918/link-local/loopback destinations — plus its declared in-cluster
-# dependencies (own-namespace pods, searxng, litellm). The cluster baseline
-# CCNP keeps DNS and kube-apiserver reachable under default-deny (Cilium
-# policies union). Rollback: revert this resource and re-apply.
+# Firecrawl scrapes untrusted, attacker-suggested URLs, so the scraper workload
+# (app=firecrawl: api/worker plus its sidecar redis/playwright containers) is
+# the authoritative SSRF boundary for consumers like orion: internet-only
+# egress — no RFC1918/link-local/loopback destinations — plus its declared
+# in-cluster dependencies (own-namespace pods, searxng, litellm). The boundary
+# deliberately excludes the CNPG cluster and db-backup pods: barman WAL
+# archiving and pg_dump uploads target the internal SeaweedFS S3 endpoint
+# (10.0.2.2), which the private-range except list would deny (broke backups on
+# 2026-07-11 when this policy was namespace-wide via endpointSelector {}).
+# The cluster baseline CCNP keeps DNS and kube-apiserver reachable under
+# default-deny (Cilium policies union). Rollback: revert this resource and
+# re-apply.
 resource "kubernetes_manifest" "firecrawl_egress_boundary" {
   depends_on = [helm_release.cilium, module.namespace["firecrawl"]]
 
@@ -681,7 +687,9 @@ resource "kubernetes_manifest" "firecrawl_egress_boundary" {
       namespace = local.firecrawl_ns
     }
     spec = {
-      endpointSelector = {}
+      endpointSelector = {
+        matchLabels = local.firecrawl_labels
+      }
       enableDefaultDeny = {
         ingress = false
         egress  = true
