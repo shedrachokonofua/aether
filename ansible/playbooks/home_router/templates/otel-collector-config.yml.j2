@@ -134,6 +134,9 @@ extensions:
     directory: /var/lib/vyos-exporter/otel-storage
     timeout: 1s
     compaction:
+      # compaction.directory is a SEPARATE setting from directory; its default
+      # (/var/lib/otelcol/file_storage) fails validation inside this container.
+      directory: /var/lib/vyos-exporter/otel-storage
       on_start: true
       on_rebound: true
   health_check:
