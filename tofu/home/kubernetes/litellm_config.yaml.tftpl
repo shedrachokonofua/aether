@@ -61,60 +61,63 @@ model_list:
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
 
-  # Clinepass models (https://api.cline.bot — OpenAI-compatible)
-  - model_name: "clinepass/deepseek-v4-pro"
+  # Clinepass models (https://api.cline.bot — OpenAI-compatible).
+  # GLM and Kimi entries intentionally share a model_name below so LiteLLM
+  # treats every provider deployment for that family as one load-balanced
+  # model group.
+  - model_name: "router/deepseek-v4-pro"
     litellm_params:
       model: "openai/cline-pass/deepseek-v4-pro"
       litellm_credential_name: clinepass_credential
-  - model_name: "clinepass/deepseek-v4-flash"
+  - model_name: "router/deepseek-v4-flash"
     litellm_params:
       model: "openai/cline-pass/deepseek-v4-flash"
       litellm_credential_name: clinepass_credential
-  - model_name: "clinepass/kimi-k2.7-code"
+  - model_name: "router/kimi-k2.7-code"
     litellm_params:
       model: "openai/cline-pass/kimi-k2.7-code"
       litellm_credential_name: clinepass_credential
-  - model_name: "clinepass/glm-5.2"
+  - model_name: "router/glm-5.2"
     litellm_params:
       model: "openai/cline-pass/glm-5.2"
       litellm_credential_name: clinepass_credential
-  - model_name: "clinepass/qwen3.7-max"
+  - model_name: "router/qwen3.7-max"
     litellm_params:
       model: "openai/cline-pass/qwen3.7-max"
       litellm_credential_name: clinepass_credential
-  - model_name: "clinepass/minimax-m3"
+  - model_name: "router/minimax-m3"
     litellm_params:
       model: "openai/cline-pass/minimax-m3"
       litellm_credential_name: clinepass_credential
-  - model_name: "clinepass/mimo-v2.5-pro"
+  - model_name: "router/mimo-v2.5-pro"
     litellm_params:
       model: "openai/cline-pass/mimo-v2.5-pro"
       litellm_credential_name: clinepass_credential
 
   # Alibaba models (https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1)
-  - model_name: "alibaba/deepseek-v4-pro"
+  - model_name: "router/deepseek-v4-pro"
     litellm_params:
       model: "openai/deepseek-v4-pro"
       litellm_credential_name: alibaba_credential
-  - model_name: "alibaba/deepseek-v4-flash"
+  - model_name: "router/deepseek-v4-flash"
     litellm_params:
       model: "openai/deepseek-v4-flash"
       litellm_credential_name: alibaba_credential
-  - model_name: "alibaba/kimi-k2.7-code"
+  - model_name: "router/kimi-k2.7-code"
     litellm_params:
       model: "openai/kimi-k2.7-code"
       litellm_credential_name: alibaba_credential
-  - model_name: "alibaba/glm-5.2"
+  - model_name: "router/glm-5.2"
     litellm_params:
       model: "openai/glm-5.2"
       litellm_credential_name: alibaba_credential
-  - model_name: "alibaba/qwen3.7-max"
+  - model_name: "router/qwen3.7-max"
     litellm_params:
       model: "openai/qwen3.7-max"
       litellm_credential_name: alibaba_credential
 
   # Z.AI models (native LiteLLM provider)
-  - model_name: "zai/glm-5.2"
+  - model_name: "router/glm-5.2"
     litellm_params:
       model: "zai/glm-5.2"
       litellm_credential_name: zai_credential
@@ -124,15 +127,15 @@ model_list:
     litellm_params:
       model: "ollama_chat/kimi-k2.6"
       litellm_credential_name: ollama_cloud_credential
-  - model_name: "ollama-cloud/glm-5.2"
+  - model_name: "router/glm-5.2"
     litellm_params:
       model: "ollama_chat/glm-5.2"
       litellm_credential_name: ollama_cloud_credential
-  - model_name: "ollama-cloud/deepseek-v4-pro:cloud"
+  - model_name: "router/deepseek-v4-pro"
     litellm_params:
       model: "ollama_chat/deepseek-v4-pro:cloud"
       litellm_credential_name: ollama_cloud_credential
-  - model_name: "ollama-cloud/deepseek-v4-flash:cloud"
+  - model_name: "router/deepseek-v4-flash"
     litellm_params:
       model: "ollama_chat/deepseek-v4-flash:cloud"
       litellm_credential_name: ollama_cloud_credential
@@ -140,11 +143,11 @@ model_list:
     litellm_params:
       model: "ollama_chat/gemini-3-flash-preview"
       litellm_credential_name: ollama_cloud_credential
-  - model_name: "ollama-cloud/minimax-m3"
+  - model_name: "router/minimax-m3"
     litellm_params:
       model: "ollama_chat/minimax-m3"
       litellm_credential_name: ollama_cloud_credential
-  - model_name: "ollama-cloud/kimi-k2.7-code"
+  - model_name: "router/kimi-k2.7-code"
     litellm_params:
       model: "ollama_chat/kimi-k2.7-code"
       litellm_credential_name: ollama_cloud_credential
@@ -247,7 +250,7 @@ model_list:
       additional_drop_params: ["dimensions"]
 
   # Xiaomi MiMo models
-  - model_name: "xiaomi/mimo-v2.5-pro"
+  - model_name: "router/mimo-v2.5-pro"
     litellm_params:
       model: "openai/mimo-v2.5-pro"
       litellm_credential_name: xiaomi_credential
@@ -349,13 +352,81 @@ credential_list:
 litellm_settings:
   drop_params: true
   turn_off_message_logging: false
-  set_verbose: true
+  set_verbose: false
   json_logs: true
-  # Per-request upstream timeout. Kept tight so a non-stopping generation can't
-  # pin the GPU: at ~200 t/s, 600s allowed ~120k runaway tokens (llama.cpp only
-  # stops when LiteLLM cancels the backend, which this bounds). 120s still covers
-  # a cold model load + a normal completion.
+  # Per-request upstream timeout. 120s gives agentic reasoning/tool-planning
+  # turns room to finish while still bounding a genuinely hung cloud provider.
   request_timeout: 120
+
+router_settings:
+  # `model_name` creates the deployment pool. These explicit routing groups
+  # keep GLM and Kimi on independently named selectors while retaining the
+  # default simple-shuffle behavior inside each pool.
+  # A single failed request trips a deployment quickly; the five-minute
+  # cooldown prevents repeated quota/429 traffic against low-limit providers.
+  allowed_fails: 1
+  cooldown_time: 300
+  # Retry the initial request across the four-provider GLM pool when needed.
+  num_retries: 3
+  max_fallbacks: 3
+  timeout: 120
+  retry_after: 0
+  debug_level: INFO
+  routing_strategy: simple-shuffle
+  enable_weighted_failover: true
+  routing_groups:
+    - group_name: router/glm-5.2
+      models: ["router/glm-5.2"]
+      routing_strategy: simple-shuffle
+    - group_name: router/kimi-k2.7-code
+      models: ["router/kimi-k2.7-code"]
+      routing_strategy: simple-shuffle
+    - group_name: router/deepseek-v4-pro
+      models: ["router/deepseek-v4-pro"]
+      routing_strategy: simple-shuffle
+    - group_name: router/deepseek-v4-flash
+      models: ["router/deepseek-v4-flash"]
+      routing_strategy: simple-shuffle
+    - group_name: router/qwen3.7-max
+      models: ["router/qwen3.7-max"]
+      routing_strategy: simple-shuffle
+    - group_name: router/minimax-m3
+      models: ["router/minimax-m3"]
+      routing_strategy: simple-shuffle
+    - group_name: router/mimo-v2.5-pro
+      models: ["router/mimo-v2.5-pro"]
+      routing_strategy: simple-shuffle
+
+  # Keep the old provider-prefixed names working for existing clients while
+  # routing them into the new shared groups. The aliases do not duplicate
+  # deployments or change the provider-specific backend model strings.
+  model_group_alias:
+    "glm": "router/glm-5.2"
+    "kimi": "router/kimi-k2.7-code"
+    "deepseek-v4-pro": "router/deepseek-v4-pro"
+    "deepseek-v4-flash": "router/deepseek-v4-flash"
+    "qwen3.7-max": "router/qwen3.7-max"
+    "minimax-m3": "router/minimax-m3"
+    "mimo-v2.5-pro": "router/mimo-v2.5-pro"
+    "clinepass/glm-5.2": "router/glm-5.2"
+    "alibaba/glm-5.2": "router/glm-5.2"
+    "zai/glm-5.2": "router/glm-5.2"
+    "ollama-cloud/glm-5.2": "router/glm-5.2"
+    "clinepass/kimi-k2.7-code": "router/kimi-k2.7-code"
+    "alibaba/kimi-k2.7-code": "router/kimi-k2.7-code"
+    "ollama-cloud/kimi-k2.7-code": "router/kimi-k2.7-code"
+    "clinepass/deepseek-v4-pro": "router/deepseek-v4-pro"
+    "alibaba/deepseek-v4-pro": "router/deepseek-v4-pro"
+    "ollama-cloud/deepseek-v4-pro:cloud": "router/deepseek-v4-pro"
+    "clinepass/deepseek-v4-flash": "router/deepseek-v4-flash"
+    "alibaba/deepseek-v4-flash": "router/deepseek-v4-flash"
+    "ollama-cloud/deepseek-v4-flash:cloud": "router/deepseek-v4-flash"
+    "clinepass/qwen3.7-max": "router/qwen3.7-max"
+    "alibaba/qwen3.7-max": "router/qwen3.7-max"
+    "clinepass/minimax-m3": "router/minimax-m3"
+    "ollama-cloud/minimax-m3": "router/minimax-m3"
+    "clinepass/mimo-v2.5-pro": "router/mimo-v2.5-pro"
+    "xiaomi/mimo-v2.5-pro": "router/mimo-v2.5-pro"
 
 general_settings:
   store_prompts_in_spend_logs: true

@@ -4,7 +4,7 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  litellm_image               = "ghcr.io/berriai/litellm:1.86.2"
+  litellm_image               = "ghcr.io/berriai/litellm:1.92.0"
   litellm_espn_mcp_image      = "registry.gitlab.home.shdr.ch/so/espn-mcp:latest"
   litellm_postgres_image      = "docker.io/postgres:18"
   litellm_finviz_image        = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
@@ -196,7 +196,7 @@ resource "kubernetes_deployment_v1" "litellm" {
         container {
           name  = "litellm"
           image = local.litellm_image
-          args  = ["--config", "/app/config.yaml", "--detailed_debug"]
+          args  = ["--config", "/app/config.yaml"]
 
           port {
             container_port = local.litellm_port
