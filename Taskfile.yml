@@ -349,8 +349,13 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/keycloak/deploy_keycloak.yml]
   configure:public-gateway:
     cmds: [ansible-playbook ansible/playbooks/public_gateway_stack/site.yml]
+  configure:cloud-wireguard:
+    desc: Configure routed WireGuard on AWS and GCP cloud peers
+    cmds:
+      - ansible-playbook ansible/playbooks/public_gateway_stack/site.yml --tags site-wireguard
+      - ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml --tags site-wireguard
   configure:uptime-monitor:
-    desc: Deploy and configure the GCP Uptime Monitor (Uptime Kuma + Tailscale + Cloudflare Tunnel)
+    desc: Deploy the GCP uptime monitor and its routed WireGuard site connection
     cmds: [ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml]
   provision:step-ca:
     cmds: [ansible-playbook ansible/playbooks/step_ca/site.yml]
