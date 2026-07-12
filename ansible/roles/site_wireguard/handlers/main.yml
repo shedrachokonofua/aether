@@ -1,0 +1,15 @@
+---
+- name: Restart site WireGuard
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ site_wireguard_interface }}"
+    state: restarted
+    daemon_reload: true
+  become: true
+
+- name: Reload site WireGuard firewall
+  ansible.builtin.systemd:
+    name: aether-wireguard-firewall.service
+    state: restarted
+    daemon_reload: true
+  become: true
+

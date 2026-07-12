@@ -1,0 +1,16 @@
+[Unit]
+Description=Aether site-to-site WireGuard firewall
+After=network-online.target wg-quick@{{ site_wireguard_interface }}.service
+Wants=network-online.target
+Requires=wg-quick@{{ site_wireguard_interface }}.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/sbin/nft delete table inet aether_wireguard
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/aether-wireguard.nft
+ExecStop=-/usr/sbin/nft delete table inet aether_wireguard
+
+[Install]
+WantedBy=multi-user.target
+

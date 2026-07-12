@@ -1,0 +1,33 @@
+# Aether routed site fabric v3
+[Interface]
+PrivateKey = {{ site_wireguard_private_key }}
+{% for address in site_wireguard_addresses %}
+Address = {{ address }}
+{% endfor %}
+MTU = {{ site_wireguard_mtu }}
+{% if site_wireguard_listen_port %}
+ListenPort = {{ site_wireguard_listen_port }}
+{% endif %}
+{% if site_wireguard_source_address %}
+{% for prefix in site_wireguard_remote_prefixes %}
+PostUp = ip route replace {{ prefix }} dev %i src {{ site_wireguard_source_address }}
+{% endfor %}
+{% endif %}
+{% for rule in site_wireguard_policy_rules %}
+PostUp = ip rule add priority {{ rule.priority }} {{ rule.match }} lookup main
+PreDown = ip rule del priority {{ rule.priority }} {{ rule.match }} lookup main || true
+{% endfor %}
+
+{% for peer in site_wireguard_peers %}
+[Peer]
+# {{ peer.name }}
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ peer.allowed_ips | join(', ') }}
+{% if peer.endpoint | default('') %}
+Endpoint = {{ peer.endpoint }}
+{% endif %}
+{% if peer.persistent_keepalive | default(0) %}
+PersistentKeepalive = {{ peer.persistent_keepalive }}
+{% endif %}
+
+{% endfor %}

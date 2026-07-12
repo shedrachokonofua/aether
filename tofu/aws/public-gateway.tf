@@ -34,6 +34,16 @@ resource "aws_lightsail_instance_public_ports" "public_gateway_public_ports" {
     cidrs      = ["0.0.0.0/0"]
     ipv6_cidrs = ["::/0"]
   }
+
+  # WireGuard hub for the home VyOS and GCP spokes. WireGuard silently drops
+  # unauthenticated packets; peer keys and routed-prefix firewalls provide the
+  # authorization boundary behind this single UDP listener.
+  port_info {
+    protocol  = "udp"
+    from_port = 51820
+    to_port   = 51820
+    cidrs     = ["0.0.0.0/0"]
+  }
 }
 
 resource "aws_lightsail_static_ip" "public_gateway_static_ip" {

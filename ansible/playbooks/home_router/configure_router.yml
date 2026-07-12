@@ -30,6 +30,27 @@
           - set interfaces pppoe pppoe0 ip adjust-mss 1452
         save: true
 
+    - name: Configure routed WireGuard cloud fabric
+      vyos.vyos.vyos_config:
+        lines:
+          - set interfaces wireguard wg10 address 10.254.0.2/32
+          - set interfaces wireguard wg10 description 'Aether cloud fabric via AWS hub'
+          - set interfaces wireguard wg10 mtu 1380
+          - set interfaces wireguard wg10 private-key {{ secrets.wireguard.vyos_private_key }}
+          - set interfaces wireguard wg10 peer aws-hub address {{ tf_outputs.aws_public_gateway_ip.value }}
+          - set interfaces wireguard wg10 peer aws-hub port 51820
+          - set interfaces wireguard wg10 peer aws-hub public-key {{ secrets.wireguard.aws_public_key }}
+          - set interfaces wireguard wg10 peer aws-hub persistent-keepalive 25
+          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.1.0.0/16
+          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.2.0.0/16
+          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.254.0.1/32
+          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.254.0.3/32
+          - set protocols static route 10.1.0.0/16 interface wg10
+          - set protocols static route 10.2.0.0/16 interface wg10
+        save: true
+      no_log: true
+      tags: [site-wireguard]
+
     - name: Configure NAT
       vyos.vyos.vyos_config:
         lines:
@@ -235,6 +256,12 @@
           - set firewall zone WAN member interface pppoe0
           - set firewall zone WAN default-action drop
 
+          # Routed cloud sites. The tunnel is transport only; these policies
+          # retain least privilege and preserve source addresses without NAT.
+          - set firewall zone CLOUD description 'AWS and GCP routed WireGuard sites'
+          - set firewall zone CLOUD member interface wg10
+          - set firewall zone CLOUD default-action drop
+
           # Define MGMT zone for Gigahub network
           - set firewall zone MGMT description 'Gigahub management network'
           - set firewall zone MGMT member interface eth0
@@ -341,6 +368,46 @@
           # Configure router access to internal zones
           - set firewall ipv4 name LOCAL-to-ZONES default-action accept
           - set firewall ipv4 name LOCAL-to-ZONES description 'Allow router to access all zones'
+
+          # Cloud fabric policy. AWS public ingress reaches only home Caddy;
+          # GCP retains uptime checks; monitoring alone may pull cloud journals.
+          - set firewall ipv4 name CLOUD-to-TRUSTED default-action drop
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 10 action accept
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 10 state established
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 10 state related
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 20 action accept
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 20 protocol tcp
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 20 source address 10.1.0.10/32
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 20 destination address {{ vm.home_gateway_stack.ip }}
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 20 destination port {{ vm.home_gateway_stack.ports.caddy_public }}
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 20 description 'AWS public gateway to home Caddy public listener'
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 action accept
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 protocol tcp
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 source address 10.2.0.10/32
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 destination address {{ vm.home_gateway_stack.ip }}
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 destination port 443,{{ vm.home_gateway_stack.ports.caddy_public }}
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 description 'GCP uptime monitor to home ingress'
+          - set firewall ipv4 name TRUSTED-to-CLOUD default-action drop
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 10 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 10 state established
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 10 state related
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 protocol tcp
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 source address {{ vm.monitoring_stack.ip }}
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 destination address 10.1.0.10/32
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 destination port 19531
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 description 'Monitoring pulls AWS journal gateway'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 protocol tcp
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 source address {{ vm.monitoring_stack.ip }}
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 destination address 10.2.0.10/32
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 destination port 19531
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 description 'Monitoring pulls GCP journal gateway'
+          - set firewall ipv4 name CLOUD-to-LOCAL default-action drop
+          - set firewall ipv4 name CLOUD-to-LOCAL rule 10 action accept
+          - set firewall ipv4 name CLOUD-to-LOCAL rule 10 state established
+          - set firewall ipv4 name CLOUD-to-LOCAL rule 10 state related
+          - set firewall ipv4 name LOCAL-to-CLOUD default-action accept
 
           # Configure trusted zones full access
           - set firewall ipv4 name TRUSTED-to-MGMT default-action accept
@@ -490,6 +557,8 @@
           - set firewall zone MEDIA from LOCAL firewall name LOCAL-to-ZONES
           - set firewall zone UNTRUSTED from LOCAL firewall name LOCAL-to-ZONES
           - set firewall zone MGMT from LOCAL firewall name LOCAL-to-ZONES
+          - set firewall zone CLOUD from LOCAL firewall name LOCAL-to-CLOUD
+          - set firewall zone LOCAL from CLOUD firewall name CLOUD-to-LOCAL
 
           # Apply inter-zone firewall policies
           - set firewall zone MGMT from TRUSTED firewall name TRUSTED-to-MGMT
@@ -504,6 +573,8 @@
           - set firewall zone TRUSTED from SERVICES firewall name SERVICES-to-TRUSTED
           - set firewall zone MEDIA from SERVICES firewall name SERVICES-to-MEDIA
           - set firewall zone UNTRUSTED from SERVICES firewall name SERVICES-to-UNTRUSTED
+          - set firewall zone CLOUD from TRUSTED firewall name TRUSTED-to-CLOUD
+          - set firewall zone TRUSTED from CLOUD firewall name CLOUD-to-TRUSTED
           - set firewall zone SERVICES from MEDIA firewall name MEDIA-to-SERVICES
           - set firewall zone TRUSTED from MEDIA firewall name MEDIA-to-TRUSTED
           - set firewall zone MGMT from MEDIA firewall name MEDIA-to-MGMT
@@ -512,3 +583,4 @@
           - set firewall zone TRUSTED from UNTRUSTED firewall name UNTRUSTED-to-TRUSTED
           - set firewall zone MGMT from UNTRUSTED firewall name UNTRUSTED-to-MGMT
           - set firewall zone SERVICES from UNTRUSTED firewall name UNTRUSTED-to-SERVICES
+      tags: [site-wireguard]
