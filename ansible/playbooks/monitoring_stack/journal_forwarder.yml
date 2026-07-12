@@ -80,14 +80,53 @@
             group: ojgf
             command: ["/bin/systemctl", "restart", "otel-journal-gatewayd-forwarder.service"]
             contents: |
-              {% raw %}{{ with pkiCert "pki-journal-client/issue/forwarder" "common_name=otel-journal-gatewayd-forwarder" "ttl=72h" "private_key_format=pkcs8" }}
-              {{ .Cert }}
-              {{ .Cert | writeToFile "/etc/otel-journal-gatewayd-forwarder/tls/client.crt" "root" "ojgf" "0640" }}{{ .Key | writeToFile "/etc/otel-journal-gatewayd-forwarder/tls/client.key" "root" "ojgf" "0640" }}{{ end }}{% endraw %}
+              {% raw %}{{ with secret "pki-journal-client/issue/forwarder" "common_name=otel-journal-gatewayd-forwarder" "ttl=72h" "private_key_format=pkcs8" }}
+              {{ .Data.certificate }}
+              {{ printf "%s\n" .Data.certificate | writeToFile "/etc/otel-journal-gatewayd-forwarder/tls/client.crt" "root" "ojgf" "0640" }}{{ printf "%s\n" .Data.private_key | writeToFile "/etc/otel-journal-gatewayd-forwarder/tls/client.key" "root" "ojgf" "0640" }}{{ end }}{% endraw %}
 
     - name: Wait for the forwarder client certificate
       ansible.builtin.wait_for:
         path: /etc/otel-journal-gatewayd-forwarder/tls/client.crt
         timeout: 90
+      become: true
+
+    # Seed each source's cursor to its current tail so a fresh deploy starts
+    # from now instead of backfilling the whole current boot (hosts with long
+    # uptime would otherwise ship weeks of stale entries that Loki rejects as
+    # too old). Idempotent: existing cursors are preserved (force: false).
+    - name: Ensure forwarder cursor directory
+      ansible.builtin.file:
+        path: /var/lib/otel-journal-gatewayd-forwarder
+        state: directory
+        owner: ojgf
+        group: ojgf
+        mode: "0750"
+      become: true
+
+    - name: Determine current journal tail cursor for each source
+      ansible.builtin.shell:
+        cmd: journalctl -o export -n1 --system | sed -n 's/^__CURSOR=//p'
+      register: journal_tail_cursor
+      changed_when: false
+      become: true
+      delegate_to: "{{ item }}"
+      loop: "{{ (groups['machines'] | default([])) + ['public-gateway', 'uptime-monitor'] }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Seed forwarder cursor to tail (only when absent)
+      ansible.builtin.copy:
+        content: "{{ item.stdout }}"
+        dest: "/var/lib/otel-journal-gatewayd-forwarder/{{ item.item }}.cursor"
+        owner: ojgf
+        group: ojgf
+        mode: "0640"
+        force: false
+      become: true
+      when: item.stdout | default('') | length > 0
+      loop: "{{ journal_tail_cursor.results }}"
+      loop_control:
+        label: "{{ item.item }}"
 
     - name: Deploy the forwarder
       ansible.builtin.include_role:
