@@ -27,8 +27,11 @@
         commands:
           - "sudo mkdir -p /config/otel"
           - "sudo mkdir -p /config/containers/otel-storage"
+          - "sudo mkdir -p /config/vyos-exporter/otel-storage"
           - "sudo chmod 755 /config/otel"
           - "sudo chmod 777 /config/containers/otel-storage"
+          - "sudo chmod 755 /config/vyos-exporter"
+          - "sudo chmod 700 /config/vyos-exporter/otel-storage"
 
     - name: Generate OTEL config locally
       template:
@@ -96,6 +99,7 @@
 
           # Container arguments - point to config file
           - set container name otel-collector argument '--config=/etc/otel/config.yml'
+          - set container name otel-collector argument '--feature-gates=+filelog.allowFileDeletion'
 
           # Mount the config directory
           - set container name otel-collector volume otel-config source /config/otel
@@ -106,6 +110,12 @@
           - set container name otel-collector volume otel-storage source /config/containers/otel-storage
           - set container name otel-collector volume otel-storage destination /var/lib/otelcol/storage
           - set container name otel-collector volume otel-storage mode rw
+
+          # Mount native exporter state. The collector checkpoints filelog
+          # offsets here and removes sealed NDJSON only after accepted delivery.
+          - set container name otel-collector volume vyos-exporter source /config/vyos-exporter
+          - set container name otel-collector volume vyos-exporter destination /var/lib/vyos-exporter
+          - set container name otel-collector volume vyos-exporter mode rw
 
           # Mount host logs for collection (read-only)
           - set container name otel-collector volume host-logs source /var/log

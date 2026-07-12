@@ -6,6 +6,15 @@ receivers:
       http:
         endpoint: "0.0.0.0:4318"
 
+  # Generic Loki push-API receiver: a non-OTLP bridge for tools that cannot emit
+  # OTLP (currently unpoller UniFi events from home-gateway-stack). Any Loki-push
+  # client that reaches the port is accepted — an ACL restricts it to the pusher.
+  loki:
+    protocols:
+      http:
+        endpoint: "0.0.0.0:{{ vm.monitoring_stack.ports.loki_push }}"
+    use_incoming_timestamp: true
+
 processors:
   memory_limiter:
     check_interval: 5s
@@ -30,6 +39,13 @@ processors:
     timeout: 30s
     send_batch_size: 50000
     send_batch_max_size: 100000
+
+  # Sealed router observations are compact NDJSON records. The dedicated
+  # ClickHouse path parses them into the idempotent network.observations table.
+  batch/vyos_observations:
+    timeout: 5s
+    send_batch_size: 10000
+    send_batch_max_size: 20000
 
   # Selectively promote essential resource attributes to metric labels
   # This avoids the cardinality explosion from full resource_to_telemetry_conversion
@@ -72,6 +88,9 @@ connectors:
       - context: resource
         condition: attributes["log.source"] == "suricata"
         pipelines: [logs/clickhouse/suricata]
+      - context: resource
+        condition: attributes["log.source"] == "vyos_observations"
+        pipelines: [logs/clickhouse/vyos_observations]
 
   # Route traces by tenant for Tempo multi-tenancy
   routing/traces:
@@ -150,6 +169,24 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 300s
 
+  clickhouse/network_observations:
+    endpoint: tcp://localhost:9000
+    username: aether
+    password: "{{ secrets.clickhouse.password }}"
+    database: network
+    async_insert: true
+    connection_params:
+      wait_for_async_insert: "1"
+    compress: lz4
+    create_schema: false
+    logs_table_name: ingest
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
   # Long-term metrics archive: 365d TTL in ClickHouse alongside the 30d Prometheus
   # hot path. Schema is REPO-OWNED (clickhouse/metrics-schema.sql, applied via the
   # init dir / reconcile) — create_schema stays false so the alpha exporter can
@@ -217,9 +254,22 @@ service:
       receivers: [routing/logs]
       exporters: [clickhouse/suricata]
 
+    # VyOS sealed NDJSON observations -> typed, replay-idempotent ClickHouse rows.
+    logs/clickhouse/vyos_observations:
+      receivers: [routing/logs]
+      processors: [batch/vyos_observations]
+      exporters: [clickhouse/network_observations]
+
     # All other logs -> Loki (default)
     logs/loki:
       receivers: [routing/logs]
+      exporters: [otlphttp/loki]
+
+    # Non-OTLP Loki-push sources (unpoller UniFi events) -> Loki, routed through
+    # the collector so they get batching, memory limiting, and the standard egress.
+    logs/loki_push:
+      receivers: [loki]
+      processors: [memory_limiter, batch]
       exporters: [otlphttp/loki]
 
     traces:

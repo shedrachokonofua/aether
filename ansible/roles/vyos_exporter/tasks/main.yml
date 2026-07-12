@@ -1,0 +1,116 @@
+---
+- name: Assert immutable VyOS exporter release inputs
+  ansible.builtin.assert:
+    that:
+      - vyos_exporter_version is match('^v[0-9]+\\.[0-9]+\\.[0-9]+$')
+      - vyos_exporter_version != 'latest'
+      - vyos_exporter_sha256 is match('^[0-9a-f]{64}$')
+      - vyos_exporter_kea_helper_sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      vyos_exporter requires a versioned GitLab release and SHA-256 pins for
+      both binaries; the router must never consume a mutable package.
+    quiet: true
+
+- name: Create local VyOS exporter download cache
+  ansible.builtin.file:
+    path: "{{ vyos_exporter_local_download_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+- name: Download pinned VyOS exporter release binaries
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ vyos_exporter_local_download_dir }}/{{ item.name }}"
+    checksum: "sha256:{{ item.checksum }}"
+    mode: "0600"
+  loop:
+    - name: vyos-exporter
+      url: "{{ vyos_exporter_download_url }}"
+      checksum: "{{ vyos_exporter_sha256 }}"
+    - name: kea-helper
+      url: "{{ vyos_exporter_kea_helper_download_url }}"
+      checksum: "{{ vyos_exporter_kea_helper_sha256 }}"
+  delegate_to: localhost
+  become: false
+
+- name: Render VyOS exporter managed files locally
+  ansible.builtin.template:
+    src: "{{ item.source }}"
+    dest: "{{ vyos_exporter_local_download_dir }}/{{ item.name }}"
+    mode: "0600"
+  loop:
+    - name: config.toml
+      source: config.toml.j2
+    - name: vyos-exporter.service
+      source: vyos-exporter.service.j2
+    - name: vyos-exporter.sudoers
+      source: vyos-exporter.sudoers.j2
+    - name: install-systemd.sh
+      source: install-systemd.sh.j2
+  delegate_to: localhost
+  become: false
+
+- name: Collect managed VyOS exporter payloads
+  ansible.builtin.slurp:
+    src: "{{ vyos_exporter_local_download_dir }}/{{ item.name }}"
+  loop:
+    - name: vyos-exporter
+      destination: "{{ vyos_exporter_root }}/bin/vyos-exporter"
+      mode: "0755"
+    - name: kea-helper
+      destination: "{{ vyos_exporter_root }}/bin/kea-helper"
+      mode: "0755"
+    - name: config.toml
+      destination: "{{ vyos_exporter_root }}/config.toml"
+      mode: "0640"
+    - name: vyos-exporter.service
+      destination: "{{ vyos_exporter_root }}/vyos-exporter.service"
+      mode: "0644"
+    - name: vyos-exporter.sudoers
+      destination: "{{ vyos_exporter_root }}/vyos-exporter.sudoers"
+      mode: "0440"
+    - name: install-systemd.sh
+      destination: "{{ vyos_exporter_root }}/install-systemd.sh"
+      mode: "0755"
+  delegate_to: localhost
+  become: false
+  register: vyos_exporter_payloads
+
+- name: Install managed VyOS exporter payloads in persistent storage
+  vyos.vyos.vyos_command:
+    commands:
+      - "sudo install -d -m 0755 {{ vyos_exporter_root }}/bin"
+      - >-
+        printf '%s' '{{ item.content }}' | base64 -d |
+        sudo tee '{{ item.item.destination }}' >/dev/null
+      - "sudo chmod {{ item.item.mode }} '{{ item.item.destination }}'"
+  loop: "{{ vyos_exporter_payloads.results }}"
+  no_log: true
+
+- name: Register persistent VyOS exporter boot hook
+  vyos.vyos.vyos_command:
+    commands:
+      - >-
+        sudo install -d -m 0755 /config/scripts;
+        if [ ! -e /config/scripts/vyos-postconfig-bootup.script ]; then
+          printf '%s\\n' '#!/bin/sh' | sudo tee /config/scripts/vyos-postconfig-bootup.script >/dev/null;
+        fi;
+        if ! sudo grep -qxF '{{ vyos_exporter_root }}/install-systemd.sh' /config/scripts/vyos-postconfig-bootup.script; then
+          printf '%s\\n' '{{ vyos_exporter_root }}/install-systemd.sh' | sudo tee -a /config/scripts/vyos-postconfig-bootup.script >/dev/null;
+        fi;
+        sudo chmod 0755 /config/scripts/vyos-postconfig-bootup.script
+
+- name: Install and start persistent VyOS exporter service
+  vyos.vyos.vyos_command:
+    commands:
+      - "sudo {{ vyos_exporter_root }}/install-systemd.sh"
+
+- name: Verify VyOS exporter service is active
+  vyos.vyos.vyos_command:
+    commands:
+      - "sudo systemctl is-active {{ vyos_exporter_service_name }}"
+  register: vyos_exporter_service_status
+  changed_when: false
+  failed_when: vyos_exporter_service_status.stdout | join('') | trim != 'active'

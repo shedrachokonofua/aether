@@ -1,0 +1,13 @@
+# Managed by Aether Ansible. The exporter runs unprivileged; these are its
+# exact privileged source operations. Do not broaden this alias.
+Cmnd_Alias VYOS_EXPORTER = \
+  {{ vyos_exporter_kea_helper_path }} statistics, \
+  /usr/sbin/nft --json list table ip vyos_filter, \
+  /usr/sbin/nft --json list table ip6 vyos_filter, \
+  /usr/libexec/vyos/op_mode/nat.py show_statistics --direction source --family inet --raw, \
+  /usr/libexec/vyos/op_mode/nat.py show_statistics --direction destination --family inet --raw, \
+  /usr/bin/suricatasc -c dump-counters /run/suricata/suricata.socket, \
+  /usr/bin/suricatasc -c ruleset-stats /run/suricata/suricata.socket, \
+  /usr/bin/suricatasc -c "iface-stat {{ vyos_exporter_suricata_interface }}" /run/suricata/suricata.socket
+
+{{ vyos_exporter_user }} ALL=(root) NOPASSWD: VYOS_EXPORTER

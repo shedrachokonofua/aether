@@ -20,6 +20,9 @@
 - name: Configure OTEL monitoring
   import_playbook: configure_otel.yml
 
+- name: Deploy VyOS exporter
+  import_playbook: configure_vyos_exporter.yml
+
 - name: Configure Suricata IDS
   import_playbook: configure_suricata.yml
 

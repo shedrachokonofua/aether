@@ -1,0 +1,69 @@
+---
+# Deploy only the VyOS observation path. Keep this isolated from the full
+# monitoring-stack play: that play also reconciles unrelated, independently
+# developed ClickHouse schemas and Grafana resources.
+- name: Deploy VyOS observation ingestion
+  hosts: monitoring-stack
+  gather_facts: false
+  vars:
+    clickhouse_admin_user: aether
+  roles:
+    - common
+  tasks:
+    - name: Create central OTel and ClickHouse schema directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /home/aether/otel
+        - /home/aether/clickhouse/init
+
+    - name: Stage VyOS observation ClickHouse schema
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/clickhouse/09-vyos-observations.sql"
+        dest: /home/aether/clickhouse/init/09-vyos-observations.sql
+        mode: "0644"
+
+    - name: Wait for ClickHouse
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.clickhouse }}/ping"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: clickhouse_health
+      until:
+        - clickhouse_health.status == 200
+        - clickhouse_health.content | trim == "Ok."
+      retries: 30
+      delay: 5
+
+    - name: Reconcile VyOS observation ClickHouse schema
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --queries-file
+          - /docker-entrypoint-initdb.d/09-vyos-observations.sql
+
+    - name: Render central OTel route for VyOS observations
+      ansible.builtin.template:
+        src: otel_config.yml.j2
+        dest: /home/aether/otel/otel_config.yml
+        mode: "0644"
+
+    - name: Reconcile central OTel Collector
+      containers.podman.podman_container:
+        name: otel_collector
+        image: docker.io/otel/opentelemetry-collector-contrib:0.156.0
+        pod: monitoring-stack.pod
+        pull: missing
+        volumes:
+          - /home/aether/otel/otel_config.yml:/etc/otelcol-contrib/config.yaml:Z
+        env:
+          GOGC: "200"
+          GOMEMLIMIT: "3GiB"
+        state: quadlet

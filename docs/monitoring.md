@@ -39,6 +39,7 @@ flowchart TB
     OTLP --> Router
     Router -->|Zeek logs| ClickHouse
     Router -->|Suricata logs| ClickHouse
+    Router -->|VyOS observations| ClickHouse
     Router -->|other logs| Loki
     OTLP -->|metrics| Prometheus
     OTLP -->|traces| Tempo
@@ -60,7 +61,7 @@ flowchart TB
 | Prometheus     | Metrics storage (TSDB)                               |
 | Loki           | Log aggregation and querying                         |
 | Tempo          | Distributed trace storage                            |
-| ClickHouse     | Network/IDS logs (Zeek, Suricata) with SQL analytics |
+| ClickHouse     | Network/IDS logs and replay-idempotent VyOS observations with SQL analytics |
 | Grafana        | Visualization and alerting                           |
 
 ### Data Retention

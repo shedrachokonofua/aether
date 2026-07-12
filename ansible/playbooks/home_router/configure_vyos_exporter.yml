@@ -1,0 +1,10 @@
+---
+- name: Deploy VyOS exporter
+  hosts: router
+  gather_facts: false
+  roles:
+    - common
+    - vyos_exporter
+  vars:
+    ansible_persistent_connect_timeout: 0
+  tags: [vyos-exporter]

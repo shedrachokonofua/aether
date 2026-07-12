@@ -1,0 +1,28 @@
+---
+# Router deployment always consumes an immutable GitLab Generic Package release.
+# `latest` is intentionally forbidden by the role assertion.
+vyos_exporter_version: "v0.1.0"
+vyos_exporter_package_base_url: >-
+  https://gitlab.home.shdr.ch/api/v4/projects/so%2Fvyos-exporter/packages/generic/vyos-exporter/{{ vyos_exporter_version }}
+vyos_exporter_download_url: "{{ vyos_exporter_package_base_url }}/vyos-exporter-linux-amd64"
+vyos_exporter_kea_helper_download_url: "{{ vyos_exporter_package_base_url }}/kea-helper-linux-amd64"
+# v0.1.0 SHA256SUMS, published by vyos-exporter pipeline 3498.
+vyos_exporter_sha256: "5e35c448b01a3c072aeaf9b605788d625a4ff6e20a3ee8f69f460c3ba843cf41"
+vyos_exporter_kea_helper_sha256: "c03884ab0791307cab059d63936afce55e7a2ce0f082edab5fa727fe0cfc34fd"
+
+vyos_exporter_root: /config/vyos-exporter
+vyos_exporter_binary_path: /usr/local/bin/vyos-exporter
+vyos_exporter_kea_helper_path: /usr/libexec/vyos-exporter/kea-helper
+vyos_exporter_config_path: "{{ vyos_exporter_root }}/config.toml"
+vyos_exporter_observations_dir: "{{ vyos_exporter_root }}/observations"
+vyos_exporter_state_dir: "{{ vyos_exporter_root }}/state"
+vyos_exporter_service_name: vyos-exporter.service
+vyos_exporter_user: vyos-exporter
+vyos_exporter_group: vyos-exporter
+vyos_exporter_local_download_dir: "{{ playbook_dir }}/.cache/vyos-exporter"
+
+# Current router declarations: PPPoE is WAN and Suricata monitors trunk eth1.
+vyos_exporter_wan_interfaces: [pppoe0]
+vyos_exporter_suricata_interface: eth1
+vyos_exporter_expected_services:
+  - vyos-suricata.service
