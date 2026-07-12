@@ -40,6 +40,17 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 
 Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, cloud providers, Cursor Composer routes, and MCP tools. The Cursor Composer models are exposed as `cursor/composer-2.5` and `cursor/composer-2.5-fast`; LiteLLM bridges `/responses` clients to the self-hosted composer-api chat-completions endpoint, and also exposes first-class Cursor BYOK routes under `/cursor/*`.
 
+GLM and Kimi deployments are pooled across their configured providers under the
+canonical `router/glm-5.2` and `router/kimi-k2.7-code` model groups. Routing
+uses simple shuffle with same-group weighted failover; the existing
+provider-prefixed model names, plus `glm` and `kimi`, remain compatibility
+aliases. The same routing pattern covers `router/deepseek-v4-pro`,
+`router/deepseek-v4-flash`, `router/qwen3.7-max`, `router/minimax-m3`, and
+`router/mimo-v2.5-pro` where multiple providers are configured. Ollama Cloud's
+Kimi K2.6 deployment remains separate. Production routing uses a 120-second
+upstream timeout for agentic turns, three retries, and one failed deployment
+before a 300-second cooldown; detailed debug mode is disabled.
+
 ```mermaid
 flowchart LR
     subgraph Consumers
