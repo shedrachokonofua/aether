@@ -31,6 +31,7 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Kestra OSS     | YAML automation plane and Inquest flow runtime         |
 | HolmesGPT      | Read-only Kubernetes/Prometheus/Loki investigation agent |
 | Keel           | Auto-updates our GitLab `:latest` app images on new digests |
+| wasmCloud      | WebAssembly component runtime (WorkloadDeployment CRs on shared hosts) |
 
 Goldilocks is advisory only: it creates VPA objects with `updateMode: Off` in
 namespaces labeled `goldilocks.fairwinds.com/enabled=true`. Resource changes
@@ -82,6 +83,67 @@ Because Apprise reserves the `type` field for its severity enum and rejects
 Keel's `type="deployment update"`, the endpoint remaps it to the title
 (`&:type=title`) and feeds `message` to the body (`&:message=body`), routed to
 the `standard` group (ntfy `/alerts` push + Matrix `#alerts`).
+
+### WebAssembly (wasmCloud)
+
+WebAssembly components run on the **wasmCloud runtime-operator** (Helm chart,
+pinned `2.5.2`) in `wasmcloud-system`. The operator schedules components,
+declared as `WorkloadDeployment` CRs (`runtime.wasmcloud.dev/v1alpha1`), onto a
+small pool of shared **host pods** (`hostgroup-default`, 2 replicas). Each
+component's selector-less `Service` gets an operator-managed EndpointSlice
+(runtime-gateway disabled since 2.0.3); Istio Ambient provides mTLS.
+
+**Ownership split — artifact vs deploy.** Each component repo's CI builds and
+publishes the component as an **OCI `.wasm` artifact** (`wash oci push` to the
+home GitLab registry). Deployment is owned by **aether tofu**, inline per
+component (`Service` + `WorkloadDeployment` + optional `HTTPRoute`/trigger
+`CronJob`), following the repo's inline convention (arch-labeler, node
+remediator) — no shared module yet (revisit at a third component). Because
+`wasmcloud-system` is platform-tier and aether-owned, project repos are
+artifact factories; the deployer owns the namespace.
+
+**Config surface (verified against the live CRD).** Component config lives under
+`spec.template.spec.components[].localResources`, not a top-level env list:
+
+- `localResources.environment.config` — literal env vars (map). Secrets/
+  ConfigMaps via `environment.secretFrom` / `configFrom`.
+- `localResources.allowedHosts` — outbound host allowlist for
+  `wasi:http` outgoing-handler. **Without it, egress is denied** and a component
+  that makes outbound calls is a silent no-op.
+- `hostInterfaces` declares capability **plugins** the host wires in
+  (`wasi:http` `incoming-handler` / `outgoing-handler`). `wasi:cli/environment`
+  is **host-native — do NOT declare it** as a hostInterface; doing so fails the
+  workload with `bind_plugins: no plugins found`. Env still arrives via
+  `localResources.environment`.
+- An HTTP-exposed component's `HTTPRoute` needs a `URLRewrite` filter rewriting
+  the external hostname to the incoming-handler's registered host (the component
+  name), on the gateway `http` section.
+
+**Rollout.** Pin the image tag (or digest); bump + `tofu apply`; rollback =
+revert. Set the component `imagePullPolicy: Always` — the wasmCloud host caches
+components, so `IfNotPresent` serves stale code even on a digest bump and the
+update only lands after a manual `kubectl rollout restart deploy/hostgroup-*`.
+Keel cannot watch the `WorkloadDeployment` CRD and components are low-churn, so
+there is no auto-roller.
+
+Current components: `aether-wasm-hello` (canary, gateway-exposed —
+`aether_wasm_hello.tf`) and `aether-comfyui-reaper` (flushes idle GPU-resident
+ComfyUI model state, cron-triggered — `comfyui_reaper.tf`). Runtime owned by
+`tofu/home/kubernetes/wasmcloud.tf`.
+
+**Version note.** The runtime was migrated `2.0.5 → 2.5.2` on 2026-07-12. It is
+**not a drop-in**, because the `Host` CRD scope changed `Cluster → Namespaced`
+and CRD scope is immutable. The migration therefore: (1) patched the
+`runtime.wasmcloud.dev/host-finalizer` off the live `Host` CRs and deleted the
+old `hosts.runtime.wasmcloud.dev` CRD; (2) applied the 2.5.2 chart CRDs
+out-of-band (`kubectl apply --server-side`, since Helm never upgrades `crds/`),
+recreating `Host` as `Namespaced`; (3) ran the `helm upgrade` via tofu. A naive
+`helm upgrade` alone crashloops the new operator (`Host is not namespaced, but
+its ByObject.Namespaces setting is not nil`) against the old cluster-scoped CRD.
+Hosts re-register automatically under the new CRD (`Host` now carries
+`ENVIRONMENT=<namespace>`) and the operator re-places components — brief
+workload unavailability, no node reboot. Repeat this CRD-first sequence for any
+future scope-changing bump.
 
 ### Access
 
