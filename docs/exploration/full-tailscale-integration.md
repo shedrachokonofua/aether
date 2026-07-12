@@ -1,5 +1,19 @@
 # Tailscale Integration — Full E2E Plan
 
+> **Status (2026-07): largely superseded by the routed WireGuard fabric.** Fixed
+> cloud infra (AWS/GCP) now reaches home over routed WG (`10.1/10.2`) and Tailscale
+> was retired on those nodes. Consequences for this plan:
+> - **Phase 1 (Keycloak OIDC SSO)** — done and still valid.
+> - **Phase 2 (gateway WIF)** — now applies only to home-gateway/admin-gateway
+>   (public-gateway retired); optional hardening, weigh the machinery vs 2 nodes.
+> - **Phase 3 (VyOS route home→Tailnet)** — superseded; the WG fabric provides
+>   home↔cloud reachability. Drop.
+> - **Phase 4 (MagicDNS)** — largely obsolete; only for resolving roaming tailnet
+>   nodes by name.
+>
+> Tailscale's residual role is roaming human access (subnet routers on
+> home-gateway/admin-gateway) + optional friend sharing.
+
 ## Goals
 1. **Integrate Tailscale SSO with Keycloak** — humans login via your IdP
 2. **Eliminate long-lived OAuth credentials** — gateway provisioning via WIF
