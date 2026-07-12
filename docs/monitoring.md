@@ -154,6 +154,37 @@ Deployed to Proxmox hosts via `host_monitoring_agent` role. Exposes metrics scra
 
 **Services:** `aether-node-exporter`, `aether-smartctl-exporter`
 
+### Journal Forwarder
+
+The agent-free hosts (five Proxmox hypervisors + the AWS/GCP cloud VMs) run no
+local OTel agent, so their logs are collected pull-based by
+`otel-journal-gatewayd-forwarder` on `monitoring-stack`. It polls each host's
+`systemd-journal-gatewayd` (`:19531`) and ships OTLP logs to the local central
+collector, which routes them to Loki. Deploy with `task configure:journal-gateways`
+(the gateways) and `task configure:journal-forwarder` (the collector side).
+
+| Hop | Transport / authn |
+| --- | --- |
+| forwarder → Proxmox hosts | HTTPS mTLS. gatewayd serves plain HTTP on loopback; **ghostunnel** terminates client-cert mTLS on the mgmt IP (Debian systemd is openssl-built, so gatewayd's own `--trust` is unavailable). The trust anchor is the `pki-journal-client` intermediate — it signs exactly one leaf, so it *is* the authorization policy — plus an `--allow-cn` allowlist. |
+| forwarder → cloud VMs | Plain HTTP bound to the routed WireGuard site IP (`10.1.0.10` AWS, `10.2.0.10` GCP). WireGuard + the host nftables rule (only `10.0.2.3` may reach `:19531`) + the VyOS `CLOUD` zone are the authn boundary. Tailscale was retired on these nodes. |
+| forwarder → OTLP | loopback `http://127.0.0.1:4318`, plain. |
+
+The forwarder's client cert is minted by **vault-agent** (Ansible `openbao_agent`
+role) from `pki-journal-client/issue/forwarder` via the dedicated
+`journal-forwarder` cert-auth role (pinned to `monitoring-stack.home.shdr.ch`,
+never the shared `aether-machine` role). Renewal restarts the forwarder; the
+gatewayd server certs (step-ca `machine-bootstrap`) renew and restart ghostunnel.
+
+Logs land in Loki as `service_name=<systemd unit>` with `host_name`,
+`instance_type` (`proxmox_host`/`vps`), and `os_type` as structured metadata —
+e.g. `{service_name="pvedaemon"} | host_name=`niobe``. On a fresh deploy each
+source's cursor is seeded to the current journal tail, so long-uptime hosts do
+not backfill weeks of stale entries that Loki would reject as too old.
+
+Metrics on `127.0.0.1:9091` (`ojgf_*`) are scraped by the VM agent; the
+`Journal Forwarder` Grafana group alerts on poll-stale, poll-errors, and absent
+(all `severity: warning`).
+
 ## API-Based Exporters
 
 Running in the monitoring stack pod, scraped by the central OTEL Collector:
@@ -356,6 +387,32 @@ Each security signal is assigned exactly one bucket:
 - **forensics-only (deliberately no alert)** — Zeek conn/dns/http/ssl/weird,
   Suricata sev-3, Hubble flows, Fleet live/scheduled query history. Query these
   in Grafana/ClickHouse/Fleet; they are evidence, not pages.
+
+### Argos network-beacon detector
+
+Argos is a host-level Native AOT systemd worker on `monitoring-stack`; it is not
+a Kubernetes workload and exposes no HTTP listener. Its configuration and
+deployment harness live in `ansible/playbooks/monitoring_stack/argos.yml`.
+`task configure:argos` installs the immutable CI artifact, renders the declared
+baseline, applies the idempotent `001_initial` ClickHouse schema with a checksum
+ledger, creates a least-privilege `argos` ClickHouse user, and runs the read-only
+`argos check` preflight. The service is disabled by default.
+
+The initial declared source contract is a 14-day `zeek.conn` retention with a
+measured-safe 300-second settle delay (the ingestion visibility SLO is 60s), an
+hourly evaluation boundary, a one-day feature lookback, and a ten-day aligned
+bootstrap watermark. Review the current raw-retention horizon and expected
+catch-up time before enabling; do not reuse the bootstrap watermark after it is
+outside retention.
+
+Security Triage contains the Argos checkpoint lag, retention headroom, failed
+cycle, explicit data-gap, and candidate-finding panels. The corresponding
+`argos-*` Grafana rules are deliberately provisioned with `isPaused: true` in
+A10. After dashboard-only observation and restart recovery prove healthy, a
+reviewed A11 change may unpause them. Candidate findings retain
+`domain=security`, `severity=warning`, and `channel=digest`: their annotations
+include the finding ID, detector version, and the Security Triage evidence link;
+they never page in this milestone.
 
 ### Soak-then-promote
 
