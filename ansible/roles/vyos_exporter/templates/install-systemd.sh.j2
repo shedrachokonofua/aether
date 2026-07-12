@@ -8,6 +8,8 @@ id -u {{ vyos_exporter_user }} >/dev/null 2>&1 || useradd \
 
 install -d -o {{ vyos_exporter_user }} -g {{ vyos_exporter_group }} -m 0750 \
   {{ vyos_exporter_state_dir }} {{ vyos_exporter_observations_dir }}
+chown root:{{ vyos_exporter_group }} {{ vyos_exporter_config_path }}
+chmod 0640 {{ vyos_exporter_config_path }}
 install -D -o root -g root -m 0755 \
   {{ vyos_exporter_root }}/bin/vyos-exporter {{ vyos_exporter_binary_path }}
 install -D -o root -g root -m 0755 \
