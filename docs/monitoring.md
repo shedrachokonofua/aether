@@ -122,6 +122,27 @@ to the central OTLP endpoint. Exact receivers vary by host declaration.
 
 **Service:** `aether-otel-collector`
 
+### Certificate expiry and renewal health
+
+Certificate coverage is split by the component that owns the certificate:
+
+| Runtime | Source | Metrics path |
+| --- | --- | --- |
+| Ansible-managed VMs | Explicit step-ca leaf files, plus selected renewal services/timers | `certificate_monitoring` role → local OTEL Prometheus receiver |
+| NixOS machine-cert users | `/etc/ssl/certs/machine.crt` and `step-ca-cert-renew.service` | `nix/modules/step-ca-cert.nix` → local OTEL Prometheus receiver |
+| Kubernetes | cert-manager controller `certmanager_certificate_*` metrics | cluster OTel collector → central Prometheus |
+
+The local file exporter watches only paths declared by the owning playbook or
+Nix module; it does not scan directories or private keys. Grafana rules alert
+at less than 30% of the certificate lifetime, on expired files, and when a
+configured renewal service or timer is failed/down. Kubernetes uses
+cert-manager's renewal timestamp because the cluster contains both long-lived
+application certificates and short-lived Istio workload certificates.
+
+Proxmox `pve-ssl.pem` is intentionally not included: Proxmox owns that
+certificate and its renewal path. Proxmox hosts become part of this file-cert
+coverage when the planned journal-gateway step-ca certificates are deployed.
+
 ### Host Monitoring Agent
 
 Deployed to Proxmox hosts via `host_monitoring_agent` role. Exposes metrics scraped by the central OTEL Collector's prometheus receiver.
@@ -155,8 +176,9 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 
 ## Dashboards
 
-The repository currently provisions six dashboard JSON files: Home, Virtual
-Machines, Ceph, Kubernetes, Security Triage, and IDS Monitoring. The live
+The repository currently provisions seven dashboard JSON files: Home,
+Certificates, Virtual Machines, Ceph, Kubernetes, Security Triage, and IDS
+Monitoring. The live
 Grafana API also retains the other dashboards listed below, but they are not all
 represented in `grafana/provisioning/dashboards/`; they are useful live surfaces,
 not fully reproducible IaC. Conversely, the declared Virtual Machines dashboard
@@ -180,8 +202,9 @@ describing the complete dashboard set as code-owned.
 | Postfix         | Mail queue, delivery stats                    |
 | ntfy            | Push notification delivery                    |
 | IDS Monitoring  | Suricata alerts + Zeek analytics (ClickHouse) |
+| Certificates    | Public TLS runway, VM/LXC machine identities, cert-manager inventory, renewal units, and certificate alerts (uid `certificates`) |
 | Security Triage | **Single actionable security surface** — firing security-alert queue (`domain=security`) + per-head signal stats & recent-event tables (Suricata, Zeek, Hubble, Tetragon, Trivy, Wazuh, Keycloak) + drill-down links (uid `security-triage`) |
-| Home            | Cross-cutting triage: firing alerts, namespace-contract risk map, saturation/headroom, signal-path health (uid `home`) |
+| Home            | Cross-cutting triage: firing alerts, certificate issues, namespace-contract risk map, saturation/headroom, signal-path health (uid `home`) |
 
 ## Agent Investigations
 
