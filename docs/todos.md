@@ -6,13 +6,13 @@
   - [x] Add x509-certificate-exporter to vm_monitoring_agent role
   - [x] Add cert expiry rules to Grafana alerting (<30% lifetime remaining)
   - [x] Add cert renewal daemon health rules (systemd unit down)
-- [ ] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection ([exploration](exploration/journal-forwarder.md))
-  - [ ] Publish versioned forwarder release + SHA-256 from CI (no `latest`)
-  - [ ] Create `pki-journal-client` OpenBao mount (Tofu) + sign intermediate with step-ca root
-  - [ ] Add `journal_gateway` role (Proxmox hosts: mTLS; public gateway: tailnet-bound)
-  - [ ] Deploy vault-agent + forwarder to monitoring stack
-  - [ ] Join monitoring stack to tailnet (`tag:monitoring`) + ACL to public gateway and uptime monitor :19531
-  - [ ] Add forwarder alerts (poll stale/errors/absent) + document in monitoring.md
+- [x] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection ([exploration](exploration/journal-forwarder.md))
+  - [x] Publish versioned forwarder release + SHA-256 from CI (no `latest`)
+  - [x] Create `pki-journal-client` OpenBao mount (Tofu) + sign intermediate with step-ca root
+  - [x] Add `journal_gateway` role (Proxmox hosts: mTLS via ghostunnel — Debian systemd is openssl-built so gatewayd `--trust` is unavailable; cloud VMs: plain HTTP bound to the routed WireGuard site IP)
+  - [x] Deploy vault-agent + forwarder to monitoring stack
+  - [x] Route monitoring→cloud journals over the routed WireGuard fabric (Tailscale retired on AWS/GCP; supersedes the planned `tag:monitoring` tailnet join)
+  - [x] Add forwarder alerts (poll stale/errors/absent) + document in monitoring.md
 
 ## P1
 
@@ -64,7 +64,7 @@
   - [ ] Phase 4: networking.md rewrite; retire journal-forwarder VyOS pre-NAT workaround
 - [ ] Remove idle Knative Serving and operator resources (no declared or live KServices as of 2026-07-10)
 - [ ] Adopt two-tier PKI: step-ca root tier, OpenBao issuing tier ([exploration](exploration/two-tier-pki.md))
-  - [ ] Phase 0: `pki-journal-client` mount (with forwarder deployment)
+  - [x] Phase 0: `pki-journal-client` mount (with forwarder deployment)
   - [ ] Phase 1: freeze new step-ca provisioners; update trust-model.md with issuing-tier policy
   - [ ] Phase 2: `pki-machine` mount; migrate machine certs opportunistically with NixOS migrations
   - [ ] Add mount intermediate CAs to cert-expiry alerting; enable PKI tidy
