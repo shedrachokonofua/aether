@@ -26,6 +26,14 @@
         is_rpm_ostree_based: "{{ rpm_ostree_check.stat.exists or ansible_distribution in ['Bazzite'] }}"
         has_podman: "{{ podman_check.stat.exists | default(false) }}"
 
+    - name: Configure certificate and renewal-unit monitoring
+      ansible.builtin.include_role:
+        name: certificate_monitoring
+        apply:
+          tags: [monitoring-agent]
+      tags: [monitoring-agent]
+      when: certificate_monitoring_enabled | default(false) | bool
+
     - name: Install and configure osquery for Fleet
       include_tasks: osquery.yml
       when:

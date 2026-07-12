@@ -1,0 +1,188 @@
+---
+- name: Validate certificate monitoring inputs
+  ansible.builtin.assert:
+    that:
+      - certificate_monitoring_enabled | bool
+      - x509_certificate_exporter_watch_files | length > 0
+      - x509_certificate_exporter_arch in x509_certificate_exporter_checksums
+      - (systemd_exporter_units | length == 0) or (systemd_exporter_arch in systemd_exporter_checksums)
+    fail_msg: >-
+      Certificate monitoring needs explicit certificate files and supported
+      exporter architectures on {{ inventory_hostname }}.
+  when: certificate_monitoring_enabled | bool
+
+- name: Create certificate monitoring directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ x509_certificate_exporter_config_path | dirname }}"
+    - /usr/local/lib/aether-certificate-monitoring
+  become: true
+  when: certificate_monitoring_enabled | bool
+
+- name: Download pinned x509 certificate exporter
+  ansible.builtin.get_url:
+    url: "{{ x509_certificate_exporter_download_url | trim }}"
+    dest: /tmp/x509-certificate-exporter.tar.gz
+    checksum: "sha256:{{ x509_certificate_exporter_checksums[x509_certificate_exporter_arch] }}"
+    mode: "0644"
+  become: true
+  when: certificate_monitoring_enabled | bool
+
+- name: Extract x509 certificate exporter
+  ansible.builtin.unarchive:
+    src: /tmp/x509-certificate-exporter.tar.gz
+    dest: /usr/local/lib/aether-certificate-monitoring
+    remote_src: true
+  become: true
+  when: certificate_monitoring_enabled | bool
+
+- name: Install x509 certificate exporter binary
+  ansible.builtin.copy:
+    src: /usr/local/lib/aether-certificate-monitoring/x509-certificate-exporter
+    dest: "{{ x509_certificate_exporter_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: restart x509 certificate exporter
+  when: certificate_monitoring_enabled | bool
+
+- name: Render x509 certificate exporter configuration
+  ansible.builtin.template:
+    src: x509-certificate-exporter.yml.j2
+    dest: "{{ x509_certificate_exporter_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: restart x509 certificate exporter
+  when: certificate_monitoring_enabled | bool
+
+- name: Install x509 certificate exporter service
+  ansible.builtin.template:
+    src: x509-certificate-exporter.service.j2
+    dest: /etc/systemd/system/aether-x509-certificate-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - reload certificate monitoring systemd
+    - restart x509 certificate exporter
+  when: certificate_monitoring_enabled | bool
+
+- name: Download pinned systemd exporter when renewal units are monitored
+  ansible.builtin.get_url:
+    url: "{{ systemd_exporter_download_url | trim }}"
+    dest: /tmp/systemd_exporter.tar.gz
+    checksum: "sha256:{{ systemd_exporter_checksums[systemd_exporter_arch] }}"
+    mode: "0644"
+  become: true
+  when:
+    - certificate_monitoring_enabled | bool
+    - systemd_exporter_units | length > 0
+
+- name: Extract systemd exporter when renewal units are monitored
+  ansible.builtin.unarchive:
+    src: /tmp/systemd_exporter.tar.gz
+    dest: /usr/local/lib/aether-certificate-monitoring
+    remote_src: true
+  become: true
+  when:
+    - certificate_monitoring_enabled | bool
+    - systemd_exporter_units | length > 0
+
+- name: Install systemd exporter binary when renewal units are monitored
+  ansible.builtin.copy:
+    src: "/usr/local/lib/aether-certificate-monitoring/systemd_exporter-{{ systemd_exporter_version }}.linux-{{ systemd_exporter_arch }}/systemd_exporter"
+    dest: "{{ systemd_exporter_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: restart systemd exporter
+  when:
+    - certificate_monitoring_enabled | bool
+    - systemd_exporter_units | length > 0
+
+- name: Install systemd exporter service when renewal units are monitored
+  ansible.builtin.template:
+    src: systemd-exporter.service.j2
+    dest: /etc/systemd/system/aether-systemd-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - reload certificate monitoring systemd
+    - restart systemd exporter
+  when:
+    - certificate_monitoring_enabled | bool
+    - systemd_exporter_units | length > 0
+
+- name: Enable and start x509 certificate exporter
+  ansible.builtin.systemd:
+    name: aether-x509-certificate-exporter.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: certificate_monitoring_enabled | bool
+
+- name: Enable and start systemd exporter
+  ansible.builtin.systemd:
+    name: aether-systemd-exporter.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when:
+    - certificate_monitoring_enabled | bool
+    - systemd_exporter_units | length > 0
+
+- name: Add certificate and renewal-unit scrape configs to the local OTEL agent
+  ansible.builtin.set_fact:
+    prometheus_scrape_configs: >-
+      {{ (prometheus_scrape_configs | default([])) + [
+        {
+          'job_name': 'x509-certificate-exporter',
+          'scrape_interval': x509_certificate_exporter_scrape_interval,
+          'static_configs': [{
+            'targets': [x509_certificate_exporter_listen_address],
+            'labels': {
+              'certificate_monitoring_scope': certificate_monitoring_scope
+            }
+          }]
+        }
+      ] + ([
+        {
+          'job_name': 'systemd-exporter',
+          'scrape_interval': x509_certificate_exporter_scrape_interval,
+          'static_configs': [{
+            'targets': [systemd_exporter_listen_address],
+            'labels': {
+              'certificate_monitoring_scope': certificate_monitoring_scope
+            }
+          }]
+        }
+      ] if systemd_exporter_units | length > 0 else []) }}
+  when:
+    - certificate_monitoring_enabled | bool
+    - certificate_monitoring_emit_local_scrape | bool
+
+- name: Remove certificate monitoring temporary archives
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/x509-certificate-exporter.tar.gz
+    - /tmp/systemd_exporter.tar.gz
+  become: true
+  when: certificate_monitoring_enabled | bool

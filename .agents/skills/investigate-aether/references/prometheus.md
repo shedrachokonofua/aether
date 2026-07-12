@@ -36,11 +36,15 @@ sum by (service_namespace, service_name) (increase(k8s_container_restarts[1h])) 
 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
 rate(node_disk_read_bytes_total[5m])
 rate(node_disk_written_bytes_total[5m])
-pve_cpu_usage_ratio / pve_cpu_usage_limit
+100 * pve_cpu_usage_ratio{id=~"node/.*"}
+pve_cpu_usage_ratio{id=~"qemu/.*|lxc/.*"} / pve_cpu_usage_limit
 time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
 ```
 
-Use `pve_cpu_usage_limit` with `pve_cpu_usage_ratio`; the usage value behaves like consumed cores in this environment and is not independently a percent of assigned vCPUs.
+For `node/*`, `pve_cpu_usage_ratio` is already a host utilization ratio; multiply
+by 100 for percent and corroborate with node-exporter idle counters. For
+`qemu/*` and `lxc/*`, the usage value behaves like consumed cores in this
+environment, so divide by `pve_cpu_usage_limit` for percent of assigned vCPUs.
 
 ## Labels and Cardinality
 

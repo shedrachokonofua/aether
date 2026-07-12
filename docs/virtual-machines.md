@@ -31,6 +31,7 @@ services may have additional passthrough devices, datasets, or mount points.
 | `adguard_secondary` | `adguard-secondary` | Trinity | LXC | 1 | 2 GiB | 20 GB | Ansible provision, NixOS configure |
 | `bastion` | `bastion` | Oracle | LXC | 2 | 2 GiB | 32 GB | Ansible provision, NixOS configure |
 | `ids_stack` | `intrusion-detection-stack` | Oracle | VM | 4 | 4 GiB | 128 GB | OpenTofu provision, NixOS configure |
+| `nix_builder` | `nix-builder` | Neo | VM | 8 | 8 GiB | 128 GB | OpenTofu provision, NixOS configure |
 | `blockchain_stack` | `blockchain-stack` | Smith | VM | 8 | 16 GiB | 256 GB | OpenTofu provision, NixOS configure |
 
 ## Talos VMs
@@ -68,7 +69,7 @@ declarations. Current application replacements are primarily under
 
 ## Declared Totals
 
-Across the 24 service, Talos, and builder entries summarized above,
-`config/vm.yml` declares 135 vCPU, 241,664 MiB of memory, and 2,208 GB of root
+Across the 25 service, Talos, and builder entries summarized above,
+`config/vm.yml` declares 143 vCPU, 249,856 MiB of memory, and 2,336 GB of root
 disk. These are allocation declarations, not measurements of live usage or
 physical headroom.
