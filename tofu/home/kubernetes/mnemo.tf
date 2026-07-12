@@ -78,14 +78,19 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     OPENWEBUI_API_KEY      = var.secrets["openwebui.mcpo_api_key"]
     OPENWEBUI_USER_IDS     = "b7f57dc0-1575-4467-8d46-82100ec33a80"
 
-    # Matrix source (bot user access token)
-    MATRIX_HOMESERVER_URL = "https://matrix.home.shdr.ch"
-    MATRIX_ACCESS_TOKEN   = var.secrets["matrix.mnemo_bot_access_token"]
+    # Matrix push is now the sole ingestion path (Phase 3 retirement). The bot
+    # /sync polling scheduler is disabled and the bot access token is removed
+    # from the runtime, so mnemo holds no Matrix read/write credential — only
+    # the inbound application-service hs_token. MATRIX_HOMESERVER_URL is kept for
+    # display/base-URL only (no credential). The bot token remains in SOPS and
+    # the SyncMatrix code remains, so re-enabling is a config revert; revoking
+    # the bot token server-side is a separate, explicitly-authorized step.
+    # See ../mnemo/docs/MATRIX_APPSERVICE_PLAN.md / MATRIX_APPSERVICE_RUNBOOK.md.
+    MATRIX_HOMESERVER_URL         = "https://matrix.home.shdr.ch"
+    MATRIX_SYNC_SCHEDULER_ENABLED = "false"
 
-    # Matrix inbound application service (Synapse → mnemo push). Steady-state
-    # transport: mnemo holds only the hs_token, never the as_token. The polling
-    # bot token above is retained until push delivery is proven (Phase 3).
-    # See ../mnemo/docs/MATRIX_APPSERVICE_PLAN.md.
+    # Matrix inbound application service (Synapse → mnemo push). mnemo holds
+    # only the hs_token, never the as_token.
     MATRIX_APPSERVICE_ENABLED  = "true"
     MATRIX_APPSERVICE_HS_TOKEN = var.secrets["matrix.mnemo_appservice_hs_token"]
     MATRIX_APPSERVICE_PORT     = "4001"
