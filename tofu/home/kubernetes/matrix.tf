@@ -198,6 +198,25 @@ resource "kubernetes_secret_v1" "synapse_secrets" {
           - regex: '@.*:${local.matrix_host}'
             exclusive: false
     EOT
+    # AS registration for mnemo's inbound-only application service. Synapse
+    # pushes every event from rooms where @shdrch is joined to mnemo's internal
+    # listener; mnemo holds only the hs_token in steady state (never the
+    # as_token). Scoped to exactly @shdrch, not a wildcard. See
+    # ../mnemo/docs/MATRIX_APPSERVICE_PLAN.md.
+    "mnemo.yaml" = <<-EOT
+      id: mnemo
+      url: http://mnemo.mnemo.svc.cluster.local:4001
+      as_token: ${var.secrets["matrix.mnemo_appservice_as_token"]}
+      hs_token: ${var.secrets["matrix.mnemo_appservice_hs_token"]}
+      sender_localpart: _mnemo
+      rate_limited: false
+      namespaces:
+        users:
+          - exclusive: false
+            regex: '^@shdrch:matrix\.home\.shdr\.ch$'
+        aliases: []
+        rooms: []
+    EOT
   }
 }
 
@@ -309,9 +328,15 @@ resource "kubernetes_deployment_v1" "matrix" {
       metadata {
         labels = local.matrix_labels
         annotations = {
-          # Restart the pod when homeserver.yaml changes — the subPath mount
-          # never refreshes in-place (same pattern as litellm.tf).
-          "aether.shdr.ch/config-sha" = sha256(kubernetes_config_map_v1.synapse_config.data["homeserver.yaml"])
+          # Restart the pod when homeserver.yaml OR an appservice registration
+          # in synapse-secrets changes — the subPath mounts never refresh
+          # in-place (same pattern as litellm.tf). Hashing the mnemo/doublepuppet
+          # registration content forces a rollout on token rotation.
+          "aether.shdr.ch/config-sha" = sha256(join("", [
+            kubernetes_config_map_v1.synapse_config.data["homeserver.yaml"],
+            kubernetes_secret_v1.synapse_secrets.data["doublepuppet.yaml"],
+            kubernetes_secret_v1.synapse_secrets.data["mnemo.yaml"],
+          ]))
         }
       }
 
@@ -367,6 +392,12 @@ resource "kubernetes_deployment_v1" "matrix" {
             name       = "synapse-secrets"
             mount_path = "/etc/synapse/doublepuppet.yaml"
             sub_path   = "doublepuppet.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "synapse-secrets"
+            mount_path = "/etc/synapse/mnemo.yaml"
+            sub_path   = "mnemo.yaml"
             read_only  = true
           }
           volume_mount {

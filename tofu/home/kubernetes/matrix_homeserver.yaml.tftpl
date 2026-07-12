@@ -64,10 +64,13 @@ oidc_providers:
         localpart_template: "{{ user.preferred_username }}"
         display_name_template: "{{ user.name }}"
 
-# Bridges and doublepuppet appservice registrations.
+# Bridges, doublepuppet, and mnemo appservice registrations.
 # Bridge registration files live in each bridge's PVC, mounted read-only into
-# this container at /srv/<bridge>/registration.yaml.
+# this container at /srv/<bridge>/registration.yaml. doublepuppet.yaml and
+# mnemo.yaml are rendered into the synapse-secrets Secret (see matrix.tf) and
+# mounted read-only at /etc/synapse/.
 app_service_config_files:
   - /srv/whatsapp/registration.yaml
   - /srv/gmessages/registration.yaml
   - /etc/synapse/doublepuppet.yaml
+  - /etc/synapse/mnemo.yaml
