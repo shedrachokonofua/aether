@@ -1,0 +1,38 @@
+---
+# otel-journal-gatewayd-forwarder: pinned release from the GitLab generic
+# package registry. Aether never consumes `latest`; pin version + checksum.
+otel_journal_forwarder_version: "v0.2.0"
+otel_journal_forwarder_download_url:
+  "https://gitlab.home.shdr.ch/api/v4/projects/shdrch%2Fotel-journal-gatewayd-forwarder/packages/generic/otel-journal-gatewayd-forwarder/{{ otel_journal_forwarder_version }}/otel-journal-gatewayd-forwarder-linux-amd64"
+otel_journal_forwarder_sha256: "3cd626773dbedf0541d7db7f7220a2606f90af468344224f0dfc666fb20574ce"
+otel_journal_forwarder_binary_path: "/usr/local/bin/otel-journal-gatewayd-forwarder"
+
+# Runtime identity and paths
+otel_journal_forwarder_user: "ojgf"
+otel_journal_forwarder_group: "ojgf"
+otel_journal_forwarder_config_dir: "/etc/otel-journal-gatewayd-forwarder"
+otel_journal_forwarder_config_path: "{{ otel_journal_forwarder_config_dir }}/config.toml"
+# TLS material is rendered here by the openbao_agent role (vault-agent), not by
+# this role. The dir is group-readable by ojgf so the forwarder can read the key.
+otel_journal_forwarder_tls_dir: "{{ otel_journal_forwarder_config_dir }}/tls"
+# Server-trust CA for gatewayd server certs (step-ca root). Deployed by the
+# openbao_agent role; referenced in place rather than duplicated.
+otel_journal_forwarder_ca_cert: "/etc/ssl/certs/step-ca-root.crt"
+otel_journal_forwarder_cursor_dir: "/var/lib/otel-journal-gatewayd-forwarder"
+
+# Forwarder configuration
+otel_journal_forwarder_otlp_endpoint: "http://127.0.0.1:4318"
+otel_journal_forwarder_poll_interval: "5s"
+otel_journal_forwarder_batch_size: 500
+otel_journal_forwarder_max_field_bytes: 8192
+otel_journal_forwarder_metrics_addr: "127.0.0.1:9091"
+
+# Journal sources. Each item:
+#   { name, url, no_tls(bool, default false), labels(dict), units(list) }
+# Proxmox sources use https:// and inherit the global [tls] mTLS identity.
+# Cloud sources use http:// over the WireGuard fabric and set no_tls: true.
+otel_journal_forwarder_sources: []
+
+# Service is started by default; the caller may hold it (e.g. staged rollout).
+otel_journal_forwarder_service_state: started
+otel_journal_forwarder_service_enabled: true

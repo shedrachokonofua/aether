@@ -1,0 +1,7 @@
+# Managed by Ansible (journal_gateway role).
+# Clear the packaged ListenStream (all interfaces) then bind narrowly.
+[Socket]
+ListenStream=
+ListenStream={{ journal_gateway_bind_address }}:{{ journal_gateway_port }}
+# Allow binding a WireGuard site address that may appear after this unit.
+FreeBind=true

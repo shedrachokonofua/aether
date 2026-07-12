@@ -12,6 +12,33 @@
       - zeek
       - suricata
       - metrics
+      - argos
+    argos_version: "857c94e60d71ae90d70f05a21b570fcdf0bc89e9"
+    argos_artifact_url: "https://gitlab.home.shdr.ch/so/argos/-/jobs/13409/artifacts/raw/artifacts/argos"
+    argos_binary_sha256: "dfd105d156e4c1cfe68dd07bcfafe7bed7be857a2a27a75da13a6a13c09819df"
+    # Preserve the final newline: this is the exact SHA-256 Argos and operators
+    # use for the immutable migration ledger, not Ansible's trimmed file lookup.
+    argos_schema_checksum: "{{ lookup('file', playbook_dir ~ '/clickhouse/10-argos-schema.sql', rstrip=False) | hash('sha256') }}"
+    argos_clickhouse_user: argos
+    argos_clickhouse_role: argos_detector_role
+    # A10 uses the 60-second measured Zeek acknowledgement-to-typed-row SLO.
+    # 300 seconds is both the five-minute floor and more than 2x that SLO.
+    argos_supervisor_tick_seconds: 60
+    argos_evaluation_interval_seconds: 3600
+    argos_ingest_settle_seconds: 300
+    argos_zeek_retention_seconds: 1209600
+    argos_feature_lookback_seconds: 86400
+    argos_max_catchup_cycles: 12
+    # A full 50k-pair feature batch can exceed ClickHouse's 1.86 GiB per-query
+    # ceiling on busy hours. Smaller deterministic pages preserve coverage
+    # while keeping the 24-hour rolling aggregation bounded.
+    argos_max_changed_pairs_per_page: 5000
+    argos_max_changed_pairs_per_cycle: 250000
+    argos_query_timeout_seconds: 60
+    # Ten days of the current fourteen-day Zeek retention leaves four days for
+    # catch-up and the required 24-hour retention headroom before enablement.
+    argos_bootstrap_start: "2026-07-01T00:00:00Z"
+    argos_service_enabled: false
   roles:
     - common
     - vm_baseline
@@ -573,7 +600,11 @@
         - clickhouse_health.content | trim == "Ok."
       retries: 30
       delay: 5
-      tags: [clickhouse, grafana, clickhouse-grafana-reader]
+      tags: [clickhouse, grafana, clickhouse-grafana-reader, argos]
+
+    - name: Deploy Argos contracts and staged worker
+      ansible.builtin.import_tasks: argos.yml
+      tags: [argos]
 
     - name: Validate Grafana ClickHouse credential is decrypted
       assert:
@@ -701,3 +732,6 @@
 
 - name: Deploy Fleet
   import_playbook: fleet.yml
+
+- name: Deploy journal forwarder
+  import_playbook: journal_forwarder.yml

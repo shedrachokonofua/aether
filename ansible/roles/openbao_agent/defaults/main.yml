@@ -1,0 +1,40 @@
+---
+# Ansible port of nix/modules/openbao-agent.nix + step-ca machine-cert renewal.
+# Authenticates to OpenBao with a step-ca machine certificate and renders
+# secrets to disk, restarting consumers on change.
+
+openbao_agent_machine_cn: "{{ inventory_hostname }}.home.shdr.ch"
+# Internal mTLS listener (matches facts.infra.openbao_internal_url).
+openbao_agent_vault_addr: "https://{{ vm.openbao.ip }}:{{ vm.openbao.ports.https }}"
+openbao_agent_auth_path: "cert"
+# Dedicated cert-auth role scoped to this host's CN. Never aether-machine.
+openbao_agent_auth_role: "journal-forwarder"
+
+openbao_agent_client_cert: "/etc/ssl/certs/machine.crt"
+openbao_agent_client_key: "/etc/ssl/private/machine.key"
+openbao_agent_ca_cert: "/etc/ssl/certs/step-ca-root.crt"
+
+openbao_agent_config_dir: "/etc/vault-agent"
+openbao_agent_config_path: "{{ openbao_agent_config_dir }}/vault-agent.hcl"
+openbao_agent_step_dir: "{{ openbao_agent_config_dir }}/step"
+
+# Template stanzas. Each item:
+#   { destination, contents, perms, owner, group, command(list) }
+openbao_agent_templates: []
+# Extra paths vault-agent may write rendered secrets to (ProtectSystem=strict).
+openbao_agent_extra_read_write_paths: []
+
+# step-ca machine cert
+openbao_agent_step_ca_url: "https://ca.shdr.ch"
+openbao_agent_step_ca_provisioner: "machine-bootstrap"
+openbao_agent_step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password | default('') }}"
+openbao_agent_cert_sans:
+  - "{{ openbao_agent_machine_cn }}"
+openbao_agent_renew_service: "aether-machine-cert-renew"
+
+# Pinned tooling
+openbao_agent_openbao_version: "2.4.4"
+openbao_agent_openbao_download_url:
+  "https://github.com/openbao/openbao/releases/download/v{{ openbao_agent_openbao_version }}/bao_{{ openbao_agent_openbao_version }}_Linux_x86_64.tar.gz"
+openbao_agent_bao_binary: "/usr/local/bin/bao"
+openbao_agent_step_download_url: "https://dl.smallstep.com/cli/docs-ca-install/latest/step_linux_amd64.tar.gz"

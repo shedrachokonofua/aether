@@ -1,0 +1,14 @@
+---
+- name: Reload systemd for otel-journal-gatewayd-forwarder
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+  listen: reload otel-journal-gatewayd-forwarder systemd
+
+- name: Restart otel-journal-gatewayd-forwarder
+  ansible.builtin.systemd:
+    name: otel-journal-gatewayd-forwarder.service
+    state: restarted
+  become: true
+  listen: restart otel-journal-gatewayd-forwarder
+  when: otel_journal_forwarder_service_state == 'started'

@@ -1,0 +1,21 @@
+---
+- name: Reload systemd for journal-gatewayd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+  listen: reload journal-gatewayd systemd
+
+- name: Restart journal-gatewayd socket
+  ansible.builtin.systemd:
+    name: systemd-journal-gatewayd.socket
+    state: restarted
+  become: true
+  listen: restart journal-gatewayd socket
+
+- name: Restart journal-gatewayd service
+  ansible.builtin.systemd:
+    name: systemd-journal-gatewayd.service
+    state: restarted
+  become: true
+  failed_when: false
+  listen: restart journal-gatewayd service

@@ -1,0 +1,101 @@
+---
+- name: Validate forwarder inputs
+  ansible.builtin.assert:
+    that:
+      - otel_journal_forwarder_sha256 | length == 64
+      - otel_journal_forwarder_sources | length > 0
+    fail_msg: >-
+      otel_journal_forwarder needs a pinned checksum and at least one source on
+      {{ inventory_hostname }}.
+    quiet: true
+
+- name: Create forwarder system group
+  ansible.builtin.group:
+    name: "{{ otel_journal_forwarder_group }}"
+    system: true
+  become: true
+
+- name: Create forwarder system user
+  ansible.builtin.user:
+    name: "{{ otel_journal_forwarder_user }}"
+    group: "{{ otel_journal_forwarder_group }}"
+    system: true
+    create_home: false
+    home: "{{ otel_journal_forwarder_cursor_dir }}"
+    shell: /usr/sbin/nologin
+  become: true
+
+- name: Create forwarder config directory
+  ansible.builtin.file:
+    path: "{{ otel_journal_forwarder_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Create forwarder TLS directory
+  # Group-readable by ojgf: the openbao_agent role (vault-agent) renders
+  # client.crt/client.key/step-root.crt here for the forwarder to read.
+  ansible.builtin.file:
+    path: "{{ otel_journal_forwarder_tls_dir }}"
+    state: directory
+    owner: root
+    group: "{{ otel_journal_forwarder_group }}"
+    mode: "0750"
+  become: true
+
+- name: Download pinned forwarder binary
+  ansible.builtin.get_url:
+    url: "{{ otel_journal_forwarder_download_url | trim }}"
+    dest: /tmp/otel-journal-gatewayd-forwarder
+    checksum: "sha256:{{ otel_journal_forwarder_sha256 }}"
+    mode: "0644"
+  become: true
+
+- name: Install forwarder binary
+  ansible.builtin.copy:
+    src: /tmp/otel-journal-gatewayd-forwarder
+    dest: "{{ otel_journal_forwarder_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: restart otel-journal-gatewayd-forwarder
+
+- name: Render forwarder configuration
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ otel_journal_forwarder_config_path }}"
+    owner: root
+    group: "{{ otel_journal_forwarder_group }}"
+    mode: "0640"
+  become: true
+  notify: restart otel-journal-gatewayd-forwarder
+
+- name: Install forwarder systemd unit
+  ansible.builtin.template:
+    src: otel-journal-gatewayd-forwarder.service.j2
+    dest: /etc/systemd/system/otel-journal-gatewayd-forwarder.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - reload otel-journal-gatewayd-forwarder systemd
+    - restart otel-journal-gatewayd-forwarder
+
+- name: Remove forwarder temporary archive
+  ansible.builtin.file:
+    path: /tmp/otel-journal-gatewayd-forwarder
+    state: absent
+  become: true
+
+- name: Enable and start forwarder
+  ansible.builtin.systemd:
+    name: otel-journal-gatewayd-forwarder.service
+    enabled: "{{ otel_journal_forwarder_service_enabled }}"
+    state: "{{ otel_journal_forwarder_service_state }}"
+    daemon_reload: true
+  become: true

@@ -1,0 +1,29 @@
+# Managed by Ansible (otel_journal_forwarder role). Do not edit by hand.
+otlp_endpoint = "{{ otel_journal_forwarder_otlp_endpoint }}"
+poll_interval = "{{ otel_journal_forwarder_poll_interval }}"
+batch_size = {{ otel_journal_forwarder_batch_size }}
+max_field_bytes = {{ otel_journal_forwarder_max_field_bytes }}
+cursor_dir = "{{ otel_journal_forwarder_cursor_dir }}"
+
+# Global TLS identity: applies to https:// sources (Proxmox mTLS). The OTLP
+# exporter is plain-HTTP loopback and http:// cloud sources set an empty tls
+# block, so this client identity is engaged only on the Proxmox gatewayd hop.
+[tls]
+ca_cert = "{{ otel_journal_forwarder_ca_cert }}"
+client_cert = "{{ otel_journal_forwarder_tls_dir }}/client.crt"
+client_key = "{{ otel_journal_forwarder_tls_dir }}/client.key"
+{% for s in otel_journal_forwarder_sources %}
+
+[[sources]]
+name = "{{ s.name }}"
+url = "{{ s.url }}"
+{% if s.units | default([]) %}
+units = [{% for u in s.units %}"{{ u }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
+{% if s.no_tls | default(false) %}
+tls = {}
+{% endif %}
+{% if s.labels | default({}) %}
+labels = { {% for k, v in s.labels.items() %}{{ k }} = "{{ v }}"{% if not loop.last %}, {% endif %}{% endfor %} }
+{% endif %}
+{% endfor %}

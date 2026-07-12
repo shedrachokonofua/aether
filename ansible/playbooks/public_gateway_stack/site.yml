@@ -43,6 +43,11 @@
     - common
     - role: site_wireguard
       tags: [site-wireguard]
+    - role: journal_gateway
+      vars:
+        journal_gateway_tls_enabled: false
+        journal_gateway_bind_address: "10.1.0.10"
+      tags: [journal-gateway]
 #     - dnf
 
 - name: Deploy CrowdSec
