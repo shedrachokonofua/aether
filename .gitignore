@@ -72,3 +72,6 @@ backups/
 
 # Root-level scratch directory
 /tmp/
+
+# Local artifact cache for router deployments (vyos_exporter role)
+ansible/playbooks/home_router/.cache/
