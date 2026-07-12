@@ -127,6 +127,20 @@ processors:
         value: "suricata"
         action: insert
 
+  # Central routing/logs matches log.source in RESOURCE context (same pattern
+  # as suricata). The filelog `add` operator only sets a record attribute.
+  resource/vyos_observations:
+    attributes:
+      - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: service.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: log.source
+        value: "vyos_observations"
+        action: insert
+
 extensions:
   file_storage/filelog_cursor_storage:
     directory: /var/lib/otelcol/storage
@@ -176,10 +190,11 @@ service:
       receivers: [filelog/suricata]
       processors: [batch/suricata, resource/suricata]
       exporters: [otlphttp]
-    # Sealed NDJSON observations are already fully structured; do not mutate
-    # the parsed attributes before central ClickHouse routing.
+    # Sealed NDJSON observations are already fully structured; only the
+    # resource routing identity is added before central ClickHouse routing.
     logs/vyos_observations:
       receivers: [filelog/vyos_observations]
+      processors: [resource/vyos_observations]
       exporters: [otlphttp]
     traces:
       receivers: [otlp]
