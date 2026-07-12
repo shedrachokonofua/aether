@@ -1,0 +1,33 @@
+[Unit]
+Description=OTel journal-gatewayd forwarder
+Documentation=https://gitlab.home.shdr.ch/shdrch/otel-journal-gatewayd-forwarder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User={{ otel_journal_forwarder_user }}
+Group={{ otel_journal_forwarder_group }}
+ExecStart={{ otel_journal_forwarder_binary_path }} --config {{ otel_journal_forwarder_config_path }} --metrics {{ otel_journal_forwarder_metrics_addr }}
+Restart=on-failure
+RestartSec=5
+
+# Crash-safe cursor storage ($STATE_DIRECTORY resolves to this path).
+StateDirectory=otel-journal-gatewayd-forwarder
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths={{ otel_journal_forwarder_cursor_dir }}
+
+[Install]
+WantedBy=multi-user.target

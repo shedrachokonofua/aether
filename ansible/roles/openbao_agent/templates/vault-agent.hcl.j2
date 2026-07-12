@@ -1,0 +1,48 @@
+# Managed by Ansible (openbao_agent role). Do not edit by hand.
+pid_file = "/run/vault-agent/vault-agent.pid"
+
+vault {
+  address     = "{{ openbao_agent_vault_addr }}"
+  ca_cert     = "{{ openbao_agent_ca_cert }}"
+  client_cert = "{{ openbao_agent_client_cert }}"
+  client_key  = "{{ openbao_agent_client_key }}"
+}
+
+auto_auth {
+  method "cert" {
+    mount_path = "auth/{{ openbao_agent_auth_path }}"
+    config = {
+      name        = "{{ openbao_agent_auth_role }}"
+      client_cert = "{{ openbao_agent_client_cert }}"
+      client_key  = "{{ openbao_agent_client_key }}"
+    }
+  }
+
+  sink "file" {
+    config = {
+      path = "/run/vault-agent/token"
+      mode = 0600
+    }
+  }
+}
+{% for t in openbao_agent_templates %}
+
+template {
+  destination = "{{ t.destination }}"
+  perms       = "{{ t.perms | default('0640') }}"
+{% if t.owner is defined %}  user        = "{{ t.owner }}"
+{% endif %}{% if t.group is defined %}  group       = "{{ t.group }}"
+{% endif %}  contents    = <<EOT
+{{ t.contents }}
+EOT
+{% if t.command is defined %}  exec {
+    command = {{ t.command | to_json }}
+  }
+{% endif %}
+}
+{% endfor %}
+
+template_config {
+  exit_on_retry_failure         = true
+  static_secret_render_interval = "1m"
+}

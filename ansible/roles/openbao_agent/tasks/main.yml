@@ -1,0 +1,235 @@
+---
+- name: Validate openbao_agent inputs
+  ansible.builtin.assert:
+    that:
+      - openbao_agent_step_ca_provisioner_password | length > 0
+      - openbao_agent_auth_role != "aether-machine"
+    fail_msg: >-
+      openbao_agent needs the step-ca provisioner password and a dedicated
+      (non aether-machine) cert-auth role on {{ inventory_hostname }}.
+    quiet: true
+
+# ---------------------------------------------------------------------------
+# Tooling: step-cli + bao
+# ---------------------------------------------------------------------------
+- name: Check for step-cli
+  ansible.builtin.stat:
+    path: /usr/bin/step
+  register: openbao_agent_step_stat
+
+- name: Install step-cli
+  when: not openbao_agent_step_stat.stat.exists
+  become: true
+  block:
+    - name: Download step-cli
+      ansible.builtin.get_url:
+        url: "{{ openbao_agent_step_download_url }}"
+        dest: /tmp/step_linux_amd64.tar.gz
+        mode: "0644"
+        timeout: 120
+
+    - name: Extract step-cli
+      ansible.builtin.unarchive:
+        src: /tmp/step_linux_amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install step-cli binary
+      ansible.builtin.copy:
+        src: /tmp/step_linux_amd64/bin/step
+        dest: /usr/bin/step
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+
+- name: Check for bao
+  ansible.builtin.stat:
+    path: "{{ openbao_agent_bao_binary }}"
+  register: openbao_agent_bao_stat
+
+- name: Install bao (OpenBao)
+  when: not openbao_agent_bao_stat.stat.exists
+  become: true
+  block:
+    - name: Download OpenBao
+      ansible.builtin.get_url:
+        url: "{{ openbao_agent_openbao_download_url }}"
+        dest: /tmp/bao_linux_amd64.tar.gz
+        mode: "0644"
+        timeout: 120
+
+    - name: Extract OpenBao
+      ansible.builtin.unarchive:
+        src: /tmp/bao_linux_amd64.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install bao binary
+      ansible.builtin.copy:
+        src: /tmp/bao
+        dest: "{{ openbao_agent_bao_binary }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+
+# ---------------------------------------------------------------------------
+# step-ca machine certificate
+# ---------------------------------------------------------------------------
+- name: Create machine key directory
+  ansible.builtin.file:
+    path: /etc/ssl/private
+    state: directory
+    owner: root
+    group: root
+    mode: "0710"
+  become: true
+
+- name: Create vault-agent step directory
+  ansible.builtin.file:
+    path: "{{ openbao_agent_step_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  become: true
+
+- name: Fetch step-ca root certificate
+  ansible.builtin.get_url:
+    url: "{{ openbao_agent_step_ca_url }}/roots.pem"
+    dest: "{{ openbao_agent_ca_cert }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate_certs: false
+  become: true
+
+- name: Get step-ca root fingerprint
+  ansible.builtin.command:
+    cmd: "step certificate fingerprint {{ openbao_agent_ca_cert }}"
+  register: openbao_agent_ca_fingerprint
+  changed_when: false
+  become: true
+
+- name: Bootstrap step-ca trust for renewal
+  ansible.builtin.command:
+    cmd: >
+      step ca bootstrap
+      --ca-url={{ openbao_agent_step_ca_url }}
+      --fingerprint={{ openbao_agent_ca_fingerprint.stdout }}
+      --force
+  environment:
+    STEPPATH: "{{ openbao_agent_step_dir }}"
+  args:
+    creates: "{{ openbao_agent_step_dir }}/certs/root_ca.crt"
+  become: true
+
+- name: Write step-ca provisioner password
+  ansible.builtin.copy:
+    content: "{{ openbao_agent_step_ca_provisioner_password }}"
+    dest: "{{ openbao_agent_step_dir }}/provisioner-password.txt"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  no_log: true
+
+- name: Request machine certificate from step-ca
+  ansible.builtin.command:
+    cmd: >
+      step ca certificate
+      {{ openbao_agent_machine_cn }}
+      {{ openbao_agent_client_cert }}
+      {{ openbao_agent_client_key }}
+      {% for san in openbao_agent_cert_sans %}--san={{ san }} {% endfor %}
+      --provisioner={{ openbao_agent_step_ca_provisioner }}
+      --provisioner-password-file={{ openbao_agent_step_dir }}/provisioner-password.txt
+      --force
+  environment:
+    STEPPATH: "{{ openbao_agent_step_dir }}"
+  args:
+    creates: "{{ openbao_agent_client_cert }}"
+  become: true
+  no_log: true
+  notify: restart vault-agent
+
+- name: Enforce machine key permissions
+  ansible.builtin.file:
+    path: "{{ openbao_agent_client_key }}"
+    owner: root
+    group: root
+    mode: "0640"
+  become: true
+
+- name: Install machine certificate renewal service
+  ansible.builtin.template:
+    src: machine-cert-renew.service.j2
+    dest: "/etc/systemd/system/{{ openbao_agent_renew_service }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: reload vault-agent systemd
+
+# ---------------------------------------------------------------------------
+# vault-agent
+# ---------------------------------------------------------------------------
+- name: Create vault-agent config directory
+  ansible.builtin.file:
+    path: "{{ openbao_agent_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  become: true
+
+- name: Render vault-agent configuration
+  ansible.builtin.template:
+    src: vault-agent.hcl.j2
+    dest: "{{ openbao_agent_config_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  become: true
+  notify: restart vault-agent
+
+- name: Install vault-agent systemd unit
+  ansible.builtin.template:
+    src: vault-agent.service.j2
+    dest: /etc/systemd/system/vault-agent.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - reload vault-agent systemd
+    - restart vault-agent
+
+- name: Remove tooling temporary archives
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/step_linux_amd64.tar.gz
+    - /tmp/bao_linux_amd64.tar.gz
+  become: true
+
+- name: Flush vault-agent handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start machine certificate renewal daemon
+  ansible.builtin.systemd:
+    name: "{{ openbao_agent_renew_service }}.service"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+
+- name: Enable and start vault-agent
+  ansible.builtin.systemd:
+    name: vault-agent.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true

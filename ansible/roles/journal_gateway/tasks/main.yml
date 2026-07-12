@@ -1,0 +1,222 @@
+---
+- name: Validate journal_gateway inputs
+  ansible.builtin.assert:
+    that:
+      - journal_gateway_bind_address | length > 0
+      - (not journal_gateway_tls_enabled) or (journal_gateway_step_ca_provisioner_password | length > 0)
+    fail_msg: >-
+      journal_gateway needs a bind address (and, in TLS mode, the step-ca
+      provisioner password) on {{ inventory_hostname }}.
+    quiet: true
+
+- name: Install systemd-journal-gatewayd
+  ansible.builtin.package:
+    name: systemd-journal-remote
+    state: present
+  become: true
+
+- name: Locate the systemd-journal-gatewayd binary
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/lib/systemd/systemd-journal-gatewayd
+    - /lib/systemd/systemd-journal-gatewayd
+    - /usr/libexec/systemd/systemd-journal-gatewayd
+  register: journal_gateway_bin_candidates
+  become: true
+
+- name: Resolve the gatewayd binary path
+  ansible.builtin.set_fact:
+    journal_gateway_binary: >-
+      {{ (journal_gateway_bin_candidates.results
+          | selectattr('stat.exists', 'equalto', true)
+          | map(attribute='stat.path') | list | first) }}
+
+- name: Fail when the gatewayd binary is missing
+  ansible.builtin.assert:
+    that:
+      - journal_gateway_binary is defined
+      - journal_gateway_binary | length > 0
+    fail_msg: "systemd-journal-gatewayd binary not found on {{ inventory_hostname }}."
+    quiet: true
+
+- name: Create gatewayd socket drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/systemd-journal-gatewayd.socket.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Bind gatewayd socket to the intended address
+  ansible.builtin.template:
+    src: socket-override.conf.j2
+    dest: /etc/systemd/system/systemd-journal-gatewayd.socket.d/override.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - reload journal-gatewayd systemd
+    - restart journal-gatewayd socket
+
+# ---------------------------------------------------------------------------
+# TLS mode (Proxmox hosts): step-ca server cert + renewal + journal-client trust
+# ---------------------------------------------------------------------------
+- name: Configure gatewayd mTLS
+  when: journal_gateway_tls_enabled | bool
+  become: true
+  block:
+    - name: Create gatewayd TLS and step directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - "{{ journal_gateway_tls_dir }}"
+        - "{{ journal_gateway_step_dir }}"
+
+    - name: Fetch step-ca root certificate
+      ansible.builtin.get_url:
+        url: "{{ journal_gateway_step_ca_url }}/roots.pem"
+        dest: /tmp/journal-gateway-step-root.pem
+        mode: "0644"
+        validate_certs: false
+
+    - name: Get step-ca root fingerprint
+      ansible.builtin.command:
+        cmd: step certificate fingerprint /tmp/journal-gateway-step-root.pem
+      register: journal_gateway_ca_fingerprint
+      changed_when: false
+
+    - name: Bootstrap step-ca trust for gatewayd renewal
+      ansible.builtin.command:
+        cmd: >
+          step ca bootstrap
+          --ca-url={{ journal_gateway_step_ca_url }}
+          --fingerprint={{ journal_gateway_ca_fingerprint.stdout }}
+          --force
+      environment:
+        STEPPATH: "{{ journal_gateway_step_dir }}"
+      args:
+        creates: "{{ journal_gateway_step_dir }}/certs/root_ca.crt"
+
+    - name: Write step-ca provisioner password
+      ansible.builtin.copy:
+        content: "{{ journal_gateway_step_ca_provisioner_password }}"
+        dest: "{{ journal_gateway_step_dir }}/provisioner-password.txt"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Request gatewayd server certificate from step-ca
+      ansible.builtin.command:
+        cmd: >
+          step ca certificate
+          {{ journal_gateway_cert_cn }}
+          {{ journal_gateway_cert_path }}
+          {{ journal_gateway_key_path }}
+          {% for san in journal_gateway_cert_sans %}--san={{ san }} {% endfor %}
+          --provisioner={{ journal_gateway_step_ca_provisioner }}
+          --provisioner-password-file={{ journal_gateway_step_dir }}/provisioner-password.txt
+          --force
+      environment:
+        STEPPATH: "{{ journal_gateway_step_dir }}"
+      args:
+        creates: "{{ journal_gateway_cert_path }}"
+      no_log: true
+      notify: restart journal-gatewayd service
+
+    - name: Enforce gatewayd key permissions
+      ansible.builtin.file:
+        path: "{{ journal_gateway_key_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Fetch the journal-client CA (trust anchor)
+      ansible.builtin.uri:
+        url: "{{ journal_gateway_pki_ca_pem_url }}"
+        return_content: true
+      register: journal_gateway_ca_response
+
+    - name: Set journal-client CA fact
+      ansible.builtin.set_fact:
+        journal_gateway_ca_pem: "{{ journal_gateway_ca_response.content | trim }}"
+
+    - name: Render the gatewayd trust bundle
+      ansible.builtin.template:
+        src: trust-bundle.crt.j2
+        dest: "{{ journal_gateway_trust_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart journal-gatewayd service
+
+    - name: Create gatewayd service drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/systemd-journal-gatewayd.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Enable gatewayd mTLS via service drop-in
+      ansible.builtin.template:
+        src: service-override.conf.j2
+        dest: /etc/systemd/system/systemd-journal-gatewayd.service.d/override.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - reload journal-gatewayd systemd
+        - restart journal-gatewayd service
+
+    - name: Install gatewayd certificate renewal service
+      ansible.builtin.template:
+        src: cert-renew.service.j2
+        dest: "/etc/systemd/system/{{ journal_gateway_cert_renew_service }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: reload journal-gatewayd systemd
+
+    - name: Remove step-ca root temporary file
+      ansible.builtin.file:
+        path: /tmp/journal-gateway-step-root.pem
+        state: absent
+
+    - name: Enable and start the gatewayd certificate renewal daemon
+      ansible.builtin.systemd:
+        name: "{{ journal_gateway_cert_renew_service }}.service"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+# ---------------------------------------------------------------------------
+# Plain mode (cloud VMs): remove any stale mTLS drop-in
+# ---------------------------------------------------------------------------
+- name: Remove gatewayd mTLS service drop-in when TLS is disabled
+  ansible.builtin.file:
+    path: /etc/systemd/system/systemd-journal-gatewayd.service.d/override.conf
+    state: absent
+  become: true
+  when: not journal_gateway_tls_enabled | bool
+  notify:
+    - reload journal-gatewayd systemd
+    - restart journal-gatewayd service
+
+- name: Flush journal-gatewayd handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the gatewayd socket
+  ansible.builtin.systemd:
+    name: systemd-journal-gatewayd.socket
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true

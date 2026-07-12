@@ -224,6 +224,13 @@ tasks:
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
         find secrets -name '*.yml' -o -name '*.yaml' | xargs -I{} sops updatekeys --yes {}
 
+  gmail:reauth:
+    desc: Reauthorize Mnemo Gmail and update gmail.refresh_token in SOPS
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        bb ./scripts/gmail-oauth-reauth.bb {{.CLI_ARGS}}
+
   # ===========================================================================
   # Ansible Galaxy (worth automating)
   # ===========================================================================
@@ -317,6 +324,18 @@ tasks:
   configure:monitoring:
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml {{.CLI_ARGS}}
+  configure:argos:
+    desc: Stage and validate Argos contracts on monitoring-stack; service remains disabled by default
+    cmds:
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags argos {{.CLI_ARGS}}
+  configure:journal-forwarder:
+    desc: Deploy the OTel journal forwarder on monitoring-stack
+    cmds:
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags journal-forwarder {{.CLI_ARGS}}
+  configure:journal-gateways:
+    desc: Deploy systemd-journal-gatewayd (mTLS) to the Proxmox hypervisors
+    cmds:
+      - ansible-playbook ansible/playbooks/setup_journal_gateways.yml {{.CLI_ARGS}}
   configure:grafana:
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags grafana {{.CLI_ARGS}}

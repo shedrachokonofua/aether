@@ -1,0 +1,20 @@
+---
+# systemd-journal-gatewayd with native mTLS on the agent-free Proxmox
+# hypervisors. The gatewayd server cert comes from step-ca (machine-bootstrap,
+# SAN = mgmt IP + FQDN); the --trust anchor is the dedicated pki-journal-client
+# intermediate, which is the entire authorization policy (chain-only verifier).
+- name: Deploy journal gateway on Proxmox hypervisors
+  hosts:
+    - niobe
+    - trinity
+    - oracle
+    - smith
+    - neo
+  become: true
+  gather_facts: true
+  roles:
+    - common
+    - role: journal_gateway
+      vars:
+        journal_gateway_tls_enabled: true
+        journal_gateway_bind_address: "{{ ansible_host }}"
