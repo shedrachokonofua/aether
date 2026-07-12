@@ -61,6 +61,45 @@ be live-migrated off oracle first, or the upgrade driven from oracle's console.
 5. A quiet window: even evacuated, expect brief blips for the router cutover and
    CT restarts (SSO/secrets/DNS/cert-issuance).
 
+## Network topology (verified) — the router can run off oracle
+
+`vmbr0` is a VLAN-aware trunk (vids 2-4094) on a single physical NIC into the
+192.168.2.0/24 switch. The router's WAN (PPPoE on eth0) and LAN VLANs all ride
+`vmbr0`. **neo and smith both have `vmbr0` trunked to the same switch**
+(`vmbr0v2`/`vmbr0v3` VLAN sub-bridges present), so they carry the same WAN + LAN
+L2 — the router is not physically pinned to oracle. Only gap: `vmbr_mirror` (the
+IDS SPAN bridge, `bridge-ports none`) exists on oracle only; the router's `net2`
+needs it present on the target or the VM won't start (create it, or drop `net2`
+— it is just the IDS mirror feed). One item to confirm hands-on: that the ISP
+PPPoE VLAN is trunked to the target node's switch port (boot-test proves it).
+
+## Router handling: clone-and-cutover (preferred over live-migrate)
+
+For the router specifically, a cold clone beats live migration in this
+cross-version case: clone the disk ahead of time with the router still serving,
+boot-test it on neo in isolation, then cut over deterministically — no PVE 8→9
+live-migration/QEMU-machine-version risk.
+
+1. Create `vmbr_mirror` on neo (`bridge-ports none`, `ageing_time 0`).
+2. `qm clone 1001 <newid> --name router --target neo --full` (ahead of window).
+   Set the clone's NIC MACs equal to 1001's (PVE randomizes clones by default)
+   so downstream ARP/DHCP/MAC-ACLs stay consistent.
+3. Boot-test the clone on an isolated bridge (no WAN/LAN uplink) to confirm it
+   boots and VyOS config loads; verify the PPPoE VLAN reaches neo.
+4. Cutover in the window: `qm stop 1001` on oracle, then `qm start <newid>` on
+   neo. **Never run both** — identical VyOS identity (IPs, WireGuard keys, PPPoE
+   creds). Expect ~30-60s outage (PPPoE redial + WireGuard re-handshake).
+5. Verify WAN, LAN VLANs, WireGuard fabric, and public ingress from neo's router.
+6. After oracle is on PVE 9, **migrate the clone back to oracle** — now a
+   9→9 live migration (sub-second, no cross-version risk) — and delete the
+   stale VM 1001. This restores the designed topology (control plane
+   consolidated on oracle) with no `config/vm.yml` changes. Only leave the
+   router on neo (re-home + update vm.yml) if you deliberately want to rebalance
+   capacity off oracle — not required by the upgrade.
+
+Other guests still follow the evacuate steps below (live-migrate the remaining
+VMs, offline-migrate the CTs), or accept their downtime during oracle's reboot
+now that the control path (router on neo) is safe.
 ## Recommended strategy: evacuate, then upgrade an empty oracle
 
 Minimizes downtime and preserves the remote control path.
