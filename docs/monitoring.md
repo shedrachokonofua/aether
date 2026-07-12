@@ -175,11 +175,15 @@ role) from `pki-journal-client/issue/forwarder` via the dedicated
 never the shared `aether-machine` role). Renewal restarts the forwarder; the
 gatewayd server certs (step-ca `machine-bootstrap`) renew and restart ghostunnel.
 
-Logs land in Loki as `service_name=<systemd unit>` with `host_name`,
-`instance_type` (`proxmox_host`/`vps`), and `os_type` as structured metadata —
-e.g. `{service_name="pvedaemon"} | host_name=`niobe``. On a fresh deploy each
-source's cursor is seeded to the current journal tail, so long-uptime hosts do
-not backfill weeks of stale entries that Loki would reject as too old.
+Logs land in Loki keyed by **`service_name` = the source host** (matching the
+fleet convention: VM agents set `service.name` = hostname). The forwarder itself
+emits `service.name` = the systemd unit, so the central collector rewrites it to
+the host (`transform/journal_forwarder_identity`, scoped by `instance_type`); the
+unit is preserved as `journald_unit_name`. `host_name`, `instance_type`
+(`proxmox_host`/`vps`), and `os_type` are structured metadata — e.g.
+`{service_name="niobe"}` or `{service_name="niobe"} | journald_unit_name=`pvedaemon.service``.
+On a fresh deploy each source's cursor is seeded to the current journal tail, so
+long-uptime hosts do not backfill weeks of stale entries Loki would reject.
 
 Metrics on `127.0.0.1:9091` (`ojgf_*`) are scraped by the VM agent; the
 `Journal Forwarder` Grafana group alerts on poll-stale, poll-errors, and absent
