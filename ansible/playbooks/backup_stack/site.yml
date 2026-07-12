@@ -5,6 +5,14 @@
     # backrest + PBS run as root (UID 0), excluded by the journald receiver's
     # default _UID=1000 match and not in the default monitored_systemd_units
     # list. Add them here so their logs ship to Loki.
+    certificate_monitoring_enabled: true
+    certificate_monitoring_emit_local_scrape: true
+    certificate_monitoring_scope: "vm"
+    x509_certificate_exporter_watch_files:
+      - /etc/step-ca/certs/cert-leaf.pem
+    systemd_exporter_units:
+      - backrest-cert-renew.service
+      - backrest-cert-renew.timer
     monitored_systemd_units_extra:
       - backrest.service
       - proxmox-backup.service

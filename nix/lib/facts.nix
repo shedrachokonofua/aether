@@ -9,13 +9,15 @@
 { pkgs }:
 
 let
-  aetherRoot = ../..;
+  vmConfigFile = ../../config/vm.yml;
+  authorizedKeysFile = ../../config/authorized_keys;
+  aetherRootString = builtins.toString ../..;
   
   # Convert YAML to JSON using yq (IFD - import from derivation)
   vmConfigJson = pkgs.runCommandLocal "vm-config-json" {
     nativeBuildInputs = [ pkgs.yq-go ];
   } ''
-    yq -o=json ${aetherRoot}/config/vm.yml > $out
+    yq -o=json ${vmConfigFile} > $out
   '';
   
   # Parse authorized_keys file, filtering comments and empty lines
@@ -33,17 +35,18 @@ in {
     
     # Terraform outputs (already JSON)
     tf_outputs = 
-      let path = "${aetherRoot}/secrets/tf-outputs.json";
+      let path = "${aetherRootString}/secrets/tf-outputs.json";
       in if builtins.pathExists path
          then builtins.fromJSON (builtins.readFile path)
          else {};
     
     # SSH authorized keys (parsed from config/authorized_keys)
-    ssh_authorized_keys = parseAuthorizedKeys (builtins.readFile "${aetherRoot}/config/authorized_keys");
+    ssh_authorized_keys = parseAuthorizedKeys (builtins.readFile authorizedKeysFile);
     
     # Infrastructure constants
     infra = {
       step_ca_url = "https://ca.shdr.ch";
+      step_ca_internal_url = "https://${vm.step_ca.ip}:${toString vm.step_ca.ports.https}";
       openbao_url = "https://bao.home.shdr.ch";
       openbao_internal_url = "https://${vm.openbao.ip}:${toString vm.openbao.ports.https}";
       keycloak_url = "https://auth.shdr.ch";
@@ -51,4 +54,3 @@ in {
     };
   };
 }
-

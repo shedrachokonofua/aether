@@ -288,6 +288,18 @@ ids_stack:
     wazuh_registration: 1515
     wazuh_dashboard: 5601
 
+nix_builder:
+  id: 1033
+  name: "nix-builder"
+  node: "neo"
+  admin: "aether"
+  cores: 8
+  memory: 8192
+  disk_gb: 128
+  ip: "10.0.2.12"
+  gateway: "10.0.2.1"
+  vlan: 2
+
 blockchain_stack:
   id: 1029
   name: "blockchain-stack"

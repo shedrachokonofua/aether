@@ -1,0 +1,44 @@
+# Certificate monitoring is opt-in. Callers must provide the exact certificate
+# files and renewal units owned by the host's configuration path.
+certificate_monitoring_enabled: false
+
+x509_certificate_exporter_version: "v4.1.0"
+x509_certificate_exporter_architectures:
+  x86_64: "amd64"
+  amd64: "amd64"
+  aarch64: "arm64"
+  arm64: "arm64"
+x509_certificate_exporter_arch: "{{ x509_certificate_exporter_architectures[ansible_architecture] | default('amd64') }}"
+x509_certificate_exporter_download_url: >-
+  https://github.com/enix/x509-certificate-exporter/releases/download/{{ x509_certificate_exporter_version }}/x509-certificate-exporter-{{ x509_certificate_exporter_version }}-linux-{{ x509_certificate_exporter_arch }}.tar.gz
+x509_certificate_exporter_checksums:
+  amd64: "bbaf9f4d86ec966ad03133577aeb5a28f1c5a0b4720869dc4917d25eaa39a99c"
+  arm64: "6812e03dd2026f8ee43c6803acd83086c0821f1d95047cf25be5718596f6cc64"
+x509_certificate_exporter_binary_path: "/usr/local/bin/x509-certificate-exporter"
+x509_certificate_exporter_config_path: "/etc/aether-certificate-monitoring/x509.yml"
+x509_certificate_exporter_listen_address: "127.0.0.1:9793"
+x509_certificate_exporter_watch_files: []
+x509_certificate_exporter_scrape_interval: "60s"
+
+systemd_exporter_version: "0.7.0"
+systemd_exporter_architectures:
+  x86_64: "amd64"
+  amd64: "amd64"
+  aarch64: "arm64"
+  arm64: "arm64"
+systemd_exporter_arch: "{{ systemd_exporter_architectures[ansible_architecture] | default('amd64') }}"
+systemd_exporter_download_url: >-
+  https://github.com/prometheus-community/systemd_exporter/releases/download/v{{ systemd_exporter_version }}/systemd_exporter-{{ systemd_exporter_version }}.linux-{{ systemd_exporter_arch }}.tar.gz
+systemd_exporter_checksums:
+  amd64: "2d995ca20249aeeac8f507173176ce5d162f17470a98ca66e289c85b388480c3"
+  arm64: "7b80b5d3a29ca8658ed4ef4c05ead29fcc7dc03349cac72376178f9a94299918"
+systemd_exporter_binary_path: "/usr/local/bin/systemd_exporter"
+systemd_exporter_listen_address: "127.0.0.1:9558"
+systemd_exporter_units: []
+systemd_exporter_unit_regex: >-
+  ^({{ systemd_exporter_units | map('regex_escape') | join('|') }})$
+
+# Set this true for vm_monitoring_agent callers. Host roles can use the same
+# role later with a direct Prometheus scrape instead of the local OTEL agent.
+certificate_monitoring_emit_local_scrape: false
+certificate_monitoring_scope: "vm"

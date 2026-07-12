@@ -435,6 +435,17 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
+                # cert-manager already exposes certificate lifecycle metrics
+                # on its controller service. Scrape the existing endpoint into
+                # the central Prometheus path; do not add a second in-cluster
+                # certificate exporter for Kubernetes Secrets.
+                job_name        = "cert-manager"
+                scrape_interval = "60s"
+                static_configs = [{
+                  targets = ["cert-manager.cert-manager.svc.cluster.local:9402"]
+                }]
+              },
+              {
                 job_name        = "cnpg"
                 scrape_interval = "30s"
                 kubernetes_sd_configs = [{

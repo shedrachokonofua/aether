@@ -15,6 +15,13 @@
     - role: vm_monitoring_agent
       vars:
         podman_metrics_enabled: false
+        certificate_monitoring_enabled: true
+        certificate_monitoring_emit_local_scrape: true
+        certificate_monitoring_scope: "vm"
+        x509_certificate_exporter_watch_files:
+          - /etc/openbao.d/tls/openbao-leaf.crt
+        systemd_exporter_units:
+          - openbao-cert-renew.service
 
 - name: Provision AWS KMS for auto-unseal
   import_playbook: provision_aws_kms.yml

@@ -27,7 +27,9 @@
     ./wazuh.nix                        # Wazuh HIDS stack
   ];
 
-  # step-ca certificate auto-renewal (used for machine auth to OpenBao, not for Wazuh)
+  # step-ca certificate auto-renewal (used for machine auth to OpenBao, not for Wazuh).
+  # Deploy this host with `task configure:ids-stack`; its closure is built on
+  # nix-builder so Nix evaluation/build I/O cannot starve the live IDS services.
   aether.step-ca-cert = {
     enable = true;
     onRenew = [ "vault-agent.service" ];
@@ -80,4 +82,3 @@
     tshark
   ];
 }
-
