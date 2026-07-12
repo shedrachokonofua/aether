@@ -22,6 +22,14 @@
   - [ ] OTLP ingest bearer-token authn + direct receiver TLS (drop Caddy from ingest path; AdGuard rewrite, vcluster netpol, producers-first incl. vcluster + agent self-telemetry)
   - [ ] VyOS OTel producer -> https://otel.home.shdr.ch
   - [ ] Decommission Fleet (osquery agents off, fleet pod removed, route/secret/docs sweep; FIM/HIDS stays on Wazuh, CVEs on Trivy)
+- [ ] Finish Proxmox VE 8→9 upgrade — oracle (last node on 8.3; rest on 9.1; the mixed-version cluster is the RCA for the pmxcfs RRD-update-error storm + blocked HA-groups→rules migration) ([runbook](exploration/oracle-pve9-upgrade.md))
+  - [ ] Evacuate oracle guests first — it hosts router/DNS/ingress/identity; clone-and-cutover the router to neo to preserve the control path, live-migrate remaining VMs, offline-migrate CTs
+  - [ ] Run `upgrade_pve_8_to_9.yml --limit oracle`; confirm RRD storm + HA-groups migration clear and all 5 nodes report PVE 9
+  - [ ] Migrate router back to oracle (9→9 live) or re-home per capacity decision
+- [ ] Fix Proxmox host mail delivery — host notifications silently deferred (~30h; all 5 hypervisors direct-to-MX on :25, blocked by ISP)
+  - [ ] Point host postfix `relayhost` at the notification-stack SMTP relay (which already relays → SES:587), not direct-to-Gmail
+  - [ ] (optional) Dual-home the notification stack on 192.168.2.x so host alerting doesn't depend on VyOS/oracle routing
+  - [ ] Flush the deferred queues
 - [ ] Enable Proxmox HA for critical VMs ([exploration](exploration/proxmox-ha.md))
   - [ ] Convert Trinity to local-zfs
   - [ ] Convert Oracle to local-zfs
@@ -77,6 +85,7 @@
   - [ ] Phase 2: Gateway credential security (WIF)
   - [ ] Phase 3: VyOS route for home → Tailnet
   - [ ] Phase 4: MagicDNS via AdGuard
+  - [ ] Re-scope against the routed WireGuard fabric: fixed cloud infra (AWS/GCP) now reaches home over routed WG (`10.1/10.2`, Tailscale retired there); this item is now roaming human-access only — decide the long-term Tailscale-vs-WG split (see [journal-forwarder.md](exploration/journal-forwarder.md) status note)
 - [x] Deploy IDS stack as NixOS VM ([exploration](exploration/network-security.md))
   - [x] Create NixOS config (`nix/hosts/oracle/ids-stack.nix`)
   - [x] Provision VM on Oracle via Tofu
