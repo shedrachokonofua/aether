@@ -95,7 +95,7 @@ resource "kubernetes_secret_v1" "kestra_inquest" {
     ENV_INQUEST_GITLAB_URL     = "https://gitlab.home.shdr.ch"
     ENV_INQUEST_GITLAB_PROJECT = "so/aether/incidents"
     ENV_HOLMES_URL             = "http://holmes-holmes.holmesgpt.svc"
-    ENV_HOLMES_MODEL           = "glm"
+    ENV_HOLMES_MODEL           = "router/glm-5.2"
     ENV_APPRISE_NOTIFY_URL     = "https://apprise.home.shdr.ch/notify/aether"
     ENV_APPRISE_TAG            = "standard"
     # Secrets: SECRET_* must be base64 → {{ secret('NAME') }} (no SECRET_ prefix)
@@ -185,6 +185,9 @@ resource "helm_release" "kestra" {
 
     common = {
       nodeSelector = { "kubernetes.io/arch" = "amd64" }
+      podAnnotations = {
+        "aether.shdr.ch/kestra-inquest-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_inquest.data)))
+      }
       extraEnvFrom = [
         { secretRef = { name = kubernetes_secret_v1.kestra_inquest.metadata[0].name } },
       ]

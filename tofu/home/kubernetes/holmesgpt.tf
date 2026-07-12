@@ -13,7 +13,7 @@ locals {
   holmes_ns             = module.namespace["holmesgpt"].name
   holmes_chart_version  = "0.35.0"
   holmes_litellm_base   = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
-  holmes_model_primary  = "glm"
+  holmes_model_primary  = "router/glm-5.2"
   holmes_model_local    = "qwen-local"
   holmes_prometheus_url = "https://prometheus.home.shdr.ch"
   holmes_loki_url       = "https://loki.home.shdr.ch"
@@ -64,11 +64,13 @@ resource "helm_release" "holmesgpt" {
     ]
 
     # {{ env.* }} below is Holmes-side Jinja, resolved in-pod at load time.
+    # Holmes uses openai/ as its local LiteLLM transport prefix; the proxy
+    # receives the canonical router/glm-5.2 model ID.
     modelList = {
       (local.holmes_model_primary) = {
         api_key     = "{{ env.OPENAI_API_KEY }}"
         api_base    = "{{ env.OPENAI_API_BASE }}"
-        model       = "openai/zai/glm-5.2"
+        model       = "openai/router/glm-5.2"
         temperature = 1
       }
       (local.holmes_model_local) = {
