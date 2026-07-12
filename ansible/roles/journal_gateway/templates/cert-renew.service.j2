@@ -10,9 +10,9 @@ Group=root
 Environment="STEPPATH={{ journal_gateway_step_dir }}"
 
 # Uses the existing cert to authenticate (no password). On renewal, restart the
-# socket-activated gatewayd so it re-reads the new certificate.
+# ghostunnel mTLS terminator so it re-reads the new certificate.
 ExecStart=/usr/bin/step ca renew --daemon \
-  --exec "systemctl try-restart systemd-journal-gatewayd.service" \
+  --exec "systemctl restart {{ journal_gateway_ghostunnel_service }}" \
   {{ journal_gateway_cert_path }} \
   {{ journal_gateway_key_path }}
 

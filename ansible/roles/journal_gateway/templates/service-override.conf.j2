@@ -1,6 +1,0 @@
-# Managed by Ansible (journal_gateway role).
-# Enable native mTLS on the socket-activated gatewayd. Chain-only verifier:
-# the --trust anchor is the entire authorization policy.
-[Service]
-ExecStart=
-ExecStart={{ journal_gateway_binary }} --cert={{ journal_gateway_cert_path }} --key={{ journal_gateway_key_path }} --trust={{ journal_gateway_trust_path }}
