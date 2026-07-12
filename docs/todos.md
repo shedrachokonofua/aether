@@ -1,19 +1,5 @@
 # TODOs
 
-## P0
-
-- [x] Certificate expiry alerting (step-ca file certs)
-  - [x] Add x509-certificate-exporter to vm_monitoring_agent role
-  - [x] Add cert expiry rules to Grafana alerting (<30% lifetime remaining)
-  - [x] Add cert renewal daemon health rules (systemd unit down)
-- [x] Deploy otel-journal-gatewayd-forwarder for pull-based host log collection ([exploration](exploration/journal-forwarder.md))
-  - [x] Publish versioned forwarder release + SHA-256 from CI (no `latest`)
-  - [x] Create `pki-journal-client` OpenBao mount (Tofu) + sign intermediate with step-ca root
-  - [x] Add `journal_gateway` role (Proxmox hosts: mTLS via ghostunnel — Debian systemd is openssl-built so gatewayd `--trust` is unavailable; cloud VMs: plain HTTP bound to the routed WireGuard site IP)
-  - [x] Deploy vault-agent + forwarder to monitoring stack
-  - [x] Route monitoring→cloud journals over the routed WireGuard fabric (Tailscale retired on AWS/GCP; supersedes the planned `tag:monitoring` tailnet join)
-  - [x] Add forwarder alerts (poll stale/errors/absent) + document in monitoring.md
-
 ## P1
 
 - [ ] Monitoring pre-migration hardening — survivable subset ([exploration](exploration/monitoring-stack-nix.md))
@@ -76,17 +62,14 @@
   - [ ] Phase 1: freeze new step-ca provisioners; update trust-model.md with issuing-tier policy
   - [ ] Phase 2: `pki-machine` mount; migrate machine certs opportunistically with NixOS migrations
   - [ ] Add mount intermediate CAs to cert-expiry alerting; enable PKI tidy
-- [ ] Deploy patch management stack ([exploration](exploration/patch-management.md))
-  - [ ] Deploy WUD for container update visibility
-  - [ ] Deploy Trivy for CVE scanning
-  - [ ] Deploy Ansible Semaphore for controlled deployment
-  - [ ] Create Grafana dashboard for unified view
-- [ ] Revisit Tailscale scope — largely superseded by the routed WireGuard fabric; decide what (if anything) is still worth doing ([exploration](exploration/full-tailscale-integration.md))
-  - [x] Phase 1: Keycloak OIDC SSO for human login (done, still useful)
-  - Residual role = roaming human access only (home-gateway/admin-gateway subnet routers); fixed cloud infra (AWS/GCP) now reaches home over routed WG (`10.1/10.2`, Tailscale retired there)
-  - [ ] Phase 2 (optional hardening): gateway WIF now covers only 2 gateways (home/admin) — weigh the Caddy-mTLS + Keycloak X.509 SPI + WIF machinery against the payoff, or drop
-  - [ ] ~~Phase 3: VyOS route home → Tailnet~~ superseded — home reaches cloud via WG, not the tailnet
-  - [ ] ~~Phase 4: MagicDNS via AdGuard~~ superseded/optional — only if home must resolve roaming tailnet nodes by name
+- [ ] Patch management — mostly overtaken; only WUD is genuinely open ([exploration](exploration/patch-management.md))
+  - [x] Trivy CVE scanning (deployed in k8s: `trivy-operator` + `policy-reporter` + Grafana `trivy-*` alerts; note: some scan jobs OOMKilling — tune memory)
+  - [ ] ~~Ansible Semaphore~~ superseded by the continuous-deployment plan (repo-as-interface)
+  - [ ] WUD (container image freshness) — decide vs image-pinning + Renovate-style automation, or drop
+  - [ ] Unified dashboard — partially covered by Security Triage (Trivy panels)
+- [ ] Tailscale: residual role is roaming human access only (home-gateway/admin-gateway subnet routers); fixed cloud infra now on routed WG (`10.1/10.2`); full-integration plan retired ([docs](tailscale.md))
+  - [x] Keycloak OIDC SSO for human login (done)
+  - [ ] Optional: gateway WIF for the 2 remaining gateways — weigh Caddy-mTLS + Keycloak X.509 SPI + WIF machinery vs payoff, or drop
 - [x] Deploy IDS stack as NixOS VM ([exploration](exploration/network-security.md))
   - [x] Create NixOS config (`nix/hosts/oracle/ids-stack.nix`)
   - [x] Provision VM on Oracle via Tofu
