@@ -2578,6 +2578,314 @@ groups:
         annotations:
           summary: "TLS cert on {{ $labels.instance }} expires in {{ $values.B.Value | printf \"%.1f\" }}d"
           description: "Renew before NotAfter — see docs/bastion.md (lessons learned from the OpenBao incident)."
+
+      # Local file certificates are not visible to blackbox-exporter until
+      # they are presented by a live endpoint. These rules cover the files
+      # watched by the VM/NixOS certificate-monitoring paths.
+      - uid: x509-file-cert-expiring
+        title: Local X.509 certificate expiring
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  (x509_cert_not_after - time())
+                  / clamp_min(x509_cert_not_after - x509_cert_not_before, 1)
+                ) < 0.30
+                and x509_cert_expired == 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Local certificate {{ $labels.filepath }} has less than 30% lifetime remaining"
+          description: "The watched file certificate on {{ $labels.host_name }} needs renewal before it reaches NotAfter."
+
+      - uid: x509-file-cert-expired
+        title: Local X.509 certificate expired
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: x509_cert_expired == 1
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Local certificate {{ $labels.filepath }} is expired"
+          description: "A certificate on {{ $labels.host_name }} has passed NotAfter; check its renewal unit and dependent service."
+
+      - uid: x509-renewal-unit-failed
+        title: Certificate renewal unit failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: systemd_unit_state{state="failed",name=~"(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\.(service|timer)"} == 1
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Certificate renewal unit {{ $labels.name }} failed on {{ $labels.host_name }}"
+          description: "The renewal unit is in systemd failed state. Investigate before the current certificate reaches NotAfter."
+
+      - uid: x509-renewal-daemon-down
+        title: Certificate renewal daemon down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                max by (host_name, name) (
+                  systemd_unit_state{
+                    state="active",
+                    name=~"(openbao-cert-renew|step-ca-cert-renew)\\.service"
+                  }
+                ) == 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Certificate renewal daemon {{ $labels.name }} is not active on {{ $labels.host_name }}"
+          description: "The long-running step-ca renewal daemon is down while its certificate may still look healthy."
+
+      - uid: x509-renewal-timer-down
+        title: Certificate renewal timer down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: systemd_unit_state{name="backrest-cert-renew.timer",state="active"} == 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Certificate renewal timer is not active on {{ $labels.host_name }}"
+          description: "The timer-backed backup certificate renewal path is not scheduled."
+
+      # Kubernetes cert-manager provides its own lifecycle timestamps. Use its
+      # renewal deadline rather than a fixed 30% threshold because the cluster
+      # has both long-lived application certificates and one-hour Istio certs.
+      - uid: k8s-cert-renewal-overdue
+        title: Kubernetes certificate renewal overdue
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  certmanager_certificate_renewal_timestamp_seconds - time() < 0
+                )
+                and on (namespace, name, issuer_group, issuer_kind, issuer_name)
+                (
+                  max by (namespace, name, issuer_group, issuer_kind, issuer_name) (
+                    certmanager_certificate_ready_status{condition="True"}
+                  ) == 0
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Kubernetes certificate {{ $labels.namespace }}/{{ $labels.name }} renewal is overdue"
+          description: "cert-manager has passed its renewal timestamp without a Ready certificate."
+
+      - uid: k8s-cert-expiring-critical
+        title: Kubernetes certificate near expiry
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: |
+                (
+                  certmanager_certificate_expiration_timestamp_seconds - time() < 3600
+                )
+                and on (namespace, name, issuer_group, issuer_kind, issuer_name)
+                (
+                  max by (namespace, name, issuer_group, issuer_kind, issuer_name) (
+                    certmanager_certificate_ready_status{condition="True"}
+                  ) == 0
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Kubernetes certificate {{ $labels.namespace }}/{{ $labels.name }} expires within one hour"
+          description: "cert-manager has not produced a Ready replacement before the certificate's NotAfter."
       # =====================================================================
       # Jellyfin — UX / auth / debrid-link observability
       # =====================================================================
