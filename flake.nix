@@ -161,6 +161,7 @@
             jq
             yq-go
             curl
+            wireguard-tools
             babashka
             unzip
             openssh

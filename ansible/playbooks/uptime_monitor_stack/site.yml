@@ -2,8 +2,30 @@
 - name: Configure uptime monitor stack
   hosts: uptime-monitor
   gather_facts: true
+  vars:
+    site_wireguard_addresses:
+      - 10.2.0.10/32
+      - 10.254.0.3/32
+    site_wireguard_private_key: "{{ secrets.wireguard.gcp_private_key }}"
+    site_wireguard_source_address: 10.2.0.10
+    site_wireguard_remote_prefixes:
+      - 10.0.0.0/16
+      - 10.1.0.0/16
+    site_wireguard_firewall_profile: spoke
+    site_wireguard_peers:
+      - name: aws-hub
+        public_key: "{{ secrets.wireguard.aws_public_key }}"
+        endpoint: "{{ tf_outputs.aws_public_gateway_ip.value }}:51820"
+        persistent_keepalive: 25
+        allowed_ips:
+          - 10.0.0.0/16
+          - 10.1.0.0/16
+          - 10.254.0.1/32
+          - 10.254.0.2/32
   roles:
     - common
+    - role: site_wireguard
+      tags: [site-wireguard]
 
 - name: Deploy tailscale
   import_playbook: tailscale.yml

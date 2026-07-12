@@ -1,0 +1,127 @@
+---
+- name: Validate site WireGuard variables
+  ansible.builtin.assert:
+    that:
+      - site_wireguard_private_key | length > 0
+      - site_wireguard_addresses | length > 0
+      - site_wireguard_peers | length > 0
+      - site_wireguard_firewall_profile in ['hub', 'spoke']
+    quiet: true
+  no_log: true
+
+- name: Install WireGuard and nftables
+  ansible.builtin.package:
+    name:
+      - wireguard-tools
+      - nftables
+    state: present
+  become: true
+  tags: [site-wireguard-install]
+
+- name: Create WireGuard and nftables configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - /etc/wireguard
+    - /etc/nftables.d
+  become: true
+
+- name: Configure site WireGuard
+  ansible.builtin.template:
+    src: wg.conf.j2
+    dest: "/etc/wireguard/{{ site_wireguard_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  no_log: true
+  register: site_wireguard_config
+
+- name: Stop the previous site WireGuard unit
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ site_wireguard_interface }}"
+    state: stopped
+  become: true
+  when: site_wireguard_config.changed
+  failed_when: false
+
+- name: Remove any orphaned site WireGuard interface
+  ansible.builtin.command: "wg-quick down {{ site_wireguard_interface }}"
+  become: true
+  when: site_wireguard_config.changed
+  changed_when: true
+  failed_when: false
+
+- name: Start site WireGuard after configuration changes
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ site_wireguard_interface }}"
+    state: started
+    daemon_reload: true
+  become: true
+  when: site_wireguard_config.changed
+
+- name: Configure routed-network sysctls
+  ansible.builtin.template:
+    src: sysctl.conf.j2
+    dest: /etc/sysctl.d/90-aether-site-wireguard.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: site_wireguard_sysctl
+
+- name: Apply routed-network sysctls
+  ansible.builtin.command: sysctl --system
+  become: true
+  when: site_wireguard_sysctl.changed
+  changed_when: true
+
+- name: Configure WireGuard firewall rules
+  ansible.builtin.template:
+    src: firewall.nft.j2
+    dest: /etc/nftables.d/aether-wireguard.nft
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "/usr/sbin/nft -c -f %s"
+  become: true
+  notify: Reload site WireGuard firewall
+
+- name: Install WireGuard firewall unit
+  ansible.builtin.template:
+    src: firewall.service.j2
+    dest: /etc/systemd/system/aether-wireguard-firewall.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Reload site WireGuard firewall
+
+- name: Enable and start site WireGuard
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ site_wireguard_interface }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+
+- name: Enable and start the site WireGuard firewall
+  ansible.builtin.systemd:
+    name: aether-wireguard-firewall.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+
+- name: Flush WireGuard handlers before verification
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify the WireGuard configuration is active
+  ansible.builtin.command: "wg show {{ site_wireguard_interface }}"
+  become: true
+  changed_when: false
+  no_log: true

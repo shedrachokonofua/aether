@@ -2,8 +2,47 @@
 - name: Configure public gateway stack
   hosts: public-gateway
   gather_facts: true
+  vars:
+    site_wireguard_listen_port: 51820
+    site_wireguard_addresses:
+      - 10.1.0.10/32
+      - 10.254.0.1/32
+    site_wireguard_private_key: "{{ secrets.wireguard.aws_private_key }}"
+    site_wireguard_source_address: 10.1.0.10
+    site_wireguard_remote_prefixes:
+      - 10.0.0.0/16
+      - 10.2.0.0/16
+    # Tailscale's accepted subnet route lives in policy table 52 during the
+    # migration. New site-address and transit traffic must prefer the declared
+    # WireGuard routes in the main table until tailscaled is retired.
+    site_wireguard_policy_rules:
+      - priority: 97
+        match: to 10.1.0.0/16
+      - priority: 98
+        match: to 10.2.0.0/16
+      - priority: 99
+        match: to 10.0.0.0/16
+      - priority: 100
+        match: from 10.1.0.10/32
+      - priority: 101
+        match: from 10.2.0.0/16
+    site_wireguard_enable_forwarding: true
+    site_wireguard_firewall_profile: hub
+    site_wireguard_peers:
+      - name: home-vyos
+        public_key: "{{ secrets.wireguard.vyos_public_key }}"
+        allowed_ips:
+          - 10.0.0.0/16
+          - 10.254.0.2/32
+      - name: gcp
+        public_key: "{{ secrets.wireguard.gcp_public_key }}"
+        allowed_ips:
+          - 10.2.0.0/16
+          - 10.254.0.3/32
   roles:
     - common
+    - role: site_wireguard
+      tags: [site-wireguard]
 #     - dnf
 
 - name: Deploy tailscale

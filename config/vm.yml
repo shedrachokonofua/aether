@@ -37,6 +37,7 @@ home_gateway_stack:
   ports:
     caddy: 80
     caddy_https: 443
+    caddy_public: 9443
     unifi_admin: 8443
     rotating_proxy: 1080
     rotating_proxy_metrics: 8404
