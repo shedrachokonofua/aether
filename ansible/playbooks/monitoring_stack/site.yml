@@ -13,6 +13,7 @@
       - suricata
       - metrics
       - argos
+      - network
     argos_version: "857c94e60d71ae90d70f05a21b570fcdf0bc89e9"
     argos_artifact_url: "https://gitlab.home.shdr.ch/so/argos/-/jobs/13409/artifacts/raw/artifacts/argos"
     argos_binary_sha256: "dfd105d156e4c1cfe68dd07bcfafe7bed7be857a2a27a75da13a6a13c09819df"
@@ -295,6 +296,7 @@
           - "{{ vm.monitoring_stack.ports.janus }}:8080"
           - "{{ vm.monitoring_stack.ports.prometheus }}:9090"
           - "{{ vm.monitoring_stack.ports.loki }}:3100"
+          - "{{ vm.monitoring_stack.ports.loki_push }}:3500" # collector Loki push-API receiver (unpoller UniFi events)
           - "{{ vm.monitoring_stack.ports.otel_grpc }}:4317"
           - "{{ vm.monitoring_stack.ports.otel_http }}:4318"
           - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"
@@ -601,6 +603,21 @@
       retries: 30
       delay: 5
       tags: [clickhouse, grafana, clickhouse-grafana-reader, argos]
+
+    # Init scripts run only on an empty ClickHouse volume. Reapply this
+    # idempotent DDL after readiness so existing monitoring-stack deployments
+    # gain the VyOS observation schema too.
+    - name: Reconcile VyOS observation ClickHouse schema
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --queries-file
+          - /docker-entrypoint-initdb.d/09-vyos-observations.sql
+      tags: [clickhouse, vyos-exporter]
 
     - name: Deploy Argos contracts and staged worker
       ansible.builtin.import_tasks: argos.yml

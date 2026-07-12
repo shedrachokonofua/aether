@@ -55,6 +55,22 @@ task ansible:playbook -- home_router/configure_otel.yml
 - VyOS system logs (`/var/log/messages`, `/var/log/auth.log`, `/var/log/vyos/*.log`)
 - Exports to the monitoring stack via OTLP
 
+### Deploy VyOS exporter
+
+Deploy the router-native exporter, OTel filelog receiver, and central
+ClickHouse route together:
+
+```bash
+task deploy:vyos-exporter
+```
+
+`vyos-exporter` is a pinned static GitLab release installed as a native
+systemd service. It must remain outside the OTel container because it reads
+VyOS operational programs, host procfs/systemd state, and local Kea/Suricata
+sockets. The existing OTel container scrapes `127.0.0.1:9612` and tails sealed
+NDJSON from `/config/vyos-exporter/observations`; it deletes a file only after
+the persistent filelog/export queue accepts it.
+
 ### Destroy VyOS Packer
 
 This tears down the VyOS packer VM and deletes the disk.

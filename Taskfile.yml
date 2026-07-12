@@ -313,6 +313,20 @@ tasks:
       - ansible-playbook ansible/playbooks/home_router/site.yml
   configure:router:
     cmds: [ansible-playbook ansible/playbooks/home_router/configure_router.yml]
+  configure:vyos-exporter:
+    desc: Deploy pinned VyOS exporter release to the home router
+    cmds:
+      - ansible-playbook ansible/playbooks/home_router/configure_vyos_exporter.yml
+  configure:vyos-observations:
+    desc: Reconcile the central ClickHouse schema and OTel route for VyOS observations
+    cmds:
+      - ansible-playbook ansible/playbooks/monitoring_stack/configure_vyos_observations.yml
+  deploy:vyos-exporter:
+    desc: Deploy the pinned router exporter with OTel and ClickHouse ingestion
+    cmds:
+      - task: configure:vyos-observations
+      - ansible-playbook ansible/playbooks/home_router/configure_otel.yml
+      - task: configure:vyos-exporter
   provision:nfs:
     cmds: [ansible-playbook ansible/playbooks/network_file_server/site.yml]
   configure:gateway:

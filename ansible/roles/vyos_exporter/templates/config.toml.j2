@@ -1,0 +1,35 @@
+# Managed by Aether Ansible. Do not edit on the router.
+
+[router]
+instance = "{{ inventory_hostname }}"
+state_directory = "{{ vyos_exporter_state_dir }}"
+max_concurrent_operations = 2
+
+[server]
+listen = "127.0.0.1:9612"
+shutdown_timeout = "10s"
+
+[sources]
+sudo_path = "/usr/bin/sudo"
+
+[observations]
+enabled = true
+directory = "{{ vyos_exporter_observations_dir }}"
+staging_suffix = ".tmp"
+sealed_suffix = ".ndjson"
+max_records_per_file = 5000
+max_open_duration = "30s"
+emergency_max_bytes = 1073741824
+emergency_max_age = "30d"
+
+[collectors.connectivity]
+wan_interfaces = [{% for interface in vyos_exporter_wan_interfaces %}"{{ interface }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+
+[collectors.services]
+services = [{% for service in vyos_exporter_expected_services %}"{{ service }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+
+[collectors.suricata]
+interface = "{{ vyos_exporter_suricata_interface }}"
+
+[collectors.system]
+persistent_filesystems = ["/config", "/var/log"]

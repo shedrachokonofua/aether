@@ -1,0 +1,19 @@
+[Unit]
+Description=VyOS metrics and observation exporter
+Documentation=https://gitlab.home.shdr.ch/so/vyos-exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User={{ vyos_exporter_user }}
+Group={{ vyos_exporter_group }}
+WorkingDirectory={{ vyos_exporter_root }}
+ExecStartPre={{ vyos_exporter_binary_path }} check --config {{ vyos_exporter_config_path }}
+ExecStart={{ vyos_exporter_binary_path }} --config {{ vyos_exporter_config_path }}
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+
+[Install]
+WantedBy=multi-user.target
