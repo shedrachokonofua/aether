@@ -1681,6 +1681,273 @@ groups:
           summary: "Zeek ClickHouse pipeline is stale"
           description: "No Zeek conn rows have landed in ClickHouse for more than 60 minutes"
 
+      # A10 ships Argos alerts paused. A11 removes isPaused only after the
+      # dashboard-only bootstrap and restart-recovery observations are reviewed.
+      - uid: argos-failed-cycles
+        title: Argos Failed Cycles
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM argos.detector_runs_current
+                WHERE detector_id = 'network-beacon'
+                  AND status = 'failed'
+                  AND finished_at >= now() - INTERVAL 24 HOUR
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos has failed detector cycles"
+          description: "Argos recorded {{ $values.B.Value }} failed network-beacon cycles in the last 24 hours. See Security Triage panel 18."
+
+      - uid: argos-checkpoint-stale
+        title: Argos Checkpoint Stale
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ifNull(dateDiff('minute', max(ingestion_watermark), now()), 999999) AS value
+                FROM argos.detector_checkpoint_history
+                WHERE detector_id = 'network-beacon'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [120]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos network-beacon checkpoint is stale"
+          description: "Argos has not advanced its ingestion watermark for {{ $values.B.Value }} minutes. See Security Triage panel 18."
+
+      - uid: argos-retention-headroom-low
+        title: Argos Retention Headroom Low
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ifNull(dateDiff('hour', now(), max(ingestion_watermark) + INTERVAL 14 DAY), 0) AS value
+                FROM argos.detector_checkpoint_history
+                WHERE detector_id = 'network-beacon'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [24]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos is within 24 hours of Zeek retention loss"
+          description: "Only {{ $values.B.Value }} hours of declared Zeek retention remain before the Argos checkpoint expires. See Security Triage panel 19."
+
+      - uid: argos-source-retention-gap
+        title: Argos Source Retention Gap
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM argos.detector_checkpoint_history
+                WHERE detector_id = 'network-beacon'
+                  AND advancement_reason = 'source_retention_gap'
+                  AND completed_at >= now() - INTERVAL 24 HOUR
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos recorded a Zeek source-retention gap"
+          description: "Argos advanced across {{ $values.B.Value }} explicit source-retention gaps in the last 24 hours. See Security Triage panel 21."
+
+      - uid: argos-candidate-finding-digest
+        title: Argos Candidate Finding
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT
+                  finding_id,
+                  detector_version,
+                  concat('https://grafana.home.shdr.ch/d/security-triage?viewPanel=22') AS evidence_link,
+                  1 AS value
+                FROM argos.findings_current
+                WHERE detector_id = 'network-beacon'
+                  AND domain = 'security'
+                  AND disposition = 'candidate'
+                  AND last_evaluated_at >= now() - INTERVAL 2 HOUR
+                LIMIT 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos candidate finding {{ $labels.finding_id }}"
+          description: "Argos {{ $labels.detector_version }} created a candidate finding {{ $labels.finding_id }}. Evidence: {{ $labels.evidence_link }}"
+          evidence_link: "{{ $labels.evidence_link }}"
+          detector_version: "{{ $labels.detector_version }}"
+          finding_id: "{{ $labels.finding_id }}"
+
       - uid: wazuh-high-severity
         title: Wazuh High Severity
         condition: C
@@ -3016,3 +3283,213 @@ groups:
         annotations:
           summary: "Jellyfin exporter reports server unreachable"
           description: "jellyfin_up has been 0 for 5 minutes. The exporter cannot reach the Jellyfin API — either the server is down or the API key is invalid."
+
+  # ===========================================================================
+  # Matrix inbound application service (mnemo). Metrics arrive via the OTel
+  # pipeline (job=otel-metrics). See ../mnemo/docs/MATRIX_APPSERVICE_RUNBOOK.md.
+  # ===========================================================================
+  - orgId: 1
+    name: Matrix Appservice
+    folder: Alerts
+    interval: 1m
+    rules:
+      # Feed liveness: no transaction received in 24h while the feed was
+      # previously active (guards the fresh-deploy zero case).
+      - uid: mnemo-matrix-as-no-receipt
+        title: Mnemo Matrix Appservice — no transactions received (24h)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: (time() - mnemo_matrix_appservice_last_received_timestamp_seconds) and (mnemo_matrix_appservice_last_received_timestamp_seconds > 0)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [86400]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 30m
+        labels:
+          severity: warning
+          domain: messaging
+        annotations:
+          summary: "mnemo has received no Matrix appservice transaction in 24h"
+          description: "Synapse push feed may be down. Check the mnemo receiver (:4001), the Synapse registration, and docs/MATRIX_APPSERVICE_RUNBOOK.md."
+
+      # Backlog: transactions accepted/processing but not processed for 5m.
+      - uid: mnemo-matrix-as-backlog
+        title: Mnemo Matrix Appservice — processing backlog
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: mnemo_matrix_appservice_backlog_transactions
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        labels:
+          severity: warning
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice projection backlog for 5m"
+          description: "Transactions are accepted but not processed. The matrix_appservice Oban worker (concurrency 1) may be stuck. See docs/MATRIX_APPSERVICE_RUNBOOK.md."
+
+      # Terminal failure: status=failed is set only on the last Oban attempt.
+      - uid: mnemo-matrix-as-failed
+        title: Mnemo Matrix Appservice — terminal transaction failure
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: mnemo_matrix_appservice_failed_transactions
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: critical
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice has a terminally failed transaction"
+          description: "A transaction exhausted all Oban attempts. Inspect last_error and replay per docs/MATRIX_APPSERVICE_RUNBOOK.md."
+
+      # Repeated authentication failures (bad/rotated hs_token or probing).
+      - uid: mnemo-matrix-as-auth-failures
+        title: Mnemo Matrix Appservice — repeated auth failures
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: increase(mnemo_matrix_appservice_auth_failures_total[15m])
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0m
+        labels:
+          severity: warning
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice authentication failures"
+          description: "More than 5 bearer-auth rejections in 15m. Check for an hs_token mismatch (rotation drift) or unauthorized probing."
+
+      # Transaction ID reused with a different body hash — delivery-contract violation.
+      - uid: mnemo-matrix-as-conflict
+        title: Mnemo Matrix Appservice — transaction/body-hash conflict
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: sum(mnemo_matrix_appservice_transactions_total{result="conflict"})
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0m
+        labels:
+          severity: critical
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice transaction ID/body-hash conflict"
+          description: "A transaction ID was reused with different content — a delivery-contract violation. Investigate Synapse retry behavior immediately."
