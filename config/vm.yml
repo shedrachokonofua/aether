@@ -59,6 +59,7 @@ monitoring_stack:
     grafana: 3000
     janus: 8080
     loki: 3100
+    loki_push: 3500
     otel_metrics: 8888
     otel_prometheus: 8889
     prometheus: 9090
