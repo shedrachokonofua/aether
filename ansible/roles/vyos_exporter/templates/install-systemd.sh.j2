@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+getent group {{ vyos_exporter_group }} >/dev/null 2>&1 || groupadd --system {{ vyos_exporter_group }}
+id -u {{ vyos_exporter_user }} >/dev/null 2>&1 || useradd \
+  --system --gid {{ vyos_exporter_group }} --home-dir {{ vyos_exporter_root }} \
+  --shell /usr/sbin/nologin {{ vyos_exporter_user }}
+
+install -d -o {{ vyos_exporter_user }} -g {{ vyos_exporter_group }} -m 0750 \
+  {{ vyos_exporter_state_dir }} {{ vyos_exporter_observations_dir }}
+install -D -o root -g root -m 0755 \
+  {{ vyos_exporter_root }}/bin/vyos-exporter {{ vyos_exporter_binary_path }}
+install -D -o root -g root -m 0755 \
+  {{ vyos_exporter_root }}/bin/kea-helper {{ vyos_exporter_kea_helper_path }}
+install -D -o root -g root -m 0440 \
+  {{ vyos_exporter_root }}/vyos-exporter.sudoers /etc/sudoers.d/vyos-exporter
+install -D -o root -g root -m 0644 \
+  {{ vyos_exporter_root }}/vyos-exporter.service /etc/systemd/system/{{ vyos_exporter_service_name }}
+
+visudo -cf /etc/sudoers.d/vyos-exporter
+systemctl daemon-reload
+systemctl enable {{ vyos_exporter_service_name }}
+systemctl restart {{ vyos_exporter_service_name }}
