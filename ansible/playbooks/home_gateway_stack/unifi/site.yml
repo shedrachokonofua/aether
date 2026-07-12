@@ -97,6 +97,10 @@
           UP_POLLER_QUIET: "false"
           UP_UNIFI_DEFAULT_USER: "{{ secrets.unifi.telemetry_user }}"
           UP_UNIFI_DEFAULT_PASS: "{{ secrets.unifi.telemetry_password }}"
+          UP_LOKI_URL: "http://{{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki_push }}"
+          UP_LOKI_INTERVAL: "2m"
+          UP_LOKI_TIMEOUT: "10s"
+          UP_LOKI_VERIFY_SSL: "false"
 
     - name: Reload systemd
       systemd:
