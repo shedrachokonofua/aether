@@ -28,7 +28,7 @@ resource "helm_release" "wasmcloud" {
   chart            = "runtime-operator"
   namespace        = "wasmcloud-system"
   create_namespace = false
-  version          = "2.0.5"
+  version          = "2.5.2"
   wait             = true
   timeout          = 600
 
