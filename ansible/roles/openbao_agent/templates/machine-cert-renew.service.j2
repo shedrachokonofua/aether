@@ -1,0 +1,23 @@
+[Unit]
+Description=Renew step-ca machine certificate for vault-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+Environment="STEPPATH={{ openbao_agent_step_dir }}"
+
+# Uses the existing cert to authenticate (no password). Restart vault-agent so
+# it re-reads the renewed client certificate.
+ExecStart=/usr/bin/step ca renew --daemon \
+  --exec "systemctl restart vault-agent.service" \
+  {{ openbao_agent_client_cert }} \
+  {{ openbao_agent_client_key }}
+
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

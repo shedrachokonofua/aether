@@ -1,0 +1,94 @@
+---
+# Pull-based journal collection for the agent-free hosts (5 Proxmox hypervisors
+# + the two cloud VMs). vault-agent mints the forwarder's client cert from the
+# dedicated pki-journal-client mount; the forwarder pulls each gatewayd and
+# ships OTLP to the local central collector.
+#
+# Transport: Proxmox sources use gatewayd mTLS over the LAN; cloud sources use
+# plain HTTP over the routed WireGuard fabric (10.1.0.10 / 10.2.0.10), where WG
+# + nftables + the VyOS CLOUD zone are the authorization boundary.
+- name: Deploy journal forwarder on monitoring-stack
+  hosts: monitoring-stack
+  gather_facts: true
+  tags: [journal-forwarder]
+  vars:
+    journal_forwarder_cloud_sources:
+      - name: public-gateway
+        url: "http://10.1.0.10:19531"
+        no_tls: true
+        labels: { instance_type: vps }
+      - name: uptime-monitor
+        url: "http://10.2.0.10:19531"
+        no_tls: true
+        labels: { instance_type: vps }
+  roles:
+    - common
+  tasks:
+    - name: Build Proxmox journal sources from inventory
+      ansible.builtin.set_fact:
+        journal_forwarder_proxmox_sources: >-
+          {{ journal_forwarder_proxmox_sources | default([]) + [{
+               'name': item,
+               'url': 'https://' ~ hostvars[item].ansible_host ~ ':19531',
+               'labels': {'instance_type': 'proxmox_host'}
+             }] }}
+      loop: "{{ groups['machines'] }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Compose the forwarder source list
+      ansible.builtin.set_fact:
+        otel_journal_forwarder_sources: "{{ journal_forwarder_proxmox_sources + journal_forwarder_cloud_sources }}"
+
+    # Bootstrap the ojgf identity + TLS dir before vault-agent renders the
+    # client cert into it (the forwarder role re-ensures these idempotently).
+    - name: Ensure ojgf group
+      ansible.builtin.group:
+        name: ojgf
+        system: true
+      become: true
+
+    - name: Ensure ojgf user
+      ansible.builtin.user:
+        name: ojgf
+        group: ojgf
+        system: true
+        create_home: false
+        home: /var/lib/otel-journal-gatewayd-forwarder
+        shell: /usr/sbin/nologin
+      become: true
+
+    - name: Ensure forwarder TLS directory
+      ansible.builtin.file:
+        path: /etc/otel-journal-gatewayd-forwarder/tls
+        state: directory
+        owner: root
+        group: ojgf
+        mode: "0750"
+      become: true
+
+    - name: Deploy vault-agent and mint the forwarder client certificate
+      ansible.builtin.include_role:
+        name: openbao_agent
+      vars:
+        openbao_agent_extra_read_write_paths:
+          - /etc/otel-journal-gatewayd-forwarder/tls
+        openbao_agent_templates:
+          - destination: /etc/otel-journal-gatewayd-forwarder/tls/.forwarder-cert.sentinel
+            perms: "0640"
+            owner: root
+            group: ojgf
+            command: ["/bin/systemctl", "restart", "otel-journal-gatewayd-forwarder.service"]
+            contents: |
+              {% raw %}{{ with pkiCert "pki-journal-client/issue/forwarder" "common_name=otel-journal-gatewayd-forwarder" "ttl=72h" "private_key_format=pkcs8" }}
+              {{ .Cert }}
+              {{ .Cert | writeToFile "/etc/otel-journal-gatewayd-forwarder/tls/client.crt" "root" "ojgf" "0640" }}{{ .Key | writeToFile "/etc/otel-journal-gatewayd-forwarder/tls/client.key" "root" "ojgf" "0640" }}{{ end }}{% endraw %}
+
+    - name: Wait for the forwarder client certificate
+      ansible.builtin.wait_for:
+        path: /etc/otel-journal-gatewayd-forwarder/tls/client.crt
+        timeout: 90
+
+    - name: Deploy the forwarder
+      ansible.builtin.include_role:
+        name: otel_journal_forwarder

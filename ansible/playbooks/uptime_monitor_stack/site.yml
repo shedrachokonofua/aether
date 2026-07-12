@@ -26,6 +26,11 @@
     - common
     - role: site_wireguard
       tags: [site-wireguard]
+    - role: journal_gateway
+      vars:
+        journal_gateway_tls_enabled: false
+        journal_gateway_bind_address: "10.2.0.10"
+      tags: [journal-gateway]
 
 - name: Deploy Uptime Kuma
   import_playbook: uptime_kuma.yml

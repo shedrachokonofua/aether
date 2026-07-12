@@ -1,0 +1,28 @@
+[Unit]
+Description=OpenBao Agent - Secrets Management
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={{ openbao_agent_bao_binary }} agent -config={{ openbao_agent_config_path }}
+Restart=on-failure
+RestartSec=5
+
+RuntimeDirectory=vault-agent secrets
+RuntimeDirectoryMode=0755
+Environment=VAULT_ADDR={{ openbao_agent_vault_addr }}
+Environment=VAULT_CACERT={{ openbao_agent_ca_cert }}
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ReadWritePaths=/run/vault-agent /run/secrets{% for p in openbao_agent_extra_read_write_paths %} {{ p }}{% endfor %}
+
+
+[Install]
+WantedBy=multi-user.target

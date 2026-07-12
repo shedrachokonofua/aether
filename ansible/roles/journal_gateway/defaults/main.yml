@@ -1,0 +1,32 @@
+---
+# Bind address for systemd-journal-gatewayd. Proxmox hosts bind their mgmt IP;
+# cloud VMs bind their WireGuard site address. Required (assert enforces).
+journal_gateway_bind_address: ""
+journal_gateway_port: 19531
+
+# TLS mode. Proxmox hosts = true (gatewayd native mTLS). Cloud VMs = false
+# (WireGuard + nftables + VyOS CLOUD zone are the authn boundary).
+journal_gateway_tls_enabled: false
+
+journal_gateway_tls_dir: "/etc/systemd-journal-gatewayd/tls"
+journal_gateway_cert_path: "{{ journal_gateway_tls_dir }}/server.crt"
+journal_gateway_key_path: "{{ journal_gateway_tls_dir }}/server.key"
+journal_gateway_step_dir: "/etc/systemd-journal-gatewayd/step"
+# The --trust anchor IS the authorization policy: a CA that signs exactly one
+# leaf (the forwarder client cert). Fetched from the mount's public endpoint.
+journal_gateway_trust_path: "{{ journal_gateway_tls_dir }}/journal-client-ca.crt"
+journal_gateway_pki_ca_pem_url: "https://bao.home.shdr.ch/v1/pki-journal-client/ca/pem"
+# Extra intermediate PEMs bundled after the fetched CA during rotation overlap.
+journal_gateway_extra_trust_pems: []
+
+# step-ca server cert (TLS mode only), issued via machine-bootstrap.
+journal_gateway_step_ca_url: "https://ca.shdr.ch"
+journal_gateway_step_ca_provisioner: "machine-bootstrap"
+journal_gateway_step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password | default('') }}"
+journal_gateway_cert_cn: "{{ inventory_hostname }}.home.shdr.ch"
+# SANs added to the server cert. The forwarder connects by mgmt IP, so the IP
+# MUST be a SAN. Defaults to CN + bind address.
+journal_gateway_cert_sans:
+  - "{{ journal_gateway_cert_cn }}"
+  - "{{ journal_gateway_bind_address }}"
+journal_gateway_cert_renew_service: "aether-journal-gatewayd-cert-renew"
