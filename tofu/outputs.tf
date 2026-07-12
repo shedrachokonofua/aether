@@ -80,26 +80,6 @@ output "google_uptime_monitor_private_key" {
   description = "Private SSH key for the GCP uptime monitor VM"
 }
 
-output "tailscale_public_gateway_oauth_client_id" {
-  value = tailscale_oauth_client.public_gateway_oauth_client.id
-}
-
-output "tailscale_public_gateway_oauth_client_secret" {
-  value     = tailscale_oauth_client.public_gateway_oauth_client.key
-  sensitive = true
-}
-
-output "tailscale_uptime_monitor_oauth_client_id" {
-  value       = tailscale_oauth_client.uptime_monitor_oauth_client.id
-  description = "Uptime monitor Tailscale OAuth client ID"
-}
-
-output "tailscale_uptime_monitor_oauth_client_secret" {
-  value       = tailscale_oauth_client.uptime_monitor_oauth_client.key
-  sensitive   = true
-  description = "Uptime monitor Tailscale OAuth client secret"
-}
-
 output "tailscale_admin_gateway_oauth_client_id" {
   value = tailscale_oauth_client.admin_gateway_oauth_client.id
 }
@@ -208,11 +188,6 @@ output "cloudflare_uptime_monitor_tunnel_token" {
   description = "Cloudflare Tunnel Token for the uptime monitor"
   value       = data.cloudflare_zero_trust_tunnel_cloudflared_token.uptime_monitor_tunnel_token.token
   sensitive   = true
-}
-
-output "tailscale_uptime_monitor_ip" {
-  description = "Private Tailscale IP of the uptime monitor VM"
-  value       = data.tailscale_device.uptime_monitor.addresses[0]
 }
 
 output "synthetic_probe_targets" {

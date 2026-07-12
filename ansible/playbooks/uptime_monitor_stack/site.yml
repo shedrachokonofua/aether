@@ -27,9 +27,6 @@
     - role: site_wireguard
       tags: [site-wireguard]
 
-- name: Deploy tailscale
-  import_playbook: tailscale.yml
-
 - name: Deploy Uptime Kuma
   import_playbook: uptime_kuma.yml
 
