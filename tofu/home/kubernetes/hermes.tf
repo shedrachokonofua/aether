@@ -21,6 +21,7 @@ locals {
   hermes_homeassistant          = "https://ha.home.shdr.ch"
   hermes_matrix_owner           = "@${var.secrets["matrix.admin_user"]}:matrix.home.shdr.ch"
   hermes_beryl_matrix_home_room = "!pkLDsPitwNliMhAELi:matrix.home.shdr.ch"
+  hermes_beryl_matrix_dm_room   = "!DddxEZhZnGceDxdKFd:matrix.home.shdr.ch"
   hermes_tungsten_skills_root   = "${path.module}/../../../hermes/tungsten/skills"
   # Mnemo SKILL.md lives in the mnemo repo (single source of truth) and is
   # vendored at apply time. Requires the mnemo checkout as a sibling of aether.
@@ -41,7 +42,7 @@ locals {
         MATRIX_HOMESERVER      = local.hermes_matrix_server
         MATRIX_USER_ID         = "@${var.secrets["matrix.beryl_bot_user"]}:matrix.home.shdr.ch"
         MATRIX_ALLOWED_USERS   = local.hermes_matrix_owner
-        MATRIX_ALLOWED_ROOMS   = local.hermes_beryl_matrix_home_room
+        MATRIX_ALLOWED_ROOMS   = "${local.hermes_beryl_matrix_home_room},${local.hermes_beryl_matrix_dm_room}"
         MATRIX_HOME_ROOM       = local.hermes_beryl_matrix_home_room
         MATRIX_HOME_ROOM_NAME  = "Beryl Home"
         MATRIX_REQUIRE_MENTION = "true"
