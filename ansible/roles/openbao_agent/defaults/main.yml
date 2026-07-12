@@ -25,7 +25,7 @@ openbao_agent_templates: []
 openbao_agent_extra_read_write_paths: []
 
 # step-ca machine cert
-openbao_agent_step_ca_url: "https://ca.shdr.ch"
+openbao_agent_step_ca_url: "https://{{ vm.step_ca.ip }}:{{ vm.step_ca.ports.https }}"
 openbao_agent_step_ca_provisioner: "machine-bootstrap"
 openbao_agent_step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password | default('') }}"
 openbao_agent_cert_sans:

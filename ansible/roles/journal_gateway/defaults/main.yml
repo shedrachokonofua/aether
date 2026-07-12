@@ -4,9 +4,13 @@
 journal_gateway_bind_address: ""
 journal_gateway_port: 19531
 
-# TLS mode. Proxmox hosts = true (gatewayd native mTLS). Cloud VMs = false
-# (WireGuard + nftables + VyOS CLOUD zone are the authn boundary).
+# TLS mode. Proxmox hosts = true: gatewayd serves plain HTTP on loopback and
+# ghostunnel terminates client-cert mTLS (Debian systemd is openssl-built, so
+# gatewayd's own --trust is unavailable). Cloud VMs = false (WireGuard +
+# nftables + VyOS CLOUD zone are the authn boundary).
 journal_gateway_tls_enabled: false
+# Loopback port gatewayd listens on in TLS mode (behind ghostunnel).
+journal_gateway_backend_port: 19532
 
 journal_gateway_tls_dir: "/etc/systemd-journal-gatewayd/tls"
 journal_gateway_cert_path: "{{ journal_gateway_tls_dir }}/server.crt"
@@ -20,8 +24,9 @@ journal_gateway_pki_ca_pem_url: "https://bao.home.shdr.ch/v1/pki-journal-client/
 journal_gateway_extra_trust_pems: []
 
 # step-ca server cert (TLS mode only), issued via machine-bootstrap.
-journal_gateway_step_ca_url: "https://ca.shdr.ch"
+journal_gateway_step_ca_url: "https://{{ vm.step_ca.ip }}:{{ vm.step_ca.ports.https }}"
 journal_gateway_step_ca_provisioner: "machine-bootstrap"
+journal_gateway_step_download_url: "https://dl.smallstep.com/cli/docs-ca-install/latest/step_linux_amd64.tar.gz"
 journal_gateway_step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password | default('') }}"
 journal_gateway_cert_cn: "{{ inventory_hostname }}.home.shdr.ch"
 # SANs added to the server cert. The forwarder connects by mgmt IP, so the IP
@@ -30,3 +35,13 @@ journal_gateway_cert_sans:
   - "{{ journal_gateway_cert_cn }}"
   - "{{ journal_gateway_bind_address }}"
 journal_gateway_cert_renew_service: "aether-journal-gatewayd-cert-renew"
+
+# ghostunnel mTLS terminator (TLS mode only). Go crypto/tls treats any cert in
+# the trust pool as a valid anchor (intermediate included, no root needed) and
+# --allow-cn adds a peer-CN allowlist on top of the dedicated-CA trust.
+journal_gateway_ghostunnel_version: "v1.11.0"
+journal_gateway_ghostunnel_download_url: "https://github.com/ghostunnel/ghostunnel/releases/download/{{ journal_gateway_ghostunnel_version }}/ghostunnel-linux-amd64"
+journal_gateway_ghostunnel_sha256: "fd0f164a12c1c36011e8628b8248e0a6017ae462f95cde4d1f720ab972efecbb"
+journal_gateway_ghostunnel_binary: "/usr/local/bin/ghostunnel"
+journal_gateway_ghostunnel_service: "aether-journal-ghostunnel.service"
+journal_gateway_allow_cn: "otel-journal-gatewayd-forwarder"

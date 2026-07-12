@@ -19,3 +19,11 @@
   become: true
   failed_when: false
   listen: restart journal-gatewayd service
+
+- name: Restart journal-gatewayd ghostunnel
+  ansible.builtin.systemd:
+    name: "{{ journal_gateway_ghostunnel_service }}"
+    state: restarted
+    daemon_reload: true
+  become: true
+  listen: restart journal-gatewayd ghostunnel

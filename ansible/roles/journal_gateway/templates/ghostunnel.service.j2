@@ -1,0 +1,31 @@
+[Unit]
+Description=Aether journal-gatewayd mTLS terminator (ghostunnel)
+After=network-online.target systemd-journal-gatewayd.socket
+Wants=network-online.target
+Requires=systemd-journal-gatewayd.socket
+
+[Service]
+Type=simple
+# The --cacert trust pool is the authorization policy: it holds only the
+# journal-client intermediate, which signs exactly one leaf. Go accepts the
+# forwarder leaf against that anchor without needing the root; --allow-cn is
+# defense-in-depth on the peer certificate subject.
+ExecStart={{ journal_gateway_ghostunnel_binary }} server \
+  --listen {{ journal_gateway_bind_address }}:{{ journal_gateway_port }} \
+  --target 127.0.0.1:{{ journal_gateway_backend_port }} \
+  --cert {{ journal_gateway_cert_path }} \
+  --key {{ journal_gateway_key_path }} \
+  --cacert {{ journal_gateway_trust_path }} \
+  --allow-cn {{ journal_gateway_allow_cn }}
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths={{ journal_gateway_tls_dir }}
+
+[Install]
+WantedBy=multi-user.target
