@@ -81,11 +81,12 @@
   - [ ] Deploy Trivy for CVE scanning
   - [ ] Deploy Ansible Semaphore for controlled deployment
   - [ ] Create Grafana dashboard for unified view
-- [ ] Complete Tailscale integration ([exploration](exploration/full-tailscale-integration.md))
-  - [ ] Phase 2: Gateway credential security (WIF)
-  - [ ] Phase 3: VyOS route for home → Tailnet
-  - [ ] Phase 4: MagicDNS via AdGuard
-  - [ ] Re-scope against the routed WireGuard fabric: fixed cloud infra (AWS/GCP) now reaches home over routed WG (`10.1/10.2`, Tailscale retired there); this item is now roaming human-access only — decide the long-term Tailscale-vs-WG split (see [journal-forwarder.md](exploration/journal-forwarder.md) status note)
+- [ ] Revisit Tailscale scope — largely superseded by the routed WireGuard fabric; decide what (if anything) is still worth doing ([exploration](exploration/full-tailscale-integration.md))
+  - [x] Phase 1: Keycloak OIDC SSO for human login (done, still useful)
+  - Residual role = roaming human access only (home-gateway/admin-gateway subnet routers); fixed cloud infra (AWS/GCP) now reaches home over routed WG (`10.1/10.2`, Tailscale retired there)
+  - [ ] Phase 2 (optional hardening): gateway WIF now covers only 2 gateways (home/admin) — weigh the Caddy-mTLS + Keycloak X.509 SPI + WIF machinery against the payoff, or drop
+  - [ ] ~~Phase 3: VyOS route home → Tailnet~~ superseded — home reaches cloud via WG, not the tailnet
+  - [ ] ~~Phase 4: MagicDNS via AdGuard~~ superseded/optional — only if home must resolve roaming tailnet nodes by name
 - [x] Deploy IDS stack as NixOS VM ([exploration](exploration/network-security.md))
   - [x] Create NixOS config (`nix/hosts/oracle/ids-stack.nix`)
   - [x] Provision VM on Oracle via Tofu
