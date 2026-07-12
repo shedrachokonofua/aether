@@ -6,17 +6,18 @@
 # Docs: ../mnemo/docs/HANDOFF.md, ../mnemo/docs/DEPLOYMENT.md
 
 locals {
-  mnemo_namespace     = module.namespace["mnemo"].name
-  mnemo_host          = "mnemo.home.shdr.ch"
-  mnemo_image         = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
-  mnemo_port          = 4000
-  mnemo_chart_version = "0.1.0-4d3d617e"
-  mnemo_image_tag     = "latest"
-  mnemo_cnpg          = "mnemo-cnpg"
-  mnemo_db            = "mnemo"
-  mnemo_db_user       = "mnemo"
-  mnemo_db_service    = "${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local"
-  mnemo_db_url        = "postgresql://${local.mnemo_db_user}:${kubernetes_secret_v1.mnemo_cnpg_app.data["password"]}@${local.mnemo_db_service}:5432/${local.mnemo_db}?sslmode=disable"
+  mnemo_namespace       = module.namespace["mnemo"].name
+  mnemo_host            = "mnemo.home.shdr.ch"
+  mnemo_image           = "registry.gitlab.home.shdr.ch/so/mnemo:latest"
+  mnemo_port            = 4000
+  mnemo_appservice_port = 4001
+  mnemo_chart_version   = "0.1.0-e31ae650"
+  mnemo_image_tag       = "latest"
+  mnemo_cnpg            = "mnemo-cnpg"
+  mnemo_db              = "mnemo"
+  mnemo_db_user         = "mnemo"
+  mnemo_db_service      = "${local.mnemo_cnpg}-rw.${local.mnemo_namespace}.svc.cluster.local"
+  mnemo_db_url          = "postgresql://${local.mnemo_db_user}:${kubernetes_secret_v1.mnemo_cnpg_app.data["password"]}@${local.mnemo_db_service}:5432/${local.mnemo_db}?sslmode=disable"
 
   mnemo_openwebui_db_host = "${local.openwebui_cnpg_cluster}-rw.${local.openwebui_namespace}.svc.cluster.local"
   mnemo_openwebui_db_url  = "postgresql://${local.postgres_user}:${kubernetes_secret_v1.openwebui_cnpg_app.data["password"]}@${local.mnemo_openwebui_db_host}:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
@@ -80,6 +81,14 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     # Matrix source (bot user access token)
     MATRIX_HOMESERVER_URL = "https://matrix.home.shdr.ch"
     MATRIX_ACCESS_TOKEN   = var.secrets["matrix.mnemo_bot_access_token"]
+
+    # Matrix inbound application service (Synapse → mnemo push). Steady-state
+    # transport: mnemo holds only the hs_token, never the as_token. The polling
+    # bot token above is retained until push delivery is proven (Phase 3).
+    # See ../mnemo/docs/MATRIX_APPSERVICE_PLAN.md.
+    MATRIX_APPSERVICE_ENABLED  = "true"
+    MATRIX_APPSERVICE_HS_TOKEN = var.secrets["matrix.mnemo_appservice_hs_token"]
+    MATRIX_APPSERVICE_PORT     = "4001"
 
     # Gmail source (OAuth refresh token)
     GMAIL_CLIENT_ID     = var.secrets["gmail.client_id"]
@@ -668,6 +677,9 @@ resource "helm_release" "mnemo" {
 
     envSecretName = kubernetes_secret_v1.mnemo_env.metadata[0].name
     port          = local.mnemo_port
+    # Internal Matrix application-service listener; second ClusterIP port only,
+    # never added to the public HTTPRoute. See MATRIX_APPSERVICE_PLAN.md.
+    matrixAppservicePort = local.mnemo_appservice_port
 
     priorityClassName = local.aether_priority_classes.app
 
