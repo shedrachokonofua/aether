@@ -758,3 +758,84 @@ resource "kubectl_manifest" "mnemo_cnpg_backup" {
     }
   })
 }
+
+# --- Network policy ----------------------------------------------------------
+# Defense-in-depth ingress lockdown for the mnemo namespace, modeled on the
+# miniflux default-deny canary. Restricts who may reach mnemo — notably its
+# in-cluster HTTP API (:4000, unauthenticated in-cluster) and the inbound
+# application-service listener (:4001, Synapse push only).
+#
+# Egress is intentionally left open (cluster + world) for this first release:
+# mnemo talks to many namespaces (CNPG, OpenWebUI DB, LiteLLM, reranker, OTel)
+# plus external S3 and Gmail. The plan's "deny mnemo -> matrix egress" requires
+# L7 FQDN policy (S3 and matrix.home.shdr.ch share the gateway VIP, so L4 cannot
+# distinguish them), which would be the cluster's first toFQDNs policy and a
+# default-deny egress flip — a monitored-window task, not an unattended one.
+# Invariant #1 (mnemo cannot act on Matrix) is already enforced by credential
+# separation: after Phase 3 retirement mnemo holds no Matrix access token, only
+# the inbound hs_token. See ../mnemo/docs/MATRIX_APPSERVICE_RUNBOOK.md.
+resource "kubernetes_manifest" "mnemo_cilium_network" {
+  depends_on = [
+    helm_release.mnemo,
+    kubernetes_manifest.cilium_cluster_baseline_network,
+  ]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "mnemo-ingress"
+      namespace = local.mnemo_namespace
+    }
+    spec = {
+      endpointSelector = {}
+      ingress = [
+        # Public HTTP API via the gateway — application port only, never :4001.
+        {
+          fromEntities = ["ingress"]
+          toPorts = [{
+            ports = [{ port = tostring(local.mnemo_port), protocol = "TCP" }]
+          }]
+        },
+        # Inbound application-service push from Synapse (matrix namespace) — :4001 only.
+        {
+          fromEndpoints = [{
+            matchLabels = { "io.kubernetes.pod.namespace" = local.matrix_ns }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.mnemo_appservice_port), protocol = "TCP" }]
+          }]
+        },
+        # Same-namespace (app <-> mnemo-cnpg) and node/system agents.
+        {
+          fromEndpoints = [{
+            matchLabels = { "io.kubernetes.pod.namespace" = local.mnemo_namespace }
+          }]
+        },
+        {
+          fromEndpoints = [{
+            matchLabels = { "io.kubernetes.pod.namespace" = "system" }
+          }]
+        },
+        # CNPG operator polls each instance manager on :8000.
+        {
+          fromEndpoints = [{
+            matchLabels = { "io.kubernetes.pod.namespace" = local.cnpg_namespace }
+          }]
+          toPorts = [{
+            ports = [{ port = "8000", protocol = "TCP" }]
+          }]
+        },
+      ]
+      # Egress open (DNS + apiserver come from the cluster baseline). Tightening
+      # to deny Matrix egress is the documented FQDN follow-up.
+      egress = [
+        { toEntities = ["cluster", "world"] },
+      ]
+    }
+  }
+}
