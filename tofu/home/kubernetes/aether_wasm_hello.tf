@@ -21,8 +21,10 @@
 # registered host (the component name) — the wasm host router matches on that.
 
 locals {
-  aether_wasm_hello_name  = "aether-wasm-hello"
-  aether_wasm_hello_image = "${local.wasmcloud_registry_host}/so/aether-wasm-hello:1060df84"
+  aether_wasm_hello_name = "aether-wasm-hello"
+  # Digest pin: welcome-page build (repo commit 5afdfd8b). Digest forces the
+  # cache-holding host to fetch this exact build; repin on each release.
+  aether_wasm_hello_image = "${local.wasmcloud_registry_host}/so/aether-wasm-hello@sha256:2efcd8ac24912ed639e199f4599d96c3df1d61158e3aeaf6132bf725407d6e0b"
 
   aether_wasm_hello_labels = {
     "app.kubernetes.io/name"       = "aether-wasm-hello"
