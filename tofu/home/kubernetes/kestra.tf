@@ -251,22 +251,18 @@ resource "helm_release" "kestra" {
 }
 
 # =============================================================================
-# Kestra — estate-scanner dispatch (scaffold notes)
+# Kestra — estate-scanner dispatch
 # =============================================================================
 # Secret kestra-estate-scan mounts ENV_ESTATE_SCANNER_* + SECRET_ESTATE_SCANNER_SSH_KEY.
-# Flow YAML: kestra/flows/estate-scan-home.yaml (apply via Kestra UI/API or a
-# future kestra_flow resource — Aether-owned, not Inquest).
+# Flow YAML: kestra/flows/estate-scan-home.yaml
 #
-# Network blocker (2026-07-13): Kestra pods can reach *.home.shdr.ch:443 and the
-# public internet, but direct RFC1918 to 10.0.2.13:22 times out (same for other
-# VLAN 2 IPs). Do not add a lone Cilium toCIDR/22 egress rule that would
-# default-deny Kestra's existing traffic. Fix the L3/L4 path (or a controlled
-# TCPRoute) before enabling the scheduled DAG.
+# Path: SERVICES (Talos) → TRUSTED rule 26 → estate-scanner:22 only.
+# Source group TALOS-NODES (node SNAT). Not Proxmox/MGMT. Rule 25 is SeaweedFS.
+# Apply path: ansible/playbooks/home_router/allow_estate_scanner_dispatch.yml
+# (also declared in configure_router.yml for full reconciles).
 #
-# Still required once the path works:
-#   * Additive Cilium allow for estate-scanner:22 alongside existing needs
-#   * Scanner-side Match Address narrowing for kestra-estate-scanner
-#   * Apply estate-scan-home flow and prove SSH ForceCommand end-to-end
+# Still required: helm apply to mount kestra-estate-scan into the pod; apply the
+# estate-scan-home flow; scanner-side Match Address narrowing (optional).
 # =============================================================================
 
 resource "kubernetes_manifest" "kestra_route" {
