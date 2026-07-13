@@ -313,6 +313,10 @@ tasks:
       - ansible-playbook ansible/playbooks/home_router/site.yml
   configure:router:
     cmds: [ansible-playbook ansible/playbooks/home_router/configure_router.yml]
+  configure:router-estate-scanner-dispatch:
+    desc: Surgical SERVICES-to-TRUSTED rule 26 — Talos→estate-scanner:22 only
+    cmds:
+      - ansible-playbook ansible/playbooks/home_router/allow_estate_scanner_dispatch.yml
   configure:vyos-exporter:
     desc: Deploy pinned VyOS exporter release to the home router
     cmds:

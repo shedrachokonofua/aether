@@ -1,0 +1,37 @@
+---
+# Surgical: SERVICES-to-TRUSTED rule 26 for Kestra → estate-scanner:22 only.
+# Does not run the full router playbook. Rule 25 (SeaweedFS) is left untouched.
+- name: Allow Kestra SSH dispatch to estate-scanner
+  hosts: router
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    ansible_persistent_connect_timeout: 0
+  tasks:
+    - name: Assert estate-scanner and Talos facts are present
+      ansible.builtin.assert:
+        that:
+          - vm.estate_scanner.ip is string
+          - vm.estate_scanner.ip == "10.0.2.13"
+          - vm.talos_neo.ip is string
+        fail_msg: Refusing to open firewall without verified estate_scanner / Talos facts.
+
+    - name: Add TALOS-NODES group and SERVICES-to-TRUSTED rule 26 only
+      vyos.vyos.vyos_config:
+        lines:
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_trinity.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_neo.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_niobe.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_smith.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_tank.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_dozer.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_mouse.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_sparks.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 destination port 22
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 destination address {{ vm.estate_scanner.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 source group address-group TALOS-NODES
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 description 'Allow Kestra SSH dispatch to estate-scanner'
+        save: true

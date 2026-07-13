@@ -51,5 +51,8 @@ task configure:estate-scanner              # NixOS (dispatcher + SSH ForceComman
 Kestra dispatch identity: `kestra-estate-scanner` (pubkey in
 `config/ssh/kestra-estate-scanner.pub`; private key in SOPS
 `estate_scan.kestra_ssh_private_key`). Flow scaffold:
-`kestra/flows/estate-scan-home.yaml`. Pod→`10.0.2.13:22` is not reachable yet
-(direct RFC1918 from the cluster times out).
+`kestra/flows/estate-scan-home.yaml`.
+
+VyOS path: `SERVICES-to-TRUSTED` rule 26 — source `TALOS-NODES`, destination
+`10.0.2.13:22` only (not Proxmox/MGMT; rule 25 remains SeaweedFS). Apply with
+`task configure:router-estate-scanner-dispatch`.
