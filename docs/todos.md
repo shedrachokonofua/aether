@@ -48,7 +48,7 @@
   - [ ] Phase 5: conftest policy checks on plan JSON
 - [ ] Estate discovery and vulnerability scanning ([plan](exploration/estate-scanning.md))
   - [x] Phase 0: preflight — allocate `10.0.2.13` / VMID 1036 on neo; ClickHouse `estate_scan` schema applied live; scan-aware IDS design (no blanket exclude); neo headroom rechecked 2026-07-12
-  - [ ] Phase 1: LXC live; discover+merge-diff+fingerprint; CH writer; Kestra SSH key+secret scaffolded — remaining: pod→10.0.2.13:22 path, additive egress, apply DAG, validate/finalize
+  - [ ] Phase 1: LXC live; discover+merge-diff+fingerprint; CH writer; Kestra SSH key; VyOS SERVICES-to-TRUSTED rule 26 (Talos→estate-scanner:22) verified — remaining: mount secret in Kestra helm, apply DAG, validate/finalize
   - [ ] Phase 2: target compiler, writers into ClickHouse, Grafana coverage/diff/finding panels and stale/failed alerts
   - [ ] Phase 3: calibrate rates on controlled, server, IoT, Gigahub, home, AWS, and GCP targets
   - [ ] Phase 4: enable six-hour discovery, daily critical/cloud, weekly known-host, and monthly blind-estate coverage progressively

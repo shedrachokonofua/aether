@@ -502,6 +502,29 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 destination address {{ vm.notifications_stack.ip }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 source address {{ vm.gitlab.ip }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 description 'Allow SMTP from GitLab to notifications relay'
+          # SeaweedFS S3 + Filer (live rule 25; keep declared so full applies do not stomp it)
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 25 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 25 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 25 destination port {{ vm.seaweedfs.ports.s3 }},{{ vm.seaweedfs.ports.filer }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 25 destination address {{ vm.seaweedfs.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 25 description 'Allow S3 and Filer to SeaweedFS'
+          # Estate scanner — Kestra typed SSH dispatch only (dst estate-scanner:22).
+          # Source = Talos node IPs (Cilium SNATs pod egress to the node).
+          # Do not reuse rule 25 (SeaweedFS). Not MGMT / Proxmox.
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_trinity.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_neo.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_niobe.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_smith.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_tank.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_dozer.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_mouse.ip }}
+          - set firewall group address-group TALOS-NODES address {{ vm.talos_sparks.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 destination port 22
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 destination address {{ vm.estate_scanner.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 source group address-group TALOS-NODES
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 description 'Allow Kestra SSH dispatch to estate-scanner'
           - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
           - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
           - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept
