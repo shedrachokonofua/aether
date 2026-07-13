@@ -6,6 +6,13 @@ Cmnd_Alias VYOS_EXPORTER = \
   /usr/sbin/nft --json list table ip6 vyos_filter, \
   /usr/libexec/vyos/op_mode/nat.py show_statistics --direction source --family inet --raw, \
   /usr/libexec/vyos/op_mode/nat.py show_statistics --direction destination --family inet --raw, \
+  /usr/libexec/vyos/op_mode/conntrack.py show_statistics --raw, \
+  /usr/libexec/vyos/op_mode/ntp.py show_tracking --raw, \
+  /usr/libexec/vyos/op_mode/ntp.py show_sources --raw, \
+  /usr/libexec/vyos/op_mode/dhcp.py show_server_leases --family inet --raw, \
+  /usr/libexec/vyos/op_mode/dhcp.py show_server_pool_statistics --family inet --raw, \
+  /usr/libexec/vyos/op_mode/dhcp.py show_server_static_mappings --family inet --raw, \
+  /usr/libexec/vyos/op_mode/dns.py show_forwarding_statistics --raw, \
   /usr/bin/suricatasc -c dump-counters /run/suricata/suricata.socket, \
   /usr/bin/suricatasc -c ruleset-stats /run/suricata/suricata.socket, \
   /usr/bin/suricatasc -c "iface-stat {{ vyos_exporter_suricata_interface }}" /run/suricata/suricata.socket
