@@ -2,6 +2,12 @@
 
 Plan for adding Raspberry Pis and CM4-based boards to the existing Talos Kubernetes cluster as small ARM64 worker nodes.
 
+> **Status (verified 2026-07-12): implemented.** `talos-mouse`,
+> `talos-dozer`, `talos-tank`, and `talos-sparks` are declared as bare-metal
+> ARM workers and are live `Ready` on Kubernetes v1.35.0 with
+> `kubernetes.io/arch=arm64` and `aether.sh/node-pool=arm`. The implementation
+> steps below are retained as historical design context, not pending work.
+
 ## Goal
 
 Use the Pis as a low-power ARM worker pool for lightweight Kubernetes workloads while keeping the main x86/Talos VM cluster as the primary compute plane.

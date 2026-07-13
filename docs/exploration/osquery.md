@@ -2,6 +2,11 @@
 
 Exploration of Fleet for SQL-based querying across hosts and device management.
 
+> **Retirement decision (2026-07):** Fleet and its osquery agents are being
+> decommissioned by the P1 monitoring-hardening plan. Wazuh must cover every
+> Fleet-enrolled host before removal; Trivy remains the Kubernetes CVE/config
+> scanner. The analysis below is historical, not a deployment roadmap.
+
 ## Goal
 
 Query system state across all hosts using SQL:
