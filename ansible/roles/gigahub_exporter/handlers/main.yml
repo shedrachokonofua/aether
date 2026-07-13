@@ -1,0 +1,14 @@
+---
+- name: Reload systemd for gigahub-exporter
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+  listen: reload gigahub-exporter systemd
+
+- name: Restart gigahub-exporter
+  ansible.builtin.systemd:
+    name: gigahub-exporter.service
+    state: restarted
+  become: true
+  listen: restart gigahub-exporter
+  when: gigahub_exporter_service_state == 'started'

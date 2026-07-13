@@ -1,0 +1,24 @@
+---
+# gigahub-exporter: pinned release from the GitLab generic package registry.
+# Aether never consumes `latest`; pin version + checksum.
+gigahub_exporter_version: "v0.1.0"
+gigahub_exporter_download_url:
+  "https://gitlab.home.shdr.ch/api/v4/projects/so%2Fgigahub-exporter/packages/generic/gigahub-exporter/{{ gigahub_exporter_version }}/gigahub-exporter-linux-amd64"
+gigahub_exporter_sha256: "d3464d78bebdff32c80c10673100f63bf7cfbc2e940ccb3478867ea2debc928f"
+gigahub_exporter_binary_path: "/usr/local/bin/gigahub-exporter"
+
+# Runtime identity and paths
+gigahub_exporter_user: "gigahub-exporter"
+gigahub_exporter_group: "gigahub-exporter"
+gigahub_exporter_config_dir: "/etc/gigahub-exporter"
+gigahub_exporter_config_path: "{{ gigahub_exporter_config_dir }}/config.toml"
+gigahub_exporter_creds_dir: "{{ gigahub_exporter_config_dir }}/creds"
+gigahub_exporter_state_dir: "/var/lib/gigahub-exporter"
+
+# Exporter configuration
+gigahub_exporter_listen: "127.0.0.1:9343"
+gigahub_exporter_device_address: "192.168.2.1"
+gigahub_exporter_handoff_interface: "eth4"
+
+gigahub_exporter_service_state: started
+gigahub_exporter_service_enabled: true
