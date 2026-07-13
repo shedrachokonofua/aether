@@ -1,0 +1,78 @@
+id: estate-scan-home
+namespace: aether.estate
+
+description: |
+  Staged home-estate discovery DAG. Dispatches typed aether-scan stages over SSH
+  to kestra-estate-scanner@10.0.2.13 (ForceCommand). Polls compact status JSON.
+
+  Prerequisites:
+    - ENV_ESTATE_SCANNER_HOST / USER and SECRET_ESTATE_SCANNER_SSH_KEY mounted
+    - Pod path to 10.0.2.13:22 reachable (blocked as of 2026-07-13 for RFC1918)
+
+concurrency:
+  behavior: QUEUE
+  limit: 1
+
+inputs:
+  - id: profile
+    type: STRING
+    defaults: discovery-common
+
+variables:
+  scanner_host: "{{ envs.estate_scanner_host }}"
+  scanner_user: "{{ envs.estate_scanner_user }}"
+  run_id: "{{ execution.id }}"
+
+tasks:
+  - id: targets
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ vars.scanner_host }}"
+    username: "{{ vars.scanner_user }}"
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    command: "targets snapshot {{ vars.run_id }} {{ inputs.profile }}"
+
+  - id: discover_home
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ vars.scanner_host }}"
+    username: "{{ vars.scanner_user }}"
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    command: "discover {{ vars.run_id }} home"
+
+  - id: wait_discover
+    type: io.kestra.plugin.core.flow.Pause
+    delay: PT30S
+
+  - id: discover_status
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ vars.scanner_host }}"
+    username: "{{ vars.scanner_user }}"
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    command: "status {{ vars.run_id }} discover home"
+
+  - id: merge_diff
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ vars.scanner_host }}"
+    username: "{{ vars.scanner_user }}"
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    command: "merge-diff {{ vars.run_id }}"
+
+  - id: fingerprint
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ vars.scanner_host }}"
+    username: "{{ vars.scanner_user }}"
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    command: "fingerprint {{ vars.run_id }} services-changed.jsonl"
+
+  - id: wait_fingerprint
+    type: io.kestra.plugin.core.flow.Pause
+    delay: PT20S
+
+  - id: fingerprint_status
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ vars.scanner_host }}"
+    username: "{{ vars.scanner_user }}"
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    command: "status {{ vars.run_id }} fingerprint"
+
+# Manual trigger only until the L3 path and schedule are approved.
+triggers: []
