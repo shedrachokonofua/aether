@@ -37,3 +37,11 @@ do not privilege the LXC.
 entrypoint (`ForceCommand` for `kestra-estate-scanner`). Runtime paths and
 allowlists live in `/etc/estate-scanner/runtime.json`. It accepts typed stage
 operations and approved profile / target-group names only.
+
+`discover` accepts and detaches (`setsid`); `worker discover` performs the scan
+and writes `estate_scan.*` in ClickHouse. Deploy the writer password with:
+
+```bash
+task configure:estate-scan-schema          # CH schema + estate_scan user/role
+task configure:estate-scanner-credentials  # password file on the guest
+```

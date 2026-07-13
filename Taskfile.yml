@@ -343,9 +343,13 @@ tasks:
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags argos {{.CLI_ARGS}}
   configure:estate-scan-schema:
-    desc: Apply estate_scan ClickHouse schema on monitoring-stack (Phase 0; no scanner guest)
+    desc: Apply estate_scan ClickHouse schema + writer identity on monitoring-stack
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags estate-scan {{.CLI_ARGS}}
+  configure:estate-scanner-credentials:
+    desc: Deploy estate_scan ClickHouse writer password to the estate-scanner guest
+    cmds:
+      - ansible-playbook ansible/playbooks/estate_scanner/configure_credentials.yml {{.CLI_ARGS}}
   configure:journal-forwarder:
     desc: Deploy the OTel journal forwarder on monitoring-stack
     cmds:

@@ -230,6 +230,21 @@ resource "helm_release" "kestra" {
   })]
 }
 
+# =============================================================================
+# Kestra — estate-scanner dispatch (scaffold notes)
+# =============================================================================
+# When wiring production DAGs, add a CiliumNetworkPolicy that is additive with
+# Kestra's existing egress needs — never a lone toCIDR/22 rule selecting the
+# kestra pods (that would default-deny Postgres/DNS/API traffic).
+#
+# Target endpoint: estate-scanner ${vm fact 10.0.2.13}:22 only.
+# Still required:
+#   * SSH keypair for kestra-estate-scanner (ForceCommand user on the guest)
+#   * Private key in Kestra secrets (not admin credentials)
+#   * Staged DAG: targets → discover → merge-diff → fingerprint → validate →
+#     finalize with status polling
+# =============================================================================
+
 resource "kubernetes_manifest" "kestra_route" {
   depends_on = [kubernetes_manifest.main_gateway, helm_release.kestra]
 
