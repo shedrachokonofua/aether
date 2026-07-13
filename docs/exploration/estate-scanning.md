@@ -517,9 +517,11 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 
 - Live unprivileged NixOS LXC `1036` / `10.0.2.13` on neo is running.
 - NixOS config deployed (`aether-scan` stub, Naabu/Nmap/httpx/Nuclei, `kestra-estate-scanner` ForceCommand).
-- **CAP_NET_RAW gate:** passed — `nmap -sS -p 22 10.0.2.3` from the guest succeeds without privileging the LXC. Do not use exclusive `lxc.cap.keep: net_raw` (kills init).
-- **Naabu hang fixed:** default stdin wait caused non-interactive SSH invocations to poll forever. Wrap with `-no-stdin` / `-duc` (see `nix/hosts/neo/estate-scanner/default.nix`). Both connect and SYN scans now return `10.0.2.3:22`.
-- Still required: pinned nuclei-templates tree, Kestra SSH key + egress allowlist, staged Kestra DAG, real systemd execution units (not stubs).
+- **CAP_NET_RAW gate:** passed — `nmap -sS` / wrapped `naabu -scan-type syn` succeed without privileging the LXC. Do not use exclusive `lxc.cap.keep: net_raw` (kills init).
+- **Naabu hang fixed:** wrap with `-no-stdin` / `-duc` for non-interactive SSH/Kestra.
+- **Nuclei templates:** pinned `v10.4.5` at `/var/lib/estate-scanner/nuclei-templates/current`.
+- **Working stages:** `aether-scan targets snapshot` freezes declared inventory; `aether-scan discover <run> home` runs top-100 SYN against declared home hosts (verified: 19 hosts → 88 listeners in ~23s).
+- Still required: Kestra SSH key + egress allowlist, staged Kestra DAG, detached systemd execution units, ClickHouse writers, cloud target resolution.
 
 ### Phase 2 — inventory and storage
 
