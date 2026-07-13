@@ -2,7 +2,16 @@
 
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
-**Status:** Phases 0–3 complete for the home estate path. Guest live on neo (`10.0.2.13`); ClickHouse `estate_scan` writers, Grafana Estate Scan dashboard + stale/failed alerts, and Kestra `aether.estate/estate-scan-home` E2E verified. Production schedules (Phase 4) and Wazuh posture correlation (Phase 5) not enabled. Supersedes the Kubernetes Nuclei placement proposed in `network-security.md`. Existing Trivy, Zeek, Suricata, Wazuh, cloud inventory, and IaC remain separate controls with different responsibilities.
+**Status (honest, 2026-07-13):** Discovery/inventory path is live through Phase 3
+calibration. **L7 Nuclei validation is plumbing-complete but coverage-incomplete** —
+only a 2-URL proof has run successfully after the Nuclei fix (`fbf6f92`). Do not
+treat empty `estate_scan.findings` as a clean estate. Production schedules
+(Phase 4) and Wazuh posture correlation (Phase 5) are not enabled. Supersedes
+the Kubernetes Nuclei placement proposed in `network-security.md`.
+
+Guest: neo LXC `1036` / `10.0.2.13`. ClickHouse `estate_scan`, Grafana
+`uid: estate-scan`, Kestra `aether.estate/estate-scan-home` E2E verified for the
+discover path.
 
 ## Goals
 
@@ -562,6 +571,48 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 - **IDS:** Suricata recorded scanner-sourced noise during sweeps (expected); no
   blanket exclusion. Naabu output streams to artifact files (not memory) for full-port runs.
 - **Not done in Phase 3:** production schedules, notification routing, cloud calib.
+- **Nuclei calib gap:** validate was declared wired, but the only successful L7
+  run after the fix scanned **2 URLs** (`10.0.2.2:80`, `10.0.2.3:3000`) with
+  curated medium+ templates → 0 findings. Full HTTP inventory (~22 URLs in the
+  last fingerprint) has not been Nuclei-validated.
+
+### Phase 3.5 — finish a real working L7 system (before Phase 4)
+
+Phase 4 is calendars. This section is unfinished Phase 1–3 acceptance work.
+
+#### Gaps to close
+
+1. **Full Nuclei baseline** — run `nuclei-daily` against the current full
+   `fingerprint.jsonl` (all HTTP(S) URLs), then `finalize`. Record duration,
+   template count loaded, findings written to CH, IDS noise, and endpoint impact.
+2. **ClickHouse bookkeeping** — `validate!` writes `scan_runs.status=running`
+   and never closes the row unless `finalize` runs; `finalize!` hardcodes
+   profile `discovery-common` (masks `nuclei-daily` / calib profiles). Abandoned
+   runs (`1fd714d5…` discover, etc.) stay `running` forever. Fix writers + add a
+   stale-run sweeper or explicit fail/close path.
+3. **Commit already pushed** — Nuclei PDCP/IPv6/fail-closed fix is on `main`
+   (`fbf6f92`: immutable `auth: false`, `estate-nuclei-dns-shim`, curated
+   template dirs, fail on FTL). Redeploy is already live on the guest.
+4. **Kestra flow IaC** — estate flow YAML is hand-applied; platform Helm stays
+   in home tofu. Add separate `tofu/home/kestra-flows/` state (do not put flows
+   in the Helm state).
+5. **Meaningful Grafana findings** — after a real baseline, confirm finding
+   panels and `estate-scan-run-failed` / stale alerts reflect truth (no false
+   “running” rows).
+6. **Optional known fixture** — plant a safe, declared Nuclei-positive control
+   target so “0 findings” can be distinguished from “scanner broken”.
+
+#### Acceptance for “real working system”
+
+- Full-fingerprint `nuclei-daily` completes with stage + CH `succeeded` and
+  correct profile label.
+- Findings rows appear for any true medium+ hits, or a documented clean zero
+  with template/URL counts and revisions recorded.
+- No orphan `running`/`accepted` scan_runs older than N hours without a live
+  lock/process.
+- Kestra can dispatch validate→finalize without hand SSH; flow is in IaC.
+- Only then enable Phase 4 schedules.
+
 ### Phase 4 — progressive coverage
 
 - Enable six-hour common-port discovery.
