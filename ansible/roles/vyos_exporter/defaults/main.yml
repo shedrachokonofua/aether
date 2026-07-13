@@ -1,13 +1,13 @@
 ---
 # Router deployment always consumes an immutable GitLab Generic Package release.
 # `latest` is intentionally forbidden by the role assertion.
-vyos_exporter_version: "v0.1.0"
+vyos_exporter_version: "v0.1.1"
 vyos_exporter_package_base_url: >-
   https://gitlab.home.shdr.ch/api/v4/projects/so%2Fvyos-exporter/packages/generic/vyos-exporter/{{ vyos_exporter_version }}
 vyos_exporter_download_url: "{{ vyos_exporter_package_base_url }}/vyos-exporter-linux-amd64"
 vyos_exporter_kea_helper_download_url: "{{ vyos_exporter_package_base_url }}/kea-helper-linux-amd64"
-# v0.1.0 SHA256SUMS, published by vyos-exporter pipeline 3498.
-vyos_exporter_sha256: "5e35c448b01a3c072aeaf9b605788d625a4ff6e20a3ee8f69f460c3ba843cf41"
+# v0.1.1 SHA256SUMS, published by vyos-exporter pipeline 3506.
+vyos_exporter_sha256: "61f677b8ccf328a5ff9eedcdb93af556c11afc12f8075794307959b000ec234b"
 vyos_exporter_kea_helper_sha256: "c03884ab0791307cab059d63936afce55e7a2ce0f082edab5fa727fe0cfc34fd"
 
 vyos_exporter_root: /config/vyos-exporter
