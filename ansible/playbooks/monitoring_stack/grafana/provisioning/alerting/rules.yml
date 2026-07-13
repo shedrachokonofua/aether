@@ -3623,3 +3623,101 @@ groups:
         annotations:
           summary: "Journal forwarder metrics absent"
           description: "No ojgf_* metrics on monitoring-stack for >10m — the otel-journal-gatewayd-forwarder service is down or its scrape broke."
+
+      # Estate scanner — stale/failed coverage (Phase 2 gate before broad scans)
+      - uid: estate-scan-run-stale
+        title: Estate Scan Run Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ifNull(dateDiff('hour', max(coalesce(finished_at, started_at)), now()), 999) AS value
+                FROM estate_scan.scan_runs FINAL
+                WHERE status = 'succeeded'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [12]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Estate scanner has no successful run in >12h"
+          description: "Last successful estate_scan.scan_runs row is {{ $values.B.Value }} hours old. Check Kestra aether.estate/estate-scan-home and the estate-scanner guest."
+
+      - uid: estate-scan-run-failed
+        title: Estate Scan Run Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM estate_scan.scan_runs FINAL
+                WHERE status = 'failed'
+                  AND coalesce(finished_at, started_at) >= now() - INTERVAL 6 HOUR
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Estate scanner recorded a failed run"
+          description: "{{ $values.B.Value }} failed estate_scan.scan_runs in the last 6 hours. Inspect stage_artifacts and Kestra execution logs."

@@ -209,10 +209,84 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
        (map first)
        vec))
 
+(defn expand-cidr4
+  "Expand IPv4 CIDR to host addresses (excludes network/broadcast for /24+)."
+  [cidr]
+  (let [[net prefix-s] (str/split cidr #"/")
+        prefix (Integer/parseInt prefix-s)
+        _ (when-not (<= 8 prefix 30)
+            (die! (str "unsupported CIDR prefix: " cidr)))
+        octets (mapv #(Integer/parseInt %) (str/split net #"\."))
+        _ (when-not (= 4 (count octets))
+            (die! (str "invalid IPv4 network: " cidr)))
+        base (bit-or (bit-shift-left (nth octets 0) 24)
+                     (bit-shift-left (nth octets 1) 16)
+                     (bit-shift-left (nth octets 2) 8)
+                     (nth octets 3))
+        host-bits (- 32 prefix)
+        size (bit-shift-left 1 host-bits)
+        mask (bit-not (dec size))
+        network (bit-and base mask)]
+    (for [i (range 1 (dec size))]
+      (let [addr (+ network i)]
+        (str (bit-and (bit-shift-right addr 24) 0xff) "."
+             (bit-and (bit-shift-right addr 16) 0xff) "."
+             (bit-and (bit-shift-right addr 8) 0xff) "."
+             (bit-and addr 0xff))))))
+
+(defn discover-mode
+  "Resolve Naabu port/rate policy from run profile + fragile-group caps."
+  [cfg profile target-group]
+  (let [profiles (:discover_profiles cfg)
+        mode (or (get profiles (keyword profile))
+                 (get profiles profile)
+                 {:ports "top-100" :rate 100 :concurrency 10 :timeout 3 :retries 1})
+        group-rates (:discover_group_rates cfg)
+        group-cap (or (get group-rates (keyword target-group))
+                      (get group-rates target-group))
+        base-rate (int (or (:rate mode) 100))
+        rate (int (if group-cap (min group-cap base-rate) base-rate))]
+    (assoc mode :rate rate :profile profile)))
+
+(defn hosts-for-discover
+  "Declared hosts for group, or CIDR expansion for discover_cidrs groups."
+  [cfg run-id target-group]
+  (let [manifest (str (:runs_dir cfg) "/" run-id "/targets.json")
+        cidrs (or (get (:discover_cidrs cfg) (keyword target-group))
+                  (get (:discover_cidrs cfg) target-group))]
+    (if (seq cidrs)
+      {:hosts (->> cidrs (mapcat expand-cidr4) distinct sort vec)
+       :provenance "cidr"}
+      (let [hosts (->> (json/parse-string (slurp manifest) true)
+                       :targets
+                       (filter #(some #{target-group} (:target_groups %)))
+                       (map :address)
+                       (remove str/blank?)
+                       sort
+                       distinct
+                       vec)]
+        {:hosts hosts :provenance "declared"}))))
+
+(defn naabu-port-args
+  [{:keys [ports]}]
+  (case (name (keyword ports))
+    "all" ["-p" "-"]
+    "top-1000" ["-top-ports" "1000"]
+    "top-100" ["-top-ports" "100"]
+    ["-top-ports" "100"]))
+
 (defn write-discover-results!
-  [cfg run-id target-group hosts open-rows]
+  [cfg run-id target-group hosts open-rows & {:keys [provenance] :or {provenance "declared"}}]
   (let [ts (now-ch)
         ver (version-now)
+        declared? (= provenance "declared")
+        open-hosts (->> open-rows
+                        (map #(or (:host %) (:ip %)))
+                        (remove str/blank?)
+                        distinct
+                        vec)
+        ;; Declared sweeps record the whole target list; CIDR sweeps only responders.
+        asset-hosts (if declared? hosts open-hosts)
         assets (mapv (fn [address]
                        {:asset_id (asset-id-for address)
                         :stable_identity (str "ipv4:" address)
@@ -223,14 +297,14 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                         :cloud_identity ""
                         :kubernetes_identity ""
                         :tailscale_identity ""
-                        :declared 1
-                        :provenance "declared"
-                        :owning_source_file "config/vm.yml"
+                        :declared (if declared? 1 0)
+                        :provenance provenance
+                        :owning_source_file (if declared? "config/vm.yml" "cidr-sweep")
                         :first_seen_at ts
                         :last_seen_at ts
                         :vantage_points ["estate-scanner"]
                         :version ver})
-                     hosts)
+                     asset-hosts)
         services (mapv (fn [{:keys [host ip port protocol] :as row}]
                          (let [address (or host ip)
                                transport (or protocol "tcp")]
@@ -244,8 +318,8 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                             :product_evidence (json/generate-string row)
                             :http_url ""
                             :tls_identity ""
-                            :declared 1
-                            :unexpected 0
+                            :declared (if declared? 1 0)
+                            :unexpected (if declared? 0 1)
                             :confidence 0.5
                             :first_seen_at ts
                             :last_seen_at ts
@@ -351,19 +425,18 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
           :artifact-ref result-file
           :status "running"
           :started-at started-at})
-    (let [hosts (->> (json/parse-string (slurp manifest) true)
-                     :targets
-                     (filter #(some #{target-group} (:target_groups %)))
-                     (map :address)
-                     (remove str/blank?)
-                     sort
-                     distinct
-                     vec)]
+    (let [profile (or (-> (try (json/parse-string (slurp manifest) true)
+                               (catch Exception _ nil))
+                          :profile)
+                      "discovery-common")
+          mode (discover-mode cfg profile target-group)
+          {:keys [hosts provenance]} (hosts-for-discover cfg run-id target-group)
+          port-label (name (keyword (:ports mode)))]
       (spit list-file (str (str/join "\n" hosts) (when (seq hosts) "\n")))
       (if (empty? hosts)
         (do
           (spit result-file "")
-          (write-discover-results! cfg run-id target-group [] [])
+          (write-discover-results! cfg run-id target-group [] [] :provenance provenance)
           (write-stage-artifact!
            cfg {:run-id run-id
                 :stage "discover"
@@ -376,25 +449,26 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                               :stage "discover"
                               :target-group target-group
                               :status "succeeded"
-                              :message "no declared targets for group"}))
-        ;; Conservative defaults from estate-scanning.md; declared hosts only.
-        (let [proc @(proc/process
-                     [naabu
-                      "-list" list-file
-                      "-top-ports" "100"
-                      "-scan-type" "syn"
-                      "-interface" "eth0"
-                      "-rate" "100"
-                      "-c" "10"
-                      "-timeout" "3"
-                      "-retries" "1"
-                      "-json"
-                      "-silent"
-                      "-nc"]
-                     {:out :string :err :string})
-              finished-at (now-ch)]
-          (spit result-file (:out proc))
-          (spit log-file (:err proc))
+                              :message "no targets for group"}))
+        (let [naabu-cmd (into [naabu
+                               "-list" list-file]
+                              (concat (naabu-port-args mode)
+                                      ["-scan-type" "syn"
+                                       "-interface" "eth0"
+                                       "-rate" (str (:rate mode))
+                                       "-c" (str (:concurrency mode))
+                                       "-timeout" (str (:timeout mode))
+                                       "-retries" (str (:retries mode))
+                                       "-json"
+                                       "-silent"
+                                       "-nc"]))
+              ;; Stream to file — full-port scans are too large to buffer in memory.
+              _ (spit result-file "")
+              proc @(proc/process naabu-cmd {:out (io/file result-file)
+                                             :err (io/file log-file)
+                                             :in nil})
+              finished-at (now-ch)
+              out-text (slurp result-file)]
           (if-not (zero? (:exit proc))
             (do
               (write-stage-artifact!
@@ -409,7 +483,7 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                     :error-message (str "naabu exited " (:exit proc))})
               (write-scan-run!
                cfg {:run_id run-id
-                    :profile "discovery-common"
+                    :profile profile
                     :vantage "estate-scanner"
                     :scanner_revision scanner_revision
                     :nuclei_templates_revision nuclei_templates_revision
@@ -426,9 +500,10 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                                   :message (str "naabu exited non-zero; see discover-"
                                                 target-group ".log")})
               (System/exit 5))
-            (let [open-rows (parse-naabu-lines (:out proc))
+            (let [open-rows (parse-naabu-lines out-text)
                   open-count (count open-rows)]
-              (write-discover-results! cfg run-id target-group hosts open-rows)
+              (write-discover-results! cfg run-id target-group hosts open-rows
+                                       :provenance provenance)
               (write-stage-artifact!
                cfg {:run-id run-id
                     :stage "discover"
@@ -439,8 +514,7 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                     :finished-at finished-at})
               (write-scan-run!
                cfg {:run_id run-id
-                    :profile (or (:profile (json/parse-string (slurp manifest) true))
-                                 "discovery-common")
+                    :profile profile
                     :vantage "estate-scanner"
                     :scanner_revision scanner_revision
                     :nuclei_templates_revision nuclei_templates_revision
@@ -459,8 +533,9 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                                   :status "succeeded"
                                   :message (str "discovered " open-count
                                                 " open listeners across " (count hosts)
-                                                " declared hosts (top-100)")}))))))))
-
+                                                " " provenance " hosts (" port-label
+                                                " @ " (:rate mode) "pps)")})))))))
+)
 (defn accept-discover!
   "Accept discover and detach via setsid so SSH/Kestra disconnect cannot kill it."
   [cfg run-id target-group]
