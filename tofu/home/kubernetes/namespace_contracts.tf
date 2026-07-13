@@ -48,7 +48,6 @@ locals {
       extra_labels = {
         "aether.shdr.ch/arch"                = "amd64"
         "goldilocks.fairwinds.com/enabled"   = "true"
-        "istio.io/dataplane-mode"            = "ambient"
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
@@ -1017,11 +1016,11 @@ locals {
       tier                    = "platform",
       owner                   = "aether",
       backup                  = "none",
-      exposure                = "internal",
+      exposure                = "none",
       create_s3_backup_secret = false,
       source_file             = "tofu/home/kubernetes/wasmcloud.tf"
       hostnames = [
-        "hello-wasm.home.shdr.ch",
+        "aether-wasm-hello.apps.home.shdr.ch",
       ]
       extra_labels = {
         "name" = "wasmcloud-system"
