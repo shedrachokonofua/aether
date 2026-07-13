@@ -26,16 +26,24 @@ Usage:
   aether-scan fingerprint <run-id> <service-artifact>
   aether-scan validate <run-id> <service-artifact> <approved-profile>
   aether-scan finalize <run-id>
+  aether-scan ingest-validate <run-id> <approved-profile>
+  aether-scan abandon <run-id> [reason-token]
+  aether-scan reap-stale
   aether-scan worker discover <run-id> <target-group>
   aether-scan worker fingerprint <run-id> <service-artifact>
   aether-scan worker validate <run-id> <service-artifact> <approved-profile>
   aether-scan status <run-id> <stage> [target-group]
 
 Rejects caller-supplied shell, rates, templates, targets, and output paths.
-discover/fingerprint/validate accept and detach; worker stages perform the work.")
+discover/fingerprint/validate accept and detach; worker stages perform the work.
+ingest-validate reloads an on-disk validate-*.jsonl into ClickHouse without re-scanning.
+abandon/reap-stale close orphan ClickHouse scan_runs rows.")
 
 (def uuid-re
   #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+(def reason-token-re
+  #"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 (def aether-scan-bin
   (or (System/getenv "AETHER_SCAN_BIN")
@@ -194,6 +202,25 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                                                    :coverage_ratio 0.0
                                                    :version (version-now)}
                                                   row)]))
+
+(defn load-run-manifest
+  [cfg run-id]
+  (let [path (str (:runs_dir cfg) "/" run-id "/targets.json")]
+    (when (fs/exists? path)
+      (try (json/parse-string (slurp path) true)
+           (catch Exception _ nil)))))
+
+(defn run-profile
+  "Profile frozen in targets.json for this run (never invent discovery-common)."
+  [cfg run-id]
+  (or (:profile (load-run-manifest cfg run-id)) "unknown"))
+
+(defn load-validate-evidence
+  [cfg run-id]
+  (let [path (str (:artifacts_dir cfg) "/" run-id "/validate-evidence.json")]
+    (when (fs/exists? path)
+      (try (json/parse-string (slurp path) true)
+           (catch Exception _ nil)))))
 
 (defn parse-naabu-lines [text]
   (->> (str/split-lines (or text ""))
@@ -631,6 +658,7 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
         merge-path (str out-dir "/merge.json")
         changed-path (str out-dir "/services-changed.jsonl")
         unchanged-path (str out-dir "/services-unchanged.jsonl")
+        all-path (str out-dir "/services-all.jsonl")
         body {:run_id run-id
               :merged_at (now-iso)
               :listener_count (count listeners)
@@ -648,6 +676,9 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                           :message "no discover artifacts; run discover first"})
       (System/exit 4))
     (spit merge-path (str (json/generate-string body {:pretty true}) "\n"))
+    (spit all-path
+          (str (str/join "\n" (map json/generate-string listeners))
+               (when (seq listeners) "\n")))
     (spit changed-path
           (str (str/join "\n" (map json/generate-string changed))
                (when (seq changed) "\n")))
@@ -655,16 +686,17 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
           (str (str/join "\n" (map json/generate-string unchanged))
                (when (seq unchanged) "\n")))
     (write-stage-artifact!
-     cfg {:run-id run-id :stage "merge-diff" :artifact-ref changed-path
+     cfg {:run-id run-id :stage "merge-diff" :artifact-ref all-path
           :status "succeeded" :started-at started-at :finished-at (now-ch)})
     (write-status! cfg {:run-id run-id
                         :stage "merge-diff"
                         :status "succeeded"
                         :message (str (count changed) " new/changed of "
                                       (count listeners) " listeners"
+                                      "; wrote services-all.jsonl + services-changed.jsonl"
                                       (if (seq changed)
-                                        "; fingerprint needed"
-                                        "; skip fingerprint"))})))
+                                        "; delta fingerprint available"
+                                        "; full fingerprint still available via services-all"))})))
 
 (defn http-candidate-urls
   "Build httpx probe URLs for a listener. Prefer https on 443/8443."
@@ -815,6 +847,13 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
   (let [v (str/lower-case (str (or s "info")))]
     (if (#{"info" "low" "medium" "high" "critical"} v) v "info")))
 
+(defn parse-port
+  [p]
+  (cond
+    (number? p) (int p)
+    (string? p) (try (Integer/parseInt p) (catch Exception _ 0))
+    :else 0))
+
 (defn write-findings!
   [cfg run-id nuclei-rows]
   (let [ts (now-ch)
@@ -823,10 +862,10 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
         findings
         (mapv (fn [row]
                 (let [host (or (:host row) (:ip row) (some-> (:url row) (str/replace #"^https?://" "") (str/split #"/|:|]") first))
-                      port (int (or (:port row) 0))
+                      port (parse-port (:port row))
                       template (or (:template-id row) (:templateID row) (:template row) "unknown")
                       matcher (or (:matcher-name row) (:matcher_name row) "")
-                      sev (normalize-severity (:severity row))
+                      sev (normalize-severity (or (:severity row) (get-in row [:info :severity])))
                       sid (if (and host (pos? port))
                             (service-id-for host "tcp" port)
                             (sha256-hex (str "finding|" template "|" host)))
@@ -854,6 +893,49 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
     (when (seq findings)
       (ch-insert! cfg "estate_scan.findings" findings))))
 
+(defn ingest-validate-results!
+  "Re-ingest an existing validate-*.jsonl after a writer crash; does not re-run Nuclei."
+  [cfg run-id profile]
+  (let [{:keys [artifacts_dir scanner_revision nuclei_templates_revision]} cfg
+        out-dir (str artifacts_dir "/" run-id)
+        result-file (str out-dir "/validate-" profile ".jsonl")
+        evidence-file (str out-dir "/validate-evidence.json")
+        profile-label (run-profile cfg run-id)
+        evidence (load-validate-evidence cfg run-id)
+        rows (when (fs/exists? result-file) (parse-jsonl (slurp result-file)))
+        url-count (long (or (:url_count evidence) (count rows) 0))]
+    (when-not (seq rows)
+      (die! 4 (str "no findings rows in " result-file)))
+    (write-findings! cfg run-id rows)
+    (write-scan-run!
+     cfg {:run_id run-id
+          :profile profile-label
+          :vantage "estate-scanner"
+          :scanner_revision scanner_revision
+          :nuclei_templates_revision nuclei_templates_revision
+          :status "running"
+          :started_at (now-ch)
+          :probe_count url-count
+          :coverage_ratio (double (/ (count rows) (max 1 url-count)))})
+    (write-status! cfg {:run-id run-id
+                        :stage "validate"
+                        :status "succeeded"
+                        :message (str "ingested " (count rows) " findings from "
+                                      result-file " (no nuclei re-run)")})
+    (when-not (fs/exists? evidence-file)
+      (spit evidence-file
+            (str (json/generate-string
+                  {:run_id run-id
+                   :profile profile
+                   :run_profile profile-label
+                   :url_count url-count
+                   :findings_count (count rows)
+                   :status "ingested"
+                   :scanner_revision scanner_revision
+                   :nuclei_templates_revision nuclei_templates_revision}
+                  {:pretty true})
+                 "\n")))))
+
 (defn http-targets-from-artifact
   "Build nuclei -l targets from fingerprint.jsonl or services-changed with URLs."
   [artifact-path]
@@ -872,12 +954,14 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
   "Safe Nuclei validation against an HTTP(S) service artifact."
   [cfg run-id artifact-name profile]
   (let [{:keys [artifacts_dir templates_dir nuclei nuclei_templates_revision
-                scanner_revision]} cfg
+                scanner_revision fixture_url fixture_templates_dir
+                validate_timeout_ms]} cfg
         out-dir (str artifacts_dir "/" run-id)
         artifact-path (str out-dir "/" artifact-name)
         list-file (str out-dir "/validate-nuclei-targets.txt")
         result-file (str out-dir "/validate-" profile ".jsonl")
         log-file (str out-dir "/validate-" profile ".log")
+        evidence-file (str out-dir "/validate-evidence.json")
         templates-http (str templates_dir "/current/http")
         ;; Curated HTTP dirs — full http/ is ~5.6k templates and too slow for daily.
         template-dirs (if (= profile "nuclei-weekly")
@@ -886,7 +970,13 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                         ["cves" "vulnerabilities" "misconfiguration" "exposures"])
         nuclei-config "/etc/estate-scanner/nuclei-config.yaml"
         nuclei-profile (str "/etc/estate-scanner/nuclei-profiles/" profile ".yml")
-        started-at (now-ch)]
+                timeout-ms (long (or validate_timeout_ms 5400000))
+        fixture (or fixture_url "http://127.0.0.1:18080/")
+        fixture-dir (or fixture_templates_dir "/etc/estate-scanner/nuclei-fixtures")
+        started-at (now-ch)
+        started-ms (System/currentTimeMillis)
+        profile-label (or (run-profile cfg run-id) profile)
+        target-count (or (some-> (load-run-manifest cfg run-id) :targets count) 0)]
     (fs/create-dirs out-dir)
     (when-not (fs/exists? artifact-path)
       (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
@@ -900,34 +990,92 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
       (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
                           :message (str "missing nuclei profile " profile)})
       (System/exit 4))
-    (let [urls (http-targets-from-artifact artifact-path)
+    ;; Fast canary before the long estate pass — proves findings ingest even if
+    ;; the curated scan times out later.
+    (when (and fixture (fs/exists? fixture-dir) (seq (fs/glob fixture-dir "*.yaml")))
+      (let [fixture-list (str out-dir "/validate-fixture-targets.txt")
+            fixture-out (str out-dir "/validate-fixture.jsonl")
+            fixture-log (str out-dir "/validate-fixture.log")]
+        (spit fixture-list (str fixture "\n"))
+        (spit fixture-out "")
+        (when nuclei
+          (let [fproc (proc/process
+                       (cond-> [nuclei "-l" fixture-list "-t" fixture-dir
+                                "-severity" "medium,high,critical"
+                                "-jsonl" "-nc" "-no-interactsh"
+                                "-rate-limit" "10" "-c" "5" "-timeout" "5"]
+                         (fs/exists? nuclei-config) (into ["-config" nuclei-config]))
+                       {:out (io/file fixture-out)
+                        :err (io/file fixture-log)
+                        :in nil})
+                fdone (deref fproc 60000 :timeout)]
+            (when (= fdone :timeout)
+              (try (proc/destroy-tree fproc) (catch Exception _ nil)))
+            (let [frows (parse-jsonl (slurp fixture-out))]
+              (when (seq frows)
+                (write-findings! cfg run-id frows)
+                (write-status! cfg {:run-id run-id :stage "validate" :status "running"
+                                    :message (str "fixture canary wrote " (count frows)
+                                                  " finding(s); starting estate nuclei")})))))))
+    (let [urls (->> (http-targets-from-artifact artifact-path)
+                    (into [])
+                    (#(if (and fixture (not (some #{fixture} %)))
+                        (conj % fixture)
+                        %)))
           existing-dirs (->> template-dirs
                              (map #(str templates-http "/" %))
                              (filter fs/exists?)
-                             vec)]
+                             vec)
+          fixture-ready? (and (fs/exists? fixture-dir)
+                              (seq (fs/glob fixture-dir "*.yaml")))]
       (when (empty? existing-dirs)
         (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
                             :message "no curated nuclei template dirs present"})
         (System/exit 4))
       (write-status! cfg {:run-id run-id :stage "validate" :status "running"
-                          :message (str "nuclei " profile " on " (count urls) " URLs")})
+                          :message (str "nuclei " profile " on " (count urls) " URLs"
+                                        (when fixture-ready? " incl fixture"))})
       (write-stage-artifact!
        cfg {:run-id run-id :stage "validate" :artifact-ref result-file
             :status "running" :started-at started-at})
       (if (empty? urls)
-        (do
+        (let [evidence {:run_id run-id
+                        :profile profile
+                        :run_profile profile-label
+                        :url_count 0
+                        :findings_count 0
+                        :template_dirs existing-dirs
+                        :fixture_url fixture
+                        :fixture_included false
+                        :duration_ms 0
+                        :scanner_revision scanner_revision
+                        :nuclei_templates_revision nuclei_templates_revision
+                        :status "skipped_empty"}]
           (spit result-file "")
+          (spit evidence-file (str (json/generate-string evidence {:pretty true}) "\n"))
           (write-stage-artifact!
            cfg {:run-id run-id :stage "validate" :artifact-ref result-file
                 :status "succeeded" :started-at started-at :finished-at (now-ch)})
+          (write-scan-run!
+           cfg {:run_id run-id
+                :profile profile-label
+                :vantage "estate-scanner"
+                :scanner_revision scanner_revision
+                :nuclei_templates_revision nuclei_templates_revision
+                :status "running"
+                :started_at started-at
+                :target_count target-count
+                :probe_count 0})
           (write-status! cfg {:run-id run-id :stage "validate" :status "succeeded"
                               :message "no HTTP(S) targets in artifact; skipped nuclei"}))
         (do
           (spit list-file (str (str/join "\n" urls) "\n"))
           (when-not nuclei (die! 1 "nuclei path missing from runtime.json"))
           ;; L7 HTTP + reviewed profile. Wrapper HOME disables PDCP; dns-shim
-          ;; answers Nuclei's hardcoded Google IPv6 resolvers.
-          (let [template-args (mapcat (fn [d] ["-t" d]) existing-dirs)
+          ;; answers Nuclei's hardcoded Google IPv6 resolvers. Fixture template
+          ;; proves findings ingest independently of estate medium+ hits.
+          (let [template-args (concat (mapcat (fn [d] ["-t" d]) existing-dirs)
+                                      (when fixture-ready? ["-t" fixture-dir]))
                 cmd (cond-> (into [nuclei
                                    "-l" list-file]
                                   (concat template-args
@@ -938,47 +1086,104 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                                            "-retries" "1"
                                            "-jsonl"
                                            "-nc"
+                                           "-silent"
                                            "-no-interactsh"]))
                       (fs/exists? nuclei-config)
                       (into ["-config" nuclei-config]))
                 _ (spit result-file "")
-                proc @(proc/process cmd {:out (io/file result-file)
-                                         :err (io/file log-file)
-                                         :in nil})
+                proc (proc/process cmd {:out (io/file result-file)
+                                        :err (io/file log-file)
+                                        :in nil})
+                finished (deref proc timeout-ms :timeout)
+                timed-out? (= finished :timeout)
+                _ (when timed-out?
+                    (try (proc/destroy-tree proc) (catch Exception _ nil)))
+                exit (if timed-out? 124 (or (:exit finished) 1))
                 finished-at (now-ch)
+                duration-ms (- (System/currentTimeMillis) started-ms)
                 err-text (when (fs/exists? log-file) (slurp log-file))
                 out-text (slurp result-file)
                 no-templates? (or (str/includes? (str err-text) "no templates provided")
                                   (str/includes? (str err-text) "Could not run nuclei"))
                 rows (parse-jsonl out-text)
-                ok? (and (zero? (:exit proc)) (not no-templates?))]
+                fixture-hits (count (filter (fn [row]
+                                              (let [tid (str (or (:template-id row)
+                                                                 (:templateID row)
+                                                                 (:template row)
+                                                                 ""))]
+                                                (str/includes? tid "aether-estate-scan-fixture")))
+                                            rows))
+                ok? (and (not timed-out?) (zero? exit) (not no-templates?))
+                evidence {:run_id run-id
+                          :profile profile
+                          :run_profile profile-label
+                          :url_count (count urls)
+                          :findings_count (count rows)
+                          :fixture_url fixture
+                          :fixture_included true
+                          :fixture_hits fixture-hits
+                          :template_dirs (cond-> existing-dirs
+                                           fixture-ready? (conj fixture-dir))
+                          :duration_ms duration-ms
+                          :timed_out timed-out?
+                          :nuclei_exit exit
+                          :scanner_revision scanner_revision
+                          :nuclei_templates_revision nuclei_templates_revision
+                          :status (cond timed-out? "timeout"
+                                        ok? "succeeded"
+                                        :else "failed")}]
+            (spit evidence-file (str (json/generate-string evidence {:pretty true}) "\n"))
+            ;; Always persist whatever Nuclei emitted before exit/timeout.
+            (write-findings! cfg run-id rows)
             (when-not ok?
               (write-stage-artifact!
                cfg {:run-id run-id :stage "validate" :artifact-ref result-file
                     :status "failed" :started-at started-at :finished-at finished-at
-                    :error-code (if no-templates? "nuclei_no_templates" "nuclei_exit")
-                    :error-message (str "nuclei exited " (:exit proc)
-                                        (when no-templates? "; no templates loaded"))})
+                    :error-code (cond timed-out? "nuclei_timeout"
+                                      no-templates? "nuclei_no_templates"
+                                      :else "nuclei_exit")
+                    :error-message (str "nuclei exited " exit
+                                        (when timed-out? "; timed out")
+                                        (when no-templates? "; no templates loaded")
+                                        "; partial findings=" (count rows))})
+              (write-scan-run!
+               cfg {:run_id run-id
+                    :profile profile-label
+                    :vantage "estate-scanner"
+                    :scanner_revision scanner_revision
+                    :nuclei_templates_revision nuclei_templates_revision
+                    :status "failed"
+                    :started_at started-at
+                    :finished_at finished-at
+                    :target_count target-count
+                    :probe_count (count urls)
+                    :error_count 1
+                    :error_code (if timed-out? "nuclei_timeout" "nuclei_exit")
+                    :error_message (str "validate failed; see " log-file)})
               (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
                                   :message (str "nuclei " profile " failed; see log")})
               (System/exit 5))
-            (write-findings! cfg run-id rows)
             (write-stage-artifact!
              cfg {:run-id run-id :stage "validate" :artifact-ref result-file
                   :status "succeeded" :started-at started-at :finished-at finished-at})
+            ;; Stay running until finalize closes the lineage; probe_count = URLs.
             (write-scan-run!
              cfg {:run_id run-id
-                  :profile profile
+                  :profile profile-label
                   :vantage "estate-scanner"
                   :scanner_revision scanner_revision
                   :nuclei_templates_revision nuclei_templates_revision
                   :status "running"
                   :started_at started-at
-                  :probe_count (count rows)})
+                  :target_count target-count
+                  :probe_count (count urls)
+                  :coverage_ratio (double (/ (count rows) (max 1 (count urls))))})
             (write-status! cfg {:run-id run-id :stage "validate" :status "succeeded"
                                 :message (str "nuclei " profile ": " (count rows)
                                               " findings from " (count urls)
-                                              " URLs")})))))))
+                                              " URLs (" duration-ms "ms)"
+                                              (when (pos? fixture-hits)
+                                                (str "; fixture hits=" fixture-hits)))})))))))
 
 (defn accept-validate!
   [cfg run-id artifact-name profile]
@@ -1002,24 +1207,37 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
 
 (defn finalize!
   [cfg run-id]
-  (let [{:keys [artifacts_dir scanner_revision nuclei_templates_revision]} cfg
-        out-dir (str artifacts_dir "/" run-id)
+  (let [{:keys [scanner_revision nuclei_templates_revision]} cfg
+        out-dir (str (:artifacts_dir cfg) "/" run-id)
         status-path (str (:runs_dir cfg) "/" run-id "/status.json")
         started-at (now-ch)
         prior (when (fs/exists? status-path)
                 (try (json/parse-string (slurp status-path) true)
                      (catch Exception _ nil)))
-        failed? (= "failed" (:status prior))]
+        failed? (= "failed" (:status prior))
+        profile (run-profile cfg run-id)
+        evidence (load-validate-evidence cfg run-id)
+        manifest (load-run-manifest cfg run-id)
+        probe-count (long (or (:url_count evidence) (:probe_count evidence) 0))
+        findings-count (long (or (:findings_count evidence) 0))
+        target-count (long (or (some-> manifest :targets count) 0))]
     (fs/create-dirs out-dir)
     (write-scan-run!
      cfg {:run_id run-id
-          :profile "discovery-common"
+          :profile profile
           :vantage "estate-scanner"
           :scanner_revision scanner_revision
           :nuclei_templates_revision nuclei_templates_revision
           :status (if failed? "failed" "succeeded")
           :started_at started-at
-          :finished_at (now-ch)})
+          :finished_at (now-ch)
+          :target_count target-count
+          :probe_count probe-count
+          :coverage_ratio (double (/ findings-count (max 1 probe-count)))
+          :error_code (if failed? (or (:status prior) "stage_failed") "")
+          :error_message (if failed?
+                           (or (:message prior) "prior stage failed")
+                           "")})
     (write-stage-artifact!
      cfg {:run-id run-id :stage "finalize" :artifact-ref status-path
           :status (if failed? "failed" "succeeded")
@@ -1028,8 +1246,49 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                         :stage "finalize"
                         :status (if failed? "failed" "succeeded")
                         :message (if failed?
-                                   "finalize recorded failed run lineage"
-                                   "finalize recorded succeeded run lineage")})))
+                                   (str "finalize recorded failed run lineage profile=" profile)
+                                   (str "finalize recorded succeeded run lineage profile="
+                                        profile " urls=" probe-count
+                                        " findings=" findings-count))})))
+
+(defn abandon-run!
+  "Mark a run cancelled in ClickHouse (orphan close)."
+  [cfg run-id reason]
+  (let [{:keys [scanner_revision nuclei_templates_revision]} cfg
+        profile (run-profile cfg run-id)
+        finished-at (now-ch)]
+    (write-scan-run!
+     cfg {:run_id run-id
+          :profile profile
+          :vantage "estate-scanner"
+          :scanner_revision scanner_revision
+          :nuclei_templates_revision nuclei_templates_revision
+          :status "cancelled"
+          :started_at finished-at
+          :finished_at finished-at
+          :error_code "abandoned"
+          :error_message (or reason "abandoned")})
+    (write-status! cfg {:run-id run-id
+                        :stage "abandon"
+                        :status "succeeded"
+                        :message (str "cancelled orphan run: " (or reason "abandoned"))})))
+
+(defn reap-stale-runs!
+  "Close scan_runs stuck in accepted/running for >6h (caller must hold lock)."
+  [cfg]
+  (let [rows (ch-query!
+              cfg
+              (str "SELECT toString(run_id) AS run_id, status, profile "
+                   "FROM estate_scan.scan_runs FINAL "
+                   "WHERE status IN ('running', 'accepted') "
+                   "AND started_at < now() - INTERVAL 6 HOUR"))
+        n (count rows)]
+    (doseq [{:keys [run_id]} rows]
+      (abandon-run! cfg run_id "reaped-stale-gt-6h"))
+    (println (json/generate-string {:stage "reap-stale"
+                                    :status "succeeded"
+                                    :reaped n
+                                    :message (str "reaped " n " stale scan_runs")}))))
 
 (defn stub!
   [cfg run-id stage message & {:keys [target-group]}]
@@ -1157,6 +1416,33 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
           (System/exit 2))
         (require-run-id! run-id)
         (with-lock! cfg #(finalize! cfg run-id)))
+
+      "ingest-validate"
+      (let [[_ run-id profile] args]
+        (when (or (nil? run-id) (nil? profile) (nth args 3 nil))
+          (println usage-text)
+          (System/exit 2))
+        (require-run-id! run-id)
+        (require-member! "profile" profile profiles)
+        (with-lock! cfg #(ingest-validate-results! cfg run-id profile)))
+
+      "abandon"
+      (let [[_ run-id reason] args]
+        (when (or (nil? run-id) (nth args 3 nil))
+          (println usage-text)
+          (System/exit 2))
+        (require-run-id! run-id)
+        (when reason
+          (when-not (re-matches reason-token-re (str reason))
+            (die! "invalid abandon reason token")))
+        (with-lock! cfg #(abandon-run! cfg run-id (or reason "abandoned"))))
+
+      "reap-stale"
+      (let [[_] args]
+        (when (nth args 1 nil)
+          (println usage-text)
+          (System/exit 2))
+        (with-lock! cfg #(reap-stale-runs! cfg)))
 
       "status"
       (let [[_ run-id stage target-group] args]

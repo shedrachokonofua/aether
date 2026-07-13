@@ -204,6 +204,14 @@ resource "helm_release" "kestra" {
 
     common = {
       nodeSelector = { "kubernetes.io/arch" = "amd64" }
+
+      # Recreate (not RollingUpdate): the standalone pod mounts the RWO ceph-rbd
+      # kestra-storage PVC. A surge pod can never mount the volume the old pod
+      # holds, so a rolling update deadlocks until the old pod is force-killed —
+      # which orphans in-flight taskruns (executor+worker die together in
+      # standalone) and leaks the alert-intake concurrency slot. Recreate stops
+      # the old pod (releasing the PVC) before starting the new one.
+      strategy = { type = "Recreate" }
       podAnnotations = {
         "aether.shdr.ch/kestra-inquest-sha"     = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_inquest.data)))
         "aether.shdr.ch/kestra-estate-scan-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_estate_scan.data)))
@@ -233,6 +241,19 @@ resource "helm_release" "kestra" {
             type  = "local"
             local = { basePath = "/app/storage" }
           }
+
+          # Self-heal orphaned taskruns if the pod dies mid-execution anyway.
+          # In standalone the executor+worker share a process; on an abnormal
+          # kill, worker tasks are resubmitted once the dead service's heartbeat
+          # goes stale (liveness), and the concurrency slot is reconciled on the
+          # execution's terminal event instead of leaking.
+          server = {
+            liveness = {
+              enabled = true
+              timeout = "45s"
+            }
+            workerTaskRestartStrategy = "AFTER_TERMINATION_GRACE_PERIOD"
+          }
         }
       }
       secrets = [{
@@ -256,14 +277,12 @@ resource "helm_release" "kestra" {
 # =============================================================================
 # Secret kestra-estate-scan mounts ENV_ESTATE_SCANNER_* + SECRET_ESTATE_SCANNER_SSH_KEY.
 # Flow YAML: kestra/flows/estate-scan-home.yaml
+# Flow IaC: tofu/home/kestra-flows/ (separate S3 state; task tofu:kestra-flows:apply)
 #
 # Path: SERVICES (Talos) → TRUSTED rule 26 → estate-scanner:22 only.
 # Source group TALOS-NODES (node SNAT). Not Proxmox/MGMT. Rule 25 is SeaweedFS.
 # Apply path: ansible/playbooks/home_router/allow_estate_scanner_dispatch.yml
 # (also declared in configure_router.yml for full reconciles).
-#
-# Still required: helm apply to mount kestra-estate-scan into the pod; apply the
-# estate-scan-home flow; scanner-side Match Address narrowing (optional).
 # =============================================================================
 
 resource "kubernetes_manifest" "kestra_route" {

@@ -92,6 +92,9 @@ let
     "validate"
     "finalize"
     "status"
+    "abandon"
+    "reap-stale"
+    "ingest-validate"
   ];
 
   nucleiTemplatesRevision = "v10.4.5";
@@ -191,6 +194,16 @@ let
     check = "";
   } (builtins.readFile ./nuclei-dns-shim.bb);
 
+  nucleiFixtureHttp = pkgs.writeShellApplication {
+    name = "estate-nuclei-fixture-http";
+    runtimeInputs = [ pkgs.python3 ];
+    text = ''
+      exec ${pkgs.python3}/bin/python3 ${./nuclei-fixture-http.py}
+    '';
+  };
+
+  nucleiFixtureTemplate = ./nuclei-fixtures/aether-estate-scan-fixture.yaml;
+
   httpxWrapped = pkgs.symlinkJoin {
     name = "httpx-estate";
     paths = [ pkgs.httpx ];
@@ -220,6 +233,11 @@ let
     discover_profiles = discoverProfiles;
     discover_group_rates = discoverGroupRates;
     discover_cidrs = discoverCidrs;
+    # Cap Nuclei wall time so Kestra concurrency:1 cannot queue forever.
+    # ~23 URLs × curated medium+ templates empirically needs ~60–90m.
+    validate_timeout_ms = 5400000; # 90 minutes
+    fixture_url = "http://127.0.0.1:18080/";
+    fixture_templates_dir = "/etc/estate-scanner/nuclei-fixtures";
     # Password is Ansible/SOPS-managed — never bake it into the Nix closure.
     clickhouse_url = "http://${facts.vm.monitoring_stack.ip}:${toString facts.vm.monitoring_stack.ports.clickhouse}";
     clickhouse_user = "estate_scan";
@@ -270,12 +288,30 @@ in
     httpxWrapped
     nucleiWrapped
     nucleiDnsShim
+    nucleiFixtureHttp
     pkgs.nmap
     pkgs.babashka
     pkgs.util-linux # setsid for detached discover workers
     pkgs.jq
     pkgs.yq-go
   ];
+
+  systemd.services.estate-nuclei-fixture-http = {
+    description = "Controlled Nuclei-positive HTTP canary for estate-scanner";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${nucleiFixtureHttp}/bin/estate-nuclei-fixture-http";
+      Restart = "on-failure";
+      RestartSec = 2;
+      Environment = [
+        "ESTATE_FIXTURE_BIND=127.0.0.1"
+        "ESTATE_FIXTURE_PORT=18080"
+      ];
+    };
+  };
 
   systemd.services.estate-nuclei-dns-shim = {
     description = "Forward Nuclei hardcoded Google IPv6 DNS to lab resolver";
@@ -374,6 +410,7 @@ in
           - fuzz
           - intrusive
       '';
+      "estate-scanner/nuclei-fixtures/aether-estate-scan-fixture.yaml".source = nucleiFixtureTemplate;
       "estate-scanner/declared-targets.json".source = declaredTargetsJson;
     }
     // lib.listToAttrs (

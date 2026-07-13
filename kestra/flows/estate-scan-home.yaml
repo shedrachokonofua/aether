@@ -2,8 +2,9 @@ id: estate-scan-home
 namespace: aether.estate
 
 description: |
-  Staged home-estate discovery DAG. Dispatches typed aether-scan stages over SSH
+  Staged home-estate discovery + L7 DAG. Dispatches typed aether-scan stages over SSH
   to kestra-estate-scanner@10.0.2.13 (ForceCommand). Polls compact status JSON.
+  l7_scope=full fingerprints services-all.jsonl (baseline); changed uses deltas only.
 
 concurrency:
   behavior: QUEUE
@@ -12,13 +13,21 @@ concurrency:
 inputs:
   - id: profile
     type: STRING
-    defaults: discovery-common
+    defaults: nuclei-daily
+  - id: l7_scope
+    type: STRING
+    defaults: full
+    description: "full = all discovered listeners; changed = new/changed only"
 
 tasks:
   # ClickHouse estate_scan.run_id is UUID; Kestra execution.id is Url62 — mint RFC4122.
   - id: mint_run_id
     type: io.kestra.plugin.core.debug.Return
     format: "{{ uuid() }}"
+
+  - id: fingerprint_artifact
+    type: io.kestra.plugin.core.debug.Return
+    format: "{{ inputs.l7_scope == 'changed' ? 'services-changed.jsonl' : 'services-all.jsonl' }}"
 
   - id: targets
     type: io.kestra.plugin.fs.ssh.Command
@@ -41,18 +50,23 @@ tasks:
       - "discover {{ outputs.mint_run_id.value }} home"
 
   - id: wait_discover
-    type: io.kestra.plugin.core.flow.Pause
-    delay: PT90S
-
-  - id: discover_status
-    type: io.kestra.plugin.fs.ssh.Command
-    host: "{{ envs.estate_scanner_host }}"
-    username: "{{ envs.estate_scanner_user }}"
-    authMethod: PUBLIC_KEY
-    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
-    strictHostKeyChecking: "false"
-    commands:
-      - "status {{ outputs.mint_run_id.value }} discover home"
+    type: io.kestra.plugin.core.flow.LoopUntil
+    condition: "{{ outputs.discover_status.exitCode == 0 }}"
+    checkFrequency:
+      interval: PT30S
+      maxDuration: PT30M
+    failOnMaxReached: true
+    tasks:
+      - id: discover_status
+        type: io.kestra.plugin.fs.ssh.Command
+        host: "{{ envs.estate_scanner_host }}"
+        username: "{{ envs.estate_scanner_user }}"
+        authMethod: PUBLIC_KEY
+        privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+        strictHostKeyChecking: "false"
+        allowFailure: true
+        commands:
+          - "status {{ outputs.mint_run_id.value }} discover home"
 
   - id: merge_diff
     type: io.kestra.plugin.fs.ssh.Command
@@ -72,21 +86,26 @@ tasks:
     privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
     strictHostKeyChecking: "false"
     commands:
-      - "fingerprint {{ outputs.mint_run_id.value }} services-changed.jsonl"
+      - "fingerprint {{ outputs.mint_run_id.value }} {{ outputs.fingerprint_artifact.value }}"
 
   - id: wait_fingerprint
-    type: io.kestra.plugin.core.flow.Pause
-    delay: PT60S
-
-  - id: fingerprint_status
-    type: io.kestra.plugin.fs.ssh.Command
-    host: "{{ envs.estate_scanner_host }}"
-    username: "{{ envs.estate_scanner_user }}"
-    authMethod: PUBLIC_KEY
-    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
-    strictHostKeyChecking: "false"
-    commands:
-      - "status {{ outputs.mint_run_id.value }} fingerprint"
+    type: io.kestra.plugin.core.flow.LoopUntil
+    condition: "{{ outputs.fingerprint_status.exitCode == 0 }}"
+    checkFrequency:
+      interval: PT30S
+      maxDuration: PT20M
+    failOnMaxReached: true
+    tasks:
+      - id: fingerprint_status
+        type: io.kestra.plugin.fs.ssh.Command
+        host: "{{ envs.estate_scanner_host }}"
+        username: "{{ envs.estate_scanner_user }}"
+        authMethod: PUBLIC_KEY
+        privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+        strictHostKeyChecking: "false"
+        allowFailure: true
+        commands:
+          - "status {{ outputs.mint_run_id.value }} fingerprint"
 
   - id: validate
     type: io.kestra.plugin.fs.ssh.Command
@@ -99,18 +118,23 @@ tasks:
       - "validate {{ outputs.mint_run_id.value }} fingerprint.jsonl nuclei-daily"
 
   - id: wait_validate
-    type: io.kestra.plugin.core.flow.Pause
-    delay: PT180S
-
-  - id: validate_status
-    type: io.kestra.plugin.fs.ssh.Command
-    host: "{{ envs.estate_scanner_host }}"
-    username: "{{ envs.estate_scanner_user }}"
-    authMethod: PUBLIC_KEY
-    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
-    strictHostKeyChecking: "false"
-    commands:
-      - "status {{ outputs.mint_run_id.value }} validate"
+    type: io.kestra.plugin.core.flow.LoopUntil
+    condition: "{{ outputs.validate_status.exitCode == 0 }}"
+    checkFrequency:
+      interval: PT2M
+      maxDuration: PT100M
+    failOnMaxReached: true
+    tasks:
+      - id: validate_status
+        type: io.kestra.plugin.fs.ssh.Command
+        host: "{{ envs.estate_scanner_host }}"
+        username: "{{ envs.estate_scanner_user }}"
+        authMethod: PUBLIC_KEY
+        privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+        strictHostKeyChecking: "false"
+        allowFailure: true
+        commands:
+          - "status {{ outputs.mint_run_id.value }} validate"
 
   - id: finalize
     type: io.kestra.plugin.fs.ssh.Command
