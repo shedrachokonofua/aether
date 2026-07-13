@@ -2,6 +2,11 @@
 
 Exploration of intrusion detection (network + host) and vulnerability scanning for internal security visibility.
 
+> **Current scanning plan:** [`estate-scanning.md`](estate-scanning.md) supersedes
+> this document's Kubernetes Nuclei placement, target scope, schedule, and result
+> storage proposal. The IDS architecture and historical analysis below remain
+> useful context.
+
 ## Goal
 
 Extend security visibility beyond the public gateway to the internal network:

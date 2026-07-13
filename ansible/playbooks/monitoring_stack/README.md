@@ -23,6 +23,9 @@ task configure:monitoring
 - `clickhouse/10-argos-schema.sql` is the accepted Argos `001_initial` schema. The
   `argos` task reapplies its idempotent DDL and records the immutable checksum in
   `argos.schema_migrations`; it must not be edited after first application.
+- `clickhouse/11-estate-scan-schema.sql` is the estate scanner Phase 0 schema
+  (`estate_scan` database). Apply with `task configure:estate-scan-schema`.
+  After first application the `001_initial` checksum is immutable.
 
 ## Argos staged deployment
 

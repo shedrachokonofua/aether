@@ -1,0 +1,104 @@
+---
+# Provision estate-scanner LXC using the NixOS base image on neo.
+#
+# Scaffold / dry-run ready. Do NOT run against neo until Phase 1 provision is
+# explicitly approved. CAP_NET_RAW proof is a separate post-create gate.
+#
+# Prerequisites:
+#   task nix:upload-lxc-image
+
+- name: Provision estate-scanner LXC (NixOS, unprivileged)
+  hosts: neo
+  gather_facts: true
+  roles:
+    - common
+  vars:
+    nixos_template: "cephfs:vztmpl/nixos-base-lxc.tar.xz"
+    nixos_template_path: "/mnt/pve/cephfs/template/cache/nixos-base-lxc.tar.xz"
+    scanner_vm: "{{ vm.estate_scanner }}"
+    lxc_id: "{{ vm.estate_scanner.id }}"
+
+  pre_tasks:
+    - name: Refuse accidental live provision without explicit approval
+      ansible.builtin.assert:
+        that:
+          - estate_scanner_provision_approved | default(false) | bool
+        fail_msg: >-
+          estate-scanner live provision is gated. Re-run with
+          -e estate_scanner_provision_approved=true after explicit approval.
+          See docs/exploration/estate-scanning.md Phase 1.
+
+  tasks:
+    - name: Check if base image exists on cephfs
+      ansible.builtin.stat:
+        path: "{{ nixos_template_path }}"
+      register: base_image
+      delegate_to: smith
+
+    - name: Fail if base image not found
+      ansible.builtin.fail:
+        msg: |
+          NixOS base image not found at {{ nixos_template }}.
+          Build and upload it first: task nix:upload-lxc-image
+      when: not base_image.stat.exists
+
+    - name: Check if estate-scanner LXC exists
+      ansible.builtin.command: pct status {{ lxc_id }}
+      register: lxc_exists
+      failed_when: false
+      changed_when: false
+
+    - name: Stop estate-scanner LXC
+      ansible.builtin.command: pct stop {{ lxc_id }}
+      when: lxc_exists.rc == 0
+      register: stop_result
+      failed_when: false
+      changed_when: stop_result.rc == 0
+
+    - name: Wait for LXC to stop
+      ansible.builtin.command: pct status {{ lxc_id }}
+      register: lxc_status
+      until: "'stopped' in lxc_status.stdout"
+      retries: 30
+      delay: 2
+      when: lxc_exists.rc == 0 and stop_result.rc == 0
+      changed_when: false
+
+    - name: Delete estate-scanner LXC
+      ansible.builtin.command: pct destroy {{ lxc_id }} --purge
+      when: lxc_exists.rc == 0
+      register: delete_result
+      failed_when: false
+      changed_when: delete_result.rc == 0
+
+    - name: Create estate-scanner LXC (unprivileged)
+      ansible.builtin.command: >
+        pct create {{ lxc_id }}
+        {{ nixos_template }}
+        --hostname {{ scanner_vm.name }}
+        --cores {{ scanner_vm.cores }}
+        --memory {{ scanner_vm.memory }}
+        --swap {{ scanner_vm.swap_mb }}
+        --rootfs local-lvm:{{ scanner_vm.disk_gb }}
+        --net0 name=eth0,bridge=vmbr0,tag={{ scanner_vm.vlan }},gw={{ scanner_vm.gateway }},ip={{ scanner_vm.ip }}/24
+        --nameserver {{ scanner_vm.gateway }}
+        --features nesting=1
+        --unprivileged 1
+      changed_when: true
+
+    # Do NOT set `lxc.cap.keep: net_raw` alone — LXC treats keep as an
+    # exclusive allowlist and drops every other capability, so /sbin/init dies.
+    # CAP_NET_RAW proof runs after boot with the default unprivileged set; if
+    # SYN discovery needs a wider keep-list or fails, switch to a VM rather
+    # than privileging this LXC.
+
+    - name: Start estate-scanner LXC
+      ansible.builtin.command: pct start {{ lxc_id }}
+      changed_when: true
+
+    - name: Wait for SSH to be ready
+      ansible.builtin.wait_for:
+        host: "{{ scanner_vm.ip }}"
+        port: 22
+        timeout: 120
+      delegate_to: localhost

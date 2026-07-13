@@ -7,7 +7,9 @@
   - [ ] Re-point Caddy route consumers (Goldilocks/Holmes/Orion) through Janus; drop raw routes
   - [ ] OTLP ingest bearer-token authn + direct receiver TLS (drop Caddy from ingest path; AdGuard rewrite, vcluster netpol, producers-first incl. vcluster + agent self-telemetry)
   - [ ] VyOS OTel producer -> https://otel.home.shdr.ch
-  - [ ] Decommission Fleet (osquery agents off, fleet pod removed, route/secret/docs sweep; FIM/HIDS stays on Wazuh, CVEs on Trivy)
+  - [ ] Decommission Fleet only after compensating-control proof
+    - [ ] Audit Fleet-enrolled hosts against Wazuh agent coverage; deploy Wazuh to every gap before removing osquery
+    - [ ] Disable/remove osquery agents, Fleet pod/volumes, route, secret, Grafana references, and stale docs
 - [ ] Finish Proxmox VE 8→9 upgrade — oracle (last node on 8.3; rest on 9.1; the mixed-version cluster is the RCA for the pmxcfs RRD-update-error storm + blocked HA-groups→rules migration) ([runbook](exploration/oracle-pve9-upgrade.md))
   - [ ] Evacuate oracle guests first — it hosts router/DNS/ingress/identity; clone-and-cutover the router to neo to preserve the control path, live-migrate remaining VMs, offline-migrate CTs
   - [ ] Run `upgrade_pve_8_to_9.yml --limit oracle`; confirm RRD storm + HA-groups migration clear and all 5 nodes report PVE 9
@@ -44,6 +46,13 @@
   - [ ] Phase 3: actuator runner outside k8s; artifact-pinned manual apply jobs
   - [ ] Phase 4: ansible/nix deploy lanes via CI SSH certs
   - [ ] Phase 5: conftest policy checks on plan JSON
+- [ ] Estate discovery and vulnerability scanning ([plan](exploration/estate-scanning.md))
+  - [x] Phase 0: preflight — allocate `10.0.2.13` / VMID 1036 on neo; ClickHouse `estate_scan` schema applied live; scan-aware IDS design (no blanket exclude); neo headroom rechecked 2026-07-12
+  - [ ] Phase 1: unprivileged NixOS LXC live on neo; CAP_NET_RAW proven; `aether-scan` stub + naabu `-no-stdin` wrap deployed — remaining: nuclei-templates pin, Kestra key/egress, staged DAG, real execution units
+  - [ ] Phase 2: target compiler, writers into ClickHouse, Grafana coverage/diff/finding panels and stale/failed alerts
+  - [ ] Phase 3: calibrate rates on controlled, server, IoT, Gigahub, home, AWS, and GCP targets
+  - [ ] Phase 4: enable six-hour discovery, daily critical/cloud, weekly known-host, and monthly blind-estate coverage progressively
+  - [ ] Phase 5: correlate scanner findings with the P1-delivered Wazuh coverage and GCP OS Config; do not make Fleet retirement wait on scanner rollout
 - [ ] ClickHouse cold tier on SeaweedFS ([exploration](exploration/telemetry-archive.md))
   - [x] Phase 0: metrics archive live (2026-07-11, third attempt: dedicated 50k-batch pipeline, pinned collector, repo-owned schema, benchmark-gated; soak criteria all green)
   - [ ] Measure steady-state metrics ingest rate (1 week)
@@ -77,8 +86,6 @@
   - [x] Configure VyOS port mirror to span port
   - [x] Deploy Zeek for network traffic analysis (quadlet-nix)
   - [x] Deploy Suricata on VyOS router directly
-  - [ ] Deploy Nuclei for vulnerability scanning
-  - [ ] Add Wazuh agents to vm_monitoring_agent role
 - [ ] Consolidate ProtonVPN infrastructure
   - [ ] Unify secrets under `secrets.protonvpn.*` (move qbittorrent VPN creds)
   - [ ] Switch qBittorrent from Gluetun to tun2socks → rotating-proxy
