@@ -48,7 +48,7 @@
   - [ ] Phase 5: conftest policy checks on plan JSON
 - [ ] Estate discovery and vulnerability scanning ([plan](exploration/estate-scanning.md))
   - [x] Phase 0: preflight — allocate `10.0.2.13` / VMID 1036 on neo; ClickHouse `estate_scan` schema applied live; scan-aware IDS design (no blanket exclude); neo headroom rechecked 2026-07-12
-  - [ ] Phase 1: LXC live; CAP_NET_RAW + naabu fixed; nuclei-templates `v10.4.5` pinned; `targets snapshot` + declared-host `discover` work — remaining: Kestra key/egress, staged DAG, detach execution units, ClickHouse writers
+  - [ ] Phase 1: LXC live; CAP_NET_RAW + naabu fixed; nuclei `v10.4.5`; `targets` + detached `discover`; ClickHouse writer (`estate_scan` user) live — remaining: Kestra key + additive egress + staged DAG
   - [ ] Phase 2: target compiler, writers into ClickHouse, Grafana coverage/diff/finding panels and stale/failed alerts
   - [ ] Phase 3: calibrate rates on controlled, server, IoT, Gigahub, home, AWS, and GCP targets
   - [ ] Phase 4: enable six-hour discovery, daily critical/cloud, weekly known-host, and monthly blind-estate coverage progressively

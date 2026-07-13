@@ -146,6 +146,10 @@ let
     approved_profiles = approvedProfiles;
     approved_target_groups = approvedTargetGroups;
     approved_stages = approvedStages;
+    # Password is Ansible/SOPS-managed — never bake it into the Nix closure.
+    clickhouse_url = "http://${facts.vm.monitoring_stack.ip}:${toString facts.vm.monitoring_stack.ports.clickhouse}";
+    clickhouse_user = "estate_scan";
+    clickhouse_password_file = "/etc/estate-scanner/clickhouse-password";
   });
 
   aetherScan = pkgs.writers.writeBabashkaBin "aether-scan" {
@@ -174,6 +178,7 @@ in
     nucleiWrapped
     pkgs.nmap
     pkgs.babashka
+    pkgs.util-linux # setsid for detached discover workers
     pkgs.jq
     pkgs.yq-go
   ];
@@ -207,6 +212,8 @@ in
         Dispatcher: aether-scan.bb via babashka (forced-command for kestra-estate-scanner)
         Nuclei templates: ${nucleiTemplatesRevision} (pinned; no auto-update)
         Naabu/httpx wrapped with -no-stdin -duc for non-interactive SSH/Kestra use.
+        discover detaches via setsid; worker writes estate_scan.* in ClickHouse.
+        ClickHouse password: /etc/estate-scanner/clickhouse-password (Ansible/SOPS).
         Do not add local OnCalendar scan schedules; Kestra is the schedule authority.
       '';
       "estate-scanner/runtime.json".source = runtimeConfigJson;

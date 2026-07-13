@@ -1,4 +1,4 @@
-# Estate scan ClickHouse schema reconciliation (Phase 0).
+# Estate scan ClickHouse schema + writer identity reconciliation.
 # Invoked from site.yml under tags: [estate-scan].
 
 - name: Copy estate scan schema into the mounted ClickHouse init directory
@@ -66,4 +66,42 @@
     fail_msg: >-
       estate_scan migration 001_initial exists with a different checksum;
       do not replace committed migrations.
+  tags: [estate-scan, clickhouse]
+
+- name: Assert estate_scan writer credential is present
+  ansible.builtin.assert:
+    that:
+      - secrets.estate_scan is defined
+      - secrets.estate_scan.clickhouse_password is string
+      - secrets.estate_scan.clickhouse_password | length >= 32
+      - not secrets.estate_scan.clickhouse_password.startswith('ENC[')
+    fail_msg: >-
+      Add estate_scan.clickhouse_password (at least 32 characters) to the
+      encrypted SOPS inventory before reconciling the estate_scan writer.
+  no_log: true
+  tags: [estate-scan, clickhouse]
+
+- name: Render estate_scan ClickHouse access policy
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/estate_scan/clickhouse-access.sql.j2"
+    dest: /home/aether/clickhouse/init/estate-scan-access.sql
+    owner: aether
+    group: aether
+    mode: "0600"
+    setype: container_file_t
+  become: true
+  no_log: true
+  tags: [estate-scan, clickhouse]
+
+- name: Reconcile estate_scan least-privilege ClickHouse role and user
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --multiquery
+      - --queries-file
+      - /docker-entrypoint-initdb.d/estate-scan-access.sql
+  no_log: true
   tags: [estate-scan, clickhouse]
