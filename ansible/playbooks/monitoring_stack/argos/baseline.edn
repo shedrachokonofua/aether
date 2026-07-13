@@ -1,0 +1,8 @@
+{:schema-version 1
+ :revision "aether-argos-a10"
+ :generated-at "2026-07-11T00:00:00Z"
+ :monitored-networks ["10.0.0.0/8" "192.168.2.0/24"]
+ ;; A10 deliberately starts with no allowlisted flows. The A11 calibration
+ ;; review promotes observed legitimate flows here with a reason and source
+ ;; path; dashboard-only operation prevents an empty initial baseline paging.
+ :expected-flows []}

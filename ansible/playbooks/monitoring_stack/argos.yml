@@ -1,0 +1,268 @@
+---
+# Argos is intentionally a host worker, not a pod workload.  The deployment
+# stages files and validates every contract; it never enables the worker unless
+# an explicitly reviewed invocation sets argos_service_enabled=true.
+- name: Assert Argos credential is present in the encrypted secret inventory
+  ansible.builtin.assert:
+    that:
+      - secrets.argos is defined
+      - secrets.argos.clickhouse_password is string
+      - secrets.argos.clickhouse_password | length >= 32
+      - not secrets.argos.clickhouse_password.startswith('ENC[')
+    fail_msg: >-
+      Add argos.clickhouse_password (at least 32 characters) to the encrypted
+      SOPS inventory before deploying Argos. It is rendered only to the
+      root-owned systemd credential source on monitoring-stack.
+  no_log: true
+  tags: [argos]
+
+- name: Render the declared Argos baseline locally
+  ansible.builtin.command:
+    argv:
+      - bb
+      - "{{ playbook_dir }}/argos/render-baseline.bb"
+      - "{{ playbook_dir }}/argos/baseline.edn"
+      - "/tmp/argos-baseline.json"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  tags: [argos]
+
+- name: Create root-owned Argos deployment directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/argos
+    - /usr/local/lib/argos
+  become: true
+  tags: [argos]
+
+- name: Install the pinned Argos Native AOT binary
+  ansible.builtin.get_url:
+    url: "{{ argos_artifact_url }}"
+    dest: /usr/local/lib/argos/argos
+    checksum: "sha256:{{ argos_binary_sha256 }}"
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  register: argos_binary
+  tags: [argos]
+
+- name: Install root-owned Argos baseline
+  ansible.builtin.copy:
+    src: /tmp/argos-baseline.json
+    dest: /etc/argos/baseline.json
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: argos_baseline
+  tags: [argos]
+
+- name: Validate the rendered Argos baseline with the shipped binary
+  ansible.builtin.command:
+    argv:
+      - /usr/local/lib/argos/argos
+      - check
+      - baseline
+      - /etc/argos/baseline.json
+  become: true
+  changed_when: false
+  tags: [argos]
+
+- name: Render the root-only Argos ClickHouse password source
+  ansible.builtin.copy:
+    content: "{{ secrets.argos.clickhouse_password }}\n"
+    dest: /etc/argos/clickhouse-password
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+  no_log: true
+  register: argos_clickhouse_password
+  tags: [argos]
+
+- name: Render declared Argos service environment
+  ansible.builtin.copy:
+    content: |
+      ARGOS_CLICKHOUSE_URL=http://127.0.0.1:{{ vm.monitoring_stack.ports.clickhouse }}
+      ARGOS_CLICKHOUSE_USER={{ argos_clickhouse_user }}
+      ARGOS_BASELINE_PATH=/etc/argos/baseline.json
+      ARGOS_STATE_DIRECTORY=/var/lib/argos
+      ARGOS_SUPERVISOR_TICK_SECONDS={{ argos_supervisor_tick_seconds }}
+      ARGOS_EVALUATION_INTERVAL_SECONDS={{ argos_evaluation_interval_seconds }}
+      ARGOS_INGEST_SETTLE_SECONDS={{ argos_ingest_settle_seconds }}
+      ARGOS_FEATURE_LOOKBACK_SECONDS={{ argos_feature_lookback_seconds }}
+      ARGOS_ZEEK_RETENTION_SECONDS={{ argos_zeek_retention_seconds }}
+      ARGOS_MAX_CATCHUP_CYCLES={{ argos_max_catchup_cycles }}
+      ARGOS_MAX_CHANGED_PAIRS_PER_PAGE={{ argos_max_changed_pairs_per_page }}
+      ARGOS_MAX_CHANGED_PAIRS_PER_CYCLE={{ argos_max_changed_pairs_per_cycle }}
+      ARGOS_BOOTSTRAP_START={{ argos_bootstrap_start }}
+      ARGOS_OTLP_ENDPOINT=http://127.0.0.1:{{ vm.monitoring_stack.ports.otel_grpc }}
+      ARGOS_QUERY_TIMEOUT_SECONDS={{ argos_query_timeout_seconds }}
+    dest: /etc/argos/argos.env
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: argos_service_environment
+  tags: [argos]
+
+- name: Copy Argos schema into the mounted ClickHouse init directory
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/clickhouse/10-argos-schema.sql"
+    dest: /home/aether/clickhouse/init/10-argos-schema.sql
+    owner: aether
+    group: aether
+    mode: "0644"
+    setype: container_file_t
+  become: true
+  tags: [argos]
+
+- name: Apply idempotent Argos ClickHouse schema
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --multiquery
+      - --queries-file
+      - /docker-entrypoint-initdb.d/10-argos-schema.sql
+  # The DDL contains no credentials. Keep failures visible so a schema mismatch
+  # is actionable without exposing the separate password-rendering task.
+  no_log: false
+  tags: [argos]
+
+- name: Record the Argos schema migration only after DDL succeeds
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --query
+      - >-
+        INSERT INTO argos.schema_migrations (migration_id, checksum, applied_at, milestone)
+        SELECT '001_initial', '{{ argos_schema_checksum }}', now64(3), 'A'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM argos.schema_migrations WHERE migration_id = '001_initial'
+        )
+  no_log: true
+  tags: [argos]
+
+- name: Reject an Argos migration checksum conflict
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --format
+      - TSVRaw
+      - --query
+      - >-
+        SELECT count() FROM argos.schema_migrations
+        WHERE migration_id = '001_initial' AND checksum != '{{ argos_schema_checksum }}'
+  register: argos_schema_conflict
+  changed_when: false
+  no_log: true
+  tags: [argos]
+
+- name: Assert the Argos migration ledger matches the shipped schema
+  ansible.builtin.assert:
+    that: argos_schema_conflict.stdout | trim == '0'
+    fail_msg: Argos migration 001_initial exists with a different checksum; do not replace committed migrations.
+  tags: [argos]
+
+- name: Render Argos ClickHouse access policy for the local container
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/argos/clickhouse-access.sql.j2"
+    dest: /home/aether/clickhouse/init/argos-access.sql
+    owner: aether
+    group: aether
+    mode: "0600"
+    setype: container_file_t
+  become: true
+  no_log: true
+  tags: [argos]
+
+- name: Reconcile Argos least-privilege ClickHouse role and user
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --multiquery
+      - --queries-file
+      - /docker-entrypoint-initdb.d/argos-access.sql
+  no_log: true
+  tags: [argos]
+
+- name: Validate the complete Argos deployment read-only
+  ansible.builtin.command:
+    argv:
+      - /usr/local/lib/argos/argos
+      - check
+  environment:
+    ARGOS_CLICKHOUSE_URL: "http://127.0.0.1:{{ vm.monitoring_stack.ports.clickhouse }}"
+    ARGOS_CLICKHOUSE_USER: "{{ argos_clickhouse_user }}"
+    ARGOS_CLICKHOUSE_PASSWORD_FILE: /etc/argos/clickhouse-password
+    ARGOS_BASELINE_PATH: /etc/argos/baseline.json
+    ARGOS_SUPERVISOR_TICK_SECONDS: "{{ argos_supervisor_tick_seconds }}"
+    ARGOS_EVALUATION_INTERVAL_SECONDS: "{{ argos_evaluation_interval_seconds }}"
+    ARGOS_INGEST_SETTLE_SECONDS: "{{ argos_ingest_settle_seconds }}"
+    ARGOS_FEATURE_LOOKBACK_SECONDS: "{{ argos_feature_lookback_seconds }}"
+    ARGOS_ZEEK_RETENTION_SECONDS: "{{ argos_zeek_retention_seconds }}"
+    ARGOS_MAX_CATCHUP_CYCLES: "{{ argos_max_catchup_cycles }}"
+    ARGOS_MAX_CHANGED_PAIRS_PER_PAGE: "{{ argos_max_changed_pairs_per_page }}"
+    ARGOS_MAX_CHANGED_PAIRS_PER_CYCLE: "{{ argos_max_changed_pairs_per_cycle }}"
+    ARGOS_BOOTSTRAP_START: "{{ argos_bootstrap_start }}"
+    ARGOS_OTLP_ENDPOINT: "http://127.0.0.1:{{ vm.monitoring_stack.ports.otel_grpc }}"
+    ARGOS_QUERY_TIMEOUT_SECONDS: "{{ argos_query_timeout_seconds }}"
+  become: true
+  changed_when: false
+  no_log: true
+  tags: [argos]
+
+- name: Install hardened Argos systemd unit
+  ansible.builtin.template:
+    src: argos.service.j2
+    dest: /etc/systemd/system/argos.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: argos_systemd_unit
+  tags: [argos]
+
+- name: Reload systemd after Argos unit changes
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+  tags: [argos]
+
+- name: Reconcile Argos enablement only in the separately reviewed rollout step
+  ansible.builtin.systemd:
+    name: argos.service
+    enabled: "{{ argos_service_enabled | bool }}"
+    state: >-
+      {{
+        'stopped' if not (argos_service_enabled | bool)
+        else 'restarted' if (
+          argos_binary.changed
+          or argos_baseline.changed
+          or argos_clickhouse_password.changed
+          or argos_service_environment.changed
+          or argos_systemd_unit.changed
+        )
+        else 'started'
+      }}
+  become: true
+  tags: [argos]

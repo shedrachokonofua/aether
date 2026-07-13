@@ -709,6 +709,98 @@
         "mode": "markdown",
         "content": "### Where these findings go & how to dig in\n\n- **Routing:** every rule here carries `domain=security` \u2192 Alertmanager route 5 \u2192 **ntfy `/security`** (digest) or **pages** when `severity=critical` (after 14-day soak).\n- **IDS drill-down:** [IDS Monitoring dashboard](/d/ids-monitoring) \u2014 Suricata signatures, Zeek conn/dns/http/ssl/ssh/files/notices.\n- **Host posture:** [Fleet](https://fleet.home.shdr.ch) \u2014 osquery policy pass/fail across 9 enrolled hosts.\n- **Alert rules & state:** [Grafana Alerting](/alerting/list?search=label:domain%3Dsecurity).\n- **Raw forensics (no alert):** Explore \u2192 ClickHouse (`zeek.*`, `suricata.*`) / Loki (tetragon, wazuh, keycloak).\n- **Soak \u2192 promote:** warning rules flip to `critical` after 14 clean days; suppress noisy Suricata SIDs in `rules.yml` (`alert_signature_id NOT IN (...)`)."
       }
+    },
+    {
+      "type": "row",
+      "title": "Argos \u2014 incremental beacon detector (dashboard-only during A10/A11)",
+      "id": 17,
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 46 }
+    },
+    {
+      "type": "stat",
+      "title": "Argos checkpoint lag (minutes)",
+      "id": 18,
+      "description": "Time since the durable network-beacon ingestion watermark advanced.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 47 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT ifNull(dateDiff('minute', max(ingestion_watermark), now()), 0) AS value FROM argos.detector_checkpoint_history WHERE detector_id = 'network-beacon'",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "m", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 60 }, { "color": "red", "value": 120 }] }, "color": { "mode": "thresholds" } }, "overrides": [] },
+      "options": { "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto" }
+    },
+    {
+      "type": "stat",
+      "title": "Argos retention headroom (hours)",
+      "id": 19,
+      "description": "Declared 14-day Zeek retention remaining from the durable checkpoint watermark.",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 47 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT ifNull(dateDiff('hour', now(), max(ingestion_watermark) + INTERVAL 14 DAY), 0) AS value FROM argos.detector_checkpoint_history WHERE detector_id = 'network-beacon'",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "h", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 24 }, { "color": "green", "value": 48 }] }, "color": { "mode": "thresholds" } }, "overrides": [] },
+      "options": { "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto" }
+    },
+    {
+      "type": "stat",
+      "title": "Argos failed cycles (24h)",
+      "id": 20,
+      "description": "Failed current attempts; successful retries do not remain visible here.",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 47 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM argos.detector_runs_current WHERE detector_id = 'network-beacon' AND status = 'failed' AND finished_at >= now() - INTERVAL 24 HOUR",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "color": { "mode": "thresholds" } }, "overrides": [] },
+      "options": { "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto" }
+    },
+    {
+      "type": "stat",
+      "title": "Argos data gaps (24h)",
+      "id": 21,
+      "description": "Explicit source-retention-gap checkpoint advances. Any non-zero value requires review.",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 47 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM argos.detector_checkpoint_history WHERE detector_id = 'network-beacon' AND advancement_reason = 'source_retention_gap' AND completed_at >= now() - INTERVAL 24 HOUR",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "color": { "mode": "thresholds" } }, "overrides": [] },
+      "options": { "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto" }
+    },
+    {
+      "type": "table",
+      "title": "Argos candidate findings",
+      "id": 22,
+      "description": "Evidence-backed candidate findings only. The digest alert remains paused until dashboard-only observation is accepted.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 52 },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT last_evaluated_at AS time, finding_id, detector_version, subject_canonical, score, confidence, summary, baseline_revision FROM argos.findings_current WHERE detector_id = 'network-beacon' AND domain = 'security' AND disposition = 'candidate' ORDER BY last_evaluated_at DESC LIMIT 100",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "filterable": true } }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "time", "desc": true }] }
     }
   ]
 }
