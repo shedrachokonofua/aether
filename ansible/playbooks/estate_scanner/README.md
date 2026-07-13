@@ -46,7 +46,12 @@ run and emits `services-changed.jsonl`.
 task configure:estate-scan-schema          # CH schema + estate_scan user/role
 task configure:estate-scanner-credentials  # password file on the guest
 task configure:estate-scanner              # NixOS (dispatcher + SSH ForceCommand)
+task configure:grafana                     # Estate Scan dashboard + stale/failed alerts
 ```
+
+Calibration groups: `iot`, `gigahub`, `calib-server`, `cidr-infra` (`10.0.2.0/24`).
+Grafana dashboard uid `estate-scan`; alerts `estate-scan-run-stale` /
+`estate-scan-run-failed`.
 
 Kestra dispatch identity: `kestra-estate-scanner` (pubkey in
 `config/ssh/kestra-estate-scanner.pub`; private key in SOPS

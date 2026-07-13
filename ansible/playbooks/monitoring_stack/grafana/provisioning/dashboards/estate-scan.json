@@ -1,0 +1,310 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Estate scanner coverage, inventory diffs, and Nuclei findings (estate_scan ClickHouse).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "Coverage",
+      "type": "row"
+    },
+    {
+      "type": "stat",
+      "title": "Successful runs (7d)",
+      "id": 2,
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' AND coalesce(finished_at, started_at) >= now() - INTERVAL 7 DAY",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Failed runs (24h)",
+      "id": 3,
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM estate_scan.scan_runs FINAL WHERE status = 'failed' AND coalesce(finished_at, started_at) >= now() - INTERVAL 24 HOUR",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Hours since last success",
+      "id": 4,
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT ifNull(dateDiff('hour', max(coalesce(finished_at, started_at)), now()), 999) AS value FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded'",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 8 },
+              { "color": "red", "value": 24 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Open findings",
+      "id": 5,
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM estate_scan.findings FINAL WHERE state = 'open'",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Services (latest run)",
+      "id": 6,
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM estate_scan.services WHERE run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1)",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Unexpected services (latest)",
+      "id": 7,
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT count() AS value FROM estate_scan.services WHERE unexpected = 1 AND run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1)",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 10,
+      "panels": [],
+      "title": "Inventory",
+      "type": "row"
+    },
+    {
+      "type": "table",
+      "title": "Recent scan runs",
+      "id": 11,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT coalesce(finished_at, started_at) AS time, toString(run_id) AS run_id, profile, status, target_count, probe_count, coverage_ratio, error_code FROM estate_scan.scan_runs FINAL ORDER BY time DESC LIMIT 50",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    },
+    {
+      "type": "table",
+      "title": "Latest services (inventory)",
+      "id": 12,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT replaceOne(a.stable_identity, 'ipv4:', '') AS ip, s.port, s.transport, s.product, s.unexpected, s.last_seen_at AS time FROM estate_scan.services AS s INNER JOIN estate_scan.assets AS a ON s.asset_id = a.asset_id WHERE s.run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1) ORDER BY ip, s.port LIMIT 200",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 20,
+      "panels": [],
+      "title": "Findings",
+      "type": "row"
+    },
+    {
+      "type": "table",
+      "title": "Open findings",
+      "id": 21,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT first_seen_at AS time, severity, template_id, matcher, toString(run_id) AS run_id, finding_key, state FROM estate_scan.findings FINAL WHERE state = 'open' ORDER BY first_seen_at DESC LIMIT 100",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["security", "estate-scan", "aether"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Estate Scan",
+  "uid": "estate-scan",
+  "version": 1
+}

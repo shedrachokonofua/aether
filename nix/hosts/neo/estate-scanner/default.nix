@@ -28,12 +28,61 @@ let
 
   approvedTargetGroups = [
     "home"
+    "iot"
     "gigahub"
+    "calib-server"
+    "cidr-infra"
     "aws-public"
     "aws-private"
     "gcp-public"
     "gcp-private"
   ];
+
+  # Profile → Naabu port/rate policy (Phase 3 calibration + production cadences).
+  discoverProfiles = {
+    discovery-common = {
+      ports = "top-100";
+      rate = 100;
+      concurrency = 10;
+      timeout = 3;
+      retries = 1;
+    };
+    critical-full-tcp = {
+      ports = "all";
+      # Calibration evidence: filtered ports + timeout=5 at 25pps never finishes.
+      # Servers stay above IoT/Gigahub; raise only after measured IDS/VyOS headroom.
+      rate = 100;
+      concurrency = 25;
+      timeout = 2;
+      retries = 1;
+    };
+    known-hosts-full-tcp = {
+      ports = "all";
+      rate = 100;
+      concurrency = 25;
+      timeout = 2;
+      retries = 1;
+    };
+    estate-blind-full-tcp = {
+      ports = "top-1000";
+      rate = 50;
+      concurrency = 10;
+      timeout = 3;
+      retries = 1;
+    };
+  };
+
+  # Per-group UPPER bounds for fragile classes only (IoT / Gigahub).
+  # Do not put server/CIDR groups here — that caps full-TCP below the profile rate.
+  discoverGroupRates = {
+    iot = 5;
+    gigahub = 5;
+  };
+
+  # CIDR expansions for blind/common-port sweeps (not declared host lists).
+  discoverCidrs = {
+    cidr-infra = [ "10.0.2.0/24" ];
+  };
 
   approvedStages = [
     "targets"
@@ -53,19 +102,28 @@ let
     hash = "sha256-6czf84bHyvHIT9rA2HUYqQe7lgODl4uRMP/8QepV3AU=";
   };
 
-  # Classify declared addresses into scan target groups by prefix.
-  groupFor = ip:
-    if lib.hasPrefix "10.1." ip then [ "aws-private" ]
-    else if lib.hasPrefix "10.2." ip && !lib.hasPrefix "10.0.2." ip then [ "gcp-private" ]
-    else if lib.hasPrefix "192.168.2." ip then [ "gigahub" ]
-    else if lib.hasPrefix "10.0." ip then [ "home" ]
-    else [ "home" ];
+  # Classify declared addresses into scan target groups by prefix / name.
+  groupFor = name: ip:
+    let
+      byPrefix =
+        if lib.hasPrefix "10.1." ip then [ "aws-private" ]
+        else if lib.hasPrefix "10.2." ip && !lib.hasPrefix "10.0.2." ip then [ "gcp-private" ]
+        else if lib.hasPrefix "192.168.2." ip then [ "gigahub" "home" ]
+        else if lib.hasPrefix "10.0.6." ip then [ "iot" "home" ]
+        else if lib.hasPrefix "10.0." ip then [ "home" ]
+        else [ "home" ];
+      extras =
+        (lib.optional (name == "monitoring-stack") "calib-server")
+        ++ (lib.optional (name == "iot-management-stack") "iot")
+        ++ (lib.optional (name == "gigahub-gateway") "gigahub");
+    in
+    lib.unique (byPrefix ++ extras);
 
   mkTarget = name: address: {
     inherit name address;
     provenance = "declared";
     owning_source_file = "config/vm.yml";
-    target_groups = groupFor address;
+    target_groups = groupFor name address;
   };
 
   # Declared estate IPs from authoritative inventory (no cloud API resolution yet).
@@ -93,6 +151,8 @@ let
     (mkTarget "adguard-secondary" facts.vm.adguard_secondary.ip)
     (mkTarget "step-ca" facts.vm.step_ca.ip)
     (mkTarget "backup-stack" facts.vm.backup_stack.ip)
+    # ISP Gigahub CPE (lowest-rate calibration / discovery).
+    (mkTarget "gigahub-gateway" facts.vm.router.gateway.gigahub)
   ];
 
   declaredTargetsJson = pkgs.writeText "declared-targets.json" (builtins.toJSON {
@@ -148,6 +208,9 @@ let
     approved_profiles = approvedProfiles;
     approved_target_groups = approvedTargetGroups;
     approved_stages = approvedStages;
+    discover_profiles = discoverProfiles;
+    discover_group_rates = discoverGroupRates;
+    discover_cidrs = discoverCidrs;
     # Password is Ansible/SOPS-managed — never bake it into the Nix closure.
     clickhouse_url = "http://${facts.vm.monitoring_stack.ip}:${toString facts.vm.monitoring_stack.ports.clickhouse}";
     clickhouse_user = "estate_scan";
