@@ -1,0 +1,28 @@
+CREATE ROLE OR REPLACE {{ argos_clickhouse_role }} SETTINGS
+  readonly = 0,
+  max_execution_time = {{ argos_query_timeout_seconds }},
+  max_memory_usage = 2000000000,
+  max_threads = 4,
+  max_concurrent_queries_for_user = 2,
+  max_rows_to_read = 100000000,
+  max_bytes_to_read = 5000000000,
+  max_result_rows = 100000,
+  result_overflow_mode = 'throw';
+
+GRANT SELECT ON zeek.conn TO {{ argos_clickhouse_role }};
+GRANT SELECT ON argos.schema_migrations TO {{ argos_clickhouse_role }};
+GRANT SELECT ON argos.detector_checkpoint_history TO {{ argos_clickhouse_role }};
+GRANT SELECT ON argos.detector_checkpoint_current TO {{ argos_clickhouse_role }};
+GRANT SELECT ON argos.detector_runs_current TO {{ argos_clickhouse_role }};
+GRANT CREATE TEMPORARY TABLE ON *.* TO {{ argos_clickhouse_role }};
+GRANT INSERT ON argos.detector_checkpoint_history TO {{ argos_clickhouse_role }};
+GRANT INSERT ON argos.detector_runs TO {{ argos_clickhouse_role }};
+GRANT INSERT ON argos.network_pair_features TO {{ argos_clickhouse_role }};
+GRANT INSERT ON argos.findings TO {{ argos_clickhouse_role }};
+GRANT INSERT ON argos.finding_evidence TO {{ argos_clickhouse_role }};
+
+CREATE USER OR REPLACE {{ argos_clickhouse_user }}
+  IDENTIFIED WITH sha256_hash BY '{{ secrets.argos.clickhouse_password | hash("sha256") }}'
+  HOST IP '127.0.0.1', '::1', '{{ vm.monitoring_stack.ip }}' GRANTEES NONE;
+GRANT {{ argos_clickhouse_role }} TO {{ argos_clickhouse_user }};
+ALTER USER {{ argos_clickhouse_user }} DEFAULT ROLE {{ argos_clickhouse_role }};

@@ -1,0 +1,48 @@
+[Unit]
+Description=Argos incremental security detector
+Documentation=https://gitlab.home.shdr.ch/so/argos/-/blob/{{ argos_version }}/docs/OPERATIONS.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+DynamicUser=yes
+StateDirectory=argos
+WorkingDirectory=/var/lib/argos
+EnvironmentFile=/etc/argos/argos.env
+# Keeps the unit content coupled to the pinned binary revision, so an Argos
+# upgrade always restarts the running process instead of only replacing its file.
+Environment=ARGOS_DEPLOYMENT_VERSION={{ argos_version }}
+LoadCredential=clickhouse-password:/etc/argos/clickhouse-password
+# Export through the shell so CREDENTIALS_DIRECTORY is resolved by systemd at
+# process start. This is the same path validated by the DynamicUser probe.
+ExecStart=/bin/bash -c 'export ARGOS_CLICKHOUSE_PASSWORD_FILE="$CREDENTIALS_DIRECTORY/clickhouse-password"; exec /usr/local/lib/argos/argos'
+Restart=on-failure
+RestartSec=30s
+TimeoutStartSec=90s
+TimeoutStopSec=120s
+WatchdogSec=180s
+UMask=0077
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
