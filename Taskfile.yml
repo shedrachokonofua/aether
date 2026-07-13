@@ -128,6 +128,30 @@ tasks:
         [ -f "{{.CACHE_DIR}}/google-env" ] && set -a && . "{{.CACHE_DIR}}/google-env" && set +a
         tofu -chdir=tofu force-unlock {{.CLI_ARGS}}
 
+  tofu:kestra-flows:init:
+    desc: Init separate S3 state for Aether Kestra flows (not Helm / not Inquest)
+    cmds:
+      - sh ./scripts/create-tofu-state-config.sh
+      - |
+        tofu -chdir=tofu/home/kestra-flows init \
+          -backend-config=../../../config/tofu-state.config \
+          -backend-config=backend.hcl \
+          -upgrade -reconfigure
+
+  tofu:kestra-flows:plan:
+    desc: Plan Aether Kestra flow IaC
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        tofu -chdir=tofu/home/kestra-flows plan {{.CLI_ARGS}}
+
+  tofu:kestra-flows:apply:
+    desc: Apply Aether Kestra flow IaC (estate-scan-home)
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        tofu -chdir=tofu/home/kestra-flows apply {{.CLI_ARGS}}
+
   k8s:auth:
     desc: Export kubeconfig + talosconfig for cluster access
     cmds:
@@ -367,6 +391,15 @@ tasks:
     cmds:
       - task: configure:gigahub-exporter
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags monitoring-agent {{.CLI_ARGS}}
+  configure:qss-exporter:
+    desc: Deploy the pinned QSS switch exporter on monitoring-stack
+    cmds:
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags qss-exporter {{.CLI_ARGS}}
+  deploy:qss-exporter:
+    desc: Deploy the QSS exporter and refresh the node agent scrape config
+    cmds:
+      - task: configure:qss-exporter
+      - ansible-playbook ansible/playbooks/setup_vm_monitoring_agents.yml --limit monitoring-stack
   configure:journal-gateways:
     desc: Deploy systemd-journal-gatewayd (mTLS) to the Proxmox hypervisors
     cmds:

@@ -1,0 +1,14 @@
+---
+- name: Reload systemd for qss-exporter
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+  listen: reload qss-exporter systemd
+
+- name: Restart qss-exporter
+  ansible.builtin.systemd:
+    name: qss-exporter.service
+    state: restarted
+  become: true
+  listen: restart qss-exporter
+  when: qss_exporter_service_state == 'started'

@@ -1,0 +1,48 @@
+# Managed by Aether Ansible (qss_exporter role). Do not edit by hand.
+
+[server]
+listen = "{{ qss_exporter_listen }}"
+shutdown_timeout = "15s"
+
+[switch]
+instance = "{{ qss_exporter_instance }}"
+url = "{{ qss_exporter_switch_url }}"
+username_file = "{{ qss_exporter_creds_dir }}/username"
+password_file = "{{ qss_exporter_creds_dir }}/password"
+{% if qss_exporter_tls_insecure %}
+tls_insecure = true
+{% else %}
+tls_ca_file = "{{ qss_exporter_ca_path }}"
+{% endif %}
+request_timeout = "10s"
+max_in_flight = 1
+min_request_spacing = "200ms"
+state_directory = "{{ qss_exporter_state_dir }}"
+
+[observations]
+enabled = true
+directory = "{{ qss_exporter_observations_dir }}"
+
+[collectors.device_info]
+enabled = true
+[collectors.sensor]
+enabled = true
+[collectors.port_stats]
+enabled = true
+[collectors.port_status]
+enabled = true
+[collectors.ddm]
+enabled = true
+[collectors.cable]
+enabled = true
+[collectors.fec]
+enabled = true
+[collectors.lacp]
+enabled = true
+[collectors.lldp]
+enabled = true
+[collectors.mac_fdb]
+enabled = true
+[collectors.syslog]
+enabled = false
+directory = "{{ qss_exporter_state_dir }}/syslog"
