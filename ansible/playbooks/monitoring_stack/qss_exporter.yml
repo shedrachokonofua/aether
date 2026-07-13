@@ -1,0 +1,14 @@
+---
+# Deploy the QSS switch exporter on monitoring-stack. It scrapes the QNAP
+# QSW-M3216R over the 192.168.2.0/24 rack segment (QSS REST API v2 / HTTPS) and
+# serves Prometheus metrics on 127.0.0.1:9344, which the node-local
+# vm_monitoring_agent OTel collector scrapes (see the inventory
+# prometheus_scrape_configs for monitoring-stack) and forwards to the central
+# collector. Kept isolated from the full monitoring_stack play.
+- name: Deploy qss-exporter on monitoring-stack
+  hosts: monitoring-stack
+  gather_facts: true
+  tags: [qss-exporter]
+  roles:
+    - common
+    - qss_exporter

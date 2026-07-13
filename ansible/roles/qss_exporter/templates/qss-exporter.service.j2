@@ -1,0 +1,35 @@
+[Unit]
+Description=QSS exporter (QNAP QSW-M3216R Prometheus exporter)
+Documentation=https://gitlab.home.shdr.ch/so/qss-exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User={{ qss_exporter_user }}
+Group={{ qss_exporter_group }}
+ExecStart={{ qss_exporter_binary_path }} --config {{ qss_exporter_config_path }}
+Restart=on-failure
+RestartSec=5
+WatchdogSec=90
+
+# Process lock + runtime state and sealed observation NDJSON.
+StateDirectory=qss-exporter
+StateDirectoryMode=0700
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths={{ qss_exporter_state_dir }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,31 @@
+---
+# qss-exporter: pinned release from the GitLab generic package registry.
+# Aether never consumes `latest`; pin version + checksum.
+qss_exporter_version: "v0.1.0"
+qss_exporter_download_url:
+  "https://gitlab.home.shdr.ch/api/v4/projects/so%2Fqss-exporter/packages/generic/qss-exporter/{{ qss_exporter_version }}/qss-exporter-linux-amd64"
+# Pinned from the published v0.1.0 SHA256SUMS
+# (.../packages/generic/qss-exporter/v0.1.0/SHA256SUMS).
+qss_exporter_sha256: "e79eb206d89c737a66e6a2138ed57b8aab0d7ba6039025835d349adc1cb68d45"
+qss_exporter_binary_path: "/usr/local/bin/qss-exporter"
+
+# Runtime identity and paths
+qss_exporter_user: "qss-exporter"
+qss_exporter_group: "qss-exporter"
+qss_exporter_config_dir: "/etc/qss-exporter"
+qss_exporter_config_path: "{{ qss_exporter_config_dir }}/config.toml"
+qss_exporter_creds_dir: "{{ qss_exporter_config_dir }}/creds"
+qss_exporter_ca_path: "{{ qss_exporter_config_dir }}/switch-ca.pem"
+qss_exporter_state_dir: "/var/lib/qss-exporter"
+qss_exporter_observations_dir: "{{ qss_exporter_state_dir }}/observations"
+
+# Exporter configuration
+qss_exporter_listen: "127.0.0.1:9344"
+qss_exporter_instance: "rack-switch"
+qss_exporter_switch_url: "https://192.168.2.221"
+# Pin the captured switch CA in production. Set true only for first bring-up
+# before the CA is delivered to qss_exporter_ca_path.
+qss_exporter_tls_insecure: true
+
+qss_exporter_service_state: started
+qss_exporter_service_enabled: true
