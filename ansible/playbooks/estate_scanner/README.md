@@ -10,10 +10,7 @@ validation. Design: `docs/exploration/estate-scanning.md`.
 | Address | `10.0.2.13` (VLAN 2) |
 | Size | 2 vCPU / 4 GiB / 1 GiB swap / 32 GiB |
 | Provision | Ansible `pct` (not OpenTofu) |
-
-## Status
-
-Scaffold only. Do not create the guest without explicit approval.
+| Dispatcher | Babashka `aether-scan.bb` |
 
 ## Commands (after approval)
 
@@ -36,8 +33,7 @@ do not privilege the LXC.
 
 ## Dispatcher
 
-`aether-scan` is the only Kestra entrypoint (`ForceCommand` for
-`kestra-estate-scanner`). It accepts typed stage operations and approved
-profile / target-group names only. Execution units and ClickHouse writers are
-Phase 1–2 follow-ups; the stub records status under
-`/var/lib/estate-scanner/runs/`.
+`aether-scan` is a Babashka script (`aether-scan.bb`) — the only Kestra
+entrypoint (`ForceCommand` for `kestra-estate-scanner`). Runtime paths and
+allowlists live in `/etc/estate-scanner/runtime.json`. It accepts typed stage
+operations and approved profile / target-group names only.

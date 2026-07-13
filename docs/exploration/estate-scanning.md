@@ -520,7 +520,7 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 - **CAP_NET_RAW gate:** passed — `nmap -sS` / wrapped `naabu -scan-type syn` succeed without privileging the LXC. Do not use exclusive `lxc.cap.keep: net_raw` (kills init).
 - **Naabu hang fixed:** wrap with `-no-stdin` / `-duc` for non-interactive SSH/Kestra.
 - **Nuclei templates:** pinned `v10.4.5` at `/var/lib/estate-scanner/nuclei-templates/current`.
-- **Working stages:** `aether-scan targets snapshot` freezes declared inventory; `aether-scan discover <run> home` runs top-100 SYN against declared home hosts (verified: 19 hosts → 88 listeners in ~23s).
+- **Working stages:** Babashka `aether-scan.bb` — `targets snapshot` freezes declared inventory; `discover <run> home` runs top-100 SYN against declared home hosts (verified: 19 hosts → 88 listeners in ~23s).
 - Still required: Kestra SSH key + egress allowlist, staged Kestra DAG, detached systemd execution units, ClickHouse writers, cloud target resolution.
 
 ### Phase 2 — inventory and storage
