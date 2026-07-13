@@ -103,7 +103,7 @@ resource "kubectl_manifest" "aether_wasm_hello_route" {
       parentRefs = [{ name = "main-gateway", namespace = "default", sectionName = "http" }]
       # Must stay within the wasmcloud-system `hostnames` contract annotation
       # (namespace_contracts.tf).
-      hostnames = ["aether-wasm-hello.apps.home.shdr.ch"]
+      hostnames = ["hello-wasm.home.shdr.ch"]
       rules = [{
         matches = [{ path = { type = "PathPrefix", value = "/" } }]
         filters = [{
