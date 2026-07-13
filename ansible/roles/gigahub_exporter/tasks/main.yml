@@ -1,0 +1,167 @@
+---
+- name: Validate gigahub-exporter pin inputs
+  ansible.builtin.assert:
+    that:
+      - gigahub_exporter_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+      - gigahub_exporter_sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      gigahub_exporter needs a semver version tag and a 64-char sha256 pin on
+      {{ inventory_hostname }}.
+    quiet: true
+
+- name: Validate gigahub-exporter secrets
+  ansible.builtin.assert:
+    that:
+      - secrets.gigahub is defined
+      - secrets.gigahub.admin_username is string
+      - secrets.gigahub.admin_password is string
+      - not secrets.gigahub.admin_password.startswith('ENC[')
+    fail_msg: >-
+      secrets.gigahub.admin_username/admin_password must be SOPS-decrypted
+      strings on {{ inventory_hostname }}.
+    quiet: true
+  no_log: true
+
+- name: Create gigahub-exporter system group
+  ansible.builtin.group:
+    name: "{{ gigahub_exporter_group }}"
+    system: true
+  become: true
+
+- name: Create gigahub-exporter system user
+  ansible.builtin.user:
+    name: "{{ gigahub_exporter_user }}"
+    group: "{{ gigahub_exporter_group }}"
+    system: true
+    create_home: false
+    home: "{{ gigahub_exporter_state_dir }}"
+    shell: /usr/sbin/nologin
+  become: true
+
+- name: Create gigahub-exporter config directory
+  ansible.builtin.file:
+    path: "{{ gigahub_exporter_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Create gigahub-exporter credentials directory
+  ansible.builtin.file:
+    path: "{{ gigahub_exporter_creds_dir }}"
+    state: directory
+    owner: root
+    group: "{{ gigahub_exporter_group }}"
+    mode: "0750"
+  become: true
+
+- name: Download pinned gigahub-exporter binary
+  ansible.builtin.get_url:
+    url: "{{ gigahub_exporter_download_url | trim }}"
+    dest: /tmp/gigahub-exporter
+    checksum: "sha256:{{ gigahub_exporter_sha256 }}"
+    mode: "0644"
+  become: true
+
+- name: Install gigahub-exporter binary
+  ansible.builtin.copy:
+    src: /tmp/gigahub-exporter
+    dest: "{{ gigahub_exporter_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: restart gigahub-exporter
+
+- name: Remove gigahub-exporter temporary binary
+  ansible.builtin.file:
+    path: /tmp/gigahub-exporter
+    state: absent
+  become: true
+
+- name: Render gigahub-exporter username credential
+  ansible.builtin.copy:
+    content: "{{ secrets.gigahub.admin_username }}"
+    dest: "{{ gigahub_exporter_creds_dir }}/username"
+    owner: root
+    group: "{{ gigahub_exporter_group }}"
+    mode: "0640"
+  become: true
+  no_log: true
+  notify: restart gigahub-exporter
+
+- name: Render gigahub-exporter password credential
+  ansible.builtin.copy:
+    content: "{{ secrets.gigahub.admin_password }}"
+    dest: "{{ gigahub_exporter_creds_dir }}/password"
+    owner: root
+    group: "{{ gigahub_exporter_group }}"
+    mode: "0640"
+  become: true
+  no_log: true
+  notify: restart gigahub-exporter
+
+- name: Render gigahub-exporter configuration
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ gigahub_exporter_config_path }}"
+    owner: root
+    group: "{{ gigahub_exporter_group }}"
+    mode: "0640"
+  become: true
+  notify: restart gigahub-exporter
+
+- name: Validate device contract read-only (gigahub-exporter check)
+  # Run as root and drop to the service user via sudo -u. Invoking the module
+  # under Ansible's own `become_user` to an unprivileged account needs setfacl
+  # on the remote for the temp files; this host lacks it. Executing sudo -u
+  # inside a root task validates the same thing (the gigahub-exporter user can
+  # read the creds and run the binary) without that requirement.
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -n
+      - -u
+      - "{{ gigahub_exporter_user }}"
+      - "{{ gigahub_exporter_binary_path }}"
+      - check
+      - --config
+      - "{{ gigahub_exporter_config_path }}"
+  become: true
+  changed_when: false
+  register: gigahub_exporter_check
+
+- name: Show gigahub-exporter check results
+  ansible.builtin.debug:
+    var: gigahub_exporter_check.stdout_lines
+
+- name: Install gigahub-exporter systemd unit
+  ansible.builtin.template:
+    src: gigahub-exporter.service.j2
+    dest: /etc/systemd/system/gigahub-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - reload gigahub-exporter systemd
+    - restart gigahub-exporter
+
+- name: Enable and start gigahub-exporter
+  ansible.builtin.systemd:
+    name: gigahub-exporter.service
+    enabled: "{{ gigahub_exporter_service_enabled }}"
+    state: "{{ gigahub_exporter_service_state }}"
+    daemon_reload: true
+  become: true
+
+- name: Wait for gigahub-exporter readiness
+  ansible.builtin.uri:
+    url: "http://{{ gigahub_exporter_listen }}/readyz"
+    status_code: 200
+  register: gigahub_exporter_ready
+  until: gigahub_exporter_ready.status == 200
+  retries: 12
+  delay: 5

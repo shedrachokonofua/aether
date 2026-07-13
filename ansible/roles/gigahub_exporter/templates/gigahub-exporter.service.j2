@@ -1,0 +1,35 @@
+[Unit]
+Description=Prometheus exporter for the Bell GigaHub (Sagemcom F@st 5690)
+Documentation=https://gitlab.home.shdr.ch/so/gigahub-exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User={{ gigahub_exporter_user }}
+Group={{ gigahub_exporter_group }}
+ExecStart={{ gigahub_exporter_binary_path }} --config {{ gigahub_exporter_config_path }}
+Restart=on-failure
+RestartSec=5
+WatchdogSec=90
+
+# Process lock + runtime state (0700 per the exporter's contract).
+StateDirectory=gigahub-exporter
+StateDirectoryMode=0700
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths={{ gigahub_exporter_state_dir }}
+
+[Install]
+WantedBy=multi-user.target
