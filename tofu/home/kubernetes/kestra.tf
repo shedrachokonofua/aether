@@ -186,6 +186,7 @@ resource "helm_release" "kestra" {
     kubectl_manifest.kestra_cnpg_cluster,
     kubernetes_secret_v1.kestra_config,
     kubernetes_secret_v1.kestra_inquest,
+    kubernetes_secret_v1.kestra_estate_scan,
     kubernetes_persistent_volume_claim_v1.kestra_storage,
   ]
 
