@@ -2,6 +2,13 @@
 
 3-person software studio. Workloads run on the existing Talos Kubernetes cluster under `seven30.xyz`. Clean separation from the homelab — `shdr.ch` is personal infrastructure, `seven30.xyz` is Seven30.
 
+> **Status (verified 2026-07-12): substantially implemented.** The `seven30`
+> vcluster, wildcard ingress, GitLab agent, tenant services, and application
+> workloads are declared and live. The phase checklist near the end predates
+> the current platform and is historical; use
+> `tofu/home/kubernetes/vcluster.tf` and the Seven30-owned repositories as the
+> runtime sources of truth.
+
 ## Goal
 
 Give co-founders full development capabilities (kubectl, GitLab, deploy apps) without exposing the homelab. Network-level isolation by default, auth as a second layer.
