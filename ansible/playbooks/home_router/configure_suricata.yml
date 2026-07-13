@@ -3,6 +3,11 @@
 # VyOS has built-in Suricata integration via `set service suricata`
 # https://docs.vyos.io/en/latest/configuration/service/suricata.html
 #
+# Estate scanner (docs/exploration/estate-scanning.md): do not add a blanket
+# suppress/exclude for estate_scanner.ip (10.0.2.13). Expected failed authorized
+# probes aggregate into ClickHouse estate_scan.probe_aggregates; retain
+# successful, unexpected, off-schedule, and out-of-scope scanner traffic.
+#
 # This playbook:
 # 1. Configures Suricata to monitor the trunk interface (eth1)
 # 2. Sets up address/port groups for rule management

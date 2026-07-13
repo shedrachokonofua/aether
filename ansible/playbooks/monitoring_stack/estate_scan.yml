@@ -1,0 +1,69 @@
+# Estate scan ClickHouse schema reconciliation (Phase 0).
+# Invoked from site.yml under tags: [estate-scan].
+
+- name: Copy estate scan schema into the mounted ClickHouse init directory
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/clickhouse/11-estate-scan-schema.sql"
+    dest: /home/aether/clickhouse/init/11-estate-scan-schema.sql
+    owner: aether
+    group: aether
+    mode: "0644"
+    setype: container_file_t
+  become: true
+  tags: [estate-scan, clickhouse]
+
+- name: Apply idempotent estate scan ClickHouse schema
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --multiquery
+      - --queries-file
+      - /docker-entrypoint-initdb.d/11-estate-scan-schema.sql
+  no_log: false
+  tags: [estate-scan, clickhouse]
+
+- name: Record the estate scan schema migration only after DDL succeeds
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --query
+      - >-
+        INSERT INTO estate_scan.schema_migrations (migration_id, checksum, applied_at, milestone)
+        SELECT '001_initial', '{{ estate_scan_schema_checksum }}', now64(3), 'phase0'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM estate_scan.schema_migrations WHERE migration_id = '001_initial'
+        )
+  no_log: true
+  tags: [estate-scan, clickhouse]
+
+- name: Reject an estate scan migration checksum conflict
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --format
+      - TSVRaw
+      - --query
+      - >-
+        SELECT count() FROM estate_scan.schema_migrations
+        WHERE migration_id = '001_initial' AND checksum != '{{ estate_scan_schema_checksum }}'
+  register: estate_scan_schema_conflict
+  changed_when: false
+  no_log: true
+  tags: [estate-scan, clickhouse]
+
+- name: Assert the estate scan migration ledger matches the shipped schema
+  ansible.builtin.assert:
+    that: estate_scan_schema_conflict.stdout | trim == '0'
+    fail_msg: >-
+      estate_scan migration 001_initial exists with a different checksum;
+      do not replace committed migrations.
+  tags: [estate-scan, clickhouse]

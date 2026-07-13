@@ -14,6 +14,9 @@
       - metrics
       - argos
       - network
+      - estate_scan
+    # Preserve the final newline: immutable migration ledger checksum.
+    estate_scan_schema_checksum: "{{ lookup('file', playbook_dir ~ '/clickhouse/11-estate-scan-schema.sql', rstrip=False) | hash('sha256') }}"
     argos_version: "857c94e60d71ae90d70f05a21b570fcdf0bc89e9"
     argos_artifact_url: "https://gitlab.home.shdr.ch/so/argos/-/jobs/13409/artifacts/raw/artifacts/argos"
     argos_binary_sha256: "dfd105d156e4c1cfe68dd07bcfafe7bed7be857a2a27a75da13a6a13c09819df"
@@ -609,7 +612,7 @@
         - clickhouse_health.content | trim == "Ok."
       retries: 30
       delay: 5
-      tags: [clickhouse, grafana, clickhouse-grafana-reader, argos]
+      tags: [clickhouse, grafana, clickhouse-grafana-reader, argos, estate-scan]
 
     # Init scripts run only on an empty ClickHouse volume. Reapply this
     # idempotent DDL after readiness so existing monitoring-stack deployments
@@ -630,6 +633,10 @@
       ansible.builtin.import_tasks: argos.yml
       tags: [argos]
 
+    - name: Reconcile estate scan ClickHouse schema
+      ansible.builtin.import_tasks: estate_scan.yml
+      tags: [estate-scan, clickhouse]
+
     - name: Validate Grafana ClickHouse credential is decrypted
       assert:
         that:
@@ -640,7 +647,7 @@
           The Grafana ClickHouse credential is unavailable or still encrypted;
           run the tagged play normally so common : Load secrets executes.
       register: clickhouse_grafana_secret_check
-      tags: [clickhouse, grafana, clickhouse-grafana-reader]
+      tags: [clickhouse, grafana, clickhouse-grafana-reader, estate-scan]
 
     # Exact replacement prevents out-of-band grants from accumulating on this
     # IaC-owned agent-facing identity.
@@ -679,7 +686,7 @@
       when:
         - clickhouse_grafana_secret_check is defined
         - clickhouse_grafana_secret_check is succeeded
-      tags: [clickhouse, grafana, clickhouse-grafana-reader]
+      tags: [clickhouse, grafana, clickhouse-grafana-reader, estate-scan]
 
     - name: Restart Grafana for ClickHouse reader changes
       systemd:
