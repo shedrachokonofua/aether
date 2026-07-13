@@ -2,7 +2,7 @@
 
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
-**Status:** Phase 0 applied (ClickHouse live); Phase 1 guest live on neo (`10.0.2.13`) with dispatcher stub and CAP_NET_RAW proven via nmap SYN. Kestra DAG and production schedules not enabled. Supersedes the Kubernetes Nuclei placement proposed in `network-security.md`. Existing Trivy, Zeek, Suricata, Wazuh, cloud inventory, and IaC remain separate controls with different responsibilities.
+**Status:** Phases 0–3 complete for the home estate path. Guest live on neo (`10.0.2.13`); ClickHouse `estate_scan` writers, Grafana Estate Scan dashboard + stale/failed alerts, and Kestra `aether.estate/estate-scan-home` E2E verified. Production schedules (Phase 4) and Wazuh posture correlation (Phase 5) not enabled. Supersedes the Kubernetes Nuclei placement proposed in `network-security.md`. Existing Trivy, Zeek, Suricata, Wazuh, cloud inventory, and IaC remain separate controls with different responsibilities.
 
 ## Goals
 
@@ -344,10 +344,10 @@ Start conservatively and raise rates only from measured evidence:
 
 | Target class | Initial per-host rate |
 | --- | ---: |
-| Servers and infrastructure | 25 probes/s |
+| Servers and infrastructure | 100 probes/s (raised from 25 after Phase 3 full-TCP calib) |
 | Ordinary clients | 10 probes/s |
 | IoT and media devices | 5 probes/s |
-| Gigahub and ISP-managed equipment | 2–5 probes/s |
+| Gigahub and ISP-managed equipment | 5 probes/s |
 
 Initial global controls:
 
@@ -513,15 +513,15 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 - Add the narrow Kestra egress allowlist and scanner-side dispatch firewall rule after verifying the actual source path.
 - Declare the Aether-owned staged Kestra DAG, approved profiles, schedules, conditional branches, shard-level retries, and change triggers.
 
-#### Phase 1 progress (2026-07-12)
+#### Phase 1 progress (2026-07-13)
 
-- Live unprivileged NixOS LXC `1036` / `10.0.2.13` on neo is running.
-- NixOS config deployed (`aether-scan` stub, Naabu/Nmap/httpx/Nuclei, `kestra-estate-scanner` ForceCommand).
-- **CAP_NET_RAW gate:** passed — `nmap -sS` / wrapped `naabu -scan-type syn` succeed without privileging the LXC. Do not use exclusive `lxc.cap.keep: net_raw` (kills init).
-- **Naabu hang fixed:** wrap with `-no-stdin` / `-duc` for non-interactive SSH/Kestra.
-- **Nuclei templates:** pinned `v10.4.5` at `/var/lib/estate-scanner/nuclei-templates/current`.
-- **Working stages:** Babashka `aether-scan.bb` — `targets snapshot` freezes declared inventory; `discover <run> home` runs top-100 SYN against declared home hosts (verified: 19 hosts → 88 listeners in ~23s).
-- Still required: Kestra SSH key + egress allowlist, staged Kestra DAG, detached systemd execution units, ClickHouse writers, cloud target resolution.
+- Live unprivileged NixOS LXC `1036` / `10.0.2.13` on neo; CAP_NET_RAW proven.
+- Babashka `aether-scan.bb`: targets → discover (profile-driven ports/rates) →
+  merge-diff → fingerprint → validate → finalize; ClickHouse writers live.
+- Kestra SSH identity + VyOS rule 26 + `aether.estate/estate-scan-home` E2E SUCCESS.
+- Profile modes: `discovery-common` (top-100), `critical-full-tcp` / `known-hosts-full-tcp`
+  (all TCP @ 100pps), IoT/Gigahub group caps at 5pps; `cidr-infra` expands `10.0.2.0/24`.
+- Production calendar schedules still deferred to Phase 4 (Kestra remains schedule authority).
 
 ### Phase 2 — inventory and storage
 
@@ -530,6 +530,13 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 - Preserve provenance and vantage point.
 - Add Grafana coverage, inventory-diff, and finding panels.
 - Add stale/failed scanner alerts before enabling broad scans.
+
+#### Phase 2 progress (2026-07-13)
+
+- Declared targets + CIDR provenance writes to `estate_scan.{scan_runs,assets,services}`.
+- Grafana dashboard `uid: estate-scan` provisioned (coverage stats, recent runs, inventory, findings).
+- Alerts `estate-scan-run-stale` (>12h without success) and `estate-scan-run-failed` (any failure in 6h).
+- Observed/passive inventory union and cloud target resolution remain later work.
 
 ### Phase 3 — calibration
 
@@ -540,6 +547,21 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 - Verify accuracy, duration, endpoint behavior, VyOS state, IDS processing, and ClickHouse growth.
 - Tune rates and timeouts from evidence.
 
+#### Phase 3 progress (2026-07-13)
+
+| Run | Scope | Result | Duration |
+| --- | --- | --- | ---: |
+| controlled | undeclared `nc` on `10.0.2.3:41777` | naabu connect found listener | ~2s |
+| `b0d28eab-…` | IoT (`10.0.3.9`) top-100 @ 5pps | 2 listeners / 1 host | 32s |
+| `19f5756e-…` | Gigahub (incl. `192.168.2.1`) top-100 @ 5pps | 14 listeners / 5 hosts | 164s |
+| `6801183e-…` | `10.0.2.0/24` top-100 @ 100pps | 33 listeners / 254 addrs | 623s |
+| `d3a43b83-…` | monitoring-stack full TCP @ 100pps | 17 listeners | 660s |
+
+- **Rate tune:** full-TCP at 25pps/timeout=5 stalled on filtered ports; raised
+  `critical-full-tcp` to 100pps/timeout=2/concurrency=25. IoT/Gigahub stay capped at 5pps.
+- **IDS:** Suricata recorded scanner-sourced noise during sweeps (expected); no
+  blanket exclusion. Naabu output streams to artifact files (not memory) for full-port runs.
+- **Not done in Phase 3:** production schedules, notification routing, cloud calib.
 ### Phase 4 — progressive coverage
 
 - Enable six-hour common-port discovery.
