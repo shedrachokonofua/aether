@@ -2,16 +2,18 @@
 
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
-**Status (honest, 2026-07-13):** Discovery/inventory path is live through Phase 3
-calibration. **L7 Nuclei validation is plumbing-complete but coverage-incomplete** —
-only a 2-URL proof has run successfully after the Nuclei fix (`fbf6f92`). Do not
-treat empty `estate_scan.findings` as a clean estate. Production schedules
-(Phase 4) and Wazuh posture correlation (Phase 5) are not enabled. Supersedes
+**Status (honest, 2026-07-13):** Phase 3.5 L7 acceptance is met on the live
+guest. Full-fingerprint `nuclei-daily` run `4017b09c-…` finished with ClickHouse
+`scan_runs.status=succeeded`, `profile=nuclei-daily`, `probe_count=23`, and **23
+open findings** (including controlled fixture `aether-estate-scan-fixture`, plus
+estate hits such as `CVE-2026-22557` and `prometheus-metrics`). Bookkeeping,
+full-vs-changed artifacts, Kestra flow IaC, and orphan reap are live. **Phase 4
+schedules are still off** — enable only after reviewing open findings. Supersedes
 the Kubernetes Nuclei placement proposed in `network-security.md`.
 
 Guest: neo LXC `1036` / `10.0.2.13`. ClickHouse `estate_scan`, Grafana
-`uid: estate-scan`, Kestra `aether.estate/estate-scan-home` E2E verified for the
-discover path.
+`uid: estate-scan`, Kestra `aether.estate/estate-scan-home` managed by
+`task tofu:kestra-flows:apply`.
 
 ## Goals
 
@@ -582,41 +584,31 @@ Phase 4 is calendars. This section is unfinished Phase 1–3 acceptance work.
 
 #### Gaps to close (order matters — Codex second opinion 2026-07-13)
 
-1. **ClickHouse bookkeeping first** — `validate!` writes `scan_runs.status=running`
-   and never closes the row unless `finalize` runs; `finalize!` hardcodes
-   profile `discovery-common` (masks `nuclei-daily` / calib profiles). Abandoned
-   runs stay `running` forever. Fix writers + stale-run close before trusting
-   any baseline signal.
-2. **Full Nuclei baseline** — run `nuclei-daily` against the current full
-   `fingerprint.jsonl` (all HTTP(S) URLs), then `finalize`. Record duration,
-   template count loaded, findings written to CH, IDS noise, and endpoint impact.
-3. **Known-positive fixture (required once)** — plant a safe declared
-   Nuclei-positive control so “0 findings” can be distinguished from “scanner
-   broken”. Promote from optional; do before schedules.
-4. **Kestra flow IaC** — estate flow YAML is hand-applied; platform Helm stays
-   in home tofu. Add separate `tofu/home/kestra-flows/` state (do not put flows
-   in the Helm state).
-5. **Baseline vs incremental L7** — today’s DAG fingerprints
-   `services-changed.jsonl`; unchanged services skip validate. Before Phase 4,
-   separate “scan all known HTTP” from “scan only deltas” so schedules cannot
-   silently mean “no L7 today because nothing changed.” Cap max validate
-   duration against Kestra `concurrency: 1` so calendars do not queue forever.
-6. **Meaningful Grafana findings** — after a corrected baseline, confirm finding
-   panels and stale/failed alerts reflect truth (no false `running` rows).
-
-Nuclei PDCP/IPv6/fail-closed fix is already on `main` (`fbf6f92`) and live on
-the guest.
+1. **ClickHouse bookkeeping** — done: `finalize!` reads profile from
+   `targets.json`; `reap-stale` / `abandon` close orphans; validate writes
+   `validate-evidence.json` with URL/findings/duration; string Nuclei ports no
+   longer crash `write-findings!` (`ingest-validate` recovers crashed writers).
+2. **Full Nuclei baseline** — done: run `4017b09c-74d1-4019-8f5b-d90178e6c5aa`
+   scanned 23 URLs (~72m), `nuclei-daily`, CH `succeeded`, probe_count=23.
+3. **Known-positive fixture** — done: `estate-nuclei-fixture-http` on
+   `127.0.0.1:18080` + template `aether-estate-scan-fixture` → 1 medium finding
+   in CH for that run.
+4. **Kestra flow IaC** — done: `tofu/home/kestra-flows/` (S3 key
+   `kestra-flows.tfstate`); `task tofu:kestra-flows:apply`.
+5. **Baseline vs incremental L7** — done: `merge-diff` writes
+   `services-all.jsonl` + `services-changed.jsonl`; flow input `l7_scope`
+   (`full` default / `changed`); validate timeout 90m; Kestra poll max PT100M.
+6. **Meaningful Grafana findings** — done: dashboard `estate-scan` shows 23 open
+   findings; orphan `running`/`accepted` older than 6h = 0 after reap.
 
 #### Acceptance for “real working system”
 
-- Full-fingerprint `nuclei-daily` completes with stage + CH `succeeded` and
-  correct profile label.
-- Findings rows appear for any true medium+ hits, or a documented clean zero
-  with template/URL counts and revisions recorded.
-- No orphan `running`/`accepted` scan_runs older than N hours without a live
-  lock/process.
-- Kestra can dispatch validate→finalize without hand SSH; flow is in IaC.
-- Only then enable Phase 4 schedules.
+- [x] Full-fingerprint `nuclei-daily` completes with stage + CH `succeeded` and
+  correct profile label (`nuclei-daily`).
+- [x] Findings rows appear (23 open; fixture + estate medium/critical hits).
+- [x] No orphan `running`/`accepted` scan_runs older than 6h without a live lock.
+- [x] Kestra can dispatch validate→finalize; flow is in IaC.
+- [ ] Only then enable Phase 4 schedules (still blocked on human review of open findings).
 
 ### Phase 4 — progressive coverage
 
@@ -685,5 +677,5 @@ That future work does not move the scanner back to Oracle and is not a prerequis
 - Kubernetes application exposure: `tofu/home/kubernetes/`
 - ClickHouse and Grafana: `ansible/playbooks/monitoring_stack/` (`clickhouse/11-estate-scan-schema.sql`)
 - Kestra platform and namespace contract: `tofu/home/kubernetes/kestra.tf`, `tofu/home/kubernetes/namespace_contracts.tf`
-- Scanner workflow declarations: Aether-owned Kestra IaC to be added; not sibling Inquest flow IaC
+- Scanner workflow declarations: `tofu/home/kestra-flows/` (`task tofu:kestra-flows:apply`); flow source `kestra/flows/estate-scan-home.yaml`. Not sibling Inquest flow IaC.
 - Existing historical network-security proposal: `docs/exploration/network-security.md`

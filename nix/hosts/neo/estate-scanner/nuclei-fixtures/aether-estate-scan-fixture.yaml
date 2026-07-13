@@ -1,0 +1,20 @@
+id: aether-estate-scan-fixture
+
+info:
+  name: Aether Estate Scan Fixture
+  author: aether
+  severity: medium
+  description: Controlled positive for estate-scanner L7 canary. Safe, internal-only.
+  tags:
+    - aether
+    - fixture
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+    matchers:
+      - type: word
+        name: fixture-marker
+        words:
+          - "aether-estate-scan-fixture-ok"
