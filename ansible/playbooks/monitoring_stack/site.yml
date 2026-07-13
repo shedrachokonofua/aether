@@ -768,3 +768,6 @@
 
 - name: Deploy journal forwarder
   import_playbook: journal_forwarder.yml
+
+- name: Deploy GigaHub exporter
+  import_playbook: gigahub_exporter.yml

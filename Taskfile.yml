@@ -358,6 +358,15 @@ tasks:
     desc: Deploy the OTel journal forwarder on monitoring-stack
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags journal-forwarder {{.CLI_ARGS}}
+  configure:gigahub-exporter:
+    desc: Deploy the pinned GigaHub exporter on monitoring-stack
+    cmds:
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags gigahub-exporter {{.CLI_ARGS}}
+  deploy:gigahub-exporter:
+    desc: Deploy the GigaHub exporter and refresh the node agent scrape config
+    cmds:
+      - task: configure:gigahub-exporter
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags monitoring-agent {{.CLI_ARGS}}
   configure:journal-gateways:
     desc: Deploy systemd-journal-gatewayd (mTLS) to the Proxmox hypervisors
     cmds:

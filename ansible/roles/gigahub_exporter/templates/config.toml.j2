@@ -1,0 +1,31 @@
+# Managed by Ansible (gigahub_exporter role). Do not edit by hand.
+[server]
+listen = "{{ gigahub_exporter_listen }}"
+state_directory = "{{ gigahub_exporter_state_dir }}"
+
+[device]
+address = "{{ gigahub_exporter_device_address }}"
+
+[auth]
+method = "sha512"
+username_file = "{{ gigahub_exporter_creds_dir }}/username"
+password_file = "{{ gigahub_exporter_creds_dir }}/password"
+
+[collectors.device_info]
+enabled = true
+
+[collectors.optical]
+enabled = true
+
+[collectors.gpon]
+enabled = true
+
+[collectors.ethernet]
+enabled = true
+handoff_interface = "{{ gigahub_exporter_handoff_interface }}"
+
+[collectors.hosts]
+enabled = true
+
+[collectors.selfview]
+enabled = true
