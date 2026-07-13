@@ -74,15 +74,3 @@ resource "vault_kv_secret_v2" "fleet" {
     enroll_secret = var.secrets["fleet.enroll_secret"]
   })
 }
-
-# The existing aether-machine cert policy already grants the monitoring VM read
-# access to kv/data/aether/*. The Ansible bridge renders this only to the
-# root-owned systemd credential source; it never becomes an environment value.
-resource "vault_kv_secret_v2" "argos" {
-  mount = vault_mount.kv.path
-  name  = "aether/argos"
-
-  data_json = jsonencode({
-    clickhouse_password = var.secrets["argos.clickhouse_password"]
-  })
-}

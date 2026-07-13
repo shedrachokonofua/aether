@@ -39,7 +39,8 @@ locals {
 }
 
 resource "kubernetes_secret_v1" "litellm_env" {
-  depends_on = [module.namespace["litellm"]]
+  depends_on = [module.namespace["infra"]]
+
   metadata {
     name      = "litellm-env"
     namespace = local.litellm_ns
@@ -81,7 +82,8 @@ resource "random_password" "litellm_affine_mcp_http" {
 }
 
 resource "kubernetes_secret_v1" "litellm_config" {
-  depends_on = [module.namespace["litellm"]]
+  depends_on = [module.namespace["infra"]]
+
   metadata {
     name      = "litellm-config"
     namespace = local.litellm_ns
@@ -95,7 +97,8 @@ resource "kubernetes_secret_v1" "litellm_config" {
 }
 
 resource "kubernetes_secret_v1" "litellm_gitlab_registry" {
-  depends_on = [module.namespace["litellm"]]
+  depends_on = [module.namespace["infra"]]
+
   metadata {
     name      = "litellm-gitlab-registry"
     namespace = local.litellm_ns
@@ -117,7 +120,8 @@ resource "kubernetes_secret_v1" "litellm_gitlab_registry" {
 }
 
 resource "kubernetes_persistent_volume_claim_v1" "litellm_postgres_data" {
-  depends_on = [module.namespace["litellm"], kubernetes_storage_class_v1.ceph_rbd]
+  depends_on = [module.namespace["infra"], kubernetes_storage_class_v1.ceph_rbd]
+
   metadata {
     name      = "litellm-postgres-data"
     namespace = local.litellm_ns
