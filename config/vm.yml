@@ -302,6 +302,22 @@ nix_builder:
   gateway: "10.0.2.1"
   vlan: 2
 
+# Dedicated active estate scanner (Naabu/Nmap/httpx/Nuclei). Unprivileged
+# NixOS LXC on neo — do not reuse 10.0.2.7 (intrusion-detection-stack).
+# See docs/exploration/estate-scanning.md.
+estate_scanner:
+  id: 1036
+  name: "estate-scanner"
+  node: "neo"
+  admin: "aether"
+  cores: 2
+  memory: 4096
+  swap_mb: 1024
+  disk_gb: 32
+  ip: "10.0.2.13"
+  gateway: "10.0.2.1"
+  vlan: 2
+
 blockchain_stack:
   id: 1029
   name: "blockchain-stack"

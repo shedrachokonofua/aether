@@ -342,6 +342,10 @@ tasks:
     desc: Stage and validate Argos contracts on monitoring-stack; service remains disabled by default
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags argos {{.CLI_ARGS}}
+  configure:estate-scan-schema:
+    desc: Apply estate_scan ClickHouse schema on monitoring-stack (Phase 0; no scanner guest)
+    cmds:
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags estate-scan {{.CLI_ARGS}}
   configure:journal-forwarder:
     desc: Deploy the OTel journal forwarder on monitoring-stack
     cmds:
@@ -572,6 +576,34 @@ tasks:
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
           FLAKE_TARGET: nix-builder
+  provision:estate-scanner:
+    desc: Provision estate-scanner LXC on neo (gated; requires explicit approval env)
+    cmds:
+      - >-
+        ansible-playbook ansible/playbooks/estate_scanner/site.yml
+        -e estate_scanner_provision_approved={{.ESTATE_SCANNER_PROVISION_APPROVED | default "false"}}
+        {{.CLI_ARGS}}
+  configure:estate-scanner:
+    desc: Deploy NixOS configuration to estate-scanner LXC (guest must already exist)
+    vars:
+      TARGET_IP:
+        sh: yq '.estate_scanner.ip' config/vm.yml
+      BUILD_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
+    cmds:
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          BUILD_IP: "{{.BUILD_IP}}"
+          REMOTE_BUILD_PATH: /root/aether-build
+          FLAKE_TARGET: estate-scanner
+  deploy:estate-scanner:
+    desc: Full deploy — provision gated LXC then configure NixOS (do not run without approval)
+    cmds:
+      - task: provision:estate-scanner
+        vars:
+          ESTATE_SCANNER_PROVISION_APPROVED: "{{.ESTATE_SCANNER_PROVISION_APPROVED | default \"false\"}}"
+      - task: configure:estate-scanner
   deploy:nix-builder:
     desc: Provision and configure the generic NixOS remote builder on Neo
     cmds:

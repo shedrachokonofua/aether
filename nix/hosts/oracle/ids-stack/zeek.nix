@@ -1,6 +1,14 @@
 # Zeek Network Security Monitor
 # Captures traffic from ens19 (mirror bridge) in promiscuous mode
 # Logs stored in /var/lib/zeek/logs as JSON for OTEL ingestion
+#
+# Estate scanner (docs/exploration/estate-scanning.md):
+# Do NOT blanket-exclude the scanner source IP (config/vm.yml estate_scanner.ip,
+# currently 10.0.2.13). Expected closed/timeout authorized probes are aggregated
+# into ClickHouse estate_scan.probe_aggregates; successful handshakes, unexpected
+# responses, off-schedule, and out-of-scope scanner traffic must remain visible
+# in Zeek evidence. OTEL filter / MV wiring lands in Phase 1–2 after the guest
+# exists. VyOS mirrors eth1 only — same-L2 VLAN 2 probes may not appear here.
 { config, lib, pkgs, ... }:
 
 {

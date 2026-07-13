@@ -32,6 +32,7 @@ services may have additional passthrough devices, datasets, or mount points.
 | `bastion` | `bastion` | Oracle | LXC | 2 | 2 GiB | 32 GB | Ansible provision, NixOS configure |
 | `ids_stack` | `intrusion-detection-stack` | Oracle | VM | 4 | 4 GiB | 128 GB | OpenTofu provision, NixOS configure |
 | `nix_builder` | `nix-builder` | Neo | VM | 8 | 8 GiB | 128 GB | OpenTofu provision, NixOS configure |
+| `estate_scanner` | `estate-scanner` | Neo | LXC | 2 | 4 GiB | 32 GB | Ansible provision (gated), NixOS configure; live at `10.0.2.13` |
 | `blockchain_stack` | `blockchain-stack` | Smith | VM | 8 | 16 GiB | 256 GB | OpenTofu provision, NixOS configure |
 
 ## Talos VMs

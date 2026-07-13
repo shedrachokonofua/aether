@@ -1,0 +1,19 @@
+---
+# Estate scanner LXC provisioning (Phase 1 scaffold).
+#
+# Unprivileged NixOS LXC on neo (10.0.2.13 / VMID 1036). Active scanning data
+# plane for Kestra-orchestrated Naabu/Nmap/httpx/Nuclei workflows.
+#
+# Prerequisites:
+#   task nix:upload-lxc-image
+#
+# Live provision is intentionally gated:
+#   ansible-playbook ansible/playbooks/estate_scanner/site.yml \
+#     -e estate_scanner_provision_approved=true
+#
+# After provisioning:
+#   task configure:estate-scanner
+# Then prove CAP_NET_RAW SYN accuracy before enabling discovery profiles.
+
+- name: Provision estate-scanner LXC
+  import_playbook: provision_lxc.yml

@@ -124,6 +124,15 @@
             sshCaModule
           ];
         };
+        estate-scanner = nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = sharedSpecialArgs;
+          modules = [
+            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            ./nix/hosts/neo/estate-scanner
+            sshCaModule
+          ];
+        };
       };
     in
     # Per-system outputs (dev shells + packages)
@@ -139,7 +148,7 @@
           
           packages = with pkgs; [
             # Infrastructure as Code
-            opentofu
+            pkgsUnstable.opentofu
             ansible
             python3Packages.ansible-pylibssh  # For network_cli connections (VyOS)
             python3Packages.boto3              # For amazon.aws CloudFormation tasks

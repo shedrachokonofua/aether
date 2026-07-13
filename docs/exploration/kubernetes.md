@@ -985,7 +985,7 @@ No SSH, no Ansible, no package managers. Just API calls.
 - [x] Enable Cilium Hubble
 - [x] Expose Hubble UI via Gateway API
 - [ ] Create k8s dashboards in Grafana
-- [ ] Deploy Nuclei CronJob (weekly vulnerability scans, see `network-security.md`)
+- [ ] ~~Deploy Nuclei CronJob~~ superseded by the external, Kestra-orchestrated estate scanner ([current plan](estate-scanning.md))
 
 ### Phase 4: GitLab Integration
 
