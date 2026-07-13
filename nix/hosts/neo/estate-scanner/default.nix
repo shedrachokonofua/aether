@@ -141,6 +141,7 @@ let
     lock_file = lockFile;
     declared_targets = "/etc/estate-scanner/declared-targets.json";
     naabu = "${naabuWrapped}/bin/naabu";
+    httpx = "${httpxWrapped}/bin/httpx";
     scanner_revision = "estate-scanner-nixos";
     nuclei_templates_revision = nucleiTemplatesRevision;
     approved_profiles = approvedProfiles;
@@ -191,6 +192,9 @@ in
     createHome = true;
     shell = "${pkgs.bash}/bin/bash";
     description = "Forced-command Kestra dispatch identity for estate scans";
+    openssh.authorizedKeys.keys = [
+      (builtins.readFile ../../../../config/ssh/kestra-estate-scanner.pub)
+    ];
   };
   users.users.aether.extraGroups = [ "estate-scan" ];
 

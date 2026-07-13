@@ -38,10 +38,18 @@ entrypoint (`ForceCommand` for `kestra-estate-scanner`). Runtime paths and
 allowlists live in `/etc/estate-scanner/runtime.json`. It accepts typed stage
 operations and approved profile / target-group names only.
 
-`discover` accepts and detaches (`setsid`); `worker discover` performs the scan
-and writes `estate_scan.*` in ClickHouse. Deploy the writer password with:
+`discover` / `fingerprint` accept and detach (`setsid`); workers write
+`estate_scan.*` in ClickHouse. `merge-diff` compares against the prior successful
+run and emits `services-changed.jsonl`.
 
 ```bash
 task configure:estate-scan-schema          # CH schema + estate_scan user/role
 task configure:estate-scanner-credentials  # password file on the guest
+task configure:estate-scanner              # NixOS (dispatcher + SSH ForceCommand)
 ```
+
+Kestra dispatch identity: `kestra-estate-scanner` (pubkey in
+`config/ssh/kestra-estate-scanner.pub`; private key in SOPS
+`estate_scan.kestra_ssh_private_key`). Flow scaffold:
+`kestra/flows/estate-scan-home.yaml`. Pod→`10.0.2.13:22` is not reachable yet
+(direct RFC1918 from the cluster times out).
