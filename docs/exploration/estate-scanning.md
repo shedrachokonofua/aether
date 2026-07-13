@@ -580,27 +580,32 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 
 Phase 4 is calendars. This section is unfinished Phase 1–3 acceptance work.
 
-#### Gaps to close
+#### Gaps to close (order matters — Codex second opinion 2026-07-13)
 
-1. **Full Nuclei baseline** — run `nuclei-daily` against the current full
-   `fingerprint.jsonl` (all HTTP(S) URLs), then `finalize`. Record duration,
-   template count loaded, findings written to CH, IDS noise, and endpoint impact.
-2. **ClickHouse bookkeeping** — `validate!` writes `scan_runs.status=running`
+1. **ClickHouse bookkeeping first** — `validate!` writes `scan_runs.status=running`
    and never closes the row unless `finalize` runs; `finalize!` hardcodes
    profile `discovery-common` (masks `nuclei-daily` / calib profiles). Abandoned
-   runs (`1fd714d5…` discover, etc.) stay `running` forever. Fix writers + add a
-   stale-run sweeper or explicit fail/close path.
-3. **Commit already pushed** — Nuclei PDCP/IPv6/fail-closed fix is on `main`
-   (`fbf6f92`: immutable `auth: false`, `estate-nuclei-dns-shim`, curated
-   template dirs, fail on FTL). Redeploy is already live on the guest.
+   runs stay `running` forever. Fix writers + stale-run close before trusting
+   any baseline signal.
+2. **Full Nuclei baseline** — run `nuclei-daily` against the current full
+   `fingerprint.jsonl` (all HTTP(S) URLs), then `finalize`. Record duration,
+   template count loaded, findings written to CH, IDS noise, and endpoint impact.
+3. **Known-positive fixture (required once)** — plant a safe declared
+   Nuclei-positive control so “0 findings” can be distinguished from “scanner
+   broken”. Promote from optional; do before schedules.
 4. **Kestra flow IaC** — estate flow YAML is hand-applied; platform Helm stays
    in home tofu. Add separate `tofu/home/kestra-flows/` state (do not put flows
    in the Helm state).
-5. **Meaningful Grafana findings** — after a real baseline, confirm finding
-   panels and `estate-scan-run-failed` / stale alerts reflect truth (no false
-   “running” rows).
-6. **Optional known fixture** — plant a safe, declared Nuclei-positive control
-   target so “0 findings” can be distinguished from “scanner broken”.
+5. **Baseline vs incremental L7** — today’s DAG fingerprints
+   `services-changed.jsonl`; unchanged services skip validate. Before Phase 4,
+   separate “scan all known HTTP” from “scan only deltas” so schedules cannot
+   silently mean “no L7 today because nothing changed.” Cap max validate
+   duration against Kestra `concurrency: 1` so calendars do not queue forever.
+6. **Meaningful Grafana findings** — after a corrected baseline, confirm finding
+   panels and stale/failed alerts reflect truth (no false `running` rows).
+
+Nuclei PDCP/IPv6/fail-closed fix is already on `main` (`fbf6f92`) and live on
+the guest.
 
 #### Acceptance for “real working system”
 
