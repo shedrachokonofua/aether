@@ -133,38 +133,25 @@ let
     '';
   };
 
-  aetherScan = pkgs.writeShellApplication {
-    name = "aether-scan";
-    runtimeInputs = with pkgs; [ coreutils jq util-linux naabuWrapped ];
-    text = builtins.replaceStrings
-      [
-        "@stateDir@"
-        "@runsDir@"
-        "@artifactsDir@"
-        "@declaredTargets@"
-        "@lockFile@"
-        "@scannerRevision@"
-        "@nucleiTemplatesRevision@"
-        "@naabu@"
-        "@approvedProfilesCase@"
-        "@approvedTargetGroupsCase@"
-        "@approvedStagesCase@"
-      ]
-      [
-        stateDir
-        runsDir
-        artifactsDir
-        "${declaredTargetsJson}"
-        lockFile
-        "estate-scanner-nixos"
-        nucleiTemplatesRevision
-        "${naabuWrapped}/bin/naabu"
-        (lib.concatStringsSep "|" approvedProfiles)
-        (lib.concatStringsSep "|" approvedTargetGroups)
-        (lib.concatStringsSep "|" approvedStages)
-      ]
-      (builtins.readFile ./aether-scan.sh);
-  };
+  runtimeConfigJson = pkgs.writeText "estate-scanner-runtime.json" (builtins.toJSON {
+    state_dir = stateDir;
+    runs_dir = runsDir;
+    artifacts_dir = artifactsDir;
+    templates_dir = templatesDir;
+    lock_file = lockFile;
+    declared_targets = "/etc/estate-scanner/declared-targets.json";
+    naabu = "${naabuWrapped}/bin/naabu";
+    scanner_revision = "estate-scanner-nixos";
+    nuclei_templates_revision = nucleiTemplatesRevision;
+    approved_profiles = approvedProfiles;
+    approved_target_groups = approvedTargetGroups;
+    approved_stages = approvedStages;
+  });
+
+  aetherScan = pkgs.writers.writeBabashkaBin "aether-scan" {
+    # Skip clj-kondo in the guest build; lint locally / in CI if desired.
+    check = "";
+  } (builtins.readFile ./aether-scan.bb);
 in
 {
   imports = [
@@ -186,6 +173,7 @@ in
     httpxWrapped
     nucleiWrapped
     pkgs.nmap
+    pkgs.babashka
     pkgs.jq
     pkgs.yq-go
   ];
@@ -216,11 +204,12 @@ in
       "estate-scanner/README".text = ''
         Estate scanner guest.
         Source identity: ${vm.ip}
-        Dispatcher: aether-scan (forced-command for kestra-estate-scanner)
+        Dispatcher: aether-scan.bb via babashka (forced-command for kestra-estate-scanner)
         Nuclei templates: ${nucleiTemplatesRevision} (pinned; no auto-update)
         Naabu/httpx wrapped with -no-stdin -duc for non-interactive SSH/Kestra use.
         Do not add local OnCalendar scan schedules; Kestra is the schedule authority.
       '';
+      "estate-scanner/runtime.json".source = runtimeConfigJson;
       "estate-scanner/naabu.yaml".text = ''
         no-stdin: true
         disable-update-check: true
@@ -248,7 +237,6 @@ in
     "d ${templatesDir} 0750 root estate-scan -"
     "d ${stateDir}/kestra 0750 kestra-estate-scanner estate-scan -"
     "d ${artifactsDir} 0770 root estate-scan -"
-    "f ${lockFile} 0660 root estate-scan -"
   ];
 
   # Pin nuclei-templates into the guest state dir (immutable nix store symlink).
