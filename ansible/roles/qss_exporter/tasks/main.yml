@@ -1,0 +1,189 @@
+---
+- name: Validate qss-exporter pin inputs
+  ansible.builtin.assert:
+    that:
+      - qss_exporter_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+      - qss_exporter_sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      qss_exporter needs a semver version tag and a 64-char sha256 pin on
+      {{ inventory_hostname }}.
+    quiet: true
+
+- name: Validate qss-exporter secrets
+  ansible.builtin.assert:
+    that:
+      - secrets.qss is defined
+      - secrets.qss.rack_switch.admin_user is string
+      - secrets.qss.rack_switch.admin_password is string
+      - not secrets.qss.rack_switch.admin_password.startswith('ENC[')
+    fail_msg: >-
+      secrets.qss.rack_switch.admin_user/admin_password must be SOPS-decrypted
+      strings on {{ inventory_hostname }}.
+    quiet: true
+  no_log: true
+
+- name: Create qss-exporter system group
+  ansible.builtin.group:
+    name: "{{ qss_exporter_group }}"
+    system: true
+  become: true
+
+- name: Create qss-exporter system user
+  ansible.builtin.user:
+    name: "{{ qss_exporter_user }}"
+    group: "{{ qss_exporter_group }}"
+    system: true
+    create_home: false
+    home: "{{ qss_exporter_state_dir }}"
+    shell: /usr/sbin/nologin
+  become: true
+
+- name: Create qss-exporter config directory
+  ansible.builtin.file:
+    path: "{{ qss_exporter_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Create qss-exporter credentials directory
+  ansible.builtin.file:
+    path: "{{ qss_exporter_creds_dir }}"
+    state: directory
+    owner: root
+    group: "{{ qss_exporter_group }}"
+    mode: "0750"
+  become: true
+
+- name: Download pinned qss-exporter binary
+  ansible.builtin.get_url:
+    url: "{{ qss_exporter_download_url | trim }}"
+    dest: /tmp/qss-exporter
+    checksum: "sha256:{{ qss_exporter_sha256 }}"
+    mode: "0644"
+  become: true
+
+- name: Install qss-exporter binary
+  ansible.builtin.copy:
+    src: /tmp/qss-exporter
+    dest: "{{ qss_exporter_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: restart qss-exporter
+
+- name: Remove qss-exporter temporary binary
+  ansible.builtin.file:
+    path: /tmp/qss-exporter
+    state: absent
+  become: true
+
+- name: Render qss-exporter username credential
+  ansible.builtin.copy:
+    content: "{{ secrets.qss.rack_switch.admin_user }}"
+    dest: "{{ qss_exporter_creds_dir }}/username"
+    owner: root
+    group: "{{ qss_exporter_group }}"
+    mode: "0640"
+  become: true
+  no_log: true
+  notify: restart qss-exporter
+
+- name: Render qss-exporter password credential
+  ansible.builtin.copy:
+    content: "{{ secrets.qss.rack_switch.admin_password }}"
+    dest: "{{ qss_exporter_creds_dir }}/password"
+    owner: root
+    group: "{{ qss_exporter_group }}"
+    mode: "0640"
+  become: true
+  no_log: true
+  notify: restart qss-exporter
+
+- name: Render qss-exporter configuration
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ qss_exporter_config_path }}"
+    owner: root
+    group: "{{ qss_exporter_group }}"
+    mode: "0640"
+  become: true
+  notify: restart qss-exporter
+
+- name: Create qss-exporter state and observation directories
+  # systemd StateDirectory= creates /var/lib/qss-exporter at service start, but
+  # the read-only `check` below runs as the service user beforehand and needs a
+  # writable state + observation directory.
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ qss_exporter_user }}"
+    group: "{{ qss_exporter_group }}"
+    mode: "0700"
+  loop:
+    - "{{ qss_exporter_state_dir }}"
+    - "{{ qss_exporter_observations_dir }}"
+  become: true
+
+- name: Stop qss-exporter before the read-only validation
+  # The check binds a probe on the listener; a running instance from a prior
+  # deploy would hold the port and fail listener-config. Stop it first so the
+  # check runs cleanly; the "Enable and start" task brings it back up.
+  ansible.builtin.systemd:
+    name: qss-exporter.service
+    state: stopped
+  become: true
+  failed_when: false
+
+- name: Validate switch contract read-only (qss-exporter check)
+  # Run as root and drop to the service user via sudo -u, matching the
+  # gigahub_exporter role (this host lacks setfacl for become_user temp files).
+  ansible.builtin.command:
+    argv:
+      - sudo
+      - -n
+      - -u
+      - "{{ qss_exporter_user }}"
+      - "{{ qss_exporter_binary_path }}"
+      - check
+      - --config
+      - "{{ qss_exporter_config_path }}"
+  become: true
+  changed_when: false
+  register: qss_exporter_check
+
+- name: Show qss-exporter check results
+  ansible.builtin.debug:
+    var: qss_exporter_check.stdout_lines
+
+- name: Install qss-exporter systemd unit
+  ansible.builtin.template:
+    src: qss-exporter.service.j2
+    dest: /etc/systemd/system/qss-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - reload qss-exporter systemd
+    - restart qss-exporter
+
+- name: Enable and start qss-exporter
+  ansible.builtin.systemd:
+    name: qss-exporter.service
+    enabled: "{{ qss_exporter_service_enabled }}"
+    state: "{{ qss_exporter_service_state }}"
+    daemon_reload: true
+  become: true
+
+- name: Wait for qss-exporter readiness
+  ansible.builtin.uri:
+    url: "http://{{ qss_exporter_listen }}/readyz"
+    status_code: 200
+  register: qss_exporter_ready
+  until: qss_exporter_ready.status == 200
+  retries: 12
+  delay: 5

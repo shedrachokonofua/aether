@@ -771,3 +771,6 @@
 
 - name: Deploy GigaHub exporter
   import_playbook: gigahub_exporter.yml
+
+- name: Deploy QSS switch exporter
+  import_playbook: qss_exporter.yml
