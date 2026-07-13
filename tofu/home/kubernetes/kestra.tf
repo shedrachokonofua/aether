@@ -104,6 +104,24 @@ resource "kubernetes_secret_v1" "kestra_inquest" {
   }
 }
 
+resource "kubernetes_secret_v1" "kestra_estate_scan" {
+  depends_on = [module.namespace["kestra"]]
+
+  metadata {
+    name      = "kestra-estate-scan"
+    namespace = local.kestra_ns
+  }
+
+  type = "Opaque"
+
+  data = {
+    ENV_ESTATE_SCANNER_HOST = "10.0.2.13"
+    ENV_ESTATE_SCANNER_USER = "kestra-estate-scanner"
+    # SECRET_* → {{ secret('NAME') }} (no SECRET_ prefix); base64 required by Kestra.
+    SECRET_ESTATE_SCANNER_SSH_KEY = base64encode(var.secrets["estate_scan.kestra_ssh_private_key"])
+  }
+}
+
 resource "kubectl_manifest" "kestra_cnpg_cluster" {
   depends_on = [
     helm_release.cnpg,
@@ -186,10 +204,12 @@ resource "helm_release" "kestra" {
     common = {
       nodeSelector = { "kubernetes.io/arch" = "amd64" }
       podAnnotations = {
-        "aether.shdr.ch/kestra-inquest-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_inquest.data)))
+        "aether.shdr.ch/kestra-inquest-sha"     = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_inquest.data)))
+        "aether.shdr.ch/kestra-estate-scan-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_estate_scan.data)))
       }
       extraEnvFrom = [
         { secretRef = { name = kubernetes_secret_v1.kestra_inquest.metadata[0].name } },
+        { secretRef = { name = kubernetes_secret_v1.kestra_estate_scan.metadata[0].name } },
       ]
       extraVolumeMounts = [{
         name      = "kestra-storage"
@@ -233,16 +253,20 @@ resource "helm_release" "kestra" {
 # =============================================================================
 # Kestra — estate-scanner dispatch (scaffold notes)
 # =============================================================================
-# When wiring production DAGs, add a CiliumNetworkPolicy that is additive with
-# Kestra's existing egress needs — never a lone toCIDR/22 rule selecting the
-# kestra pods (that would default-deny Postgres/DNS/API traffic).
+# Secret kestra-estate-scan mounts ENV_ESTATE_SCANNER_* + SECRET_ESTATE_SCANNER_SSH_KEY.
+# Flow YAML: kestra/flows/estate-scan-home.yaml (apply via Kestra UI/API or a
+# future kestra_flow resource — Aether-owned, not Inquest).
 #
-# Target endpoint: estate-scanner ${vm fact 10.0.2.13}:22 only.
-# Still required:
-#   * SSH keypair for kestra-estate-scanner (ForceCommand user on the guest)
-#   * Private key in Kestra secrets (not admin credentials)
-#   * Staged DAG: targets → discover → merge-diff → fingerprint → validate →
-#     finalize with status polling
+# Network blocker (2026-07-13): Kestra pods can reach *.home.shdr.ch:443 and the
+# public internet, but direct RFC1918 to 10.0.2.13:22 times out (same for other
+# VLAN 2 IPs). Do not add a lone Cilium toCIDR/22 egress rule that would
+# default-deny Kestra's existing traffic. Fix the L3/L4 path (or a controlled
+# TCPRoute) before enabling the scheduled DAG.
+#
+# Still required once the path works:
+#   * Additive Cilium allow for estate-scanner:22 alongside existing needs
+#   * Scanner-side Match Address narrowing for kestra-estate-scanner
+#   * Apply estate-scan-home flow and prove SSH ForceCommand end-to-end
 # =============================================================================
 
 resource "kubernetes_manifest" "kestra_route" {

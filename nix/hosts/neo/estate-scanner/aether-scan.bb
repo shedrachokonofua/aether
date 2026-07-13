@@ -22,15 +22,16 @@
 Usage:
   aether-scan targets snapshot <run-id> <profile>
   aether-scan discover <run-id> <target-group>
-  aether-scan worker discover <run-id> <target-group>
   aether-scan merge-diff <run-id>
   aether-scan fingerprint <run-id> <service-artifact>
+  aether-scan worker discover <run-id> <target-group>
+  aether-scan worker fingerprint <run-id> <service-artifact>
   aether-scan validate <run-id> <service-artifact> <approved-profile>
   aether-scan finalize <run-id>
   aether-scan status <run-id> <stage> [target-group]
 
 Rejects caller-supplied shell, rates, templates, targets, and output paths.
-discover accepts and detaches; worker discover performs the scan.")
+discover/fingerprint accept and detach; worker stages perform the work.")
 
 (def uuid-re
   #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -467,7 +468,12 @@ discover accepts and detaches; worker discover performs the scan.")
   (let [out-dir (str (:artifacts_dir cfg) "/" run-id)
         log-file (str out-dir "/discover-" target-group "-worker.log")]
     (fs/create-dirs out-dir)
-    ;; setsid -f: fork into a new session that survives SSH hangup.
+    ;; Status first so a fast worker cannot be overwritten by a late "accepted".
+    (write-status! cfg {:run-id run-id
+                        :stage "discover"
+                        :target-group target-group
+                        :status "accepted"
+                        :message (str "discover detached; worker log " log-file)})
     (let [proc @(proc/process
                  ["setsid" "-f"
                   aether-scan-bin "worker" "discover" run-id target-group]
@@ -475,14 +481,259 @@ discover accepts and detaches; worker discover performs the scan.")
                   :err :out
                   :in nil})]
       (when-not (zero? (:exit proc))
-        (die! 1 (str "failed to detach discover worker; see " log-file))))
-    ;; Brief settle so status.json exists for immediate pollers.
-    (.sleep TimeUnit/MILLISECONDS 250)
+        (die! 1 (str "failed to detach discover worker; see " log-file))))))
+
+(defn require-artifact-name! [name]
+  (when-not (re-matches #"[A-Za-z0-9][A-Za-z0-9._-]{0,127}" (str name))
+    (die! "invalid service-artifact name")))
+
+(defn listener-key [{:keys [ip host port protocol]}]
+  [(or ip host) (or protocol "tcp") (int port)])
+
+(defn load-discover-listeners
+  "Load and dedupe all discover-*.jsonl artifacts for a run."
+  [out-dir]
+  (->> (fs/glob out-dir "discover-*.jsonl")
+       (map str)
+       (remove #(str/includes? % "-worker"))
+       (mapcat (fn [path]
+                 (let [group (second (re-find #"discover-([A-Za-z0-9._-]+)\.jsonl$" path))]
+                   (->> (parse-naabu-lines (slurp path))
+                        (map #(assoc % :target_group group))))))
+       (group-by listener-key)
+       vals
+       (map first)
+       vec))
+
+(defn ch-query!
+  "Run a ClickHouse SELECT; returns parsed JSON rows or [] if writer unset."
+  [cfg sql]
+  (if-not (clickhouse-enabled? cfg)
+    []
+    (let [url (str (:clickhouse_url cfg)
+                   "/?default_format=JSONEachRow&query="
+                   (java.net.URLEncoder/encode sql StandardCharsets/UTF_8))
+          resp (http/get url
+                         {:headers {"Authorization"
+                                    (basic-auth-header (:clickhouse_user cfg)
+                                                       (clickhouse-password cfg))}
+                          :throw false})]
+      (when-not (<= 200 (:status resp) 299)
+        (die! 6 (str "clickhouse query failed status=" (:status resp)
+                     " body=" (str/trim (str (:body resp))))))
+      (->> (str/split-lines (str (:body resp)))
+           (remove str/blank?)
+           (mapv #(json/parse-string % true))))))
+
+(defn prior-listener-keys
+  "Keys from the previous successful run's services (empty on first run)."
+  [cfg run-id]
+  (->> (ch-query!
+        cfg
+        (str "SELECT "
+             "replaceOne(a.stable_identity, 'ipv4:', '') AS ip, "
+             "s.port AS port, s.transport AS protocol "
+             "FROM estate_scan.services AS s "
+             "INNER JOIN estate_scan.assets AS a ON s.asset_id = a.asset_id "
+             "WHERE s.run_id = ("
+             "  SELECT run_id FROM estate_scan.scan_runs FINAL "
+             "  WHERE status = 'succeeded' AND run_id != toUUID('" run-id "') "
+             "  ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1"
+             ")"))
+       (map (fn [{:keys [ip port protocol]}]
+              [ip (or protocol "tcp") (int port)]))
+       set))
+
+(defn merge-diff!
+  [cfg run-id]
+  (let [out-dir (str (:artifacts_dir cfg) "/" run-id)
+        started-at (now-ch)
+        listeners (load-discover-listeners out-dir)
+        prior-keys (prior-listener-keys cfg run-id)
+        changed (filterv #(not (contains? prior-keys (listener-key %))) listeners)
+        unchanged (filterv #(contains? prior-keys (listener-key %)) listeners)
+        merge-path (str out-dir "/merge.json")
+        changed-path (str out-dir "/services-changed.jsonl")
+        unchanged-path (str out-dir "/services-unchanged.jsonl")
+        body {:run_id run-id
+              :merged_at (now-iso)
+              :listener_count (count listeners)
+              :changed_count (count changed)
+              :unchanged_count (count unchanged)
+              :fingerprint_needed (boolean (seq changed))
+              :prior_baseline (if (seq prior-keys) "clickhouse" "none")}]
+    (fs/create-dirs out-dir)
+    (when (empty? listeners)
+      (write-stage-artifact!
+       cfg {:run-id run-id :stage "merge-diff" :artifact-ref merge-path
+            :status "failed" :started-at started-at :finished-at (now-ch)
+            :error-code "missing_discover" :error-message "no discover-*.jsonl artifacts"})
+      (write-status! cfg {:run-id run-id :stage "merge-diff" :status "failed"
+                          :message "no discover artifacts; run discover first"})
+      (System/exit 4))
+    (spit merge-path (str (json/generate-string body {:pretty true}) "\n"))
+    (spit changed-path
+          (str (str/join "\n" (map json/generate-string changed))
+               (when (seq changed) "\n")))
+    (spit unchanged-path
+          (str (str/join "\n" (map json/generate-string unchanged))
+               (when (seq unchanged) "\n")))
+    (write-stage-artifact!
+     cfg {:run-id run-id :stage "merge-diff" :artifact-ref changed-path
+          :status "succeeded" :started-at started-at :finished-at (now-ch)})
     (write-status! cfg {:run-id run-id
-                        :stage "discover"
-                        :target-group target-group
+                        :stage "merge-diff"
+                        :status "succeeded"
+                        :message (str (count changed) " new/changed of "
+                                      (count listeners) " listeners"
+                                      (if (seq changed)
+                                        "; fingerprint needed"
+                                        "; skip fingerprint"))})))
+
+(defn http-candidate-urls
+  "Build httpx probe URLs for a listener. Prefer https on 443/8443."
+  [{:keys [ip host port]}]
+  (let [address (or ip host)
+        p (int port)]
+    (cond
+      (#{443 8443} p) [(str "https://" address ":" p)]
+      (#{80 8000 8080 8081 8888 3000 9090 9200 5601} p)
+      [(str "http://" address ":" p)]
+      ;; Best-effort HTTP on other open ports; httpx fails fast on non-HTTP.
+      :else [(str "http://" address ":" p)])))
+
+(defn parse-jsonl [text]
+  (->> (str/split-lines (or text ""))
+       (remove str/blank?)
+       (keep (fn [line]
+               (try
+                 (json/parse-string line true)
+                 (catch Exception _ nil))))
+       vec))
+
+(defn write-fingerprint-results!
+  [cfg run-id httpx-rows]
+  (let [ts (now-ch)
+        ver (version-now)
+        services
+        (mapv (fn [row]
+                (let [address (or (first (:a row)) (:host row) (:ip row))
+                      port (int (or (when (number? (:port row)) (:port row))
+                                    (when (string? (:port row))
+                                      (try (Integer/parseInt (:port row))
+                                           (catch Exception _ nil)))
+                                    0))
+                      transport "tcp"
+                      product (or (:webserver row)
+                                  (some-> (:tech row) first)
+                                  (when (:title row) (str "http-title:" (:title row)))
+                                  "")
+                      tls (or (some-> (:tls row) str) "")]
+                  {:service_id (service-id-for address transport port)
+                   :asset_id (asset-id-for address)
+                   :run_id run-id
+                   :transport transport
+                   :port port
+                   :protocol "http"
+                   :product (str product)
+                   :product_evidence (json/generate-string row)
+                   :http_url (or (:url row) "")
+                   :tls_identity (str tls)
+                   :declared 1
+                   :unexpected 0
+                   :confidence (if (:failed row) 0.3 0.8)
+                   :first_seen_at ts
+                   :last_seen_at ts
+                   :resolved_at nil
+                   :version ver}))
+              (filter #(and (or (first (:a %)) (:host %) (:ip %))
+                            (pos? (int (or (when (number? (:port %)) (:port %))
+                                          (when (string? (:port %))
+                                            (try (Integer/parseInt (:port %))
+                                                 (catch Exception _ 0)))
+                                          0))))
+                      httpx-rows))]
+    (when (seq services)
+      (ch-insert! cfg "estate_scan.services" services))))
+
+(defn fingerprint!
+  "HTTP/TLS normalize changed listeners with httpx (rate-limited)."
+  [cfg run-id artifact-name]
+  (let [{:keys [artifacts_dir httpx]} cfg
+        out-dir (str artifacts_dir "/" run-id)
+        artifact-path (str out-dir "/" artifact-name)
+        list-file (str out-dir "/fingerprint-httpx-targets.txt")
+        result-file (str out-dir "/fingerprint.jsonl")
+        log-file (str out-dir "/fingerprint.log")
+        started-at (now-ch)]
+    (fs/create-dirs out-dir)
+    (when-not (fs/exists? artifact-path)
+      (write-status! cfg {:run-id run-id :stage "fingerprint" :status "failed"
+                          :message (str "missing artifact " artifact-name)})
+      (System/exit 4))
+    (let [listeners (->> (parse-jsonl (slurp artifact-path)))
+          urls (->> listeners (mapcat http-candidate-urls) distinct vec)]
+      (write-status! cfg {:run-id run-id :stage "fingerprint" :status "running"
+                          :message (str "fingerprinting " (count urls) " URLs")})
+      (write-stage-artifact!
+       cfg {:run-id run-id :stage "fingerprint" :artifact-ref result-file
+            :status "running" :started-at started-at})
+      (if (empty? urls)
+        (do
+          (spit result-file "")
+          (write-stage-artifact!
+           cfg {:run-id run-id :stage "fingerprint" :artifact-ref result-file
+                :status "succeeded" :started-at started-at :finished-at (now-ch)})
+          (write-status! cfg {:run-id run-id :stage "fingerprint" :status "succeeded"
+                              :message "no HTTP candidates in artifact"}))
+        (do
+          (spit list-file (str (str/join "\n" urls) "\n"))
+          (when-not httpx
+            (die! 1 "httpx path missing from runtime.json"))
+          (let [proc @(proc/process
+                       [httpx
+                        "-list" list-file
+                        "-silent" "-json" "-nc"
+                        "-timeout" "5"
+                        "-threads" "10"
+                        "-rate-limit" "25"
+                        "-title" "-status-code" "-tech-detect"
+                        "-web-server" "-ip"]
+                       {:out :string :err :string})
+                finished-at (now-ch)]
+            (spit result-file (:out proc))
+            (spit log-file (:err proc))
+            (let [rows (parse-jsonl (:out proc))
+                  hits (count rows)]
+              (write-fingerprint-results! cfg run-id rows)
+              (write-stage-artifact!
+               cfg {:run-id run-id :stage "fingerprint" :artifact-ref result-file
+                    :status "succeeded" :started-at started-at :finished-at finished-at})
+              (write-status! cfg {:run-id run-id :stage "fingerprint" :status "succeeded"
+                                  :message (str "fingerprinted " hits " HTTP(S) responses from "
+                                                (count urls) " candidates"
+                                                (when-not (zero? (:exit proc))
+                                                  (str "; httpx exit " (:exit proc))))}))))))))
+
+(defn accept-fingerprint!
+  [cfg run-id artifact-name]
+  (when (lock-held? cfg)
+    (die! 3 "another scan holds the exclusive lock"))
+  (let [out-dir (str (:artifacts_dir cfg) "/" run-id)
+        log-file (str out-dir "/fingerprint-worker.log")]
+    (fs/create-dirs out-dir)
+    (write-status! cfg {:run-id run-id
+                        :stage "fingerprint"
                         :status "accepted"
-                        :message (str "discover detached; worker log " log-file)})))
+                        :message (str "fingerprint detached; worker log " log-file)})
+    (let [proc @(proc/process
+                 ["setsid" "-f"
+                  aether-scan-bin "worker" "fingerprint" run-id artifact-name]
+                 {:out (io/file log-file)
+                  :err :out
+                  :in nil})]
+      (when-not (zero? (:exit proc))
+        (die! 1 (str "failed to detach fingerprint worker; see " log-file))))))
 
 (defn stub!
   [cfg run-id stage message & {:keys [target-group]}]
@@ -532,25 +783,44 @@ discover accepts and detaches; worker discover performs the scan.")
         (accept-discover! cfg run-id target-group))
 
       "worker"
-      (let [[_ stage run-id target-group] args]
-        (when (or (not= stage "discover") (nil? run-id) (nil? target-group))
-          (println usage-text)
-          (System/exit 2))
-        (require-run-id! run-id)
-        (require-member! "target-group" target-group groups)
-        (with-lock! cfg #(discover-group! cfg run-id target-group)))
+      (let [[_ stage & rest] args]
+        (case stage
+          "discover"
+          (let [[run-id target-group] rest]
+            (when (or (nil? run-id) (nil? target-group))
+              (println usage-text)
+              (System/exit 2))
+            (require-run-id! run-id)
+            (require-member! "target-group" target-group groups)
+            (with-lock! cfg #(discover-group! cfg run-id target-group)))
+
+          "fingerprint"
+          (let [[run-id artifact-name] rest]
+            (when (or (nil? run-id) (nil? artifact-name))
+              (println usage-text)
+              (System/exit 2))
+            (require-run-id! run-id)
+            (require-artifact-name! artifact-name)
+            (with-lock! cfg #(fingerprint! cfg run-id artifact-name)))
+
+          (die! (str "unknown worker stage: " stage))))
 
       "merge-diff"
       (let [[_ run-id] args]
-        (when-not run-id (println usage-text) (System/exit 2))
+        (when (or (nil? run-id) (nth args 2 nil))
+          (println usage-text)
+          (System/exit 2))
         (require-run-id! run-id)
-        (stub! cfg run-id "merge-diff" "merge-diff not implemented yet"))
+        (with-lock! cfg #(merge-diff! cfg run-id)))
 
       "fingerprint"
-      (let [[_ run-id] args]
-        (when-not run-id (println usage-text) (System/exit 2))
+      (let [[_ run-id artifact-name] args]
+        (when (or (nil? run-id) (nil? artifact-name) (nth args 3 nil))
+          (println usage-text)
+          (System/exit 2))
         (require-run-id! run-id)
-        (stub! cfg run-id "fingerprint" "fingerprint not implemented yet"))
+        (require-artifact-name! artifact-name)
+        (accept-fingerprint! cfg run-id artifact-name))
 
       "validate"
       (let [[_ run-id _artifact profile] args]
