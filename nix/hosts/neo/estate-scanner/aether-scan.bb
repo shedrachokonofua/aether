@@ -878,18 +878,37 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
         list-file (str out-dir "/validate-nuclei-targets.txt")
         result-file (str out-dir "/validate-" profile ".jsonl")
         log-file (str out-dir "/validate-" profile ".log")
-        templates (str templates_dir "/current")
+        templates-http (str templates_dir "/current/http")
+        ;; Curated HTTP dirs — full http/ is ~5.6k templates and too slow for daily.
+        template-dirs (if (= profile "nuclei-weekly")
+                        ["cves" "vulnerabilities" "misconfiguration" "exposures"
+                         "default-logins" "exposed-panels" "technologies"]
+                        ["cves" "vulnerabilities" "misconfiguration" "exposures"])
+        nuclei-config "/etc/estate-scanner/nuclei-config.yaml"
+        nuclei-profile (str "/etc/estate-scanner/nuclei-profiles/" profile ".yml")
         started-at (now-ch)]
     (fs/create-dirs out-dir)
     (when-not (fs/exists? artifact-path)
       (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
                           :message (str "missing artifact " artifact-name)})
       (System/exit 4))
-    (when-not (fs/exists? templates)
+    (when-not (fs/exists? templates-http)
       (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
-                          :message "missing pinned nuclei templates"})
+                          :message "missing pinned nuclei http templates"})
       (System/exit 4))
-    (let [urls (http-targets-from-artifact artifact-path)]
+    (when-not (fs/exists? nuclei-profile)
+      (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
+                          :message (str "missing nuclei profile " profile)})
+      (System/exit 4))
+    (let [urls (http-targets-from-artifact artifact-path)
+          existing-dirs (->> template-dirs
+                             (map #(str templates-http "/" %))
+                             (filter fs/exists?)
+                             vec)]
+      (when (empty? existing-dirs)
+        (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
+                            :message "no curated nuclei template dirs present"})
+        (System/exit 4))
       (write-status! cfg {:run-id run-id :stage "validate" :status "running"
                           :message (str "nuclei " profile " on " (count urls) " URLs")})
       (write-stage-artifact!
@@ -906,37 +925,47 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
         (do
           (spit list-file (str (str/join "\n" urls) "\n"))
           (when-not nuclei (die! 1 "nuclei path missing from runtime.json"))
-          ;; Conservative: http(s) only, pinned templates, low rate, no interactsh.
-          (let [severity (if (= profile "nuclei-weekly")
-                           ["-s" "info,low,medium,high,critical"]
-                           ["-s" "medium,high,critical"])
-                proc @(proc/process
-                       (into [nuclei
-                              "-l" list-file
-                              "-t" templates]
-                             (concat severity
-                                     ["-rate-limit" "25"
-                                      "-c" "10"
-                                      "-timeout" "5"
-                                      "-retries" "1"
-                                      "-jsonl"
-                                      "-silent"
-                                      "-nc"
-                                      "-disable-update-check"
-                                      "-no-interactsh"]))
-                       {:out :string :err :string})
+          ;; L7 HTTP + reviewed profile. Wrapper HOME disables PDCP; dns-shim
+          ;; answers Nuclei's hardcoded Google IPv6 resolvers.
+          (let [template-args (mapcat (fn [d] ["-t" d]) existing-dirs)
+                cmd (cond-> (into [nuclei
+                                   "-l" list-file]
+                                  (concat template-args
+                                          ["-tp" nuclei-profile
+                                           "-rate-limit" "50"
+                                           "-c" "25"
+                                           "-timeout" "5"
+                                           "-retries" "1"
+                                           "-jsonl"
+                                           "-nc"
+                                           "-no-interactsh"]))
+                      (fs/exists? nuclei-config)
+                      (into ["-config" nuclei-config]))
+                _ (spit result-file "")
+                proc @(proc/process cmd {:out (io/file result-file)
+                                         :err (io/file log-file)
+                                         :in nil})
                 finished-at (now-ch)
-                rows (parse-jsonl (:out proc))]
-            (spit result-file (:out proc))
-            (spit log-file (:err proc))
+                err-text (when (fs/exists? log-file) (slurp log-file))
+                out-text (slurp result-file)
+                no-templates? (or (str/includes? (str err-text) "no templates provided")
+                                  (str/includes? (str err-text) "Could not run nuclei"))
+                rows (parse-jsonl out-text)
+                ok? (and (zero? (:exit proc)) (not no-templates?))]
+            (when-not ok?
+              (write-stage-artifact!
+               cfg {:run-id run-id :stage "validate" :artifact-ref result-file
+                    :status "failed" :started-at started-at :finished-at finished-at
+                    :error-code (if no-templates? "nuclei_no_templates" "nuclei_exit")
+                    :error-message (str "nuclei exited " (:exit proc)
+                                        (when no-templates? "; no templates loaded"))})
+              (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
+                                  :message (str "nuclei " profile " failed; see log")})
+              (System/exit 5))
             (write-findings! cfg run-id rows)
             (write-stage-artifact!
              cfg {:run-id run-id :stage "validate" :artifact-ref result-file
-                  :status (if (zero? (:exit proc)) "succeeded" "succeeded")
-                  :started-at started-at :finished-at finished-at
-                  :error-code (when-not (zero? (:exit proc)) "nuclei_exit")
-                  :error-message (when-not (zero? (:exit proc))
-                                   (str "nuclei exit " (:exit proc)))})
+                  :status "succeeded" :started-at started-at :finished-at finished-at})
             (write-scan-run!
              cfg {:run_id run-id
                   :profile profile
@@ -948,9 +977,8 @@ discover/fingerprint/validate accept and detach; worker stages perform the work.
                   :probe_count (count rows)})
             (write-status! cfg {:run-id run-id :stage "validate" :status "succeeded"
                                 :message (str "nuclei " profile ": " (count rows)
-                                              " findings from " (count urls) " URLs"
-                                              (when-not (zero? (:exit proc))
-                                                (str "; exit " (:exit proc))))})))))))
+                                              " findings from " (count urls)
+                                              " URLs")})))))))
 
 (defn accept-validate!
   [cfg run-id artifact-name profile]
