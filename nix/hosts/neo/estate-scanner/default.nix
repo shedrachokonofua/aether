@@ -171,16 +171,25 @@ let
     '';
   };
 
+  # Nuclei 3.x defaults auth/PDCP on and embeds Google IPv6 DNS
+  # (2001:4860:4860::8888). Without a shim + auth:false it either prompts on
+  # /dev/tty or spins for minutes on ENETUNREACH. HOME points at a clean
+  # config that disables PDCP; the dns-shim unit answers the hardcoded resolvers.
   nucleiWrapped = pkgs.symlinkJoin {
     name = "nuclei-estate";
     paths = [ pkgs.nuclei ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/nuclei \
+        --set HOME ${stateDir}/nuclei-home \
         --add-flags "-duc" \
         --add-flags "-disable-update-check"
     '';
   };
+
+  nucleiDnsShim = pkgs.writers.writeBabashkaBin "estate-nuclei-dns-shim" {
+    check = "";
+  } (builtins.readFile ./nuclei-dns-shim.bb);
 
   httpxWrapped = pkgs.symlinkJoin {
     name = "httpx-estate";
@@ -236,17 +245,54 @@ in
     facts.vm.adguard_secondary.ip
   ];
 
+  # Keep IPv6 on lo only so we can bind Nuclei's hardcoded Google DNS addrs.
+  networking.enableIPv6 = true;
+  networking.interfaces.lo.ipv6.addresses = [
+    {
+      address = "2001:4860:4860::8888";
+      prefixLength = 128;
+    }
+    {
+      address = "2001:4860:4860::8844";
+      prefixLength = 128;
+    }
+  ];
+
+  # Do not fall back to public IPv6 resolvers via systemd-resolved.
+  services.resolved.fallbackDns = [
+    "1.1.1.1"
+    "8.8.8.8"
+  ];
+
   environment.systemPackages = [
     aetherScan
     naabuWrapped
     httpxWrapped
     nucleiWrapped
+    nucleiDnsShim
     pkgs.nmap
     pkgs.babashka
     pkgs.util-linux # setsid for detached discover workers
     pkgs.jq
     pkgs.yq-go
   ];
+
+  systemd.services.estate-nuclei-dns-shim = {
+    description = "Forward Nuclei hardcoded Google IPv6 DNS to lab resolver";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" "systemd-networkd-wait-online.service" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${nucleiDnsShim}/bin/estate-nuclei-dns-shim";
+      Restart = "on-failure";
+      RestartSec = 2;
+      Environment = [
+        "ESTATE_DNS_SHIM_LISTEN=2001:4860:4860::8888,2001:4860:4860::8844"
+        "ESTATE_DNS_SHIM_UPSTREAM=${vm.gateway}"
+      ];
+    };
+  };
 
   users.groups.estate-scan = { };
   users.users.kestra-estate-scanner = {
@@ -293,6 +339,41 @@ in
         warm-up-time: 2
       '';
       "estate-scanner/nuclei-templates-revision".text = "${nucleiTemplatesRevision}\n";
+      "estate-scanner/nuclei-config.yaml".text = ''
+        # Estate-scanner Nuclei defaults (pin templates; no auto-update; no PDCP).
+        auth: false
+        dashboard: false
+        disable-update-check: true
+        no-interactsh: true
+        silent: false
+      '';
+      "estate-scanner/nuclei-profiles/nuclei-daily.yml".text = ''
+        # L7 HTTP only; skip noisy info/low and intrusive classes.
+        severity:
+          - medium
+          - high
+          - critical
+        type:
+          - http
+        exclude-tags:
+          - dos
+          - fuzz
+          - intrusive
+      '';
+      "estate-scanner/nuclei-profiles/nuclei-weekly.yml".text = ''
+        severity:
+          - info
+          - low
+          - medium
+          - high
+          - critical
+        type:
+          - http
+        exclude-tags:
+          - dos
+          - fuzz
+          - intrusive
+      '';
       "estate-scanner/declared-targets.json".source = declaredTargetsJson;
     }
     // lib.listToAttrs (
@@ -312,17 +393,34 @@ in
     "d ${templatesDir} 0750 root estate-scan -"
     "d ${stateDir}/kestra 0750 kestra-estate-scanner estate-scan -"
     "d ${artifactsDir} 0770 root estate-scan -"
+    "d ${stateDir}/nuclei-home 0750 root estate-scan -"
+    "d ${stateDir}/nuclei-home/.config 0750 root estate-scan -"
+    "d ${stateDir}/nuclei-home/.config/nuclei 0750 root estate-scan -"
   ];
 
   # Pin nuclei-templates into the guest state dir (immutable nix store symlink).
   system.activationScripts.estate-scanner-templates = {
-    deps = [ ];
+    deps = [ "etc" ];
     text = ''
       mkdir -p ${templatesDir}
       ln -sfn ${nucleiTemplates} ${templatesDir}/${nucleiTemplatesRevision}
       ln -sfn ${templatesDir}/${nucleiTemplatesRevision} ${templatesDir}/current
       printf '%s\n' '${nucleiTemplatesRevision}' > ${templatesDir}/REVISION
       chown -R root:estate-scan ${templatesDir} || true
+      # Clean Nuclei HOME so scans do not inherit operator ~/.config/nuclei
+      # (which can point at a missing ~/nuclei-templates and hang on DNS).
+      install -d -m 0750 -o root -g estate-scan ${stateDir}/nuclei-home/.config/nuclei
+      printf '%s\n' '{"nuclei-templates-directory":"${templatesDir}/current"}' \
+        > ${stateDir}/nuclei-home/.config/nuclei/.templates-config.json
+      # Do not create .nuclei-ignore — an empty/comment-only file makes Nuclei
+      # log "Could not parse nuclei-ignore file: EOF".
+      rm -f ${stateDir}/nuclei-home/.config/nuclei/.nuclei-ignore
+      # Symlink HOME config to immutable /etc — Nuclei rewrites a writable
+      # config.yaml and restores auth:true (PDCP prompt / hang).
+      ln -sfn /etc/estate-scanner/nuclei-config.yaml \
+        ${stateDir}/nuclei-home/.config/nuclei/config.yaml
+      chmod 0640 ${stateDir}/nuclei-home/.config/nuclei/.templates-config.json
+      chown -R root:estate-scan ${stateDir}/nuclei-home
     '';
   };
 
