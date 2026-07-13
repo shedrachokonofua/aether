@@ -24,14 +24,15 @@ Usage:
   aether-scan discover <run-id> <target-group>
   aether-scan merge-diff <run-id>
   aether-scan fingerprint <run-id> <service-artifact>
-  aether-scan worker discover <run-id> <target-group>
-  aether-scan worker fingerprint <run-id> <service-artifact>
   aether-scan validate <run-id> <service-artifact> <approved-profile>
   aether-scan finalize <run-id>
+  aether-scan worker discover <run-id> <target-group>
+  aether-scan worker fingerprint <run-id> <service-artifact>
+  aether-scan worker validate <run-id> <service-artifact> <approved-profile>
   aether-scan status <run-id> <stage> [target-group]
 
 Rejects caller-supplied shell, rates, templates, targets, and output paths.
-discover/fingerprint accept and detach; worker stages perform the work.")
+discover/fingerprint/validate accept and detach; worker stages perform the work.")
 
 (def uuid-re
   #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -735,6 +736,198 @@ discover/fingerprint accept and detach; worker stages perform the work.")
       (when-not (zero? (:exit proc))
         (die! 1 (str "failed to detach fingerprint worker; see " log-file))))))
 
+(defn normalize-severity [s]
+  (let [v (str/lower-case (str (or s "info")))]
+    (if (#{"info" "low" "medium" "high" "critical"} v) v "info")))
+
+(defn write-findings!
+  [cfg run-id nuclei-rows]
+  (let [ts (now-ch)
+        ver (version-now)
+        {:keys [scanner_revision nuclei_templates_revision]} cfg
+        findings
+        (mapv (fn [row]
+                (let [host (or (:host row) (:ip row) (some-> (:url row) (str/replace #"^https?://" "") (str/split #"/|:|]") first))
+                      port (int (or (:port row) 0))
+                      template (or (:template-id row) (:templateID row) (:template row) "unknown")
+                      matcher (or (:matcher-name row) (:matcher_name row) "")
+                      sev (normalize-severity (:severity row))
+                      sid (if (and host (pos? port))
+                            (service-id-for host "tcp" port)
+                            (sha256-hex (str "finding|" template "|" host)))
+                      aid (if host (asset-id-for host) (sha256-hex "unknown-asset"))]
+                  {:finding_key (sha256-hex (str template "|" host "|" port "|" matcher))
+                   :run_id run-id
+                   :asset_id aid
+                   :service_id sid
+                   :template_id (str template)
+                   :matcher (str matcher)
+                   :severity sev
+                   :evidence (json/generate-string row)
+                   :first_seen_at ts
+                   :last_seen_at ts
+                   :state "open"
+                   :resolved_at nil
+                   :scanner_revision scanner_revision
+                   :nuclei_templates_revision nuclei_templates_revision
+                   :exposure "internal"
+                   :owner ""
+                   :suppression_reason ""
+                   :review_status ""
+                   :version ver}))
+              nuclei-rows)]
+    (when (seq findings)
+      (ch-insert! cfg "estate_scan.findings" findings))))
+
+(defn http-targets-from-artifact
+  "Build nuclei -l targets from fingerprint.jsonl or services-changed with URLs."
+  [artifact-path]
+  (let [rows (parse-jsonl (slurp artifact-path))]
+    (->> rows
+         (mapcat (fn [row]
+                   (cond
+                     (seq (:url row)) [(:url row)]
+                     (and (:ip row) (:port row)) (http-candidate-urls row)
+                     (and (:host row) (:port row)) (http-candidate-urls row)
+                     :else [])))
+         distinct
+         vec)))
+
+(defn validate!
+  "Safe Nuclei validation against an HTTP(S) service artifact."
+  [cfg run-id artifact-name profile]
+  (let [{:keys [artifacts_dir templates_dir nuclei nuclei_templates_revision
+                scanner_revision]} cfg
+        out-dir (str artifacts_dir "/" run-id)
+        artifact-path (str out-dir "/" artifact-name)
+        list-file (str out-dir "/validate-nuclei-targets.txt")
+        result-file (str out-dir "/validate-" profile ".jsonl")
+        log-file (str out-dir "/validate-" profile ".log")
+        templates (str templates_dir "/current")
+        started-at (now-ch)]
+    (fs/create-dirs out-dir)
+    (when-not (fs/exists? artifact-path)
+      (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
+                          :message (str "missing artifact " artifact-name)})
+      (System/exit 4))
+    (when-not (fs/exists? templates)
+      (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
+                          :message "missing pinned nuclei templates"})
+      (System/exit 4))
+    (let [urls (http-targets-from-artifact artifact-path)]
+      (write-status! cfg {:run-id run-id :stage "validate" :status "running"
+                          :message (str "nuclei " profile " on " (count urls) " URLs")})
+      (write-stage-artifact!
+       cfg {:run-id run-id :stage "validate" :artifact-ref result-file
+            :status "running" :started-at started-at})
+      (if (empty? urls)
+        (do
+          (spit result-file "")
+          (write-stage-artifact!
+           cfg {:run-id run-id :stage "validate" :artifact-ref result-file
+                :status "succeeded" :started-at started-at :finished-at (now-ch)})
+          (write-status! cfg {:run-id run-id :stage "validate" :status "succeeded"
+                              :message "no HTTP(S) targets in artifact; skipped nuclei"}))
+        (do
+          (spit list-file (str (str/join "\n" urls) "\n"))
+          (when-not nuclei (die! 1 "nuclei path missing from runtime.json"))
+          ;; Conservative: http(s) only, pinned templates, low rate, no interactsh.
+          (let [severity (if (= profile "nuclei-weekly")
+                           ["-s" "info,low,medium,high,critical"]
+                           ["-s" "medium,high,critical"])
+                proc @(proc/process
+                       (into [nuclei
+                              "-l" list-file
+                              "-t" templates]
+                             (concat severity
+                                     ["-rate-limit" "25"
+                                      "-c" "10"
+                                      "-timeout" "5"
+                                      "-retries" "1"
+                                      "-jsonl"
+                                      "-silent"
+                                      "-nc"
+                                      "-disable-update-check"
+                                      "-no-interactsh"]))
+                       {:out :string :err :string})
+                finished-at (now-ch)
+                rows (parse-jsonl (:out proc))]
+            (spit result-file (:out proc))
+            (spit log-file (:err proc))
+            (write-findings! cfg run-id rows)
+            (write-stage-artifact!
+             cfg {:run-id run-id :stage "validate" :artifact-ref result-file
+                  :status (if (zero? (:exit proc)) "succeeded" "succeeded")
+                  :started-at started-at :finished-at finished-at
+                  :error-code (when-not (zero? (:exit proc)) "nuclei_exit")
+                  :error-message (when-not (zero? (:exit proc))
+                                   (str "nuclei exit " (:exit proc)))})
+            (write-scan-run!
+             cfg {:run_id run-id
+                  :profile profile
+                  :vantage "estate-scanner"
+                  :scanner_revision scanner_revision
+                  :nuclei_templates_revision nuclei_templates_revision
+                  :status "running"
+                  :started_at started-at
+                  :probe_count (count rows)})
+            (write-status! cfg {:run-id run-id :stage "validate" :status "succeeded"
+                                :message (str "nuclei " profile ": " (count rows)
+                                              " findings from " (count urls) " URLs"
+                                              (when-not (zero? (:exit proc))
+                                                (str "; exit " (:exit proc))))})))))))
+
+(defn accept-validate!
+  [cfg run-id artifact-name profile]
+  (when (lock-held? cfg)
+    (die! 3 "another scan holds the exclusive lock"))
+  (let [out-dir (str (:artifacts_dir cfg) "/" run-id)
+        log-file (str out-dir "/validate-" profile "-worker.log")]
+    (fs/create-dirs out-dir)
+    (write-status! cfg {:run-id run-id
+                        :stage "validate"
+                        :status "accepted"
+                        :message (str "validate detached; worker log " log-file)})
+    (let [proc @(proc/process
+                 ["setsid" "-f"
+                  aether-scan-bin "worker" "validate" run-id artifact-name profile]
+                 {:out (io/file log-file)
+                  :err :out
+                  :in nil})]
+      (when-not (zero? (:exit proc))
+        (die! 1 (str "failed to detach validate worker; see " log-file))))))
+
+(defn finalize!
+  [cfg run-id]
+  (let [{:keys [artifacts_dir scanner_revision nuclei_templates_revision]} cfg
+        out-dir (str artifacts_dir "/" run-id)
+        status-path (str (:runs_dir cfg) "/" run-id "/status.json")
+        started-at (now-ch)
+        prior (when (fs/exists? status-path)
+                (try (json/parse-string (slurp status-path) true)
+                     (catch Exception _ nil)))
+        failed? (= "failed" (:status prior))]
+    (fs/create-dirs out-dir)
+    (write-scan-run!
+     cfg {:run_id run-id
+          :profile "discovery-common"
+          :vantage "estate-scanner"
+          :scanner_revision scanner_revision
+          :nuclei_templates_revision nuclei_templates_revision
+          :status (if failed? "failed" "succeeded")
+          :started_at started-at
+          :finished_at (now-ch)})
+    (write-stage-artifact!
+     cfg {:run-id run-id :stage "finalize" :artifact-ref status-path
+          :status (if failed? "failed" "succeeded")
+          :started-at started-at :finished-at (now-ch)})
+    (write-status! cfg {:run-id run-id
+                        :stage "finalize"
+                        :status (if failed? "failed" "succeeded")
+                        :message (if failed?
+                                   "finalize recorded failed run lineage"
+                                   "finalize recorded succeeded run lineage")})))
+
 (defn stub!
   [cfg run-id stage message & {:keys [target-group]}]
   (write-status! cfg {:run-id run-id
@@ -744,15 +937,27 @@ discover/fingerprint accept and detach; worker stages perform the work.")
                       :message message}))
 
 (defn print-status!
+  "Print compact status JSON. Exit 0 only when recorded stage matches and
+  status is succeeded (Kestra poll tasks rely on this)."
   [cfg run-id stage target-group]
   (let [status-file (str (:runs_dir cfg) "/" run-id "/status.json")]
-    (if (fs/exists? status-file)
-      (print (slurp status-file))
-      (write-status! cfg {:run-id run-id
-                          :stage stage
-                          :target-group target-group
-                          :status "missing"
-                          :message "no status recorded for run"}))))
+    (if-not (fs/exists? status-file)
+      (do (write-status! cfg {:run-id run-id
+                              :stage stage
+                              :target-group target-group
+                              :status "missing"
+                              :message "no status recorded for run"})
+          (System/exit 4))
+      (let [body (try (json/parse-string (slurp status-file) true)
+                      (catch Exception _
+                        (die! 4 "status.json unreadable")))
+            same-stage? (= stage (:stage body))
+            same-group? (or (str/blank? (str target-group))
+                            (= (str target-group) (str (:target_group body))))
+            ok? (and same-stage? same-group? (= "succeeded" (:status body)))]
+        (println (json/generate-string body))
+        (when-not ok?
+          (System/exit (if (= "failed" (:status body)) 5 4)))))))
 
 (defn -main [& args]
   (let [cfg (load-config)
@@ -803,6 +1008,16 @@ discover/fingerprint accept and detach; worker stages perform the work.")
             (require-artifact-name! artifact-name)
             (with-lock! cfg #(fingerprint! cfg run-id artifact-name)))
 
+          "validate"
+          (let [[run-id artifact-name profile] rest]
+            (when (or (nil? run-id) (nil? artifact-name) (nil? profile))
+              (println usage-text)
+              (System/exit 2))
+            (require-run-id! run-id)
+            (require-artifact-name! artifact-name)
+            (require-member! "profile" profile profiles)
+            (with-lock! cfg #(validate! cfg run-id artifact-name profile)))
+
           (die! (str "unknown worker stage: " stage))))
 
       "merge-diff"
@@ -823,21 +1038,22 @@ discover/fingerprint accept and detach; worker stages perform the work.")
         (accept-fingerprint! cfg run-id artifact-name))
 
       "validate"
-      (let [[_ run-id _artifact profile] args]
-        (when (or (nil? run-id) (nil? profile))
+      (let [[_ run-id artifact profile] args]
+        (when (or (nil? run-id) (nil? artifact) (nil? profile) (nth args 4 nil))
           (println usage-text)
           (System/exit 2))
         (require-run-id! run-id)
+        (require-artifact-name! artifact)
         (require-member! "profile" profile profiles)
-        (stub! cfg run-id "validate"
-               (str "validate not implemented yet; templates pinned at "
-                    (:nuclei_templates_revision cfg))))
+        (accept-validate! cfg run-id artifact profile))
 
       "finalize"
       (let [[_ run-id] args]
-        (when-not run-id (println usage-text) (System/exit 2))
+        (when (or (nil? run-id) (nth args 2 nil))
+          (println usage-text)
+          (System/exit 2))
         (require-run-id! run-id)
-        (stub! cfg run-id "finalize" "finalize not implemented yet"))
+        (with-lock! cfg #(finalize! cfg run-id)))
 
       "status"
       (let [[_ run-id stage target-group] args]

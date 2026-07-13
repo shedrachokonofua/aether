@@ -142,6 +142,7 @@ let
     declared_targets = "/etc/estate-scanner/declared-targets.json";
     naabu = "${naabuWrapped}/bin/naabu";
     httpx = "${httpxWrapped}/bin/httpx";
+    nuclei = "${nucleiWrapped}/bin/nuclei";
     scanner_revision = "estate-scanner-nixos";
     nuclei_templates_revision = nucleiTemplatesRevision;
     approved_profiles = approvedProfiles;

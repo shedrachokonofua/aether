@@ -50,8 +50,10 @@ task configure:estate-scanner              # NixOS (dispatcher + SSH ForceComman
 
 Kestra dispatch identity: `kestra-estate-scanner` (pubkey in
 `config/ssh/kestra-estate-scanner.pub`; private key in SOPS
-`estate_scan.kestra_ssh_private_key`). Flow scaffold:
-`kestra/flows/estate-scan-home.yaml`.
+`estate_scan.kestra_ssh_private_key`). Flow:
+`kestra/flows/estate-scan-home.yaml` (namespace `aether.estate`). Apply via
+Kestra API (`POST/PUT /api/v1/main/flows`); secret `kestra-estate-scan`
+mounts `ENV_ESTATE_SCANNER_*` + `SECRET_ESTATE_SCANNER_SSH_KEY`.
 
 VyOS path: `SERVICES-to-TRUSTED` rule 26 — source `TALOS-NODES`, destination
 `10.0.2.13:22` only (not Proxmox/MGMT; rule 25 remains SeaweedFS). Apply with
