@@ -23,8 +23,8 @@ task configure:monitoring
 - `clickhouse/10-argos-schema.sql` is the accepted Argos `001_initial` schema. The
   `argos` task reapplies its idempotent DDL and records the immutable checksum in
   `argos.schema_migrations`; it must not be edited after first application.
-- `clickhouse/11-estate-scan-schema.sql` is the estate scanner Phase 0 schema
-  (`estate_scan` database). Apply with `task configure:estate-scan-schema`.
+- `estate_scan` ClickHouse schema in `ansible/playbooks/monitoring_stack/clickhouse/11-estate-scan-schema.sql`; apply with `task configure:estate-scan-schema` (also reconciles the `estate_scan` writer role/user).
+- Writer password on the guest: `task configure:estate-scanner-credentials`.
   After first application the `001_initial` checksum is immutable.
 
 ## Argos staged deployment

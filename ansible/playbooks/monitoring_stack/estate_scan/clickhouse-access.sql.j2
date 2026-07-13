@@ -1,0 +1,31 @@
+-- Least-privilege writer for the estate-scanner guest (10.0.2.13 → CH :8123).
+-- Applied by the estate-scan tag; credentials come from secrets.estate_scan.
+
+CREATE ROLE OR REPLACE {{ estate_scan_clickhouse_role }} SETTINGS
+  readonly = 0,
+  max_execution_time = 60,
+  max_memory_usage = 1000000000,
+  max_threads = 2,
+  max_concurrent_queries_for_user = 4,
+  max_rows_to_read = 10000000,
+  max_bytes_to_read = 1000000000,
+  max_result_rows = 100000,
+  result_overflow_mode = 'throw';
+
+GRANT INSERT ON estate_scan.scan_runs TO {{ estate_scan_clickhouse_role }};
+GRANT INSERT ON estate_scan.assets TO {{ estate_scan_clickhouse_role }};
+GRANT INSERT ON estate_scan.services TO {{ estate_scan_clickhouse_role }};
+GRANT INSERT ON estate_scan.findings TO {{ estate_scan_clickhouse_role }};
+GRANT INSERT ON estate_scan.stage_artifacts TO {{ estate_scan_clickhouse_role }};
+GRANT INSERT ON estate_scan.probe_aggregates TO {{ estate_scan_clickhouse_role }};
+GRANT SELECT ON estate_scan.schema_migrations TO {{ estate_scan_clickhouse_role }};
+GRANT SELECT ON estate_scan.scan_runs TO {{ estate_scan_clickhouse_role }};
+GRANT SELECT ON estate_scan.assets TO {{ estate_scan_clickhouse_role }};
+GRANT SELECT ON estate_scan.services TO {{ estate_scan_clickhouse_role }};
+GRANT SELECT ON estate_scan.stage_artifacts TO {{ estate_scan_clickhouse_role }};
+
+CREATE USER OR REPLACE {{ estate_scan_clickhouse_user }}
+  IDENTIFIED WITH sha256_hash BY '{{ secrets.estate_scan.clickhouse_password | hash("sha256") }}'
+  HOST IP '{{ vm.estate_scanner.ip }}' GRANTEES NONE;
+GRANT {{ estate_scan_clickhouse_role }} TO {{ estate_scan_clickhouse_user }};
+ALTER USER {{ estate_scan_clickhouse_user }} DEFAULT ROLE {{ estate_scan_clickhouse_role }};
