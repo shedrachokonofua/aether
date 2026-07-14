@@ -32,6 +32,52 @@ scrape_configs:
         labels:
           instance_type: "proxmox_host"
 
+  # Aether site-fabric services. Identity is fabric → site → host → service;
+  # topology_role describes routing and is not part of identity.
+  - job_name: "site-node-exporter"
+    static_configs:
+      - targets: ["10.1.0.10:9100"]
+        labels:
+          fabric: "aether"
+          site: "aws"
+          host: "public-gateway"
+          service: "node-exporter"
+          topology_role: "hub"
+      - targets: ["10.2.0.10:9100"]
+        labels:
+          fabric: "aether"
+          site: "gcp"
+          host: "uptime-monitor"
+          service: "node-exporter"
+          topology_role: "spoke"
+
+  - job_name: "site-wireguard-exporter"
+    static_configs:
+      - targets: ["10.1.0.10:9586"]
+        labels:
+          fabric: "aether"
+          site: "aws"
+          host: "public-gateway"
+          service: "wireguard-exporter"
+          topology_role: "hub"
+      - targets: ["10.2.0.10:9586"]
+        labels:
+          fabric: "aether"
+          site: "gcp"
+          host: "uptime-monitor"
+          service: "wireguard-exporter"
+          topology_role: "spoke"
+
+  - job_name: "site-crowdsec"
+    static_configs:
+      - targets: ["10.1.0.10:6060"]
+        labels:
+          fabric: "aether"
+          site: "aws"
+          host: "public-gateway"
+          service: "crowdsec"
+          topology_role: "hub"
+
   # Physical Proxmox hosts - SMART Exporter
   - job_name: "proxmox-hosts-smart"
     scrape_interval: 60s # Less frequent for disk health

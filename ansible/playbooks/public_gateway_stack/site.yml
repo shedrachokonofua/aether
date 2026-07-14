@@ -3,6 +3,10 @@
   hosts: public-gateway
   gather_facts: true
   vars:
+    aether_identity:
+      fabric: aether
+      site: aws
+      host: public-gateway
     site_wireguard_listen_port: 51820
     site_wireguard_addresses:
       - 10.1.0.10/32
@@ -27,14 +31,35 @@
       - priority: 101
         match: from 10.2.0.0/16
     site_wireguard_enable_forwarding: true
-    site_wireguard_firewall_profile: hub
+    site_wireguard_topology_role: hub
+    site_wireguard_monitoring_ports:
+      - 19531
+      - 6060
+      - 9100
+      - 9586
+    # Personal clients manage each site host over WireGuard. Talos node SNAT is
+    # restricted to the CrowdSec sync account on this host by the router.
+    site_wireguard_input_allow_cidrs:
+      - 10.0.4.0/24
+      - "{{ vm.talos_trinity.ip }}/32"
+      - "{{ vm.talos_neo.ip }}/32"
+      - "{{ vm.talos_niobe.ip }}/32"
+      - "{{ vm.talos_smith.ip }}/32"
+      - "{{ vm.talos_tank.ip }}/32"
+      - "{{ vm.talos_dozer.ip }}/32"
+      - "{{ vm.talos_mouse.ip }}/32"
+      - "{{ vm.talos_sparks.ip }}/32"
+    site_wireguard_forward_allow_cidrs:
+      - 10.0.4.0/24
     site_wireguard_peers:
-      - name: home-vyos
+      - site: home
+        host: router
         public_key: "{{ secrets.wireguard.vyos_public_key }}"
         allowed_ips:
           - 10.0.0.0/16
           - 10.254.0.2/32
-      - name: gcp
+      - site: gcp
+        host: uptime-monitor
         public_key: "{{ secrets.wireguard.gcp_public_key }}"
         allowed_ips:
           - 10.2.0.0/16
@@ -43,6 +68,14 @@
     - common
     - role: site_wireguard
       tags: [site-wireguard]
+    - role: site_metrics_exporters
+      vars:
+        wireguard_exporter_container_engine: docker
+        wireguard_exporter_peers: "{{ site_wireguard_peers }}"
+        wireguard_exporter_interface: "{{ site_wireguard_interface }}"
+        node_exporter_listen_address: 10.1.0.10
+        wireguard_exporter_listen_address: 10.1.0.10
+      tags: [site-metrics]
     - role: journal_gateway
       vars:
         journal_gateway_tls_enabled: false

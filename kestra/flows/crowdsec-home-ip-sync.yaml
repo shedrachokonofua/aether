@@ -1,0 +1,34 @@
+id: crowdsec-home-ip-sync
+namespace: aether.network
+
+description: |
+  Reconcile the current home WAN egress address into the public gateway's
+  centralized CrowdSec allowlist over routed WireGuard. The gateway SSH key is
+  forced-command only; the remote command validates one IPv4 address, adds it
+  before removing the prior address, and is idempotent when the IP is unchanged.
+
+concurrency:
+  behavior: QUEUE
+  limit: 1
+
+tasks:
+  - id: detect_home_ip
+    type: io.kestra.plugin.core.http.Request
+    uri: https://api.ipify.org
+    method: GET
+
+  - id: reconcile_crowdsec
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.crowdsec_gateway_host }}"
+    username: "{{ envs.crowdsec_gateway_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('CROWDSEC_GATEWAY_SSH_KEY') }}"
+    # The plugin has no knownHosts property; the remote key is forced-command only.
+    strictHostKeyChecking: "false"
+    commands:
+      - "sync {{ outputs.detect_home_ip.body | trim }}"
+
+triggers:
+  - id: every_five_minutes
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "*/5 * * * *"

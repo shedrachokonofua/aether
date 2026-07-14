@@ -436,11 +436,19 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/keycloak/deploy_keycloak.yml]
   configure:public-gateway:
     cmds: [ansible-playbook ansible/playbooks/public_gateway_stack/site.yml]
-  configure:cloud-wireguard:
-    desc: Configure routed WireGuard on AWS and GCP cloud peers
+  configure:site-fabric:
+    desc: Reconcile the aether fabric across home, AWS, and GCP
     cmds:
+      - ansible-playbook ansible/playbooks/home_router/configure_router.yml --tags site-wireguard
       - ansible-playbook ansible/playbooks/public_gateway_stack/site.yml --tags site-wireguard
       - ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml --tags site-wireguard
+  configure:site-metrics:
+    desc: Deploy and scrape services attached to the aether fabric
+    cmds:
+      - task: configure:site-fabric
+      - ansible-playbook ansible/playbooks/public_gateway_stack/site.yml --tags site-metrics
+      - ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml --tags site-metrics
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags prometheus
   configure:uptime-monitor:
     desc: Deploy the GCP uptime monitor and its routed WireGuard site connection
     cmds: [ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml]

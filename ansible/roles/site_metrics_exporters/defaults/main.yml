@@ -1,0 +1,16 @@
+---
+node_exporter_version: "1.12.0"
+node_exporter_archive_sha256: "b206d98e98a431f2687d4c217abb4b15c46a6b272896113ce9a1585cf1a75d1f"
+node_exporter_listen_address: "127.0.0.1"
+node_exporter_port: 9100
+
+wireguard_exporter_container_engine: "podman"
+wireguard_exporter_image: "docker.io/mindflavor/prometheus-wireguard-exporter@sha256:3d46c76371f8272ee6d87c5bf9337f444527601e2812ebec7d3e0174cc7ceb6c"
+wireguard_exporter_interface: "wg-site"
+wireguard_exporter_handshake_delay_enabled: true
+wireguard_exporter_config_dir: "/etc/aether-wireguard-exporter"
+wireguard_exporter_peer_config_path: "{{ wireguard_exporter_config_dir }}/peers.conf"
+wireguard_exporter_peers: []
+
+wireguard_exporter_listen_address: "127.0.0.1"
+wireguard_exporter_port: 9586

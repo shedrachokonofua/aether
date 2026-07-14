@@ -1,0 +1,9 @@
+# Public peer metadata for prometheus_wireguard_exporter.
+# This intentionally excludes the interface private key.
+{% for peer in wireguard_exporter_peers %}
+[Peer]
+# friendly_json = {{ {'peer_site': peer.site, 'peer_host': peer.host} | to_json }}
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ peer.allowed_ips | join(', ') }}
+
+{% endfor %}
