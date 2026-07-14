@@ -2,14 +2,14 @@
 
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
-**Status (honest, 2026-07-13):** Phase 3.5 L7 acceptance is met on the live
-guest. Full-fingerprint `nuclei-daily` run `4017b09c-…` finished with ClickHouse
-`scan_runs.status=succeeded`, `profile=nuclei-daily`, `probe_count=23`, and **23
-open findings** (including controlled fixture `aether-estate-scan-fixture`, plus
-estate hits such as `CVE-2026-22557` and `prometheus-metrics`). Bookkeeping,
-full-vs-changed artifacts, Kestra flow IaC, and orphan reap are live. **Phase 4
-schedules are still off** — enable only after reviewing open findings. Supersedes
-the Kubernetes Nuclei placement proposed in `network-security.md`.
+**Status (honest, 2026-07-14):** Inventory + curated daily L7 + Kestra E2E are
+live. UniFi pinned to `version-10.1.89` (CVE-2026-22557 closed-loop resolved);
+ceph-csi nodeplugin `httpMetrics` off; insert-time accepted findings +
+resolve-on-absence; `coverage_ratio` is attempt completeness. Daily schedule
+`15 5 * * *` America/New_York enabled on `estate-scan-home`. SSH host-key pin
+still deferred (plugin lacks `knownHosts`). Weekly broad catalogs and cloud/
+VLAN expansion remain later. Supersedes the Kubernetes Nuclei placement proposed
+in `network-security.md`.
 
 Guest: neo LXC `1036` / `10.0.2.13`. ClickHouse `estate_scan`, Grafana
 `uid: estate-scan`, Kestra `aether.estate/estate-scan-home` managed by

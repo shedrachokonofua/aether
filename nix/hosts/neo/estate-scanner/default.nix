@@ -124,6 +124,19 @@ let
     hash = "sha256-6czf84bHyvHIT9rA2HUYqQe7lgODl4uRMP/8QepV3AU=";
   };
 
+  # Small allowlist for nuclei-daily — full http/exposures (~700) deadlocks Nuclei 3.5.1.
+  dailyTemplateRels =
+    lib.filter (s: s != "" && !(lib.hasPrefix "#" s)) (
+      lib.splitString "\n" (builtins.readFile ./nuclei-daily-templates.txt)
+    );
+  nucleiDailyTemplates = pkgs.runCommand "estate-nuclei-daily" { } ''
+    mkdir -p "$out"
+    ${lib.concatMapStrings (rel: ''
+      mkdir -p "$out/$(dirname ${lib.escapeShellArg rel})"
+      ln -s ${nucleiTemplates}/${rel} "$out/${lib.escapeShellArg rel}"
+    '') dailyTemplateRels}
+  '';
+
   # Classify declared addresses into scan target groups by prefix / name.
   groupFor = name: ip:
     let
@@ -243,6 +256,7 @@ let
     runs_dir = runsDir;
     artifacts_dir = artifactsDir;
     templates_dir = templatesDir;
+    nuclei_daily_templates_dir = "/etc/estate-scanner/nuclei-daily";
     lock_file = lockFile;
     declared_targets = "/etc/estate-scanner/declared-targets.json";
     inventory_declared = "/etc/estate-scanner/inventory-declared.json";
@@ -254,6 +268,26 @@ let
     inventory_max_names = 500;
     # Hostname L7: internal only for daily Nuclei (public/tunnel via CF hangs CLOSE-WAIT).
     inventory_l7_exposures = [ "internal" ];
+    # Declared accepted findings — write-findings! stamps state=suppressed at
+    # insert so the next run does not re-open them. Match is on the same
+    # finding_key inputs (template|host|port|matcher). Keep prometheus-metrics
+    # in the daily template pack as a drift tripwire for unexpected hosts.
+    accepted_findings = [
+      {
+        template_id = "prometheus-metrics";
+        host = "10.0.2.6";
+        port = 8000;
+        matcher = "";
+        reason = "apprise metrics on scrape VLAN (accepted)";
+      }
+      {
+        template_id = "aether-estate-scan-fixture";
+        host = "127.0.0.1";
+        port = 18080;
+        matcher = "fixture-marker";
+        reason = "controlled canary";
+      }
+    ];
     naabu = "${naabuWrapped}/bin/naabu";
     httpx = "${httpxWrapped}/bin/httpx";
     nuclei = "${nucleiWrapped}/bin/nuclei";
@@ -447,6 +481,10 @@ in
           - dos
           - fuzz
           - intrusive
+        # No unauthenticated kubelet on Talos (TLS :10250 only). Prior hits were
+        # ceph-csi nodeplugin metrics/pprof on :8080/:8081 (since disabled).
+        exclude-templates:
+          - http/cves/2019/CVE-2019-11248.yaml
       '';
       "estate-scanner/nuclei-profiles/nuclei-weekly.yml".text = ''
         severity:
@@ -461,8 +499,12 @@ in
           - dos
           - fuzz
           - intrusive
+        # Same as daily — Talos has no unauthenticated kubelet debug port.
+        exclude-templates:
+          - http/cves/2019/CVE-2019-11248.yaml
       '';
       "estate-scanner/nuclei-fixtures/aether-estate-scan-fixture.yaml".source = nucleiFixtureTemplate;
+      "estate-scanner/nuclei-daily".source = nucleiDailyTemplates;
       "estate-scanner/declared-targets.json".source = declaredTargetsJson;
     }
     // lib.listToAttrs (

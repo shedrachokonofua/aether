@@ -8,6 +8,7 @@ description: |
   inventory-sync refreshes synthetic_probe + CT hostname inventory (CT-only report-only).
   validate merges IP fingerprint URLs with declared hostname HTTPS in one Nuclei pass.
   l7_scope=full fingerprints services-all.jsonl (baseline); changed uses deltas only.
+  On flow failure, abandon the minted run so CH is not left running until reap-stale.
 
 concurrency:
   behavior: QUEUE
@@ -38,8 +39,8 @@ tasks:
     username: "{{ envs.estate_scanner_user }}"
     authMethod: PUBLIC_KEY
     privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
-    # Plugin has no knownHosts property yet; pin before Phase 4 calendars
-    # (host key in config/ssh/estate-scanner.known_hosts).
+    # Plugin has no knownHosts property yet; host key is recorded in
+    # config/ssh/estate-scanner.known_hosts for when the plugin grows support.
     strictHostKeyChecking: "false"
     commands:
       - "targets snapshot {{ outputs.mint_run_id.value }} {{ inputs.profile }}"
@@ -134,4 +135,22 @@ tasks:
     commands:
       - "finalize {{ outputs.mint_run_id.value }}"
 
-triggers: []
+errors:
+  - id: abandon_on_failure
+    type: io.kestra.plugin.fs.ssh.Command
+    allowFailure: true
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    # mint_run_id is always first; allowFailure if mint never produced a UUID.
+    commands:
+      - "abandon {{ outputs.mint_run_id.value }} kestra-flow-failed"
+
+triggers:
+  # Phase 4: daily nuclei-daily home estate. Six-hour discovery / weekly / monthly later.
+  - id: daily
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "15 5 * * *"
+    timezone: America/New_York

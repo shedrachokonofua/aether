@@ -37,9 +37,10 @@ resource "helm_release" "ceph_csi_fs" {
   name       = "ceph-csi-cephfs"
   repository = "https://ceph.github.io/csi-charts"
   chart      = "ceph-csi-cephfs"
+  version    = "3.17.0"
   namespace  = module.namespace["ceph-csi-cephfs"].name
   wait       = true
-  timeout    = 600
+  timeout    = 1200
 
   values = [yamlencode({
     csiConfig = [{
@@ -54,8 +55,10 @@ resource "helm_release" "ceph_csi_fs" {
     # Set modest requests on every nodeplugin + provisioner container so the
     # DaemonSet schedules cluster-wide.
     nodeplugin = {
-      registrar = { resources = { requests = { cpu = "10m", memory = "32Mi" } } }
-      plugin    = { resources = { requests = { cpu = "50m", memory = "128Mi" } } }
+      # Same pprof-on-metrics mux as RBD; nothing scrapes these ports.
+      httpMetrics = { enabled = false }
+      registrar   = { resources = { requests = { cpu = "10m", memory = "32Mi" } } }
+      plugin      = { resources = { requests = { cpu = "50m", memory = "128Mi" } } }
     }
     provisioner = {
       replicaCount = 1

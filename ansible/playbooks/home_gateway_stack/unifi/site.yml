@@ -62,7 +62,9 @@
     - name: Create unifi-network-application container
       containers.podman.podman_container:
         name: unifi-network-application
-        image: lscr.io/linuxserver/unifi-network-application:latest
+        # Pin explicit release — :latest froze at 9.0.114 and missed SAB-062
+        # (CVE-2026-22557). Fixed floor is 10.1.89+ (or 9.0.118+ on 9.0.x).
+        image: lscr.io/linuxserver/unifi-network-application:version-10.1.89
         state: quadlet
         pod: unifi.pod
         env:
