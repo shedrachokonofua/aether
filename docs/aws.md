@@ -44,12 +44,13 @@ Trust anchor for step-ca certificates, enabling certificate-based AWS authentica
 
 ### Public Gateway
 
-Lightsail instance in us-east-1b running Amazon Linux 2023 on nano bundle, serving as a public entry point to expose internal home network applications. Acts as a DMZ, bridging the public internet with the private Tailscale network via Caddy reverse proxy.
+Lightsail instance in us-east-1b running Amazon Linux 2023 on nano bundle, serving as a public entry point to expose internal home network applications. Acts as a DMZ, bridging the public internet with the home network over routed WireGuard via the Caddy reverse proxy.
 
 - Static IP address
 - SSH (port 22) and HTTPS (port 443) exposed
 - Dedicated key pair for access
 - CrowdSec IDS/IPS (see Networking)
+- Home WAN CrowdSec allowlist reconciled by Kestra over a forced-command WireGuard SSH path
 
 ## Storage
 

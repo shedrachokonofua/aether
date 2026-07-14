@@ -1,0 +1,29 @@
+[Unit]
+Description=Aether node exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=true
+ExecStart=/usr/local/bin/node_exporter \
+  --web.listen-address={{ node_exporter_listen_address }}:{{ node_exporter_port }} \
+  --collector.filesystem.mount-points-exclude='^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/.+)($|/)' \
+  --collector.netclass.ignored-devices='^(veth.*|br-.*|docker.*|virbr.*|lxcbr.*)$' \
+  --collector.netdev.device-exclude='^(veth.*|br-.*|docker.*|virbr.*|lxcbr.*)$'
+Restart=always
+RestartSec=5s
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,10 @@
 ---
-site_wireguard_interface: wg-cloud
+aether_identity:
+  fabric: aether
+  site: null
+  host: null
+site_wireguard_interface: wg-site
+site_wireguard_retired_interfaces: []
 site_wireguard_mtu: 1380
 site_wireguard_listen_port: null
 site_wireguard_addresses: []
@@ -8,4 +13,9 @@ site_wireguard_source_address: null
 site_wireguard_remote_prefixes: []
 site_wireguard_policy_rules: []
 site_wireguard_enable_forwarding: false
-site_wireguard_firewall_profile: spoke
+site_wireguard_topology_role: spoke
+site_wireguard_input_allow_cidrs: []
+site_wireguard_forward_allow_cidrs: []
+site_wireguard_monitoring_source: 10.0.2.3
+site_wireguard_monitoring_ports:
+  - 19531

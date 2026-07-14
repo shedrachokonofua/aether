@@ -6,6 +6,13 @@
     - common
   vars:
     ansible_persistent_connect_timeout: 0
+    aether_identity:
+      fabric: aether
+      site: home
+      host: router
+    site_wireguard_peer:
+      site: aws
+      host: public-gateway
   tasks:
     - name: Remove default vyos user
       vyos.vyos.vyos_config:
@@ -30,21 +37,23 @@
           - set interfaces pppoe pppoe0 ip adjust-mss 1452
         save: true
 
-    - name: Configure routed WireGuard cloud fabric
+    - name: Configure routed WireGuard site fabric
       vyos.vyos.vyos_config:
         lines:
           - set interfaces wireguard wg10 address 10.254.0.2/32
-          - set interfaces wireguard wg10 description 'Aether cloud fabric via AWS hub'
+          - set interfaces wireguard wg10 description 'Fabric {{ aether_identity.fabric }}; site {{ aether_identity.site }}; host {{ aether_identity.host }}'
           - set interfaces wireguard wg10 mtu 1380
           - set interfaces wireguard wg10 private-key {{ secrets.wireguard.vyos_private_key }}
-          - set interfaces wireguard wg10 peer aws-hub address {{ tf_outputs.aws_public_gateway_ip.value }}
-          - set interfaces wireguard wg10 peer aws-hub port 51820
-          - set interfaces wireguard wg10 peer aws-hub public-key {{ secrets.wireguard.aws_public_key }}
-          - set interfaces wireguard wg10 peer aws-hub persistent-keepalive 25
-          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.1.0.0/16
-          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.2.0.0/16
-          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.254.0.1/32
-          - set interfaces wireguard wg10 peer aws-hub allowed-ips 10.254.0.3/32
+          - delete interfaces wireguard wg10 peer aws-hub
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} address {{ tf_outputs.aws_public_gateway_ip.value }}
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} description 'Fabric {{ aether_identity.fabric }}; site {{ site_wireguard_peer.site }}; host {{ site_wireguard_peer.host }}'
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} port 51820
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} public-key {{ secrets.wireguard.aws_public_key }}
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} persistent-keepalive 25
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.1.0.0/16
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.2.0.0/16
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.254.0.1/32
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.254.0.3/32
           - set protocols static route 10.1.0.0/16 interface wg10
           - set protocols static route 10.2.0.0/16 interface wg10
         save: true
@@ -369,8 +378,8 @@
           - set firewall ipv4 name LOCAL-to-ZONES default-action accept
           - set firewall ipv4 name LOCAL-to-ZONES description 'Allow router to access all zones'
 
-          # Cloud fabric policy. AWS public ingress reaches only home Caddy;
-          # GCP retains uptime checks; monitoring alone may pull cloud journals.
+          # Site-fabric policy. AWS public ingress reaches only home Caddy;
+          # GCP retains uptime checks; monitoring alone may pull site journals.
           - set firewall ipv4 name CLOUD-to-TRUSTED default-action drop
           - set firewall ipv4 name CLOUD-to-TRUSTED rule 10 action accept
           - set firewall ipv4 name CLOUD-to-TRUSTED rule 10 state established
@@ -395,18 +404,26 @@
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 protocol tcp
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 source address {{ vm.monitoring_stack.ip }}
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 destination address 10.1.0.10/32
-          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 destination port 19531
-          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 description 'Monitoring pulls AWS journal gateway'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 destination port 6060,9100,9586,19531
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 20 description 'Monitoring pulls AWS metrics and journals'
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 action accept
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 protocol tcp
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 source address {{ vm.monitoring_stack.ip }}
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 destination address 10.2.0.10/32
-          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 destination port 19531
-          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 description 'Monitoring pulls GCP journal gateway'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 destination port 9100,9586,19531
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 description 'Monitoring pulls GCP metrics and journals'
+          # Personal clients retain full site-host management over WireGuard.
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 source address 10.0.4.0/24
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 description 'Personal VLAN manages site hosts over WireGuard'
           - set firewall ipv4 name CLOUD-to-LOCAL default-action drop
           - set firewall ipv4 name CLOUD-to-LOCAL rule 10 action accept
           - set firewall ipv4 name CLOUD-to-LOCAL rule 10 state established
           - set firewall ipv4 name CLOUD-to-LOCAL rule 10 state related
+          - set firewall ipv4 name CLOUD-to-SERVICES default-action drop
+          - set firewall ipv4 name CLOUD-to-SERVICES rule 10 action accept
+          - set firewall ipv4 name CLOUD-to-SERVICES rule 10 state established
+          - set firewall ipv4 name CLOUD-to-SERVICES rule 10 state related
           - set firewall ipv4 name LOCAL-to-CLOUD default-action accept
 
           # Configure trusted zones full access
@@ -525,6 +542,18 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 destination address {{ vm.estate_scanner.ip }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 source group address-group TALOS-NODES
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 description 'Allow Kestra SSH dispatch to estate-scanner'
+          # Kestra reconciles the home WAN CrowdSec allowlist through the AWS
+          # gateway's forced-command account; no other cloud destination/port.
+          - set firewall ipv4 name SERVICES-to-CLOUD default-action drop
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 10 action accept
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 10 state established
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 10 state related
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 20 action accept
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 20 protocol tcp
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 20 destination port 22
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 20 destination address 10.1.0.10/32
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 20 source group address-group TALOS-NODES
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 20 description 'Allow Kestra CrowdSec IP sync over WireGuard'
           - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
           - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
           - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept
@@ -598,6 +627,8 @@
           - set firewall zone UNTRUSTED from SERVICES firewall name SERVICES-to-UNTRUSTED
           - set firewall zone CLOUD from TRUSTED firewall name TRUSTED-to-CLOUD
           - set firewall zone TRUSTED from CLOUD firewall name CLOUD-to-TRUSTED
+          - set firewall zone CLOUD from SERVICES firewall name SERVICES-to-CLOUD
+          - set firewall zone SERVICES from CLOUD firewall name CLOUD-to-SERVICES
           - set firewall zone SERVICES from MEDIA firewall name MEDIA-to-SERVICES
           - set firewall zone TRUSTED from MEDIA firewall name MEDIA-to-TRUSTED
           - set firewall zone MGMT from MEDIA firewall name MEDIA-to-MGMT

@@ -2,11 +2,27 @@
 - name: Validate site WireGuard variables
   ansible.builtin.assert:
     that:
+      - aether_identity.fabric is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - aether_identity.site is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - aether_identity.host is match('^[a-z0-9][a-z0-9-]{0,62}$')
       - site_wireguard_private_key | length > 0
       - site_wireguard_addresses | length > 0
       - site_wireguard_peers | length > 0
-      - site_wireguard_firewall_profile in ['hub', 'spoke']
+      - site_wireguard_topology_role in ['hub', 'spoke']
     quiet: true
+  no_log: true
+
+- name: Validate site WireGuard peer identities
+  ansible.builtin.assert:
+    that:
+      - item.site is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - item.host is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - item.public_key | length > 0
+      - item.allowed_ips | length > 0
+    quiet: true
+  loop: "{{ site_wireguard_peers }}"
+  loop_control:
+    label: "{{ item.site }}/{{ item.host }}"
   no_log: true
 
 - name: Install WireGuard and nftables
@@ -56,6 +72,25 @@
   changed_when: true
   failed_when: false
 
+- name: Stop retired site WireGuard units
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ item }}"
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  become: true
+  loop: "{{ site_wireguard_retired_interfaces }}"
+  when: item != site_wireguard_interface
+  failed_when: false
+
+- name: Remove retired site WireGuard configurations
+  ansible.builtin.file:
+    path: "/etc/wireguard/{{ item }}.conf"
+    state: absent
+  become: true
+  loop: "{{ site_wireguard_retired_interfaces }}"
+  when: item != site_wireguard_interface
+
 - name: Start site WireGuard after configuration changes
   ansible.builtin.systemd:
     name: "wg-quick@{{ site_wireguard_interface }}"
@@ -67,17 +102,24 @@
 - name: Configure routed-network sysctls
   ansible.builtin.template:
     src: sysctl.conf.j2
-    dest: /etc/sysctl.d/90-aether-site-wireguard.conf
+    dest: /etc/sysctl.d/90-aether-wireguard.conf
     owner: root
     group: root
     mode: "0644"
   become: true
   register: site_wireguard_sysctl
 
+- name: Remove retired site-fabric sysctl configuration
+  ansible.builtin.file:
+    path: /etc/sysctl.d/90-aether-site-wireguard.conf
+    state: absent
+  become: true
+  register: site_wireguard_retired_sysctl
+
 - name: Apply routed-network sysctls
   ansible.builtin.command: sysctl --system
   become: true
-  when: site_wireguard_sysctl.changed
+  when: site_wireguard_sysctl.changed or site_wireguard_retired_sysctl.changed
   changed_when: true
 
 - name: Configure WireGuard firewall rules

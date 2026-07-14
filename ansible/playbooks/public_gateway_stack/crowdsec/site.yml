@@ -90,6 +90,50 @@
         mode: "0644"
       notify: Restart CrowdSec
 
+    - name: Expose CrowdSec metrics on routed WireGuard
+      ansible.builtin.lineinfile:
+        path: /etc/crowdsec/config.yaml
+        regexp: '^  listen_addr:'
+        line: '  listen_addr: 10.1.0.10'
+      notify: Restart CrowdSec
+      tags: [site-metrics]
+
+    - name: Create Kestra CrowdSec sync account
+      user:
+        name: kestra-crowdsec
+        comment: Kestra CrowdSec home IP reconciler
+        home: /var/lib/kestra-crowdsec
+        shell: /bin/bash
+        create_home: true
+        password_lock: true
+
+    - name: Install CrowdSec home IP sync command
+      copy:
+        src: crowdsec-home-ip-sync.sh
+        dest: /usr/local/sbin/aether-crowdsec-home-ip-sync
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Restrict CrowdSec sync sudo access
+      copy:
+        dest: /etc/sudoers.d/kestra-crowdsec
+        content: |
+          kestra-crowdsec ALL=(root) NOPASSWD: /usr/local/sbin/aether-crowdsec-home-ip-sync *
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Authorize the forced-command Kestra sync key
+      authorized_key:
+        user: kestra-crowdsec
+        key: "{{ lookup('file', aether_root + '/config/ssh/kestra-estate-scanner.pub') }}"
+        key_options: 'restrict,command="/usr/local/sbin/aether-crowdsec-home-ip-sync"'
+        exclusive: true
+        state: present
+
+
     # TEMPORARY: whitelist 401s on outline.seven30.xyz to stop false-positive
     # http-generic-401-bf bans. Root cause is old browser tabs loaded at the
     # legacy outline.mars.seven30.xyz origin — their SPAs poll outline.seven30.xyz

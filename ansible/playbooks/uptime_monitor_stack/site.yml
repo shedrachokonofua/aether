@@ -3,6 +3,10 @@
   hosts: uptime-monitor
   gather_facts: true
   vars:
+    aether_identity:
+      fabric: aether
+      site: gcp
+      host: uptime-monitor
     site_wireguard_addresses:
       - 10.2.0.10/32
       - 10.254.0.3/32
@@ -11,9 +15,16 @@
     site_wireguard_remote_prefixes:
       - 10.0.0.0/16
       - 10.1.0.0/16
-    site_wireguard_firewall_profile: spoke
+    site_wireguard_topology_role: spoke
+    site_wireguard_input_allow_cidrs:
+      - 10.0.4.0/24
+    site_wireguard_monitoring_ports:
+      - 19531
+      - 9100
+      - 9586
     site_wireguard_peers:
-      - name: aws-hub
+      - site: aws
+        host: public-gateway
         public_key: "{{ secrets.wireguard.aws_public_key }}"
         endpoint: "{{ tf_outputs.aws_public_gateway_ip.value }}:51820"
         persistent_keepalive: 25
@@ -26,6 +37,13 @@
     - common
     - role: site_wireguard
       tags: [site-wireguard]
+    - role: site_metrics_exporters
+      vars:
+        wireguard_exporter_peers: "{{ site_wireguard_peers }}"
+        wireguard_exporter_interface: "{{ site_wireguard_interface }}"
+        node_exporter_listen_address: 10.2.0.10
+        wireguard_exporter_listen_address: 10.2.0.10
+      tags: [site-metrics]
     - role: journal_gateway
       vars:
         journal_gateway_tls_enabled: false

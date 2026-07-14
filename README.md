@@ -173,6 +173,7 @@ task bootstrap                # backend CloudFormation stack + config/tofu-state
 | [Hosts](docs/hosts.md) | Physical hosts and roles |
 | [Virtual Machines](docs/virtual-machines.md) | VM/LXC placement and capacity |
 | [Networking](docs/networking.md) | VLANs, firewall, DNS, gateways, and routing |
+| [Naming Ontology](docs/naming.md) | Fabric, site, host, service, and topology identity |
 | [Storage](docs/storage.md) | Ceph, ZFS, NFS, SMB, and CephFS |
 | [Backups](docs/backups.md) | PBS, database, volume, and offsite backups |
 | [PaaS](docs/paas.md) | Talos Kubernetes and platform services |
