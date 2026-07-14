@@ -18,11 +18,15 @@ GRANT INSERT ON estate_scan.services TO {{ estate_scan_clickhouse_role }};
 GRANT INSERT ON estate_scan.findings TO {{ estate_scan_clickhouse_role }};
 GRANT INSERT ON estate_scan.stage_artifacts TO {{ estate_scan_clickhouse_role }};
 GRANT INSERT ON estate_scan.probe_aggregates TO {{ estate_scan_clickhouse_role }};
+GRANT INSERT ON estate_scan.inventory_observations TO {{ estate_scan_clickhouse_role }};
+GRANT INSERT ON estate_scan.inventory_names TO {{ estate_scan_clickhouse_role }};
 GRANT SELECT ON estate_scan.schema_migrations TO {{ estate_scan_clickhouse_role }};
 GRANT SELECT ON estate_scan.scan_runs TO {{ estate_scan_clickhouse_role }};
 GRANT SELECT ON estate_scan.assets TO {{ estate_scan_clickhouse_role }};
 GRANT SELECT ON estate_scan.services TO {{ estate_scan_clickhouse_role }};
 GRANT SELECT ON estate_scan.stage_artifacts TO {{ estate_scan_clickhouse_role }};
+GRANT SELECT ON estate_scan.inventory_observations TO {{ estate_scan_clickhouse_role }};
+GRANT SELECT ON estate_scan.inventory_names TO {{ estate_scan_clickhouse_role }};
 
 CREATE USER OR REPLACE {{ estate_scan_clickhouse_user }}
   IDENTIFIED WITH sha256_hash BY '{{ secrets.estate_scan.clickhouse_password | hash("sha256") }}'

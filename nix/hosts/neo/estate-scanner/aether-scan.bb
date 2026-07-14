@@ -13,6 +13,7 @@
            [java.nio.charset StandardCharsets]
            [java.security MessageDigest]
            [java.time Instant]
+           [java.net InetAddress]
            [java.util Base64]
            [java.util.concurrent TimeUnit]))
 
@@ -21,6 +22,7 @@
 
 Usage:
   aether-scan targets snapshot <run-id> <profile>
+  aether-scan inventory-sync [<run-id>]
   aether-scan discover <run-id> <target-group>
   aether-scan merge-diff <run-id>
   aether-scan fingerprint <run-id> <service-artifact>
@@ -33,9 +35,12 @@ Usage:
   aether-scan worker fingerprint <run-id> <service-artifact>
   aether-scan worker validate <run-id> <service-artifact> <approved-profile>
   aether-scan status <run-id> <stage> [target-group]
+  aether-scan wait-stage <run-id> <stage> [target-group] [timeout-seconds]
 
 Rejects caller-supplied shell, rates, templates, targets, and output paths.
 discover/fingerprint/validate accept and detach; worker stages perform the work.
+inventory-sync refreshes CT + DNS from baked synthetic_probe inventory (CT-only is report-only).
+wait-stage polls on-guest status.json (avoids Kestra LoopUntil + SSH exitCode gaps).
 ingest-validate reloads an on-disk validate-*.jsonl into ClickHouse without re-scanning.
 abandon/reap-stale close orphan ClickHouse scan_runs rows.")
 
@@ -44,6 +49,12 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
 
 (def reason-token-re
   #"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+(def ipv4-re
+  #"^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$")
+
+(def shdr-hostname-re
+  #"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.shdr\.ch$")
 
 (def aether-scan-bin
   (or (System/getenv "AETHER_SCAN_BIN")
@@ -79,11 +90,45 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         bytes (.digest digest (.getBytes (str s) StandardCharsets/UTF_8))]
     (format "%064x" (BigInteger. 1 bytes))))
 
+(defn ipv4-literal? [s]
+  (boolean (re-matches ipv4-re (str s))))
+
+(defn canonicalize-hostname
+  "Lowercase, trim trailing dot, reject wildcards / non-shdr.ch."
+  [s]
+  (when-not (str/blank? s)
+    (let [n (-> (str s)
+                str/lower-case
+                (str/replace #"\.$" "")
+                str/trim)]
+      (when (and (not (str/starts-with? n "*."))
+                 (re-matches shdr-hostname-re n))
+        n))))
+
+(defn stable-identity-for
+  "ipv4:<addr> for literals; dns:<fqdn> for hostnames."
+  [host]
+  (let [h (str host)]
+    (if (ipv4-literal? h)
+      (str "ipv4:" h)
+      (str "dns:" (or (canonicalize-hostname h) (str/lower-case h))))))
+
 (defn asset-id-for [address]
-  (sha256-hex (str "ipv4:" address)))
+  (sha256-hex (stable-identity-for address)))
 
 (defn service-id-for [address transport port]
   (sha256-hex (str address "|" transport "|" port)))
+
+(defn finding-host-from-row
+  "Prefer URL hostname so Nuclei SNI findings join dns: assets."
+  [row]
+  (or (some-> (:url row)
+              (str/replace #"^https?://" "")
+              (str/split #"/|:|]")
+              first
+              not-empty)
+      (:host row)
+      (:ip row)))
 
 (defn parse-args [args]
   (if (seq args)
@@ -316,7 +361,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         asset-hosts (if declared? hosts open-hosts)
         assets (mapv (fn [address]
                        {:asset_id (asset-id-for address)
-                        :stable_identity (str "ipv4:" address)
+                        :stable_identity (stable-identity-for address)
                         :ipv4 address
                         :ipv6 nil
                         :dns_names []
@@ -398,6 +443,311 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                         :stage "targets"
                         :status "succeeded"
                         :message "declared target snapshot frozen"})))
+
+(defn resolve-a-record
+  "Best-effort A lookup; returns dotted IPv4 string or nil."
+  [hostname]
+  (try
+    (let [addrs (InetAddress/getAllByName (str hostname))]
+      (->> addrs
+           (map #(.getHostAddress %))
+           (filter ipv4-literal?)
+           first))
+    (catch Exception _ nil)))
+
+(defn fetch-ct-names!
+  "Query fixed crt.sh URL with retries. Returns {:status :names}."
+  [cfg]
+  (let [curl (or (:curl cfg) "curl")
+        url (or (:ct_query_url cfg) "https://crt.sh/?q=%25.shdr.ch&output=json")
+        timeout-ms (long (or (:ct_timeout_ms cfg) 60000))
+        timeout-s (max 5 (int (/ timeout-ms 1000)))
+        attempts (long (or (:ct_retries cfg) 3))]
+    (loop [n 1
+           last-msg ""]
+      (let [tmp (str "/tmp/estate-ct-" (System/currentTimeMillis) "-" n ".json")
+            result
+            (try
+              (let [proc @(proc/process
+                           [curl "-sS" "--max-time" (str timeout-s) "-o" tmp url]
+                           {:out :string :err :string})
+                    body (when (fs/exists? tmp) (slurp tmp))
+                    err (str/trim (str (:err proc)))]
+                (cond
+                  (not (zero? (:exit proc)))
+                  {:status "error" :names [] :message (str "curl exit " (:exit proc) " " err)}
+
+                  (or (str/blank? body) (str/starts-with? (str/trim body) "<"))
+                  {:status "error" :names [] :message (str "ct non-json body len="
+                                                           (count (str body)))}
+
+                  :else
+                  (let [rows (try (json/parse-string body true)
+                                  (catch Exception e {:parse-error (.getMessage e)}))]
+                    (if (:parse-error rows)
+                      {:status "error" :names [] :message (str "ct json parse failed: "
+                                                               (:parse-error rows))}
+                      (let [names (->> (if (sequential? rows) rows [])
+                                       (mapcat (fn [row]
+                                                 (let [nv (or (:name_value row)
+                                                              (:common_name row) "")]
+                                                   (str/split (str nv) #"[\s,]+"))))
+                                       (map canonicalize-hostname)
+                                       (remove nil?)
+                                       distinct
+                                       vec)]
+                        {:status "ok" :names names
+                         :message (str "ct names=" (count names))})))))
+              (catch Exception e
+                {:status "error" :names [] :message (.getMessage e)})
+              (finally
+                (fs/delete-if-exists tmp)))]
+        (cond
+          (= "ok" (:status result)) result
+          (>= n attempts) (assoc result :message (str (:message result)
+                                                      (when-not (str/blank? last-msg)
+                                                        (str "; prior=" last-msg))))
+          :else (do
+                  (Thread/sleep (* 2000 n))
+                  (recur (inc n) (:message result))))))))
+
+(defn load-ct-last-good
+  [inventory-dir]
+  (let [path (str inventory-dir "/ct-last-good.json")]
+    (when (fs/exists? path)
+      (try
+        (let [body (json/parse-string (slurp path) true)]
+          {:names (or (:names body) [])
+           :fetched_at (:fetched_at body)})
+        (catch Exception _ nil)))))
+
+(defn write-ct-last-good!
+  [inventory-dir names]
+  (let [path (str inventory-dir "/ct-last-good.json")
+        tmp (str path ".tmp")]
+    (fs/create-dirs inventory-dir)
+    (spit tmp (str (json/generate-string
+                    {:fetched_at (now-iso)
+                     :names names}
+                    {:pretty true})
+                   "\n"))
+    (fs/move tmp path {:replace-existing true})
+    (try
+      (fs/set-posix-file-permissions path "rw-rw-r--")
+      (catch Exception _ nil))))
+
+(defn inventory-sync!
+  "Merge baked synthetic_probe inventory with CT; CT-only is report-only."
+  [cfg run-id]
+  (let [{:keys [inventory_declared inventory_dir inventory_revision
+                inventory_max_names artifacts_dir]} cfg
+        inv-dir (or inventory_dir "/var/lib/estate-scanner/inventory")
+        max-n (long (or inventory_max_names 500))
+        started-at (now-ch)
+        declared-path (or inventory_declared "/etc/estate-scanner/inventory-declared.json")]
+    (when-not (fs/exists? declared-path)
+      (die! 1 (str "missing inventory-declared.json: " declared-path)))
+    (fs/create-dirs inv-dir)
+    (when run-id
+      (require-run-id! run-id)
+      (fs/create-dirs (str artifacts_dir "/" run-id))
+      (write-status! cfg {:run-id run-id
+                          :stage "inventory-sync"
+                          :status "running"
+                          :message "loading declared inventory + CT"}))
+    (let [declared-doc (json/parse-string (slurp declared-path) true)
+          rev (or (:inventory_revision declared-doc) inventory_revision "")
+          declared-entries (or (:entries declared-doc) [])
+          declared-by-name (into {} (map (fn [e] [(:name e) e]) declared-entries))
+          ct (fetch-ct-names! cfg)
+          last-good (load-ct-last-good inv-dir)
+          ct-status (cond
+                      (= "ok" (:status ct)) "ok"
+                      (seq (:names last-good)) "last_known_good"
+                      :else (or (:status ct) "error"))
+          ct-names (if (= "ok" (:status ct))
+                     (:names ct)
+                     (or (:names last-good) []))
+          _ (when (= "ok" (:status ct))
+              (write-ct-last-good! inv-dir ct-names))
+          ct-only (->> ct-names
+                       (remove #(contains? declared-by-name %))
+                       (take max-n)
+                       vec)
+          merged
+          (vec
+           (take max-n
+                 (concat
+                  (map (fn [e]
+                         (let [name (:name e)
+                               ipv4 (resolve-a-record name)]
+                           (assoc e
+                                  :kind "hostname"
+                                  :ipv4 ipv4
+                                  :address (or ipv4 "")
+                                  :inventory_revision rev)))
+                       declared-entries)
+                  (map (fn [name]
+                         (let [ipv4 (resolve-a-record name)]
+                           {:name name
+                            :kind "hostname"
+                            :url ""
+                            :provenance "ct"
+                            :owning_source_file "crt.sh"
+                            :namespace ""
+                            :exposure ""
+                            :criticality ""
+                            :declared 0
+                            :l7_scan_enabled 0
+                            :ipv4 ipv4
+                            :address (or ipv4 "")
+                            :inventory_revision rev}))
+                       ct-only))))
+          scannable (->> merged (filter #(= 1 (int (or (:l7_scan_enabled %) 0)))) vec)
+          current {:frozen_at (now-iso)
+                   :inventory_revision rev
+                   :ct_status ct-status
+                   :ct_message (or (:message ct) "")
+                   :declared_count (count declared-entries)
+                   :ct_count (count ct-names)
+                   :ct_only_count (count ct-only)
+                   :scannable_count (count scannable)
+                   :entry_count (count merged)
+                   :entries merged}
+          current-path (str inv-dir "/inventory-current.json")
+          https-urls (->> scannable
+                          (filter (fn [e]
+                                    (let [allowed (set (map name (or (:inventory_l7_exposures cfg) [])))]
+                                      (or (empty? allowed)
+                                          (contains? allowed (str (:exposure e)))))))
+                          (map :url)
+                          (remove str/blank?)
+                          distinct
+                          vec)
+          ts (now-ch)
+          ver (version-now)
+          assets (mapv (fn [e]
+                         (let [name (:name e)
+                               ipv4 (:ipv4 e)]
+                           {:asset_id (asset-id-for name)
+                            :stable_identity (stable-identity-for name)
+                            :ipv4 ipv4
+                            :ipv6 nil
+                            :dns_names [name]
+                            :mac_address nil
+                            :cloud_identity ""
+                            :kubernetes_identity ""
+                            :tailscale_identity ""
+                            :declared (int (or (:declared e) 0))
+                            :provenance (or (:provenance e) "inventory")
+                            :owning_source_file (or (:owning_source_file e) "")
+                            :first_seen_at ts
+                            :last_seen_at ts
+                            :vantage_points ["estate-scanner"]
+                            :version ver}))
+                       merged)
+          name-rows (mapv (fn [e]
+                            {:name (:name e)
+                             :declared (int (or (:declared e) 0))
+                             :l7_scan_enabled (int (or (:l7_scan_enabled e) 0))
+                             :provenance (or (:provenance e) "")
+                             :ipv4 (:ipv4 e)
+                             :url (or (:url e) "")
+                             :exposure (or (:exposure e) "")
+                             :inventory_revision rev
+                             :observed_at ts
+                             :version ver})
+                          merged)
+          observation {:observed_at ts
+                       :inventory_revision rev
+                       :source "inventory-sync"
+                       :declared_count (count declared-entries)
+                       :ct_count (count ct-names)
+                       :scannable_count (count scannable)
+                       :ct_only_count (count ct-only)
+                       :ct_status ct-status
+                       :payload (json/generate-string
+                                 {:ct_only (mapv :name (filter #(zero? (int (or (:declared %) 0))) merged))
+                                  :ct_message (or (:message ct) "")})
+                       :version ver}]
+      (spit current-path (str (json/generate-string current {:pretty true}) "\n"))
+      (try
+        (fs/set-posix-file-permissions current-path "rw-rw-r--")
+        (catch Exception _ nil))
+      (when (seq assets)
+        (ch-insert! cfg "estate_scan.assets" assets))
+      (when (seq name-rows)
+        (ch-insert! cfg "estate_scan.inventory_names" name-rows))
+      (ch-insert! cfg "estate_scan.inventory_observations" [observation])
+      (when run-id
+        (let [out-dir (str artifacts_dir "/" run-id)
+              snap (str out-dir "/inventory-snapshot.json")
+              https (str out-dir "/inventory-https.txt")]
+          (fs/create-dirs out-dir)
+          (spit snap (str (json/generate-string current {:pretty true}) "\n"))
+          (spit https (str (str/join "\n" https-urls)
+                           (when (seq https-urls) "\n")))
+          (write-stage-artifact!
+           cfg {:run-id run-id
+                :stage "inventory-sync"
+                :artifact-ref snap
+                :status "succeeded"
+                :started-at started-at
+                :finished-at (now-ch)})))
+      (let [summary {:stage "inventory-sync"
+                     :status "succeeded"
+                     :message (str "inventory rev=" (subs rev 0 (min 12 (count rev)))
+                                   " declared=" (count declared-entries)
+                                   " scannable=" (count scannable)
+                                   " ct_only=" (count ct-only)
+                                   " ct=" ct-status)
+                     :declared_count (count declared-entries)
+                     :scannable_count (count scannable)
+                     :ct_only_count (count ct-only)
+                     :ct_status ct-status
+                     :inventory_revision rev}]
+        (when run-id
+          (write-status! cfg (assoc summary :run-id run-id)))
+        (println (json/generate-string (cond-> summary
+                                         run-id (assoc :run_id run-id))))))))
+
+(defn load-inventory-https-urls
+  "Scannable hostname URLs from run artifact or global inventory-current.
+  Honors inventory_l7_exposures allowlist when set (default: all exposures)."
+  [cfg run-id]
+  (let [out-dir (str (:artifacts_dir cfg) "/" run-id)
+        run-https (str out-dir "/inventory-https.txt")
+        current (str (or (:inventory_dir cfg) "/var/lib/estate-scanner/inventory")
+                     "/inventory-current.json")
+        allowed (set (map name (or (:inventory_l7_exposures cfg) [])))
+        exposure-ok? (fn [e]
+                       (or (empty? allowed)
+                           (contains? allowed (str (:exposure e)))))]
+    (cond
+      (and (fs/exists? run-https) (empty? allowed))
+      (->> (str/split-lines (slurp run-https))
+           (map str/trim)
+           (remove str/blank?)
+           vec)
+
+      (fs/exists? current)
+      (let [doc (try (json/parse-string (slurp current) true)
+                     (catch Exception _ nil))]
+        (->> (or (:entries doc) [])
+             (filter #(= 1 (int (or (:l7_scan_enabled %) 0))))
+             (filter exposure-ok?)
+             (map :url)
+             (remove str/blank?)
+             distinct
+             vec))
+
+      (fs/exists? run-https)
+      (->> (str/split-lines (slurp run-https))
+           (map str/trim)
+           (remove str/blank?)
+           vec)
+
+      :else [])))
 
 (defn discover-group!
   "Synchronous discovery worker. Called under the exclusive lock."
@@ -586,9 +936,15 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
       (when-not (zero? (:exit proc))
         (die! 1 (str "failed to detach discover worker; see " log-file))))))
 
-(defn require-artifact-name! [name]
+(defn require-artifact-name! [cfg name]
   (when-not (re-matches #"[A-Za-z0-9][A-Za-z0-9._-]{0,127}" (str name))
-    (die! "invalid service-artifact name")))
+    (die! "invalid service-artifact name"))
+  (let [allowed (set (or (:approved_validate_artifacts cfg)
+                         ["fingerprint.jsonl" "services-all.jsonl"
+                          "services-changed.jsonl" "inventory-https.txt"
+                          "validate-targets.txt"]))]
+    (when-not (contains? allowed (str name))
+      (die! (str "unapproved service-artifact name: " name)))))
 
 (defn listener-key [{:keys [ip host port protocol]}]
   [(or ip host) (or protocol "tcp") (int port)])
@@ -861,7 +1217,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         {:keys [scanner_revision nuclei_templates_revision]} cfg
         findings
         (mapv (fn [row]
-                (let [host (or (:host row) (:ip row) (some-> (:url row) (str/replace #"^https?://" "") (str/split #"/|:|]") first))
+                (let [host (finding-host-from-row row)
                       port (parse-port (:port row))
                       template (or (:template-id row) (:templateID row) (:template row) "unknown")
                       matcher (or (:matcher-name row) (:matcher_name row) "")
@@ -963,11 +1319,14 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         log-file (str out-dir "/validate-" profile ".log")
         evidence-file (str out-dir "/validate-evidence.json")
         templates-http (str templates_dir "/current/http")
-        ;; Curated HTTP dirs — full http/ is ~5.6k templates and too slow for daily.
+        ;; Daily: fixture-only. Loading http/exposures (~700) or the prior 4-dir
+        ;; set (~6700) deadlocks Nuclei 3.5.1 (futex hang, 0 RPS) under the
+        ;; kestra worker. Weekly retains the broader catalog once Nuclei is
+        ;; upgraded or templates are further curated.
         template-dirs (if (= profile "nuclei-weekly")
                         ["cves" "vulnerabilities" "misconfiguration" "exposures"
                          "default-logins" "exposed-panels" "technologies"]
-                        ["cves" "vulnerabilities" "misconfiguration" "exposures"])
+                        [])
         nuclei-config "/etc/estate-scanner/nuclei-config.yaml"
         nuclei-profile (str "/etc/estate-scanner/nuclei-profiles/" profile ".yml")
                 timeout-ms (long (or validate_timeout_ms 5400000))
@@ -990,12 +1349,17 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
       (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
                           :message (str "missing nuclei profile " profile)})
       (System/exit 4))
+    ;; Stale /tmp/nuclei* LevelDB dirs from killed runs make Nuclei walk /tmp
+    ;; for minutes before loading templates.
+    (doseq [p (fs/glob "/tmp" "nuclei*")]
+      (try (fs/delete-tree p) (catch Exception _ nil)))
     ;; Fast canary before the long estate pass — proves findings ingest even if
     ;; the curated scan times out later.
     (when (and fixture (fs/exists? fixture-dir) (seq (fs/glob fixture-dir "*.yaml")))
       (let [fixture-list (str out-dir "/validate-fixture-targets.txt")
             fixture-out (str out-dir "/validate-fixture.jsonl")
-            fixture-log (str out-dir "/validate-fixture.log")]
+            fixture-log (str out-dir "/validate-fixture.log")
+            resolvers "/etc/estate-scanner/resolvers.txt"]
         (spit fixture-list (str fixture "\n"))
         (spit fixture-out "")
         (when nuclei
@@ -1004,10 +1368,15 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                                 "-severity" "medium,high,critical"
                                 "-jsonl" "-nc" "-no-interactsh"
                                 "-rate-limit" "10" "-c" "5" "-timeout" "5"]
+                         (fs/exists? resolvers) (into ["-r" resolvers])
                          (fs/exists? nuclei-config) (into ["-config" nuclei-config]))
                        {:out (io/file fixture-out)
                         :err (io/file fixture-log)
-                        :in nil})
+                        ;; /dev/null — :in nil/:pipe leaves a reader blocked on PDCP/tty probes.
+                        :in (io/file "/dev/null")
+                        :extra-env {"TMPDIR" (str (or (:state_dir cfg)
+                                                      "/var/lib/estate-scanner")
+                                                  "/tmp")}})
                 fdone (deref fproc 60000 :timeout)]
             (when (= fdone :timeout)
               (try (proc/destroy-tree fproc) (catch Exception _ nil)))
@@ -1018,23 +1387,29 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                                     :message (str "fixture canary wrote " (count frows)
                                                   " finding(s); starting estate nuclei")})))))))
     (let [urls (->> (http-targets-from-artifact artifact-path)
+                    (concat (load-inventory-https-urls cfg run-id))
+                    distinct
                     (into [])
                     (#(if (and fixture (not (some #{fixture} %)))
                         (conj % fixture)
                         %)))
+          ;; Persist the combined L7 target list for evidence / reruns.
+          _ (spit (str out-dir "/validate-targets.txt")
+                  (str (str/join "\n" urls) (when (seq urls) "\n")))
           existing-dirs (->> template-dirs
                              (map #(str templates-http "/" %))
                              (filter fs/exists?)
                              vec)
           fixture-ready? (and (fs/exists? fixture-dir)
                               (seq (fs/glob fixture-dir "*.yaml")))]
-      (when (empty? existing-dirs)
+      (when (and (empty? existing-dirs) (not fixture-ready?))
         (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
                             :message "no curated nuclei template dirs present"})
         (System/exit 4))
       (write-status! cfg {:run-id run-id :stage "validate" :status "running"
                           :message (str "nuclei " profile " on " (count urls) " URLs"
-                                        (when fixture-ready? " incl fixture"))})
+                                        (when fixture-ready? " incl fixture")
+                                        (when (empty? existing-dirs) " (fixture-only)"))})
       (write-stage-artifact!
        cfg {:run-id run-id :stage "validate" :artifact-ref result-file
             :status "running" :started-at started-at})
@@ -1071,29 +1446,36 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         (do
           (spit list-file (str (str/join "\n" urls) "\n"))
           (when-not nuclei (die! 1 "nuclei path missing from runtime.json"))
-          ;; L7 HTTP + reviewed profile. Wrapper HOME disables PDCP; dns-shim
-          ;; answers Nuclei's hardcoded Google IPv6 resolvers. Fixture template
-          ;; proves findings ingest independently of estate medium+ hits.
-          (let [template-args (concat (mapcat (fn [d] ["-t" d]) existing-dirs)
+          ;; L7 HTTP + reviewed profile. Wrapper HOME disables PDCP; -auth=false
+          ;; and -r lab resolvers prevent CF-tunnel hangs for *.home.shdr.ch.
+          ;; dns-shim answers Nuclei's hardcoded Google IPv6 resolvers.
+          (let [resolvers "/etc/estate-scanner/resolvers.txt"
+                nuclei-tmpdir (str (or (:state_dir cfg) "/var/lib/estate-scanner") "/tmp")
+                _ (fs/create-dirs nuclei-tmpdir)
+                template-args (concat (mapcat (fn [d] ["-t" d]) existing-dirs)
                                       (when fixture-ready? ["-t" fixture-dir]))
                 cmd (cond-> (into [nuclei
                                    "-l" list-file]
                                   (concat template-args
                                           ["-tp" nuclei-profile
-                                           "-rate-limit" "50"
-                                           "-c" "25"
-                                           "-timeout" "5"
-                                           "-retries" "1"
+                                           "-rate-limit" "40"
+                                           "-c" "5"
+                                           "-timeout" "3"
+                                           "-retries" "0"
+                                           "-max-host-error" "15"
                                            "-jsonl"
                                            "-nc"
                                            "-silent"
                                            "-no-interactsh"]))
+                      (fs/exists? resolvers) (into ["-r" resolvers])
                       (fs/exists? nuclei-config)
                       (into ["-config" nuclei-config]))
                 _ (spit result-file "")
                 proc (proc/process cmd {:out (io/file result-file)
                                         :err (io/file log-file)
-                                        :in nil})
+                                        ;; /dev/null — :in nil/:pipe leaves a reader blocked on PDCP/tty probes.
+                                        :in (io/file "/dev/null")
+                                        :extra-env {"TMPDIR" nuclei-tmpdir}})
                 finished (deref proc timeout-ms :timeout)
                 timed-out? (= finished :timeout)
                 _ (when timed-out?
@@ -1321,6 +1703,43 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         (when-not ok?
           (System/exit (if (= "failed" (:status body)) 5 4)))))))
 
+(defn wait-stage!
+  "Block until status.json shows succeeded for stage (and optional group).
+  Used by Kestra instead of LoopUntil — SSH non-zero exits drop exitCode outputs."
+  [cfg run-id stage target-group timeout-seconds]
+  (let [timeout-s (long (or timeout-seconds 1800))
+        deadline (+ (System/currentTimeMillis) (* timeout-s 1000))
+        status-file (str (:runs_dir cfg) "/" run-id "/status.json")]
+    (loop []
+      (let [now (System/currentTimeMillis)]
+        (when (> now deadline)
+          (println (json/generate-string
+                    {:run_id run-id
+                     :stage stage
+                     :target_group (or target-group "")
+                     :status "timeout"
+                     :message (str "wait-stage timed out after " timeout-s "s")}))
+          (System/exit 4))
+        (if-not (fs/exists? status-file)
+          (do (Thread/sleep 5000) (recur))
+          (let [body (try (json/parse-string (slurp status-file) true)
+                          (catch Exception _ nil))
+                same-stage? (= stage (:stage body))
+                same-group? (or (str/blank? (str target-group))
+                                (= (str target-group) (str (:target_group body))))
+                status (:status body)]
+            (cond
+              (and same-stage? same-group? (= "succeeded" status))
+              (do (println (json/generate-string body))
+                  (System/exit 0))
+
+              (and same-stage? same-group? (= "failed" status))
+              (do (println (json/generate-string body))
+                  (System/exit 5))
+
+              :else
+              (do (Thread/sleep 5000) (recur)))))))))
+
 (defn -main [& args]
   (let [cfg (load-config)
         args (parse-args args)
@@ -1367,7 +1786,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
               (println usage-text)
               (System/exit 2))
             (require-run-id! run-id)
-            (require-artifact-name! artifact-name)
+            (require-artifact-name! cfg artifact-name)
             (with-lock! cfg #(fingerprint! cfg run-id artifact-name)))
 
           "validate"
@@ -1376,7 +1795,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
               (println usage-text)
               (System/exit 2))
             (require-run-id! run-id)
-            (require-artifact-name! artifact-name)
+            (require-artifact-name! cfg artifact-name)
             (require-member! "profile" profile profiles)
             (with-lock! cfg #(validate! cfg run-id artifact-name profile)))
 
@@ -1396,7 +1815,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           (println usage-text)
           (System/exit 2))
         (require-run-id! run-id)
-        (require-artifact-name! artifact-name)
+        (require-artifact-name! cfg artifact-name)
         (accept-fingerprint! cfg run-id artifact-name))
 
       "validate"
@@ -1405,9 +1824,18 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           (println usage-text)
           (System/exit 2))
         (require-run-id! run-id)
-        (require-artifact-name! artifact)
+        (require-artifact-name! cfg artifact)
         (require-member! "profile" profile profiles)
         (accept-validate! cfg run-id artifact profile))
+
+      "inventory-sync"
+      (let [[_ run-id] args]
+        (when (nth args 2 nil)
+          (println usage-text)
+          (System/exit 2))
+        (when run-id
+          (require-run-id! run-id))
+        (with-lock! cfg #(inventory-sync! cfg run-id)))
 
       "finalize"
       (let [[_ run-id] args]
@@ -1454,6 +1882,29 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         (when target-group
           (require-member! "target-group" target-group groups))
         (print-status! cfg run-id stage target-group))
+
+      "wait-stage"
+      (let [[_ run-id stage a3 a4] args]
+        (when (or (nil? run-id) (nil? stage) (nth args 5 nil))
+          (println usage-text)
+          (System/exit 2))
+        (require-run-id! run-id)
+        (require-member! "stage" stage stages)
+        (let [;; a3 may be target-group or timeout; a4 is timeout when group present
+              group? (and a3 (contains? groups a3))
+              target-group (when group? a3)
+              timeout (cond
+                        group? a4
+                        a3 a3
+                        :else "1800")]
+          (when target-group
+            (require-member! "target-group" target-group groups))
+          (when-not (re-matches #"\d{1,5}" (str timeout))
+            (die! "invalid wait-stage timeout seconds"))
+          (let [t (Long/parseLong (str timeout))]
+            (when (or (< t 30) (> t 28800))
+              (die! "wait-stage timeout must be 30..28800"))
+            (wait-stage! cfg run-id stage target-group t))))
 
       ("-h" "--help" "help")
       (println usage-text)

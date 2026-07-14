@@ -17,6 +17,7 @@
       - estate_scan
     # Preserve the final newline: immutable migration ledger checksum.
     estate_scan_schema_checksum: "{{ lookup('file', playbook_dir ~ '/clickhouse/11-estate-scan-schema.sql', rstrip=False) | hash('sha256') }}"
+    estate_scan_inventory_schema_checksum: "{{ lookup('file', playbook_dir ~ '/clickhouse/12-estate-scan-inventory.sql', rstrip=False) | hash('sha256') }}"
     estate_scan_clickhouse_user: estate_scan
     estate_scan_clickhouse_role: estate_scan_writer_role
     argos_version: "857c94e60d71ae90d70f05a21b570fcdf0bc89e9"

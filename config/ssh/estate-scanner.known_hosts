@@ -1,0 +1,5 @@
+# Estate-scanner LXC SSH host keys (10.0.2.13). Refresh via:
+#   ssh-keyscan -t ed25519,rsa 10.0.2.13
+# Pin in Kestra before enabling Phase 4 calendars (plugin lacks knownHosts prop today).
+10.0.2.13 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBcrpuhN4BtmHYaoSwCGQcr0F5KUuGQrl9m2xoqa9qX1
+10.0.2.13 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC+2WEiRrhr1DmL7hYMKFIzW0A9cwLe8Dfc6qYAtTfJCn8v1M1Bx4LXfc9Vc+P6xgLgk1o5BTr70VpX0qpVt4C5YvRiFTB/DnYG4V/letXd82S03WU/nRte1wCN+9I+6lMaR+mYcHATKDdx/1eAUO/NnOeRlIZ6rDvkVY8V1tItyQtrrs4mWXEa6ErdMeb8cL5rBAUrmSgU9dQP69BSjQ32C1A4CXathoLY1KcDxwkp+SbQ52eyKMzrsWxlFY8z+rLXomGtr8YoD7/sMvs8g10ysD6VZie2SaBQFV7nTPsv/DPVHziM6FtQdpAGenn6pCgum70/+XtQWUQkKTY+IdsPt8Imu+nEoQPCdTZ1Izq1SaAPSGpEbvCWc5GuoaUJaoGJaQqaO3v723HFuhDwJA3bw6fNuPALXOE7Uwknky7WTrrzkFOxzVNBM7IbCo7bj1zPy0oLhzjGpidI7EIJ7mMymyMuJrrqLckpZla4WcbkCuTniakv5ZdXgAAwjCKilfUmRKhSvAbJ59rspK9qXsblSR7AP2Ah6iUXY3LPjRm15yCyzWY4Zjre+FfoanHizsx/5+fnMrVb2E20guTdRV/7iIjBbClKxLWUhc9Lk81AcETKbHfqusHDdrxoh9/Yx2/VTr4VL1ybyQqzdsxsGA57OYllrDJlJKYQFnD6yFFtEw==
