@@ -41,6 +41,7 @@
     # restricted to the CrowdSec sync account on this host by the router.
     site_wireguard_input_allow_cidrs:
       - 10.0.4.0/24
+      - "{{ vm.estate_scanner.ip }}/32"
       - "{{ vm.talos_trinity.ip }}/32"
       - "{{ vm.talos_neo.ip }}/32"
       - "{{ vm.talos_niobe.ip }}/32"
@@ -51,6 +52,7 @@
       - "{{ vm.talos_sparks.ip }}/32"
     site_wireguard_forward_allow_cidrs:
       - 10.0.4.0/24
+      - "{{ vm.estate_scanner.ip }}/32"
     site_wireguard_peers:
       - site: home
         host: router
