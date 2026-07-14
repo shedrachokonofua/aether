@@ -416,6 +416,17 @@
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 action accept
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 source address 10.0.4.0/24
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 description 'Personal VLAN manages site hosts over WireGuard'
+          # Estate scanner discovers declared AWS/GCP WG site identities (top-N TCP).
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 50 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 50 protocol tcp
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 50 source address {{ vm.estate_scanner.ip }}
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 50 destination address 10.1.0.10/32
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 50 description 'Estate scanner discovers AWS WG identity'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 protocol tcp
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 source address {{ vm.estate_scanner.ip }}
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 destination address 10.2.0.10/32
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 description 'Estate scanner discovers GCP WG identity'
           - set firewall ipv4 name CLOUD-to-LOCAL default-action drop
           - set firewall ipv4 name CLOUD-to-LOCAL rule 10 action accept
           - set firewall ipv4 name CLOUD-to-LOCAL rule 10 state established
