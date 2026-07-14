@@ -1,0 +1,150 @@
+---
+- name: Validate site metrics exporter inputs
+  ansible.builtin.assert:
+    that:
+      - (node_exporter_listen_address | ansible.utils.ipaddr) is string
+      - (wireguard_exporter_listen_address | ansible.utils.ipaddr) is string
+      - wireguard_exporter_container_engine in ['docker', 'podman']
+      - wireguard_exporter_interface is match('^[A-Za-z0-9_.-]{1,15}$')
+      - wireguard_exporter_image is match('^docker\.io/mindflavor/prometheus-wireguard-exporter@sha256:[0-9a-f]{64}$')
+      - wireguard_exporter_peers | length > 0
+      - node_exporter_port | int > 0
+      - node_exporter_port | int < 65536
+      - wireguard_exporter_port | int > 0
+      - wireguard_exporter_port | int < 65536
+    quiet: true
+
+- name: Validate WireGuard exporter peer identities
+  ansible.builtin.assert:
+    that:
+      - item.site is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - item.host is match('^[a-z0-9][a-z0-9-]{0,62}$')
+      - item.public_key | length > 0
+      - item.allowed_ips | length > 0
+    quiet: true
+  loop: "{{ wireguard_exporter_peers }}"
+  loop_control:
+    label: "{{ item.site }}/{{ item.host }}"
+
+- name: Install exporter runtime dependencies
+  ansible.builtin.package:
+    name:
+      - python3
+      - tar
+      - "{{ wireguard_exporter_container_engine }}"
+    state: present
+  become: true
+
+- name: Enable Docker container engine
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+  become: true
+  when: wireguard_exporter_container_engine == 'docker'
+
+- name: Download node exporter archive
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz
+    dest: "/var/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    checksum: "sha256:{{ node_exporter_archive_sha256 }}"
+    mode: "0644"
+  become: true
+
+- name: Extract node exporter
+  ansible.builtin.unarchive:
+    src: "/var/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    dest: /var/tmp
+    remote_src: true
+    creates: "/var/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+  become: true
+
+- name: Install node exporter
+  ansible.builtin.copy:
+    src: "/var/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+    dest: /usr/local/bin/node_exporter
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+  become: true
+  notify: Restart node exporter
+
+- name: Create WireGuard exporter configuration directory
+  ansible.builtin.file:
+    path: "{{ wireguard_exporter_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Install public WireGuard peer metadata
+  ansible.builtin.template:
+    src: wireguard-peers.conf.j2
+    dest: "{{ wireguard_exporter_peer_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart WireGuard exporter
+
+- name: Check pinned WireGuard exporter image
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/{{ wireguard_exporter_container_engine }}"
+      - image
+      - inspect
+      - "{{ wireguard_exporter_image }}"
+  become: true
+  register: wireguard_exporter_image_inspect
+  changed_when: false
+  failed_when: false
+
+- name: Pull pinned upstream WireGuard exporter image
+  ansible.builtin.command:
+    argv:
+      - "/usr/bin/{{ wireguard_exporter_container_engine }}"
+      - pull
+      - "{{ wireguard_exporter_image }}"
+  become: true
+  when: wireguard_exporter_image_inspect.rc != 0
+  notify: Restart WireGuard exporter
+
+- name: Remove superseded local WireGuard exporter
+  ansible.builtin.file:
+    path: /usr/local/bin/aether-wireguard-exporter
+    state: absent
+  become: true
+
+- name: Install node exporter service
+  ansible.builtin.template:
+    src: aether-node-exporter.service.j2
+    dest: /etc/systemd/system/aether-node-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart node exporter
+
+- name: Install WireGuard exporter service
+  ansible.builtin.template:
+    src: aether-wireguard-exporter.service.j2
+    dest: /etc/systemd/system/aether-wireguard-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart WireGuard exporter
+
+- name: Enable site metrics exporters
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  loop:
+    - aether-node-exporter
+    - aether-wireguard-exporter

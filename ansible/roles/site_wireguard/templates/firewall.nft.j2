@@ -5,19 +5,25 @@ table inet aether_wireguard {
     type filter hook input priority -5; policy accept;
     iifname "{{ site_wireguard_interface }}" ct state established,related accept
     iifname "{{ site_wireguard_interface }}" ip protocol icmp accept
-{% if site_wireguard_firewall_profile == 'hub' %}
-    iifname "{{ site_wireguard_interface }}" ip saddr 10.0.2.3 ip daddr 10.1.0.10 tcp dport 19531 accept
+{% for cidr in site_wireguard_input_allow_cidrs %}
+    iifname "{{ site_wireguard_interface }}" ip saddr {{ cidr }} accept
+{% endfor %}
+{% if site_wireguard_topology_role == 'hub' %}
+    iifname "{{ site_wireguard_interface }}" ip saddr {{ site_wireguard_monitoring_source }} ip daddr 10.1.0.10 tcp dport { {{ site_wireguard_monitoring_ports | join(', ') }} } accept
 {% else %}
-    iifname "{{ site_wireguard_interface }}" ip saddr 10.0.2.3 ip daddr 10.2.0.10 tcp dport 19531 accept
+    iifname "{{ site_wireguard_interface }}" ip saddr {{ site_wireguard_monitoring_source }} ip daddr 10.2.0.10 tcp dport { {{ site_wireguard_monitoring_ports | join(', ') }} } accept
 {% endif %}
     iifname "{{ site_wireguard_interface }}" counter drop
   }
 
-{% if site_wireguard_firewall_profile == 'hub' %}
+{% if site_wireguard_topology_role == 'hub' %}
   chain forward {
     type filter hook forward priority -5; policy accept;
     iifname "{{ site_wireguard_interface }}" oifname "{{ site_wireguard_interface }}" ct state established,related accept
-    iifname "{{ site_wireguard_interface }}" oifname "{{ site_wireguard_interface }}" ip saddr 10.0.2.3 ip daddr 10.2.0.10 tcp dport 19531 accept
+    iifname "{{ site_wireguard_interface }}" oifname "{{ site_wireguard_interface }}" ip saddr {{ site_wireguard_monitoring_source }} ip daddr 10.2.0.10 tcp dport { {{ site_wireguard_monitoring_ports | join(', ') }} } accept
+{% for cidr in site_wireguard_forward_allow_cidrs %}
+    iifname "{{ site_wireguard_interface }}" oifname "{{ site_wireguard_interface }}" ip saddr {{ cidr }} accept
+{% endfor %}
     iifname "{{ site_wireguard_interface }}" oifname "{{ site_wireguard_interface }}" ip saddr 10.2.0.10 ip daddr 10.0.2.2 tcp dport { 443, 9443 } accept
     iifname "{{ site_wireguard_interface }}" oifname "{{ site_wireguard_interface }}" ip protocol icmp accept
     iifname "{{ site_wireguard_interface }}" oifname "{{ site_wireguard_interface }}" counter drop

@@ -212,9 +212,9 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 
 ## Dashboards
 
-The repository currently provisions seven dashboard JSON files: Home,
-Certificates, Virtual Machines, Ceph, Kubernetes, Security Triage, and IDS
-Monitoring. The live
+The repository currently provisions eight dashboard JSON files: Home,
+Certificates, Virtual Machines, Ceph, Kubernetes, Security Triage, IDS
+Monitoring, and Site Fabric. The live
 Grafana API also retains the other dashboards listed below, but they are not all
 represented in `grafana/provisioning/dashboards/`; they are useful live surfaces,
 not fully reproducible IaC. Conversely, the declared Virtual Machines dashboard
@@ -241,6 +241,7 @@ describing the complete dashboard set as code-owned.
 | Certificates    | Public TLS runway, VM/LXC machine identities, cert-manager inventory, renewal units, and certificate alerts (uid `certificates`) |
 | Security Triage | **Single actionable security surface** — firing security-alert queue (`domain=security`) + per-head signal stats & recent-event tables (Suricata, Zeek, Hubble, Tetragon, Trivy, Wazuh, Keycloak) + drill-down links (uid `security-triage`) |
 | Home            | Cross-cutting triage: firing alerts, certificate issues, namespace-contract risk map, saturation/headroom, signal-path health (uid `home`) |
+| Site Fabric   | Aether site-fabric target health, WireGuard peer age and traffic, and CrowdSec decisions (uid `site-fabric`) |
 
 ## Agent Investigations
 

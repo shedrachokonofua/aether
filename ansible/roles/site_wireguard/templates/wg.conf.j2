@@ -1,4 +1,8 @@
-# Aether routed site fabric v3
+# Managed Aether site-fabric configuration
+# Fabric = {{ aether_identity.fabric }}
+# Site = {{ aether_identity.site }}
+# Host = {{ aether_identity.host }}
+# TopologyRole = {{ site_wireguard_topology_role }}
 [Interface]
 PrivateKey = {{ site_wireguard_private_key }}
 {% for address in site_wireguard_addresses %}
@@ -20,7 +24,7 @@ PreDown = ip rule del priority {{ rule.priority }} {{ rule.match }} lookup main 
 
 {% for peer in site_wireguard_peers %}
 [Peer]
-# {{ peer.name }}
+# Peer = {{ peer.site }}/{{ peer.host }}
 PublicKey = {{ peer.public_key }}
 AllowedIPs = {{ peer.allowed_ips | join(', ') }}
 {% if peer.endpoint | default('') %}

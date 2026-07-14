@@ -151,7 +151,7 @@ Caddy handles TLS termination and reverse proxying for all internal services. Ru
 
 ### Public Access
 
-Public traffic flows: Cloudflare → AWS Public Gateway (CrowdSec + Caddy) → Tailscale → Home Gateway → Caddy → Service
+Public traffic flows: Cloudflare → AWS Public Gateway (CrowdSec + Caddy) → routed WireGuard → Home Gateway → Caddy → Service
 
 ```mermaid
 graph TB
@@ -166,9 +166,9 @@ graph TB
         CS[CrowdSec + AppSec]
     end
 
-    subgraph Tailscale
-        TS1[AWS Node]
-        TS2[Home Node]
+    subgraph WireGuard["Routed WireGuard"]
+        WG1[AWS 10.1.0.10]
+        WG2[Home VyOS]
     end
 
     subgraph Home
@@ -182,9 +182,9 @@ graph TB
     NFT -->|blocked IPs| CS
     NFT --> CAD1
     CAD1 <-->|check| CS
-    CAD1 --> TS1
-    TS1 ---|Encrypted| TS2
-    TS2 --> CAD2
+    CAD1 --> WG1
+    WG1 ---|Encrypted| WG2
+    WG2 --> CAD2
     CAD2 --> SVC
 ```
 
@@ -197,6 +197,31 @@ Intrusion detection and prevention system on the AWS public gateway, analyzing C
 | CrowdSec Agent   | Log analysis and threat detection   |
 | Firewall Bouncer | nftables IP blocking                |
 | AppSec WAF       | Application-layer attack prevention |
+
+The centralized `aether-home` allowlist contains the current home WAN egress
+address. Kestra flow `aether.network/crowdsec-home-ip-sync` reconciles it every
+five minutes over routed WireGuard using a forced-command SSH account. The
+gateway validates one IPv4 address and adds the replacement before removing the
+previous entry.
+
+### Site-fabric metrics
+
+Prometheus on `monitoring-stack` scrapes services attached to the
+`aether` fabric over routed WireGuard:
+
+| Job | Sites | Port | Service |
+| --- | --- | --- | --- |
+| `site-node-exporter` | `aws`, `gcp` | 9100 | Prometheus `node-exporter` |
+| `site-wireguard-exporter` | `aws`, `gcp` | 9586 | Digest-pinned upstream `prometheus_wireguard_exporter` 3.6.6 |
+| `site-crowdsec` | `aws` | 6060 | CrowdSec's built-in Prometheus endpoint |
+
+Every target is labeled by `fabric`, `site`, `host`, `service`, and
+`topology_role`. WireGuard peer series also expose `peer_site` and `peer_host`.
+See [Infrastructure Naming Ontology](naming.md) for the identity contract.
+
+The exporters bind their site-fabric addresses rather than public interfaces.
+`task configure:site-metrics` reconciles the fabric, exporters, firewall paths,
+and central Prometheus scrape configuration.
 
 **Detection Collections**:
 
