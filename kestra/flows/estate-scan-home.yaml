@@ -2,12 +2,11 @@ id: estate-scan-home
 namespace: aether.estate
 
 description: |
-  Staged home-estate discovery + L7 DAG. Dispatches typed aether-scan stages over SSH
-  to kestra-estate-scanner@10.0.2.13 (ForceCommand). Polls via on-guest wait-stage
-  (Kestra LoopUntil + SSH non-zero exitCode is unreliable — outputs are dropped).
-  inventory-sync refreshes synthetic_probe + CT hostname inventory (CT-only report-only).
-  validate merges IP fingerprint URLs with declared hostname HTTPS in one Nuclei pass.
-  l7_scope=full fingerprints services-all.jsonl (baseline); changed uses deltas only.
+  Staged estate discovery + L7 DAG. Dispatches typed aether-scan stages over SSH
+  to kestra-estate-scanner@10.0.2.13 (ForceCommand). Polls via on-guest wait-stage.
+  Discovery shards: home, iot, gigahub, cidr-infra, cidr-services, aws-private,
+  gcp-private (merge-diff unions all discover-*.jsonl). Daily uses nuclei-daily
+  allowlist; weekly trigger sets profile=nuclei-weekly (larger curated pack).
   On flow failure, abandon the minted run so CH is not left running until reap-stale.
 
 concurrency:
@@ -24,7 +23,6 @@ inputs:
     description: "full = all discovered listeners; changed = new/changed only"
 
 tasks:
-  # ClickHouse estate_scan.run_id is UUID; Kestra execution.id is Url62 — mint RFC4122.
   - id: mint_run_id
     type: io.kestra.plugin.core.debug.Return
     format: "{{ uuid() }}"
@@ -39,8 +37,6 @@ tasks:
     username: "{{ envs.estate_scanner_user }}"
     authMethod: PUBLIC_KEY
     privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
-    # Plugin has no knownHosts property yet; host key is recorded in
-    # config/ssh/estate-scanner.known_hosts for when the plugin grows support.
     strictHostKeyChecking: "false"
     commands:
       - "targets snapshot {{ outputs.mint_run_id.value }} {{ inputs.profile }}"
@@ -65,7 +61,7 @@ tasks:
     commands:
       - "discover {{ outputs.mint_run_id.value }} home"
 
-  - id: wait_discover
+  - id: wait_discover_home
     type: io.kestra.plugin.fs.ssh.Command
     host: "{{ envs.estate_scanner_host }}"
     username: "{{ envs.estate_scanner_user }}"
@@ -74,6 +70,126 @@ tasks:
     strictHostKeyChecking: "false"
     commands:
       - "wait-stage {{ outputs.mint_run_id.value }} discover home 1800"
+
+  - id: discover_iot
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} iot"
+
+  - id: wait_discover_iot
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover iot 1800"
+
+  - id: discover_gigahub
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} gigahub"
+
+  - id: wait_discover_gigahub
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover gigahub 1800"
+
+  - id: discover_cidr_infra
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} cidr-infra"
+
+  - id: wait_discover_cidr_infra
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover cidr-infra 3600"
+
+  - id: discover_cidr_services
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} cidr-services"
+
+  - id: wait_discover_cidr_services
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover cidr-services 3600"
+
+  - id: discover_aws_private
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} aws-private"
+
+  - id: wait_discover_aws_private
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover aws-private 1800"
+
+  - id: discover_gcp_private
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} gcp-private"
+
+  - id: wait_discover_gcp_private
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover gcp-private 1800"
 
   - id: merge_diff
     type: io.kestra.plugin.fs.ssh.Command
@@ -103,7 +219,7 @@ tasks:
     privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
     strictHostKeyChecking: "false"
     commands:
-      - "wait-stage {{ outputs.mint_run_id.value }} fingerprint 1200"
+      - "wait-stage {{ outputs.mint_run_id.value }} fingerprint 2400"
 
   - id: validate
     type: io.kestra.plugin.fs.ssh.Command
@@ -113,7 +229,7 @@ tasks:
     privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
     strictHostKeyChecking: "false"
     commands:
-      - "validate {{ outputs.mint_run_id.value }} fingerprint.jsonl nuclei-daily"
+      - "validate {{ outputs.mint_run_id.value }} fingerprint.jsonl {{ inputs.profile }}"
 
   - id: wait_validate
     type: io.kestra.plugin.fs.ssh.Command
@@ -144,13 +260,17 @@ errors:
     authMethod: PUBLIC_KEY
     privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
     strictHostKeyChecking: "false"
-    # mint_run_id is always first; allowFailure if mint never produced a UUID.
     commands:
       - "abandon {{ outputs.mint_run_id.value }} kestra-flow-failed"
 
 triggers:
-  # Phase 4: daily nuclei-daily home estate. Six-hour discovery / weekly / monthly later.
   - id: daily
     type: io.kestra.plugin.core.trigger.Schedule
     cron: "15 5 * * *"
     timezone: America/New_York
+  - id: weekly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "30 3 * * 0"
+    timezone: America/New_York
+    inputs:
+      profile: nuclei-weekly
