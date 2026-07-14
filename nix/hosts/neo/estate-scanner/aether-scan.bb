@@ -984,6 +984,27 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
            (remove str/blank?)
            (mapv #(json/parse-string % true))))))
 
+(defn ch-query-or-throw!
+  "Like ch-query! but throws ex-info on failure so callers can mark stage failed."
+  [cfg sql]
+  (if-not (clickhouse-enabled? cfg)
+    []
+    (let [url (str (:clickhouse_url cfg)
+                   "/?default_format=JSONEachRow&query="
+                   (java.net.URLEncoder/encode sql StandardCharsets/UTF_8))
+          resp (http/get url
+                         {:headers {"Authorization"
+                                    (basic-auth-header (:clickhouse_user cfg)
+                                                       (clickhouse-password cfg))}
+                          :throw false})]
+      (when-not (<= 200 (:status resp) 299)
+        (throw (ex-info (str "clickhouse query failed status=" (:status resp)
+                             " body=" (str/trim (str (:body resp))))
+                        {:status (:status resp) :body (:body resp)})))
+      (->> (str/split-lines (str (:body resp)))
+           (remove str/blank?)
+           (mapv #(json/parse-string % true))))))
+
 (defn prior-listener-keys
   "Keys from the previous successful run's services (empty on first run)."
   [cfg run-id]
@@ -1285,7 +1306,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
   [cfg run-id seen-keys in-scope-template-ids]
   (when (and (clickhouse-enabled? cfg) (set? seen-keys) (seq in-scope-template-ids))
     (let [scope (set (map str in-scope-template-ids))
-          open-rows (ch-query!
+          open-rows (ch-query-or-throw!
                      cfg
                      (str "SELECT finding_key, toString(run_id) AS run_id, asset_id, service_id, "
                           "template_id, matcher, toString(severity) AS severity, evidence, "
@@ -1421,14 +1442,12 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         log-file (str out-dir "/validate-" profile ".log")
         evidence-file (str out-dir "/validate-evidence.json")
         templates-http (str templates_dir "/current/http")
-        ;; Daily: curated allowlist under /etc/estate-scanner/nuclei-daily (~20
-        ;; templates). Full http/exposures (~700) or the prior 4-dir set (~6700)
-        ;; deadlocks Nuclei 3.5.1 (futex hang, 0 RPS). Weekly retains the broader
-        ;; catalog until Nuclei is upgraded or further curated.
+        ;; Daily/weekly: curated allowlists under /etc/estate-scanner/nuclei-{daily,weekly}.
+        ;; Full http/exposures (~700) or multi-dir catalogs (~6700) deadlock Nuclei 3.5.1.
         daily-templates-dir (or (:nuclei_daily_templates_dir cfg)
                                 "/etc/estate-scanner/nuclei-daily")
-        weekly-template-dirs ["cves" "vulnerabilities" "misconfiguration" "exposures"
-                              "default-logins" "exposed-panels" "technologies"]
+        weekly-templates-dir (or (:nuclei_weekly_templates_dir cfg)
+                                 "/etc/estate-scanner/nuclei-weekly")
         nuclei-config "/etc/estate-scanner/nuclei-config.yaml"
         nuclei-profile (str "/etc/estate-scanner/nuclei-profiles/" profile ".yml")
                 timeout-ms (long (or validate_timeout_ms 5400000))
@@ -1498,16 +1517,16 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           ;; Persist the combined L7 target list for evidence / reruns.
           _ (spit (str out-dir "/validate-targets.txt")
                   (str (str/join "\n" urls) (when (seq urls) "\n")))
-          existing-dirs (if (= profile "nuclei-daily")
-                          (if (and (fs/exists? daily-templates-dir)
+          existing-dirs (let [pack-dir (case profile
+                                         "nuclei-daily" daily-templates-dir
+                                         "nuclei-weekly" weekly-templates-dir
+                                         nil)]
+                          (if (and pack-dir
+                                   (fs/exists? pack-dir)
                                    (some #(str/ends-with? (str %) ".yaml")
-                                         (file-seq (io/file daily-templates-dir))))
-                            [daily-templates-dir]
-                            [])
-                          (->> weekly-template-dirs
-                               (map #(str templates-http "/" %))
-                               (filter fs/exists?)
-                               vec))
+                                         (file-seq (io/file pack-dir))))
+                            [pack-dir]
+                            []))
           fixture-ready? (and (fs/exists? fixture-dir)
                               (seq (fs/glob fixture-dir "*.yaml")))]
       (when (and (empty? existing-dirs) (not fixture-ready?))
@@ -1518,9 +1537,8 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                           :message (str "nuclei " profile " on " (count urls) " URLs"
                                         (when fixture-ready? " incl fixture")
                                         (when (empty? existing-dirs) " (fixture-only)")
-                                        (when (and (= profile "nuclei-daily")
-                                                   (seq existing-dirs))
-                                          " (daily allowlist)"))})
+                                        (when (seq existing-dirs)
+                                          (str " (" profile " allowlist)")))})
       (write-stage-artifact!
        cfg {:run-id run-id :stage "validate" :artifact-ref result-file
             :status "running" :started-at started-at})
@@ -1634,7 +1652,14 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                                          (cond-> existing-dirs
                                            fixture-ready? (conj fixture-dir))))]
               (when ok?
-                (resolve-absent-findings! cfg run-id seen-keys in-scope)))
+                ;; resolve-absent SELECTs findings; on CH error mark failed so
+                ;; wait-stage does not hang on status=running until timeout.
+                (try
+                  (resolve-absent-findings! cfg run-id seen-keys in-scope)
+                  (catch Exception e
+                    (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
+                                        :message (str "resolve-absent failed: " (.getMessage e))})
+                    (die! 6 (str "resolve-absent failed: " (.getMessage e)))))))
             (when-not ok?
               (write-stage-artifact!
                cfg {:run-id run-id :stage "validate" :artifact-ref result-file

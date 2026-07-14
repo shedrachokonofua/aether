@@ -32,6 +32,7 @@ let
     "gigahub"
     "calib-server"
     "cidr-infra"
+    "cidr-services"
     "aws-public"
     "aws-private"
     "gcp-public"
@@ -79,9 +80,10 @@ let
     gigahub = 5;
   };
 
-  # CIDR expansions for blind/common-port sweeps (not declared host lists).
+  # CIDR expansions for undeclared-host sweeps (not declared host lists).
   discoverCidrs = {
     cidr-infra = [ "10.0.2.0/24" ];
+    cidr-services = [ "10.0.3.0/24" ];
   };
 
   approvedStages = [
@@ -137,6 +139,19 @@ let
     '') dailyTemplateRels}
   '';
 
+  # Bounded weekly pack (daily subset + more panels/CVEs) — still not full catalogs.
+  weeklyTemplateRels =
+    lib.filter (s: s != "" && !(lib.hasPrefix "#" s)) (
+      lib.splitString "\n" (builtins.readFile ./nuclei-weekly-templates.txt)
+    );
+  nucleiWeeklyTemplates = pkgs.runCommand "estate-nuclei-weekly" { } ''
+    mkdir -p "$out"
+    ${lib.concatMapStrings (rel: ''
+      mkdir -p "$out/$(dirname ${lib.escapeShellArg rel})"
+      ln -s ${nucleiTemplates}/${rel} "$out/${lib.escapeShellArg rel}"
+    '') weeklyTemplateRels}
+  '';
+
   # Classify declared addresses into scan target groups by prefix / name.
   groupFor = name: ip:
     let
@@ -188,6 +203,9 @@ let
     (mkTarget "backup-stack" facts.vm.backup_stack.ip)
     # ISP Gigahub CPE (lowest-rate calibration / discovery).
     (mkTarget "gigahub-gateway" facts.vm.router.gateway.gigahub)
+    # Routed WireGuard site identities (prometheus scrape path; not public sweep).
+    (mkTarget "aws-public-gateway-wg" "10.1.0.10")
+    (mkTarget "gcp-uptime-monitor-wg" "10.2.0.10")
   ];
 
   declaredTargetsJson = pkgs.writeText "declared-targets.json" (builtins.toJSON {
@@ -257,6 +275,7 @@ let
     artifacts_dir = artifactsDir;
     templates_dir = templatesDir;
     nuclei_daily_templates_dir = "/etc/estate-scanner/nuclei-daily";
+    nuclei_weekly_templates_dir = "/etc/estate-scanner/nuclei-weekly";
     lock_file = lockFile;
     declared_targets = "/etc/estate-scanner/declared-targets.json";
     inventory_declared = "/etc/estate-scanner/inventory-declared.json";
@@ -505,6 +524,7 @@ in
       '';
       "estate-scanner/nuclei-fixtures/aether-estate-scan-fixture.yaml".source = nucleiFixtureTemplate;
       "estate-scanner/nuclei-daily".source = nucleiDailyTemplates;
+      "estate-scanner/nuclei-weekly".source = nucleiWeeklyTemplates;
       "estate-scanner/declared-targets.json".source = declaredTargetsJson;
     }
     // lib.listToAttrs (
