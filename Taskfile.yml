@@ -641,12 +641,53 @@ tasks:
       BUILD_IP:
         sh: yq '.nix_builder.ip' config/vm.yml
     cmds:
+      - task: estate-scanner:inventory-declared
       - task: _nixos-deploy
         vars:
           TARGET_IP: "{{.TARGET_IP}}"
           BUILD_IP: "{{.BUILD_IP}}"
           REMOTE_BUILD_PATH: /root/aether-build
           FLAKE_TARGET: estate-scanner
+
+  estate-scanner:inventory-declared:
+    desc: Bake inventory-declared.generated.json from tofu synthetic_probe_targets (*.shdr.ch)
+    cmds:
+      - |
+        set -euo pipefail
+        OUT=nix/hosts/neo/estate-scanner/inventory-declared.generated.json
+        if [ ! -f secrets/tf-outputs.json ]; then
+          echo "missing secrets/tf-outputs.json — run task tofu:refresh or tofu:apply" >&2
+          exit 1
+        fi
+        jq -c '
+          (.synthetic_probe_targets.value // [])
+          | map(select(
+              (.hostname // "" | ascii_downcase | sub("\\.$"; "")) as $n
+              | ($n | test("\\.shdr\\.ch$"))
+                and ($n | startswith("*.") | not)
+            ))
+          | map({
+              name: (.hostname | ascii_downcase | sub("\\.$"; "")),
+              kind: "hostname",
+              url: .url,
+              provenance: "synthetic_probe",
+              owning_source_file: "tofu output synthetic_probe_targets",
+              namespace: (.namespace // ""),
+              exposure: (.exposure // ""),
+              criticality: (.criticality // ""),
+              declared: 1,
+              l7_scan_enabled: 1
+            })
+          | {
+              generated_from: "tofu output synthetic_probe_targets (*.shdr.ch)",
+              entry_count: length,
+              entries: .
+            }
+        ' secrets/tf-outputs.json > "$OUT.tmp"
+        REV=$(sha256sum "$OUT.tmp" | awk '{print $1}')
+        jq -c --arg rev "$REV" '. + {inventory_revision: $rev}' "$OUT.tmp" > "$OUT"
+        rm -f "$OUT.tmp"
+        echo "wrote $OUT entries=$(jq -r .entry_count "$OUT") rev=$(jq -r .inventory_revision "$OUT" | cut -c1-12)"
   deploy:estate-scanner:
     desc: Full deploy — provision gated LXC then configure NixOS (do not run without approval)
     cmds:
