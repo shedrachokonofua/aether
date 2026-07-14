@@ -1210,6 +1210,31 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
     (string? p) (try (Integer/parseInt p) (catch Exception _ 0))
     :else 0))
 
+(defn normalize-finding-host
+  "Strip optional :port suffix from Nuclei host fields."
+  [host]
+  (let [h (str host)]
+    (or (some-> (re-matches #"^([^:]+):\d+$" h) second)
+        h)))
+
+(defn accepted-finding-reason
+  "Return suppression reason if (template,host,port,matcher) is declared accepted."
+  [cfg template host port matcher]
+  (let [host* (normalize-finding-host host)
+        port* (long (or port 0))
+        matcher* (str (or matcher ""))]
+    (some (fn [rule]
+            (let [r-template (str (:template_id rule))
+                  r-host (normalize-finding-host (or (:host rule) ""))
+                  r-port (long (or (:port rule) 0))
+                  r-matcher (str (or (:matcher rule) ""))]
+              (when (and (= r-template (str template))
+                         (or (str/blank? r-host) (= r-host host*))
+                         (or (zero? r-port) (= r-port port*))
+                         (or (str/blank? r-matcher) (= r-matcher matcher*)))
+                (or (:reason rule) "accepted"))))
+          (or (:accepted_findings cfg) []))))
+
 (defn write-findings!
   [cfg run-id nuclei-rows]
   (let [ts (now-ch)
@@ -1217,7 +1242,8 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         {:keys [scanner_revision nuclei_templates_revision]} cfg
         findings
         (mapv (fn [row]
-                (let [host (finding-host-from-row row)
+                (let [host-raw (finding-host-from-row row)
+                      host (normalize-finding-host host-raw)
                       port (parse-port (:port row))
                       template (or (:template-id row) (:templateID row) (:template row) "unknown")
                       matcher (or (:matcher-name row) (:matcher_name row) "")
@@ -1225,7 +1251,9 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                       sid (if (and host (pos? port))
                             (service-id-for host "tcp" port)
                             (sha256-hex (str "finding|" template "|" host)))
-                      aid (if host (asset-id-for host) (sha256-hex "unknown-asset"))]
+                      aid (if host (asset-id-for host) (sha256-hex "unknown-asset"))
+                      reason (accepted-finding-reason cfg template host port matcher)
+                      suppressed? (boolean reason)]
                   {:finding_key (sha256-hex (str template "|" host "|" port "|" matcher))
                    :run_id run-id
                    :asset_id aid
@@ -1236,18 +1264,92 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                    :evidence (json/generate-string row)
                    :first_seen_at ts
                    :last_seen_at ts
-                   :state "open"
-                   :resolved_at nil
+                   :state (if suppressed? "suppressed" "open")
+                   :resolved_at (when suppressed? ts)
                    :scanner_revision scanner_revision
                    :nuclei_templates_revision nuclei_templates_revision
                    :exposure "internal"
                    :owner ""
-                   :suppression_reason ""
+                   :suppression_reason (or reason "")
                    :review_status ""
                    :version ver}))
               nuclei-rows)]
     (when (seq findings)
-      (ch-insert! cfg "estate_scan.findings" findings))))
+      (ch-insert! cfg "estate_scan.findings" findings))
+    findings))
+
+(defn resolve-absent-findings!
+  "After a successful validate, resolve open findings for templates that were
+  in scope this run but whose finding_key was not observed. Does not touch
+  findings from templates outside the allowlist/catalog used today."
+  [cfg run-id seen-keys in-scope-template-ids]
+  (when (and (clickhouse-enabled? cfg) (set? seen-keys) (seq in-scope-template-ids))
+    (let [scope (set (map str in-scope-template-ids))
+          open-rows (ch-query!
+                     cfg
+                     (str "SELECT finding_key, toString(run_id) AS run_id, asset_id, service_id, "
+                          "template_id, matcher, toString(severity) AS severity, evidence, "
+                          "first_seen_at, last_seen_at, scanner_revision, "
+                          "nuclei_templates_revision, exposure, owner, "
+                          "suppression_reason, review_status, version "
+                          "FROM estate_scan.findings FINAL WHERE state = 'open'"))
+          missing (filterv (fn [r]
+                             (and (contains? scope (str (:template_id r)))
+                                  (not (contains? seen-keys (str (:finding_key r))))))
+                           open-rows)
+          ts (now-ch)
+          reason (str "resolved: absent from successful run " run-id)]
+      (when (seq missing)
+        (ch-insert!
+         cfg "estate_scan.findings"
+         (mapv (fn [r]
+                 {:finding_key (str (:finding_key r))
+                  :run_id (:run_id r)
+                  :asset_id (:asset_id r)
+                  :service_id (:service_id r)
+                  :template_id (str (:template_id r))
+                  :matcher (str (:matcher r))
+                  :severity (normalize-severity (:severity r))
+                  :evidence (str (:evidence r))
+                  :first_seen_at (:first_seen_at r)
+                  :last_seen_at ts
+                  :state "resolved"
+                  :resolved_at ts
+                  :scanner_revision (str (:scanner_revision r))
+                  :nuclei_templates_revision (str (:nuclei_templates_revision r))
+                  :exposure (str (or (:exposure r) "internal"))
+                  :owner (str (or (:owner r) ""))
+                  :suppression_reason reason
+                  :review_status (str (or (:review_status r) ""))
+                  :version (inc (long (or (:version r) 0)))})
+               missing)))
+      (count missing))))
+
+(defn nuclei-template-ids-under
+  "Parse `id:` from nuclei YAML templates under dir (best-effort)."
+  [dir]
+  (if-not (and dir (fs/exists? dir))
+    #{}
+    (->> (file-seq (io/file (str dir)))
+         (filter #(let [n (str %)]
+                    (or (str/ends-with? n ".yaml") (str/ends-with? n ".yml"))))
+         (keep (fn [f]
+                 (try
+                   (some->> (slurp f)
+                            (re-find #"(?m)^id:\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+                            second)
+                   (catch Exception _ nil))))
+         set)))
+
+(defn coverage-ratio-from-evidence
+  "Attempt completeness, not finding yield. Clean full scan => 1.0."
+  [evidence]
+  (cond
+    (nil? evidence) 0.0
+    (= "timeout" (:status evidence)) 0.0
+    (= "failed" (:status evidence)) 0.0
+    (#{"succeeded" "skipped_empty" "ingested"} (:status evidence)) 1.0
+    :else 0.0))
 
 (defn ingest-validate-results!
   "Re-ingest an existing validate-*.jsonl after a writer crash; does not re-run Nuclei."
@@ -1272,7 +1374,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           :status "running"
           :started_at (now-ch)
           :probe_count url-count
-          :coverage_ratio (double (/ (count rows) (max 1 url-count)))})
+          :coverage_ratio 1.0})
     (write-status! cfg {:run-id run-id
                         :stage "validate"
                         :status "succeeded"
@@ -1319,14 +1421,14 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         log-file (str out-dir "/validate-" profile ".log")
         evidence-file (str out-dir "/validate-evidence.json")
         templates-http (str templates_dir "/current/http")
-        ;; Daily: fixture-only. Loading http/exposures (~700) or the prior 4-dir
-        ;; set (~6700) deadlocks Nuclei 3.5.1 (futex hang, 0 RPS) under the
-        ;; kestra worker. Weekly retains the broader catalog once Nuclei is
-        ;; upgraded or templates are further curated.
-        template-dirs (if (= profile "nuclei-weekly")
-                        ["cves" "vulnerabilities" "misconfiguration" "exposures"
-                         "default-logins" "exposed-panels" "technologies"]
-                        [])
+        ;; Daily: curated allowlist under /etc/estate-scanner/nuclei-daily (~20
+        ;; templates). Full http/exposures (~700) or the prior 4-dir set (~6700)
+        ;; deadlocks Nuclei 3.5.1 (futex hang, 0 RPS). Weekly retains the broader
+        ;; catalog until Nuclei is upgraded or further curated.
+        daily-templates-dir (or (:nuclei_daily_templates_dir cfg)
+                                "/etc/estate-scanner/nuclei-daily")
+        weekly-template-dirs ["cves" "vulnerabilities" "misconfiguration" "exposures"
+                              "default-logins" "exposed-panels" "technologies"]
         nuclei-config "/etc/estate-scanner/nuclei-config.yaml"
         nuclei-profile (str "/etc/estate-scanner/nuclei-profiles/" profile ".yml")
                 timeout-ms (long (or validate_timeout_ms 5400000))
@@ -1396,10 +1498,16 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           ;; Persist the combined L7 target list for evidence / reruns.
           _ (spit (str out-dir "/validate-targets.txt")
                   (str (str/join "\n" urls) (when (seq urls) "\n")))
-          existing-dirs (->> template-dirs
-                             (map #(str templates-http "/" %))
-                             (filter fs/exists?)
-                             vec)
+          existing-dirs (if (= profile "nuclei-daily")
+                          (if (and (fs/exists? daily-templates-dir)
+                                   (some #(str/ends-with? (str %) ".yaml")
+                                         (file-seq (io/file daily-templates-dir))))
+                            [daily-templates-dir]
+                            [])
+                          (->> weekly-template-dirs
+                               (map #(str templates-http "/" %))
+                               (filter fs/exists?)
+                               vec))
           fixture-ready? (and (fs/exists? fixture-dir)
                               (seq (fs/glob fixture-dir "*.yaml")))]
       (when (and (empty? existing-dirs) (not fixture-ready?))
@@ -1409,7 +1517,10 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
       (write-status! cfg {:run-id run-id :stage "validate" :status "running"
                           :message (str "nuclei " profile " on " (count urls) " URLs"
                                         (when fixture-ready? " incl fixture")
-                                        (when (empty? existing-dirs) " (fixture-only)"))})
+                                        (when (empty? existing-dirs) " (fixture-only)")
+                                        (when (and (= profile "nuclei-daily")
+                                                   (seq existing-dirs))
+                                          " (daily allowlist)"))})
       (write-stage-artifact!
        cfg {:run-id run-id :stage "validate" :artifact-ref result-file
             :status "running" :started-at started-at})
@@ -1516,7 +1627,14 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                                         :else "failed")}]
             (spit evidence-file (str (json/generate-string evidence {:pretty true}) "\n"))
             ;; Always persist whatever Nuclei emitted before exit/timeout.
-            (write-findings! cfg run-id rows)
+            (let [written (write-findings! cfg run-id rows)
+                  seen-keys (set (map :finding_key written))
+                  in-scope (into #{}
+                                 (mapcat nuclei-template-ids-under
+                                         (cond-> existing-dirs
+                                           fixture-ready? (conj fixture-dir))))]
+              (when ok?
+                (resolve-absent-findings! cfg run-id seen-keys in-scope)))
             (when-not ok?
               (write-stage-artifact!
                cfg {:run-id run-id :stage "validate" :artifact-ref result-file
@@ -1540,6 +1658,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                     :target_count target-count
                     :probe_count (count urls)
                     :error_count 1
+                    :coverage_ratio (if timed-out? 0.0 0.0)
                     :error_code (if timed-out? "nuclei_timeout" "nuclei_exit")
                     :error_message (str "validate failed; see " log-file)})
               (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
@@ -1549,6 +1668,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
              cfg {:run-id run-id :stage "validate" :artifact-ref result-file
                   :status "succeeded" :started-at started-at :finished-at finished-at})
             ;; Stay running until finalize closes the lineage; probe_count = URLs.
+            ;; coverage_ratio = attempt completeness (not finding yield).
             (write-scan-run!
              cfg {:run_id run-id
                   :profile profile-label
@@ -1559,7 +1679,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                   :started_at started-at
                   :target_count target-count
                   :probe_count (count urls)
-                  :coverage_ratio (double (/ (count rows) (max 1 (count urls))))})
+                  :coverage_ratio 1.0})
             (write-status! cfg {:run-id run-id :stage "validate" :status "succeeded"
                                 :message (str "nuclei " profile ": " (count rows)
                                               " findings from " (count urls)
@@ -1602,7 +1722,8 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         manifest (load-run-manifest cfg run-id)
         probe-count (long (or (:url_count evidence) (:probe_count evidence) 0))
         findings-count (long (or (:findings_count evidence) 0))
-        target-count (long (or (some-> manifest :targets count) 0))]
+        target-count (long (or (some-> manifest :targets count) 0))
+        coverage (coverage-ratio-from-evidence evidence)]
     (fs/create-dirs out-dir)
     (write-scan-run!
      cfg {:run_id run-id
@@ -1615,7 +1736,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           :finished_at (now-ch)
           :target_count target-count
           :probe_count probe-count
-          :coverage_ratio (double (/ findings-count (max 1 probe-count)))
+          :coverage_ratio (if failed? 0.0 coverage)
           :error_code (if failed? (or (:status prior) "stage_failed") "")
           :error_message (if failed?
                            (or (:message prior) "prior stage failed")
@@ -1860,10 +1981,15 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           (println usage-text)
           (System/exit 2))
         (require-run-id! run-id)
-        (when reason
-          (when-not (re-matches reason-token-re (str reason))
-            (die! "invalid abandon reason token")))
-        (with-lock! cfg #(abandon-run! cfg run-id (or reason "abandoned"))))
+        ;; Kestra errors path must close CH even while a detached worker holds
+        ;; the lock; do not wait for reap-stale. Leave the lock for the owner.
+        (let [base (or reason "abandoned")
+              final-reason (if (lock-held? cfg) (str base "-lock-held") base)]
+          (when-not (re-matches reason-token-re final-reason)
+            (die! "invalid abandon reason token"))
+          (if (lock-held? cfg)
+            (abandon-run! cfg run-id final-reason)
+            (with-lock! cfg #(abandon-run! cfg run-id final-reason)))))
 
       "reap-stale"
       (let [[_] args]

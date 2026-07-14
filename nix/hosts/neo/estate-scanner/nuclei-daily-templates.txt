@@ -1,0 +1,21 @@
+# Curated nuclei-daily allowlist (paths relative to nuclei-templates root).
+# Keep this small — loading full http/exposures (~700) deadlocks Nuclei 3.5.1.
+# Weekly still uses the broader catalog dirs.
+http/cves/2026/CVE-2026-22557.yaml
+http/exposures/configs/prometheus-metrics.yaml
+http/exposures/configs/docker-compose-config.yaml
+http/exposures/configs/dockercfg-config.yaml
+http/exposures/apis/swagger-api.yaml
+http/misconfiguration/unauthenticated-alert-manager.yaml
+http/misconfiguration/unauthenticated-netdata.yaml
+http/misconfiguration/unauthenticated-nginx-dashboard.yaml
+http/misconfiguration/unauthenticated-zipkin.yaml
+http/exposed-panels/grafana-detect.yaml
+http/exposed-panels/keycloak-admin-panel.yaml
+http/exposed-panels/prometheus-exposed-panel.yaml
+http/exposed-panels/prometheus-pushgateway-exposed-panel.yaml
+http/exposed-panels/traefik-dashboard.yaml
+http/exposed-panels/portainer-panel.yaml
+http/exposed-panels/gitlab-detect.yaml
+http/exposed-panels/argocd-login.yaml
+http/exposed-panels/kibana-panel.yaml
