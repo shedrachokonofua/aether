@@ -2,14 +2,13 @@
 
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
-**Status (honest, 2026-07-14):** Inventory + curated daily L7 + Kestra E2E are
-live. UniFi pinned to `version-10.1.89` (CVE-2026-22557 closed-loop resolved);
-ceph-csi nodeplugin `httpMetrics` off; insert-time accepted findings +
-resolve-on-absence; `coverage_ratio` is attempt completeness. Daily schedule
-`15 5 * * *` America/New_York enabled on `estate-scan-home`. SSH host-key pin
-still deferred (plugin lacks `knownHosts`). Weekly broad catalogs and cloud/
-VLAN expansion remain later. Supersedes the Kubernetes Nuclei placement proposed
-in `network-security.md`.
+**Status (honest, 2026-07-14):** Inventory + curated daily/weekly L7 allowlists +
+Kestra schedules are live. Discovery shards: home, iot, gigahub, cidr-infra
+(`10.0.2.0/24`), cidr-services (`10.0.3.0/24`), aws-private / gcp-private WG
+sites. UniFi `10.1.89`; ceph-csi pprof closed; resolve-on-absence scoped to
+in-run templates. SSH host-key pin still deferred (plugin lacks `knownHosts`).
+Personal/media/guest CIDRs and public cloud sweeps remain later. Supersedes
+the Kubernetes Nuclei placement proposed in `network-security.md`.
 
 Guest: neo LXC `1036` / `10.0.2.13`. ClickHouse `estate_scan`, Grafana
 `uid: estate-scan`, Kestra `aether.estate/estate-scan-home` managed by
