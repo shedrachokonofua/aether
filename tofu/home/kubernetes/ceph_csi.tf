@@ -44,15 +44,22 @@ resource "helm_release" "ceph_csi_rbd" {
   name       = "ceph-csi-rbd"
   repository = "https://ceph.github.io/csi-charts"
   chart      = "ceph-csi-rbd"
+  version    = "3.17.0"
   namespace  = module.namespace["system"].name
   wait       = true
-  timeout    = 600
+  timeout    = 1200
 
   values = [yamlencode({
     csiConfig = [{
       clusterID = local.ceph_fsid
       monitors  = local.ceph_monitors
     }]
+
+    # HostNetwork metrics mux also registers Go pprof (/debug/pprof). Nothing
+    # scrapes csi_liveness — disable to close the node-IP disclosure surface.
+    nodeplugin = {
+      httpMetrics = { enabled = false }
+    }
 
     provisioner  = { replicaCount = 1 }
     storageClass = { create = false }
