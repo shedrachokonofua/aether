@@ -547,7 +547,22 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 - Declared targets + CIDR provenance writes to `estate_scan.{scan_runs,assets,services}`.
 - Grafana dashboard `uid: estate-scan` provisioned (coverage stats, recent runs, inventory, findings).
 - Alerts `estate-scan-run-stale` (>12h without success) and `estate-scan-run-failed` (any failure in 6h).
-- Observed/passive inventory union and cloud target resolution remain later work.
+- **Automated hostname inventory (2026-07-13):** baked from tofu
+  `synthetic_probe_targets` (`*.shdr.ch` only) into
+  `/etc/estate-scanner/inventory-declared.json` via
+  `task estate-scanner:inventory-declared` + `configure:estate-scanner`.
+  Guest stage `inventory-sync` merges CT (`crt.sh` `%shdr.ch`) with retries +
+  last-known-good; CT-only names are **report-only** (CH + Grafana), never
+  Nuclei. Validate merges declared hostname HTTPS URLs with IP fingerprint
+  URLs in **one** Nuclei pass. Findings join `dns:<fqdn>` assets.
+  Verified live: 95 scannable / 46 CT-only; `grafana.home.shdr.ch` in
+  `inventory-https.txt`; CT-only excluded from that list; CH
+  `estate_scan.inventory_names` + `dns:` assets populated.
+  Schema: `estate_scan.inventory_names` + `inventory_observations`.
+- `seven30.xyz` / non-`shdr.ch` synthetic probes stay on blackbox, not estate Nuclei.
+- Observed/passive (Zeek) inventory union and cloud target resolution remain later work.
+- Phase 4 calendars still blocked on findings review + SSH host-key pin in Kestra
+  (`config/ssh/estate-scanner.known_hosts`; plugin lacks `knownHosts` today).
 
 ### Phase 3 — calibration
 

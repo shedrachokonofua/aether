@@ -86,6 +86,7 @@ let
 
   approvedStages = [
     "targets"
+    "inventory-sync"
     "discover"
     "merge-diff"
     "fingerprint"
@@ -95,7 +96,25 @@ let
     "abandon"
     "reap-stale"
     "ingest-validate"
+    "wait-stage"
   ];
+
+  inventoryDir = "${stateDir}/inventory";
+
+  # HTTPS inventory: generated before configure from tofu synthetic_probe_targets.
+  # secrets/ is excluded from nix-builder rsync, so do not read tf-outputs here.
+  inventoryDeclaredPath = ./inventory-declared.generated.json;
+  inventoryDeclaredBody =
+    if builtins.pathExists inventoryDeclaredPath
+    then builtins.fromJSON (builtins.readFile inventoryDeclaredPath)
+    else {
+      generated_from = "missing inventory-declared.generated.json — run configure:estate-scanner";
+      inventory_revision = "missing";
+      entry_count = 0;
+      entries = [ ];
+    };
+
+  inventoryDeclaredJson = pkgs.writeText "inventory-declared.json" (builtins.toJSON inventoryDeclaredBody);
 
   nucleiTemplatesRevision = "v10.4.5";
   nucleiTemplates = pkgs.fetchFromGitHub {
@@ -174,10 +193,11 @@ let
     '';
   };
 
-  # Nuclei 3.x defaults auth/PDCP on and embeds Google IPv6 DNS
-  # (2001:4860:4860::8888). Without a shim + auth:false it either prompts on
-  # /dev/tty or spins for minutes on ENETUNREACH. HOME points at a clean
-  # config that disables PDCP; the dns-shim unit answers the hardcoded resolvers.
+  # Nuclei 3.x defaults -auth true (PDCP) and embeds Google IPv6 DNS
+  # (2001:4860:4860::8888). Without -auth=false it prompts on /dev/tty and hangs
+  # under SSH. HOME disables PDCP config rewrite; dns-shim answers the hardcoded
+  # resolvers; -r pins lab DNS so public DoH/fallback cannot return CF tunnel IPs
+  # for *.home.shdr.ch (1.1.1.1 → 172.64.80.1 CLOSE-WAIT hang).
   nucleiWrapped = pkgs.symlinkJoin {
     name = "nuclei-estate";
     paths = [ pkgs.nuclei ];
@@ -186,7 +206,10 @@ let
       wrapProgram $out/bin/nuclei \
         --set HOME ${stateDir}/nuclei-home \
         --add-flags "-duc" \
-        --add-flags "-disable-update-check"
+        --add-flags "-disable-update-check" \
+        --add-flags "-auth=false" \
+        --add-flags "-r" \
+        --add-flags "/etc/estate-scanner/resolvers.txt"
     '';
   };
 
@@ -222,20 +245,37 @@ let
     templates_dir = templatesDir;
     lock_file = lockFile;
     declared_targets = "/etc/estate-scanner/declared-targets.json";
+    inventory_declared = "/etc/estate-scanner/inventory-declared.json";
+    inventory_dir = inventoryDir;
+    inventory_revision = inventoryDeclaredBody.inventory_revision;
+    # Fixed CT query — ForceCommand must not accept caller-supplied CT URLs.
+    ct_query_url = "https://crt.sh/?q=%25.shdr.ch&output=json";
+    ct_timeout_ms = 60000;
+    inventory_max_names = 500;
+    # Hostname L7: internal only for daily Nuclei (public/tunnel via CF hangs CLOSE-WAIT).
+    inventory_l7_exposures = [ "internal" ];
     naabu = "${naabuWrapped}/bin/naabu";
     httpx = "${httpxWrapped}/bin/httpx";
     nuclei = "${nucleiWrapped}/bin/nuclei";
+    curl = "${pkgs.curl}/bin/curl";
     scanner_revision = "estate-scanner-nixos";
     nuclei_templates_revision = nucleiTemplatesRevision;
     approved_profiles = approvedProfiles;
     approved_target_groups = approvedTargetGroups;
     approved_stages = approvedStages;
+    approved_validate_artifacts = [
+      "fingerprint.jsonl"
+      "services-all.jsonl"
+      "services-changed.jsonl"
+      "inventory-https.txt"
+      "validate-targets.txt"
+    ];
     discover_profiles = discoverProfiles;
     discover_group_rates = discoverGroupRates;
     discover_cidrs = discoverCidrs;
     # Cap Nuclei wall time so Kestra concurrency:1 cannot queue forever.
-    # ~23 URLs × curated medium+ templates empirically needs ~60–90m.
-    validate_timeout_ms = 5400000; # 90 minutes
+    # Hostname inventory (~95) + IP fingerprint (~23) ≫ prior 23-URL ~72m baseline.
+    validate_timeout_ms = 28800000; # 8 hours
     fixture_url = "http://127.0.0.1:18080/";
     fixture_templates_dir = "/etc/estate-scanner/nuclei-fixtures";
     # Password is Ansible/SOPS-managed — never bake it into the Nix closure.
@@ -276,10 +316,12 @@ in
     }
   ];
 
-  # Do not fall back to public IPv6 resolvers via systemd-resolved.
+  # Never fall back to public DNS — 1.1.1.1 returns Cloudflare tunnel IPs for
+  # *.home.shdr.ch (172.64.80.1) and Nuclei hangs in CLOSE-WAIT on those edges.
   services.resolved.fallbackDns = [
-    "1.1.1.1"
-    "8.8.8.8"
+    vm.gateway
+    facts.vm.adguard.ip
+    facts.vm.adguard_secondary.ip
   ];
 
   environment.systemPackages = [
@@ -292,6 +334,7 @@ in
     pkgs.nmap
     pkgs.babashka
     pkgs.util-linux # setsid for detached discover workers
+    pkgs.curl
     pkgs.jq
     pkgs.yq-go
   ];
@@ -364,9 +407,13 @@ in
         Naabu/httpx wrapped with -no-stdin -duc for non-interactive SSH/Kestra use.
         discover detaches via setsid; worker writes estate_scan.* in ClickHouse.
         ClickHouse password: /etc/estate-scanner/clickhouse-password (Ansible/SOPS).
+        Declared HTTPS inventory: /etc/estate-scanner/inventory-declared.json
+          (baked from tofu synthetic_probe_targets; refresh via configure:estate-scanner).
+        inventory-sync refreshes CT + DNS resolve into ${inventoryDir}.
         Do not add local OnCalendar scan schedules; Kestra is the schedule authority.
       '';
       "estate-scanner/runtime.json".source = runtimeConfigJson;
+      "estate-scanner/inventory-declared.json".source = inventoryDeclaredJson;
       "estate-scanner/naabu.yaml".text = ''
         no-stdin: true
         disable-update-check: true
@@ -375,6 +422,11 @@ in
         warm-up-time: 2
       '';
       "estate-scanner/nuclei-templates-revision".text = "${nucleiTemplatesRevision}\n";
+      "estate-scanner/resolvers.txt".text = ''
+        ${vm.gateway}
+        ${facts.vm.adguard.ip}
+        ${facts.vm.adguard_secondary.ip}
+      '';
       "estate-scanner/nuclei-config.yaml".text = ''
         # Estate-scanner Nuclei defaults (pin templates; no auto-update; no PDCP).
         auth: false
@@ -428,6 +480,7 @@ in
     "d ${profilesDir} 0750 root estate-scan -"
     "d ${runsDir} 0770 root estate-scan -"
     "d ${templatesDir} 0750 root estate-scan -"
+    "d ${inventoryDir} 2770 root estate-scan -"
     "d ${stateDir}/kestra 0750 kestra-estate-scanner estate-scan -"
     "d ${artifactsDir} 0770 root estate-scan -"
     "d ${stateDir}/nuclei-home 0750 root estate-scan -"
@@ -444,9 +497,18 @@ in
       ln -sfn ${templatesDir}/${nucleiTemplatesRevision} ${templatesDir}/current
       printf '%s\n' '${nucleiTemplatesRevision}' > ${templatesDir}/REVISION
       chown -R root:estate-scan ${templatesDir} || true
+      # Inventory dir must be writable by kestra-estate-scanner (estate-scan group).
+      install -d -m 2770 -o root -g estate-scan ${inventoryDir}
+      chown -R root:estate-scan ${inventoryDir} || true
+      chmod -R g+rw ${inventoryDir} || true
+      find ${inventoryDir} -type d -exec chmod g+s {} + || true
+      install -d -m 0770 -o root -g estate-scan ${stateDir}/tmp
       # Clean Nuclei HOME so scans do not inherit operator ~/.config/nuclei
       # (which can point at a missing ~/nuclei-templates and hang on DNS).
       install -d -m 0750 -o root -g estate-scan ${stateDir}/nuclei-home/.config/nuclei
+      install -d -m 0770 -o root -g estate-scan ${stateDir}/nuclei-home/.config/uncover
+      # Drop stale LevelDB scratch dirs that stall Nuclei startup.
+      rm -rf /tmp/nuclei* ${stateDir}/tmp/nuclei* 2>/dev/null || true
       printf '%s\n' '{"nuclei-templates-directory":"${templatesDir}/current"}' \
         > ${stateDir}/nuclei-home/.config/nuclei/.templates-config.json
       # Do not create .nuclei-ignore — an empty/comment-only file makes Nuclei
