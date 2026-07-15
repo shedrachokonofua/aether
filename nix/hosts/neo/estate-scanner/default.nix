@@ -137,7 +137,9 @@ let
     hash = "sha256-6czf84bHyvHIT9rA2HUYqQe7lgODl4uRMP/8QepV3AU=";
   };
 
-  # Small allowlist for nuclei-daily — full http/exposures (~700) deadlocks Nuclei 3.5.1.
+  # Daily: curated file allowlist (estate tripwires). Weekly: catalog dirs
+  # (exposures/misconfiguration/exposed-panels) + selected CVEs. Entries may be
+  # files or directories; both are symlinked from the pinned templates rev.
   dailyTemplateRels =
     lib.filter (s: s != "" && !(lib.hasPrefix "#" s)) (
       lib.splitString "\n" (builtins.readFile ./nuclei-daily-templates.txt)
@@ -150,16 +152,21 @@ let
     '') dailyTemplateRels}
   '';
 
-  # Bounded weekly pack (daily subset + more panels/CVEs) — still not full catalogs.
   weeklyTemplateRels =
     lib.filter (s: s != "" && !(lib.hasPrefix "#" s)) (
       lib.splitString "\n" (builtins.readFile ./nuclei-weekly-templates.txt)
     );
+  # Materialize catalog directories (cp -aL): Nuclei 3.11 does not follow
+  # directory symlinks when walking -t paths. File entries stay as symlinks.
   nucleiWeeklyTemplates = pkgs.runCommand "estate-nuclei-weekly" { } ''
     mkdir -p "$out"
     ${lib.concatMapStrings (rel: ''
       mkdir -p "$out/$(dirname ${lib.escapeShellArg rel})"
-      ln -s ${nucleiTemplates}/${rel} "$out/${lib.escapeShellArg rel}"
+      if [ -d ${nucleiTemplates}/${lib.escapeShellArg rel} ]; then
+        cp -aL ${nucleiTemplates}/${lib.escapeShellArg rel} "$out/${lib.escapeShellArg rel}"
+      else
+        ln -s ${nucleiTemplates}/${lib.escapeShellArg rel} "$out/${lib.escapeShellArg rel}"
+      fi
     '') weeklyTemplateRels}
   '';
 
@@ -237,9 +244,11 @@ let
 
   # Nuclei 3.x defaults -auth true (PDCP) and embeds Google IPv6 DNS
   # (2001:4860:4860::8888). Without -auth=false it prompts on /dev/tty and hangs
-  # under SSH. HOME disables PDCP config rewrite; dns-shim answers the hardcoded
-  # resolvers; -r pins lab DNS so public DoH/fallback cannot return CF tunnel IPs
-  # for *.home.shdr.ch (1.1.1.1 → 172.64.80.1 CLOSE-WAIT hang).
+  # under SSH. 3.11+ also blocks on open stdin unless -no-stdin (same class of
+  # hang as naabu/httpx under SSH/ForceCommand). HOME disables PDCP config
+  # rewrite; dns-shim answers the hardcoded resolvers; -r pins lab DNS so
+  # public DoH/fallback cannot return CF tunnel IPs for *.home.shdr.ch
+  # (1.1.1.1 → 172.64.80.1 CLOSE-WAIT hang).
   nucleiWrapped = pkgs.symlinkJoin {
     name = "nuclei-estate";
     paths = [ pkgs.nuclei ];
@@ -247,6 +256,7 @@ let
     postBuild = ''
       wrapProgram $out/bin/nuclei \
         --set HOME ${stateDir}/nuclei-home \
+        --add-flags "-no-stdin" \
         --add-flags "-duc" \
         --add-flags "-disable-update-check" \
         --add-flags "-auth=false" \
@@ -500,8 +510,11 @@ in
         silent: false
       '';
       "estate-scanner/nuclei-profiles/nuclei-daily.yml".text = ''
-        # L7 HTTP only; skip noisy info/low and intrusive classes.
+        # L7 HTTP only. Include info/low so curated panel detects fire; noise
+        # control is the daily file allowlist, not severity gating.
         severity:
+          - info
+          - low
           - medium
           - high
           - critical
@@ -517,6 +530,8 @@ in
           - http/cves/2019/CVE-2019-11248.yaml
       '';
       "estate-scanner/nuclei-profiles/nuclei-weekly.yml".text = ''
+        # Broader catalog dirs (exposures/misconfig/panels). Same safety excludes;
+        # no default-logins / code / headless in the weekly pack paths.
         severity:
           - info
           - low

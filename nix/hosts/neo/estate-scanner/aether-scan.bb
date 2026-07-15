@@ -105,6 +105,16 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                  (re-matches shdr-hostname-re n))
         n))))
 
+(defn canonicalize-path
+  "Resolve symlinks for Nuclei -t paths. Nuclei 3.11 does not walk a -t
+  argument that is itself a directory symlink (/etc/estate-scanner/nuclei-*)."
+  [p]
+  (when (and p (fs/exists? p))
+    (try
+      (.getCanonicalPath (io/file (str p)))
+      (catch Exception _
+        (str p)))))
+
 (defn stable-identity-for
   "ipv4:<addr> for literals; dns:<fqdn> for hostnames."
   [host]
@@ -1442,8 +1452,8 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         log-file (str out-dir "/validate-" profile ".log")
         evidence-file (str out-dir "/validate-evidence.json")
         templates-http (str templates_dir "/current/http")
-        ;; Daily/weekly: curated allowlists under /etc/estate-scanner/nuclei-{daily,weekly}.
-        ;; Full http/exposures (~700) or multi-dir catalogs (~6700) deadlock Nuclei 3.5.1.
+        ;; Daily/weekly packs under /etc/estate-scanner/nuclei-{daily,weekly}.
+        ;; Daily = curated files; weekly = catalog dirs + CVEs. Nuclei ≥3.6.2.
         daily-templates-dir (or (:nuclei_daily_templates_dir cfg)
                                 "/etc/estate-scanner/nuclei-daily")
         weekly-templates-dir (or (:nuclei_weekly_templates_dir cfg)
@@ -1520,15 +1530,16 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
           existing-dirs (let [pack-dir (case profile
                                          "nuclei-daily" daily-templates-dir
                                          "nuclei-weekly" weekly-templates-dir
-                                         nil)]
-                          (if (and pack-dir
-                                   (fs/exists? pack-dir)
+                                         nil)
+                              resolved (canonicalize-path pack-dir)]
+                          (if (and resolved
                                    (some #(str/ends-with? (str %) ".yaml")
-                                         (file-seq (io/file pack-dir))))
-                            [pack-dir]
+                                         (file-seq (io/file resolved))))
+                            [resolved]
                             []))
-          fixture-ready? (and (fs/exists? fixture-dir)
-                              (seq (fs/glob fixture-dir "*.yaml")))]
+          fixture-dir-resolved (or (canonicalize-path fixture-dir) fixture-dir)
+          fixture-ready? (and (fs/exists? fixture-dir-resolved)
+                              (seq (fs/glob fixture-dir-resolved "*.yaml")))]
       (when (and (empty? existing-dirs) (not fixture-ready?))
         (write-status! cfg {:run-id run-id :stage "validate" :status "failed"
                             :message "no curated nuclei template dirs present"})
@@ -1582,7 +1593,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                 nuclei-tmpdir (str (or (:state_dir cfg) "/var/lib/estate-scanner") "/tmp")
                 _ (fs/create-dirs nuclei-tmpdir)
                 template-args (concat (mapcat (fn [d] ["-t" d]) existing-dirs)
-                                      (when fixture-ready? ["-t" fixture-dir]))
+                                      (when fixture-ready? ["-t" fixture-dir-resolved]))
                 cmd (cond-> (into [nuclei
                                    "-l" list-file]
                                   (concat template-args

@@ -1,15 +1,49 @@
 # Curated nuclei-daily allowlist (paths relative to nuclei-templates root).
-# Keep this small — loading full http/exposures (~700) deadlocks Nuclei 3.5.1.
-# Weekly still uses the broader catalog dirs.
+# Fast canary + high-signal tripwires for the Aether estate. Noise control is
+# this list (not severity): daily profile includes info so panel detects fire.
+# Weekly uses catalog directories under the same safety excludes.
+
+# --- canary / known tripwires ---
 http/cves/2026/CVE-2026-22557.yaml
 http/exposures/configs/prometheus-metrics.yaml
+
+# --- secret / config exposures ---
 http/exposures/configs/docker-compose-config.yaml
 http/exposures/configs/dockercfg-config.yaml
+http/exposures/configs/dockerfile-hidden-disclosure.yaml
+http/exposures/configs/git-config.yaml
+http/exposures/configs/git-credentials-disclosure.yaml
+http/exposures/configs/aws-credentials.yaml
+http/exposures/configs/aws-config.yaml
+http/exposures/configs/laravel-env.yaml
+http/exposures/configs/ansible-config-disclosure.yaml
+http/exposures/configs/server-private-keys.yaml
+http/exposures/configs/ssh-authorized-keys.yaml
+http/exposures/configs/htpasswd-detection.yaml
 http/exposures/apis/swagger-api.yaml
+http/exposures/apis/openapi.yaml
+http/exposures/apis/traefik-api-enabled.yaml
+
+# --- unauth / debug misconfigs ---
 http/misconfiguration/unauthenticated-alert-manager.yaml
 http/misconfiguration/unauthenticated-netdata.yaml
 http/misconfiguration/unauthenticated-nginx-dashboard.yaml
 http/misconfiguration/unauthenticated-zipkin.yaml
+http/misconfiguration/unauthenticated-mongo-express.yaml
+http/misconfiguration/clickhouse-unauth-api.yaml
+http/misconfiguration/exposed-docker-api.yaml
+http/misconfiguration/docker-registry.yaml
+http/misconfiguration/etcd-unauthenticated-api.yaml
+http/misconfiguration/envoy-admin-exposure.yaml
+http/misconfiguration/argo-workflows-unauth.yaml
+http/misconfiguration/filebrowser-unauth.yaml
+http/misconfiguration/gitea-public-signup.yaml
+http/misconfiguration/django-debug-config-enabled.yaml
+http/misconfiguration/node-exporter-metrics.yaml
+http/misconfiguration/server-status.yaml
+http/misconfiguration/blackbox-exporter-metrics.yaml
+
+# --- estate / stack panels ---
 http/exposed-panels/grafana-detect.yaml
 http/exposed-panels/keycloak-admin-panel.yaml
 http/exposed-panels/prometheus-exposed-panel.yaml
@@ -19,3 +53,38 @@ http/exposed-panels/portainer-panel.yaml
 http/exposed-panels/gitlab-detect.yaml
 http/exposed-panels/argocd-login.yaml
 http/exposed-panels/kibana-panel.yaml
+http/exposed-panels/openbao-webui-detect.yaml
+http/exposed-panels/vault-panel.yaml
+http/exposed-panels/vaultwarden-panel.yaml
+http/exposed-panels/dokploy-panel.yaml
+http/exposed-panels/n8n-panel.yaml
+http/exposed-panels/home-assistant-panel.yaml
+http/exposed-panels/harbor-panel.yaml
+http/exposed-panels/headlamp-panel.yaml
+http/exposed-panels/gitea-login.yaml
+http/exposed-panels/authentik-panel.yaml
+http/exposed-panels/kubernetes-dashboard.yaml
+http/exposed-panels/linkerd-panel.yaml
+http/exposed-panels/nginx-proxy-manager.yaml
+http/exposed-panels/uptime-kuma-panel.yaml
+http/exposed-panels/proxmox-panel.yaml
+http/exposed-panels/unifi-panel.yaml
+http/exposed-panels/unifi-os-panel.yaml
+http/exposed-panels/wazuh-panel.yaml
+http/exposed-panels/minio-browser.yaml
+http/exposed-panels/minio-console.yaml
+http/exposed-panels/pgadmin-exposure.yaml
+http/exposed-panels/phpmyadmin-panel.yaml
+http/exposed-panels/adminer-panel.yaml
+http/exposed-panels/jenkins-login.yaml
+http/exposed-panels/sonarqube-login.yaml
+http/exposed-panels/rabbitmq-dashboard.yaml
+http/exposed-panels/immich-panel.yaml
+http/exposed-panels/photoprism-panel.yaml
+http/exposed-panels/paperless-ngx-panel.yaml
+http/exposed-panels/bookstack-panel.yaml
+http/exposed-panels/metabase-panel.yaml
+http/exposed-panels/emby-panel.yaml
+http/exposed-panels/nextcloudpi-panel.yaml
+http/exposed-panels/cockpit-project-panel.yaml
+http/exposed-panels/influxdb-panel.yaml
