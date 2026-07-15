@@ -26,6 +26,13 @@
   loop_control:
     label: "{{ item.site }}/{{ item.host }}"
 
+- name: Refresh apt cache before installing exporter deps (Debian family)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+  when: ansible_os_family == 'Debian'
+
 - name: Install exporter runtime dependencies
   ansible.builtin.package:
     name:

@@ -16,6 +16,7 @@
     site_wireguard_remote_prefixes:
       - 10.0.0.0/16
       - 10.2.0.0/16
+      - 10.3.0.0/16
     # Tailscale's accepted subnet route lives in policy table 52 during the
     # migration. New site-address and transit traffic must prefer the declared
     # WireGuard routes in the main table until tailscaled is retired.
@@ -30,6 +31,10 @@
         match: from 10.1.0.10/32
       - priority: 101
         match: from 10.2.0.0/16
+      - priority: 96
+        match: to 10.3.0.0/16
+      - priority: 102
+        match: from 10.3.0.0/16
     site_wireguard_enable_forwarding: true
     site_wireguard_topology_role: hub
     site_wireguard_monitoring_ports:
@@ -53,6 +58,29 @@
     site_wireguard_forward_allow_cidrs:
       - 10.0.4.0/24
       - "{{ vm.estate_scanner.ip }}/32"
+    # Spokes the home monitoring source scrapes through the hub (forwarded).
+    site_wireguard_monitoring_targets:
+      - 10.2.0.10
+      - 10.3.0.10
+    # Forwarded service flows (wg->wg): GCP uptime -> Grafana push, and home
+    # DNS clients -> the OCI AdGuard resolver.
+    site_wireguard_service_forwards:
+      - saddr: [10.2.0.10]
+        daddr: 10.0.2.2
+        proto: tcp
+        ports: [443, 9443]
+      - saddr: [10.0.0.0/16, 10.1.0.0/16, 10.254.0.2/32]
+        daddr: 10.3.0.10
+        proto: udp
+        ports: [53]
+      - saddr: [10.0.0.0/16, 10.1.0.0/16, 10.254.0.2/32]
+        daddr: 10.3.0.10
+        proto: tcp
+        ports: [53]
+      - saddr: [10.0.2.2/32] # home gateway Caddy -> OCI AdGuard admin UI (dns.oci.shdr.ch)
+        daddr: 10.3.0.10
+        proto: tcp
+        ports: [3000]
     site_wireguard_peers:
       - site: home
         host: router
@@ -66,6 +94,12 @@
         allowed_ips:
           - 10.2.0.0/16
           - 10.254.0.3/32
+      - site: oci
+        host: oci-adguard
+        public_key: "{{ secrets.wireguard.oci_public_key }}"
+        allowed_ips:
+          - 10.3.0.0/16
+          - 10.254.0.4/32
   roles:
     - common
     - role: site_wireguard

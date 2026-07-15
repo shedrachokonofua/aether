@@ -44,6 +44,10 @@ locals {
     billing_account_id = data.sops_file.secrets.data["google.billing_account_id"]
   }
 
+  oci = {
+    tenancy_ocid = try(data.sops_file.secrets.data["oci.tenancy_ocid"], "")
+  }
+
   litellm_google_maps_api_key = try(
     module.google[0].litellm_google_maps_api_key,
     ""

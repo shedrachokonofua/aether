@@ -73,6 +73,11 @@ dns.home.shdr.ch {
   reverse_proxy {{ vm.adguard.ip }}:{{ vm.adguard.ports.admin }}
 }
 
+# OCI offsite AdGuard admin UI, reached over the WireGuard fabric (10.3.0.10).
+dns.oci.shdr.ch {
+  reverse_proxy 10.3.0.10:3000
+}
+
 seaweed.home.shdr.ch {
   reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.filer }} {
     header_up Host {http.request.host}

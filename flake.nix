@@ -171,6 +171,7 @@
             # Cloud CLIs
             pkgsUnstable.awscli2
             google-cloud-sdk
+            oci-cli           # Oracle Cloud CLI (session-token / UPST auth; no static keys)
             rclone            # S3 CLI for AWS + Ceph RGW (MIT license)
             
             # Certificate management

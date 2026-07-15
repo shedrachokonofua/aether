@@ -54,8 +54,11 @@
           - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.2.0.0/16
           - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.254.0.1/32
           - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.254.0.3/32
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.3.0.0/16
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.254.0.4/32
           - set protocols static route 10.1.0.0/16 interface wg10
           - set protocols static route 10.2.0.0/16 interface wg10
+          - set protocols static route 10.3.0.0/16 interface wg10
         save: true
       no_log: true
       tags: [site-wireguard]
@@ -104,6 +107,10 @@
           - set service dns forwarding negative-ttl 0
           - set service dns forwarding name-server {{ vm.adguard.ip }}
           - set service dns forwarding name-server {{ vm.adguard_secondary.ip }}
+          # OCI offsite AdGuard resolver over WireGuard. PowerDNS Recursor
+          # speed-selects forwarders, so the LAN LXCs above serve normal traffic
+          # (~0ms) and OCI (~40ms offsite) acts as a de-facto backup.
+          - set service dns forwarding name-server 10.3.0.10
         save: true
 
     - name: Configure VLAN interfaces
@@ -267,7 +274,7 @@
 
           # Routed cloud sites. The tunnel is transport only; these policies
           # retain least privilege and preserve source addresses without NAT.
-          - set firewall zone CLOUD description 'AWS and GCP routed WireGuard sites'
+          - set firewall zone CLOUD description 'AWS, GCP, and OCI routed WireGuard sites'
           - set firewall zone CLOUD member interface wg10
           - set firewall zone CLOUD default-action drop
 
@@ -412,6 +419,18 @@
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 destination address 10.2.0.10/32
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 destination port 9100,9586,19531
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 30 description 'Monitoring pulls GCP metrics and journals'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 31 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 31 protocol tcp
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 31 source address {{ vm.monitoring_stack.ip }}
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 31 destination address 10.3.0.10/32
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 31 destination port 9100,9586,19531
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 31 description 'Monitoring pulls OCI metrics and journals'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 protocol tcp
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 source address {{ vm.home_gateway_stack.ip }}
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 destination address 10.3.0.10/32
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 destination port 3000
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 description 'Home gateway Caddy to OCI AdGuard admin UI'
           # Personal clients retain full site-host management over WireGuard.
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 action accept
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 source address 10.0.4.0/24

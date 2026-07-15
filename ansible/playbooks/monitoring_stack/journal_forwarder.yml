@@ -1,11 +1,11 @@
 ---
 # Pull-based journal collection for the agent-free hosts (5 Proxmox hypervisors
-# + the two cloud VMs). vault-agent mints the forwarder's client cert from the
+# + the three cloud VMs). vault-agent mints the forwarder's client cert from the
 # dedicated pki-journal-client mount; the forwarder pulls each gatewayd and
 # ships OTLP to the local central collector.
 #
 # Transport: Proxmox sources use gatewayd mTLS over the LAN; cloud sources use
-# plain HTTP over the routed WireGuard fabric (10.1.0.10 / 10.2.0.10), where WG
+# plain HTTP over the routed WireGuard fabric (10.1.0.10 / 10.2.0.10 / 10.3.0.10), where WG
 # + nftables + the VyOS CLOUD zone are the authorization boundary.
 - name: Deploy journal forwarder on monitoring-stack
   hosts: monitoring-stack
@@ -19,6 +19,10 @@
         labels: { instance_type: vps }
       - name: uptime-monitor
         url: "http://10.2.0.10:19531"
+        no_tls: true
+        labels: { instance_type: vps }
+      - name: oci-adguard
+        url: "http://10.3.0.10:19531"
         no_tls: true
         labels: { instance_type: vps }
   roles:

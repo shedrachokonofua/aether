@@ -167,7 +167,7 @@ collector, which routes them to Loki. Deploy with `task configure:journal-gatewa
 | Hop | Transport / authn |
 | --- | --- |
 | forwarder → Proxmox hosts | HTTPS mTLS. gatewayd serves plain HTTP on loopback; **ghostunnel** terminates client-cert mTLS on the mgmt IP (Debian systemd is openssl-built, so gatewayd's own `--trust` is unavailable). The trust anchor is the `pki-journal-client` intermediate — it signs exactly one leaf, so it *is* the authorization policy — plus an `--allow-cn` allowlist. |
-| forwarder → cloud VMs | Plain HTTP bound to the routed WireGuard site IP (`10.1.0.10` AWS, `10.2.0.10` GCP). WireGuard + the host nftables rule (only `10.0.2.3` may reach `:19531`) + the VyOS `CLOUD` zone are the authn boundary. Tailscale was retired on these nodes. |
+| forwarder → cloud VMs | Plain HTTP bound to the routed WireGuard site IP (`10.1.0.10` AWS, `10.2.0.10` GCP, `10.3.0.10` OCI). WireGuard + the host nftables rule (only `10.0.2.3` may reach `:19531`) + the VyOS `CLOUD` zone are the authn boundary. Tailscale was retired on these nodes. |
 | forwarder → OTLP | loopback `http://127.0.0.1:4318`, plain. |
 
 The forwarder's client cert is minted by **vault-agent** (Ansible `openbao_agent`

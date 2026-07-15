@@ -14,7 +14,7 @@ fabric → site → host → service
 | Dimension | Meaning | Example |
 | --- | --- | --- |
 | `fabric` | One routed connectivity domain | `aether` |
-| `site` | One administrative or physical location in the fabric | `home`, `aws`, `gcp` |
+| `site` | One administrative or physical location in the fabric | `home`, `aws`, `gcp`, `oci` |
 | `host` | One machine within a site | `router`, `public-gateway`, `uptime-monitor` |
 | `service` | One workload running on a host | `node-exporter`, `wireguard-exporter`, `crowdsec` |
 
@@ -29,8 +29,10 @@ with its host.
 adjacency happens to be hub-and-spoke:
 
 ```text
-home/router ── aws/public-gateway ── gcp/uptime-monitor
-                 topology_role=hub
+                       home/router
+                           │
+gcp/uptime-monitor ─── aws/public-gateway ─── oci/oci-adguard
+                       (topology_role=hub)
 ```
 
 The AWS site forwarding traffic does not make `aws` a parent of the other
@@ -42,8 +44,9 @@ peer identifiers. A future routing change must not rename a site or host.
 | Fabric | Site | Host | Topology role | Direct WireGuard peer sites |
 | --- | --- | --- | --- | --- |
 | `aether` | `home` | `router` | `spoke` | `aws` |
-| `aether` | `aws` | `public-gateway` | `hub` | `home`, `gcp` |
+| `aether` | `aws` | `public-gateway` | `hub` | `home`, `gcp`, `oci` |
 | `aether` | `gcp` | `uptime-monitor` | `spoke` | `aws` |
+| `aether` | `oci` | `oci-adguard` | `spoke` | `aws` |
 
 WireGuard peer declarations use the remote `site` and `host` fields. Runtime
 peer metrics retain the public key as the immutable protocol identity and add
@@ -71,7 +74,7 @@ Every series from these jobs carries:
 
 ```text
 fabric="aether"
-site="home|aws|gcp"
+site="home|aws|gcp|oci"
 host="<host-id>"
 service="<service-id>"
 topology_role="hub|spoke"
