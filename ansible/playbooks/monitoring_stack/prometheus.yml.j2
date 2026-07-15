@@ -50,6 +50,13 @@ scrape_configs:
           host: "uptime-monitor"
           service: "node-exporter"
           topology_role: "spoke"
+      - targets: ["10.3.0.10:9100"]
+        labels:
+          fabric: "aether"
+          site: "oci"
+          host: "oci-adguard"
+          service: "node-exporter"
+          topology_role: "spoke"
 
   - job_name: "site-wireguard-exporter"
     static_configs:
@@ -65,6 +72,13 @@ scrape_configs:
           fabric: "aether"
           site: "gcp"
           host: "uptime-monitor"
+          service: "wireguard-exporter"
+          topology_role: "spoke"
+      - targets: ["10.3.0.10:9586"]
+        labels:
+          fabric: "aether"
+          site: "oci"
+          host: "oci-adguard"
           service: "wireguard-exporter"
           topology_role: "spoke"
 

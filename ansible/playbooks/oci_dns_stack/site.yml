@@ -1,0 +1,101 @@
+---
+# OCI (ca-toronto-1) offsite AdGuard resolver — a plain GCP-style WireGuard spoke
+# dialing the AWS hub. Mirrors uptime_monitor_stack/site.yml; the extra role is
+# adguard_home (AdGuard on Ubuntu, config from the shared config/adguard-settings.json).
+- name: Configure OCI DNS stack
+  hosts: oci-adguard
+  gather_facts: true
+  vars:
+    aether_identity:
+      fabric: aether
+      site: oci
+      host: oci-adguard
+    site_wireguard_addresses:
+      - 10.3.0.10/32
+      - 10.254.0.4/32
+    site_wireguard_private_key: "{{ secrets.wireguard.oci_private_key }}"
+    site_wireguard_source_address: 10.3.0.10
+    site_wireguard_remote_prefixes:
+      - 10.0.0.0/16
+      - 10.1.0.0/16
+    site_wireguard_topology_role: spoke
+    site_wireguard_input_allow_cidrs:
+      - 10.0.4.0/24
+    site_wireguard_monitoring_ports:
+      - 19531
+      - 9100
+      - 9586
+    # :53 accepted on this host's wg address from the home DNS clients it serves
+    # (== hub service_forwards). Opens DNS without opening all ports.
+    site_wireguard_service_allow:
+      - proto: udp
+        port: 53
+        cidrs: [10.0.0.0/16, 10.1.0.0/16, 10.254.0.2/32]
+      - proto: tcp
+        port: 53
+        cidrs: [10.0.0.0/16, 10.1.0.0/16, 10.254.0.2/32]
+      # AdGuard admin UI (dns.oci.shdr.ch), reached only via the home gateway Caddy.
+      - proto: tcp
+        port: 3000
+        cidrs: [10.0.2.2/32]
+    site_wireguard_peers:
+      - site: aws
+        host: public-gateway
+        public_key: "{{ secrets.wireguard.aws_public_key }}"
+        endpoint: "{{ tf_outputs.aws_public_gateway_ip.value }}:51820"
+        persistent_keepalive: 25
+        allowed_ips:
+          - 10.0.0.0/16
+          - 10.1.0.0/16
+          - 10.254.0.1/32
+          - 10.254.0.2/32
+  pre_tasks:
+    # The OCI Ubuntu cloud image ships a default iptables INPUT chain that
+    # REJECTs all non-SSH/ICMP input (icmp-host-prohibited), clobbering fabric
+    # services (:53, exporters) on the WireGuard interface. Delegate wg-interface
+    # filtering to the aether_wireguard nft table (priority -5, evaluated first)
+    # by trusting the interface in the base filter; the image's public-interface
+    # reject stays intact for defense-in-depth.
+    - name: Trust the WireGuard fabric interface in the base firewall
+      ansible.builtin.iptables:
+        chain: INPUT
+        in_interface: wg-site
+        jump: ACCEPT
+        action: insert
+      become: true
+      register: oci_base_fw_input
+      tags: [always]
+    - name: Persist base firewall rules when changed
+      ansible.builtin.command: netfilter-persistent save
+      become: true
+      when: oci_base_fw_input.changed
+      changed_when: true
+      tags: [always]
+
+  roles:
+    - common
+    - role: site_wireguard
+      tags: [site-wireguard]
+    - role: site_metrics_exporters
+      vars:
+        wireguard_exporter_peers: "{{ site_wireguard_peers }}"
+        wireguard_exporter_interface: "{{ site_wireguard_interface }}"
+        node_exporter_listen_address: 10.3.0.10
+        wireguard_exporter_listen_address: 10.3.0.10
+      tags: [site-metrics]
+    - role: journal_gateway
+      vars:
+        journal_gateway_tls_enabled: false
+        journal_gateway_bind_address: "10.3.0.10"
+      tags: [journal-gateway]
+    - role: adguard_home
+      vars:
+        adguard_wg_ip: 10.3.0.10
+        # DNS served over WG to the home LANs OCI routes to (== site_wireguard_remote_prefixes);
+        # :53 opened on the wg interface by the adguard_home role. WG + the hub/VyOS
+        # CLOUD zone are the auth boundary.
+        adguard_dns_allow_cidrs:
+          - 10.0.0.0/16
+          - 10.1.0.0/16
+          - 10.254.0.2/32 # VyOS DNS-forwarder source over wg10
+      tags: [adguard]

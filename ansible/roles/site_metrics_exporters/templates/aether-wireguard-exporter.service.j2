@@ -7,7 +7,12 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStartPre=-/usr/bin/{{ wireguard_exporter_container_engine }} rm --force aether-wireguard-exporter
-ExecStart=/usr/bin/{{ wireguard_exporter_container_engine }} run --rm --name aether-wireguard-exporter --network=host --user=0:0 --cap-drop=all --cap-add=NET_ADMIN --security-opt=no-new-privileges --read-only --pull=never --log-driver=journald --volume={{ wireguard_exporter_peer_config_path }}:/etc/wireguard-exporter/peers.conf:ro,Z {{ wireguard_exporter_image }} -a false -l {{ wireguard_exporter_listen_address }} -p {{ wireguard_exporter_port }} -i {{ wireguard_exporter_interface }} -n /etc/wireguard-exporter/peers.conf -d {{ (wireguard_exporter_handshake_delay_enabled | bool) | ternary('true', 'false') }}
+# NET_ADMIN is required for the exporter's netlink/wg queries. On Ubuntu 24.04
+# podman/crun, AppArmor's inet-socket mediation denies the listener even with
+# the cap present ("denied create inet"), so the podman path runs unconfined
+# (still hardened: cap-drop=all, no-new-privileges, read-only, host wg-only).
+# Docker sites keep the default profile (they bind fine) - do NOT copy blindly.
+ExecStart=/usr/bin/{{ wireguard_exporter_container_engine }} run --rm --name aether-wireguard-exporter --network=host --user=0:0 --cap-drop=all --cap-add=NET_ADMIN --security-opt=no-new-privileges{{ ' --security-opt=apparmor=unconfined' if wireguard_exporter_container_engine == 'podman' else '' }} --read-only --pull=never --log-driver=journald --volume={{ wireguard_exporter_peer_config_path }}:/etc/wireguard-exporter/peers.conf:ro,Z {{ wireguard_exporter_image }} -a false -l {{ wireguard_exporter_listen_address }} -p {{ wireguard_exporter_port }} -i {{ wireguard_exporter_interface }} -n /etc/wireguard-exporter/peers.conf -d {{ (wireguard_exporter_handshake_delay_enabled | bool) | ternary('true', 'false') }}
 ExecStop=/usr/bin/{{ wireguard_exporter_container_engine }} stop --time=10 aether-wireguard-exporter
 Restart=always
 RestartSec=5s

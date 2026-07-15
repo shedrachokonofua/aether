@@ -80,6 +80,28 @@ output "google_uptime_monitor_private_key" {
   description = "Private SSH key for the GCP uptime monitor VM"
 }
 
+output "oci_adguard_secondary_ip" {
+  value       = try(module.oci[0].adguard_secondary_ip, "")
+  description = "Public IP of the offsite OCI AdGuard secondary"
+}
+
+output "oci_adguard_secondary_private_key" {
+  value       = try(module.oci[0].adguard_secondary_private_key, "")
+  sensitive   = true
+  description = "Private SSH key for the OCI AdGuard secondary"
+}
+
+output "oci_a1_ip" {
+  value       = try(module.oci[0].a1_ip, "")
+  description = "Public IP of the offsite OCI A1 workhorse"
+}
+
+output "oci_a1_private_key" {
+  value       = try(module.oci[0].a1_private_key, "")
+  sensitive   = true
+  description = "Private SSH key for the OCI A1 box"
+}
+
 output "tailscale_admin_gateway_oauth_client_id" {
   value = tailscale_oauth_client.admin_gateway_oauth_client.id
 }
