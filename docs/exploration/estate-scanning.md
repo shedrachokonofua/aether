@@ -2,15 +2,19 @@
 
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
-**Status (honest, 2026-07-14):** Inventory + curated daily/weekly L7 allowlists +
-Kestra schedules are live. Discovery shards: home, iot, gigahub, cidr-infra
-(`10.0.2.0/24`), cidr-services (`10.0.3.0/24`), cidr-personal (`10.0.4.0/24`),
-cidr-media (`10.0.5.0/24`), cidr-guest (`10.0.7.0/24`), aws-private / gcp-private
-WG sites (scanner ACL via TRUSTED-to-CLOUD + WG input/forward allowlists). UniFi
-`10.1.89`; ceph-csi pprof closed; resolve-on-absence scoped to in-run templates.
-SSH host-key pin still deferred (plugin lacks `knownHosts`). Public cloud sweeps
-remain later. Supersedes the Kubernetes Nuclei placement proposed in
-`network-security.md`.
+**Status (honest, 2026-07-14):** Inventory + L7 validation + Kestra schedules are
+live. Daily Nuclei = curated estate allowlist (~80 templates, info→critical);
+weekly = `http/exposures` + `misconfiguration` + `exposed-panels` catalogs plus
+selected CVEs (~3k templates, profile excludes dos/fuzz/intrusive). Discovery
+shards: home, iot, gigahub, cidr-infra (`10.0.2.0/24`), cidr-services
+(`10.0.3.0/24`), cidr-personal (`10.0.4.0/24`), cidr-media (`10.0.5.0/24`),
+cidr-guest (`10.0.7.0/24`), aws-private / gcp-private WG sites (scanner ACL via
+TRUSTED-to-CLOUD + WG input/forward allowlists). UniFi `10.1.89`; ceph-csi pprof
+closed; resolve-on-absence scoped to in-run templates. SSH host-key pin still
+deferred (plugin lacks `knownHosts`). Public cloud sweeps remain later. Scanner
+Nuclei is overlaid from nixpkgs-unstable (**3.11.0**; wrapper pins `-no-stdin`,
+`-auth=false`, lab resolvers). Supersedes the Kubernetes Nuclei placement
+proposed in `network-security.md`.
 
 Guest: neo LXC `1036` / `10.0.2.13`. ClickHouse `estate_scan`, Grafana
 `uid: estate-scan`, Kestra `aether.estate/estate-scan-home` managed by

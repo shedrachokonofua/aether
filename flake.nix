@@ -128,7 +128,17 @@
           inherit system;
           specialArgs = sharedSpecialArgs;
           modules = [
-            { nixpkgs.overlays = [ otelFixOverlay ]; }
+            {
+              nixpkgs.overlays = [
+                otelFixOverlay
+                # nixos-25.11 still ships Nuclei 3.5.1, which deadlocks on large
+                # template catalogs (httputil.ResponseChain semaphore leak; fixed
+                # in 3.6.2+). Pull 3.11.0 from unstable for the scanner guest only.
+                (final: prev: {
+                  nuclei = nixpkgsUnstable.legacyPackages.${system}.nuclei;
+                })
+              ];
+            }
             ./nix/hosts/neo/estate-scanner
             sshCaModule
           ];
