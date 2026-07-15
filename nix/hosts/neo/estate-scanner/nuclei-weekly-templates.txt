@@ -1,36 +1,10 @@
-# Curated nuclei-weekly allowlist (paths relative to nuclei-templates root).
-# Superset of daily — still bounded so Nuclei 3.5.1 does not deadlock.
-# Include daily first, then additional estate-relevant panels/misconfigs/CVEs.
-http/cves/2026/CVE-2026-22557.yaml
-http/exposures/configs/prometheus-metrics.yaml
-http/exposures/configs/docker-compose-config.yaml
-http/exposures/configs/dockercfg-config.yaml
-http/exposures/configs/dockerfile-hidden-disclosure.yaml
-http/exposures/apis/swagger-api.yaml
-http/misconfiguration/unauthenticated-alert-manager.yaml
-http/misconfiguration/unauthenticated-netdata.yaml
-http/misconfiguration/unauthenticated-nginx-dashboard.yaml
-http/misconfiguration/unauthenticated-zipkin.yaml
-http/misconfiguration/unauthenticated-mongo-express.yaml
-http/misconfiguration/unauthenticated-tensorboard.yaml
-http/exposed-panels/grafana-detect.yaml
-http/exposed-panels/keycloak-admin-panel.yaml
-http/exposed-panels/prometheus-exposed-panel.yaml
-http/exposed-panels/prometheus-pushgateway-exposed-panel.yaml
-http/exposed-panels/traefik-dashboard.yaml
-http/exposed-panels/portainer-panel.yaml
-http/exposed-panels/gitlab-detect.yaml
-http/exposed-panels/gitlab-explore.yaml
-http/exposed-panels/argocd-login.yaml
-http/exposed-panels/kibana-panel.yaml
-http/exposed-panels/nextcloudpi-panel.yaml
-http/exposed-panels/sonarqube-login.yaml
-http/exposed-panels/jenkins-login.yaml
-http/exposed-panels/rabbitmq-dashboard.yaml
-http/exposed-panels/kafka-center-login.yaml
-http/exposed-panels/minio-browser.yaml
-http/exposed-panels/pgadmin-exposure.yaml
-http/exposed-panels/phpmyadmin-panel.yaml
+# Weekly nuclei pack (paths relative to nuclei-templates root).
+# Catalog directories + a few out-of-catalog critical CVEs. Nuclei profile
+# (severity + exclude-tags dos/fuzz/intrusive) is the safety filter; do not
+# add http/default-logins or code/headless here.
+http/exposures
+http/misconfiguration
+http/exposed-panels
 http/cves/2021/CVE-2021-44228.yaml
 http/cves/2021/CVE-2021-45046.yaml
 http/cves/2022/CVE-2022-22965.yaml
@@ -38,3 +12,4 @@ http/cves/2023/CVE-2023-22515.yaml
 http/cves/2023/CVE-2023-49103.yaml
 http/cves/2024/CVE-2024-27198.yaml
 http/cves/2025/CVE-2025-24813.yaml
+http/cves/2026/CVE-2026-22557.yaml
