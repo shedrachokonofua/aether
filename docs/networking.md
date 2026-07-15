@@ -67,7 +67,8 @@ graph TB
 
 AdGuard Home provides DNS resolution and ad blocking for the home network. It
 runs as two standalone NixOS LXC resolvers so a rebuild or failed container on
-one Proxmox node does not remove LAN DNS.
+one Proxmox node does not remove LAN DNS. A third **offsite** resolver runs on
+Oracle Cloud over the WireGuard fabric (see [Offsite Resolver](#offsite-resolver-oci)).
 
 ### Resolver Instances
 
@@ -78,6 +79,26 @@ one Proxmox node does not remove LAN DNS.
 
 VyOS DNS forwarding listens on each VLAN gateway (`10.0.x.1`) and forwards to
 both AdGuard resolvers.
+
+### Offsite Resolver (OCI)
+
+An additional AdGuard Home resolver runs offsite on Oracle Cloud
+(`oci-adguard`, WireGuard address `10.3.0.10`), deployed by
+`task configure:oci-dns`. It is a rootful-podman AdGuard bound only to its
+WireGuard address, consuming the same `config/adguard-settings.json`
+rewrites/blocklists as the LXC resolvers (byte-identical to the Nix config), and
+answers `*.home.shdr.ch → 10.0.2.2` over the fabric (verified from the AWS hub).
+It is scraped by Prometheus (`site-node-exporter`, `site-wireguard-exporter`) and
+ships its journal to Loki like the other fabric sites, and is covered by the
+`Site Exporter Down` alert. The VyOS LAN forwarder currently targets the two LXC
+resolvers only; adding OCI as a failover upstream would be a separate change.
+
+Its admin UI is published at **`https://dns.oci.shdr.ch`** — the home gateway
+Caddy reverse-proxies to `10.3.0.10:3000` over the fabric (mirrors the LXC
+resolvers' `dns.home.shdr.ch`). Reachability is gated end-to-end: the
+`dns.oci.shdr.ch → 10.0.2.2` AdGuard rewrite, a Caddy vhost, and a
+`10.0.2.2 → 10.3.0.10:3000/tcp` allow across the VyOS `TRUSTED-to-CLOUD`, hub
+`site_wireguard_service_forwards`, and OCI `site_wireguard_service_allow`.
 
 ### Upstream Resolvers
 
@@ -211,8 +232,8 @@ Prometheus on `monitoring-stack` scrapes services attached to the
 
 | Job | Sites | Port | Service |
 | --- | --- | --- | --- |
-| `site-node-exporter` | `aws`, `gcp` | 9100 | Prometheus `node-exporter` |
-| `site-wireguard-exporter` | `aws`, `gcp` | 9586 | Digest-pinned upstream `prometheus_wireguard_exporter` 3.6.6 |
+| `site-node-exporter` | `aws`, `gcp`, `oci` | 9100 | Prometheus `node-exporter` |
+| `site-wireguard-exporter` | `aws`, `gcp`, `oci` | 9586 | Digest-pinned upstream `prometheus_wireguard_exporter` 3.6.6 |
 | `site-crowdsec` | `aws` | 6060 | CrowdSec's built-in Prometheus endpoint |
 
 Every target is labeled by `fabric`, `site`, `host`, `service`, and

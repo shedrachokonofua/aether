@@ -16,6 +16,14 @@ site_wireguard_enable_forwarding: false
 site_wireguard_topology_role: spoke
 site_wireguard_input_allow_cidrs: []
 site_wireguard_forward_allow_cidrs: []
+# Per-service input allows to this host's own site address (spoke DNS, etc.):
+#   - { proto: udp, port: 53, cidrs: [10.0.0.0/16] }
+site_wireguard_service_allow: []
+# Hub-only: spoke site addresses the monitoring source may scrape (forwarded).
+site_wireguard_monitoring_targets: []
+# Hub-only: generic forward allows (wg->wg), e.g. home DNS clients -> a spoke:
+#   - { saddr: [10.0.0.0/16], daddr: 10.3.0.10, proto: udp, ports: [53] }
+site_wireguard_service_forwards: []
 site_wireguard_monitoring_source: 10.0.2.3
 site_wireguard_monitoring_ports:
   - 19531

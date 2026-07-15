@@ -50,6 +50,11 @@ tasks:
     cmds:
       - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb --status
 
+  seaweedfs:s3-identities:deploy:
+    desc: Deploy Tofu-generated scoped SeaweedFS S3 identities and restart only the S3 gateway
+    cmds:
+      - ansible-playbook ansible/playbooks/seaweedfs/deploy_s3_config.yml {{.CLI_ARGS}}
+
   bao:
     desc: OpenBao CLI
     cmds:
@@ -146,7 +151,7 @@ tasks:
         tofu -chdir=tofu/home/kestra-flows plan {{.CLI_ARGS}}
 
   tofu:kestra-flows:apply:
-    desc: Apply Aether Kestra flow IaC (estate-scan-home)
+    desc: Apply Aether Kestra flow IaC
     cmds:
       - |
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
@@ -437,21 +442,26 @@ tasks:
   configure:public-gateway:
     cmds: [ansible-playbook ansible/playbooks/public_gateway_stack/site.yml]
   configure:site-fabric:
-    desc: Reconcile the aether fabric across home, AWS, and GCP
+    desc: Reconcile the aether fabric across home, AWS, GCP, and OCI
     cmds:
       - ansible-playbook ansible/playbooks/home_router/configure_router.yml --tags site-wireguard
       - ansible-playbook ansible/playbooks/public_gateway_stack/site.yml --tags site-wireguard
       - ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml --tags site-wireguard
+      - ansible-playbook ansible/playbooks/oci_dns_stack/site.yml --tags site-wireguard
   configure:site-metrics:
     desc: Deploy and scrape services attached to the aether fabric
     cmds:
       - task: configure:site-fabric
       - ansible-playbook ansible/playbooks/public_gateway_stack/site.yml --tags site-metrics
       - ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml --tags site-metrics
-      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags prometheus
+      - ansible-playbook ansible/playbooks/oci_dns_stack/site.yml --tags site-metrics
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags prometheus,journal-forwarder
   configure:uptime-monitor:
     desc: Deploy the GCP uptime monitor and its routed WireGuard site connection
     cmds: [ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml]
+  configure:oci-dns:
+    desc: Deploy the OCI offsite AdGuard DNS resolver and its routed WireGuard spoke
+    cmds: [ansible-playbook ansible/playbooks/oci_dns_stack/site.yml]
   provision:step-ca:
     cmds: [ansible-playbook ansible/playbooks/step_ca/site.yml]
   provision:step-ca-trust:

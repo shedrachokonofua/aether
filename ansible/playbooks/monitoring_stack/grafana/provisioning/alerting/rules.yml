@@ -433,6 +433,44 @@ groups:
           summary: "Proxmox node exporter is down on {{ $labels.instance }}"
           description: "Node exporter is not being scraped; disk, NVMe, CPU, and memory alerts may be blind"
 
+      - uid: site-exporter-down
+        title: Site Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: PBFA97CFB590B2093
+            model:
+              expr: up{job=~"site-node-exporter|site-wireguard-exporter"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Site exporter down: {{ $labels.service }} on {{ $labels.host }} ({{ $labels.site }})"
+          description: "A WireGuard site-fabric exporter is not being scraped; the offsite node (e.g. the OCI AdGuard resolver) may be down or unreachable over the tunnel."
+
       - uid: proxmox-smart-exporter-down
         title: Proxmox SMART Exporter Down
         condition: C

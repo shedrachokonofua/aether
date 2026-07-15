@@ -24,6 +24,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 7.0"
     }
+
+    oci = {
+      source  = "oracle/oci"
+      version = "~> 7.0"
+    }
   }
 }
 
@@ -45,6 +50,23 @@ module "google" {
 provider "google" {
   project               = local.google.project_id != "" ? local.google.project_id : null
   user_project_override = true
+}
+
+# OCI uses keyless session-token auth (profile oci-aether from `oci session
+# authenticate` now, `task login` UPST later). Configured lazily; when the oci
+# module is count=0 (no tenancy set) this provider is never initialized.
+provider "oci" {
+  auth                = "SecurityToken"
+  config_file_profile = "oci-aether"
+  region              = "ca-toronto-1"
+}
+
+# Gated on secrets["oci.tenancy_ocid"]: inert until the tenancy OCID is added to
+# SOPS, exactly like module.google gates on project_id.
+module "oci" {
+  count        = local.oci.tenancy_ocid != "" ? 1 : 0
+  source       = "./oci"
+  tenancy_ocid = local.oci.tenancy_ocid
 }
 
 provider "cloudflare" {
