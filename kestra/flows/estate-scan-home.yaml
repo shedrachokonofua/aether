@@ -4,9 +4,10 @@ namespace: aether.estate
 description: |
   Staged estate discovery + L7 DAG. Dispatches typed aether-scan stages over SSH
   to kestra-estate-scanner@10.0.2.13 (ForceCommand). Polls via on-guest wait-stage.
-  Discovery shards: home, iot, gigahub, cidr-infra, cidr-services, aws-private,
-  gcp-private (merge-diff unions all discover-*.jsonl). Daily uses nuclei-daily
-  allowlist; weekly trigger sets profile=nuclei-weekly (larger curated pack).
+  Discovery shards: home, iot, gigahub, cidr-infra, cidr-services, cidr-personal,
+  cidr-media, cidr-guest, aws-private, gcp-private (merge-diff unions all
+  discover-*.jsonl). Daily uses nuclei-daily allowlist; weekly trigger sets
+  profile=nuclei-weekly (larger curated pack).
   On flow failure, abandon the minted run so CH is not left running until reap-stale.
 
 concurrency:
@@ -150,6 +151,66 @@ tasks:
     strictHostKeyChecking: "false"
     commands:
       - "wait-stage {{ outputs.mint_run_id.value }} discover cidr-services 3600"
+
+  - id: discover_cidr_personal
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} cidr-personal"
+
+  - id: wait_discover_cidr_personal
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover cidr-personal 7200"
+
+  - id: discover_cidr_media
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} cidr-media"
+
+  - id: wait_discover_cidr_media
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover cidr-media 7200"
+
+  - id: discover_cidr_guest
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "discover {{ outputs.mint_run_id.value }} cidr-guest"
+
+  - id: wait_discover_cidr_guest
+    type: io.kestra.plugin.fs.ssh.Command
+    host: "{{ envs.estate_scanner_host }}"
+    username: "{{ envs.estate_scanner_user }}"
+    authMethod: PUBLIC_KEY
+    privateKey: "{{ secret('ESTATE_SCANNER_SSH_KEY') }}"
+    strictHostKeyChecking: "false"
+    commands:
+      - "wait-stage {{ outputs.mint_run_id.value }} discover cidr-guest 7200"
 
   - id: discover_aws_private
     type: io.kestra.plugin.fs.ssh.Command

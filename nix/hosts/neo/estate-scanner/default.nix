@@ -33,6 +33,9 @@ let
     "calib-server"
     "cidr-infra"
     "cidr-services"
+    "cidr-personal"
+    "cidr-media"
+    "cidr-guest"
     "aws-public"
     "aws-private"
     "gcp-public"
@@ -73,17 +76,25 @@ let
     };
   };
 
-  # Per-group UPPER bounds for fragile classes only (IoT / Gigahub).
-  # Do not put server/CIDR groups here — that caps full-TCP below the profile rate.
+  # Per-group UPPER bounds for fragile / client VLANs.
+  # Do not put server CIDR groups here — that caps full-TCP below the profile rate.
   discoverGroupRates = {
     iot = 5;
     gigahub = 5;
+    # Client VLANs: below server CIDR 100pps, high enough that a /24 top-100
+    # finishes inside the daily window (5pps on /24 was multi-hour).
+    cidr-personal = 25;
+    cidr-media = 15;
+    cidr-guest = 15;
   };
 
   # CIDR expansions for undeclared-host sweeps (not declared host lists).
   discoverCidrs = {
     cidr-infra = [ "10.0.2.0/24" ];
     cidr-services = [ "10.0.3.0/24" ];
+    cidr-personal = [ "10.0.4.0/24" ];
+    cidr-media = [ "10.0.5.0/24" ];
+    cidr-guest = [ "10.0.7.0/24" ];
   };
 
   approvedStages = [
