@@ -64,7 +64,14 @@ OAuth clients are provisioned for automated Tailscale authentication:
 
 ## SSO / OIDC (Keycloak)
 
-Human login to the tailnet is via Keycloak OIDC (owner `s@shdr.ch`), not Google/GitHub. Not Terraformable — manual setup:
+> **Status: PLANNED — not yet deployed.** The tailnet currently authenticates
+> humans via Tailscale's **default SSO**, not Keycloak. The design below is the
+> intended target — it unifies tailnet identity with the `auth.shdr.ch` IdP and
+> lets MFA be enforced on admin access — but the steps have **not** been applied.
+> Until it is, tailnet login identity, audit, and MFA are governed by the default
+> SSO, not Keycloak.
+
+Intended human login to the tailnet is via Keycloak OIDC (owner `s@shdr.ch`), not Google/GitHub. Not Terraformable — manual setup:
 
 - **WebFinger:** the `shdr.ch` Caddy serves `/.well-known/webfinger` returning issuer `https://auth.shdr.ch/realms/aether` for `acct:s@shdr.ch`.
 - **Keycloak client** `tailscale-sso` — confidential; scopes `openid`/`profile`/`email`; redirect `https://login.tailscale.com/a/oauth_response`; PKCE disabled (Tailscale doesn't support it).
@@ -75,7 +82,7 @@ Human login to the tailnet is via Keycloak OIDC (owner `s@shdr.ch`), not Google/
 
 The tailnet is a cloud resource and survives infra loss. Rebuild sequence:
 
-1. Log into the Tailscale admin console (Keycloak SSO from phone/laptop).
+1. Log into the Tailscale admin console (via your tailnet SSO — default SSO today; Keycloak once the OIDC above is deployed).
 2. Generate a **one-time auth key** for gateway bootstrap (break-glass; not stored anywhere).
 3. Rebuild infra; use the one-time key for initial gateway auth.
 4. Steady-state gateway auth keys come from the Tofu-provisioned OAuth clients (home/admin gateway).
