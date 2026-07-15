@@ -311,8 +311,18 @@ let
     # Declared accepted findings — write-findings! stamps state=suppressed at
     # insert so the next run does not re-open them. Match is on the same
     # finding_key inputs (template|host|port|matcher). Keep prometheus-metrics
-    # in the daily template pack as a drift tripwire for unexpected hosts.
+    # in the daily template pack as a drift tripwire for unexpected hosts —
+    # accept only known scrape targets / declared frontends, not blank host.
     accepted_findings = [
+      # --- canary ---
+      {
+        template_id = "aether-estate-scan-fixture";
+        host = "127.0.0.1";
+        port = 18080;
+        matcher = "fixture-marker";
+        reason = "controlled canary";
+      }
+      # --- prometheus /metrics (intentional scrape surface) ---
       {
         template_id = "prometheus-metrics";
         host = "10.0.2.6";
@@ -321,11 +331,152 @@ let
         reason = "apprise metrics on scrape VLAN (accepted)";
       }
       {
-        template_id = "aether-estate-scan-fixture";
-        host = "127.0.0.1";
-        port = 18080;
-        matcher = "fixture-marker";
-        reason = "controlled canary";
+        template_id = "prometheus-metrics";
+        host = "10.1.0.10";
+        port = 9100;
+        matcher = "";
+        reason = "AWS WG site node-exporter (accepted)";
+      }
+      {
+        template_id = "prometheus-metrics";
+        host = "10.2.0.10";
+        port = 9100;
+        matcher = "";
+        reason = "GCP WG site node-exporter (accepted)";
+      }
+      {
+        template_id = "prometheus-metrics";
+        host = "apprise.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared apprise /metrics via home Caddy (accepted)";
+      }
+      {
+        template_id = "prometheus-metrics";
+        host = "desktop.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared desktop /metrics via home Caddy (accepted)";
+      }
+      {
+        template_id = "prometheus-metrics";
+        host = "jupyter.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared jupyter /metrics via home Caddy (accepted)";
+      }
+      {
+        template_id = "prometheus-metrics";
+        host = "kvm.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared kvm /metrics via home Caddy (accepted)";
+      }
+      # --- declared panels / APIs (inventory confirmation, not incidents) ---
+      {
+        template_id = "unifi-panel";
+        host = "10.0.2.2";
+        port = 8443;
+        matcher = "";
+        reason = "UniFi controller on infra VLAN (accepted)";
+      }
+      {
+        template_id = "unifi-panel";
+        host = "ap.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared UniFi hostname (accepted)";
+      }
+      {
+        template_id = "gitlab-detect";
+        host = "10.0.3.7";
+        port = 80;
+        matcher = "";
+        reason = "GitLab on services VLAN (accepted)";
+      }
+      {
+        template_id = "gitlab-detect";
+        host = "gitlab.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared GitLab hostname (accepted)";
+      }
+      {
+        template_id = "proxmox-panel";
+        host = "niobe.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Proxmox hostname (accepted)";
+      }
+      {
+        template_id = "home-assistant-panel";
+        host = "ha.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Home Assistant (accepted)";
+      }
+      {
+        template_id = "headlamp-panel";
+        host = "headlamp.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Headlamp (accepted)";
+      }
+      {
+        template_id = "wazuh-panel";
+        host = "hids.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Wazuh/HIDS UI (accepted)";
+      }
+      {
+        template_id = "vaultwarden-panel";
+        host = "vaultwarden.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Vaultwarden (accepted)";
+      }
+      {
+        template_id = "cockpit-project-panel";
+        host = "cockpit.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Cockpit (accepted)";
+      }
+      {
+        template_id = "swagger-api";
+        host = "immich.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Immich API docs (accepted)";
+      }
+      {
+        template_id = "swagger-api";
+        host = "speaches.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Speaches API docs (accepted)";
+      }
+      {
+        template_id = "openapi";
+        host = "litellm.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared LiteLLM OpenAPI (accepted)";
+      }
+      {
+        template_id = "openapi";
+        host = "speaches.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Speaches OpenAPI (accepted)";
+      }
+      {
+        template_id = "openapi";
+        host = "wazuh.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        reason = "declared Wazuh OpenAPI (accepted)";
       }
     ];
     naabu = "${naabuWrapped}/bin/naabu";
