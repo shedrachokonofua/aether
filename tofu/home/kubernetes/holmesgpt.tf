@@ -15,6 +15,7 @@ locals {
   holmes_litellm_base   = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
   holmes_model_primary  = "router/glm-5.2"
   holmes_model_local    = "qwen-local"
+  holmes_model_trial    = "aether/qwen3.6-27b:think"
   holmes_prometheus_url = "https://prometheus.home.shdr.ch"
   holmes_loki_url       = "https://loki.home.shdr.ch"
 }
@@ -79,6 +80,12 @@ resource "helm_release" "holmesgpt" {
         model       = "openai/aether/qwen3.6-35b-a3b:think"
         temperature = 1
       }
+      (local.holmes_model_trial) = {
+        api_key     = "{{ env.OPENAI_API_KEY }}"
+        api_base    = "{{ env.OPENAI_API_BASE }}"
+        model       = "openai/aether/qwen3.6-27b:think"
+        temperature = 1
+      }
     }
 
     # Deep-merged over chart defaults. Disable bash: alert-driven prompts can
@@ -97,8 +104,62 @@ resource "helm_release" "holmesgpt" {
         enabled = true
         config  = { api_url = local.holmes_loki_url }
       }
+      # TODO: Holmes chart 0.35.0 exposes only the generic toolsets map; no
+      # local custom Grafana toolset schema or token-to-env mapping is available.
+      # Add a Grafana API toolset only after that schema and a provisioned
+      # read-only token/key are defined (hostname: grafana.home.shdr.ch).
     }
   })]
+}
+
+resource "kubernetes_cluster_role_v1" "holmes_readonly" {
+  metadata {
+    name = "holmes-readonly"
+  }
+
+  rule {
+    api_groups = ["aquasecurity.github.io"]
+    resources  = ["vulnerabilityreports", "configauditreports", "exposedsecretreports"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["cilium.io"]
+    resources  = ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies", "tracingpolicies"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["snapshot.storage.k8s.io"]
+    resources  = ["volumesnapshots", "volumesnapshotcontents", "volumesnapshotclasses"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["cert-manager.io"]
+    resources  = ["certificates", "certificaterequests", "issuers", "clusterissuers"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding_v1" "holmes_readonly" {
+  depends_on = [helm_release.holmesgpt]
+
+  metadata {
+    name = "holmes-readonly"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "holmes-holmes-service-account"
+    namespace = local.holmes_ns
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role_v1.holmes_readonly.metadata[0].name
+  }
 }
 
 # Restrict Holmes API to Kestra (Inquest) and Hermes (tungsten interactive).
