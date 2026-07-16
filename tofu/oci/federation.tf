@@ -99,6 +99,12 @@ resource "oci_identity_domains_app" "token_exchange" {
   is_oauth_client = true
   active          = true
 
+  # Measured: OCI clamps UPST lifetime to ~60 min server-side regardless of this
+  # value (43200 applied; exchange still returned exp-iat = 59 min). Kept to match
+  # live state; it only affects ordinary OAuth access tokens, which this app
+  # never issues. Longer OCI sessions = re-mint via Keycloak refresh token.
+  access_token_expiry = 43200
+
   # client_credentials is sufficient: it authenticates the app for the Basic-auth
   # header on /oauth2/v1/token; authorization to *invoke the exchange* comes from
   # the trust's oauth_clients list, not a grant enum. ("token-exchange"/"jwt-bearer"
