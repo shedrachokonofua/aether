@@ -569,6 +569,7 @@
     "  --oci     Only get OCI credentials (UPST via Keycloak federation)"
     "  --ssh     Only get SSH certificate"
     "  --no-ssh  Skip SSH certificate (even if agent available)"
+    "  --oci-renew  Silently re-mint the OCI UPST from the cached Keycloak refresh token (no browser)"
     "  --status  Check current auth status"
     ""
     "S3 Usage (after login):"
@@ -867,6 +868,7 @@
                               :do-ssh true))
         "--no-ssh" (recur (rest xs) (assoc state :do-ssh false))
         "--status" (assoc state :status? true)
+        "--oci-renew" (assoc state :oci-renew? true)
         "--help" (assoc state :help? true)
         "-h" (assoc state :help? true)
         (throw (ex-info (str "Unknown option: " (first xs)) {:code 1}))))))
@@ -882,6 +884,42 @@
                           "secret_access_key = " (get env "AWS_SECRET_ACCESS_KEY") "\n"
                           "session_token = " (get env "AWS_SESSION_TOKEN"))]
         (update-rclone-sections! rclone-config {"aws" aws-body})))))
+
+(defn refresh-keycloak-id-token!
+  "Silently mint a fresh Keycloak id_token from the cached refresh token (no
+   browser). Rotates the cached refresh token. Returns the id_token or nil."
+  [log]
+  (let [rt-file (str @cache-dir "/google/keycloak-refresh-token")
+        rt (slurp-optional rt-file)]
+    (if (str/blank? rt)
+      (do ((:error log) "No cached Keycloak refresh token - run a full `task login` first.")
+          nil)
+      (let [res (http-post-form! (str keycloak-url "/realms/" keycloak-realm "/protocol/openid-connect/token")
+                                 {"client_id" keycloak-client-id
+                                  "grant_type" "refresh_token"
+                                  "refresh_token" (str/trim rt)})
+            body (try (parse-json (:body res)) (catch Throwable _ {}))]
+        (if (and (= 200 (:status res)) (not (str/blank? (:id_token body))))
+          (do
+            ;; Rotate FIRST: Keycloak invalidates the old refresh token on a
+            ;; successful grant, so persist the new one before the OCI exchange -
+            ;; a later failure must not strand a dead token in the cache.
+            (persist-keycloak-refresh-token! body log)
+            (:id_token body))
+          (do ((:error log) (str "Keycloak refresh failed (HTTP " (:status res) "): "
+                                 (let [b (str (:body res))] (subs b 0 (min 200 (count b))))
+                                 " - SSO session likely expired; run `task login`."))
+              nil))))))
+
+(defn run-oci-renew!
+  "Non-interactive OCI UPST renewal: cached Keycloak refresh token -> fresh
+   id_token -> token-exchange -> profile oci-aether. Exit 0 on success."
+  []
+  (let [log (make-logger)
+        id-token (refresh-keycloak-id-token! log)
+        res (when id-token (exchange-for-oci! id-token true log))]
+    (print-log-buffer! (:buf log))
+    (System/exit (if (:ok? res) 0 1))))
 
 (defn run-login! [state]
   (when (:help? state)
@@ -995,11 +1033,10 @@
 (defn -main [& args]
   (try
     (let [state (parse-args args)]
-      (if (:help? state)
-        (do
-          (println (help-text))
-          (System/exit 0))
-        (run-login! state)))
+      (cond
+        (:help? state) (do (println (help-text)) (System/exit 0))
+        (:oci-renew? state) (run-oci-renew!)
+        :else (run-login! state)))
     (catch clojure.lang.ExceptionInfo e
       (binding [*out* *err*]
         (println (ansi red (ex-message e))))
