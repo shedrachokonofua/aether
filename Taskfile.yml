@@ -50,6 +50,11 @@ tasks:
     cmds:
       - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb --status
 
+  login:oci-renew:
+    desc: Silently re-mint the OCI UPST from the cached Keycloak session (no browser)
+    cmds:
+      - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb --oci-renew
+
   seaweedfs:s3-identities:deploy:
     desc: Deploy Tofu-generated scoped SeaweedFS S3 identities and restart only the S3 gateway
     cmds:
