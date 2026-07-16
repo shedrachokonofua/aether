@@ -4,12 +4,13 @@
 # outputs consumed via tf_outputs in the ansible inventory.
 #
 # Auth is keyless: the root provider uses OCI session-token (`auth = "SecurityToken"`,
-# profile oci-aether, minted by `oci session authenticate` today and by `task login`
-# token-exchange later). No static API signing key is committed.
+# profile oci-aether). `task login` mints it via Keycloak->UPST token-exchange
+# (federation.tf); `oci session authenticate` is only the one-time bootstrap for the
+# first-ever apply. No static API signing key is committed.
 #
 # Boxes:
 #   aether-adguard-secondary  VM.Standard.E2.1.Micro (x86, Always-Free)  -> offsite AdGuard
-#   aether-oci-a1             VM.Standard.A1.Flex 2 OCPU / 12 GB (ARM, Always-Free) -> bare workhorse
+#   aether-oci-a1             VM.Standard.A1.Flex 4 OCPU / 24 GB (ARM, Always-Free) -> bare workhorse
 #
 # Network exposure: security list opens only TCP/22 (key-only bootstrap; tighten to the
 # home WAN once WireGuard is up) and UDP/51820 (direct home<->OCI WireGuard peer). :53 and
@@ -180,8 +181,8 @@ resource "oci_core_instance" "a1" {
   shape               = "VM.Standard.A1.Flex"
 
   shape_config {
-    ocpus         = 2
-    memory_in_gbs = 12
+    ocpus         = 4
+    memory_in_gbs = 24
   }
 
   create_vnic_details {
