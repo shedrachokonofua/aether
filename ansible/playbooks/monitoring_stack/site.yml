@@ -286,6 +286,52 @@
       become: true
       tags: [clickhouse, vyos-exporter]
 
+    - name: Label observation pipeline schemas for the ClickHouse container
+      ansible.builtin.file:
+        path: "/home/aether/clickhouse/init/{{ item }}"
+        setype: container_file_t
+      become: true
+      loop:
+        - 13-qss-observations.sql
+        - 14-mac-first-seen.sql
+      tags: [clickhouse, qss-exporter]
+
+    - name: Apply idempotent observation pipeline schemas
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --queries-file
+          - "/docker-entrypoint-initdb.d/{{ item }}"
+      loop:
+        - 13-qss-observations.sql
+        - 14-mac-first-seen.sql
+      no_log: false
+      tags: [clickhouse, qss-exporter]
+
+    - name: Backfill mac_first_seen from existing observations (idempotent)
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --query
+          - >-
+            INSERT INTO network.mac_first_seen
+            SELECT lower(mac_address) AS mac, min(timestamp), max(timestamp),
+            anyLast(hostname)
+            FROM network.observations
+            WHERE mac_address IS NOT NULL AND mac_address != ''
+              AND lower(substring(mac_address, 2, 1)) NOT IN
+              ('1', '3', '5', '7', '9', 'b', 'd', 'f')
+            GROUP BY mac
+      no_log: false
+      tags: [clickhouse, qss-exporter]
+
     - name: Copy ClickHouse config overrides
       copy:
         src: ./clickhouse-config.d/
@@ -386,6 +432,12 @@
           GOGC: "200"
           GOMEMLIMIT: "5GiB" # soft cap: runtime tightens GC (not OOM) if heap spikes on WAL-replay/compaction/heavy query
         state: quadlet
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [prometheus]
 
     - name: Start blackbox-exporter
@@ -398,6 +450,12 @@
         command:
           - "--config.file=/etc/blackbox_exporter/config.yml"
         state: quadlet
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [blackbox]
 
     - name: Start Loki
@@ -419,6 +477,8 @@
         quadlet_options:
           - |
             [Service]
+            Restart=on-failure
+            RestartSec=30s
             TimeoutStartSec=300
       tags: [loki]
 
@@ -433,6 +493,12 @@
         volumes:
           - /home/aether/tempo/tempo.yml:/etc/tempo.yaml:Z
         state: quadlet
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [tempo]
 
     - name: Start otel collector
@@ -449,6 +515,12 @@
           GOGC: "200" # ~0.15 core less GC CPU for ~+2GB RSS; box has ample free RAM.
           GOMEMLIMIT: "3GiB" # MUST stay below the memory_limiter soft refusal (limit-spike = 3200MiB): GC fights heap growth before the limiter drops data (2026-07-11 incident)
         state: quadlet
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [otel]
 
     - name: Start grafana
@@ -466,6 +538,12 @@
           GF_INSTALL_PLUGINS: grafana-clickhouse-datasource,yesoreyeram-infinity-datasource,marcusolsson-calendar-panel,marcusolsson-dynamictext-panel,volkovlabs-image-panel,volkovlabs-form-panel,grafana-clock-panel,lework-lenav-panel
           GF_SECURITY_ADMIN_USER: admin
           GF_SECURITY_ADMIN_PASSWORD: "{{ secrets.grafana_password }}"
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [grafana]
 
     # Grafana file provisioning does not reconcile an omitted receiver from an
@@ -543,6 +621,12 @@
           PBS_API_TOKEN_NAME: "{{ secrets.pbs.monitoring_token_id }}"
           PBS_INSECURE: "true"
           PBS_LISTEN_ADDRESS: ":10019"
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [pbs-exporter]
 
     - name: Start ClickHouse
@@ -561,6 +645,12 @@
           CLICKHOUSE_USER: aether
           CLICKHOUSE_PASSWORD: "{{ secrets.clickhouse.password }}"
           CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
       tags: [clickhouse]
 
     # === Systemd ===

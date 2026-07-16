@@ -38,6 +38,34 @@ receivers:
         from: body.MESSAGE
         to: body
         if: body.MESSAGE != nil
+{% if qss_observations_enabled | default(false) %}
+  # Sealed qss-exporter observation files; deleted only after the OTLP
+  # exporter accepts them (delete_after_read + persistent cursor).
+  filelog/qss_observations:
+    include:
+      - /var/lib/qss-exporter/observations/*.ndjson
+    exclude:
+      - /var/lib/qss-exporter/observations/*.tmp
+      - /var/lib/qss-exporter/observations/quarantine/*
+    start_at: beginning
+    storage: file_storage/qss_observation_cursor
+    delete_after_read: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0
+    operators:
+      - type: json_parser
+        parse_from: body
+        parse_to: attributes
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+      - type: add
+        field: attributes["log.source"]
+        value: qss_observations
+    max_log_size: 1MiB
+{% endif %}
+
   filelog:
     storage: file_storage/filelog_cursor_storage
     include:
@@ -99,11 +127,34 @@ processors:
         value: "{{ ansible_distribution_version }}"
         action: insert
 
+{% if qss_observations_enabled | default(false) %}
+  resource/qss_observations:
+    attributes:
+      - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: service.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: log.source
+        value: "qss_observations"
+        action: insert
+{% endif %}
+
 extensions:
   file_storage/journald_cursor_storage:
     directory: {{ otel_collector_storage_path }}
   file_storage/filelog_cursor_storage:
     directory: {{ otel_collector_storage_path }}
+
+{% if qss_observations_enabled | default(false) %}
+  file_storage/qss_observation_cursor:
+    directory: /var/lib/qss-exporter/otel-storage
+    timeout: 1s
+    compaction:
+      on_start: true
+      directory: /var/lib/qss-exporter/otel-storage
+{% endif %}
 
 exporters:
   otlphttp:
@@ -121,7 +172,8 @@ service:
               otlp:
                 protocol: http/protobuf
                 endpoint: {{ otlp_endpoint }}
-  extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage]
+  extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage{% if qss_observations_enabled | default(false) %}, file_storage/qss_observation_cursor{% endif %}]
+
   pipelines:
     metrics:
       receivers: [{% if otlp_receiver_enabled | default(true) %}otlp, {% endif %}hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}{% if has_docker_socket | default(false) %}, docker_stats{% endif %}{% if prometheus_scrape_configs | default([]) | length > 0 %}, prometheus{% endif %}]
@@ -131,6 +183,12 @@ service:
       receivers: [{% if otlp_receiver_enabled | default(true) %}otlp, {% endif %}journald, filelog]
       processors: [batch, resource]
       exporters: [otlphttp]
+{% if qss_observations_enabled | default(false) %}
+    logs/qss_observations:
+      receivers: [filelog/qss_observations]
+      processors: [batch, resource/qss_observations]
+      exporters: [otlphttp]
+{% endif %}
 {% if otlp_receiver_enabled | default(true) %}
     traces:
       receivers: [otlp]

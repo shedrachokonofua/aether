@@ -1174,11 +1174,12 @@ groups:
               conditions:
                 - evaluator:
                     type: gt
-                    params: [24]
+                    # Daily backup cadence: allow a 6h collection/rotation margin.
+                    params: [30]
               refId: C
         noDataState: OK
         execErrState: OK
-        for: 0s
+        for: 30m
         labels:
           severity: warning
         annotations:
@@ -2237,6 +2238,8 @@ groups:
         noDataState: OK
         execErrState: Error
         for: 30m
+        # Tolerate report rotation gaps without resolving persistent CVE findings.
+        missingSeriesEvalsToResolve: 10
         labels:
           severity: warning
           domain: security
@@ -4384,3 +4387,104 @@ groups:
         annotations:
           summary: 'Router or GigaHub rebooted in the last 10 minutes'
           description: 'Unexpected reboots of the edge devices are worth a look: power blip, crash, or firmware update. Uptime series identifies which device.'
+
+
+      - uid: network-new-mac
+        title: New MAC Address On Network
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT mac, coalesce(hostname, 'unknown') AS hostname, 1 AS value
+                FROM (
+                  SELECT mac,
+                         min(first_seen) AS first_seen,
+                         anyLast(hostname) AS hostname
+                  FROM network.mac_first_seen
+                  GROUP BY mac
+                  HAVING first_seen > now() - INTERVAL 20 MINUTE
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: 'New device on the network: {{ $labels.mac }} ({{ $labels.hostname }})'
+          description: 'MAC {{ $labels.mac }} observed for the first time ever (network.mac_first_seen: router DHCP/ARP + switch FDB). If unexpected, check the Network dashboard and DHCP leases.'
+
+      - uid: network-observations-stale
+        title: Observation Pipeline Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ifNull(dateDiff('minute', max(timestamp), now()), 999) AS value
+                FROM network.observations
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Observation pipeline stale — no new network.observations rows for {{ $values.B.Value }} minutes'
+          description: 'vyos_neighbor rows normally land every few minutes. Check the router collector, node agent, central ClickHouse collector, and ClickHouse.'
