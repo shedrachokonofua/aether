@@ -1,5 +1,5 @@
 ---
-# Read-only remote scrape of the Bell GigaHub CPE (192.168.2.1) over HTTP.
+# Read-only remote scrape of the Bell GigaHub CPE (192.168.2.1) over HTTPS.
 # Runs natively on monitoring-stack; credentials come from the SOPS inventory
 # (secrets.gigahub.*). Metrics are scraped by the node vm_monitoring_agent
 # OTel collector (prometheus_scrape_configs in inventory), not the pod.
