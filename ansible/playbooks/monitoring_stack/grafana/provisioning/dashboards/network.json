@@ -702,7 +702,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "mamps"
+                "value": "mamp"
               },
               {
                 "id": "custom.axisPlacement",
@@ -741,7 +741,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "gigahub_optical_bias_current_milliamps",
-          "refId": "A",
+          "refId": "B",
           "instant": false,
           "range": true,
           "legendFormat": "bias mA"
@@ -943,7 +943,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "sum by (direction)(rate(gigahub_optical_discards_total[3m]))",
-          "refId": "A",
+          "refId": "B",
           "instant": false,
           "range": true,
           "legendFormat": "discards {{direction}}"
@@ -1110,7 +1110,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "max(vyos_conntrack_limit)",
-          "refId": "A",
+          "refId": "B",
           "instant": false,
           "range": true,
           "legendFormat": "limit"
@@ -1418,7 +1418,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "sum by (port)(rate(qss_port_transmit_bytes[3m]))*8",
-          "refId": "A",
+          "refId": "B",
           "instant": false,
           "range": true,
           "legendFormat": "p{{port}} tx"
@@ -1555,7 +1555,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "sum by (port)(rate(qss_port_receive_errors[3m]))",
-          "refId": "A",
+          "refId": "B",
           "instant": false,
           "range": true,
           "legendFormat": "p{{port}} rx-err"
@@ -2041,7 +2041,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "unpoller_client_radio_transmit_rate_bps{wired=\"false\"}",
-          "refId": "A",
+          "refId": "B",
           "instant": false,
           "range": true,
           "legendFormat": "{{name}} tx"
@@ -2111,7 +2111,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "unpoller_device_memory_utilization_ratio{type=\"uap\"}/100",
-          "refId": "A",
+          "refId": "B",
           "instant": false,
           "range": true,
           "legendFormat": "memory"
@@ -2135,5 +2135,5 @@
   "timezone": "browser",
   "title": "Network",
   "uid": "network",
-  "version": 2
+  "version": 3
 }
