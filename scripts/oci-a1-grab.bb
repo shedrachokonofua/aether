@@ -150,6 +150,8 @@
   (boolean (re-find #"(?i)not authenticated|authorization failed|session.*(expired|not)|401|please run 'oci session'" (str s))))
 (defn quota-error? [s]
   (boolean (re-find #"(?i)limitexceeded|quota|limit for this|exceed.*limit|maximum number" (str s))))
+(defn rate-limit-error? [s]
+  (boolean (re-find #"(?i)toomanyrequests|too many requests|\b429\b|rate.?limit" (str s))))
 
 (defn renew-upst!
   "Re-mint the federated UPST via `login.bb --oci-renew` (cached Keycloak refresh
@@ -235,7 +237,7 @@
 
 ;; --- main -------------------------------------------------------------------
 (defn parse-opts [args]
-  (loop [a args, m {:ocpus 4 :mem 24 :interval 60 :max-attempts 0
+  (loop [a args, m {:ocpus 4 :mem 24 :interval 60 :max-attempts 0 :rate-backoff 300
                     :profile (or (System/getenv "OCI_CLI_PROFILE") "oci-aether")
                     :auth (or (System/getenv "OCI_CLI_AUTH") "security_token")
                     :dry-run false :help false}]
@@ -247,6 +249,7 @@
         "--mem" (recur (drop 2 a) (assoc m :mem (parse-long (second a))))
         "--interval" (recur (drop 2 a) (assoc m :interval (parse-long (second a))))
         "--max-attempts" (recur (drop 2 a) (assoc m :max-attempts (parse-long (second a))))
+        "--rate-backoff" (recur (drop 2 a) (assoc m :rate-backoff (parse-long (second a))))
         "--profile" (recur (drop 2 a) (assoc m :profile (second a)))
         "--auth" (recur (drop 2 a) (assoc m :auth (second a)))
         (do (warn (str "unknown arg: " x)) (recur (rest a) m)))
@@ -263,7 +266,7 @@
        "On success it prints the OCID + the `tofu import " import-addr "` command.\n"))
 
 (defn -main [& args]
-  (let [{:keys [ocpus mem interval max-attempts profile auth dry-run help]} (parse-opts args)]
+  (let [{:keys [ocpus mem interval max-attempts profile auth dry-run help rate-backoff]} (parse-opts args)]
     (when help (println help-text) (System/exit 0))
     (when-not (:ok? (run ["oci" "--version"]))
       (die! "`oci` CLI not found — run inside `nix develop`."))
@@ -295,6 +298,12 @@
               (die! (str "Auth failed and UPST renewal failed. Start a fresh 12h Keycloak window:\n"
                          "  task login -- --oci\n"
                          (str/trim (:err res)))))
+
+            (rate-limit-error? (:err res))
+            (do (warn (str "Rate-limited by OCI (429 TooManyRequests) — backing off " rate-backoff "s. "
+                           "The launch endpoint throttles aggressively; this is transient."))
+                (Thread/sleep (* 1000 rate-backoff))
+                (recur n))
 
             (quota-error? (:err res))
             (die! (str "Quota/limit error — you may already hold an A1 or exceed the free 4 OCPU/24 GB.\n"
