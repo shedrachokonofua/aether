@@ -102,6 +102,22 @@ output "oci_a1_private_key" {
   description = "Private SSH key for the OCI A1 box"
 }
 
+output "oci_domain_url" {
+  value       = try(module.oci[0].domain_url, "")
+  description = "OCI Identity Domain OAuth/SCIM base URL (token-exchange endpoint)"
+}
+
+output "oci_tokenexchange_client_id" {
+  value       = try(module.oci[0].tokenexchange_client_id, "")
+  description = "Confidential app client_id for Keycloak->OCI UPST token-exchange"
+}
+
+output "oci_tokenexchange_client_secret" {
+  value       = try(module.oci[0].tokenexchange_client_secret, "")
+  sensitive   = true
+  description = "Confidential app client_secret for Keycloak->OCI UPST token-exchange"
+}
+
 output "tailscale_admin_gateway_oauth_client_id" {
   value = tailscale_oauth_client.admin_gateway_oauth_client.id
 }

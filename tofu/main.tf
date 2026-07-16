@@ -64,9 +64,10 @@ provider "oci" {
 # Gated on secrets["oci.tenancy_ocid"]: inert until the tenancy OCID is added to
 # SOPS, exactly like module.google gates on project_id.
 module "oci" {
-  count        = local.oci.tenancy_ocid != "" ? 1 : 0
-  source       = "./oci"
-  tenancy_ocid = local.oci.tenancy_ocid
+  count               = local.oci.tenancy_ocid != "" ? 1 : 0
+  source              = "./oci"
+  tenancy_ocid        = local.oci.tenancy_ocid
+  keycloak_shdrch_sub = module.home.keycloak_shdrch_user_id
 }
 
 provider "cloudflare" {

@@ -51,7 +51,7 @@ OpenTofu, Ansible, SOPS, OpenBao, the AWS and Google CLIs, `kubectl`,
 ```bash
 nix develop        # enter the pinned toolchain (direnv may do this automatically)
 task login:status  # check cached credentials
-task login         # Keycloak device auth -> AWS, Google WIF, OpenBao, Ceph RGW, SSH certificate
+task login         # Keycloak device auth -> AWS, Google WIF, OpenBao, Ceph RGW, OCI, SSH certificate
 task --list-all    # discover supported workflows, including tasks without descriptions
 ```
 
