@@ -35,9 +35,24 @@ resource "kubernetes_secret_v1" "holmes_llm" {
 
   type = "Opaque"
 }
+resource "kubernetes_secret_v1" "holmes_extra_apis" {
+  depends_on = [module.namespace["holmesgpt"]]
+
+  metadata {
+    name      = "holmes-extra-apis"
+    namespace = local.holmes_ns
+  }
+
+  data = {
+    "grafana-token" = var.secrets["grafana.holmes_token"]
+  }
+
+  type = "Opaque"
+}
+
 
 resource "helm_release" "holmesgpt" {
-  depends_on = [kubernetes_secret_v1.holmes_llm]
+  depends_on = [kubernetes_secret_v1.holmes_llm, kubernetes_secret_v1.holmes_extra_apis]
 
   name             = "holmes"
   repository       = "https://robusta-charts.storage.googleapis.com"
@@ -58,6 +73,14 @@ resource "helm_release" "holmesgpt" {
         name = "OPENAI_API_KEY"
         valueFrom = {
           secretKeyRef = { name = "holmes-llm", key = "openai-api-key" }
+        }
+      },
+      { name = "GRAFANA_URL", value = "https://grafana.home.shdr.ch" },
+      { name = "LOKI_URL", value = local.holmes_loki_url },
+      {
+        name = "GRAFANA_TOKEN"
+        valueFrom = {
+          secretKeyRef = { name = "holmes-extra-apis", key = "grafana-token" }
         }
       },
       # Default model for investigations that don't pass one explicitly.
@@ -104,10 +127,41 @@ resource "helm_release" "holmesgpt" {
         enabled = true
         config  = { api_url = local.holmes_loki_url }
       }
-      # TODO: Holmes chart 0.35.0 exposes only the generic toolsets map; no
-      # local custom Grafana toolset schema or token-to-env mapping is available.
-      # Add a Grafana API toolset only after that schema and a provisioned
-      # read-only token/key are defined (hostname: grafana.home.shdr.ch).
+      "aether/grafana" = {
+        description = "Query the aether Grafana API (read-only Viewer token): server health, alert-rule health with last evaluation errors, dashboard search. Use grafana_failing_alert_rules to diagnose DatasourceError alerts."
+        tools = [
+          {
+            name        = "grafana_health"
+            description = "Check Grafana server health (database status, version)."
+            command     = "curl -sS $${GRAFANA_URL}/api/health"
+          },
+          {
+            name        = "grafana_failing_alert_rules"
+            description = "List Grafana alert rules that are firing, pending, or unhealthy, including lastError. Primary tool for DatasourceError diagnosis."
+            command     = "curl -sS -H \"Authorization: Bearer $${GRAFANA_TOKEN}\" \"$${GRAFANA_URL}/api/prometheus/grafana/api/v1/rules\" | jq '[.data.groups[].rules[] | select(.health != \"ok\" or .state != \"inactive\") | {name, state, health, lastError, lastEvaluation}]'"
+          },
+          {
+            name        = "grafana_search_dashboards"
+            description = "Search Grafana dashboards by keyword."
+            command     = "curl -sS -H \"Authorization: Bearer $${GRAFANA_TOKEN}\" \"$${GRAFANA_URL}/api/search?query={{ query }}\""
+          },
+        ]
+      }
+      "aether/keycloak" = {
+        description = "Query Keycloak authentication events from Loki (stream {service_name=\"keycloak\"}). Event lines carry type, realmName, clientId, userId, ipAddress, error. Covers all realms. Only WARN-level events (failures) are logged; successful logins are not."
+        tools = [
+          {
+            name        = "keycloak_login_failures"
+            description = "List Keycloak LOGIN_ERROR events from the last N hours (default 6) with user, client, IP, and error reason."
+            command     = "curl -sS -G \"$${LOKI_URL}/loki/api/v1/query_range\" --data-urlencode 'query={service_name=\"keycloak\"} |= \"LOGIN_ERROR\"' --data-urlencode 'since={{ hours | default(6) }}h' --data-urlencode 'limit=100' | jq -r '.data.result[].values[][1]'"
+          },
+          {
+            name        = "keycloak_log_search"
+            description = "Search the Keycloak server log in Loki for a substring (e.g. an event type like LOGIN_ERROR, a username, an IP, or an error string) over the last N hours (default 6)."
+            command     = "curl -sS -G \"$${LOKI_URL}/loki/api/v1/query_range\" --data-urlencode 'query={service_name=\"keycloak\"} |= \"{{ search }}\"' --data-urlencode 'since={{ hours | default(6) }}h' --data-urlencode 'limit=100' | jq -r '.data.result[].values[][1]'"
+          },
+        ]
+      }
     }
   })]
 }
