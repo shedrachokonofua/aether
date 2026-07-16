@@ -229,6 +229,16 @@
         group: "{{ monitoring_agent_service_user }}"
       become: true
 
+    - name: Create qss observation cursor storage directory
+      ansible.builtin.file:
+        path: /var/lib/qss-exporter/otel-storage
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      become: true
+      when: qss_observations_enabled | default(false)
+
     # Deploy configuration
     - name: Create OTEL config file
       template:
