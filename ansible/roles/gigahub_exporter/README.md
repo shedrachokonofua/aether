@@ -3,7 +3,8 @@
 Installs `gigahub-exporter` on `monitoring-stack`: a pinned release from the
 GitLab generic package registry (version + SHA-256, never `latest`), verified on
 download. The exporter performs a read-only remote scrape of the Bell GigaHub
-CPE (`192.168.2.1`) over HTTP and exposes Prometheus metrics on
+CPE (`192.168.2.1`) over HTTPS (TLS 1.3, self-signed device cert accepted via
+explicit opt-in — REQ 3.8) and exposes Prometheus metrics on
 `127.0.0.1:9343`, running as the dedicated `gigahub-exporter` system user under a
 hardened `Type=notify` unit.
 

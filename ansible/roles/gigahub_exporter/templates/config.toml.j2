@@ -5,6 +5,10 @@ state_directory = "{{ gigahub_exporter_state_dir }}"
 
 [device]
 address = "{{ gigahub_exporter_device_address }}"
+scheme = "{{ gigahub_exporter_scheme }}"
+{% if gigahub_exporter_scheme == "https" %}
+tls_accept_invalid_certs = {{ gigahub_exporter_tls_accept_invalid_certs | lower }}
+{% endif %}
 
 [auth]
 method = "sha512"
