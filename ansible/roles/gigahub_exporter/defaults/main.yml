@@ -1,10 +1,10 @@
 ---
 # gigahub-exporter: pinned release from the GitLab generic package registry.
 # Aether never consumes `latest`; pin version + checksum.
-gigahub_exporter_version: "v0.1.0"
+gigahub_exporter_version: "v0.2.0"
 gigahub_exporter_download_url:
   "https://gitlab.home.shdr.ch/api/v4/projects/so%2Fgigahub-exporter/packages/generic/gigahub-exporter/{{ gigahub_exporter_version }}/gigahub-exporter-linux-amd64"
-gigahub_exporter_sha256: "d3464d78bebdff32c80c10673100f63bf7cfbc2e940ccb3478867ea2debc928f"
+gigahub_exporter_sha256: "cbaa009c35b90e721e7f696f1d633861b58f62e5f9e1a33c9cfcc4eaa23f2114"
 gigahub_exporter_binary_path: "/usr/local/bin/gigahub-exporter"
 
 # Runtime identity and paths
@@ -18,6 +18,13 @@ gigahub_exporter_state_dir: "/var/lib/gigahub-exporter"
 # Exporter configuration
 gigahub_exporter_listen: "127.0.0.1:9343"
 gigahub_exporter_device_address: "192.168.2.1"
+# HTTPS transport (REQ 3.8): the device serves the API over TLS 1.3 with a
+# self-signed cert (CN=self-signedkey) that can never pass verification, so
+# the accept-invalid opt-in trades authentication for confidentiality —
+# session material no longer crosses the VLAN1 segment in plaintext. The
+# network ACL remains the authentication layer.
+gigahub_exporter_scheme: "https"
+gigahub_exporter_tls_accept_invalid_certs: true
 gigahub_exporter_handoff_interface: "eth4"
 
 gigahub_exporter_service_state: started
