@@ -228,6 +228,12 @@
             }
 
             __aether_drop_seven30_kubeconfig
+
+            # In the dev shell, `oci` = the lazy-renewing wrapper (auto UPST re-mint
+            # before each call). Alias only, so scripts/subprocesses invoking `oci`
+            # non-interactively still get the real CLI - no recursion.
+            __aether_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+            alias oci="$__aether_root/scripts/aether-oci"
           '' + pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
             if ! colima status >/dev/null 2>&1; then
               echo "🐳 Starting colima (docker daemon for macOS)..."
