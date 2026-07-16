@@ -294,6 +294,7 @@
       loop:
         - 13-qss-observations.sql
         - 14-mac-first-seen.sql
+        - 15-mac-ip-history.sql
       tags: [clickhouse, qss-exporter]
 
     - name: Apply idempotent observation pipeline schemas
@@ -309,6 +310,7 @@
       loop:
         - 13-qss-observations.sql
         - 14-mac-first-seen.sql
+        - 15-mac-ip-history.sql
       no_log: false
       tags: [clickhouse, qss-exporter]
 
@@ -329,6 +331,28 @@
               AND lower(substring(mac_address, 2, 1)) NOT IN
               ('1', '3', '5', '7', '9', 'b', 'd', 'f')
             GROUP BY mac
+      no_log: false
+      tags: [clickhouse, qss-exporter]
+
+    - name: Backfill mac_ip_history from existing observations (idempotent)
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --query
+          - >-
+            INSERT INTO network.mac_ip_history
+            SELECT lower(mac_address) AS mac, lower(ip_address) AS ip,
+            min(timestamp), max(timestamp), anyLast(hostname), source_type
+            FROM network.observations
+            WHERE mac_address IS NOT NULL AND mac_address != ''
+              AND ip_address IS NOT NULL AND ip_address != ''
+              AND source_type != ''
+              AND lower(substring(mac_address, 2, 1)) NOT IN
+              ('1', '3', '5', '7', '9', 'b', 'd', 'f')
+            GROUP BY mac, ip, source_type
       no_log: false
       tags: [clickhouse, qss-exporter]
 
