@@ -40,7 +40,7 @@ tasks:
   # Auth (multi-step flows worth wrapping)
   # ===========================================================================
   login:
-    desc: Unified SSO login (AWS, Google WIF, OpenBao, Ceph RGW, SSH cert)
+    desc: Unified SSO login (AWS, Google WIF, OpenBao, Ceph RGW, OCI, SSH cert)
     cmds:
       - mkdir -p {{.CACHE_DIR}}/bao {{.CACHE_DIR}}/step
       - AETHER_CACHE_DIR={{.CACHE_DIR}} ./scripts/login.bb {{.CLI_ARGS}}

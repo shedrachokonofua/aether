@@ -559,13 +559,14 @@
 (defn help-text []
   (str/join
    "\n"
-   ["Usage: login.bb [--aws|--google|--bao|--s3|--ssh|--no-ssh|--status]"
+   ["Usage: login.bb [--aws|--google|--bao|--s3|--oci|--ssh|--no-ssh|--status]"
     ""
     "Options:"
     "  --aws     Only get AWS credentials"
     "  --google  Only configure GCP WIF credentials"
     "  --bao     Only get OpenBao token"
     "  --s3      Only get Ceph S3 credentials"
+    "  --oci     Only get OCI credentials (UPST via Keycloak federation)"
     "  --ssh     Only get SSH certificate"
     "  --no-ssh  Skip SSH certificate (even if agent available)"
     "  --status  Check current auth status"
@@ -600,6 +601,108 @@
           [(ansi green "✓") "Certificate loaded"])
         [(ansi yellow "⚠") "No certificate in agent (use 'task login -- --ssh')"]))
     [(ansi blue "ℹ") "Agent not available (run: task login -- --ssh)"]))
+
+;; --- OCI (Keycloak JWT -> UPST token-exchange) -------------------------------
+(defn expand-home [p]
+  (if (and p (str/starts-with? p "~"))
+    (str (System/getProperty "user.home") (subs p 1))
+    p))
+
+(defn oci-profile-field
+  "Read a field (e.g. security_token_file, key_file) from the [profile] section of ~/.oci/config."
+  [profile field]
+  (let [path (str (System/getProperty "user.home") "/.oci/config")]
+    (when (.exists (io/file path))
+      (loop [lines (str/split-lines (slurp path)) in? false]
+        (if-let [line (first lines)]
+          (let [l (str/trim line)]
+            (cond
+              (re-matches #"\[.*\]" l) (recur (rest lines) (= l (str "[" profile "]")))
+              (and in? (str/starts-with? l field)) (-> (str/split l #"=" 2) second str/trim expand-home)
+              :else (recur (rest lines) in?)))
+          nil)))))
+
+(defn exchange-for-oci!
+  "Exchange the Keycloak JWT for an OCI User Principal Session Token (UPST) via the
+   Identity Domain's token endpoint, and install it into the oci-aether profile so
+   `oci --auth security_token` (and tofu) work with no OCI browser."
+  [id-token required? log]
+  (let [domain        (tf-output :oci_domain_url)
+        client-id     (tf-output :oci_tokenexchange_client_id)
+        client-secret (tf-output :oci_tokenexchange_client_secret)]
+    (cond
+      (or (str/blank? domain) (str/blank? client-id) (str/blank? client-secret))
+      (let [msg "OCI federation not configured (module.oci federation not applied / no tf-outputs)"]
+        (if required?
+          (do ((:error log) (str msg ".")) {:ok? false :failed? true :name :oci})
+          (do ((:info log) (str msg "; skipping OCI")) {:ok? true :skipped? true :name :oci :configured? false})))
+
+      :else
+      (let [token-file (oci-profile-field "oci-aether" "security_token_file")
+            key-file   (oci-profile-field "oci-aether" "key_file")]
+        (if (or (str/blank? token-file) (str/blank? key-file))
+          (do ((:error log) "OCI profile 'oci-aether' not bootstrapped - run once: oci session authenticate --region ca-toronto-1 --profile-name oci-aether")
+              {:ok? false :failed? true :name :oci})
+          (do
+            ((:info log) "Exchanging Keycloak token for OCI UPST...")
+            (let [new-key  (str key-file ".new")
+                  pub-file (str key-file ".pub")
+                  gen (run-proc ["openssl" "genrsa" "-out" new-key "2048"])
+                  _   (when (:ok? gen) (run-proc ["chmod" "600" new-key]))
+                  pub (when (:ok? gen) (run-proc ["openssl" "rsa" "-in" new-key "-pubout" "-out" pub-file]))]
+              (if-not (and (:ok? gen) pub (:ok? pub))
+                (do (io/delete-file new-key true)
+                    ((:error log) (str "OCI RSA keygen failed: " (cmd-output (or pub gen))))
+                    {:ok? false :failed? true :name :oci})
+                (let [public-b64 (->> (str/split-lines (slurp pub-file))
+                                      (remove #(str/includes? % "-----"))
+                                      (map str/trim)
+                                      (str/join ""))
+                      basic (.encodeToString (java.util.Base64/getEncoder)
+                                             (.getBytes (str client-id ":" client-secret) StandardCharsets/UTF_8))
+                      resp (try
+                             (http-request!
+                              {:method :post
+                               :url (str domain "/oauth2/v1/token")
+                               :headers {"Content-Type" "application/x-www-form-urlencoded"
+                                         "Authorization" (str "Basic " basic)}
+                               :body (form-encode [["grant_type" "urn:ietf:params:oauth:grant-type:token-exchange"]
+                                                   ["requested_token_type" "urn:oci:token-type:oci-upst"]
+                                                   ["subject_token_type" "jwt"]
+                                                   ["subject_token" id-token]
+                                                   ["public_key" public-b64]])
+                               :timeout-ms 30000})
+                             (catch Throwable t {:status 0 :body (str t)}))
+                      body (try (parse-json (:body resp)) (catch Throwable _ {}))
+                      upst (or (:token body) (:access_token body))]
+                  (if (and (= 200 (:status resp)) (not (str/blank? upst)))
+                    (do
+                      (run-proc ["mv" new-key key-file])
+                      (run-proc ["chmod" "600" key-file])
+                      (write-file! token-file upst)
+                      (io/delete-file pub-file true)
+                      (let [check (run-proc ["oci" "iam" "region" "list" "--profile" "oci-aether"
+                                             "--auth" "security_token" "--output" "json"])]
+                        (if (:ok? check)
+                          (do ((:success log) "OCI UPST minted (profile oci-aether, --auth security_token)")
+                              {:ok? true :failed? false :name :oci :configured? true})
+                          (do ((:error log) (str "OCI UPST minted but a test call failed: " (cmd-output check)))
+                              {:ok? false :failed? true :name :oci}))))
+                    (do (io/delete-file new-key true)
+                        (io/delete-file pub-file true)
+                        ((:error log) (str "OCI token-exchange failed (HTTP " (:status resp) "): "
+                                           (let [b (str (:body resp))] (subs b 0 (min 400 (count b))))))
+                        {:ok? false :failed? true :name :oci})))))))))))
+
+(defn oci-status! []
+  (let [token-file (oci-profile-field "oci-aether" "security_token_file")]
+    (if (and token-file (.exists (io/file token-file)))
+      (let [res (run-proc ["oci" "iam" "region" "list" "--profile" "oci-aether"
+                           "--auth" "security_token" "--output" "json"])]
+        (if (:ok? res)
+          [(ansi green "✓") "Authenticated (UPST via Keycloak federation, profile oci-aether)"]
+          [(ansi yellow "⚠") "UPST expired or invalid (run: task login)"]))
+      [(ansi yellow "⚠") "Not authenticated (no cached UPST)"])))
 
 (defn status-check! []
   (println)
@@ -655,10 +758,15 @@
         (println (ansi yellow "⚠ Credentials cached but may be expired"))))
     (println (ansi yellow "⚠ Not authenticated (no cached credentials)")))
 
+  (println)
+  (println (ansi blue "OCI:"))
+  (let [[prefix msg] (oci-status!)]
+    (println prefix msg))
+
   (println))
 
 (defn print-summary! [results do-flags]
-  (let [{:keys [do-ssh do-bao do-aws do-google do-s3]} do-flags]
+  (let [{:keys [do-ssh do-bao do-aws do-google do-s3 do-oci]} do-flags]
     (println)
     (println (ansi blue "=== Login Summary ==="))
     (when-not (:ssh-skipped? results)
@@ -685,6 +793,14 @@
       (if (:s3-ok? results)
         (println (ansi green "✓ Ceph RGW:  Ready (rclone remotes: ceph_rgw, aws)"))
         (println (ansi red "✗ Ceph RGW:  Failed"))))
+    (when do-oci
+      (cond
+        (:oci-ok? results)
+        (if (:oci-configured? results)
+          (println (ansi green "✓ OCI: Ready (UPST via Keycloak federation, profile oci-aether)"))
+          (println (ansi blue "ℹ OCI: Not configured")))
+        :else
+        (println (ansi red "✗ OCI: Failed"))))
     (println)))
 
 (defn parse-args [args]
@@ -694,6 +810,8 @@
                 :google-required? false
                 :do-bao true
                 :do-s3 true
+                :do-oci true
+                :oci-required? false
                 :do-ssh :auto
                 :status? false
                 :help? false}]
@@ -705,6 +823,7 @@
                               :do-google false
                               :do-bao false
                               :do-s3 false
+                              :do-oci false
                               :do-ssh false))
         "--google" (recur (rest xs)
                           (assoc state
@@ -713,25 +832,38 @@
                                  :google-required? true
                                  :do-bao false
                                  :do-s3 false
+                                 :do-oci false
                                  :do-ssh false))
         "--bao" (recur (rest xs)
                        (assoc state
                               :do-aws false
                               :do-google false
                               :do-s3 false
+                              :do-oci false
                               :do-ssh false))
         "--s3" (recur (rest xs)
                       (assoc state
                              :do-aws false
                              :do-google false
                              :do-bao false
+                             :do-oci false
                              :do-ssh false))
+        "--oci" (recur (rest xs)
+                       (assoc state
+                              :do-aws false
+                              :do-google false
+                              :do-bao false
+                              :do-s3 false
+                              :do-oci true
+                              :oci-required? true
+                              :do-ssh false))
         "--ssh" (recur (rest xs)
                        (assoc state
                               :do-aws false
                               :do-google false
                               :do-bao false
                               :do-s3 false
+                              :do-oci false
                               :do-ssh true))
         "--no-ssh" (recur (rest xs) (assoc state :do-ssh false))
         "--status" (assoc state :status? true)
@@ -804,12 +936,15 @@
             do-aws (:do-aws state)
             do-google (:do-google state)
             do-s3 (:do-s3 state)
+            do-oci (:do-oci state)
             google-required? (:google-required? state)
+            oci-required? (:oci-required? state)
             ssh-logger (make-logger)
             bao-logger (make-logger)
             aws-logger (make-logger)
             google-logger (make-logger)
             s3-logger (make-logger)
+            oci-logger (make-logger)
             ssh-fut (future (when (or (= do-ssh-mode true) (= do-ssh-mode :auto))
                               (exchange-for-ssh-cert! id-token ssh-logger)))
             bao-fut (future (when do-bao
@@ -820,12 +955,15 @@
                                  (exchange-for-google! id-token google-required? google-logger)))
             s3-fut (future (when do-s3
                              (exchange-for-s3! id-token s3-logger)))
+            oci-fut (future (when do-oci
+                              (exchange-for-oci! id-token oci-required? oci-logger)))
             ssh-res (when (or (= do-ssh-mode true) (= do-ssh-mode :auto)) @ssh-fut)
             bao-res (when do-bao @bao-fut)
             aws-res (when do-aws @aws-fut)
             google-res (when do-google @google-fut)
-            s3-res (when do-s3 @s3-fut)]
-        (doseq [logger [ssh-logger bao-logger aws-logger google-logger s3-logger]]
+            s3-res (when do-s3 @s3-fut)
+            oci-res (when do-oci @oci-fut)]
+        (doseq [logger [ssh-logger bao-logger aws-logger google-logger s3-logger oci-logger]]
           (print-log-buffer! (:buf logger)))
         (when (and do-s3 (:ok? s3-res) (exists? (str @cache-dir "/aws-env")))
           (apply-rclone-aws-remote!))
@@ -836,17 +974,21 @@
                        :aws-ok? (boolean (:ok? aws-res))
                        :google-ok? (boolean (:ok? google-res))
                        :google-configured? (boolean (:configured? google-res))
-                       :s3-ok? (boolean (:ok? s3-res))}
+                       :s3-ok? (boolean (:ok? s3-res))
+                       :oci-ok? (boolean (:ok? oci-res))
+                       :oci-configured? (boolean (:configured? oci-res))}
               do-flags {:do-ssh do-ssh-mode
                         :do-bao do-bao
                         :do-aws do-aws
                         :do-google do-google
-                        :do-s3 do-s3}]
+                        :do-s3 do-s3
+                        :do-oci do-oci}]
           (print-summary! results do-flags)
           (when (or (and do-bao (not (:ok? bao-res)))
                     (and do-aws (not (:ok? aws-res)))
                     (and do-google (not (:ok? google-res)))
                     (and do-s3 (not (:ok? s3-res)))
+                    (and do-oci (not (:ok? oci-res)))
                     (and (= do-ssh-mode true) (not (:ok? ssh-res))))
             (System/exit 1)))))))
 

@@ -253,6 +253,22 @@ Google Cloud trusts Keycloak toolbox tokens through Workload Identity Federation
 | --------------- | --- | ----------- |
 | aether-tofu | Me via Keycloak toolbox token | Manage Google IAM/WIF, Service Usage, and API keys for Aether |
 
+### OCI Identity Propagation Trust
+
+OCI's `Default` Identity Domain trusts Keycloak toolbox tokens through an Identity Propagation Trust (`tofu/oci/federation.tf`). `task login` exchanges the Keycloak ID token for a ~60-minute User Principal Session Token (UPST) at the domain's `/oauth2/v1/token` endpoint (RFC 8693 token-exchange, Basic-authenticated by a Terraform-managed confidential app) and installs it into OCI CLI profile `oci-aether` (`security_token_file` + a per-login RSA key bound into the UPST). No static API signing key exists. The first-ever apply bootstraps with a one-time `oci session authenticate` browser session.
+
+**Identity Propagation Trust**: `keycloak-toolbox`
+
+- Trusts `https://auth.shdr.ch/realms/aether` (JWKS-validated JWT)
+- Requires `azp = toolbox` (scalar claim; the array `aud` claim breaks IDCS's matcher)
+- Maps token `sub` -> dedicated domain user `21cf...` (userName == the Keycloak sub) via `subject_mapping_attribute = userName`; no impersonation
+
+**Federated principals**:
+
+| Principal | Who | Permissions |
+| --------- | --- | ----------- |
+| user (userName = Keycloak sub) in group `aether-federated-admins` | Me via Keycloak toolbox token | `manage all-resources in tenancy` (policy `aether-federated-admins`) |
+
 ### Tailscale
 
 Tailscale maintains its own identity plane for network access. Integration is via:
