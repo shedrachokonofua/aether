@@ -14,9 +14,9 @@
 ;; Auth: uses the `oci` CLI profile (default oci-aether) with --auth security_token
 ;; (the browser session profile the repo mints today). A session token expires in
 ;; ~1h, so for a long unattended loop create an API-KEY profile (permanent) and run
-;; with `--auth api_key` (or OCI_CLI_AUTH=api_key). The loop best-effort
-;; `oci session refresh`es a token profile between attempts, but an API key is what
-;; actually "holds it down" for hours/days.
+;; with `--auth api_key` (or OCI_CLI_AUTH=api_key) - OR just rely on the built-in
+;; self-renewal: on auth errors the loop re-mints the UPST via `login.bb --oci-renew`
+;; (silent Keycloak refresh; valid within the SSO window: idle 2h / max 12h).
 ;;
 ;; Usage:
 ;;   nix develop -c scripts/oci-a1-grab.bb [opts]
@@ -151,15 +151,32 @@
 (defn quota-error? [s]
   (boolean (re-find #"(?i)limitexceeded|quota|limit for this|exceed.*limit|maximum number" (str s))))
 
+(defn renew-upst!
+  "Re-mint the federated UPST via `login.bb --oci-renew` (cached Keycloak refresh
+   token; silent, no browser). Works within the Keycloak SSO window (idle 2h /
+   max 12h); each renewal resets the idle clock. Returns true on success."
+  []
+  (info "Renewing OCI UPST via Keycloak federation (login.bb --oci-renew)...")
+  (let [r (run ["bb" (str repo-root "/scripts/login.bb") "--oci-renew"] 90000)]
+    (if (:ok? r)
+      (do (ok "UPST renewed.") true)
+      (do (warn (str "UPST renewal failed: "
+                     (let [s (str/trim (str (:out r) " " (:err r)))] (subs s 0 (min 300 (count s))))))
+          false))))
+
 ;; --- discovery --------------------------------------------------------------
 (defn discover [profile auth]
   (info (str "Profile " profile " (auth " auth ") — resolving tenancy/compartment/AD/subnet/image..."))
   (let [tenancy (tenancy-ocid profile)
-        comps (oci profile auth ["iam" "compartment" "list" "--compartment-id" tenancy "--all"])
+        comps (let [c (oci profile auth ["iam" "compartment" "list" "--compartment-id" tenancy "--all"])]
+                (if (and (not (:ok? c)) (auth-error? (:err c))
+                         (= profile "oci-aether") (= auth "security_token") (renew-upst!))
+                  (oci profile auth ["iam" "compartment" "list" "--compartment-id" tenancy "--all"])
+                  c))
         _ (when-not (:ok? comps)
             (if (auth-error? (:err comps))
-              (die! (str "Not authenticated. Run: oci session authenticate --profile " profile
-                         "\n  (or configure an API-key profile for unattended runs)."))
+              (die! (str "Not authenticated and renewal failed. Start a fresh 12h Keycloak window:\n"
+                         "  task login -- --oci"))
               (die! (str "Failed to list compartments: " (str/trim (:err comps))))))
         comp (->> (oci-data comps)
                   (filter #(= compartment-name (:name %)))
@@ -273,14 +290,11 @@
                   (recur (inc n))))
 
             (auth-error? (:err res))
-            (do (warn "Auth error — attempting `oci session refresh`...")
-                (let [r (run ["oci" "session" "refresh" "--profile" profile])]
-                  (if (:ok? r)
-                    (do (ok "Session refreshed; retrying.") (recur n))
-                    (die! (str "Auth failed and refresh failed. Re-auth:\n"
-                               "  oci session authenticate --profile " profile
-                               "\n  (or switch to an API-key profile for unattended loops).\n"
-                               (str/trim (:err res)))))))
+            (if (and (= profile "oci-aether") (= auth "security_token") (renew-upst!))
+              (do (ok "Retrying with fresh UPST.") (recur n))
+              (die! (str "Auth failed and UPST renewal failed. Start a fresh 12h Keycloak window:\n"
+                         "  task login -- --oci\n"
+                         (str/trim (:err res)))))
 
             (quota-error? (:err res))
             (die! (str "Quota/limit error — you may already hold an A1 or exceed the free 4 OCPU/24 GB.\n"
