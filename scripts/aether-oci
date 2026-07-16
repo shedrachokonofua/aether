@@ -1,0 +1,86 @@
+#!/usr/bin/env bb
+
+;; aether-oci - lazy-renewing wrapper for the oci CLI (GCP-ADC-style semantics).
+;;
+;; Before every call it checks the federated UPST's exp (profile oci-aether); if
+;; the token is missing or within 5 min of expiry it silently re-mints one via
+;; `login.bb --oci-renew` (cached Keycloak refresh token, no browser), then execs
+;; the real `oci` with OCI_CLI_PROFILE/OCI_CLI_AUTH pinned via env - explicit
+;; --profile/--auth args you pass still take precedence over env.
+;;
+;; Renewal works within the Keycloak SSO window (idle 2h / max 12h); past that,
+;; start a fresh window with:  task login -- --oci
+;;
+;; Usage:  ./scripts/aether-oci <any oci args>
+;;   e.g.  ./scripts/aether-oci iam region list
+;;         ./scripts/aether-oci compute instance list -c <compartment-ocid>
+
+(ns scripts.aether-oci
+  (:require [babashka.process :as proc]
+            [cheshire.core :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as str]))
+
+(def profile "oci-aether")
+(def renew-margin-s 300)
+
+(def script-dir
+  (-> (or *file* (System/getProperty "babashka.file") ".")
+      io/file .getParentFile .getCanonicalPath))
+(def repo-root (-> script-dir io/file .getParentFile .getCanonicalPath))
+
+(defn expand-home [p]
+  (if (and p (str/starts-with? p "~"))
+    (str (System/getProperty "user.home") (subs p 1))
+    p))
+
+(defn profile-field [field]
+  (let [path (str (System/getProperty "user.home") "/.oci/config")]
+    (when (.exists (io/file path))
+      (loop [lines (str/split-lines (slurp path)) in? false]
+        (when-let [line (first lines)]
+          (let [l (str/trim line)]
+            (cond
+              (re-matches #"\[.*\]" l) (recur (rest lines) (= l (str "[" profile "]")))
+              (and in? (str/starts-with? l field)) (-> (str/split l #"=" 2) second str/trim expand-home)
+              :else (recur (rest lines) in?))))))))
+
+(defn upst-exp
+  "exp claim (epoch seconds) of the JWT in token-file, or nil."
+  [token-file]
+  (try
+    (let [payload (-> (slurp token-file) str/trim (str/split #"\.") second)
+          padded (case (mod (count payload) 4) 2 (str payload "==") 3 (str payload "=") payload)
+          claims (-> (.decode (java.util.Base64/getUrlDecoder) ^String padded)
+                     (String. java.nio.charset.StandardCharsets/UTF_8)
+                     (json/parse-string true))]
+      (:exp claims))
+    (catch Throwable _ nil)))
+
+(defn needs-renew? []
+  (let [tf (profile-field "security_token_file")]
+    (or (str/blank? tf)
+        (not (.exists (io/file tf)))
+        (let [exp (upst-exp tf)
+              now (quot (System/currentTimeMillis) 1000)]
+          (or (nil? exp) (< (- exp now) renew-margin-s))))))
+
+(defn renew! []
+  (let [cache-dir (or (System/getenv "AETHER_CACHE_DIR")
+                      (str (System/getProperty "user.home") "/.aether-toolbox"))
+        r @(proc/process ["bb" (str repo-root "/scripts/login.bb") "--oci-renew"]
+                         {:out :string :err :string
+                          :extra-env {"AETHER_CACHE_DIR" cache-dir}})]
+    (when-not (zero? (long (:exit r)))
+      (binding [*out* *err*]
+        (println "aether-oci: UPST renewal failed:")
+        (println (str/trim (str (:out r) "\n" (:err r))))
+        (println "Start a fresh 12h Keycloak window:  task login -- --oci"))
+      (System/exit 1))))
+
+(when (needs-renew?)
+  (renew!))
+
+(proc/exec (into ["oci"] *command-line-args*)
+           {:extra-env {"OCI_CLI_PROFILE" profile
+                        "OCI_CLI_AUTH" "security_token"}})
