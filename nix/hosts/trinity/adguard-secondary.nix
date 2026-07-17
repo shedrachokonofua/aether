@@ -3,7 +3,7 @@
 
 {
   imports = [
-    ../common/adguard-resolver.nix
+    ../common/technitium-resolver.nix
   ];
 
   networking.hostName = lib.mkOverride 10 "adguard-secondary";

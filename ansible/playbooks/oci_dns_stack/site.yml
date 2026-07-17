@@ -1,7 +1,8 @@
 ---
-# OCI (ca-toronto-1) offsite AdGuard resolver — a plain GCP-style WireGuard spoke
-# dialing the AWS hub. Mirrors uptime_monitor_stack/site.yml; the extra role is
-# adguard_home (AdGuard on Ubuntu, config from the shared config/adguard-settings.json).
+# OCI (ca-toronto-1) offsite Technitium DNS resolver (cluster secondary ns3) —
+# a plain GCP-style WireGuard spoke dialing the AWS hub. Mirrors
+# uptime_monitor_stack/site.yml; the extra role is technitium_dns (Technitium
+# in a podman quadlet, config from the shared config/technitium-settings.json).
 - name: Configure OCI DNS stack
   hosts: oci-adguard
   gather_facts: true
@@ -18,6 +19,8 @@
     site_wireguard_remote_prefixes:
       - 10.0.0.0/16
       - 10.1.0.0/16
+      # Technitium cluster primary (ns2) on the home mgmt net, via hub -> VyOS.
+      - 192.168.2.237/32
     site_wireguard_topology_role: spoke
     site_wireguard_input_allow_cidrs:
       - 10.0.4.0/24
@@ -34,10 +37,14 @@
       - proto: tcp
         port: 53
         cidrs: [10.0.0.0/16, 10.1.0.0/16, 10.254.0.2/32]
-      # AdGuard admin UI (dns.oci.shdr.ch), reached only via the home gateway Caddy.
+      # Technitium admin UI (dns.oci.shdr.ch), reached only via the home gateway Caddy.
       - proto: tcp
-        port: 3000
+        port: 5380
         cidrs: [10.0.2.2/32]
+      # Technitium cluster sync from ns2 (the LXC primary) over the fabric.
+      - proto: tcp
+        port: 53443
+        cidrs: [192.168.2.237/32]
     site_wireguard_peers:
       - site: aws
         host: public-gateway
@@ -49,6 +56,8 @@
           - 10.1.0.0/16
           - 10.254.0.1/32
           - 10.254.0.2/32
+          # ns2 cluster primary on the home mgmt net (via hub -> VyOS).
+          - 192.168.2.237/32
   pre_tasks:
     # The OCI Ubuntu cloud image ships a default iptables INPUT chain that
     # REJECTs all non-SSH/ICMP input (icmp-host-prohibited), clobbering fabric
@@ -88,14 +97,7 @@
         journal_gateway_tls_enabled: false
         journal_gateway_bind_address: "10.3.0.10"
       tags: [journal-gateway]
-    - role: adguard_home
+    - role: technitium_dns
       vars:
-        adguard_wg_ip: 10.3.0.10
-        # DNS served over WG to the home LANs OCI routes to (== site_wireguard_remote_prefixes);
-        # :53 opened on the wg interface by the adguard_home role. WG + the hub/VyOS
-        # CLOUD zone are the auth boundary.
-        adguard_dns_allow_cidrs:
-          - 10.0.0.0/16
-          - 10.1.0.0/16
-          - 10.254.0.2/32 # VyOS DNS-forwarder source over wg10
-      tags: [adguard]
+        technitium_wg_ip: 10.3.0.10
+      tags: [technitium]

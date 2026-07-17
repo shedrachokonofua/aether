@@ -1,0 +1,137 @@
+---
+- name: Ensure podman and jq are installed (Debian family)
+  ansible.builtin.apt:
+    name:
+      - podman
+      - jq
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+  when: ansible_os_family == 'Debian'
+
+- name: Ensure Technitium directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ technitium_conf_dir }}", mode: "0750" }
+    - { path: "{{ technitium_log_dir }}", mode: "0755" }
+    - { path: "{{ technitium_apply_dir }}", mode: "0750" }
+    - { path: "{{ technitium_apply_dir }}/secrets", mode: "0700" }
+  become: true
+
+# Swap absorbs blocklist-refresh spikes (old + new set briefly coexist) so
+# the hard memory cap below fails the container, never the host.
+- name: Ensure swapfile exists
+  ansible.builtin.shell: |
+    set -e
+    if ! swapon --show | grep -q /swapfile; then
+      fallocate -l {{ technitium_swapfile_size_mb }}M /swapfile
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+    fi
+    grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  args:
+    creates: /swapfile
+  become: true
+
+# The old AdGuard quadlet must be gone before Technitium binds :53 in the
+# host network namespace.
+- name: Remove the retired AdGuard Home container
+  containers.podman.podman_container:
+    name: adguard-home
+    state: absent
+  become: true
+
+- name: Remove the retired AdGuard Home quadlet unit
+  ansible.builtin.file:
+    path: /etc/containers/systemd/adguard-home.container
+    state: absent
+  become: true
+
+# Cluster node names must resolve without depending on DNS being up.
+- name: Pin cluster node names in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item }}"
+  loop:
+    - "192.168.2.237 ns2.dns.home.shdr.ch"
+    - "10.3.0.10 ns3.dns.home.shdr.ch"
+  become: true
+
+# Technitium runs in the host network namespace and binds ONLY the WireGuard
+# site-edge IP + loopback (dnsServerLocalEndPoints in the overlay) - reachable
+# solely over the fabric, never the public interface (no open resolver /
+# topology leak). The site_wireguard nft input chain governs :53/:5380/:53443
+# reachability via site_wireguard_service_allow.
+- name: Deploy Technitium DNS podman quadlet
+  containers.podman.podman_container:
+    name: technitium-dns
+    image: "{{ technitium_image }}"
+    network: host
+    env:
+      DNS_SERVER_DOMAIN: "{{ technitium_server_domain }}"
+    volumes:
+      - "{{ technitium_conf_dir }}:/etc/dns:Z"
+      - "{{ technitium_log_dir }}:/var/log/technitium:Z"
+    state: quadlet
+    quadlet_options:
+      - "PodmanArgs=--memory={{ technitium_memory_limit }} --memory-swap={{ technitium_memory_swap_limit }}"
+      - |
+        [Service]
+        Restart=on-failure
+        RestartSec=30s
+        TimeoutStartSec=120s
+      - |
+        [Install]
+        WantedBy=default.target
+  become: true
+  notify: Restart technitium-dns
+
+- name: Ensure technitium-dns service is started
+  ansible.builtin.systemd:
+    name: technitium-dns
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Copy the shared apply engine and declarative config
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ technitium_apply_dir }}/{{ item.dest }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: "{{ technitium_apply_script_path }}", dest: "technitium-apply.sh", mode: "0755" }
+    - { src: "{{ technitium_settings_json_path }}", dest: "technitium-settings.json", mode: "0640" }
+  become: true
+
+- name: Render the host overlay
+  ansible.builtin.template:
+    src: overlay.json.j2
+    dest: "{{ technitium_apply_dir }}/overlay.json"
+    mode: "0640"
+  become: true
+
+- name: Wait for the Technitium API
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 5380
+    timeout: 120
+
+- name: Reconcile Technitium configuration
+  ansible.builtin.command:
+    argv:
+      - "{{ technitium_apply_dir }}/technitium-apply.sh"
+      - "{{ technitium_apply_dir }}/technitium-settings.json"
+      - "{{ technitium_apply_dir }}/overlay.json"
+  environment:
+    TECHNITIUM_URL: "http://127.0.0.1:5380"
+    SECRETS_DIR: "{{ technitium_apply_dir }}/secrets"
+    TECHNITIUM_PRIMARY_PASSWORD: "{{ technitium_primary_admin_password }}"
+  become: true
+  no_log: true
+  changed_when: true
