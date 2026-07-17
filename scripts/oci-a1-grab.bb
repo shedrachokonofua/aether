@@ -169,20 +169,24 @@
 
 (defn oci-read
   "Read-op oci call resilient to transient throttling: retries on 429/timeout with
-   30s backoff, and renews the UPST once on an auth error. Returns the last result."
+   escalating backoff (30s→300s cap, ~12 tries ≈ 45min of patience) so a deep
+   startup throttle is waited out rather than fatal; renews the UPST once on an
+   auth error. Returns the last result."
   [profile auth args]
-  (loop [tries 6, renewed? false]
-    (let [res (oci profile auth args)]
-      (cond
-        (:ok? res) res
-        (and (auth-error? (:err res)) (not renewed?)
-             (= profile "oci-aether") (= auth "security_token"))
-        (do (renew-upst!) (recur tries true))
-        (and (or (rate-limit-error? (:err res)) (timeout-error? (:err res))) (> tries 1))
-        (do (warn (str "Transient OCI error (throttle/timeout) — backoff 30s (" (dec tries) " left)."))
-            (Thread/sleep 30000)
+  (let [max-tries 12]
+    (loop [tries max-tries, renewed? false]
+      (let [res (oci profile auth args)]
+        (cond
+          (:ok? res) res
+          (and (auth-error? (:err res)) (not renewed?)
+               (= profile "oci-aether") (= auth "security_token"))
+          (do (renew-upst!) (recur tries true))
+          (and (or (rate-limit-error? (:err res)) (timeout-error? (:err res))) (> tries 1))
+          (let [backoff (min 300 (* 30 (bit-shift-left 1 (- max-tries tries))))]
+            (warn (str "Transient OCI error (throttle/timeout) — backoff " backoff "s (" (dec tries) " left)."))
+            (Thread/sleep (* 1000 backoff))
             (recur (dec tries) renewed?))
-        :else res))))
+          :else res)))))
 
 ;; --- discovery --------------------------------------------------------------
 (defn discover [profile auth]
