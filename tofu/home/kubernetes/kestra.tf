@@ -300,7 +300,7 @@ resource "helm_release" "kestra" {
 # Kestra — constrained SSH automation
 # =============================================================================
 # Estate scan: SERVICES (Talos) → TRUSTED rule 26 → estate-scanner:22.
-# CrowdSec sync: SERVICES (Talos) → CLOUD rule 20 → public-gateway:22 over
+# CrowdSec sync: SERVICES (Talos) → CLOUD rule 20 → link:22 over
 # WireGuard. The same private key is safe to reuse because each destination
 # binds it to a distinct forced command.
 #

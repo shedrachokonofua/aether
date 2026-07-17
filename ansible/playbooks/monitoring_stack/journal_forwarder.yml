@@ -13,11 +13,11 @@
   tags: [journal-forwarder]
   vars:
     journal_forwarder_cloud_sources:
-      - name: public-gateway
+      - name: link
         url: "http://10.1.0.10:19531"
         no_tls: true
         labels: { instance_type: vps }
-      - name: uptime-monitor
+      - name: vigilant
         url: "http://10.2.0.10:19531"
         no_tls: true
         labels: { instance_type: vps }
@@ -114,7 +114,7 @@
       changed_when: false
       become: true
       delegate_to: "{{ item }}"
-      loop: "{{ (groups['machines'] | default([])) + ['public-gateway', 'uptime-monitor'] }}"
+      loop: "{{ (groups['machines'] | default([])) + ['link', 'vigilant'] }}"
       loop_control:
         label: "{{ item }}"
 

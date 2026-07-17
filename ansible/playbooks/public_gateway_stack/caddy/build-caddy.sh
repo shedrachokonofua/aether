@@ -21,8 +21,8 @@ docker run --rm \
     --with github.com/WeidiDeng/caddy-cloudflare-ip \
     --with github.com/hslatman/caddy-crowdsec-bouncer/http \
     --with github.com/hslatman/caddy-crowdsec-bouncer/appsec \
-    --output /output/aether-public-gateway-caddy
+    --output /output/aether-link-caddy
 
-echo "Built: $SCRIPT_DIR/aether-public-gateway-caddy"
-echo "Size: $(du -h "$SCRIPT_DIR/aether-public-gateway-caddy" | cut -f1)"
+echo "Built: $SCRIPT_DIR/aether-link-caddy"
+echo "Size: $(du -h "$SCRIPT_DIR/aether-link-caddy" | cut -f1)"
 
