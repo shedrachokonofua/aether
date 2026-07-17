@@ -445,8 +445,8 @@
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 protocol tcp
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 source address {{ vm.home_gateway_stack.ip }}
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 destination address 10.3.0.10/32
-          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 destination port 3000
-          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 description 'Home gateway Caddy to OCI AdGuard admin UI'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 destination port 5380
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 32 description 'Home gateway Caddy to OCI Technitium admin UI'
           # Personal clients retain full site-host management over WireGuard.
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 action accept
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 40 source address 10.0.4.0/24
