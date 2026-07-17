@@ -46,6 +46,18 @@ resource "vault_policy" "kubernetes_namespace_external_secrets" {
   EOT
 }
 
+# Grafana tenant automation owns this token. It is intentionally separate from
+# Assay's application-secret prefix so no other namespace can read it.
+resource "vault_policy" "assay_grafana_reader" {
+  name = "aether-k8s-assay-grafana-reader"
+
+  policy = <<-EOT
+    path "${var.openbao_kv_mount_path}/data/assay/grafana" {
+      capabilities = ["read"]
+    }
+  EOT
+}
+
 resource "vault_kubernetes_auth_backend_role" "namespace_external_secrets" {
   for_each = local.namespace_contract_specs
 
@@ -56,7 +68,10 @@ resource "vault_kubernetes_auth_backend_role" "namespace_external_secrets" {
   bound_service_account_namespaces = [module.namespace[each.key].name]
   audience                         = local.openbao_external_secrets_audience
 
-  token_policies = [vault_policy.kubernetes_namespace_external_secrets[each.key].name]
-  token_ttl      = 3600
-  token_max_ttl  = 14400
+  token_policies = concat(
+    [vault_policy.kubernetes_namespace_external_secrets[each.key].name],
+    each.key == "assay" ? [vault_policy.assay_grafana_reader.name] : [],
+  )
+  token_ttl     = 3600
+  token_max_ttl = 14400
 }

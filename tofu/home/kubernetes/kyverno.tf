@@ -686,6 +686,7 @@ resource "kubectl_manifest" "kyverno_trivy_scan_pod_tmp_subpaths" {
             resources = {
               kinds      = ["Pod"]
               namespaces = [local.trivy_operator_namespace]
+              operations = ["CREATE"]
             }
           }]
         }

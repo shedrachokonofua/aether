@@ -103,9 +103,10 @@ resource "kubernetes_deployment_v1" "karakeep_meilisearch" {
             name       = "data"
             mount_path = "/meili_data"
           }
+          # Temporary OOM relief for the sustained Meilisearch crash loop; require evidence-based right-sizing after at least seven crash-free days.
           resources {
-            requests = { cpu = "100m", memory = "256Mi" }
-            limits   = { cpu = "1", memory = "1Gi" }
+            requests = { cpu = "100m", memory = "1Gi" }
+            limits   = { cpu = "1", memory = "2Gi" }
           }
           readiness_probe {
             http_get {
