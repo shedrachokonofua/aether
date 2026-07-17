@@ -152,6 +152,7 @@
   (boolean (re-find #"(?i)limitexceeded|quota|limit for this|exceed.*limit|maximum number" (str s))))
 (defn rate-limit-error? [s]
   (boolean (re-find #"(?i)toomanyrequests|too many requests|\b429\b|rate.?limit" (str s))))
+(defn timeout-error? [s] (boolean (re-find #"(?i)timed out|timeout" (str s))))
 
 (defn renew-upst!
   "Re-mint the federated UPST via `login.bb --oci-renew` (cached Keycloak refresh
@@ -216,15 +217,12 @@
    "--assign-public-ip" "true"
    "--hostname-label" hostname-label
    "--display-name" display-name
-   "--metadata" (json/generate-string {:ssh_authorized_keys pubkey})
-   "--wait-for-state" "RUNNING"
-   "--max-wait-seconds" "600"
-   "--wait-interval-seconds" "15"])
+   "--metadata" (json/generate-string {:ssh_authorized_keys pubkey})])
 
 (defn print-success! [data]
   (let [id (:id data)
         ip (:public-ip data)]
-    (ok "LANDED — instance is RUNNING")
+    (ok "LANDED — launch accepted (instance provisioning)")
     (println)
     (println (str green "  OCID:  " nc (or id "?")))
     (println (str green "  IP:    " nc (or ip "(query: oci compute instance list-vnics --instance-id <ocid>)")))
@@ -234,6 +232,18 @@
     (info "Import into tofu (run in your `task tofu` dev-shell env — needs the Bao token + backend):")
     (println (str "  tofu import '" import-addr "' " (or id "<OCID>")))
     (info "Then verify no diff:  task tofu:plan   (module is already 4/24 to match)")))
+
+(defn find-instance
+  "Live (non-terminated) aether-oci-a1 instance data if one exists, else nil.
+   Idempotency guard: a launch call can time out AFTER the server accepted it, and a
+   stale prior run may already hold one - never launch a duplicate over it."
+  [profile auth comp]
+  (let [res (oci profile auth ["compute" "instance" "list" "--compartment-id" comp
+                               "--display-name" display-name "--all"])]
+    (when (:ok? res)
+      (->> (oci-data res)
+           (remove #(#{"TERMINATED" "TERMINATING"} (:lifecycle-state %)))
+           first))))
 
 ;; --- main -------------------------------------------------------------------
 (defn parse-opts [args]
@@ -278,9 +288,13 @@
         (warn "--dry-run: not launching. Exact command:")
         (println (str "  oci " (str/join " " largs) " --profile " profile " --auth " auth))
         (System/exit 0))
+      (when-let [existing (find-instance profile auth (:comp ctx))]
+        (ok "An aether-oci-a1 instance already exists — treating as landed (import it).")
+        (print-success! existing)
+        (System/exit 0))
       (loop [n 1]
         (info (str "Attempt " n (when (pos? max-attempts) (str "/" max-attempts)) " — launching..."))
-        (let [res (oci profile auth largs 660000)]
+        (let [res (oci profile auth largs 240000)]
           (cond
             (:ok? res)
             (do (print-success! (oci-data res)) (System/exit 0))
@@ -308,6 +322,14 @@
             (quota-error? (:err res))
             (die! (str "Quota/limit error — you may already hold an A1 or exceed the free 4 OCPU/24 GB.\n"
                        (str/trim (:err res))))
+
+            (timeout-error? (:err res))
+            (if-let [existing (find-instance profile auth (:comp ctx))]
+              (do (ok "Launch call timed out, but the instance exists — landed.")
+                  (print-success! existing) (System/exit 0))
+              (do (warn (str "Launch call timed out (no instance created) — retry in " interval "s."))
+                  (Thread/sleep (* 1000 interval))
+                  (recur (inc n))))
 
             :else
             (die! (str "Launch failed (not a capacity error — not retrying):\n"
