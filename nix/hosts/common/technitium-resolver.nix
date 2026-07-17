@@ -1,21 +1,19 @@
-# Shared Technitium DNS resolver configuration (cluster node ns2).
+# Shared Technitium DNS resolver configuration (cluster nodes).
 # Replaces adguard-resolver.nix on hosts migrated to Technitium; the service
 # is reconciled declaratively by scripts/technitium-apply.sh (oneshot below)
-# from config/technitium-settings.json + the per-host overlay.
+# from config/technitium-settings.json + the per-host overlay built from the
+# aether.technitium options each host sets.
 { config, lib, pkgs, modulesPath, ... }:
 
 let
+  cfg = config.aether.technitium;
   applyScript = ../../../scripts/technitium-apply.sh;
   baseConfig = ../../../config/technitium-settings.json;
   overlayFile = pkgs.writeText "technitium-overlay.json" (builtins.toJSON {
     settings = {
-      dnsServerDomain = "ns2.dns.home.shdr.ch";
+      dnsServerDomain = cfg.serverDomain;
     };
-    cluster = {
-      mode = "primary";
-      domain = "dns.home.shdr.ch";
-      nodeIp = "192.168.2.237";
-    };
+    cluster = cfg.cluster;
   });
 in
 {
@@ -23,6 +21,19 @@ in
     (modulesPath + "/virtualisation/proxmox-lxc.nix")
     ../../modules/base.nix
   ];
+
+  options.aether.technitium = {
+    serverDomain = lib.mkOption {
+      type = lib.types.str;
+      description = "This node's cluster identity FQDN (resolvable via networking.hosts pins).";
+    };
+    cluster = lib.mkOption {
+      type = lib.types.attrs;
+      description = "Cluster block for the apply overlay: {mode=primary, domain, nodeIp} or {mode=secondary, nodeIp, primaryUrl, primaryIp}.";
+    };
+  };
+
+  config = {
 
   services.technitium-dns-server = {
     enable = true;
@@ -140,6 +151,7 @@ in
 
   # Cluster node names must resolve without depending on DNS being up.
   networking.hosts = {
+    "192.168.2.236" = [ "ns1.dns.home.shdr.ch" ];
     "192.168.2.237" = [ "ns2.dns.home.shdr.ch" ];
     "10.3.0.10" = [ "ns3.dns.home.shdr.ch" ];
   };
@@ -159,5 +171,7 @@ in
       ${pkgs.iproute2}/bin/ip route replace 10.0.0.0/8 via 192.168.2.231 dev eth0
       ${pkgs.iproute2}/bin/ip route replace 10.3.0.0/16 via 192.168.2.231 dev eth0
     '';
+  };
+
   };
 }
