@@ -6,6 +6,12 @@ locals {
       retention = "14d"
       schedule  = "0 5 2 * * *"
     }
+    assay = {
+      namespace = local.assay_namespace
+      cluster   = local.assay_cnpg
+      retention = "14d"
+      schedule  = "0 7 2 * * *"
+    }
     coder = {
       namespace = local.coder_namespace
       cluster   = local.coder_cnpg_cluster
@@ -194,6 +200,7 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     helm_release.cnpg_barman_cloud,
     kubectl_manifest.cnpg_barman_object_store,
     kubectl_manifest.affine_cnpg_cluster,
+    kubectl_manifest.assay_cnpg_cluster,
     kubectl_manifest.coder_cnpg_cluster,
     kubectl_manifest.firecrawl_cnpg_cluster,
     kubectl_manifest.hoppscotch_cnpg_cluster,

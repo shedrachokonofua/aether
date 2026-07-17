@@ -10,7 +10,9 @@
 #
 # Boxes:
 #   aether-adguard-secondary  VM.Standard.E2.1.Micro (x86, Always-Free)  -> offsite AdGuard
-#   aether-oci-a1             VM.Standard.A1.Flex 4 OCPU / 24 GB (ARM, Always-Free) -> bare workhorse
+#   aether-oci-a1             VM.Standard.A1.Flex 2 OCPU / 12 GB (ARM, Always-Free) -> bare workhorse
+#                             (Oracle cut the A1 Always-Free allowance from 4/24 to
+#                             2/12 on 2026-06-15; 4/24 on PAYG would bill ~$28/mo)
 #
 # Network exposure: security list opens only TCP/22 (key-only bootstrap; tighten to the
 # home WAN once WireGuard is up) and UDP/51820 (direct home<->OCI WireGuard peer). :53 and
@@ -181,8 +183,9 @@ resource "oci_core_instance" "a1" {
   shape               = "VM.Standard.A1.Flex"
 
   shape_config {
-    ocpus         = 4
-    memory_in_gbs = 24
+    # Full current A1 Always-Free allowance (2 OCPU / 12 GB since 2026-06-15).
+    ocpus         = 2
+    memory_in_gbs = 12
   }
 
   create_vnic_details {

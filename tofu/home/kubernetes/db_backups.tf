@@ -8,6 +8,8 @@
 locals {
   db_backup_bucket      = "aether-db-dumps"
   db_backup_s3_endpoint = "https://s3.seaweed.home.shdr.ch"
+  thanos_metrics_bucket  = "thanos-metrics"
+  greptime_telemetry_bucket = "greptime-telemetry"
   db_backup_pg_image    = "postgres:18-alpine"
   db_backup_aws_image   = "amazon/aws-cli:2.22.35"
 
@@ -194,6 +196,36 @@ resource "random_password" "db_backup_s3_secret_key" {
   special = false
 }
 
+resource "random_password" "thanos_s3_access_key" {
+  length  = 20
+  special = false
+}
+
+resource "random_password" "thanos_s3_secret_key" {
+  length  = 40
+  special = false
+}
+
+resource "random_password" "greptime_s3_access_key" {
+  length  = 20
+  special = false
+}
+
+resource "random_password" "greptime_s3_secret_key" {
+  length  = 40
+  special = false
+}
+
+resource "random_password" "greptime_ingest_password" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "greptime_grafana_password" {
+  length  = 32
+  special = false
+}
+
 resource "local_sensitive_file" "seaweedfs_s3_config" {
   filename        = "${path.module}/../secrets/seaweedfs-s3.json"
   file_permission = "0600"
@@ -240,7 +272,147 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
           ] : [])
         }
       ],
+      [
+        {
+          name = "assay-artifacts"
+          credentials = [{
+            accessKey = random_password.assay_artifact_s3_access_key.result
+            secretKey = random_password.assay_artifact_s3_secret_key.result
+          }]
+          actions = [
+            "Read:${local.assay_artifact_bucket}",
+            "Write:${local.assay_artifact_bucket}",
+            "List:${local.assay_artifact_bucket}",
+            "Tagging:${local.assay_artifact_bucket}",
+            "Read:${local.assay_artifact_bucket}/${local.assay_artifact_prefix}/*",
+            "Write:${local.assay_artifact_bucket}/${local.assay_artifact_prefix}/*",
+            "List:${local.assay_artifact_bucket}/${local.assay_artifact_prefix}/*",
+            "Tagging:${local.assay_artifact_bucket}/${local.assay_artifact_prefix}/*",
+          ]
+        }
+      ],
+      [
+        {
+          name = "thanos-metrics"
+          credentials = [{
+            accessKey = random_password.thanos_s3_access_key.result
+            secretKey = random_password.thanos_s3_secret_key.result
+          }]
+          actions = [
+            "Read:${local.thanos_metrics_bucket}",
+            "Write:${local.thanos_metrics_bucket}",
+            "List:${local.thanos_metrics_bucket}",
+            "Tagging:${local.thanos_metrics_bucket}",
+            "Read:${local.thanos_metrics_bucket}/*",
+            "Write:${local.thanos_metrics_bucket}/*",
+            "List:${local.thanos_metrics_bucket}/*",
+            "Tagging:${local.thanos_metrics_bucket}/*",
+          ]
+        }
+      ],
+      [
+        {
+          name = "greptime-telemetry"
+          credentials = [{
+            accessKey = random_password.greptime_s3_access_key.result
+            secretKey = random_password.greptime_s3_secret_key.result
+          }]
+          actions = [
+            "Read:${local.greptime_telemetry_bucket}",
+            "Write:${local.greptime_telemetry_bucket}",
+            "List:${local.greptime_telemetry_bucket}",
+            "Tagging:${local.greptime_telemetry_bucket}",
+            "Read:${local.greptime_telemetry_bucket}/*",
+            "Write:${local.greptime_telemetry_bucket}/*",
+            "List:${local.greptime_telemetry_bucket}/*",
+            "Tagging:${local.greptime_telemetry_bucket}/*",
+          ]
+        }
+      ],
     )
+  })
+}
+
+resource "local_sensitive_file" "thanos_objstore_config" {
+  filename        = "${path.module}/../secrets/thanos-objstore.yml"
+  file_permission = "0600"
+
+  content = yamlencode({
+    type = "S3"
+    config = {
+      bucket             = local.thanos_metrics_bucket
+      endpoint           = "s3.seaweed.home.shdr.ch"
+      region             = "us-east-1"
+      access_key         = random_password.thanos_s3_access_key.result
+      secret_key         = random_password.thanos_s3_secret_key.result
+      insecure           = false
+      signature_version2 = false
+      bucket_lookup_type = "path"
+    }
+  })
+}
+
+resource "local_sensitive_file" "greptime_config" {
+  filename        = "${path.module}/../secrets/greptime-config.toml"
+  file_permission = "0600"
+
+  content = <<-EOT
+    default_timezone = "UTC"
+    user_provider = "static_user_provider:file:/etc/greptime/users"
+    max_in_flight_write_bytes = "512MB"
+    write_bytes_exhausted_policy = "wait(30s)"
+    enable_telemetry = false
+
+    [http]
+    addr = "0.0.0.0:4000"
+    body_limit = "64MB"
+
+    [grpc]
+    bind_addr = "0.0.0.0:4001"
+    runtime_size = 4
+
+    [mysql]
+    enable = false
+
+    [postgres]
+    enable = false
+
+    [query]
+    parallelism = 2
+    memory_pool_size = "1GB"
+
+    [storage]
+    data_home = "/var/lib/greptimedb"
+    type = "S3"
+    bucket = "${local.greptime_telemetry_bucket}"
+    root = "aether"
+    access_key_id = "${random_password.greptime_s3_access_key.result}"
+    secret_access_key = "${random_password.greptime_s3_secret_key.result}"
+    endpoint = "${local.db_backup_s3_endpoint}"
+    region = "us-east-1"
+  EOT
+}
+
+resource "local_sensitive_file" "greptime_users" {
+  filename        = "${path.module}/../secrets/greptime-users"
+  file_permission = "0600"
+
+  content = <<-EOT
+    greptime_ingest:writeonly=plain:${random_password.greptime_ingest_password.result}
+    greptime_grafana:readonly=plain:${random_password.greptime_grafana_password.result}
+  EOT
+}
+
+resource "local_sensitive_file" "greptime_credentials" {
+  filename        = "${path.module}/../secrets/greptime-credentials.yml"
+  file_permission = "0600"
+
+  content = yamlencode({
+    database         = "public"
+    ingest_user      = "greptime_ingest"
+    ingest_password  = random_password.greptime_ingest_password.result
+    grafana_user     = "greptime_grafana"
+    grafana_password = random_password.greptime_grafana_password.result
   })
 }
 

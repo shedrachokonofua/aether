@@ -48,6 +48,7 @@ locals {
       extra_labels = {
         "aether.shdr.ch/arch"                = "amd64"
         "goldilocks.fairwinds.com/enabled"   = "true"
+        "istio.io/dataplane-mode"            = "ambient"
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
@@ -64,6 +65,25 @@ locals {
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
+    "assay" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "critical"
+      exposure                = "internal"
+      create_s3_backup_secret = true
+      description             = "Personal finance ingestion and review API"
+      source_file             = "tofu/home/kubernetes/assay.tf"
+      egress                  = "internet"
+      registry_access         = "gitlab"
+      hostnames = [
+        "assay.home.shdr.ch",
+      ]
+      extra_labels = {
+        "aether.shdr.ch/arch"                = "amd64"
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
     "firecrawl" = {
@@ -1016,11 +1036,11 @@ locals {
       tier                    = "platform",
       owner                   = "aether",
       backup                  = "none",
-      exposure                = "none",
+      exposure                = "internal",
       create_s3_backup_secret = false,
       source_file             = "tofu/home/kubernetes/wasmcloud.tf"
       hostnames = [
-        "aether-wasm-hello.apps.home.shdr.ch",
+        "hello-wasm.home.shdr.ch",
       ]
       extra_labels = {
         "name" = "wasmcloud-system"
