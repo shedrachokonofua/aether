@@ -22,12 +22,39 @@ in
     ../../modules/base.nix
   ];
 
+  # The OTel collector reads AdGuard's 0600 querylog.json files. Use a fixed
+  # service identity so both services can share the query-log group safely.
+  users.groups.adguardhome = {};
+  users.users.adguardhome = {
+    isSystemUser = true;
+    group = "adguardhome";
+  };
+
   services.adguardhome = {
     enable = true;
     mutableSettings = false;
     openFirewall = true;
 
     settings = import ./adguard-settings.nix;
+  };
+
+  systemd.services.adguardhome.serviceConfig = {
+    DynamicUser = lib.mkForce false;
+    User = "adguardhome";
+    Group = "adguardhome";
+  };
+
+  systemd.services.opentelemetry-collector.serviceConfig = {
+    DynamicUser = lib.mkForce false;
+    User = "adguardhome";
+    Group = "adguardhome";
+    # The querylog historical replay must never starve DNS: hard-cap the
+    # collector so catchup is slow instead of the resolver being unresponsive.
+    CPUQuota = "25%";
+    MemoryHigh = "256M";
+    MemoryMax = "512M";
+    IOWeight = 10;
+    Nice = 10;
   };
 
   systemd.services.adguard-exporter = {
@@ -53,6 +80,19 @@ in
   aether.otel-agent.prometheusScrapeConfigs = [
     { job_name = "adguard"; targets = [ "localhost:9618" ]; }
   ];
+
+  aether.otel-agent.jsonFilelogs.adguard_querylog = {
+    # Include the active query log and rotated files for historical replay.
+    include = [ "/var/lib/AdGuardHome/data/querylog.json*" ];
+    timestampField = "T";
+    timestampLayoutType = "gotime";
+    timestampLayout = "2006-01-02T15:04:05.999999999Z07:00";
+    startAt = "beginning";
+    resourceAttributes = {
+      "log.source" = "adguard_querylog";
+      "dns.log.type" = "query";
+    };
+  };
 
   networking.firewall.allowedTCPPorts = [
     53
