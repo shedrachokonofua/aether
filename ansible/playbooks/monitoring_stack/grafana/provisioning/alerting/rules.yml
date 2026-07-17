@@ -15,7 +15,7 @@ groups:
             relativeTimeRange:
               from: 60
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: vector(1)
               refId: A
@@ -52,7 +52,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle",job="proxmox-hosts-node"}[5m])) * 100)
               refId: A
@@ -97,7 +97,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 100 * avg(rate(node_cpu_seconds_total{instance="192.168.2.204:9100",mode="system"}[5m]))
               refId: A
@@ -135,7 +135,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (1 - avg_over_time(node_memory_MemAvailable_bytes{job="proxmox-hosts-node"}[10m]) / avg_over_time(node_memory_MemTotal_bytes{job="proxmox-hosts-node"}[10m])) * 100
               refId: A
@@ -174,7 +174,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: max by(id, name) (pve_cpu_usage_ratio{id=~"qemu/.*"} * on(id) group_left(name) max by(id, name) (pve_guest_info{name!=""})) * 100
               refId: A
@@ -212,7 +212,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (sum by(host_name, exported_job) (system_memory_usage_bytes{state="used",host_name!=""}) / sum by(host_name, exported_job) (system_memory_usage_bytes{host_name!=""})) * 100
               refId: A
@@ -251,7 +251,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (sum by(host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state="free",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[15m])) / sum by(host_name, mountpoint) (last_over_time(system_filesystem_usage_bytes{state=~"used|free|reserved",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[15m]))) * 100
               refId: A
@@ -289,7 +289,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: count by(host_name) (count_over_time(system_filesystem_usage_bytes{state="free",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[1h])) unless on(host_name) count by(host_name) (count_over_time(system_filesystem_usage_bytes{state="free",host_name!="",mountpoint="/",type!~"tmpfs|overlay|squashfs"}[15m]))
               refId: A
@@ -327,7 +327,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (node_filesystem_avail_bytes{job="proxmox-hosts-node",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job="proxmox-hosts-node",fstype!~"tmpfs|overlay"}) * 100
               refId: A
@@ -365,7 +365,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: smartctl_device_smart_status{job="proxmox-hosts-smart"}
               refId: A
@@ -403,7 +403,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: up{job="proxmox-hosts-node"}
               refId: A
@@ -441,7 +441,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: up{job=~"site-node-exporter|site-wireguard-exporter"}
               refId: A
@@ -479,7 +479,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: up{job="proxmox-hosts-smart"}
               refId: A
@@ -517,7 +517,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: up{job="ceph"}
               refId: A
@@ -555,7 +555,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: ceph_daemon_socket_up{job="ceph",ceph_daemon=~"ceph-osd\\..*"}
               refId: A
@@ -593,7 +593,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 6 - sum(ceph_daemon_socket_up{job="ceph",ceph_daemon=~"ceph-osd\\..*"})
               refId: A
@@ -631,7 +631,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: node_nvme_info{job="proxmox-hosts-node",state="dead"}
               refId: A
@@ -669,7 +669,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.202:9100",serial="25385Z803700",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.202:9100",serial="25385Z803747",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.204:9100",serial="S7U8NJ0XA18390B",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.204:9100",serial="S7U8NJ0XA18330N",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.205:9100",serial="25206C801512",state="live"}) or absent(node_nvme_info{job="proxmox-hosts-node",instance="192.168.2.205:9100",serial="25124J801300",state="live"})
               refId: A
@@ -708,7 +708,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (otelcol_exporter_queue_size{job="otel-collector",data_type="logs",exporter="otlphttp/loki"} / otelcol_exporter_queue_capacity{job="otel-collector",data_type="logs",exporter="otlphttp/loki"}) * 100
               refId: A
@@ -738,6 +738,122 @@ groups:
           summary: "OTel Loki log exporter queue is high"
           description: 'Loki log exporter queue is {{ $values.B.Value | printf "%.1f" }}% full'
 
+      # Thanos object-storage path health. These evaluate against local
+      # Prometheus so a Thanos Query outage cannot suppress its own alert.
+      - uid: thanos-component-down
+        title: Thanos Component Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: up{job="thanos"} == 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Thanos {{ $labels.component }} is unavailable"
+          description: "Prometheus has failed to scrape a Thanos component for 5 minutes"
+
+      - uid: thanos-compactor-halted
+        title: Thanos Compactor Halted
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: thanos_compact_halted{job="thanos",component="compact"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Thanos Compactor has halted"
+          description: "Compaction, downsampling, and retention are stopped; inspect overlap or object-store errors"
+
+      - uid: thanos-sidecar-upload-stale
+        title: Thanos Sidecar Upload Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: time() - thanos_objstore_bucket_last_successful_upload_time{job="thanos",component="sidecar"}
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [10800]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Thanos has not uploaded a Prometheus block for over 3 hours"
+          description: "Check Sidecar object-store access before the local retention window expires"
+
       # Host Down Alert
       - uid: host-down
         title: Host Down
@@ -747,7 +863,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: min by(id) (pve_up{id=~"node/.*"})
               refId: A
@@ -785,7 +901,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               # spec_replicas (desired), not status_replicas (existing pods):
               # an RS whose pods can't be created at all (e.g. admission
@@ -839,7 +955,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -889,7 +1005,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -1027,7 +1143,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: aether:namespace_contract:info{tier=~"|unclassified"}
               refId: A
@@ -1066,7 +1182,7 @@ groups:
             relativeTimeRange:
               from: 120
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: absent(kube_namespace_labels{exported_job="kube-state-metrics"})
               refId: A
@@ -1105,7 +1221,7 @@ groups:
             relativeTimeRange:
               from: 3600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -1155,7 +1271,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: ((label_replace(time() - max by(vm_id) (pbs_snapshot_vm_last_timestamp), "id", "qemu/$1", "vm_id", "(.*)") or label_replace(time() - max by(vm_id) (pbs_snapshot_vm_last_timestamp), "id", "lxc/$1", "vm_id", "(.*)")) * on(id) group_left(name, node) max by(id, name, node) (pve_guest_info{name!=""})) / 3600
               refId: A
@@ -1194,7 +1310,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -1259,7 +1375,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -1303,7 +1419,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -1349,7 +1465,7 @@ groups:
             relativeTimeRange:
               from: 1800
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -1395,7 +1511,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -1439,7 +1555,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -2043,7 +2159,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 sum by (policy, namespace, pod) (
@@ -2087,7 +2203,7 @@ groups:
             relativeTimeRange:
               from: 43200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 sum by (policy, namespace) (
@@ -2131,7 +2247,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: absent(tetragon_events_total)
               refId: A
@@ -2169,7 +2285,7 @@ groups:
             relativeTimeRange:
               from: 86400
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: absent_over_time(trivy_image_vulnerabilities[24h])
               refId: A
@@ -2207,7 +2323,7 @@ groups:
             relativeTimeRange:
               from: 3600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -2300,7 +2416,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: ((sum by (source_namespace) (rate(hubble_drop_total{reason="POLICY_DENIED", source_namespace!=""}[15m])) > 0.1) * on(source_namespace) group_left(tier, criticality, owner) topk by (source_namespace) (1, label_replace(aether:namespace_contract:info, "source_namespace", "$1", "namespace", "(.*)"))) or (sum(rate(hubble_drop_total{reason="POLICY_DENIED"}[15m])) > 0.1)
               refId: A
@@ -2384,7 +2500,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 1 - up{service_name="aether-restic"}
               refId: A
@@ -2422,7 +2538,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (time() - aether_restic_metrics_last_success_timestamp_seconds{service_name="aether-restic"}) / 3600
               refId: A
@@ -2460,7 +2576,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: aether_restic_plan_path_accessible{service_name="aether-restic"}
               refId: A
@@ -2498,7 +2614,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: aether_restic_plan_configured{service_name="aether-restic"} unless on(host_name, plan_id) aether_restic_snapshot_last_success_timestamp_seconds{service_name="aether-restic"}
               refId: A
@@ -2536,7 +2652,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (time() - aether_restic_snapshot_last_success_timestamp_seconds{service_name="aether-restic"}) / 3600
               refId: A
@@ -2574,7 +2690,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: aether_talos_etcd_snapshot_generation_success{service_name="aether-restic"}
               refId: A
@@ -2612,7 +2728,7 @@ groups:
             relativeTimeRange:
               from: 7200
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (time() - aether_talos_etcd_snapshot_last_success_timestamp_seconds{service_name="aether-restic"}) / 3600
               refId: A
@@ -2651,7 +2767,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: DCGM_FI_DEV_GPU_TEMP
               refId: A
@@ -2689,7 +2805,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)) * 100
               refId: A
@@ -2727,7 +2843,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               # DCGM_FI_DEV_XID_ERRORS is a latched gauge (last Xid code seen,
               # held until driver reload) — NOT a count. Alerting on level > 0
@@ -2773,7 +2889,7 @@ groups:
             relativeTimeRange:
               from: 120
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: probe_success{job="blackbox-http-apps", probe_exposure="public"}
               refId: A
@@ -2812,7 +2928,7 @@ groups:
             relativeTimeRange:
               from: 120
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: probe_success{job="blackbox-http-apps", probe_exposure=~"internal|tunnel"}
               refId: A
@@ -2857,7 +2973,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (probe_ssl_earliest_cert_expiry - time()) / 86400
               refId: A
@@ -2898,7 +3014,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -2942,7 +3058,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: x509_cert_expired == 1
               refId: A
@@ -2981,7 +3097,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: systemd_unit_state{state="failed",name=~"(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\.(service|timer)"} == 1
               refId: A
@@ -3020,7 +3136,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 max by (host_name, name) (
@@ -3065,7 +3181,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: systemd_unit_state{name="backrest-cert-renew.timer",state="active"} == 0
               refId: A
@@ -3107,7 +3223,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -3155,7 +3271,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: |
                 (
@@ -3294,7 +3410,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: jellyfin_up
               refId: A
@@ -3344,7 +3460,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: (time() - mnemo_matrix_appservice_last_received_timestamp_seconds) and (mnemo_matrix_appservice_last_received_timestamp_seconds > 0)
               refId: A
@@ -3384,7 +3500,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: mnemo_matrix_appservice_backlog_transactions
               refId: A
@@ -3424,7 +3540,7 @@ groups:
             relativeTimeRange:
               from: 600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: mnemo_matrix_appservice_failed_transactions
               refId: A
@@ -3464,7 +3580,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: increase(mnemo_matrix_appservice_auth_failures_total[15m])
               refId: A
@@ -3504,7 +3620,7 @@ groups:
             relativeTimeRange:
               from: 3600
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: sum(mnemo_matrix_appservice_transactions_total{result="conflict"})
               refId: A
@@ -3552,7 +3668,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: time() - ojgf_last_success_timestamp_seconds
               refId: A
@@ -3593,7 +3709,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: increase(ojgf_poll_errors_total[15m])
               refId: A
@@ -3634,7 +3750,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: absent(ojgf_last_poll_timestamp_seconds)
               refId: A
@@ -3782,7 +3898,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'gigahub_gpon_operational'
               refId: A
@@ -3820,7 +3936,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'gigahub_ppp_up'
               refId: A
@@ -3858,7 +3974,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'gigahub_optical_rx_power_dbm'
               refId: A
@@ -3896,7 +4012,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'gigahub_optical_rx_power_dbm'
               refId: A
@@ -3934,7 +4050,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'gigahub_optical_rx_power_dbm - avg_over_time(gigahub_optical_rx_power_dbm[7d])'
               refId: A
@@ -3972,7 +4088,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'up{exported_job=~"gigahub-exporter|qss-exporter|vyos-exporter|unifi"}'
               refId: A
@@ -4010,7 +4126,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: '4 - count(group by (exported_job) (up{exported_job=~"gigahub-exporter|qss-exporter|vyos-exporter|unifi"}))'
               refId: A
@@ -4049,7 +4165,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'sum(vyos_service_failed)'
               refId: A
@@ -4087,7 +4203,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'max(vyos_conntrack_utilization_ratio) * 100'
               refId: A
@@ -4125,7 +4241,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'max by (port) (increase(qss_port_fcs_errors[15m]) + increase(qss_port_receive_errors[15m]))'
               refId: A
@@ -4164,7 +4280,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'max by (port) (qss_sfp_temperature_celsius)'
               refId: A
@@ -4202,7 +4318,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'count(unpoller_device_info{type="uap"})'
               refId: A
@@ -4240,7 +4356,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'increase(vyos_suricata_capture_drops_total[15m])'
               refId: A
@@ -4279,7 +4395,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'sum(increase(vyos_dns_queries_total{outcome="servfail"}[15m]))'
               refId: A
@@ -4318,7 +4434,7 @@ groups:
             relativeTimeRange:
               from: 900
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: 'max by (pool) (vyos_dhcp_pool_utilization_ratio) * 100'
               refId: A
@@ -4357,7 +4473,7 @@ groups:
             relativeTimeRange:
               from: 300
               to: 0
-            datasourceUid: PBFA97CFB590B2093
+            datasourceUid: prometheus-local
             model:
               expr: '(vyos_uptime_seconds < 600) or (gigahub_device_uptime_seconds < 600)'
               refId: A
@@ -4488,3 +4604,101 @@ groups:
         annotations:
           summary: 'Observation pipeline stale — no new network.observations rows for {{ $values.B.Value }} minutes'
           description: 'vyos_neighbor rows normally land every few minutes. Check the router collector, node agent, central ClickHouse collector, and ClickHouse.'
+
+      # Per-stream freshness: the global rule above catches total pipeline
+      # death, but a single dead source hides inside a global max(timestamp).
+      # Fast streams only - event-driven sources (vyos_firewall/router,
+      # exporter lifecycle) are legitimately quiet and excluded.
+      - uid: network-observation-stream-stale
+        title: Observation Stream Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT source_type, dateDiff('minute', max(timestamp), now()) AS value
+                FROM network.observations
+                WHERE source_type IN ('vyos_neighbor','vyos_dhcp','vyos_connectivity','qss_fdb','qss_lldp','qss_switch')
+                GROUP BY source_type
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [45]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Observation stream {{ $labels.source_type }} stale for {{ $values.B.Value | printf "%.0f" }} minutes'
+          description: 'One source stopped while others may still flow: check the exporter for that source (vyos-exporter / qss-exporter), its sealed-file directory, and the collector leg that ships it.'
+
+      # DNS query attribution stream: every resolver ships per-client query
+      # logs to Loki via the Log Exporter -> filelog leg. ns2 carries the
+      # DNAT'd estate traffic so an hour of silence from any node means the
+      # attribution pipeline (app, file, collector, or Loki) broke - the
+      # resolver itself may still be serving.
+      - uid: dns-querylog-stale
+        title: DNS Query Log Stream Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: 'sum by (service_name) (count_over_time({service_name=~"adguard|adguard-secondary"} |= `questionName` [1h]))'
+              queryType: instant
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'DNS query log stream from {{ $labels.service_name }} silent for an hour'
+          description: 'Per-client DNS attribution stopped flowing from that resolver: check the Log Exporter app, /var/log/technitium/query.ndjson, the node collector filelog leg, and Loki ingest. DNS service itself may still be up.'
