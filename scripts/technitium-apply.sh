@@ -109,6 +109,35 @@ if [ -z "$TOKEN" ]; then
   echo "  + API token minted"
 fi
 
+# --- cluster secondaries: bootstrap + join only -------------------------------
+# On a cluster secondary, Settings/Allowed/Blocked/Apps/Admin all sync FROM
+# the primary; local mutations are pointless and local tokens are wiped by
+# every admin sync. Bootstrap auth (above), join once, and get out of the way.
+CLUSTER_MODE=$(jq -r '.cluster.mode // empty' <<<"$MERGED")
+if [ "$CLUSTER_MODE" = "secondary" ]; then
+  if [ -f "$SECRETS_DIR/cluster.joined" ]; then
+    echo "  ~ cluster secondary already joined; config syncs from primary"
+    echo "technitium-apply: done"
+    exit 0
+  fi
+  PRIMARY_PASS=${TECHNITIUM_PRIMARY_PASSWORD:-}
+  [ -z "$PRIMARY_PASS" ] && [ -s "$SECRETS_DIR/primary.pass" ] && PRIMARY_PASS=$(cat "$SECRETS_DIR/primary.pass")
+  [ -n "$PRIMARY_PASS" ] || { echo "cluster join requires TECHNITIUM_PRIMARY_PASSWORD or $SECRETS_DIR/primary.pass" >&2; exit 1; }
+  RESP=$(api "/api/admin/cluster/initJoin" -G \
+    --data-urlencode "token=$TOKEN" \
+    --data-urlencode "secondaryNodeIpAddress=$(jq -r '.cluster.nodeIp' <<<"$MERGED")" \
+    --data-urlencode "primaryNodeUrl=$(jq -r '.cluster.primaryUrl' <<<"$MERGED")" \
+    --data-urlencode "primaryNodeIpAddress=$(jq -r '.cluster.primaryIp' <<<"$MERGED")" \
+    --data-urlencode "primaryNodeUsername=admin" \
+    --data-urlencode "primaryNodePassword=$PRIMARY_PASS" \
+    --data-urlencode "ignoreCertificateErrors=true")
+  check "$RESP" "cluster/initJoin" "already"
+  touch "$SECRETS_DIR/cluster.joined"
+  echo "  + cluster joined (secondary); config now syncs from primary"
+  echo "technitium-apply: done"
+  exit 0
+fi
+
 # --- settings ----------------------------------------------------------------
 # Arrays -> comma-joined strings, scalars passed through; each becomes one
 # form field on /api/settings/set.
@@ -177,36 +206,22 @@ jq -c '.apps[]? // empty' <<<"$MERGED" | while read -r app; do
 done
 echo "  + apps applied"
 
-# --- cluster -------------------------------------------------------------------
-CLUSTER_MODE=$(jq -r '.cluster.mode // empty' <<<"$MERGED")
-if [ -n "$CLUSTER_MODE" ]; then
+# --- cluster (primary init; secondaries exited above) --------------------------
+if [ "$CLUSTER_MODE" = "primary" ]; then
   CSTATE=$(api "/api/admin/cluster/get?token=$TOKEN" 2>/dev/null || echo '{}')
-  ALREADY=$(jq -r '.response.initialized // .response.cluster.initialized // false' <<<"$CSTATE" 2>/dev/null || echo false)
   IN_CLUSTER=false
   if jq -e '.response | objects | (has("nodes") or has("clusterDomain"))' <<<"$CSTATE" >/dev/null 2>&1; then
     IN_CLUSTER=true
   fi
-  if [ "$IN_CLUSTER" = "true" ] || [ "$ALREADY" = "true" ]; then
+  if [ "$IN_CLUSTER" = "true" ]; then
     echo "  ~ cluster already initialized; skipping"
-  elif [ "$CLUSTER_MODE" = "primary" ]; then
+  else
     RESP=$(api "/api/admin/cluster/init" -G \
       --data-urlencode "token=$TOKEN" \
       --data-urlencode "clusterDomain=$(jq -r '.cluster.domain' <<<"$MERGED")" \
       --data-urlencode "primaryNodeIpAddress=$(jq -r '.cluster.nodeIp' <<<"$MERGED")")
     check "$RESP" "cluster/init" "already"
     echo "  + cluster initialized (primary)"
-  elif [ "$CLUSTER_MODE" = "secondary" ]; then
-    PRIMARY_PASS=${TECHNITIUM_PRIMARY_PASSWORD:?TECHNITIUM_PRIMARY_PASSWORD required for cluster join}
-    RESP=$(api "/api/admin/cluster/initJoin" -G \
-      --data-urlencode "token=$TOKEN" \
-      --data-urlencode "secondaryNodeIpAddress=$(jq -r '.cluster.nodeIp' <<<"$MERGED")" \
-      --data-urlencode "primaryNodeUrl=$(jq -r '.cluster.primaryUrl' <<<"$MERGED")" \
-      --data-urlencode "primaryNodeIpAddress=$(jq -r '.cluster.primaryIp' <<<"$MERGED")" \
-      --data-urlencode "primaryNodeUsername=admin" \
-      --data-urlencode "primaryNodePassword=$PRIMARY_PASS" \
-      --data-urlencode "ignoreCertificateErrors=true")
-    check "$RESP" "cluster/initJoin" "already"
-    echo "  + cluster joined (secondary)"
   fi
 fi
 
