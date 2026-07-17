@@ -12,7 +12,7 @@
 #   - *.shdr.ch: Cloudflare-proxied only (IP verified), CrowdSec bouncer
 
 - name: Deploy caddy
-  hosts: public-gateway
+  hosts: link
   gather_facts: true
   become: true
   roles:
@@ -31,7 +31,7 @@
       delegate_to: localhost
       become: false
       stat:
-        path: "{{ playbook_dir }}/aether-public-gateway-caddy"
+        path: "{{ playbook_dir }}/aether-link-caddy"
       register: caddy_binary
 
     - name: Build custom Caddy binary if not exists
@@ -42,7 +42,7 @@
 
     - name: Upload custom Caddy binary
       copy:
-        src: "{{ playbook_dir }}/aether-public-gateway-caddy"
+        src: "{{ playbook_dir }}/aether-link-caddy"
         dest: /usr/local/bin/caddy
         mode: "0755"
       notify: Restart Caddy

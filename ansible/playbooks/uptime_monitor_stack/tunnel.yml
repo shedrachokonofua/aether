@@ -1,6 +1,6 @@
 ---
 - name: Deploy Cloudflare Tunnel
-  hosts: uptime-monitor
+  hosts: vigilant
   gather_facts: true
   become: true
   vars:

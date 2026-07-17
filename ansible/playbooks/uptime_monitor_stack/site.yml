@@ -1,12 +1,12 @@
 ---
 - name: Configure uptime monitor stack
-  hosts: uptime-monitor
+  hosts: vigilant
   gather_facts: true
   vars:
     aether_identity:
       fabric: aether
       site: gcp
-      host: uptime-monitor
+      host: vigilant
     site_wireguard_addresses:
       - 10.2.0.10/32
       - 10.254.0.3/32
@@ -25,7 +25,7 @@
       - 9586
     site_wireguard_peers:
       - site: aws
-        host: public-gateway
+        host: link
         public_key: "{{ secrets.wireguard.aws_public_key }}"
         endpoint: "{{ tf_outputs.aws_public_gateway_ip.value }}:51820"
         persistent_keepalive: 25

@@ -1,12 +1,12 @@
 ---
 - name: Configure public gateway stack
-  hosts: public-gateway
+  hosts: link
   gather_facts: true
   vars:
     aether_identity:
       fabric: aether
       site: aws
-      host: public-gateway
+      host: link
     site_wireguard_listen_port: 51820
     site_wireguard_addresses:
       - 10.1.0.10/32
@@ -102,7 +102,7 @@
           # the OCI secondary must reach it through the hub -> VyOS path.
           - 192.168.2.237/32
       - site: gcp
-        host: uptime-monitor
+        host: vigilant
         public_key: "{{ secrets.wireguard.gcp_public_key }}"
         allowed_ips:
           - 10.2.0.0/16
