@@ -67,6 +67,17 @@
       vyos.vyos.vyos_config:
         lines:
           # WAN
+          # DNS attribution (east-west-nat-removal phase 2, scoped to ns2):
+          # DNAT'd client DNS toward the Technitium resolver must keep its real
+          # source address or the querylog logs the router again. ns2 carries a
+          # 10.0.0.0/8 return route via 192.168.2.231, so no SNAT is needed.
+          # Rule 95 sorts before the 101-103 masquerades; everything else on
+          # the mgmt net still gets masqueraded.
+          - set nat source rule 95 description 'No SNAT toward Technitium ns2 (route-capable)'
+          - set nat source rule 95 outbound-interface name eth0
+          - set nat source rule 95 source address 10.0.0.0/16
+          - set nat source rule 95 destination address 192.168.2.237/32
+          - set nat source rule 95 exclude
           - set nat source rule 100 outbound-interface name pppoe0
           - set nat source rule 100 source address 10.0.0.0/16
           - set nat source rule 100 translation address masquerade
@@ -88,6 +99,58 @@
           - set nat source rule 102 outbound-interface name eth0
           - set nat source rule 102 destination address 192.168.2.0/24
           - set nat source rule 102 translation address masquerade
+        save: true
+
+    # Per-VLAN DNS interception: clients keep asking 10.0.x.1 (stable service
+    # address forever), the router steers it to the Technitium cluster node.
+    # DNAT preserves the client source IP -> per-client attribution in the
+    # query log. Rollback per VLAN = delete one rule; the VyOS pdns forwarding
+    # below stays configured as the shadow fallback.
+    - name: Configure DNS DNAT to Technitium
+      vyos.vyos.vyos_config:
+        lines:
+          - set nat destination rule 60 description 'eth1 native DNS -> ns2'
+          - set nat destination rule 60 inbound-interface name eth1
+          - set nat destination rule 60 destination address 10.0.0.1/32
+          - set nat destination rule 60 destination port 53
+          - set nat destination rule 60 protocol tcp_udp
+          - set nat destination rule 60 translation address 192.168.2.237
+          - set nat destination rule 62 description 'VLAN2 DNS -> ns2'
+          - set nat destination rule 62 inbound-interface name eth1.2
+          - set nat destination rule 62 destination address 10.0.2.1/32
+          - set nat destination rule 62 destination port 53
+          - set nat destination rule 62 protocol tcp_udp
+          - set nat destination rule 62 translation address 192.168.2.237
+          - set nat destination rule 63 description 'VLAN3 DNS -> ns2'
+          - set nat destination rule 63 inbound-interface name eth1.3
+          - set nat destination rule 63 destination address 10.0.3.1/32
+          - set nat destination rule 63 destination port 53
+          - set nat destination rule 63 protocol tcp_udp
+          - set nat destination rule 63 translation address 192.168.2.237
+          - set nat destination rule 64 description 'VLAN4 DNS -> ns2'
+          - set nat destination rule 64 inbound-interface name eth1.4
+          - set nat destination rule 64 destination address 10.0.4.1/32
+          - set nat destination rule 64 destination port 53
+          - set nat destination rule 64 protocol tcp_udp
+          - set nat destination rule 64 translation address 192.168.2.237
+          - set nat destination rule 65 description 'VLAN5 DNS -> ns2'
+          - set nat destination rule 65 inbound-interface name eth1.5
+          - set nat destination rule 65 destination address 10.0.5.1/32
+          - set nat destination rule 65 destination port 53
+          - set nat destination rule 65 protocol tcp_udp
+          - set nat destination rule 65 translation address 192.168.2.237
+          - set nat destination rule 66 description 'VLAN6 DNS -> ns2'
+          - set nat destination rule 66 inbound-interface name eth1.6
+          - set nat destination rule 66 destination address 10.0.6.1/32
+          - set nat destination rule 66 destination port 53
+          - set nat destination rule 66 protocol tcp_udp
+          - set nat destination rule 66 translation address 192.168.2.237
+          - set nat destination rule 67 description 'VLAN7 DNS -> ns2'
+          - set nat destination rule 67 inbound-interface name eth1.7
+          - set nat destination rule 67 destination address 10.0.7.1/32
+          - set nat destination rule 67 destination port 53
+          - set nat destination rule 67 protocol tcp_udp
+          - set nat destination rule 67 translation address 192.168.2.237
         save: true
 
     - name: Configure DNS Forwarding
@@ -508,6 +571,11 @@
           - set firewall ipv4 name SERVICES-to-MGMT rule 10 action accept
           - set firewall ipv4 name SERVICES-to-MGMT rule 10 state established
           - set firewall ipv4 name SERVICES-to-MGMT rule 10 state related
+          - set firewall ipv4 name SERVICES-to-MGMT rule 50 action accept
+          - set firewall ipv4 name SERVICES-to-MGMT rule 50 protocol tcp_udp
+          - set firewall ipv4 name SERVICES-to-MGMT rule 50 destination address 192.168.2.237/32
+          - set firewall ipv4 name SERVICES-to-MGMT rule 50 destination port 53
+          - set firewall ipv4 name SERVICES-to-MGMT rule 50 description 'DNS to Technitium ns2 (DNAT from 10.0.3.1)'
           # Step-CA access for certificate operations
           - set firewall ipv4 name SERVICES-to-MGMT rule 20 action accept
           - set firewall ipv4 name SERVICES-to-MGMT rule 20 protocol tcp
@@ -550,6 +618,11 @@
           - set firewall ipv4 name MEDIA-to-MGMT rule 10 action accept
           - set firewall ipv4 name MEDIA-to-MGMT rule 10 state established
           - set firewall ipv4 name MEDIA-to-MGMT rule 10 state related
+          - set firewall ipv4 name MEDIA-to-MGMT rule 50 action accept
+          - set firewall ipv4 name MEDIA-to-MGMT rule 50 protocol tcp_udp
+          - set firewall ipv4 name MEDIA-to-MGMT rule 50 destination address 192.168.2.237/32
+          - set firewall ipv4 name MEDIA-to-MGMT rule 50 destination port 53
+          - set firewall ipv4 name MEDIA-to-MGMT rule 50 description 'DNS to Technitium ns2 (DNAT from 10.0.5.1)'
           - set firewall ipv4 name MEDIA-to-UNTRUSTED default-action drop
           - set firewall ipv4 name UNTRUSTED-to-MEDIA default-action drop
 
@@ -650,6 +723,11 @@
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 action accept
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state established
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state related
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 action accept
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 protocol tcp_udp
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 destination address 192.168.2.237/32
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 destination port 53
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 description 'DNS to Technitium ns2 (DNAT from 10.0.6.1/10.0.7.1)'
           - set firewall ipv4 name UNTRUSTED-to-SERVICES default-action drop
           - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 action accept
           - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 state established
