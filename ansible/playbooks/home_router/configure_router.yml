@@ -111,6 +111,16 @@
           # speed-selects forwarders, so the LAN LXCs above serve normal traffic
           # (~0ms) and OCI (~40ms offsite) acts as a de-facto backup.
           - set service dns forwarding name-server 10.3.0.10
+          # Serve expired cache entries (up to 1440 x 30s = 12h) when upstreams
+          # time out or SERVFAIL. 2026-07-16 incident: both LAN AdGuards thrashed
+          # (accepting but stalling), which poisons speed-based forwarder
+          # selection faster than throttling can evict them - the OCI backup
+          # never took over and clients saw SERVFAIL. Stale answers bridge that.
+          - set service dns forwarding serve-stale-extension 1440
+          # Bound the per-forwarder wait so a black-holed LAN resolver costs
+          # 0.5s, not 1.5s - all three forwarders fit inside the ~5s budget
+          # of client stub resolvers.
+          - set service dns forwarding timeout 500
         save: true
 
     - name: Configure VLAN interfaces
