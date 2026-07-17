@@ -32,6 +32,11 @@ resource "random_password" "assay_api_token" {
   special = false
 }
 
+resource "random_password" "assay_cockpit_session_secret" {
+  length  = 48
+  special = false
+}
+
 resource "random_password" "assay_artifact_s3_access_key" {
   length  = 20
   special = false
@@ -85,6 +90,26 @@ resource "kubernetes_secret_v1" "assay_api_auth" {
   type = "Opaque"
   data = {
     ASSAY_API_TOKEN = random_password.assay_api_token.result
+  }
+}
+
+resource "kubernetes_secret_v1" "assay_cockpit_auth" {
+  depends_on = [module.namespace["assay"]]
+
+  metadata {
+    name      = "assay-cockpit-auth"
+    namespace = local.assay_namespace
+    labels    = local.assay_labels
+  }
+
+  type = "Opaque"
+  data = {
+    OIDC_ISSUER         = "https://auth.shdr.ch/realms/aether"
+    OIDC_CLIENT_ID      = "assay-cockpit"
+    OIDC_CLIENT_SECRET  = var.assay_oauth_client_secret
+    OIDC_REDIRECT_URI   = "https://${local.assay_host}/auth/callback"
+    OIDC_ALLOWED_EMAILS = var.assay_allowed_email
+    SESSION_SECRET      = random_password.assay_cockpit_session_secret.result
   }
 }
 
@@ -305,6 +330,7 @@ resource "helm_release" "assay" {
     kubernetes_persistent_volume_claim_v1.assay_browser_profile,
     kubernetes_secret_v1.assay_api_auth,
     kubernetes_secret_v1.assay_api_env,
+    kubernetes_secret_v1.assay_cockpit_auth,
     kubernetes_secret_v1.assay_artifact_store,
     kubernetes_secret_v1.assay_gitlab_registry,
     terraform_data.assay_artifact_bucket,
@@ -335,6 +361,11 @@ resource "helm_release" "assay" {
         secretRef = {
           name     = kubernetes_secret_v1.assay_api_auth.metadata[0].name
           tokenKey = "ASSAY_API_TOKEN"
+        }
+      }
+      cockpitAuth = {
+        secretRef = {
+          name = kubernetes_secret_v1.assay_cockpit_auth.metadata[0].name
         }
       }
       tdCredentials = {
@@ -398,6 +429,14 @@ resource "helm_release" "assay" {
         pullPolicy = "IfNotPresent"
       }
     }
+    cockpit = {
+      enabled = true
+      image = {
+        repository = "${local.assay_registry_repository}/cockpit"
+        tag        = local.assay_image_tag
+        pullPolicy = "IfNotPresent"
+      }
+    }
     worker = {
       headless = false
       image = {
@@ -412,6 +451,14 @@ resource "helm_release" "assay" {
         type                = "s3"
         filesystemDirectory = "/data/td-exports"
         prefix              = local.assay_artifact_prefix
+      }
+      insights = {
+        schedule = {
+          enabled  = true
+          id       = "assay-insights-daily"
+          cron     = "0 6 * * *"
+          timezone = "America/Toronto"
+        }
       }
       tdIngestion = {
         taskQueue = "assay-td-ingest"

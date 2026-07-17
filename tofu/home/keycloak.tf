@@ -373,6 +373,41 @@ resource "keycloak_openid_client_default_scopes" "grafana_default_scopes" {
   ]
 }
 
+resource "keycloak_openid_client" "assay_cockpit" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "assay-cockpit"
+  name      = "Assay Cockpit"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://assay.home.shdr.ch"
+  base_url  = "https://assay.home.shdr.ch"
+  admin_url = "https://assay.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://assay.home.shdr.ch/auth/callback",
+  ]
+
+  web_origins = [
+    "https://assay.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "assay_cockpit_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.assay_cockpit.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
 resource "keycloak_openid_client" "openwebui" {
   realm_id  = keycloak_realm.aether.id
   client_id = "openwebui"
