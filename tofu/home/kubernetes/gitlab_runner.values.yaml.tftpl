@@ -85,6 +85,13 @@ runners:
         pull_policy = "if-not-present"
         priority_class_name = "${priority_class_name}"
 
+        # CI depends on the in-cluster GitLab endpoint for source, registry, and
+        # artifacts. Pin its stable service address so CoreDNS forwarding
+        # outages cannot strand runner jobs before their scripts execute.
+        [[runners.kubernetes.host_aliases]]
+          ip = "10.0.2.2"
+          hostnames = ["gitlab.home.shdr.ch", "registry.gitlab.home.shdr.ch"]
+
         [runners.kubernetes.affinity]
           [runners.kubernetes.affinity.node_affinity]
             [runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution]
