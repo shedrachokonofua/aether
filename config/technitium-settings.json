@@ -63,7 +63,9 @@
         { "domain": "*.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
         { "domain": "smtp.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.6" },
         { "domain": "ids.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.7" },
-        { "domain": "ssh.gitlab.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.3.7" }
+        { "domain": "ssh.gitlab.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.3.7" },
+        { "domain": "gitlab.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
+        { "domain": "*.gitlab.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
       ]
     },
     {
