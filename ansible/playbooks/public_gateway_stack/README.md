@@ -10,7 +10,7 @@ The stack hosts the following applications:
 ## Usage
 
 ```bash
-task configure:public-gateway
+task configure:link
 ```
 
 ## Sub-Playbooks

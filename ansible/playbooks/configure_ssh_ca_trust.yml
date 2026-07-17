@@ -42,7 +42,7 @@
 # AWS Public Gateway (Amazon Linux)
 # -----------------------------------------------------------------------------
 - name: Configure SSH CA trust on public gateway
-  hosts: public-gateway
+  hosts: link
   become: true
   gather_facts: true
   roles:

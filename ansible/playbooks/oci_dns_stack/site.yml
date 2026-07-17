@@ -47,7 +47,7 @@
         cidrs: [192.168.2.237/32]
     site_wireguard_peers:
       - site: aws
-        host: public-gateway
+        host: link
         public_key: "{{ secrets.wireguard.aws_public_key }}"
         endpoint: "{{ tf_outputs.aws_public_gateway_ip.value }}:51820"
         persistent_keepalive: 25

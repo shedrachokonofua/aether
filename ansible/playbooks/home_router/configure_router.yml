@@ -12,7 +12,7 @@
       host: router
     site_wireguard_peer:
       site: aws
-      host: public-gateway
+      host: link
   tasks:
     - name: Remove default vyos user
       vyos.vyos.vyos_config:
