@@ -139,6 +139,17 @@ variable "keycloak_client_secret" {
 # OpenWebUI OIDC
 # =============================================================================
 
+variable "assay_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Assay Cockpit Keycloak OIDC client secret"
+}
+
+variable "assay_allowed_email" {
+  type        = string
+  description = "Email address allowed to access the Assay Cockpit"
+}
+
 variable "openwebui_oauth_client_secret" {
   type        = string
   sensitive   = true
