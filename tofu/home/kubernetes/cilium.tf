@@ -227,6 +227,22 @@ resource "kubernetes_manifest" "miniflux_cilium_network_canary" {
           }]
         },
         {
+          # Collector metrics scrape grant.
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = "observability"
+              "app.kubernetes.io/name"      = "opentelemetry-collector"
+              "app.kubernetes.io/instance"  = "otel-cluster"
+              "component"                   = "standalone-collector"
+            }
+          }]
+          toPorts = [{
+            ports = [
+              { port = "9187", protocol = "TCP" },
+            ]
+          }]
+        },
+        {
           # CloudNativePG operator polls each instance manager on :8000; without
           # this, the default-deny canary leaves clusters healthy but unreconciled.
           fromEndpoints = [{

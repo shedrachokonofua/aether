@@ -776,7 +776,6 @@ resource "kubectl_manifest" "mnemo_cnpg_backup" {
 # the inbound hs_token. See ../mnemo/docs/MATRIX_APPSERVICE_RUNBOOK.md.
 resource "kubernetes_manifest" "mnemo_cilium_network" {
   depends_on = [
-    helm_release.mnemo,
     kubernetes_manifest.cilium_cluster_baseline_network,
   ]
 
@@ -808,6 +807,48 @@ resource "kubernetes_manifest" "mnemo_cilium_network" {
           }]
           toPorts = [{
             ports = [{ port = tostring(local.mnemo_appservice_port), protocol = "TCP" }]
+          }]
+        },
+        # Assay's Playwright worker reads the one-time TD code through Mnemo's
+        # in-cluster API. Keep the unauthenticated API grant scoped to that
+        # component rather than the whole assay namespace.
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = local.assay_namespace
+              "app.kubernetes.io/component" = "worker"
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.mnemo_port), protocol = "TCP" }]
+          }]
+        },
+        # OTel standalone collector metrics on :9187.
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = "observability"
+              "app.kubernetes.io/name"      = "opentelemetry-collector"
+              "app.kubernetes.io/instance"  = "otel-cluster"
+              "component"                   = "standalone-collector"
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = "9187", protocol = "TCP" }]
+          }]
+        },
+        # OTel standalone collector API on :4000.
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = "observability"
+              "app.kubernetes.io/name"      = "opentelemetry-collector"
+              "app.kubernetes.io/instance"  = "otel-cluster"
+              "component"                   = "standalone-collector"
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = "4000", protocol = "TCP" }]
           }]
         },
         # Same-namespace (app <-> mnemo-cnpg) and node/system agents.

@@ -125,6 +125,24 @@ resource "kubernetes_secret_v1" "kestra_estate_scan" {
   }
 }
 
+resource "kubernetes_secret_v1" "kestra_crowdsec_sync" {
+  depends_on = [module.namespace["kestra"]]
+
+  metadata {
+    name      = "kestra-crowdsec-sync"
+    namespace = local.kestra_ns
+  }
+
+  type = "Opaque"
+
+  data = {
+    ENV_CROWDSEC_GATEWAY_HOST = "10.1.0.10"
+    ENV_CROWDSEC_GATEWAY_USER = "kestra-crowdsec"
+    # Reuse the constrained Kestra SSH identity; the gateway key is forced-command only.
+    SECRET_CROWDSEC_GATEWAY_SSH_KEY = base64encode(var.secrets["estate_scan.kestra_ssh_private_key"])
+  }
+}
+
 resource "kubectl_manifest" "kestra_cnpg_cluster" {
   depends_on = [
     helm_release.cnpg,
@@ -190,6 +208,7 @@ resource "helm_release" "kestra" {
     kubernetes_secret_v1.kestra_config,
     kubernetes_secret_v1.kestra_inquest,
     kubernetes_secret_v1.kestra_estate_scan,
+    kubernetes_secret_v1.kestra_crowdsec_sync,
     kubernetes_persistent_volume_claim_v1.kestra_storage,
   ]
 
@@ -216,12 +235,14 @@ resource "helm_release" "kestra" {
       # the old pod (releasing the PVC) before starting the new one.
       strategy = { type = "Recreate" }
       podAnnotations = {
-        "aether.shdr.ch/kestra-inquest-sha"     = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_inquest.data)))
-        "aether.shdr.ch/kestra-estate-scan-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_estate_scan.data)))
+        "aether.shdr.ch/kestra-inquest-sha"       = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_inquest.data)))
+        "aether.shdr.ch/kestra-estate-scan-sha"   = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_estate_scan.data)))
+        "aether.shdr.ch/kestra-crowdsec-sync-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_crowdsec_sync.data)))
       }
       extraEnvFrom = [
         { secretRef = { name = kubernetes_secret_v1.kestra_inquest.metadata[0].name } },
         { secretRef = { name = kubernetes_secret_v1.kestra_estate_scan.metadata[0].name } },
+        { secretRef = { name = kubernetes_secret_v1.kestra_crowdsec_sync.metadata[0].name } },
       ]
       extraVolumeMounts = [{
         name      = "kestra-storage"
@@ -276,16 +297,16 @@ resource "helm_release" "kestra" {
 }
 
 # =============================================================================
-# Kestra — estate-scanner dispatch
+# Kestra — constrained SSH automation
 # =============================================================================
-# Secret kestra-estate-scan mounts ENV_ESTATE_SCANNER_* + SECRET_ESTATE_SCANNER_SSH_KEY.
-# Flow YAML: kestra/flows/estate-scan-home.yaml
-# Flow IaC: tofu/home/kestra-flows/ (separate S3 state; task tofu:kestra-flows:apply)
+# Estate scan: SERVICES (Talos) → TRUSTED rule 26 → estate-scanner:22.
+# CrowdSec sync: SERVICES (Talos) → CLOUD rule 20 → public-gateway:22 over
+# WireGuard. The same private key is safe to reuse because each destination
+# binds it to a distinct forced command.
 #
-# Path: SERVICES (Talos) → TRUSTED rule 26 → estate-scanner:22 only.
-# Source group TALOS-NODES (node SNAT). Not Proxmox/MGMT. Rule 25 is SeaweedFS.
-# Apply path: ansible/playbooks/home_router/allow_estate_scanner_dispatch.yml
-# (also declared in configure_router.yml for full reconciles).
+# Flow YAML: kestra/flows/{estate-scan-home,crowdsec-home-ip-sync}.yaml
+# Flow IaC: tofu/home/kestra-flows/ (separate S3 state).
+# Router policy is declared in ansible/playbooks/home_router/configure_router.yml.
 # =============================================================================
 
 resource "kubernetes_manifest" "kestra_route" {
