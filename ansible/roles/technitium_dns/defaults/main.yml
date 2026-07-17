@@ -1,0 +1,42 @@
+---
+# Technitium DNS Server resolver on an Ubuntu spoke (rootful podman quadlet,
+# cluster secondary ns3). Answers come from the shared
+# config/technitium-settings.json (same source the nix LXC resolvers use),
+# reconciled by scripts/technitium-apply.sh so blocklists/zones/upstreams
+# never drift.
+technitium_image: docker.io/technitium/dns-server:14.0.0
+technitium_conf_dir: /opt/technitium/config
+technitium_log_dir: /var/log/technitium
+technitium_apply_dir: /opt/technitium
+technitium_server_domain: ns3.dns.home.shdr.ch
+
+# Shared answer data (overrideable). aether_root is the repo root (inventory global).
+technitium_settings_json_path: "{{ aether_root }}/config/technitium-settings.json"
+technitium_apply_script_path: "{{ aether_root }}/scripts/technitium-apply.sh"
+
+# Bound ONLY to the WireGuard site-edge IP (+ loopback) via
+# dnsServerLocalEndPoints; never 0.0.0.0. An internet-facing resolver would be
+# an open-resolver / topology-leak.
+technitium_wg_ip: 10.3.0.10
+
+# Cluster join: gated OFF by default. The E2.1.Micro (1 GB) cannot survive
+# cluster settings-sync pushing the estate's full blocklist set into RAM
+# (2026-07-17: joining thrashed the box into an out-of-band hard reset).
+# Enable only after the OCI DNS role moves to a host with >= 4 GB.
+technitium_cluster_enabled: false
+# The ns2 (LXC primary) admin password, seeded into sops after the primary's
+# first apply run mints it. Used only when the cluster gate is enabled.
+technitium_primary_admin_password: "{{ secrets.technitium.primary_admin_password | default('') }}"
+
+# Hard containment (2026-07-16/17 incident rule): the container must never be
+# able to thrash the host. 700M fits the slim blocklist set below on a 1 GB
+# box; swap absorbs blocklist-refresh spikes.
+technitium_memory_limit: 700m
+technitium_memory_swap_limit: 1700m
+technitium_swapfile_size_mb: 2048
+
+# Slim blocklist override for the 1 GB spoke: the shared 21-list set needs
+# ~1 GB+ of RAM in Technitium. The offsite backup keeps baseline ad/tracker
+# blocking only; full parity returns when the host is resized.
+technitium_blocklist_urls:
+  - "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt"
