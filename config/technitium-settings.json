@@ -1,0 +1,125 @@
+{
+  "_comment": "Single source of truth for the Technitium resolvers (NixOS LXCs + OCI spoke), applied by scripts/technitium-apply.sh against the local HTTP API (port 5380). Translated from config/adguard-settings.json: upstreams -> DoH forwarders, filters -> blockListUrls, rewrites -> primary zones + records, user_rules -> allowed/blocked zones. Host-specific values (dnsServerDomain, dnsServerLocalEndPoints, cluster role) come from the per-host overlay passed as the second argument to the apply script.",
+  "settings": {
+    "recursion": "AllowOnlyPrivateNetworks",
+    "forwarders": [
+      "https://dns10.quad9.net/dns-query",
+      "https://cloudflare-dns.com/dns-query",
+      "https://dns.google/dns-query"
+    ],
+    "forwarderProtocol": "Https",
+    "concurrentForwarding": true,
+    "forwarderRetries": 2,
+    "forwarderTimeout": 2000,
+    "dnssecValidation": false,
+    "enableBlocking": true,
+    "blockingType": "NxDomain",
+    "blockListUrls": [
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_51.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_53.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_39.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_45.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_7.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_63.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_61.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_6.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_55.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_56.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_44.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_12.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_30.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_11.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_50.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_9.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_31.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_42.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_10.txt",
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt"
+    ],
+    "blockListUpdateIntervalHours": 24,
+    "enableLogging": true,
+    "logQueries": false,
+    "loggingType": "FileAndConsole",
+    "maxLogFileDays": 7,
+    "maxStatFileDays": 30
+  },
+  "allowedZones": [
+    "langflow.store",
+    "api.langflow.store",
+    "app.lemonade.finance",
+    "media.brightdata.com",
+    "brightdata.com",
+    "ng"
+  ],
+  "blockedZones": [
+    "www.langflow.store"
+  ],
+  "zones": [
+    {
+      "zone": "home.shdr.ch",
+      "records": [
+        { "domain": "home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
+        { "domain": "*.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
+        { "domain": "smtp.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.6" },
+        { "domain": "ids.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.7" },
+        { "domain": "ssh.gitlab.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.3.7" }
+      ]
+    },
+    {
+      "zone": "auth.shdr.ch",
+      "records": [
+        { "domain": "auth.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
+      ]
+    },
+    {
+      "zone": "ca.shdr.ch",
+      "records": [
+        { "domain": "ca.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "192.168.2.235" }
+      ]
+    },
+    {
+      "zone": "dns.oci.shdr.ch",
+      "records": [
+        { "domain": "dns.oci.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
+      ]
+    },
+    {
+      "zone": "k8s.seven30.xyz",
+      "records": [
+        { "domain": "k8s.seven30.xyz", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
+      ]
+    },
+    {
+      "zone": "mars.seven30.xyz",
+      "records": [
+        { "domain": "mars.seven30.xyz", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
+        { "domain": "*.mars.seven30.xyz", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
+      ]
+    }
+  ],
+  "apps": [
+    {
+      "name": "Log Exporter",
+      "url": "https://download.technitium.com/dns/apps/LogExporterApp-v2.zip",
+      "config": {
+        "maxQueueSize": 200000,
+        "file": {
+          "enabled": true,
+          "path": "/var/log/technitium/query.ndjson"
+        },
+        "http": {
+          "enabled": false,
+          "endpoint": "http://127.0.0.1:5000/logs",
+          "headers": {}
+        },
+        "syslog": {
+          "enabled": false,
+          "address": "127.0.0.1",
+          "port": 514,
+          "protocol": "UDP"
+        }
+      }
+    }
+  ]
+}

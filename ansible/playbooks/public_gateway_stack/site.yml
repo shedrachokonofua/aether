@@ -77,10 +77,20 @@
         daddr: 10.3.0.10
         proto: tcp
         ports: [53]
-      - saddr: [10.0.2.2/32] # home gateway Caddy -> OCI AdGuard admin UI (dns.oci.shdr.ch)
+      - saddr: [10.0.2.2/32] # home gateway Caddy -> OCI Technitium admin UI (dns.oci.shdr.ch)
         daddr: 10.3.0.10
         proto: tcp
-        ports: [3000]
+        ports: [5380]
+      # Technitium cluster (ns2 <-> ns3): primary on the mgmt net reaches the
+      # OCI secondary and vice versa over the fabric, HTTPS web service port.
+      - saddr: [192.168.2.237/32]
+        daddr: 10.3.0.10
+        proto: tcp
+        ports: [53443]
+      - saddr: [10.3.0.10/32]
+        daddr: 192.168.2.237
+        proto: tcp
+        ports: [53443]
     site_wireguard_peers:
       - site: home
         host: router
@@ -88,6 +98,9 @@
         allowed_ips:
           - 10.0.0.0/16
           - 10.254.0.2/32
+          # Technitium cluster primary (ns2) lives on the Gigahub mgmt net;
+          # the OCI secondary must reach it through the hub -> VyOS path.
+          - 192.168.2.237/32
       - site: gcp
         host: uptime-monitor
         public_key: "{{ secrets.wireguard.gcp_public_key }}"
