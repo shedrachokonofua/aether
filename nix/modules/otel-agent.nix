@@ -101,7 +101,22 @@ in
             type = types.nullOr types.str;
             default = null;
             example = "ts";
-            description = "JSON field containing epoch timestamp (null = use log time)";
+            description = "JSON field containing a timestamp (null = use log time)";
+          };
+          timestampLayoutType = mkOption {
+            type = types.enum [ "epoch" "gotime" ];
+            default = "epoch";
+            description = "Timestamp parser layout type";
+          };
+          timestampLayout = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = "Timestamp parser layout (defaults to seconds for epoch)";
+          };
+          startAt = mkOption {
+            type = types.enum [ "beginning" "end" ];
+            default = "end";
+            description = "Where the filelog receiver starts when no cursor exists";
           };
           resourceAttributes = mkOption {
             type = types.attrsOf types.str;
@@ -210,7 +225,7 @@ in
             storage = "file_storage/${name}_checkpoint";
             include = jfCfg.include;
             exclude = jfCfg.exclude;
-            start_at = "end";
+            start_at = jfCfg.startAt;
             include_file_name = true;
             operators = [
               ({
@@ -218,8 +233,8 @@ in
               } // optionalAttrs (jfCfg.timestampField != null) {
                 timestamp = {
                   parse_from = "attributes.${jfCfg.timestampField}";
-                  layout_type = "epoch";
-                  layout = "s";
+                  layout_type = jfCfg.timestampLayoutType;
+                  layout = if jfCfg.timestampLayout != null then jfCfg.timestampLayout else "s";
                 };
               })
             ];
@@ -259,7 +274,7 @@ in
             error_mode = "ignore";  # Skip logs where condition can't be evaluated (e.g., no SYSLOG_IDENTIFIER)
             logs = {
               log_record = [
-                ''body["SYSLOG_IDENTIFIER"] == "otelcol-contrib"''
+                ''IsMap(body) and body["SYSLOG_IDENTIFIER"] == "otelcol-contrib"''
               ];
             };
           };
