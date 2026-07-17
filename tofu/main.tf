@@ -68,6 +68,7 @@ module "oci" {
   source              = "./oci"
   tenancy_ocid        = local.oci.tenancy_ocid
   keycloak_shdrch_sub = module.home.keycloak_shdrch_user_id
+  notification_email  = local.aws.notification_email
 }
 
 provider "cloudflare" {
