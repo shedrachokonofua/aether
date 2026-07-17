@@ -18,6 +18,11 @@
       "8.8.8.8"
     ],
     "cache_size": 4194304,
+    "edns_client_subnet": {
+      "enabled": true,
+      "use_custom": false,
+      "custom_ip": ""
+    },
     "enable_dnssec": false,
     "fallback_dns": [
       "9.9.9.10",
