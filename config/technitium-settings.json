@@ -120,6 +120,20 @@
           "protocol": "UDP"
         }
       }
+    },
+    {
+      "name": "Query Logs (Sqlite)",
+      "url": "https://download.technitium.com/dns/apps/QueryLogsSqliteApp-v8.zip",
+      "config": {
+        "enableLogging": true,
+        "maxQueueSize": 200000,
+        "maxLogDays": 7,
+        "maxLogRecords": 1000000,
+        "enableVacuum": false,
+        "useInMemoryDb": false,
+        "sqliteDbPath": "querylogs.db",
+        "connectionString": "Data Source='{sqliteDbPath}'; Cache=Shared;"
+      }
     }
   ]
 }
