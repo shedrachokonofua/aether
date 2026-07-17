@@ -167,15 +167,28 @@
                      (let [s (str/trim (str (:out r) " " (:err r)))] (subs s 0 (min 300 (count s))))))
           false))))
 
+(defn oci-read
+  "Read-op oci call resilient to transient throttling: retries on 429/timeout with
+   30s backoff, and renews the UPST once on an auth error. Returns the last result."
+  [profile auth args]
+  (loop [tries 6, renewed? false]
+    (let [res (oci profile auth args)]
+      (cond
+        (:ok? res) res
+        (and (auth-error? (:err res)) (not renewed?)
+             (= profile "oci-aether") (= auth "security_token"))
+        (do (renew-upst!) (recur tries true))
+        (and (or (rate-limit-error? (:err res)) (timeout-error? (:err res))) (> tries 1))
+        (do (warn (str "Transient OCI error (throttle/timeout) — backoff 30s (" (dec tries) " left)."))
+            (Thread/sleep 30000)
+            (recur (dec tries) renewed?))
+        :else res))))
+
 ;; --- discovery --------------------------------------------------------------
 (defn discover [profile auth]
   (info (str "Profile " profile " (auth " auth ") — resolving tenancy/compartment/AD/subnet/image..."))
   (let [tenancy (tenancy-ocid profile)
-        comps (let [c (oci profile auth ["iam" "compartment" "list" "--compartment-id" tenancy "--all"])]
-                (if (and (not (:ok? c)) (auth-error? (:err c))
-                         (= profile "oci-aether") (= auth "security_token") (renew-upst!))
-                  (oci profile auth ["iam" "compartment" "list" "--compartment-id" tenancy "--all"])
-                  c))
+        comps (oci-read profile auth ["iam" "compartment" "list" "--compartment-id" tenancy "--all"])
         _ (when-not (:ok? comps)
             (if (auth-error? (:err comps))
               (die! (str "Not authenticated and renewal failed. Start a fresh 12h Keycloak window:\n"
@@ -186,19 +199,19 @@
                   (remove #(= "DELETED" (:lifecycle-state %)))
                   first :id)
         _ (when-not comp (die! (str "Compartment '" compartment-name "' not found under tenancy.")))
-        ads (oci profile auth ["iam" "availability-domain" "list" "--compartment-id" tenancy])
+        ads (oci-read profile auth ["iam" "availability-domain" "list" "--compartment-id" tenancy])
         ad (some-> (oci-data ads) first :name)
         _ (when-not ad (die! "No availability domain found."))
-        subnets (oci profile auth ["network" "subnet" "list" "--compartment-id" comp "--all"])
+        subnets (oci-read profile auth ["network" "subnet" "list" "--compartment-id" comp "--all"])
         subnet (->> (oci-data subnets)
                     (filter #(= subnet-name (:display-name %)))
                     first :id)
         _ (when-not subnet (die! (str "Subnet '" subnet-name "' not found (run the oci apply so the VCN/subnet exist).")))
-        imgs (oci profile auth ["compute" "image" "list" "--compartment-id" tenancy
-                                "--operating-system" image-os
-                                "--operating-system-version" image-os-ver
-                                "--shape" shape
-                                "--sort-by" "TIMECREATED" "--sort-order" "DESC" "--all"])
+        imgs (oci-read profile auth ["compute" "image" "list" "--compartment-id" tenancy
+                                     "--operating-system" image-os
+                                     "--operating-system-version" image-os-ver
+                                     "--shape" shape
+                                     "--sort-by" "TIMECREATED" "--sort-order" "DESC" "--all"])
         image (some-> (oci-data imgs) first :id)
         _ (when-not image (die! (str "No " image-os " " image-os-ver " image for " shape ".")))]
     (ok (str "compartment " (subs comp 0 (min 24 (count comp))) "…  AD " ad))
@@ -238,7 +251,7 @@
    Idempotency guard: a launch call can time out AFTER the server accepted it, and a
    stale prior run may already hold one - never launch a duplicate over it."
   [profile auth comp]
-  (let [res (oci profile auth ["compute" "instance" "list" "--compartment-id" comp
+  (let [res (oci-read profile auth ["compute" "instance" "list" "--compartment-id" comp
                                "--display-name" display-name "--all"])]
     (when (:ok? res)
       (->> (oci-data res)
