@@ -534,9 +534,9 @@
           - set firewall ipv4 name CLOUD-to-SERVICES rule 10 state established
           - set firewall ipv4 name CLOUD-to-SERVICES rule 10 state related
           - set firewall ipv4 name LOCAL-to-CLOUD default-action accept
-          # Technitium DNS cluster: ns2 (mgmt LXC .237) <-> ns3 (OCI 10.3.0.10)
-          # sync over the nodes' HTTPS web service port. Least privilege: only
-          # that pair, only tcp/53443, both directions initiated.
+          # Technitium DNS cluster mesh: home nodes ns1 (.236) + ns2 (.237)
+          # <-> ns3 (OCI 10.3.0.10) sync over the nodes' HTTPS web service
+          # port. Least privilege: only that pair set, only tcp/53443.
           - set firewall ipv4 name MGMT-to-CLOUD default-action drop
           - set firewall ipv4 name MGMT-to-CLOUD rule 10 action accept
           - set firewall ipv4 name MGMT-to-CLOUD rule 10 state established
@@ -547,6 +547,12 @@
           - set firewall ipv4 name MGMT-to-CLOUD rule 20 destination address 10.3.0.10/32
           - set firewall ipv4 name MGMT-to-CLOUD rule 20 destination port 53443
           - set firewall ipv4 name MGMT-to-CLOUD rule 20 description 'Technitium cluster primary to OCI secondary'
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 action accept
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 protocol tcp
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 source address 192.168.2.236/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 destination address 10.3.0.10/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 destination port 53443
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 description 'Technitium cluster ns1 to OCI secondary'
           - set firewall ipv4 name CLOUD-to-MGMT default-action drop
           - set firewall ipv4 name CLOUD-to-MGMT rule 10 action accept
           - set firewall ipv4 name CLOUD-to-MGMT rule 10 state established
@@ -557,6 +563,12 @@
           - set firewall ipv4 name CLOUD-to-MGMT rule 20 destination address 192.168.2.237/32
           - set firewall ipv4 name CLOUD-to-MGMT rule 20 destination port 53443
           - set firewall ipv4 name CLOUD-to-MGMT rule 20 description 'Technitium OCI secondary to cluster primary'
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 action accept
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 protocol tcp
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 source address 10.3.0.10/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 destination address 192.168.2.236/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 destination port 53443
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 description 'Technitium OCI secondary to cluster ns1'
 
           # Configure trusted zones full access
           - set firewall ipv4 name TRUSTED-to-MGMT default-action accept

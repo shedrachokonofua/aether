@@ -81,10 +81,14 @@
         daddr: 10.3.0.10
         proto: tcp
         ports: [5380]
-      # Technitium cluster (ns2 <-> ns3): primary on the mgmt net reaches the
-      # OCI secondary and vice versa over the fabric, HTTPS web service port.
-      - saddr: [192.168.2.237/32]
+      # Technitium cluster mesh: home nodes (ns1 .236, ns2 .237) <-> OCI ns3
+      # over the fabric, HTTPS web service port, both directions.
+      - saddr: [192.168.2.236/32, 192.168.2.237/32]
         daddr: 10.3.0.10
+        proto: tcp
+        ports: [53443]
+      - saddr: [10.3.0.10/32]
+        daddr: 192.168.2.236
         proto: tcp
         ports: [53443]
       - saddr: [10.3.0.10/32]
@@ -98,8 +102,9 @@
         allowed_ips:
           - 10.0.0.0/16
           - 10.254.0.2/32
-          # Technitium cluster primary (ns2) lives on the Gigahub mgmt net;
-          # the OCI secondary must reach it through the hub -> VyOS path.
+          # Technitium cluster home nodes (ns1/ns2) on the Gigahub mgmt net;
+          # the OCI secondary reaches them through the hub -> VyOS path.
+          - 192.168.2.236/32
           - 192.168.2.237/32
       - site: gcp
         host: vigilant
