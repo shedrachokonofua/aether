@@ -114,15 +114,6 @@ resource "oci_core_subnet" "public" {
 }
 
 # --- Images (latest Canonical Ubuntu 24.04 per shape/arch; avoids stale OCIDs) ---
-data "oci_core_images" "ubuntu_x86" {
-  compartment_id           = var.tenancy_ocid
-  operating_system         = "Canonical Ubuntu"
-  operating_system_version = "24.04"
-  shape                    = "VM.Standard.E2.1.Micro"
-  sort_by                  = "TIMECREATED"
-  sort_order               = "DESC"
-}
-
 data "oci_core_images" "ubuntu_arm" {
   compartment_id           = var.tenancy_ocid
   operating_system         = "Canonical Ubuntu"
@@ -133,16 +124,6 @@ data "oci_core_images" "ubuntu_arm" {
 }
 
 # --- SSH keys (mirror tofu/google/uptime-monitor.tf) -------------------------
-resource "tls_private_key" "adguard_secondary" {
-  algorithm = "ED25519"
-}
-
-resource "local_file" "adguard_secondary_private_key" {
-  content         = tls_private_key.adguard_secondary.private_key_openssh
-  filename        = "${path.module}/../../secrets/oci_adguard_secondary_private_key.pem"
-  file_permission = "0600"
-}
-
 resource "tls_private_key" "a1" {
   algorithm = "ED25519"
 }
@@ -154,28 +135,6 @@ resource "local_file" "a1_private_key" {
 }
 
 # --- Instances ---------------------------------------------------------------
-resource "oci_core_instance" "adguard_secondary" {
-  compartment_id      = oci_identity_compartment.aether.id
-  availability_domain = local.ad
-  display_name        = "aether-adguard-secondary"
-  shape               = "VM.Standard.E2.1.Micro"
-
-  create_vnic_details {
-    subnet_id        = oci_core_subnet.public.id
-    assign_public_ip = true
-    hostname_label   = "adguard-secondary"
-  }
-
-  source_details {
-    source_type = "image"
-    source_id   = data.oci_core_images.ubuntu_x86.images[0].id
-  }
-
-  metadata = {
-    ssh_authorized_keys = tls_private_key.adguard_secondary.public_key_openssh
-  }
-}
-
 resource "oci_core_instance" "a1" {
   compartment_id      = oci_identity_compartment.aether.id
   availability_domain = local.ad
@@ -205,20 +164,6 @@ resource "oci_core_instance" "a1" {
 }
 
 # --- Outputs (re-exported at root via outputs.tf, consumed by inventory) -----
-output "adguard_secondary_ip" {
-  value       = oci_core_instance.adguard_secondary.public_ip
-  description = "Public IP of the offsite AdGuard secondary"
-}
-
-output "adguard_secondary_public_key" {
-  value = tls_private_key.adguard_secondary.public_key_openssh
-}
-
-output "adguard_secondary_private_key" {
-  value     = tls_private_key.adguard_secondary.private_key_openssh
-  sensitive = true
-}
-
 output "a1_ip" {
   value       = oci_core_instance.a1.public_ip
   description = "Public IP of the offsite A1 workhorse"

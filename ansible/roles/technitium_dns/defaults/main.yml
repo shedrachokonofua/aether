@@ -19,18 +19,25 @@ technitium_apply_script_path: "{{ aether_root }}/scripts/technitium-apply.sh"
 # an open-resolver / topology-leak.
 technitium_wg_ip: 10.3.0.10
 
-# Cluster join: gated OFF by default. The E2.1.Micro (1 GB) cannot survive
-# cluster settings-sync pushing the estate's full blocklist set into RAM
-# (2026-07-17: joining thrashed the box into an out-of-band hard reset).
-# Enable only after the OCI DNS role moves to a host with >= 4 GB.
+# Cluster join: gated OFF by default. Cross-WAN clustering of a self-signed-cert
+# control plane proved fragile (2026-07-17: a restart race split-brained rama's
+# join, and the primary heartbeat-spammed the dead node). Offsite nodes run
+# standalone-full instead (see technitium_full_blocklist); the home pair
+# (ns1/ns2) clusters on-subnet where it works. git+apply reconciles all nodes
+# from one source, so "sync" is a re-apply, not a live control plane.
 technitium_cluster_enabled: false
-# The ns2 (LXC primary) admin password, seeded into sops after the primary's
-# first apply run mints it. Used only when the cluster gate is enabled.
+# The ns2 primary admin password (sops), used only if the cluster gate is on.
 technitium_primary_admin_password: "{{ secrets.technitium.primary_admin_password | default('') }}"
 
+# Run the full shared config (all 21 blocklists from config/technitium-settings.json)
+# instead of the slim override below. Set true on hosts with the RAM for it
+# (rama: 12GB). Default false keeps the slim list for constrained boxes.
+technitium_full_blocklist: false
+
 # Hard containment (2026-07-16/17 incident rule): the container must never be
-# able to thrash the host. 700M fits the slim blocklist set below on a 1 GB
-# box; swap absorbs blocklist-refresh spikes.
+# able to thrash the host. Default 700M/1700M suits a constrained box; hosts
+# running the full list override upward (rama: 2g/3g). Swap absorbs
+# blocklist-refresh spikes.
 technitium_memory_limit: 700m
 technitium_memory_swap_limit: 1700m
 technitium_swapfile_size_mb: 2048
