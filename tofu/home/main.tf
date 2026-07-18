@@ -54,6 +54,34 @@ variable "litellm_google_maps_api_key" {
   description = "Google Maps API key for LiteLLM's Google Maps MCP server"
 }
 
+variable "cloud_audit_tailscale_client_id" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Tailscale OAuth client id for vigil (cloud_audit.tf)"
+}
+
+variable "cloud_audit_tailscale_client_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Tailscale OAuth client secret for vigil (cloud_audit.tf)"
+}
+
+variable "cloud_audit_cloudflare_api_token" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Cloudflare Audit-Logs-Read token for vigil (cloud_audit.tf)"
+}
+
+variable "cloud_audit_oci_token_exchange_client_secret" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "OCI token-exchange app client secret for the UPST exchange (oci/federation.tf output)"
+}
+
 variable "litellm_google_maps_enabled" {
   type        = bool
   default     = false
