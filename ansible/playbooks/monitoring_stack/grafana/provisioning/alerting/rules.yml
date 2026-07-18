@@ -1,5 +1,13 @@
 apiVersion: 1
 
+deleteRules:
+  - orgId: 1
+    uid: thanos-component-down
+  - orgId: 1
+    uid: thanos-compactor-halted
+  - orgId: 1
+    uid: thanos-sidecar-upload-stale
+
 groups:
   - orgId: 1
     name: Infrastructure
@@ -469,7 +477,7 @@ groups:
           severity: critical
         annotations:
           summary: "Site exporter down: {{ $labels.service }} on {{ $labels.host }} ({{ $labels.site }})"
-          description: "A WireGuard site-fabric exporter is not being scraped; the offsite node (e.g. the OCI AdGuard resolver) may be down or unreachable over the tunnel."
+          description: "A WireGuard site-fabric exporter is not being scraped; the offsite resolver node (rama, OCI) may be down or unreachable over the tunnel."
 
       - uid: proxmox-smart-exporter-down
         title: Proxmox SMART Exporter Down
@@ -738,10 +746,9 @@ groups:
           summary: "OTel Loki log exporter queue is high"
           description: 'Loki log exporter queue is {{ $values.B.Value | printf "%.1f" }}% full'
 
-      # Thanos object-storage path health. These evaluate against local
-      # Prometheus so a Thanos Query outage cannot suppress its own alert.
-      - uid: thanos-component-down
-        title: Thanos Component Down
+
+      - uid: greptime-archive-down
+        title: GreptimeDB Archive Down
         condition: C
         data:
           - refId: A
@@ -750,7 +757,7 @@ groups:
               to: 0
             datasourceUid: prometheus-local
             model:
-              expr: up{job="thanos"} == 0
+              expr: up{job="greptime"}
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -766,93 +773,17 @@ groups:
               expression: B
               conditions:
                 - evaluator:
-                    type: gt
-                    params: [0]
+                    type: lt
+                    params: [1]
               refId: C
         noDataState: Alerting
         execErrState: Error
         for: 5m
         labels:
-          severity: critical
-        annotations:
-          summary: "Thanos {{ $labels.component }} is unavailable"
-          description: "Prometheus has failed to scrape a Thanos component for 5 minutes"
-
-      - uid: thanos-compactor-halted
-        title: Thanos Compactor Halted
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: prometheus-local
-            model:
-              expr: thanos_compact_halted{job="thanos",component="compact"}
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model:
-              type: reduce
-              expression: A
-              reducer: last
-              refId: B
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator:
-                    type: gt
-                    params: [0]
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Thanos Compactor has halted"
-          description: "Compaction, downsampling, and retention are stopped; inspect overlap or object-store errors"
-
-      - uid: thanos-sidecar-upload-stale
-        title: Thanos Sidecar Upload Stale
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: prometheus-local
-            model:
-              expr: time() - thanos_objstore_bucket_last_successful_upload_time{job="thanos",component="sidecar"}
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model:
-              type: reduce
-              expression: A
-              reducer: last
-              refId: B
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator:
-                    type: gt
-                    params: [10800]
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 15m
-        labels:
           severity: warning
         annotations:
-          summary: "Thanos has not uploaded a Prometheus block for over 3 hours"
-          description: "Check Sidecar object-store access before the local retention window expires"
+          summary: "GreptimeDB telemetry archive is unavailable"
+          description: "Prometheus has failed to scrape the canary archive for 5 minutes; hot-path Prometheus and Loki remain authoritative"
 
       # Host Down Alert
       - uid: host-down
@@ -894,7 +825,7 @@ groups:
           description: "Proxmox node is not responding"
 
       - uid: k8s-replicaset-not-ready
-        title: Kubernetes ReplicaSet Not Ready
+        title: Kubernetes Workload Not Ready
         condition: C
         data:
           - refId: A
@@ -909,12 +840,26 @@ groups:
               # coder sat broken for 65d unalerted this way.
               expr: |
                 (
-                  max by(namespace, replicaset) (
-                    kube_replicaset_spec_replicas - kube_replicaset_status_ready_replicas
-                  ) > 0
+                  (
+                    max by (namespace, deployment) (
+                      kube_deployment_spec_replicas - kube_deployment_status_ready_replicas
+                    ) > 0
+                  )
+                  * on (namespace) group_left(tier, owner, criticality)
+                    topk by (namespace) (1, aether:namespace_contract:info)
                 )
-                * on(namespace) group_left(tier, owner, criticality)
-                  topk by (namespace) (1, aether:namespace_contract:info)
+                or
+                (
+                  (
+                    max by (namespace, replicaset) (
+                      (kube_replicaset_spec_replicas - kube_replicaset_status_ready_replicas)
+                      and on (namespace, replicaset)
+                        kube_replicaset_owner{owner_kind!="Deployment"}
+                    ) > 0
+                  )
+                  * on (namespace) group_left(tier, owner, criticality)
+                    topk by (namespace) (1, aether:namespace_contract:info)
+                )
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -944,8 +889,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "ReplicaSet {{ $labels.namespace }}/{{ $labels.replicaset }} is not ready"
-          description: 'Desired replicas exceed ready replicas for 15 minutes. Check Deployment events for admission/PSA FailedCreate errors.'
+          summary: "Workload {{ $labels.namespace }}/{{ $labels.deployment }}{{ $labels.replicaset }} is not ready"
+          description: 'Desired replicas exceed ready replicas for 15 minutes. Check Deployment/rollout events for admission/PSA FailedCreate errors.'
 
       - uid: k8s-pod-create-blocked
         title: Kubernetes Pod Create Blocked
@@ -2418,7 +2363,102 @@ groups:
               to: 0
             datasourceUid: prometheus-local
             model:
-              expr: ((sum by (source_namespace) (rate(hubble_drop_total{reason="POLICY_DENIED", source_namespace!=""}[15m])) > 0.1) * on(source_namespace) group_left(tier, criticality, owner) topk by (source_namespace) (1, label_replace(aether:namespace_contract:info, "source_namespace", "$1", "namespace", "(.*)"))) or (sum(rate(hubble_drop_total{reason="POLICY_DENIED"}[15m])) > 0.1)
+              expr: |
+                (
+                  (
+                    sum by (source_namespace) (
+                      rate(hubble_drop_total{
+                        reason="POLICY_DENIED",
+                        source_namespace!=""
+                      }[15m])
+                    ) > 0.1
+                  )
+                  * on (source_namespace) group_left(tier, criticality, owner)
+                    topk by (source_namespace) (
+                      1,
+                      label_replace(
+                        aether:namespace_contract:info,
+                        "source_namespace", "$1", "namespace", "(.*)"
+                      )
+                    )
+                )
+                or
+                (
+                  (
+                    sum by (source_namespace) (
+                      rate(hubble_drop_total{
+                        reason="POLICY_DENIED",
+                        source_namespace!=""
+                      }[15m])
+                    ) > 0.1
+                  )
+                  unless on (source_namespace)
+                    label_replace(
+                      aether:namespace_contract:info,
+                      "source_namespace", "$1", "namespace", "(.*)"
+                    )
+                )
+                or
+                (
+                  sum by (destination_namespace) (
+                    rate(hubble_drop_total{
+                      reason="POLICY_DENIED",
+                      source_namespace="",
+                      destination_namespace!=""
+                    }[15m])
+                  ) > 0.1
+                )
+                or
+                (
+                  sum(
+                    rate(hubble_drop_total{
+                      reason="POLICY_DENIED",
+                      source_namespace="",
+                      destination_namespace=""
+                    }[15m])
+                  ) > 0.1
+                )
+                or
+                (
+                  (
+                    sum(
+                      rate(hubble_drop_total{reason="POLICY_DENIED"}[15m])
+                    ) > 0.1
+                  )
+                  and on ()
+                  (
+                    max(
+                      (
+                        sum by (source_namespace) (
+                          rate(hubble_drop_total{
+                            reason="POLICY_DENIED",
+                            source_namespace!=""
+                          }[15m])
+                        )
+                      )
+                      or
+                      (
+                        sum by (destination_namespace) (
+                          rate(hubble_drop_total{
+                            reason="POLICY_DENIED",
+                            source_namespace="",
+                            destination_namespace!=""
+                          }[15m])
+                        )
+                      )
+                      or
+                      (
+                        sum(
+                          rate(hubble_drop_total{
+                            reason="POLICY_DENIED",
+                            source_namespace="",
+                            destination_namespace=""
+                          }[15m])
+                        )
+                      )
+                    ) <= 0.1
+                  )
+                )
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -2444,8 +2484,8 @@ groups:
           severity: warning
           domain: security
         annotations:
-          summary: "Network policy dropping {{ $labels.source_namespace }} traffic ({{ $labels.criticality }} criticality)"
-          description: "Cilium reports POLICY_DENIED drops >0.1/s sourced from namespace {{ $labels.source_namespace }} (tier={{ $labels.tier }}, owner={{ $labels.owner }}). Ingress-side denials populate destination_namespace instead; drill down via Hubble flows in Grafana."
+          summary: "Network policy denial rate exceeds 0.1/s"
+          description: "Cilium reports POLICY_DENIED drops above threshold for source namespace {{ $labels.source_namespace }}, destination namespace {{ $labels.destination_namespace }}, or a diffuse cluster-wide aggregate. Contract metadata when present: tier={{ $labels.tier }}, criticality={{ $labels.criticality }}, owner={{ $labels.owner }}. Drill down via Hubble flows in Grafana."
 
       - uid: fleet-server-errors
         title: Fleet Server Errors
@@ -4424,7 +4464,7 @@ groups:
           channel: digest
         annotations:
           summary: 'Elevated SERVFAIL rate from the VyOS DNS forwarder ({{ $values.B.Value | printf "%.0f" }} in 15m)'
-          description: 'Upstream resolver trouble — check both AdGuard LXCs (.236/.237) and their DoH upstreams.'
+          description: 'Upstream resolver trouble — check the Technitium nodes ns1/ns2 (.236/.237) and their DoH upstreams.'
 
       - uid: network-dhcp-pool-high
         title: DHCP Pool Near Exhaustion
@@ -4659,10 +4699,14 @@ groups:
           description: 'One source stopped while others may still flow: check the exporter for that source (vyos-exporter / qss-exporter), its sealed-file directory, and the collector leg that ships it.'
 
       # DNS query attribution stream: every resolver ships per-client query
-      # logs to Loki via the Log Exporter -> filelog leg. ns2 carries the
-      # DNAT'd estate traffic so an hour of silence from any node means the
-      # attribution pipeline (app, file, collector, or Loki) broke - the
-      # resolver itself may still be serving.
+      # logs to Loki. The NixOS home pair (adguard/adguard-secondary) tails the
+      # Log Exporter NDJSON via its local collector; the agent-free offsite node
+      # (rama) tails it into the journal, pulled by journal-gatewayd ->
+      # otel_journal_forwarder. The `|= questionName` filter isolates query
+      # lines even inside rama's shared journal stream. ns2 carries the DNAT'd
+      # estate traffic, so an hour of silence from any node means the
+      # attribution pipeline (app, file, collector/forwarder, or Loki) broke -
+      # the resolver itself may still be serving.
       - uid: dns-querylog-stale
         title: DNS Query Log Stream Stale
         condition: C
@@ -4673,7 +4717,7 @@ groups:
               to: 0
             datasourceUid: loki
             model:
-              expr: 'sum by (service_name) (count_over_time({service_name=~"adguard|adguard-secondary"} |= `questionName` [1h]))'
+              expr: 'sum by (service_name) (count_over_time({service_name=~"adguard|adguard-secondary|rama"} |= `questionName` [1h]))'
               queryType: instant
               refId: A
           - refId: B
@@ -4701,4 +4745,4 @@ groups:
           channel: digest
         annotations:
           summary: 'DNS query log stream from {{ $labels.service_name }} silent for an hour'
-          description: 'Per-client DNS attribution stopped flowing from that resolver: check the Log Exporter app, /var/log/technitium/query.ndjson, the node collector filelog leg, and Loki ingest. DNS service itself may still be up.'
+          description: 'Per-client DNS attribution stopped flowing from that resolver: check the Log Exporter app + /var/log/technitium/query.ndjson, then the shipping leg (home pair: local collector filelog; rama: technitium-querylog-journal unit -> journal-gatewayd -> otel_journal_forwarder), then Loki ingest. DNS service itself may still be up.'

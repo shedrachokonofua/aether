@@ -99,6 +99,24 @@
     daemon_reload: true
   become: true
 
+- name: Deploy the query-log journal shipper unit
+  ansible.builtin.template:
+    src: technitium-querylog-journal.service.j2
+    dest: /etc/systemd/system/technitium-querylog-journal.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart technitium-querylog-journal
+
+- name: Enable and start the query-log journal shipper
+  ansible.builtin.systemd:
+    name: technitium-querylog-journal
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+
 - name: Copy the shared apply engine and declarative config
   ansible.builtin.copy:
     src: "{{ item.src }}"

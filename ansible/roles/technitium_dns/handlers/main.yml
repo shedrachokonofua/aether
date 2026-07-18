@@ -5,3 +5,10 @@
     state: restarted
     daemon_reload: true
   become: true
+
+- name: Restart technitium-querylog-journal
+  ansible.builtin.systemd:
+    name: technitium-querylog-journal
+    state: restarted
+    daemon_reload: true
+  become: true

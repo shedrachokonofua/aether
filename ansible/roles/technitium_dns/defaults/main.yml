@@ -7,6 +7,11 @@
 technitium_image: docker.io/technitium/dns-server:14.0.0
 technitium_conf_dir: /opt/technitium/config
 technitium_log_dir: /var/log/technitium
+# Log Exporter NDJSON (per-client query attribution). A small systemd unit
+# tails this into the journal so the agent-free pull path (journal-gatewayd ->
+# otel_journal_forwarder -> Loki) carries it; the identifier is the Loki filter.
+technitium_querylog_path: "{{ technitium_log_dir }}/query.ndjson"
+technitium_querylog_syslog_identifier: technitium-querylog
 technitium_apply_dir: /opt/technitium
 technitium_server_domain: ns3.dns.home.shdr.ch
 
@@ -19,12 +24,15 @@ technitium_apply_script_path: "{{ aether_root }}/scripts/technitium-apply.sh"
 # an open-resolver / topology-leak.
 technitium_wg_ip: 10.3.0.10
 
-# Cluster join: gated OFF by default. Cross-WAN clustering of a self-signed-cert
-# control plane proved fragile (2026-07-17: a restart race split-brained rama's
-# join, and the primary heartbeat-spammed the dead node). Offsite nodes run
-# standalone-full instead (see technitium_full_blocklist); the home pair
-# (ns1/ns2) clusters on-subnet where it works. git+apply reconciles all nodes
-# from one source, so "sync" is a re-apply, not a live control plane.
+# Cluster join: gated OFF by default (conservative default for a fresh Ubuntu
+# Technitium node); the oci play sets it true for rama (ns3). Cross-WAN
+# membership WORKS (2026-07-18): the offsite node needs BOTH the HTTPS cluster
+# API (:53443) AND the DNS zone-transfer path (TCP :53 + TSIG) open to the
+# primary IP, so the catalog + the dns.home.shdr.ch member zone (which carries
+# the peers' DANE-EE TLSA records) replicate by AXFR/IXFR and inter-node DANE
+# validation resolves authoritatively. The earlier "standalone-only" verdict
+# was wrong - it had only the :53443 leg open, never :53. See the oci play's
+# fabric legs. git+apply still reconciles blocklists/zones from one source.
 technitium_cluster_enabled: false
 # The ns2 primary admin password (sops), used only if the cluster gate is on.
 technitium_primary_admin_password: "{{ secrets.technitium.cluster_admin_password | default('') }}"
