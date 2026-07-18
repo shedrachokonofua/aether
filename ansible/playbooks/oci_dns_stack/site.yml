@@ -19,7 +19,9 @@
     site_wireguard_remote_prefixes:
       - 10.0.0.0/16
       - 10.1.0.0/16
-      # Technitium cluster primary (ns2) on the home mgmt net, via hub -> VyOS.
+      # Technitium cluster home nodes (ns2 primary, ns1 secondary) on the mgmt
+      # net, via hub -> VyOS. Both needed for full cluster mesh + failover.
+      - 192.168.2.236/32
       - 192.168.2.237/32
     site_wireguard_topology_role: spoke
     site_wireguard_input_allow_cidrs:
@@ -41,10 +43,10 @@
       - proto: tcp
         port: 5380
         cidrs: [10.0.2.2/32]
-      # Technitium cluster sync from ns2 (the LXC primary) over the fabric.
+      # Technitium cluster sync from the home nodes (ns1/ns2) over the fabric.
       - proto: tcp
         port: 53443
-        cidrs: [192.168.2.237/32]
+        cidrs: [192.168.2.236/32, 192.168.2.237/32]
     site_wireguard_peers:
       - site: aws
         host: link
@@ -56,7 +58,8 @@
           - 10.1.0.0/16
           - 10.254.0.1/32
           - 10.254.0.2/32
-          # ns2 cluster primary on the home mgmt net (via hub -> VyOS).
+          # Cluster home nodes (ns1/ns2) on the mgmt net (via hub -> VyOS).
+          - 192.168.2.236/32
           - 192.168.2.237/32
   pre_tasks:
     # The OCI Ubuntu cloud image ships a default iptables INPUT chain that
