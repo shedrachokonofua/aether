@@ -25,6 +25,18 @@
         ]
       }
     seaweedfs_s3_config_content: "{{ (seaweedfs_s3_generated_config | trim | length > 0) | ternary(seaweedfs_s3_generated_config, seaweedfs_s3_admin_config) }}"
+    seaweedfs_s3_endpoint: https://s3.seaweed.home.shdr.ch
+    seaweedfs_s3_buckets:
+      - aether-db-dumps
+      - thanos-metrics
+      - greptime-telemetry
+
+  pre_tasks:
+    - name: Load SOPS secrets
+      community.sops.load_vars:
+        file: "{{ aether_root }}/secrets/secrets.yml"
+        name: secrets
+      tags: [always]
 
   tasks:
     - name: Fail if generated S3 config is absent
@@ -52,7 +64,9 @@
         pct push {{ seaweedfs_vm.id }}
         /tmp/seaweedfs-s3.json
         {{ seaweedfs_s3_config_remote }}
-        --perms 0644
+        --user seaweed
+        --group seaweed
+        --perms 0600
       changed_when: true
 
     - name: Remove staged SeaweedFS S3 config
@@ -76,3 +90,44 @@
         port: "{{ seaweedfs_vm.ports.s3 }}"
         timeout: 60
       delegate_to: localhost
+
+    - name: List SeaweedFS S3 buckets
+      ansible.builtin.command:
+        argv:
+          - aws
+          - --endpoint-url
+          - "{{ seaweedfs_s3_endpoint }}"
+          - s3api
+          - list-buckets
+          - --query
+          - Buckets[].Name
+          - --output
+          - json
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ secrets.seaweedfs.s3_admin_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ secrets.seaweedfs.s3_admin_secret_key }}"
+        AWS_DEFAULT_REGION: us-east-1
+      register: seaweedfs_bucket_list
+      changed_when: false
+      delegate_to: localhost
+      no_log: true
+
+    - name: Create missing scoped SeaweedFS S3 buckets
+      ansible.builtin.command:
+        argv:
+          - aws
+          - --endpoint-url
+          - "{{ seaweedfs_s3_endpoint }}"
+          - s3api
+          - create-bucket
+          - --bucket
+          - "{{ item }}"
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ secrets.seaweedfs.s3_admin_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ secrets.seaweedfs.s3_admin_secret_key }}"
+        AWS_DEFAULT_REGION: us-east-1
+      loop: "{{ seaweedfs_s3_buckets }}"
+      when: item not in (seaweedfs_bucket_list.stdout | from_json)
+      changed_when: true
+      delegate_to: localhost
+      no_log: true

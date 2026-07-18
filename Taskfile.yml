@@ -376,6 +376,11 @@ tasks:
   configure:monitoring:
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml {{.CLI_ARGS}}
+  configure:greptime:
+    desc: Deploy scoped Seaweed identity and GreptimeDB canary archive after tofu apply
+    cmds:
+      - task: seaweedfs:s3-identities:deploy
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags greptime,prometheus,otel,grafana,janus {{.CLI_ARGS}}
   configure:argos:
     desc: Stage and validate Argos contracts on monitoring-stack; service remains disabled by default
     cmds:

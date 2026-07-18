@@ -11,7 +11,6 @@
     clickhouse_grafana_databases:
       - zeek
       - suricata
-      - metrics
       - argos
       - network
       - estate_scan
@@ -46,12 +45,159 @@
     # catch-up and the required 24-hour retention headroom before enablement.
     argos_bootstrap_start: "2026-07-01T00:00:00Z"
     argos_service_enabled: false
+    greptime_image: docker.io/greptime/greptimedb:v1.1.3
+    greptime_config_path: "{{ playbook_dir }}/../../../tofu/home/secrets/greptime-config.toml"
+    greptime_users_path: "{{ playbook_dir }}/../../../tofu/home/secrets/greptime-users"
+    greptime_credentials_path: "{{ playbook_dir }}/../../../tofu/home/secrets/greptime-credentials.yml"
   roles:
     - common
     - vm_baseline
     - dnf
     - vm_monitoring_agent
   tasks:
+    # Keep Loki and GreptimeDB local state off the observability root disk,
+    # which still carries Prometheus and ClickHouse.
+    - name: Install telemetry filesystem tooling
+      ansible.builtin.dnf:
+        name:
+          - rsync
+          - xfsprogs
+        state: present
+      become: true
+      tags: [greptime, loki]
+
+    - name: Verify dedicated telemetry archive disk is attached
+      ansible.builtin.assert:
+        that:
+          - ansible_devices.vdb is defined
+        fail_msg: "Expected the Tofu-managed telemetry archive disk at /dev/vdb."
+      tags: [greptime, loki]
+
+    - name: Check whether the GreptimeDB quadlet exists
+      ansible.builtin.stat:
+        path: /home/aether/.config/containers/systemd/greptime.container
+      register: greptime_quadlet
+      tags: [greptime]
+
+    - name: Stop GreptimeDB before creating or replacing its storage mount
+      ansible.builtin.systemd:
+        name: greptime
+        state: stopped
+        scope: user
+      when:
+        - greptime_quadlet.stat.exists
+        - ansible_mounts | selectattr('mount', 'equalto', '/var/lib/telemetry') | selectattr('device', 'equalto', '/dev/vdb') | list | length == 0
+      tags: [greptime]
+
+    - name: Format dedicated telemetry archive disk
+      community.general.filesystem:
+        dev: /dev/vdb
+        fstype: xfs
+        resizefs: true
+      become: true
+      tags: [greptime, loki]
+
+    - name: Remove legacy telemetry archive mount
+      ansible.posix.mount:
+        path: /var/lib/thanos
+        state: absent
+      become: true
+      tags: [greptime]
+
+    - name: Remove legacy telemetry archive mountpoint
+      ansible.builtin.file:
+        path: /var/lib/thanos
+        state: absent
+      become: true
+      tags: [greptime]
+
+    - name: Create telemetry archive data mountpoint
+      ansible.builtin.file:
+        path: /var/lib/telemetry
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      become: true
+      tags: [greptime, loki]
+
+    - name: Mount dedicated telemetry archive disk
+      ansible.posix.mount:
+        path: /var/lib/telemetry
+        src: /dev/vdb
+        fstype: xfs
+        opts: defaults,noatime
+        state: mounted
+      become: true
+      tags: [greptime, loki]
+
+    - name: Create GreptimeDB local state directory
+      ansible.builtin.file:
+        path: /var/lib/telemetry/greptime
+        state: directory
+        owner: aether
+        group: aether
+        mode: "0755"
+      become: true
+      tags: [greptime]
+
+    - name: Create Loki data directory on telemetry disk
+      ansible.builtin.file:
+        path: /var/lib/telemetry/loki
+        state: directory
+        owner: aether
+        group: aether
+        mode: "0777"
+      become: true
+      tags: [loki]
+
+    - name: Check for legacy Loki data on the root disk
+      ansible.builtin.stat:
+        path: /home/aether/loki/data
+      register: legacy_loki_data
+      tags: [loki]
+
+    - name: Seed Loki data on the telemetry disk
+      ansible.builtin.command:
+        argv:
+          - rsync
+          - -aHAX
+          - --numeric-ids
+          - /home/aether/loki/data/
+          - /var/lib/telemetry/loki/
+      become: true
+      when: legacy_loki_data.stat.exists
+      tags: [loki]
+
+    - name: Check whether the Loki quadlet exists
+      ansible.builtin.stat:
+        path: /home/aether/.config/containers/systemd/loki.container
+      register: loki_quadlet
+      tags: [loki]
+
+    - name: Stop Loki for the final data sync
+      ansible.builtin.systemd:
+        name: loki
+        state: stopped
+        scope: user
+      when:
+        - legacy_loki_data.stat.exists
+        - loki_quadlet.stat.exists
+      tags: [loki]
+
+    - name: Finalize Loki data on the telemetry disk
+      ansible.builtin.command:
+        argv:
+          - rsync
+          - -aHAX
+          - --delete
+          - --numeric-ids
+          - /home/aether/loki/data/
+          - /var/lib/telemetry/loki/
+      become: true
+      when: legacy_loki_data.stat.exists
+      tags: [loki]
+
     # === Directory Setup ===
     - name: Create prometheus directories
       become: true
@@ -66,10 +212,10 @@
         - ./prometheus/rules
       tags: [prometheus]
 
-    - name: Create loki directory
+    - name: Create Loki configuration directory
       become: true
-      file:
-        path: ./loki/data
+      ansible.builtin.file:
+        path: ./loki
         state: directory
         mode: "0777"
         owner: aether
@@ -146,6 +292,17 @@
         group: aether
       tags: [blackbox]
 
+
+    - name: Create GreptimeDB configuration directory
+      become: true
+      ansible.builtin.file:
+        path: ./greptime
+        state: directory
+        mode: "0700"
+        owner: aether
+        group: aether
+      tags: [greptime]
+
     - name: Create clickhouse directories
       become: true
       file:
@@ -162,12 +319,51 @@
       tags: [clickhouse]
 
     # === Configuration Files ===
+    - name: Load generated GreptimeDB client credentials
+      ansible.builtin.set_fact:
+        greptime_credentials: "{{ lookup('ansible.builtin.file', greptime_credentials_path) | from_yaml }}"
+      no_log: true
+      tags:
+        [greptime, greptime-config, prometheus, prometheus-config, otel, grafana, grafana-datasources, grafana-quadlet]
+
+    - name: Install GreptimeDB object-store configuration
+      ansible.builtin.copy:
+        src: "{{ greptime_config_path }}"
+        dest: ./greptime/config.toml
+        owner: aether
+        group: aether
+        mode: "0600"
+      no_log: true
+      register: greptime_config_install
+      tags: [greptime, greptime-config]
+
+    - name: Install GreptimeDB users
+      ansible.builtin.copy:
+        src: "{{ greptime_users_path }}"
+        dest: ./greptime/users
+        owner: aether
+        group: aether
+        mode: "0600"
+      no_log: true
+      tags: [greptime]
+
+    - name: Remove retired Thanos quadlet definitions
+      ansible.builtin.file:
+        path: "/home/aether/.config/containers/systemd/{{ item }}.container"
+        state: absent
+      loop:
+        - thanos-sidecar
+        - thanos-store
+        - thanos-compact
+        - thanos-query
+      tags: [greptime]
+
     - name: Template prometheus config
       template:
         src: ./prometheus.yml.j2
         dest: ./prometheus/prometheus.yml
-        mode: "0755"
-      tags: [prometheus]
+        mode: "0644"
+      tags: [prometheus, prometheus-config]
 
     - name: Copy prometheus rules
       copy:
@@ -201,7 +397,7 @@
       template:
         src: ./otel_config.yml.j2
         dest: ./otel/otel_config.yml
-        mode: "0755"
+        mode: "0644"
       tags: [otel]
 
     - name: Create Janus config
@@ -234,7 +430,8 @@
         src: ./grafana/provisioning/datasources/datasource.yml.j2
         dest: ./grafana/provisioning/datasources/datasource.yml
         mode: "0644"
-      tags: [grafana, clickhouse-grafana-reader]
+      register: grafana_datasources_install
+      tags: [grafana, grafana-datasources, clickhouse-grafana-reader]
 
     - name: Copy grafana dashboards provisioning
       copy:
@@ -385,6 +582,7 @@
           - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"
           - "{{ vm.monitoring_stack.ports.otel_prometheus }}:8889"
           - "{{ vm.monitoring_stack.ports.clickhouse }}:8123" # ClickHouse HTTP/Play UI
+          - "127.0.0.1:{{ vm.monitoring_stack.ports.greptime }}:4000" # GreptimeDB archive HTTP/PromQL
           - "9221:9221" # PVE Exporter
           - "10019:10019" # PBS Exporter
           - "{{ vm.monitoring_stack.ports.blackbox }}:9115" # blackbox-exporter (cert expiry probes)
@@ -407,6 +605,7 @@
           pve-exporter,
           pbs-exporter,
           blackbox,
+          greptime,
           monitoring-pod,
         ]
 
@@ -455,6 +654,7 @@
           # box has 7GB+ free so it's a good RAM-for-CPU trade on this power-optimized stack.
           GOGC: "200"
           GOMEMLIMIT: "5GiB" # soft cap: runtime tightens GC (not OOM) if heap spikes on WAL-replay/compaction/heavy query
+        stop_timeout: 120
         state: quadlet
         quadlet_options:
           - |
@@ -462,7 +662,8 @@
             Restart=on-failure
             RestartSec=30s
             TimeoutStartSec=300s
-      tags: [prometheus]
+            TimeoutStopSec=120s
+      tags: [prometheus, prometheus-quadlet]
 
     - name: Start blackbox-exporter
       containers.podman.podman_container:
@@ -495,7 +696,7 @@
           - "-config.file=/etc/loki/config.yml"
         volumes:
           - /home/aether/loki/loki_config.yml:/etc/loki/config.yml:Z
-          - /home/aether/loki/data:/var/lib/loki:Z
+          - /var/lib/telemetry/loki:/var/lib/loki:Z
         state: quadlet
         # WAL replay under mass-restart contention needs headroom past the default.
         quadlet_options:
@@ -547,6 +748,33 @@
             TimeoutStartSec=300s
       tags: [otel]
 
+
+    - name: Start GreptimeDB telemetry archive
+      containers.podman.podman_container:
+        name: greptime
+        pod: monitoring-stack.pod
+        image: "{{ greptime_image }}"
+        pull: missing
+        command:
+          - standalone
+          - start
+          - -c
+          - /etc/greptime/config.toml
+        volumes:
+          - /home/aether/greptime/config.toml:/etc/greptime/config.toml:ro,Z
+          - /home/aether/greptime/users:/etc/greptime/users:ro,Z
+          - /var/lib/telemetry/greptime:/var/lib/greptimedb:Z
+        memory: 4g
+        cpus: 2
+        state: quadlet
+        quadlet_options:
+          - |
+            [Service]
+            Restart=on-failure
+            RestartSec=30s
+            TimeoutStartSec=300s
+      tags: [greptime]
+
     - name: Start grafana
       containers.podman.podman_container:
         name: grafana
@@ -559,7 +787,7 @@
           - /home/aether/grafana/provisioning:/etc/grafana/provisioning:Z
           - grafana_storage.volume:/var/lib/grafana:Z
         env:
-          GF_INSTALL_PLUGINS: grafana-clickhouse-datasource,yesoreyeram-infinity-datasource,marcusolsson-calendar-panel,marcusolsson-dynamictext-panel,volkovlabs-image-panel,volkovlabs-form-panel,grafana-clock-panel,lework-lenav-panel
+          GF_INSTALL_PLUGINS: "grafana-clickhouse-datasource,yesoreyeram-infinity-datasource,marcusolsson-calendar-panel,marcusolsson-dynamictext-panel,volkovlabs-image-panel,volkovlabs-form-panel,grafana-clock-panel,lework-lenav-panel"
           GF_SECURITY_ADMIN_USER: admin
           GF_SECURITY_ADMIN_PASSWORD: "{{ secrets.grafana_password }}"
         quadlet_options:
@@ -568,7 +796,8 @@
             Restart=on-failure
             RestartSec=30s
             TimeoutStartSec=300s
-      tags: [grafana]
+      register: grafana_quadlet_definition
+      tags: [grafana, grafana-quadlet]
 
     # Grafana file provisioning does not reconcile an omitted receiver from an
     # existing contact point. Keep the DeadMansSwitch heartbeat Kuma-only.
@@ -598,6 +827,7 @@
         env:
           SPRING_PROFILES_ACTIVE: all
           LOKI_URL: http://localhost:3100
+          # Janus retains the legacy variable name; the endpoint is local Prometheus.
           THANOS_URL: http://localhost:9090
           TEMPO_URL: http://localhost:3200
           MANAGEMENT_SERVER_PORT: "18080"
@@ -685,18 +915,41 @@
       tags:
         [
           prometheus,
+          prometheus-quadlet,
           loki,
           tempo,
           otel,
           janus,
           grafana,
+          grafana-datasources,
+          grafana-quadlet,
           clickhouse,
           pve-exporter,
           pbs-exporter,
           tenant-proxy,
           systemd,
+          greptime,
         ]
 
+    - name: Restart GreptimeDB after focused configuration updates
+      ansible.builtin.systemd:
+        name: greptime
+        state: restarted
+        scope: user
+      when:
+        - greptime_config_install is defined
+        - greptime_config_install.changed
+      tags: [greptime-config]
+
+    - name: Restart Grafana after focused datasource or quadlet updates
+      ansible.builtin.systemd:
+        name: grafana
+        state: restarted
+        scope: user
+      when: >-
+        (grafana_datasources_install is defined and grafana_datasources_install.changed)
+        or (grafana_quadlet_definition is defined and grafana_quadlet_definition.changed)
+      tags: [grafana-datasources, grafana-quadlet]
     - name: Start monitoring stack quadlet
       systemd:
         name: monitoring-stack-pod
@@ -715,7 +968,84 @@
           pbs-exporter,
           tenant-proxy,
           monitoring-pod,
+          greptime,
         ]
+
+
+    - name: Discover monitoring component quadlets
+      ansible.builtin.stat:
+        path: "/home/aether/.config/containers/systemd/{{ item.file }}.container"
+      loop:
+        - { file: prometheus, unit: prometheus }
+        - { file: blackbox-exporter, unit: blackbox-exporter }
+        - { file: loki, unit: loki }
+        - { file: tempo, unit: tempo }
+        - { file: otel_collector, unit: otel_collector }
+        - { file: greptime, unit: greptime }
+        - { file: grafana, unit: grafana }
+        - { file: janus, unit: janus }
+        - { file: pve_exporter, unit: pve_exporter }
+        - { file: pbs_exporter, unit: pbs_exporter }
+        - { file: clickhouse, unit: clickhouse }
+      register: monitoring_component_quadlets
+      tags:
+        [prometheus, blackbox, loki, tempo, otel, greptime, grafana, janus, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
+
+    - name: Ensure existing monitoring component quadlets are running
+      ansible.builtin.systemd:
+        name: "{{ item.item.unit }}"
+        state: started
+        scope: user
+      loop: "{{ monitoring_component_quadlets.results }}"
+      when: item.stat.exists
+      tags:
+        [prometheus, blackbox, loki, tempo, otel, greptime, grafana, janus, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
+
+    - name: Wait for Loki after telemetry disk migration
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.loki }}/ready"
+        method: GET
+        status_code: 200
+      register: loki_health
+      until: loki_health.status == 200
+      retries: 60
+      delay: 5
+      tags: [loki]
+
+    - name: Remove migrated Loki data from the root disk
+      ansible.builtin.file:
+        path: /home/aether/loki/data
+        state: absent
+      become: true
+      when: legacy_loki_data.stat.exists
+      tags: [loki]
+
+    - name: Wait for GreptimeDB archive
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.greptime }}/health"
+        method: GET
+        status_code: 200
+      register: greptime_health
+      until: greptime_health.status == 200
+      retries: 60
+      delay: 5
+      tags: [greptime]
+
+    - name: Verify GreptimeDB PromQL endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.greptime }}/v1/prometheus/api/v1/query?query=vector%281%29"
+        method: GET
+        url_username: "{{ greptime_credentials.grafana_user }}"
+        url_password: "{{ greptime_credentials.grafana_password }}"
+        force_basic_auth: true
+        headers:
+          x-greptime-db-name: "{{ greptime_credentials.database }}"
+        return_content: true
+        status_code: 200
+      register: greptime_query_smoke
+      failed_when: greptime_query_smoke.status != 200 or greptime_query_smoke.json.status != "success"
+      no_log: true
+      tags: [greptime]
 
     - name: Wait for ClickHouse to be ready
       uri:
