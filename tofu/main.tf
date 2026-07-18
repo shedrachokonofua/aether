@@ -15,6 +15,11 @@ terraform {
       version = "~> 5.4"
     }
 
+    keycloak = {
+      source  = "keycloak/keycloak"
+      version = ">= 5.5.0"
+    }
+
     tailscale = {
       source  = "tailscale/tailscale"
       version = "~> 0.20"
@@ -37,7 +42,7 @@ module "aws" {
   aws_region               = var.aws_region
   aws_notification_email   = local.aws.notification_email
   keycloak_shdrch_sub      = module.home.keycloak_shdrch_user_id
-  keycloak_cloud_audit_sub = module.home.cloud_audit_fallback_sub
+  keycloak_cloud_audit_sub = module.home.cloud_audit_sub
 }
 
 module "google" {
@@ -45,7 +50,7 @@ module "google" {
   source                   = "./google"
   project_id               = local.google.project_id
   keycloak_shdrch_email    = local.home.keycloak.shdrch_email
-  keycloak_cloud_audit_sub = module.home.cloud_audit_fallback_sub
+  keycloak_cloud_audit_sub = module.home.cloud_audit_sub
   billing_account_id       = local.google.billing_account_id
 }
 
@@ -70,7 +75,7 @@ module "oci" {
   source                   = "./oci"
   tenancy_ocid             = local.oci.tenancy_ocid
   keycloak_shdrch_sub      = module.home.keycloak_shdrch_user_id
-  keycloak_cloud_audit_sub = module.home.cloud_audit_fallback_sub
+  keycloak_cloud_audit_sub = module.home.cloud_audit_sub
   notification_email       = local.aws.notification_email
 }
 
@@ -98,6 +103,13 @@ module "home" {
   keycloak_shdrch_initial_password = local.home.keycloak.shdrch_initial_password
   litellm_google_maps_api_key      = local.litellm_google_maps_api_key
   litellm_google_maps_enabled      = local.litellm_google_maps_enabled
+}
+
+# Bring the kubernetes-typed IdP (created during the cloud-audit acceptance
+# investigation) under tofu management — see home/keycloak_cloud_audit.tf.
+import {
+  to = module.home.keycloak_oidc_identity_provider.talos_k8s
+  id = "aether/talos-k8s-fed"
 }
 
 provider "tailscale" {

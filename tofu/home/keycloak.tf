@@ -101,6 +101,11 @@ resource "keycloak_realm" "aether" {
   refresh_token_max_reuse  = 0
   password_policy          = "length(12) and notUsername"
 
+  # Client authentication flow with the federated-jwt execution added
+  # (keycloak_cloud_audit.tf) — the built-in `clients` flow predates the
+  # feature and cannot be extended in place.
+  client_authentication_flow = keycloak_authentication_flow.clients_federated.alias
+
   web_authn_passwordless_policy {
     relying_party_entity_name         = "keycloak"
     require_resident_key              = "Yes"
