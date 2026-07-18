@@ -15,7 +15,7 @@ fabric → site → host → service
 | --- | --- | --- |
 | `fabric` | One routed connectivity domain | `aether` |
 | `site` | One administrative or physical location in the fabric | `home`, `aws`, `gcp`, `oci` |
-| `host` | One machine within a site | `router`, `public-gateway`, `uptime-monitor` |
+| `host` | One machine within a site | `router`, `link`, `vigilant`, `rama` |
 | `service` | One workload running on a host | `node-exporter`, `wireguard-exporter`, `crowdsec` |
 
 Identifiers use lowercase kebab case and match
@@ -31,7 +31,7 @@ adjacency happens to be hub-and-spoke:
 ```text
                        home/router
                            │
-gcp/uptime-monitor ─── aws/public-gateway ─── oci/oci-adguard
+gcp/vigilant ─── aws/link ─── oci/rama
                        (topology_role=hub)
 ```
 
@@ -44,9 +44,9 @@ peer identifiers. A future routing change must not rename a site or host.
 | Fabric | Site | Host | Topology role | Direct WireGuard peer sites |
 | --- | --- | --- | --- | --- |
 | `aether` | `home` | `router` | `spoke` | `aws` |
-| `aether` | `aws` | `public-gateway` | `hub` | `home`, `gcp`, `oci` |
-| `aether` | `gcp` | `uptime-monitor` | `spoke` | `aws` |
-| `aether` | `oci` | `oci-adguard` | `spoke` | `aws` |
+| `aether` | `aws` | `link` | `hub` | `home`, `gcp`, `oci` |
+| `aether` | `gcp` | `vigilant` | `spoke` | `aws` |
+| `aether` | `oci` | `rama` | `spoke` | `aws` |
 
 WireGuard peer declarations use the remote `site` and `host` fields. Runtime
 peer metrics retain the public key as the immutable protocol identity and add
@@ -99,8 +99,8 @@ Do not use these as identities:
 ## Authoritative declarations
 
 - Site and peer identity: the `aether_identity` and `site_wireguard_peers`
-  declarations in the home-router, public-gateway, and uptime-monitor
-  playbooks.
+  declarations in the home-router, public-gateway, uptime-monitor, and
+  oci-dns playbooks.
 - Site-fabric behavior: `ansible/roles/site_wireguard/`.
 - Attached metric services: `ansible/roles/site_metrics_exporters/`.
 - Prometheus labels and jobs:
