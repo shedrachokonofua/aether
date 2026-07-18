@@ -33,18 +33,20 @@ terraform {
 }
 
 module "aws" {
-  source                 = "./aws"
-  aws_region             = var.aws_region
-  aws_notification_email = local.aws.notification_email
-  keycloak_shdrch_sub    = module.home.keycloak_shdrch_user_id
+  source                   = "./aws"
+  aws_region               = var.aws_region
+  aws_notification_email   = local.aws.notification_email
+  keycloak_shdrch_sub      = module.home.keycloak_shdrch_user_id
+  keycloak_cloud_audit_sub = module.home.cloud_audit_fallback_sub
 }
 
 module "google" {
-  count                 = local.google.project_id != "" ? 1 : 0
-  source                = "./google"
-  project_id            = local.google.project_id
-  keycloak_shdrch_email = local.home.keycloak.shdrch_email
-  billing_account_id    = local.google.billing_account_id
+  count                    = local.google.project_id != "" ? 1 : 0
+  source                   = "./google"
+  project_id               = local.google.project_id
+  keycloak_shdrch_email    = local.home.keycloak.shdrch_email
+  keycloak_cloud_audit_sub = module.home.cloud_audit_fallback_sub
+  billing_account_id       = local.google.billing_account_id
 }
 
 provider "google" {
@@ -64,11 +66,12 @@ provider "oci" {
 # Gated on secrets["oci.tenancy_ocid"]: inert until the tenancy OCID is added to
 # SOPS, exactly like module.google gates on project_id.
 module "oci" {
-  count               = local.oci.tenancy_ocid != "" ? 1 : 0
-  source              = "./oci"
-  tenancy_ocid        = local.oci.tenancy_ocid
-  keycloak_shdrch_sub = module.home.keycloak_shdrch_user_id
-  notification_email  = local.aws.notification_email
+  count                    = local.oci.tenancy_ocid != "" ? 1 : 0
+  source                   = "./oci"
+  tenancy_ocid             = local.oci.tenancy_ocid
+  keycloak_shdrch_sub      = module.home.keycloak_shdrch_user_id
+  keycloak_cloud_audit_sub = module.home.cloud_audit_fallback_sub
+  notification_email       = local.aws.notification_email
 }
 
 provider "cloudflare" {

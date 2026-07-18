@@ -21,24 +21,29 @@
 # after the first live exchange (first-broker-login creates the mapped user);
 # see outputs and PLAN.md's fallback note.
 
-# PUBLIC client: the pod presents only its SA token — no client secret on the
-# primary path. (seven30_cli precedent: public client + exchange scope
-# permission.)
+# CONFIDENTIAL + service account: required for the client_credentials grant
+# that carries the k8s-SA client assertion (the grant mints the service
+# account's token). NO client secret is used — the authenticator is the
+# pod's SA token (kubernetes-service-accounts feature), so nothing static
+# exists on this path. (PLAN.md §1 fallback, client secret via ESO/Bao,
+# stays unshipped.)
 resource "keycloak_openid_client" "cloud_audit" {
   realm_id  = keycloak_realm.aether.id
   client_id = "cloud-audit"
   name      = "Cloud Audit (vigil)"
   enabled   = true
 
-  access_type                  = "PUBLIC"
+  access_type              = "CONFIDENTIAL"
+  service_accounts_enabled = true
+
   standard_flow_enabled        = false
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
   consent_required             = false
 
-  # Fallback path (PLAN.md §1): if external-subject exchange proves unusable,
-  # flip to CONFIDENTIAL + service_accounts_enabled and deliver the secret via
-  # ESO/Bao. Record which shipped in PLAN.md.
+  # The k8s-SA authenticator selection (replacing client-secret) is not
+  # exposed by the tofu provider as of keycloak/keycloak 5.8.0 — see the
+  # acceptance notes in PLAN.md for how it was pinned.
 }
 
 # Tokens minted for this client carry aud=cloud-audit — these can never
@@ -77,6 +82,12 @@ resource "keycloak_oidc_identity_provider" "talos_aether_k8s" {
   validate_signature = true
   sync_mode          = "FORCE"
   store_token        = false
+
+  # Validate external tokens against the IdP JWKS, NOT via a userinfo call —
+  # the k8s issuer has no userinfo endpoint (verified in the KC log:
+  # validation_method="user info" → "user info call failure"). This maps to
+  # the IdP's disableUserInfo config, forcing signature validation.
+  disable_user_info = true
 
   # Required by the provider schema but inert here: the k8s issuer has no
   # token endpoint for Keycloak to call (the IdP validates external tokens
