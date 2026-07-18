@@ -100,15 +100,14 @@
     - role: technitium_dns
       vars:
         technitium_wg_ip: 10.3.0.10
-        # rama has 12GB (vs the retired micro's 1GB), so it runs the FULL
-        # config as a standalone node - all forwarders/blocklists/zones from
-        # config/technitium-settings.json. NOT a cluster secondary: syncing a
-        # self-signed-cert control plane across the WAN fabric is fragile (a
-        # restart race split-brained the first attempt), and git+apply already
-        # reconciles every node from one source. The home pair (ns1/ns2)
-        # clusters on-subnet; the offsite node carries the same file directly.
-        technitium_cluster_enabled: false
-        technitium_full_blocklist: true
+        # rama (12GB A1) is the third cluster member (ns3), joining the primary
+        # ns2 over the fabric. Blocklists/forwarders/zones sync FROM ns2, so no
+        # local blocklist config. The 2026-07-17 join failure was a handler
+        # restart racing the cluster.config flush - fixed by flushing handlers
+        # BEFORE the reconcile and having the apply script wait for the join to
+        # persist. Cross-fabric sync itself works (ns1 proves it on-subnet;
+        # the self-signed cert is exchanged at join, not re-validated hostilely).
+        technitium_cluster_enabled: true
         technitium_memory_limit: "2g"
         technitium_memory_swap_limit: "3g"
       tags: [technitium]
