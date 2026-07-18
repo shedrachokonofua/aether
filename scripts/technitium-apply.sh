@@ -132,6 +132,24 @@ if [ "$CLUSTER_MODE" = "secondary" ]; then
     --data-urlencode "primaryNodePassword=$PRIMARY_PASS" \
     --data-urlencode "ignoreCertificateErrors=true")
   check "$RESP" "cluster/initJoin" "already"
+  # After join, this node's admin identity syncs FROM the primary: its old
+  # token dies and its admin password becomes the primary's. Seed that now so
+  # future runs authenticate, and drop the stale token.
+  printf '%s' "$PRIMARY_PASS" > "$SECRETS_DIR/admin.pass"
+  chmod 600 "$SECRETS_DIR/admin.pass"
+  rm -f "$SECRETS_DIR/api.token"
+  # Wait for the join to persist (cluster.config flush + admin sync) BEFORE
+  # returning, so the play's end-of-run container restart can't clobber an
+  # in-flight join (the 2026-07-17 split-brain: restart raced the flush).
+  for i in $(seq 1 30); do
+    sleep 3
+    ptok=$(login "$PRIMARY_PASS") || true
+    if [ -n "$ptok" ] && api "/api/settings/get?token=$ptok" | jq -e '.status == "ok"' >/dev/null 2>&1; then
+      echo "  + join persisted (admin config synced from primary)"
+      break
+    fi
+    [ "$i" = 30 ] && { echo "join did not converge within 90s" >&2; exit 1; }
+  done
   touch "$SECRETS_DIR/cluster.joined"
   echo "  + cluster joined (secondary); config now syncs from primary"
   echo "technitium-apply: done"

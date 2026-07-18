@@ -116,6 +116,13 @@
     mode: "0640"
   become: true
 
+# Run any pending container restart NOW, before the reconcile/cluster-join.
+# A restart AFTER a cluster join clobbers the in-flight cluster.config flush
+# (2026-07-17 split-brain); the join must be the last thing that touches the
+# service, and the apply script also waits for the join to persist.
+- name: Flush handlers before reconcile
+  ansible.builtin.meta: flush_handlers
+
 - name: Wait for the Technitium API
   ansible.builtin.wait_for:
     host: 127.0.0.1
