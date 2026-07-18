@@ -4,13 +4,13 @@
 # uptime_monitor_stack/site.yml; the extra role is technitium_dns (Technitium
 # in a podman quadlet, config from the shared config/technitium-settings.json).
 - name: Configure OCI DNS stack
-  hosts: oci-adguard
+  hosts: rama
   gather_facts: true
   vars:
     aether_identity:
       fabric: aether
       site: oci
-      host: oci-adguard
+      host: rama
     site_wireguard_addresses:
       - 10.3.0.10/32
       - 10.254.0.4/32
@@ -100,4 +100,15 @@
     - role: technitium_dns
       vars:
         technitium_wg_ip: 10.3.0.10
+        # rama has 12GB (vs the retired micro's 1GB), so it runs the FULL
+        # config as a standalone node - all forwarders/blocklists/zones from
+        # config/technitium-settings.json. NOT a cluster secondary: syncing a
+        # self-signed-cert control plane across the WAN fabric is fragile (a
+        # restart race split-brained the first attempt), and git+apply already
+        # reconciles every node from one source. The home pair (ns1/ns2)
+        # clusters on-subnet; the offsite node carries the same file directly.
+        technitium_cluster_enabled: false
+        technitium_full_blocklist: true
+        technitium_memory_limit: "2g"
+        technitium_memory_swap_limit: "3g"
       tags: [technitium]
