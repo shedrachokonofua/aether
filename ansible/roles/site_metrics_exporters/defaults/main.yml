@@ -1,6 +1,13 @@
 ---
 node_exporter_version: "1.12.0"
-node_exporter_archive_sha256: "b206d98e98a431f2687d4c217abb4b15c46a6b272896113ce9a1585cf1a75d1f"
+# GitHub-release Go arch suffix, derived from the host: amd64 for the x86 cloud
+# hubs + Proxmox VMs, arm64 for the OCI A1 (aarch64). Was hardcoded amd64, which
+# shipped an exec-format-error (203/EXEC) binary to the offsite ARM node when it
+# replaced the retired x86 micro (2026-07-18).
+node_exporter_go_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64', 'amd64': 'amd64'}[ansible_architecture] | default('amd64') }}"
+node_exporter_archive_sha256:
+  amd64: "b206d98e98a431f2687d4c217abb4b15c46a6b272896113ce9a1585cf1a75d1f"
+  arm64: "4ea211ce95224acb7f7c932693cb25f91f7fbe202c86bf6dc943c8569b3f6bac"
 node_exporter_listen_address: "127.0.0.1"
 node_exporter_port: 9100
 

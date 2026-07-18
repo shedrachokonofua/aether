@@ -21,7 +21,7 @@
         url: "http://10.2.0.10:19531"
         no_tls: true
         labels: { instance_type: vps }
-      - name: oci-adguard
+      - name: rama
         url: "http://10.3.0.10:19531"
         no_tls: true
         labels: { instance_type: vps }

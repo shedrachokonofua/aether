@@ -1,0 +1,28 @@
+# Managed by Ansible (technitium_dns role). Do not edit by hand.
+#
+# Ships the Technitium Log Exporter NDJSON (per-client query attribution) into
+# the systemd journal so the estate's PULL-based telemetry carries it: this box
+# is agent-free (no OTel collector), so journal-gatewayd exposes the journal and
+# the monitoring-stack's otel_journal_forwarder pulls it into Loki. The home
+# NixOS resolvers tail the same file via their local collector instead; this is
+# the equivalent for an agent-free node. Entries are tagged so they are
+# filterable out of the general journal (SyslogIdentifier below); at this node's
+# query volume journald rate limits are never approached.
+[Unit]
+Description=Technitium query log -> journal (pull-based Loki via journal-gatewayd)
+After=technitium-dns.service
+Wants=technitium-dns.service
+
+[Service]
+Type=simple
+# Wait for the Log Exporter to create the file, then follow it by name (-F
+# survives rotation); -n0 starts at EOF so a restart never replays the file.
+ExecStartPre=/bin/sh -c 'until [ -f {{ technitium_querylog_path }} ]; do sleep 2; done'
+ExecStart=/usr/bin/tail -n0 -F {{ technitium_querylog_path }}
+# stdout -> journal (systemd default); this identifier is the Loki filter key.
+SyslogIdentifier={{ technitium_querylog_syslog_identifier }}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
