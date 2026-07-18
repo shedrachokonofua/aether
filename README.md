@@ -35,7 +35,7 @@ Details in [Hosts](docs/hosts.md); VM placement in
 | Network and edge | VyOS, VLANs, Tailscale, AdGuard, Caddy home gateway, Cloudflare, AWS Lightsail, CrowdSec |
 | Storage and backup | ZFS, Ceph (RBD, CephFS, RGW), NFS, SMB, Proxmox Backup Server, Restic, Backrest, versioned S3, Glacier Deep Archive |
 | Identity and secrets | Keycloak SSO, step-ca, mTLS, SSH certificates, OpenBao, SOPS, AWS KMS, offline Age recovery key |
-| Observability | Grafana, Prometheus, Loki, Tempo, ClickHouse, Zeek, Suricata, Fleet, OpenTelemetry |
+| Observability | Grafana, Prometheus, GreptimeDB, Loki, Tempo, ClickHouse, Zeek, Suricata, Fleet, OpenTelemetry |
 | Runtime security | Suricata, Zeek, CrowdSec, Tetragon, Trivy Operator, Policy Reporter, Kyverno, Kepler |
 | AI and GPU | llama-swap, LiteLLM, OpenWebUI, ComfyUI, Docling, Speaches, Jupyter |
 | Applications | GitLab, Matrix, Home Assistant, Z-Wave, Matter, Jellyfin, Sunshine, Nextcloud, Immich |

@@ -1,15 +1,15 @@
-# Telemetry Archive: ClickHouse Cold Tier on SeaweedFS
+# Telemetry Archive: GreptimeDB Deployment and Superseded ClickHouse Plan
 
-Plan for tiering ClickHouse cold data to SeaweedFS S3, completing the storage taxonomy:
-**Ceph = hot application tier; SeaweedFS = backup/cold tier; telemetry archive is a
-cold-tier load.** Phase 0 (metrics → ClickHouse `metrics` db, 365d TTL, local disk) went live 2026-07-11
-went through two same-day incidents, was redesigned, and is **LIVE (third attempt,
-soak-passed)**. Final shape: pinned collector (0.156.0), repo-owned schema
-(`clickhouse/metrics-schema.sql`, `create_schema: false`), dedicated `metrics/archive`
-pipeline with `batch/archive` (50k/30s), bounded queue (10 × ~50k pts), memory guards
-from incident 1. Benchmark on live CH 26.6.1.1193: 50k-row blocks at 180–310k rows/s
-(~38× headroom). Soak results: enqueue_failed 0, queue 0/10, RSS 2.1–2.3 GiB, CPU delta
-~+3% VM, zero drops at 965k rows/4min in parts averaging 214k rows. Incident history:
+This document records the deployed GreptimeDB archive and preserves the rejected
+ClickHouse generic-metrics cold-tier experiment below. On 2026-07-18, GreptimeDB
+replaced Thanos as the long-term metrics path and added a second sink for Loki-bound
+logs. ClickHouse remains authoritative for network/IDS and VyOS data. See
+[monitoring.md](../monitoring.md) for the current architecture.
+
+The former ClickHouse archive went live on 2026-07-11 and went through two same-day
+incidents before a third, soak-tested configuration. Its final experimental shape used
+the pinned collector, repo-owned schema, a dedicated large-batch pipeline, and bounded
+queues. Incident history:
 
 1. **Memory**: collector heap blew past the 2 GiB `memory_limiter` (the exporterhelper
    *default* sending_queue — 1000 batches — was silently enabled and ballooned) → the
@@ -20,7 +20,7 @@ from incident 1. Benchmark on live CH 26.6.1.1193: 50k-row blocks at 180–310k 
    stream), 2 consumers in continuous insert churn = sustained CPU creep on the 4-core
    VM, for an archive that was incomplete anyway. Detached again.
 
-**Re-enable design (replaces naive fan-out)** — the insert pattern is the root problem
+**Historical re-enable design (not deployed)** — the insert pattern was the root problem
 (each 2048-point batch fans into 5 tiny per-type inserts; ClickHouse wants few, large
 inserts):
 
@@ -32,29 +32,32 @@ inserts):
 - Success criteria: enqueue_failed rate = 0, queue depth < 20% steady, VM CPU delta < 5%,
   collector RSS < 3.2 GiB
 
-Lesson encoded: the archive is best-effort by construction; any future archive exporter
-(phase 2 logs) inherits this pipeline shape, not the naive fan-out.
+Lesson encoded: archive fan-out must have its own bounded queue and must not become the
+availability dependency for the live query path.
 
-## Current state (verified live; retention corrected per review)
+## Current state (verified live 2026-07-18)
 
-- Monitoring VM disk: 255G, 179G used, 74G free (71%).
-- ClickHouse retention is **per-table**: zeek/suricata raw tables 14–90d, selected hourly
-  aggregates 90–365d (authoritative: the ClickHouse init SQL); `metrics` db 365d
-  (daily partitions, `ttl_only_drop_parts=1`). Early metrics ingest suggests 1–4 GB/day
-  pre-compaction — **measure the post-merge steady rate after one week before sizing**.
-- Capacity math correction: the 179G is *not* mostly long-retention data. The tiering
-  payoff is (a) the growing 365d metrics archive, (b) any tables whose retention is
-  *deliberately extended* once cold storage is cheap, (c) phase-2 logs. **Phase-1
-  precondition: inventory every table's TTL (`system.tables.engine_full`) and decide
-  per table whether it tiers, stays local, or gets its retention extended.**
-- SeaweedFS: NixOS LXC on smith, ZFS `hdd/seaweedfs` on a 2×mirror-vdev pool (monthly
-  scrubs, 0 errors, 15T free). Network path monitoring-stack→SeaweedFS is intra-VLAN-2
-  L2 (`10.0.2.3 → 10.0.2.11:8333`) — no VyOS rule involved; SeaweedFS's Nix firewall
-  opens the S3 port. Probe directly during rollout.
-- Offsite precedent: per-bucket SeaweedFS→backup-stack→restic→Glacier sync exists
-  (`aether-db-dumps`).
+- Prometheus retains 30 days locally for live PromQL and Grafana-managed alerts. Its
+  remote-write path sends the exact post-scrape series to GreptimeDB.
+- GreptimeDB v1.1.3 stores metrics and Loki-bound logs in the scoped
+  `greptime-telemetry` SeaweedFS bucket. No archive age TTL is configured.
+- Grafana exposes `Greptime Metrics Archive` through the built-in Prometheus datasource
+  and `Greptime Telemetry Archive` through the built-in MySQL datasource for SQL/log
+  exploration. Loki remains the primary LogQL datasource.
+- Rollout checks observed 225 archived `up` series, 83,511 archived log rows in five
+  minutes, fresh Parquet objects in SeaweedFS, and zero failed remote-write samples over
+  five minutes.
+- Loki retains 120 days and its 146 GiB dataset now lives beside GreptimeDB local state
+  on the 1 TiB `local-fast` disk mounted at `/var/lib/telemetry`.
+- Moving Loki reclaimed the root filesystem from 92% used to 33% used. The telemetry
+  disk was 17% used after migration.
+- Thanos Sidecar, Store Gateway, Query, and Compactor are stopped and their quadlet
+  definitions, scrape job, and alerts are removed. The old `thanos-metrics` bucket is
+  retained until historical data destruction is explicitly approved.
+- ClickHouse remains authoritative for network/IDS data and VyOS observations. The OTEL
+  collector does not write a generic metrics archive to ClickHouse.
 
-## Design
+## Historical ClickHouse cold-tier design
 
 ```text
 hot (local NVMe, short)          ClickHouse archive                cold bytes
@@ -175,7 +178,7 @@ but "hot parts only" was wrong. Track B data table updated accordingly.
 | --- | --- |
 | Ceph RGW as cold backend | Ceph is the hot application tier (operator's storage taxonomy) |
 | Grow monitoring VM disk to 512G | Feeds Track B data gravity instead of dissolving it |
-| ClickHouse alternatives (Databend, GreptimeDB, Quickwit) | Forfeits otel exporter path, IDS schemas, Grafana datasource, Argos data model |
+| Replace ClickHouse with Databend, GreptimeDB, or Quickwit | Rejected because it would forfeit IDS schemas and the Argos data model; GreptimeDB is deployed alongside ClickHouse as a dedicated telemetry archive instead |
 | Global default storage-policy flip | Table metadata pins policy; per-table ALTER keeps blast radius controllable |
 | Admin S3 key for v1 | God credential across systems; scoped identity flow already exists |
 | `move_factor`-driven tiering | Space-pressure trigger, not an age policy; TTL TO VOLUME is the explicit mechanism |

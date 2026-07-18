@@ -35,6 +35,12 @@ services may have additional passthrough devices, datasets, or mount points.
 | `estate_scanner` | `estate-scanner` | Neo | LXC | 2 | 4 GiB | 32 GB | Ansible provision (gated), NixOS configure; live at `10.0.2.13` |
 | `blockchain_stack` | `blockchain-stack` | Smith | VM | 8 | 16 GiB | 256 GB | OpenTofu provision, NixOS configure |
 
+`monitoring_stack` also declares a 1,024 GB `local-fast` data disk at
+`virtio1`. The guest mounts it as XFS at `/var/lib/telemetry` for Loki data and
+GreptimeDB local state; Prometheus and ClickHouse remain on the 256 GB root
+disk. See `ansible/playbooks/monitoring_stack/README.md` for the operational
+layout and checks.
+
 ## Talos VMs
 
 Four x86 Talos guests join the four bare-metal ARM workers documented in

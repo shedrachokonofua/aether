@@ -6,12 +6,14 @@
 # Kubernetes AWS credentials.
 
 locals {
-  db_backup_bucket      = "aether-db-dumps"
-  db_backup_s3_endpoint = "https://s3.seaweed.home.shdr.ch"
-  thanos_metrics_bucket  = "thanos-metrics"
+  db_backup_bucket          = "aether-db-dumps"
+  db_backup_s3_endpoint     = "https://s3.seaweed.home.shdr.ch"
+  # Historical Thanos blocks and their scoped read/write identity remain until
+  # destructive archive removal is explicitly approved.
+  thanos_metrics_bucket     = "thanos-metrics"
   greptime_telemetry_bucket = "greptime-telemetry"
-  db_backup_pg_image    = "postgres:18-alpine"
-  db_backup_aws_image   = "amazon/aws-cli:2.22.35"
+  db_backup_pg_image        = "postgres:18-alpine"
+  db_backup_aws_image       = "amazon/aws-cli:2.22.35"
 
   db_backup_postgres_targets = {
     affine = {
@@ -196,6 +198,7 @@ resource "random_password" "db_backup_s3_secret_key" {
   special = false
 }
 
+# Retained only for access to the historical, inactive Thanos archive.
 resource "random_password" "thanos_s3_access_key" {
   length  = 20
   special = false
@@ -333,6 +336,7 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
   })
 }
 
+# Retained only for access to the historical, inactive Thanos archive.
 resource "local_sensitive_file" "thanos_objstore_config" {
   filename        = "${path.module}/../secrets/thanos-objstore.yml"
   file_permission = "0600"
@@ -372,7 +376,8 @@ resource "local_sensitive_file" "greptime_config" {
     runtime_size = 4
 
     [mysql]
-    enable = false
+    enable = true
+    addr = "127.0.0.1:4002"
 
     [postgres]
     enable = false

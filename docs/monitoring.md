@@ -1,78 +1,73 @@
 # Monitoring
 
-OpenTelemetry-native observability stack running on Niobe. All telemetry flows through OTEL Collectors — VMs run local agents that scrape and push, hosts expose exporters scraped by the central collector.
+OpenTelemetry-native observability stack running on Niobe. VM agents push OTLP telemetry; the central collector routes it to the query backends and Prometheus scrapes host and service exporters.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Hosts["Hosts (n)"]
-        Exporter["Host Agent"]
-        subgraph VM["VM"]
-            App1["Service"]
-            App2["Service"]
-            Agent["VM Agent"]
-        end
+    subgraph Hosts["Hosts and VMs"]
+        Agent["OTel agents"]
+        Exporters["Prometheus exporters"]
     end
-
-    Agent -->|push| OTLP
-    Exporter -->|scrape| PromRx
 
     subgraph Niobe["Monitoring Stack"]
-        subgraph Collector["OTEL Collector"]
-            direction LR
-            OTLP["OTLP Receiver"]
-            PromRx["Prometheus Receiver"]
-            Router["Log Router"]
-        end
-
-        subgraph Backends["Backends"]
-            Prometheus[(Prometheus)]
-            Loki[(Loki)]
-            Tempo[(Tempo)]
-            ClickHouse[(ClickHouse)]
-        end
-
+        Collector["OTel Collector"]
+        Prometheus[(Prometheus)]
+        Loki[(Loki)]
+        Tempo[(Tempo)]
+        ClickHouse[(ClickHouse)]
+        Greptime[(GreptimeDB)]
         Grafana[Grafana]
+        TelemetryDisk[("1 TiB telemetry disk")]
     end
 
-    OTLP --> Router
-    Router -->|Zeek logs| ClickHouse
-    Router -->|Suricata logs| ClickHouse
-    Router -->|VyOS observations| ClickHouse
-    Router -->|other logs| Loki
-    OTLP -->|metrics| Prometheus
-    OTLP -->|traces| Tempo
-    PromRx -->|metrics| Prometheus
-    Backends --> Grafana
+    SeaweedFS[(SeaweedFS S3)]
 
-    style Hosts fill:#d4e5f7,stroke:#6a9fd4
-    style VM fill:#e0eefa,stroke:#7ab0e0
-    style Niobe fill:#d4f0e7,stroke:#6ac4a0
-    style Collector fill:#e0f5ef,stroke:#7ad4b0
-    style Backends fill:#e0f5ef,stroke:#7ad4b0
+    Agent -->|OTLP| Collector
+    Exporters -->|scrape| Prometheus
+    Collector -->|metrics exposition| Prometheus
+    Collector -->|Loki-bound logs| Loki
+    Collector -->|archive copy of Loki-bound logs| Greptime
+    Collector -->|traces| Tempo
+    Collector -->|Zeek, Suricata, VyOS| ClickHouse
+    Prometheus -->|remote write| Greptime
+    Greptime -->|Parquet and metadata| SeaweedFS
+    Loki --> TelemetryDisk
+    Greptime -->|WAL and cache| TelemetryDisk
+    Prometheus -->|live PromQL and alerts| Grafana
+    Loki -->|LogQL| Grafana
+    Tempo --> Grafana
+    ClickHouse --> Grafana
+    Greptime -->|archive PromQL and SQL| Grafana
 ```
 
 ## Central Stack
 
-| Component      | Purpose                                              |
-| -------------- | ---------------------------------------------------- |
-| OTEL Collector | Central receiver, scrapes hosts, routes to backends  |
-| Prometheus     | Metrics storage (TSDB)                               |
-| Loki           | Log aggregation and querying                         |
-| Tempo          | Distributed trace storage                            |
-| ClickHouse     | Network/IDS logs and replay-idempotent VyOS observations with SQL analytics |
-| Grafana        | Visualization and alerting                           |
+| Component | Purpose |
+| --- | --- |
+| OTEL Collector | Central receiver and router for metrics, logs, traces, and network observations |
+| Prometheus | Live PromQL, Grafana-managed alert evaluation, and 30-day local metrics TSDB |
+| GreptimeDB | Long-term metrics and Loki-bound log archive in scoped SeaweedFS object storage |
+| Loki | Primary LogQL backend |
+| Tempo | Distributed trace storage |
+| ClickHouse | Network/IDS logs and replay-idempotent VyOS observations with SQL analytics |
+| Grafana | Visualization and alerting across live and archive datasources |
 
 ### Data Retention
 
-| Backend    | Retention | Notes                                       |
-| ---------- | --------- | ------------------------------------------- |
-| Prometheus | 30 days   | `--storage.tsdb.retention.time=30d` — covers 14d soak reviews with prior-context margin |
-| Loki       | 90 days   | Compactor deletes after 2h                  |
-| Tempo      | 7 days    | Block retention in compactor                |
-| ClickHouse | Per table | 14-90d raw; selected hourly aggregates retain 90-365d (see ClickHouse SQL) |
-| ClickHouse (`metrics` db) | 365 days | dedicated `metrics/archive` pipeline (50k batches, bounded queue, best-effort by construction); Prometheus is the 30d hot path. Cold-tier to SeaweedFS planned — exploration/telemetry-archive.md |
+| Backend | Retention | Notes |
+| --- | --- | --- |
+| Prometheus | 30 days raw | Authoritative live PromQL and alert-evaluation source; remote-writes the post-scrape series to GreptimeDB |
+| GreptimeDB | No age TTL configured | Metrics and Loki-bound logs are retained in the scoped `greptime-telemetry` SeaweedFS bucket until an explicit lifecycle policy is added |
+| Loki | 120 days | Primary LogQL path; compactor retention is enabled with a two-hour deletion delay |
+| Tempo | 7 days | Local block retention in the compactor |
+| ClickHouse | Per table | Network/IDS raw tables retain 14-90d; selected hourly aggregates retain 90-365d (see ClickHouse SQL) |
+
+Loki data and GreptimeDB local state live on the 1 TiB `local-fast` disk mounted at
+`/var/lib/telemetry`; the GreptimeDB object store remains the durable archive. Thanos
+query, sidecar, store, and compactor services were retired on 2026-07-18. The old
+`thanos-metrics` bucket is retained until its historical data is explicitly destroyed.
 
 ### Zeek `conn.IngestedAt` (Argos ingestion cursor)
 
