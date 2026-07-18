@@ -413,7 +413,7 @@ resource "helm_release" "assay" {
       explore = {
         enabled  = true
         baseUrl  = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
-        model    = "router/glm-5.2"
+        model    = "aether/qwen3.6-27b"
         maxSteps = 8
         secretRef = {
           name      = kubernetes_secret_v1.assay_llm.metadata[0].name
