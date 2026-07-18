@@ -3,7 +3,7 @@
 
 resource "aws_iam_openid_connect_provider" "keycloak" {
   url            = "https://auth.shdr.ch/realms/aether"
-  client_id_list = ["toolbox", "openbao"]
+  client_id_list = ["toolbox", "openbao", "cloud-audit"]
 
   tags = {
     Name = "aether-oidc"
