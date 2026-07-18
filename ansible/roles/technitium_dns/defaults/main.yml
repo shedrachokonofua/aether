@@ -27,7 +27,7 @@ technitium_wg_ip: 10.3.0.10
 # from one source, so "sync" is a re-apply, not a live control plane.
 technitium_cluster_enabled: false
 # The ns2 primary admin password (sops), used only if the cluster gate is on.
-technitium_primary_admin_password: "{{ secrets.technitium.primary_admin_password | default('') }}"
+technitium_primary_admin_password: "{{ secrets.technitium.cluster_admin_password | default('') }}"
 
 # Run the full shared config (all 21 blocklists from config/technitium-settings.json)
 # instead of the slim override below. Set true on hosts with the RAM for it
