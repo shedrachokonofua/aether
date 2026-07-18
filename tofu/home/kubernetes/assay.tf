@@ -7,8 +7,8 @@
 locals {
   assay_namespace            = module.namespace["assay"].name
   assay_host                 = "assay.home.shdr.ch"
-  assay_chart_version        = "0.2.6"
-  assay_image_tag            = "v0.2.6"
+  assay_chart_version        = "0.2.7"
+  assay_image_tag            = "v0.2.7"
   assay_registry_host        = "registry.gitlab.home.shdr.ch"
   assay_registry_repository  = "${local.assay_registry_host}/so/assay"
   assay_cnpg                 = "assay-cnpg"
@@ -92,6 +92,21 @@ resource "kubernetes_secret_v1" "assay_api_auth" {
     ASSAY_API_TOKEN = random_password.assay_api_token.result
   }
 }
+resource "kubernetes_secret_v1" "assay_llm" {
+  depends_on = [module.namespace["assay"]]
+
+  metadata {
+    name      = "assay-llm"
+    namespace = local.assay_namespace
+    labels    = local.assay_labels
+  }
+
+  type = "Opaque"
+  data = {
+    EXPLORE_LLM_API_KEY = var.secrets["litellm.virtual_keys.assay"]
+  }
+}
+
 
 resource "kubernetes_secret_v1" "assay_cockpit_auth" {
   depends_on = [module.namespace["assay"]]
@@ -330,6 +345,7 @@ resource "helm_release" "assay" {
     kubernetes_persistent_volume_claim_v1.assay_browser_profile,
     kubernetes_secret_v1.assay_api_auth,
     kubernetes_secret_v1.assay_api_env,
+    kubernetes_secret_v1.assay_llm,
     kubernetes_secret_v1.assay_cockpit_auth,
     kubernetes_secret_v1.assay_artifact_store,
     kubernetes_secret_v1.assay_gitlab_registry,
@@ -393,6 +409,16 @@ resource "helm_release" "assay" {
       }
       mnemo = {
         url = "https://mnemo.home.shdr.ch"
+      }
+      explore = {
+        enabled  = true
+        baseUrl  = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
+        model    = "router/glm-5.2"
+        maxSteps = 8
+        secretRef = {
+          name      = kubernetes_secret_v1.assay_llm.metadata[0].name
+          apiKeyKey = "EXPLORE_LLM_API_KEY"
+        }
       }
       grafana = {
         enabled       = true
