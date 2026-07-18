@@ -81,6 +81,32 @@
         daddr: 10.3.0.10
         proto: tcp
         ports: [5380]
+      # Technitium cluster mesh (rama ns3 <-> home ns1/ns2): catalog + member
+      # AXFR/IXFR on :53 and the HTTPS cluster API on :53443, both directions.
+      - saddr: [192.168.2.236/32, 192.168.2.237/32]
+        daddr: 10.3.0.10
+        proto: tcp
+        ports: [53, 53443]
+      - saddr: [192.168.2.236/32, 192.168.2.237/32]
+        daddr: 10.3.0.10
+        proto: udp
+        ports: [53]
+      - saddr: [10.3.0.10/32]
+        daddr: 192.168.2.236
+        proto: tcp
+        ports: [53, 53443]
+      - saddr: [10.3.0.10/32]
+        daddr: 192.168.2.236
+        proto: udp
+        ports: [53]
+      - saddr: [10.3.0.10/32]
+        daddr: 192.168.2.237
+        proto: tcp
+        ports: [53, 53443]
+      - saddr: [10.3.0.10/32]
+        daddr: 192.168.2.237
+        proto: udp
+        ports: [53]
     site_wireguard_peers:
       - site: home
         host: router
@@ -88,6 +114,9 @@
         allowed_ips:
           - 10.0.0.0/16
           - 10.254.0.2/32
+          # Technitium cluster home nodes (ns1/ns2) reachable via VyOS.
+          - 192.168.2.236/32
+          - 192.168.2.237/32
       - site: gcp
         host: vigilant
         public_key: "{{ secrets.wireguard.gcp_public_key }}"
