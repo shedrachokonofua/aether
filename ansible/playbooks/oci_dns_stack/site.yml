@@ -103,14 +103,18 @@
     - role: technitium_dns
       vars:
         technitium_wg_ip: 10.3.0.10
-        # rama (12GB A1) is the third cluster member (ns3), joining the primary
-        # ns2 over the fabric. Blocklists/forwarders/zones sync FROM ns2, so no
-        # local blocklist config. The 2026-07-17 join failure was a handler
-        # restart racing the cluster.config flush - fixed by flushing handlers
-        # BEFORE the reconcile and having the apply script wait for the join to
-        # persist. Cross-fabric sync itself works (ns1 proves it on-subnet;
-        # the self-signed cert is exchanged at join, not re-validated hostilely).
-        technitium_cluster_enabled: true
+        # rama (12GB A1) runs the FULL config STANDALONE (all 21 blocklists +
+        # forwarders + zones from config/technitium-settings.json), NOT as a
+        # cluster member. Technitium v14 mandates DANE TLSA validation between
+        # cluster nodes; the offsite node cannot resolve the home nodes' TLSA
+        # records across the fabric (the cluster zone won't converge because
+        # the sync that carries it is itself DANE-gated - circular), so its
+        # heartbeat/config-pull permanently fail. The home pair (ns1/ns2)
+        # clusters fine on-subnet where DANE resolves. git+apply reconciles
+        # all three from one source, so a config change is a re-apply, not a
+        # live control-plane push.
+        technitium_cluster_enabled: false
+        technitium_full_blocklist: true
         technitium_memory_limit: "2g"
         technitium_memory_swap_limit: "3g"
       tags: [technitium]
