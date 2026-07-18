@@ -103,6 +103,12 @@ module "home" {
   keycloak_shdrch_initial_password = local.home.keycloak.shdrch_initial_password
   litellm_google_maps_api_key      = local.litellm_google_maps_api_key
   litellm_google_maps_enabled      = local.litellm_google_maps_enabled
+
+  # cloud-audit (vigil): provider-generated tokens -> Bao kv/aether/cloud-audit
+  cloud_audit_tailscale_client_id              = tailscale_oauth_client.cloud_audit.id
+  cloud_audit_tailscale_client_secret          = tailscale_oauth_client.cloud_audit.key
+  cloud_audit_cloudflare_api_token             = cloudflare_api_token.cloud_audit.value
+  cloud_audit_oci_token_exchange_client_secret = try(module.oci[0].tokenexchange_client_secret, "")
 }
 
 # Bring the kubernetes-typed IdP (created during the cloud-audit acceptance

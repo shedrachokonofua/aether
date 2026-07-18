@@ -85,3 +85,10 @@ resource "tailscale_oauth_client" "admin_gateway_oauth_client" {
   scopes      = ["auth_keys"]
   tags        = ["tag:admin-gateway"]
 }
+
+# vigil cloud-audit forwarder — read-only tailnet state (devices, ACL, keys).
+# Scopes verified against https://tailscale.com/kb/1623/.
+resource "tailscale_oauth_client" "cloud_audit" {
+  description = "cloud-audit vigil read-only OAuth client"
+  scopes      = ["devices:core:read", "policy_file:read", "auth_keys:read"]
+}
