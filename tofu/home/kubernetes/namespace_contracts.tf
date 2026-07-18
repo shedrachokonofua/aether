@@ -180,6 +180,20 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "cloud-audit" = {
+      # vigil — cloud control-plane audit forwarder (vigil repo PLAN.md §6).
+      # Egress-controlled tier by design; cursor PVC contents are rebuildable.
+      tier                    = "agent",
+      owner                   = "platform",
+      backup                  = "none",
+      exposure                = "none",
+      criticality             = "normal",
+      create_s3_backup_secret = false,
+      source_file             = "tofu/home/kubernetes/cloud_audit.tf",
+      extra_annotations = {
+        "aether.shdr.ch/data" = "rebuildable"
+      }
+    }
     "colony-dev" = {
       tier                    = "guest",
       owner                   = "colony",

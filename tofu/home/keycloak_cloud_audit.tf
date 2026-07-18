@@ -21,29 +21,34 @@
 # after the first live exchange (first-broker-login creates the mapped user);
 # see outputs and PLAN.md's fallback note.
 
-# CONFIDENTIAL + service account: required for the client_credentials grant
-# that carries the k8s-SA client assertion (the grant mints the service
-# account's token). NO client secret is used — the authenticator is the
-# pod's SA token (kubernetes-service-accounts feature), so nothing static
-# exists on this path. (PLAN.md §1 fallback, client secret via ESO/Bao,
-# stays unshipped.)
+# CONFIDENTIAL + service account + `federated-jwt` authenticator: the
+# purpose-built mechanism (KC 26.6, default-on) for authenticating clients
+# with Kubernetes SA tokens — NO client secret anywhere on this path. The
+# pod presents its projected SA token as a client assertion; Keycloak
+# validates it against the cluster JWKS via the IdP below and looks the
+# client up by the jwt.credential.* attributes.
 resource "keycloak_openid_client" "cloud_audit" {
   realm_id  = keycloak_realm.aether.id
   client_id = "cloud-audit"
   name      = "Cloud Audit (vigil)"
   enabled   = true
 
-  access_type              = "CONFIDENTIAL"
-  service_accounts_enabled = true
+  access_type               = "CONFIDENTIAL"
+  service_accounts_enabled  = true
+  client_authenticator_type = "federated-jwt"
 
   standard_flow_enabled        = false
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
   consent_required             = false
 
-  # The k8s-SA authenticator selection (replacing client-secret) is not
-  # exposed by the tofu provider as of keycloak/keycloak 5.8.0 — see the
-  # acceptance notes in PLAN.md for how it was pinned.
+  # The lookup pin (DefaultClientAssertionStrategy): assertion sub must equal
+  # jwt.credential.sub, and jwt.credential.issuer must name the IdP alias.
+  # Any other SA's token fails this lookup — verified live.
+  extra_config = {
+    "jwt.credential.issuer" = keycloak_oidc_identity_provider.talos_k8s.alias
+    "jwt.credential.sub"    = "system:serviceaccount:cloud-audit:vigil"
+  }
 }
 
 # Tokens minted for this client carry aud=cloud-audit — these can never
@@ -59,74 +64,102 @@ resource "keycloak_openid_audience_protocol_mapper" "cloud_audit_audience" {
   add_to_access_token      = true
 }
 
-# The cluster-issuer trust. Talos issues SA tokens under
+# The cluster-issuer trust, provider type `kubernetes` (purpose-built for SA
+# token client assertions). Talos issues SA tokens under
 # --service-account-issuer=https://oidc.k8s.home.shdr.ch; the Caddy gateway
 # proxies only the two discovery paths to the apiserver VIP, and the
 # oidc_discovery_public ClusterRoleBinding permits anonymous reads
-# (tofu/home/kubernetes/oidc_discovery.tf). No browser/login URLs exist for
-# this issuer — the IdP is validation-only.
-resource "keycloak_oidc_identity_provider" "talos_aether_k8s" {
-  realm        = keycloak_realm.aether.id
-  alias        = "talos-aether-k8s"
-  display_name = "Talos aether-k8s service accounts"
-  enabled      = true
+# (tofu/home/kubernetes/oidc_discovery.tf) — verified live from the Keycloak VM.
+#
+# Created during the acceptance investigation and imported into state
+# (import block in tofu/main.tf); tofu now owns it.
+resource "keycloak_oidc_identity_provider" "talos_k8s" {
+  realm       = keycloak_realm.aether.id
+  alias       = "talos-k8s-fed"
+  provider_id = "kubernetes"
+  enabled     = true
 
-  issuer   = "https://oidc.k8s.home.shdr.ch"
-  jwks_url = "https://oidc.k8s.home.shdr.ch/openid/v1/jwks"
+  issuer = "https://oidc.k8s.home.shdr.ch"
 
-  # k8s serves no OIDC login endpoints; the provider schema wants these set.
+  # Inert for provider_id=kubernetes (no OIDC login/userinfo flow exists for
+  # a k8s issuer; the provider type validates SA tokens against the
+  # issuer's discovery document). Required by the provider schema only.
   authorization_url = "https://oidc.k8s.home.shdr.ch"
   token_url         = "https://oidc.k8s.home.shdr.ch"
   user_info_url     = "https://oidc.k8s.home.shdr.ch"
-
-  validate_signature = true
-  sync_mode          = "FORCE"
-  store_token        = false
-
-  # Validate external tokens against the IdP JWKS, NOT via a userinfo call —
-  # the k8s issuer has no userinfo endpoint (verified in the KC log:
-  # validation_method="user info" → "user info call failure"). This maps to
-  # the IdP's disableUserInfo config, forcing signature validation.
-  disable_user_info = true
-
-  # Required by the provider schema but inert here: the k8s issuer has no
-  # token endpoint for Keycloak to call (the IdP validates external tokens
-  # against the JWKS; no browser or client-credential flow ever runs).
-  client_id     = "validation-only"
-  client_secret = "validation-only"
-
-  extra_config = {
-    # Accept external tokens (the k8s SA JWT) for exchange. LIVE-ITERATE: if
-    # KC 26.6 V1 rejects the exchange, the knobs to revisit are here, the
-    # projected-token audience (keycloak:cloud-audit), and the
-    # kubernetes-service-accounts client-auth alternative (PLAN.md §1).
-    "supportsExternalExchange" = "true"
-  }
+  client_id         = "validation-only"
+  client_secret     = "validation-only"
 }
 
-# Only the cloud-audit client may exchange against this IdP.
-resource "keycloak_identity_provider_token_exchange_scope_permission" "cloud_audit" {
-  realm_id       = keycloak_realm.aether.id
-  provider_alias = keycloak_oidc_identity_provider.talos_aether_k8s.alias
+# =============================================================================
+# Client authentication flow: built-in `clients` flow + federated-jwt
+# =============================================================================
+# Realms created before client-auth-federated existed never get the
+# federated-jwt execution (verified live: absent from `clients` executions,
+# and built-in flows reject additions). A replica flow with the execution
+# added, bound realm-wide via client_authentication_flow (keycloak.tf).
+# Requirements stay ALTERNATIVE for every method — additive only, existing
+# client auth (client-secret etc.) is untouched.
 
-  policy_type = "client"
-  clients     = [keycloak_openid_client.cloud_audit.id]
+resource "keycloak_authentication_flow" "clients_federated" {
+  realm_id    = "aether"
+  alias       = "clients-federated"
+  provider_id = "client-flow"
+  description = "Built-in clients flow plus federated-jwt (k8s SA client assertions)"
+}
+
+resource "keycloak_authentication_execution" "client_jwt" {
+  realm_id          = "aether"
+  parent_flow_alias = keycloak_authentication_flow.clients_federated.alias
+  authenticator     = "client-jwt"
+  requirement       = "ALTERNATIVE"
+  priority          = 10
+}
+
+resource "keycloak_authentication_execution" "client_secret" {
+  realm_id          = "aether"
+  parent_flow_alias = keycloak_authentication_flow.clients_federated.alias
+  authenticator     = "client-secret"
+  requirement       = "ALTERNATIVE"
+  priority          = 20
+}
+
+resource "keycloak_authentication_execution" "client_secret_jwt" {
+  realm_id          = "aether"
+  parent_flow_alias = keycloak_authentication_flow.clients_federated.alias
+  authenticator     = "client-secret-jwt"
+  requirement       = "ALTERNATIVE"
+  priority          = 30
+}
+
+resource "keycloak_authentication_execution" "client_x509" {
+  realm_id          = "aether"
+  parent_flow_alias = keycloak_authentication_flow.clients_federated.alias
+  authenticator     = "client-x509"
+  requirement       = "ALTERNATIVE"
+  priority          = 40
+}
+
+resource "keycloak_authentication_execution" "federated_jwt" {
+  realm_id          = "aether"
+  parent_flow_alias = keycloak_authentication_flow.clients_federated.alias
+  authenticator     = "federated-jwt"
+  requirement       = "ALTERNATIVE"
+  priority          = 50
 }
 
 # --- Outputs ---------------------------------------------------------------
 # The sub the providers must trust (PLAN.md §1: wire as a resource reference,
-# single apply). On the primary path the sub is the KC-internal id of the
-# IdP-brokered user, created at the first live exchange — tofu cannot know it
-# ahead of time, so the provider legs pin it via a variable fed from the
-# acceptance run (documented in PLAN.md P0). The fallback path's sub is
-# deterministic and exported here.
+# single apply). Both KC auth paths mint the cloud-audit client's
+# service-account token, so the sub is the service-account user's id — the
+# same value either way, exported here.
 
-output "cloud_audit_fallback_sub" {
-  description = "sub if the client-credentials fallback ships (service-account user of the cloud-audit client); primary path pins the brokered-user sub discovered at acceptance"
+output "cloud_audit_sub" {
+  description = "Keycloak sub of the cloud-audit client's service-account user — the subject AWS/GCP/OCI trust conditions pin"
   value       = keycloak_openid_client.cloud_audit.service_account_user_id
 }
 
 output "cloud_audit_idp_alias" {
-  description = "Alias of the cluster-issuer IdP the vigil SA token is exchanged against"
-  value       = keycloak_oidc_identity_provider.talos_aether_k8s.alias
+  description = "Alias of the kubernetes-typed cluster-issuer IdP the vigil SA token authenticates against"
+  value       = keycloak_oidc_identity_provider.talos_k8s.alias
 }
