@@ -7,12 +7,28 @@ deleteDatasources:
 datasources:
   # === Org 1: Aether (full access) ===
   - name: Prometheus
+    uid: PBFA97CFB590B2093
     type: prometheus
     access: proxy
     orgId: 1
     url: http://localhost:9090
     isDefault: true
     editable: false
+    jsonData:
+      prometheusType: Prometheus
+      timeInterval: 30s
+
+  # Grafana-managed alerts remain independent of the object-store query path.
+  - name: Prometheus Local
+    uid: prometheus-local
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://localhost:9090
+    isDefault: false
+    editable: false
+    jsonData:
+      timeInterval: 30s
 
   - name: Loki
     type: loki
@@ -46,5 +62,42 @@ datasources:
       queryTimeout: 30
     secureJsonData:
       password: "{{ secrets.clickhouse.grafana_readonly_password }}"
+
+  # Canary PromQL endpoint for archive correctness/performance comparisons.
+  - name: Greptime Metrics Archive
+    uid: greptime-prometheus
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://localhost:4000/v1/prometheus
+    basicAuth: true
+    basicAuthUser: "{{ greptime_credentials.grafana_user }}"
+    editable: false
+    jsonData:
+      prometheusType: Prometheus
+      timeInterval: 30s
+      httpHeaderName1: x-greptime-db-name
+    secureJsonData:
+      basicAuthPassword: "{{ greptime_credentials.grafana_password }}"
+      httpHeaderValue1: "{{ greptime_credentials.database }}"
+
+  # SQL/log exploration endpoint; Loki remains the primary log datasource.
+  # GreptimeDB's MySQL protocol keeps this on Grafana's built-in, signed
+  # datasource path; both containers share the monitoring pod's loopback.
+  - name: Greptime Telemetry Archive
+    uid: greptime-archive
+    type: mysql
+    access: proxy
+    orgId: 1
+    url: localhost:4002
+    user: "{{ greptime_credentials.grafana_user }}"
+    editable: false
+    jsonData:
+      database: "{{ greptime_credentials.database }}"
+      maxOpenConns: 10
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: "{{ greptime_credentials.grafana_password }}"
 
 # Tenant datasources are created via Grafana HTTP API after org creation.

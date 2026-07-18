@@ -51,6 +51,7 @@ monitoring_stack:
   cores: 4
   memory: 16384
   disk_gb: 256
+  telemetry_archive_disk_gb: 1024
   ip: "10.0.2.3"
   gateway: "10.0.2.1"
   ports:
@@ -64,6 +65,7 @@ monitoring_stack:
     otel_prometheus: 8889
     prometheus: 9090
     clickhouse: 8123
+    greptime: 4000
     fleet: 8084
     blackbox: 9115
 

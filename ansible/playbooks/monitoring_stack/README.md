@@ -1,10 +1,11 @@
 # Monitoring Stack
 
-This playbook will configure the monitoring stack virtual machine. The monitoring stack is a fedora vm that hosts the following applications deployed as podman quadlets:
+This playbook configures the Fedora monitoring-stack VM and its Podman Quadlet services:
 
 - Otel Collector
 - Prometheus
 - Loki
+- GreptimeDB
 - Tempo
 - Grafana
 - ClickHouse
@@ -15,6 +16,40 @@ This playbook will configure the monitoring stack virtual machine. The monitorin
 ```bash
 task configure:monitoring
 ```
+
+## Storage layout
+
+The VM deliberately separates the authoritative hot monitoring path from the
+largest telemetry data:
+
+| Guest storage | Proxmox storage | Filesystem and mount | Data |
+| --- | --- | --- | --- |
+| 256 GiB `virtio0` root disk | `local-lvm` | Btrfs `/` and `/home` | OS, Prometheus, ClickHouse, and service configuration |
+| 1 TiB `virtio1` telemetry disk | `local-fast` | XFS `/var/lib/telemetry` | Loki data and GreptimeDB local metadata, WAL, and cache |
+| SeaweedFS `greptime-telemetry` bucket | `hdd/seaweedfs` on Smith | S3 | GreptimeDB historical telemetry objects |
+
+The telemetry disk is declared by `config/vm.yml` and
+`tofu/home/monitoring_stack.tf`; `site.yml` formats and mounts it before the
+Loki and GreptimeDB Quadlets start. Prometheus and ClickHouse intentionally
+remain on the root disk so a telemetry-disk capacity or filesystem incident
+does not also remove the authoritative metric and alert path. Do not
+consolidate more stores onto `/var/lib/telemetry` without separate capacity
+limits or another dedicated data disk.
+
+Check the live layout from the guest:
+
+```bash
+findmnt -T /var/lib/telemetry
+df -hT / /var/lib/telemetry
+systemctl --user is-active prometheus clickhouse loki greptime
+```
+
+Deploy or reconcile the Greptime archive path after its OpenTofu resources:
+
+```bash
+task configure:greptime
+```
+
 
 ## ClickHouse schema
 

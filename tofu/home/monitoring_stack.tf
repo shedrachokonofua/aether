@@ -27,6 +27,17 @@ resource "proxmox_virtual_environment_vm" "monitoring_stack" {
     interface    = "virtio0"
   }
 
+  # The telemetry disk keeps Loki and GreptimeDB local state off the
+  # observability root filesystem. Historical telemetry lives in SeaweedFS.
+  disk {
+    datastore_id = "local-fast"
+    size         = local.vm.monitoring_stack.telemetry_archive_disk_gb
+    interface    = "virtio1"
+    iothread     = true
+    discard      = "on"
+    file_format  = "raw"
+  }
+
   initialization {
     ip_config {
       ipv4 {

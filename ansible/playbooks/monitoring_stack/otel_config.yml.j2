@@ -31,14 +31,6 @@ processors:
     send_batch_size: 2048
     send_batch_max_size: 4096
 
-  # Archive-only batching: ClickHouse wants FEW, LARGE inserts (benchmarked
-  # 2026-07-11 on live CH 26.6.1.1193: 50k-row blocks at 180-310k rows/s = ~38x
-  # headroom over the 7.4k pts/s stream). The 2048-point hot-path batch produced
-  # 5 tiny per-type inserts each and drowned the exporter (queue pinned, CPU churn).
-  batch/archive:
-    timeout: 30s
-    send_batch_size: 50000
-    send_batch_max_size: 100000
 
   # Sealed router observations are compact NDJSON records. The dedicated
   # ClickHouse path parses them into the idempotent network.observations table.
@@ -122,6 +114,24 @@ exporters:
   otlphttp/loki:
     endpoint: http://localhost:3100/otlp
 
+  # Secondary archive for logs that already flow to Loki. A bounded queue keeps
+  # GreptimeDB outages from changing the authoritative Loki hot path.
+  otlphttp/greptime:
+    endpoint: http://localhost:4000/v1/otlp
+    compression: gzip
+    headers:
+      x-greptime-db-name: "{{ greptime_credentials.database }}"
+      Authorization: "Basic {{ (greptime_credentials.ingest_user ~ ':' ~ greptime_credentials.ingest_password) | b64encode }}"
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 2000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
   otlp/tempo:
     endpoint: "localhost:24317"
     tls:
@@ -191,32 +201,6 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 300s
 
-  # Long-term metrics archive: 365d TTL in ClickHouse alongside the 30d Prometheus
-  # hot path. Schema is REPO-OWNED (clickhouse/metrics-schema.sql, applied via the
-  # init dir / reconcile) — create_schema stays false so the alpha exporter can
-  # never mutate production schema. TTL lives in the DDL.
-  clickhouse/metrics:
-    endpoint: tcp://localhost:9000
-    username: aether
-    password: "{{ secrets.clickhouse.password }}"
-    database: metrics
-    async_insert: true
-    compress: lz4
-    create_schema: false
-    timeout: 30s
-    # Bounded queue: if ClickHouse inserts slow down, archive batches DROP (queue full)
-    # instead of backpressuring the shared pipeline — the hot path is sacred, the
-    # archive is best-effort. Short retry window for the same reason.
-    sending_queue:
-      enabled: true
-      num_consumers: 2
-      # 10 batches x ~50k points ~= 500k points bounded (~200-400MB worst case).
-      queue_size: 10
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 15s
-      max_elapsed_time: 60s
 
 service:
   telemetry:
@@ -229,18 +213,6 @@ service:
       processors: [memory_limiter, transform/metrics, batch]
       exporters: [prometheus]
 
-    # Archive path (best-effort by construction): own large-batch processor so CH
-    # gets few, huge inserts; bounded queue drops before backpressure. History of
-    # the 2026-07-11 incidents + redesign rationale: telemetry-archive.md.
-    # NO transform/metrics here: it's a heavy per-datapoint OTTL pass whose only job
-    # is promoting resource attrs to datapoint attrs so PROMETHEUS sees labels. The
-    # CH exporter reads ResourceAttributes into its own column directly, so the
-    # transform is pure waste on this path (ran twice on the full stream = the +15%
-    # CPU regression at settle). Dropping it is cheaper AND more correct for CH.
-    metrics/archive:
-      receivers: [otlp]
-      processors: [memory_limiter, batch/archive]
-      exporters: [clickhouse/metrics]
 
     # Ingest logs and route based on source
     logs:
@@ -273,14 +245,14 @@ service:
     # All other logs -> Loki (default)
     logs/loki:
       receivers: [routing/logs]
-      exporters: [otlphttp/loki]
+      exporters: [otlphttp/loki, otlphttp/greptime]
 
     # Non-OTLP Loki-push sources (unpoller UniFi events) -> Loki, routed through
     # the collector so they get batching, memory limiting, and the standard egress.
     logs/loki_push:
       receivers: [loki]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/loki]
+      exporters: [otlphttp/loki, otlphttp/greptime]
 
     traces:
       receivers: [otlp]
