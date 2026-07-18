@@ -19,6 +19,13 @@
     site_wireguard_remote_prefixes:
       - 10.0.0.0/16
       - 10.1.0.0/16
+      # Technitium cluster home nodes (ns2 primary, ns1 secondary) on the mgmt
+      # net, via hub -> VyOS. Cluster sync needs rama to reach both: catalog +
+      # member-zone AXFR/IXFR on TCP :53 (with TSIG), and the HTTPS cluster
+      # API/heartbeat on :53443. Missing the :53 leg was why the offsite
+      # secondary never provisioned dns.home.shdr.ch -> DANE TLSA unresolvable.
+      - 192.168.2.236/32
+      - 192.168.2.237/32
     site_wireguard_topology_role: spoke
     site_wireguard_input_allow_cidrs:
       - 10.0.4.0/24
@@ -39,6 +46,18 @@
       - proto: tcp
         port: 5380
         cidrs: [10.0.2.2/32]
+      # Technitium cluster: home nodes reach rama for the HTTPS cluster API
+      # (:53443) and DNS NOTIFY/SOA (:53) so it re-pulls catalog + member
+      # zones. rama-initiated AXFR to the primary is outbound (return traffic).
+      - proto: tcp
+        port: 53443
+        cidrs: [192.168.2.236/32, 192.168.2.237/32]
+      - proto: udp
+        port: 53
+        cidrs: [192.168.2.236/32, 192.168.2.237/32]
+      - proto: tcp
+        port: 53
+        cidrs: [192.168.2.236/32, 192.168.2.237/32]
     site_wireguard_peers:
       - site: aws
         host: link
@@ -50,6 +69,9 @@
           - 10.1.0.0/16
           - 10.254.0.1/32
           - 10.254.0.2/32
+          # Cluster home nodes (ns1/ns2) on the mgmt net (via hub -> VyOS).
+          - 192.168.2.236/32
+          - 192.168.2.237/32
   pre_tasks:
     # The OCI Ubuntu cloud image ships a default iptables INPUT chain that
     # REJECTs all non-SSH/ICMP input (icmp-host-prohibited), clobbering fabric
@@ -92,18 +114,18 @@
     - role: technitium_dns
       vars:
         technitium_wg_ip: 10.3.0.10
-        # rama (12GB A1) runs the FULL config STANDALONE (all 21 blocklists +
-        # forwarders + zones from config/technitium-settings.json), NOT as a
-        # cluster member. Technitium v14 mandates DANE TLSA validation between
-        # cluster nodes; the offsite node cannot resolve the home nodes' TLSA
-        # records across the fabric (the cluster zone won't converge because
-        # the sync that carries it is itself DANE-gated - circular), so its
-        # heartbeat/config-pull permanently fail. The home pair (ns1/ns2)
-        # clusters fine on-subnet where DANE resolves. git+apply reconciles
-        # all three from one source, so a config change is a re-apply, not a
-        # live control-plane push.
-        technitium_cluster_enabled: false
-        technitium_full_blocklist: true
+        # rama (12GB A1) is the third cluster member (ns3), joining primary ns2
+        # over the WireGuard fabric. Cross-WAN membership works once the zone-
+        # transfer path is open: the cluster catalog + the dns.home.shdr.ch
+        # member zone replicate via AXFR/IXFR over TCP :53 (TSIG) from the
+        # primary IP, while the HTTPS cluster API/heartbeat runs on :53443 -
+        # BOTH legs are routed rama<->ns1/ns2 (site_wireguard_service_allow +
+        # remote_prefixes here, hub service_forwards, VyOS MGMT<->CLOUD). The
+        # member zone carries the peers' DANE-EE TLSA records, so rama answers
+        # its own peer-cert DANE lookups authoritatively and heartbeat
+        # validation passes. Blocklists/forwarders/zones sync FROM the primary,
+        # so no local blocklist config (full list arrives via cluster sync).
+        technitium_cluster_enabled: true
         technitium_memory_limit: "2g"
         technitium_memory_swap_limit: "3g"
       tags: [technitium]

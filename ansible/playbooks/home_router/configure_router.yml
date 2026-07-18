@@ -534,6 +534,66 @@
           - set firewall ipv4 name CLOUD-to-SERVICES rule 10 state established
           - set firewall ipv4 name CLOUD-to-SERVICES rule 10 state related
           - set firewall ipv4 name LOCAL-to-CLOUD default-action accept
+          # Technitium DNS cluster mesh: home nodes ns1 (.236) + ns2 (.237)
+          # <-> ns3 (rama, OCI 10.3.0.10). Catalog + member AXFR/IXFR on
+          # tcp/53 (TSIG), DNS SOA/NOTIFY on udp/53, HTTPS cluster API on
+          # tcp/53443. Least privilege: only this node set, only those ports.
+          - set firewall ipv4 name MGMT-to-CLOUD default-action drop
+          - set firewall ipv4 name MGMT-to-CLOUD rule 10 action accept
+          - set firewall ipv4 name MGMT-to-CLOUD rule 10 state established
+          - set firewall ipv4 name MGMT-to-CLOUD rule 10 state related
+          - set firewall ipv4 name MGMT-to-CLOUD rule 20 action accept
+          - set firewall ipv4 name MGMT-to-CLOUD rule 20 protocol tcp
+          - set firewall ipv4 name MGMT-to-CLOUD rule 20 source address 192.168.2.237/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 20 destination address 10.3.0.10/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 20 destination port 53,53443
+          - set firewall ipv4 name MGMT-to-CLOUD rule 20 description 'Technitium ns2 to rama (cluster API + zone push)'
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 action accept
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 protocol tcp
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 source address 192.168.2.236/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 destination address 10.3.0.10/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 destination port 53,53443
+          - set firewall ipv4 name MGMT-to-CLOUD rule 21 description 'Technitium ns1 to rama (cluster API + zone push)'
+          - set firewall ipv4 name MGMT-to-CLOUD rule 22 action accept
+          - set firewall ipv4 name MGMT-to-CLOUD rule 22 protocol udp
+          - set firewall ipv4 name MGMT-to-CLOUD rule 22 source address 192.168.2.236/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 22 destination address 10.3.0.10/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 22 destination port 53
+          - set firewall ipv4 name MGMT-to-CLOUD rule 22 description 'Technitium ns1 to rama (DNS NOTIFY udp)'
+          - set firewall ipv4 name MGMT-to-CLOUD rule 23 action accept
+          - set firewall ipv4 name MGMT-to-CLOUD rule 23 protocol udp
+          - set firewall ipv4 name MGMT-to-CLOUD rule 23 source address 192.168.2.237/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 23 destination address 10.3.0.10/32
+          - set firewall ipv4 name MGMT-to-CLOUD rule 23 destination port 53
+          - set firewall ipv4 name MGMT-to-CLOUD rule 23 description 'Technitium ns2 to rama (DNS NOTIFY udp)'
+          - set firewall ipv4 name CLOUD-to-MGMT default-action drop
+          - set firewall ipv4 name CLOUD-to-MGMT rule 10 action accept
+          - set firewall ipv4 name CLOUD-to-MGMT rule 10 state established
+          - set firewall ipv4 name CLOUD-to-MGMT rule 10 state related
+          - set firewall ipv4 name CLOUD-to-MGMT rule 20 action accept
+          - set firewall ipv4 name CLOUD-to-MGMT rule 20 protocol tcp
+          - set firewall ipv4 name CLOUD-to-MGMT rule 20 source address 10.3.0.10/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 20 destination address 192.168.2.237/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 20 destination port 53,53443
+          - set firewall ipv4 name CLOUD-to-MGMT rule 20 description 'rama to Technitium ns2 (AXFR + cluster API)'
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 action accept
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 protocol tcp
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 source address 10.3.0.10/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 destination address 192.168.2.236/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 destination port 53,53443
+          - set firewall ipv4 name CLOUD-to-MGMT rule 21 description 'rama to Technitium ns1 (AXFR + cluster API)'
+          - set firewall ipv4 name CLOUD-to-MGMT rule 22 action accept
+          - set firewall ipv4 name CLOUD-to-MGMT rule 22 protocol udp
+          - set firewall ipv4 name CLOUD-to-MGMT rule 22 source address 10.3.0.10/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 22 destination address 192.168.2.236/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 22 destination port 53
+          - set firewall ipv4 name CLOUD-to-MGMT rule 22 description 'rama to Technitium ns1 (DNS SOA udp)'
+          - set firewall ipv4 name CLOUD-to-MGMT rule 23 action accept
+          - set firewall ipv4 name CLOUD-to-MGMT rule 23 protocol udp
+          - set firewall ipv4 name CLOUD-to-MGMT rule 23 source address 10.3.0.10/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 23 destination address 192.168.2.237/32
+          - set firewall ipv4 name CLOUD-to-MGMT rule 23 destination port 53
+          - set firewall ipv4 name CLOUD-to-MGMT rule 23 description 'rama to Technitium ns2 (DNS SOA udp)'
 
           # Configure trusted zones full access
           - set firewall ipv4 name TRUSTED-to-MGMT default-action accept
@@ -753,6 +813,8 @@
           - set firewall zone TRUSTED from CLOUD firewall name CLOUD-to-TRUSTED
           - set firewall zone CLOUD from SERVICES firewall name SERVICES-to-CLOUD
           - set firewall zone SERVICES from CLOUD firewall name CLOUD-to-SERVICES
+          - set firewall zone CLOUD from MGMT firewall name MGMT-to-CLOUD
+          - set firewall zone MGMT from CLOUD firewall name CLOUD-to-MGMT
           - set firewall zone SERVICES from MEDIA firewall name MEDIA-to-SERVICES
           - set firewall zone TRUSTED from MEDIA firewall name MEDIA-to-TRUSTED
           - set firewall zone MGMT from MEDIA firewall name MEDIA-to-MGMT
