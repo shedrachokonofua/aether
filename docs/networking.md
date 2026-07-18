@@ -65,39 +65,54 @@ graph TB
 
 ## DNS
 
-AdGuard Home provides DNS resolution and ad blocking for the home network. It
-runs as two standalone NixOS LXC resolvers so a rebuild or failed container on
-one Proxmox node does not remove LAN DNS. A third **offsite** resolver runs on
-Oracle Cloud over the WireGuard fabric (see [Offsite Resolver](#offsite-resolver-oci)).
+DNS resolution and ad blocking run on **Technitium DNS Server** as a single
+three-node cluster. Two NixOS LXC resolvers at home mean a rebuild or failed
+container on one Proxmox node never removes LAN DNS; a third node runs offsite
+on Oracle Cloud over the WireGuard fabric. The cluster keeps every node's
+blocklists, DNS zones, rewrites, and upstreams in sync from one source, so a
+change made once reaches all three.
 
-### Resolver Instances
+> The two home LXCs keep the hostnames `adguard` / `adguard-secondary` (and
+> their Loki stream names) from the retired AdGuard Home deployment — they run
+> Technitium now. "Primary/Secondary" below is the **cluster** role.
 
-| Role      | Host    | IP            | Config target        |
-| --------- | ------- | ------------- | -------------------- |
-| Primary   | Oracle  | 192.168.2.236 | `.#adguard`          |
-| Secondary | Trinity | 192.168.2.237 | `.#adguard-secondary` |
+### Cluster nodes
 
-VyOS DNS forwarding listens on each VLAN gateway (`10.0.x.1`) and forwards to
-both AdGuard resolvers.
+| Node  | Flake target / host   | Location     | Address       | Cluster role |
+| ----- | --------------------- | ------------ | ------------- | ------------ |
+| `ns1` | `.#adguard`           | Oracle LXC   | 192.168.2.236 | Secondary    |
+| `ns2` | `.#adguard-secondary` | Trinity LXC  | 192.168.2.237 | **Primary**  |
+| `ns3` | `rama` (OCI)          | Oracle Cloud | 10.3.0.10     | Secondary    |
 
-### Offsite Resolver (OCI)
+Answer data lives in `config/technitium-settings.json`, reconciled by
+`scripts/technitium-apply.sh` so blocklists/zones/upstreams never drift.
+Cluster replication runs over two paths from the primary: the catalog + member
+zone transfer via **DNS AXFR/IXFR (TCP `:53`, TSIG)**, and the HTTPS cluster
+API/heartbeat on **`:53443`**. Inter-node calls are DANE-validated — each node
+serves the peers' `_53443._tcp.<node>` `TLSA` records from the
+`dns.home.shdr.ch` cluster zone, so an offsite member must hold that zone (both
+fabric legs open) or its heartbeat fails. VyOS DNS forwarding listens on each
+VLAN gateway (`10.0.x.1`) and forwards LAN queries to the two home nodes.
 
-An additional AdGuard Home resolver runs offsite on Oracle Cloud
-(`oci-adguard`, WireGuard address `10.3.0.10`), deployed by
-`task configure:oci-dns`. It is a rootful-podman AdGuard bound only to its
-WireGuard address, consuming the same `config/adguard-settings.json`
-rewrites/blocklists as the LXC resolvers (byte-identical to the Nix config), and
-answers `*.home.shdr.ch → 10.0.2.2` over the fabric (verified from the AWS hub).
-It is scraped by Prometheus (`site-node-exporter`, `site-wireguard-exporter`) and
-ships its journal to Loki like the other fabric sites, and is covered by the
-`Site Exporter Down` alert. The VyOS LAN forwarder currently targets the two LXC
-resolvers only; adding OCI as a failover upstream would be a separate change.
+### Offsite node (OCI, `rama`)
+
+`rama` (WireGuard `10.3.0.10`) is the offsite cluster secondary (`ns3`),
+deployed by `task configure:oci-dns`. It is a rootful-podman Technitium bound
+only to its WireGuard address, joins the cluster over the fabric, and answers
+`*.home.shdr.ch → 10.0.2.2`. Like the other cloud sites it is agent-free:
+Prometheus scrapes its exporters (`site-node-exporter`,
+`site-wireguard-exporter`), its journal — including per-client query logs (Log
+Exporter → journal) — is pulled to Loki by the monitoring-stack forwarder, and
+it is covered by the `Site Exporter Down` and `DNS Query Log Stream Stale`
+alerts. The `:53`/`:53443` cluster mesh is gated across the VyOS
+`MGMT-to-CLOUD`/`CLOUD-to-MGMT` zones, the hub `site_wireguard_service_forwards`,
+and rama's `site_wireguard_service_allow`.
 
 Its admin UI is published at **`https://dns.oci.shdr.ch`** — the home gateway
-Caddy reverse-proxies to `10.3.0.10:3000` over the fabric (mirrors the LXC
-resolvers' `dns.home.shdr.ch`). Reachability is gated end-to-end: the
-`dns.oci.shdr.ch → 10.0.2.2` AdGuard rewrite, a Caddy vhost, and a
-`10.0.2.2 → 10.3.0.10:3000/tcp` allow across the VyOS `TRUSTED-to-CLOUD`, hub
+Caddy reverse-proxies to `10.3.0.10:5380` over the fabric (mirrors the home
+nodes' `dns.home.shdr.ch`). Reachability is gated end-to-end: the
+`dns.oci.shdr.ch → 10.0.2.2` rewrite, a Caddy vhost, and a
+`10.0.2.2 → 10.3.0.10:5380/tcp` allow across the VyOS `TRUSTED-to-CLOUD`, hub
 `site_wireguard_service_forwards`, and OCI `site_wireguard_service_allow`.
 
 ### Upstream Resolvers
@@ -136,9 +151,10 @@ graph LR
         DNS1[DNS Forwarder<br/>10.0.x.1]
     end
 
-    subgraph AdGuard LXCs
-        ADG1[Primary<br/>192.168.2.236:53]
-        ADG2[Secondary<br/>192.168.2.237:53]
+    subgraph Technitium Cluster
+        ADG1[ns1 / adguard<br/>192.168.2.236:53]
+        ADG2[ns2 / adguard-secondary<br/>192.168.2.237:53]
+        ADG3[ns3 / rama offsite<br/>10.3.0.10:53]
     end
 
     subgraph DoH Upstreams
@@ -155,8 +171,9 @@ graph LR
 
     C1 & C2 & C3 & C4 -->|Query| DNS1
     DNS1 -->|Forward| ADG1 & ADG2
-    ADG1 & ADG2 -->|Rewrite Match| R1 & R2 & R3
-    ADG1 & ADG2 -->|External Query| Q9 & CF & GG
+    ADG2 -.->|Cluster Sync| ADG1 & ADG3
+    ADG1 & ADG2 & ADG3 -->|Rewrite Match| R1 & R2 & R3
+    ADG1 & ADG2 & ADG3 -->|External Query| Q9 & CF & GG
 ```
 
 ## Reverse Proxy

@@ -124,7 +124,7 @@
           - 10.2.0.0/16
           - 10.254.0.3/32
       - site: oci
-        host: oci-adguard
+        host: rama
         public_key: "{{ secrets.wireguard.oci_public_key }}"
         allowed_ips:
           - 10.3.0.0/16
