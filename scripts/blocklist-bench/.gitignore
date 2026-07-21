@@ -1,0 +1,3 @@
+# Downloaded lists, corpora and generated report are reproducibility cache.
+.cache/
+__pycache__/
