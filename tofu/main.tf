@@ -107,7 +107,8 @@ module "home" {
   # cloud-audit (vigil): provider-generated tokens -> Bao kv/aether/cloud-audit
   cloud_audit_tailscale_client_id              = tailscale_oauth_client.cloud_audit.id
   cloud_audit_tailscale_client_secret          = tailscale_oauth_client.cloud_audit.key
-  cloud_audit_cloudflare_api_token             = cloudflare_api_token.cloud_audit.value
+  cloud_audit_cloudflare_api_token             = try(one(cloudflare_api_token.cloud_audit[*].value), "")
+  cloud_audit_oci_token_exchange_client_id     = try(module.oci[0].tokenexchange_client_id, "")
   cloud_audit_oci_token_exchange_client_secret = try(module.oci[0].tokenexchange_client_secret, "")
 }
 

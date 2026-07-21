@@ -75,6 +75,13 @@ variable "cloud_audit_cloudflare_api_token" {
   description = "Cloudflare Audit-Logs-Read token for vigil (cloud_audit.tf)"
 }
 
+variable "cloud_audit_oci_token_exchange_client_id" {
+  type        = string
+  sensitive   = false # client ids are not secrets; kept with the secret for convenience
+  default     = ""
+  description = "OCI token-exchange app client id for the UPST exchange (oci/federation.tf output)"
+}
+
 variable "cloud_audit_oci_token_exchange_client_secret" {
   type        = string
   sensitive   = true
