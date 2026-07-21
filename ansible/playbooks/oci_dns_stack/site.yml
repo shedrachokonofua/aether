@@ -42,6 +42,15 @@
       - proto: tcp
         port: 53
         cidrs: [10.0.0.0/16, 10.1.0.0/16, 10.254.0.2/32]
+      # Anycast DNS fallback address on rama when the home VRRP pair is down.
+      - proto: udp
+        port: 53
+        daddr: 10.53.0.1
+        cidrs: [10.0.0.0/16, 10.254.0.2/32]
+      - proto: tcp
+        port: 53
+        daddr: 10.53.0.1
+        cidrs: [10.0.0.0/16, 10.254.0.2/32]
       # Technitium admin UI (dns.oci.shdr.ch), reached only via the home gateway Caddy.
       - proto: tcp
         port: 5380
@@ -114,6 +123,7 @@
     - role: technitium_dns
       vars:
         technitium_wg_ip: 10.3.0.10
+        technitium_anycast_ip: 10.53.0.1
         # rama (12GB A1) is the third cluster member (ns3), joining primary ns2
         # over the WireGuard fabric. Cross-WAN membership works once the zone-
         # transfer path is open: the cluster catalog + the dns.home.shdr.ch

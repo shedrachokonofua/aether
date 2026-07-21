@@ -91,8 +91,37 @@ zone transfer via **DNS AXFR/IXFR (TCP `:53`, TSIG)**, and the HTTPS cluster
 API/heartbeat on **`:53443`**. Inter-node calls are DANE-validated — each node
 serves the peers' `_53443._tcp.<node>` `TLSA` records from the
 `dns.home.shdr.ch` cluster zone, so an offsite member must hold that zone (both
-fabric legs open) or its heartbeat fails. VyOS DNS forwarding listens on each
-VLAN gateway (`10.0.x.1`) and forwards LAN queries to the two home nodes.
+fabric legs open) or its heartbeat fails.
+
+### Client resolution path (anycast HA, 2026-07-18)
+
+Clients keep asking their VLAN gateway (`10.0.x.1:53`); the router DNATs those
+queries to the anycast service IP **`10.53.0.1`**, which all three nodes bind
+on loopback (each node also binds its own address for cluster traffic — never
+a wildcard: a `0.0.0.0` UDP socket answers from the wrong source and clients
+discard the reply). Client source addresses survive end to end, so per-client
+querylog attribution keeps working from any node. Routing to the anycast IP is
+health-driven, three layers deep:
+
+1. **VRRP VIP `192.168.2.238`** (keepalived on ns1/ns2, unicast peering —
+   multicast VRRP does not survive the oracle↔trinity L2). ns2 is MASTER
+   (prio 150); the health check is a real `dig` SOA against localhost, so the
+   2026-07-16 "accepting but stalling" mode fails over too. Node dies →
+   VIP moves in ~3 s; sick-but-up → withdrawn in ~6 s.
+2. **VyOS failover route** (`protocols failover`): `10.53.0.1/32` via the VIP
+   (metric 10, ARP check — VIP presence == some home node passed its dig) with
+   a standby via rama `10.3.0.10` over wg10 (metric 20, tcp:53 check,
+   `onlink` required on the /32 point-to-point wg interface). Both home nodes
+   dead → route flips to rama in ~15 s, DNS answers from OCI (~40 ms).
+3. **Rama health gate**: a systemd timer digs localhost; 3 consecutive
+   failures insert an nft reject on `:53` (loopback exempted so the gate can
+   observe recovery), making the router's dumb tcp check truthful against a
+   stalling node.
+
+Drilled 2026-07-18: MASTER kill = 0 lost queries, sick-MASTER = ~6 s,
+both-home-dead = ~13 s to rama, failback automatic (preempt + standby route
+stays installed). VyOS pdns forwarding still listens on the `10.0.x.1`
+addresses as the shadow fallback if the DNAT rules are ever deleted.
 
 ### Offsite node (OCI, `rama`)
 
@@ -114,6 +143,15 @@ nodes' `dns.home.shdr.ch`). Reachability is gated end-to-end: the
 `dns.oci.shdr.ch → 10.0.2.2` rewrite, a Caddy vhost, and a
 `10.0.2.2 → 10.3.0.10:5380/tcp` allow across the VyOS `TRUSTED-to-CLOUD`, hub
 `site_wireguard_service_forwards`, and OCI `site_wireguard_service_allow`.
+
+Console login on all nodes is **native Technitium OIDC SSO** (>= 15.0) against
+Keycloak (`technitium-dns` client in `tofu/home/keycloak.tf`; realm role
+`dns_admin` maps to the Technitium `Administrators` group). The config is
+pushed by `scripts/technitium-apply.sh` on the cluster primary (secret seeded
+root-only at `/var/lib/technitium-apply/sso_client.secret`, sops key
+`technitium.sso_client_secret`) and cluster-syncs to ns1/rama. `dns.home.shdr.ch`
+proxies the VRRP VIP, so the portal follows the healthy node. Break-glass:
+local Technitium accounts + direct node `:5380` from TRUSTED/MGMT.
 
 ### Upstream Resolvers
 

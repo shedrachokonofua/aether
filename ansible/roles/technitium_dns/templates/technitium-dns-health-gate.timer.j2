@@ -1,0 +1,13 @@
+# Managed by Ansible (technitium_dns role). Do not edit by hand.
+[Unit]
+Description=Run Technitium DNS health gate every ten seconds
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=10s
+AccuracySec=1s
+Persistent=true
+Unit=technitium-dns-health-gate.service
+
+[Install]
+WantedBy=timers.target

@@ -1,9 +1,11 @@
 ---
-- name: Ensure podman and jq are installed (Debian family)
+- name: Ensure podman, jq, dnsutils, and nftables are installed (Debian family)
   ansible.builtin.apt:
     name:
       - podman
       - jq
+      - dnsutils
+      - nftables
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -20,6 +22,7 @@
     - { path: "{{ technitium_log_dir }}", mode: "0755" }
     - { path: "{{ technitium_apply_dir }}", mode: "0750" }
     - { path: "{{ technitium_apply_dir }}/secrets", mode: "0700" }
+    - { path: "/var/lib/technitium", mode: "0750" }
   become: true
 
 # Swap absorbs blocklist-refresh spikes (old + new set briefly coexist) so
@@ -62,11 +65,32 @@
     - "10.3.0.10 ns3.dns.home.shdr.ch"
   become: true
 
-# Technitium runs in the host network namespace and binds ONLY the WireGuard
-# site-edge IP + loopback (dnsServerLocalEndPoints in the overlay) - reachable
-# solely over the fabric, never the public interface (no open resolver /
-# topology leak). The site_wireguard nft input chain governs :53/:5380/:53443
-# reachability via site_wireguard_service_allow.
+- name: Install Technitium anycast loopback unit
+  ansible.builtin.template:
+    src: technitium-anycast-loopback.service.j2
+    dest: /etc/systemd/system/technitium-anycast-loopback.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  when: technitium_anycast_ip | default('') | length > 0
+  notify: Reload systemd daemon
+
+- name: Enable and start Technitium anycast loopback
+  ansible.builtin.systemd:
+    name: technitium-anycast-loopback
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+  when: technitium_anycast_ip | default('') | length > 0
+
+# Technitium runs in the host network namespace and binds the WireGuard
+# site-edge IP + loopback, with the routed anycast address added when enabled
+# (dnsServerLocalEndPoints in the overlay). It remains reachable solely over
+# the fabric, never the public interface (no open resolver / topology leak).
+# The site_wireguard nft input chain governs :53/:5380/:53443 reachability via
+# site_wireguard_service_allow.
 - name: Deploy Technitium DNS podman quadlet
   containers.podman.podman_container:
     name: technitium-dns
@@ -134,6 +158,21 @@
     mode: "0640"
   become: true
 
+- name: Deploy Technitium anycast health gate units
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: "technitium-dns-health-gate.sh.j2", dest: "/usr/local/sbin/technitium-dns-health-gate", mode: "0750" }
+    - { src: "technitium-dns-health-gate.service.j2", dest: "/etc/systemd/system/technitium-dns-health-gate.service", mode: "0644" }
+    - { src: "technitium-dns-health-gate.timer.j2", dest: "/etc/systemd/system/technitium-dns-health-gate.timer", mode: "0644" }
+  become: true
+  when: technitium_anycast_ip | default('') | length > 0
+  notify: Reload systemd daemon
+
 # Run any pending container restart NOW, before the reconcile/cluster-join.
 # A restart AFTER a cluster join clobbers the in-flight cluster.config flush
 # (2026-07-17 split-brain); the join must be the last thing that touches the
@@ -160,3 +199,12 @@
   become: true
   no_log: true
   changed_when: true
+
+- name: Enable and start Technitium DNS health gate timer
+  ansible.builtin.systemd:
+    name: technitium-dns-health-gate.timer
+    state: started
+    enabled: true
+    daemon_reload: true
+  become: true
+  when: technitium_anycast_ip | default('') | length > 0

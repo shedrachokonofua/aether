@@ -13,6 +13,8 @@
 
   aether.technitium = {
     serverDomain = "ns1.dns.home.shdr.ch";
+    vrrpPriority = 100;
+    vrrpPeerAddress = "192.168.2.237";
     cluster = {
       mode = "secondary";
       nodeIp = "192.168.2.236";

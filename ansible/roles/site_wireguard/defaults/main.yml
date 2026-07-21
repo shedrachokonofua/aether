@@ -16,8 +16,9 @@ site_wireguard_enable_forwarding: false
 site_wireguard_topology_role: spoke
 site_wireguard_input_allow_cidrs: []
 site_wireguard_forward_allow_cidrs: []
-# Per-service input allows to this host's own site address (spoke DNS, etc.):
-#   - { proto: udp, port: 53, cidrs: [10.0.0.0/16] }
+# Per-service input allows to this host's own site address (spoke DNS, etc.).
+# An optional daddr targets an additional local service address:
+#   - { proto: udp, port: 53, daddr: 10.53.0.1, cidrs: [10.0.0.0/16] }
 site_wireguard_service_allow: []
 # Hub-only: spoke site addresses the monitoring source may scrape (forwarded).
 site_wireguard_monitoring_targets: []

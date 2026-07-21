@@ -1,0 +1,9 @@
+# Managed by Ansible (technitium_dns role). Do not edit by hand.
+[Unit]
+Description=Technitium DNS health gate
+After=network-online.target technitium-dns.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/technitium-dns-health-gate

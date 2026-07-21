@@ -4,7 +4,7 @@
 # config/technitium-settings.json (same source the nix LXC resolvers use),
 # reconciled by scripts/technitium-apply.sh so blocklists/zones/upstreams
 # never drift.
-technitium_image: docker.io/technitium/dns-server:14.0.0
+technitium_image: docker.io/technitium/dns-server:15.4.0
 technitium_conf_dir: /opt/technitium/config
 technitium_log_dir: /var/log/technitium
 # Log Exporter NDJSON (per-client query attribution). A small systemd unit
@@ -19,10 +19,14 @@ technitium_server_domain: ns3.dns.home.shdr.ch
 technitium_settings_json_path: "{{ aether_root }}/config/technitium-settings.json"
 technitium_apply_script_path: "{{ aether_root }}/scripts/technitium-apply.sh"
 
-# Bound ONLY to the WireGuard site-edge IP (+ loopback) via
-# dnsServerLocalEndPoints; never 0.0.0.0. An internet-facing resolver would be
-# an open-resolver / topology-leak.
+# Bound to the WireGuard site-edge IP (+ loopback) via dnsServerLocalEndPoints;
+# an optional routed anycast address is added when technitium_anycast_ip is set.
+# Never bind 0.0.0.0: an internet-facing resolver would be an open-resolver /
+# topology-leak.
 technitium_wg_ip: 10.3.0.10
+# Optional routed anycast service address. Empty keeps the offsite node on its
+# WireGuard address only.
+technitium_anycast_ip: ""
 
 # Cluster join: gated OFF by default (conservative default for a fresh Ubuntu
 # Technitium node); the oci play sets it true for rama (ns3). Cross-WAN
