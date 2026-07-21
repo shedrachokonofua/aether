@@ -35,7 +35,8 @@
       "https://adguardteam.github.io/HostlistsRegistry/assets/filter_31.txt",
       "https://adguardteam.github.io/HostlistsRegistry/assets/filter_42.txt",
       "https://adguardteam.github.io/HostlistsRegistry/assets/filter_10.txt",
-      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt"
+      "https://adguardteam.github.io/HostlistsRegistry/assets/filter_18.txt",
+      "https://big.oisd.nl"
     ],
     "blockListUpdateIntervalHours": 24,
     "enableLogging": true,
@@ -43,6 +44,17 @@
     "loggingType": "FileAndConsole",
     "maxLogFileDays": 7,
     "maxStatFileDays": 30
+  },
+  "_sso_comment": "Native console SSO (Technitium >= 15.0). Applied by the apply script ONLY on the cluster primary and ONLY when SECRETS_DIR/sso_client.secret exists (client secret never lives in this file; sops key technitium.sso_client_secret is the source, mirrored to the Keycloak client by tofu). Config cluster-syncs to secondaries. groupMap pairs are remoteClaimGroup:localTechnitiumGroup; the Keycloak client emits realm roles under a 'groups' claim.",
+  "sso": {
+    "authority": "https://auth.shdr.ch/realms/aether",
+    "clientId": "technitium-dns",
+    "scopes": ["openid", "profile", "email"],
+    "allowSignup": true,
+    "allowSignupOnlyForMappedUsers": true,
+    "groupMap": [
+      { "remoteGroup": "dns_admin", "localGroup": "Administrators" }
+    ]
   },
   "allowedZones": [
     "langflow.store",
