@@ -1,16 +1,14 @@
 # cloud-audit — read-only audit access for vigil (PLAN.md §4)
 #
-# Dedicated read-only Identity Domain user + group, tenancy policy limited to
-# reading audit events, and a second IdentityPropagationTrust mapping the
-# cloud-audit client's sub (azp=cloud-audit) to that user. The existing
-# confidential token-exchange app is reused: its oauth_clients list is
-# per-trust, and one app may front multiple trusts (verified in the original
-# federation work; see federation.tf comments for the pinned fields).
-#
-# NOTE: the UPST exchange itself requires the app's Basic-auth client secret
-# (federation.tf lines on allowed_grants). vigil reads that secret from Bao at
-# runtime (kv/aether/cloud-audit#oci_token_exchange_client_secret); PLAN.md's
-# credential inventory is amended accordingly.
+# Dedicated read-only Identity Domain user + group and a tenancy policy
+# limited to reading audit events. The UPST path rides the EXISTING
+# keycloak-toolbox IdentityPropagationTrust (federation.tf): IDCS permits
+# exactly one propagation trust per issuer (verified 2026-07-18 — a second
+# trust is rejected with "same issuer already exists"), so that trust's
+# client_claim_values now admits azp=cloud-audit and maps sub -> this user
+# via userName. The exchange is invoked with the existing
+# aether-token-exchange app's Basic-auth credentials (Bao kv key
+# oci_token_exchange_client_secret).
 
 variable "keycloak_cloud_audit_sub" {
   type        = string
@@ -64,37 +62,4 @@ resource "oci_identity_policy" "cloud_audit_readers" {
   statements = [
     "Allow group 'Default'/'cloud-audit-readers' to read audit-events in tenancy",
   ]
-}
-
-# Second trust, cloned pinned fields from the toolbox trust (federation.tf):
-# azp claim (avoids the aud-array matcher problem documented there), no
-# impersonation, same confidential app in oauth_clients, userName mapping.
-resource "oci_identity_domains_identity_propagation_trust" "cloud_audit" {
-  idcs_endpoint = local.oci_domain_url
-  schemas       = ["urn:ietf:params:scim:schemas:oracle:idcs:IdentityPropagationTrust"]
-  name          = "keycloak-cloud-audit"
-  type          = "JWT"
-  active        = true
-
-  allow_impersonation = false
-
-  issuer              = "https://auth.shdr.ch/realms/aether"
-  public_key_endpoint = "https://auth.shdr.ch/realms/aether/protocol/openid-connect/certs"
-
-  # Keycloak issues azp = the requesting client; cloud-audit tokens carry
-  # azp=cloud-audit. Single string — sidesteps IDCS's aud-array matcher.
-  client_claim_name   = "azp"
-  client_claim_values = ["cloud-audit"]
-
-  # One confidential app may front multiple trusts (oauth_clients is
-  # per-trust). Reusing aether-token-exchange from federation.tf.
-  oauth_clients = [oci_identity_domains_app.token_exchange.name]
-
-  # Map JWT sub -> the read-only user's userName (== keycloak_cloud_audit_sub).
-  # externalId is NOT a supported mapping attribute (IDCS 500s); userName is.
-  subject_type              = "User"
-  subject_claim_name        = "sub"
-  subject_mapping_attribute = "userName"
-
-  lifecycle { ignore_changes = [schemas] }
 }
