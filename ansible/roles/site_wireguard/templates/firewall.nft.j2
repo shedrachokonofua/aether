@@ -11,7 +11,7 @@ table inet aether_wireguard {
     iifname "{{ site_wireguard_interface }}" ip saddr {{ site_wireguard_monitoring_source }} ip daddr {{ site_wireguard_source_address }} tcp dport { {{ site_wireguard_monitoring_ports | join(', ') }} } accept
 {% for svc in site_wireguard_service_allow %}
 {% for cidr in svc.cidrs %}
-    iifname "{{ site_wireguard_interface }}" ip saddr {{ cidr }} ip daddr {{ site_wireguard_source_address }} {{ svc.proto }} dport {{ svc.port }} accept
+    iifname "{{ site_wireguard_interface }}" ip saddr {{ cidr }} ip daddr {{ svc.daddr | default(site_wireguard_source_address) }} {{ svc.proto }} dport {{ svc.port }} accept
 {% endfor %}
 {% endfor %}
     iifname "{{ site_wireguard_interface }}" counter drop

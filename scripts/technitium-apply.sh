@@ -109,13 +109,26 @@ if [ -z "$TOKEN" ]; then
   echo "  + API token minted"
 fi
 
-# --- cluster secondaries: bootstrap + join only -------------------------------
+# --- cluster secondaries: bootstrap + join + node-local settings only ---------
 # On a cluster secondary, Settings/Allowed/Blocked/Apps/Admin all sync FROM
 # the primary; local mutations are pointless and local tokens are wiped by
-# every admin sync. Bootstrap auth (above), join once, and get out of the way.
+# every admin sync. Exception: dnsServerLocalEndPoints is node-specific (each
+# node binds its own address set, incl. the 10.53.0.1 anycast IP) and is NOT
+# replicated by cluster sync - push it here on every run.
 CLUSTER_MODE=$(jq -r '.cluster.mode // empty' <<<"$MERGED")
+apply_local_endpoints() {
+  EPS=$(jq -r '.settings.dnsServerLocalEndPoints // empty | join(",")' <<<"$MERGED")
+  if [ -n "$EPS" ]; then
+    RESP=$(api "/api/settings/set" -G \
+      --data-urlencode "token=$TOKEN" \
+      --data-urlencode "dnsServerLocalEndPoints=$EPS")
+    check "$RESP" "settings/localEndPoints"
+    echo "  + node-local endpoints applied ($EPS)"
+  fi
+}
 if [ "$CLUSTER_MODE" = "secondary" ]; then
   if [ -f "$SECRETS_DIR/cluster.joined" ]; then
+    apply_local_endpoints
     echo "  ~ cluster secondary already joined; config syncs from primary"
     echo "technitium-apply: done"
     exit 0
@@ -123,11 +136,12 @@ if [ "$CLUSTER_MODE" = "secondary" ]; then
   PRIMARY_PASS=${TECHNITIUM_PRIMARY_PASSWORD:-}
   [ -z "$PRIMARY_PASS" ] && [ -s "$SECRETS_DIR/primary.pass" ] && PRIMARY_PASS=$(cat "$SECRETS_DIR/primary.pass")
   [ -n "$PRIMARY_PASS" ] || { echo "cluster join requires TECHNITIUM_PRIMARY_PASSWORD or $SECRETS_DIR/primary.pass" >&2; exit 1; }
+  # 15.4 API: initJoin takes pluralized *NodeIpAddresses (comma-separable).
   RESP=$(api "/api/admin/cluster/initJoin" -G \
     --data-urlencode "token=$TOKEN" \
-    --data-urlencode "secondaryNodeIpAddress=$(jq -r '.cluster.nodeIp' <<<"$MERGED")" \
+    --data-urlencode "secondaryNodeIpAddresses=$(jq -r '.cluster.nodeIp' <<<"$MERGED")" \
     --data-urlencode "primaryNodeUrl=$(jq -r '.cluster.primaryUrl' <<<"$MERGED")" \
-    --data-urlencode "primaryNodeIpAddress=$(jq -r '.cluster.primaryIp' <<<"$MERGED")" \
+    --data-urlencode "primaryNodeIpAddresses=$(jq -r '.cluster.primaryIp' <<<"$MERGED")" \
     --data-urlencode "primaryNodeUsername=admin" \
     --data-urlencode "primaryNodePassword=$PRIMARY_PASS" \
     --data-urlencode "ignoreCertificateErrors=true")
@@ -151,6 +165,10 @@ if [ "$CLUSTER_MODE" = "secondary" ]; then
     [ "$i" = 30 ] && { echo "join did not converge within 90s" >&2; exit 1; }
   done
   touch "$SECRETS_DIR/cluster.joined"
+  # Fresh join: the admin sync just replaced local auth; TOKEN was re-seeded
+  # above. Push node-local endpoints now that sync owns everything else.
+  TOKEN=$ptok
+  apply_local_endpoints
   echo "  + cluster joined (secondary); config now syncs from primary"
   echo "technitium-apply: done"
   exit 0
@@ -212,6 +230,19 @@ jq -c '.apps[]? // empty' <<<"$MERGED" | while read -r app; do
       --data-urlencode "url=$AURL")
     check "$RESP" "apps/install $ANAME"
     echo "  + installed app $ANAME"
+  elif jq -e --arg n "$ANAME" '.response.apps[]? | select(.name == $n) | (.updateAvailable == true) or (.version == "0.0")' <<<"$INSTALLED" >/dev/null; then
+    # Stale or failed-to-load app (version "0.0" = load failure, e.g. after a
+    # server runtime major bump; store zips are rebuilt per release). Note:
+    # a runtime bump can break an app while the store still reports the same
+    # version - if apps/config below fails with an assembly load error after
+    # a server upgrade, re-run downloadAndUpdate for that app manually.
+    UURL=$(jq -r --arg n "$ANAME" '.response.apps[]? | select(.name == $n) | .updateUrl // empty' <<<"$INSTALLED")
+    RESP=$(api "/api/apps/downloadAndUpdate" -G \
+      --data-urlencode "token=$TOKEN" \
+      --data-urlencode "name=$ANAME" \
+      --data-urlencode "url=${UURL:-$AURL}")
+    check "$RESP" "apps/update $ANAME"
+    echo "  + updated app $ANAME"
   fi
   ACONFIG=$(jq -c '.config' <<<"$app")
   if [ "$ACONFIG" != "null" ]; then
@@ -226,9 +257,11 @@ echo "  + apps applied"
 
 # --- cluster (primary init; secondaries exited above) --------------------------
 if [ "$CLUSTER_MODE" = "primary" ]; then
-  CSTATE=$(api "/api/admin/cluster/get?token=$TOKEN" 2>/dev/null || echo '{}')
+  # 15.4 API: cluster/get is gone; state lives at cluster/state with an
+  # explicit clusterInitialized flag. init takes pluralized IP addresses.
+  CSTATE=$(api "/api/admin/cluster/state?token=$TOKEN" 2>/dev/null || echo '{}')
   IN_CLUSTER=false
-  if jq -e '.response | objects | (has("nodes") or has("clusterDomain"))' <<<"$CSTATE" >/dev/null 2>&1; then
+  if jq -e '.response.clusterInitialized == true' <<<"$CSTATE" >/dev/null 2>&1; then
     IN_CLUSTER=true
   fi
   if [ "$IN_CLUSTER" = "true" ]; then
@@ -237,9 +270,35 @@ if [ "$CLUSTER_MODE" = "primary" ]; then
     RESP=$(api "/api/admin/cluster/init" -G \
       --data-urlencode "token=$TOKEN" \
       --data-urlencode "clusterDomain=$(jq -r '.cluster.domain' <<<"$MERGED")" \
-      --data-urlencode "primaryNodeIpAddress=$(jq -r '.cluster.nodeIp' <<<"$MERGED")")
+      --data-urlencode "primaryNodeIpAddresses=$(jq -r '.cluster.nodeIp' <<<"$MERGED")")
     check "$RESP" "cluster/init" "already"
     echo "  + cluster initialized (primary)"
+  fi
+fi
+
+# --- SSO (native OIDC, Technitium >= 15.0; primary only) ----------------------
+# Config cluster-syncs to secondaries via admin sync. Gated on the secret file
+# (sops technitium.sso_client_secret, seeded root-only like primary.pass) so a
+# node without the seed never half-configures SSO. Wire format: scopes and
+# groupMap are pipe-serialized tables (1 and 2 columns respectively).
+if [ "$CLUSTER_MODE" = "primary" ] && jq -e '.sso.authority // empty' <<<"$MERGED" >/dev/null 2>&1; then
+  SSO_SECRET_FILE="$SECRETS_DIR/sso_client.secret"
+  if [ -s "$SSO_SECRET_FILE" ]; then
+    SSO_GROUPMAP=$(jq -r '[.sso.groupMap[]? | .remoteGroup, .localGroup] | join("|")' <<<"$MERGED")
+    RESP=$(api "/api/admin/sso/set" -G \
+      --data-urlencode "token=$TOKEN" \
+      --data-urlencode "ssoEnabled=true" \
+      --data-urlencode "ssoAuthority=$(jq -r '.sso.authority' <<<"$MERGED")" \
+      --data-urlencode "ssoClientId=$(jq -r '.sso.clientId' <<<"$MERGED")" \
+      --data-urlencode "ssoClientSecret=$(cat "$SSO_SECRET_FILE")" \
+      --data-urlencode "ssoScopes=$(jq -r '.sso.scopes | join("|")' <<<"$MERGED")" \
+      --data-urlencode "ssoAllowSignup=$(jq -r '.sso.allowSignup' <<<"$MERGED")" \
+      --data-urlencode "ssoAllowSignupOnlyForMappedUsers=$(jq -r '.sso.allowSignupOnlyForMappedUsers' <<<"$MERGED")" \
+      --data-urlencode "ssoGroupMap=$SSO_GROUPMAP")
+    check "$RESP" "admin/sso"
+    echo "  + sso configured (cluster-syncs to secondaries)"
+  else
+    echo "  ~ sso declared but $SSO_SECRET_FILE missing; skipping (seed it root-only, then re-run)"
   fi
 fi
 

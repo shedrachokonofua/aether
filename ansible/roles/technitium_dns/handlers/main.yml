@@ -12,3 +12,7 @@
     state: restarted
     daemon_reload: true
   become: true
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true

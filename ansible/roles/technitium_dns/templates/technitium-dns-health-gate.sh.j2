@@ -1,0 +1,54 @@
+#!/bin/sh
+# Managed by Ansible (technitium_dns role). Do not edit by hand.
+# The gate makes the router's dumb tcp:53 failover check truthful: a
+# stalling-but-accepting Technitium (2026-07-16 mode) self-quarantines by
+# refusing connections.
+set -eu
+
+state_file=/var/lib/technitium/dns-health-gate.state
+failures=0
+passes=0
+if [ -r "$state_file" ]; then
+  . "$state_file"
+fi
+case "$failures" in ''|*[!0-9]*) failures=0 ;; esac
+case "$passes" in ''|*[!0-9]*) passes=0 ;; esac
+
+install_gate() {
+  if ! /usr/sbin/nft list table inet dns_health_gate >/dev/null 2>&1; then
+    /usr/sbin/nft -f - <<'EOF'
+add table inet dns_health_gate
+add chain inet dns_health_gate input { type filter hook input priority -10; policy accept; }
+add rule inet dns_health_gate input iifname "lo" accept
+add rule inet dns_health_gate input tcp dport 53 reject with tcp reset
+add rule inet dns_health_gate input udp dport 53 reject
+EOF
+  fi
+}
+
+remove_gate() {
+  /usr/sbin/nft delete table inet dns_health_gate >/dev/null 2>&1 || true
+}
+
+# +short still prints ";; communications error" diagnostics to STDOUT
+# (2026-07-18 drill: a dead resolver passed `grep -q .`), so strip ";"
+# lines first - only a real SOA answer produces a non-";" row. SERVFAIL
+# yields no answer rows either way.
+if /usr/bin/dig @127.0.0.1 dns.home.shdr.ch SOA +short +time=1 +tries=1 2>/dev/null | grep -v "^;" | grep -q .; then
+  failures=0
+  passes=$((passes + 1))
+  if [ "$passes" -ge 2 ]; then
+    remove_gate
+  fi
+else
+  passes=0
+  failures=$((failures + 1))
+  if [ "$failures" -ge 3 ]; then
+    install_gate
+  fi
+fi
+
+tmp_file="${state_file}.$$"
+printf 'failures=%s\npasses=%s\n' "$failures" "$passes" > "$tmp_file"
+chmod 0640 "$tmp_file"
+mv -f "$tmp_file" "$state_file"

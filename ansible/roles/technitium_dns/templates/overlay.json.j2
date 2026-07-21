@@ -1,7 +1,7 @@
 {
   "settings": {
     "dnsServerDomain": "{{ technitium_server_domain }}",
-    "dnsServerLocalEndPoints": ["{{ technitium_wg_ip }}:53", "127.0.0.1:53"],
+    "dnsServerLocalEndPoints": ["{{ technitium_wg_ip }}:53"{% if technitium_anycast_ip | default('') | length > 0 %}, "{{ technitium_anycast_ip }}:53"{% endif %}, "127.0.0.1:53"],
     "webServiceLocalAddresses": ["{{ technitium_wg_ip }}", "127.0.0.1"]{% if not (technitium_full_blocklist | default(false)) %},
     "blockListUrls": {{ technitium_blocklist_urls | to_json }}{% endif %}
   }{% if technitium_cluster_enabled | default(false) and technitium_primary_admin_password | length > 0 %},

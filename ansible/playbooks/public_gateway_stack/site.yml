@@ -77,6 +77,15 @@
         daddr: 10.3.0.10
         proto: tcp
         ports: [53]
+      # Anycast DNS fallback on rama when the home VRRP pair is down.
+      - saddr: [10.0.0.0/16, 10.254.0.2/32]
+        daddr: 10.53.0.1
+        proto: udp
+        ports: [53]
+      - saddr: [10.0.0.0/16, 10.254.0.2/32]
+        daddr: 10.53.0.1
+        proto: tcp
+        ports: [53]
       - saddr: [10.0.2.2/32] # home gateway Caddy -> OCI Technitium admin UI (dns.oci.shdr.ch)
         daddr: 10.3.0.10
         proto: tcp
@@ -128,6 +137,8 @@
         public_key: "{{ secrets.wireguard.oci_public_key }}"
         allowed_ips:
           - 10.3.0.0/16
+          # Rama sources this anycast DNS IP when home VRRP is down; hub crypto-routes it.
+          - 10.53.0.1/32
           - 10.254.0.4/32
   roles:
     - common

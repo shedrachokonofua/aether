@@ -12,6 +12,17 @@ let
   overlayFile = pkgs.writeText "technitium-overlay.json" (builtins.toJSON {
     settings = {
       dnsServerDomain = cfg.serverDomain;
+      # Explicit per-address sockets, NOT wildcard: a 0.0.0.0 UDP socket
+      # replies from the interface primary address, so queries to the anycast
+      # IP (10.53.0.1, DNAT target with routed failover) would be answered
+      # from the node address and discarded by clients as a source mismatch.
+      # All three are always-local; the VRRP VIP is deliberately NOT bound -
+      # it is a routing next-hop only, health-checked by ARP on the router.
+      dnsServerLocalEndPoints = [
+        "${cfg.cluster.nodeIp}:53"
+        "10.53.0.1:53"
+        "127.0.0.1:53"
+      ];
     };
     cluster = cfg.cluster;
   });
@@ -31,6 +42,14 @@ in
       type = lib.types.attrs;
       description = "Cluster block for the apply overlay: {mode=primary, domain, nodeIp} or {mode=secondary, nodeIp, primaryUrl, primaryIp}.";
     };
+    vrrpPriority = lib.mkOption {
+      type = lib.types.int;
+      description = "VRRP priority for the DNS VIP election.";
+    };
+    vrrpPeerAddress = lib.mkOption {
+      type = lib.types.str;
+      description = "The other home node's address for unicast VRRP peering.";
+    };
   };
 
   config = {
@@ -38,6 +57,14 @@ in
   services.technitium-dns-server = {
     enable = true;
     openFirewall = false;
+    # 15.4.0 cluster-wide (matches rama's container tag; primary ns2 must not
+    # trail its secondaries). Vendored under nix/packages because nixos-25.11
+    # carries 15.2 (SDK 9) and 15.4 targets .NET 10; drop the vendor once
+    # nixpkgs ships >= 15.4.
+    package = pkgs.callPackage ../../packages/technitium-dns-server/package.nix {
+      technitium-dns-server-library =
+        pkgs.callPackage ../../packages/technitium-dns-server-library/package.nix { };
+    };
   };
 
   # 2026-07-16 incident rule: services on a resolver box get hard resource
@@ -144,6 +171,61 @@ in
   networking.firewall.allowedUDPPorts = [
     53
   ];
+
+  # 2026-07-18 DNS HA: the VIP is the DNAT target's next-hop on the router.
+  # The dig check catches the 2026-07-16 "accepting but stalling" failure mode.
+  # If both nodes fail checks nobody holds the VIP intentionally; the router
+  # failover route then flips to rama.
+  services.keepalived = {
+    enable = true;
+    vrrpInstances.DNS53 = {
+      interface = "eth0";
+      virtualRouterId = 53;
+      priority = cfg.vrrpPriority;
+      noPreempt = false;
+      virtualIps = [
+        { addr = "192.168.2.238/24"; }
+      ];
+      trackScripts = [ "DNS53_CHECK" ];
+      # Unicast VRRP: multicast 224.0.0.18 does not survive the oracle<->
+      # trinity L2 path (IGMP snooping) - 2026-07-18 drill found both nodes
+      # MASTER (split-brain), VIP held twice, ARP roulette deciding service.
+      unicastSrcIp = cfg.cluster.nodeIp;
+      unicastPeers = [ cfg.vrrpPeerAddress ];
+    };
+    vrrpScripts.DNS53_CHECK = {
+      # dig prints ";; communications error" diagnostics to STDOUT even with
+      # +short (2026-07-18 drill: a dead resolver PASSED `grep -q .`), so
+      # strip ";"-prefixed diagnostic lines first. SERVFAIL yields no answer
+      # rows either way - only a real SOA answer produces a non-";" line.
+      script = toString (pkgs.writeShellScript "dns53-check" ''
+        ${pkgs.dnsutils}/bin/dig @127.0.0.1 dns.home.shdr.ch SOA +short +time=1 +tries=1 2>/dev/null | ${pkgs.gnugrep}/bin/grep -v '^;' | ${pkgs.gnugrep}/bin/grep -q .
+      '');
+      interval = 2;
+      fall = 3;
+      rise = 2;
+    };
+  };
+
+  # keepalived references script user keepalived_script but the NixOS module
+  # does not create it; without it keepalived DISABLES the track script at
+  # startup ("Script user 'keepalived_script' does not exist") and VRRP runs
+  # blind - found in the 2026-07-18 failover drill: a dead resolver kept the
+  # VIP because no health check ever executed.
+  users.groups.keepalived_script = { };
+  users.users.keepalived_script = {
+    isSystemUser = true;
+    group = "keepalived_script";
+  };
+
+  networking.interfaces.lo.ipv4.addresses = [
+    {
+      address = "10.53.0.1";
+      prefixLength = 32;
+    }
+  ];
+
+  networking.firewall.extraInputRules = "ip protocol vrrp accept";
 
   services.resolved.enable = false;
 
