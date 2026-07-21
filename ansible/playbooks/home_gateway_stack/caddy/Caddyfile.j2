@@ -69,8 +69,15 @@ office-switch.home.shdr.ch {
   }
 }
 
+# Technitium DNS admin UIs. Auth is Technitium-NATIVE OIDC (>= 15.0, config
+# pushed by scripts/technitium-apply.sh, client in tofu keycloak.tf) - no
+# Caddy forward_auth here; the console's /sso/callback must reach Technitium
+# directly. Local accounts + direct node access (http://192.168.2.23x:5380
+# from TRUSTED/MGMT) remain the break-glass path.
+# Home UI proxies the DNS VRRP VIP, not a fixed node: the admin portal
+# follows whichever home node is healthy (keepalived, docs/networking.md).
 dns.home.shdr.ch {
-  reverse_proxy {{ vm.adguard.ip }}:5380
+  reverse_proxy 192.168.2.238:5380
 }
 
 # OCI offsite Technitium DNS admin UI, reached over the WireGuard fabric (10.3.0.10).
