@@ -130,12 +130,19 @@ resource "oci_identity_domains_identity_propagation_trust" "keycloak" {
   issuer              = "https://auth.shdr.ch/realms/aether"
   public_key_endpoint = "https://auth.shdr.ch/realms/aether/protocol/openid-connect/certs"
 
-  # Incoming JWT must be issued to the toolbox client. Keycloak's azp (authorized
-  # party) is a single string; aud is an array ["toolbox","openbao"], which IDCS's
-  # claim matcher appears unable to handle (opaque 500 "remove" = immutable-list
-  # mutation server-side). azp avoids the array entirely.
+  # Incoming JWT must be issued to a trusted client. Keycloak's azp (authorized
+  # party) is a single string; aud is an array, which IDCS's claim matcher
+  # cannot handle (opaque 500 "remove" = immutable-list mutation server-side).
+  # azp avoids the array entirely.
+  #
+  # 2026-07-18: IDCS permits exactly ONE propagation trust per issuer (verified:
+  # "IdentityPropagationTrust with the same issuer already exists" on a second
+  # trust — PLAN.md's second-trust design replaced by widening this list).
+  # cloud-audit tokens (azp=cloud-audit) map sub -> the read-only
+  # cloud-audit user via userName; any other sub has no mapped user and is
+  # rejected. The ceiling is unchanged.
   client_claim_name   = "azp"
-  client_claim_values = ["toolbox"]
+  client_claim_values = ["toolbox", "cloud-audit"]
 
   # oauth_clients = the OCI OAuth client allowed to invoke this trust's exchange
   # (the confidential app above, by its client_id == app.name), NOT the Keycloak

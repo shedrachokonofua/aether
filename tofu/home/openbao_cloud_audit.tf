@@ -60,6 +60,7 @@ resource "vault_kv_secret_v2" "cloud_audit" {
     tailscale_client_id              = var.cloud_audit_tailscale_client_id
     tailscale_client_secret          = var.cloud_audit_tailscale_client_secret
     cloudflare_api_token             = var.cloud_audit_cloudflare_api_token
+    oci_token_exchange_client_id     = var.cloud_audit_oci_token_exchange_client_id
     oci_token_exchange_client_secret = var.cloud_audit_oci_token_exchange_client_secret
   })
 }
