@@ -29,6 +29,7 @@
         save: true
 
     - name: Configure WAN
+      # no_log: result echoes pushed lines incl. PPPoE credentials
       vyos.vyos.vyos_config:
         lines:
           - set interfaces pppoe pppoe0 authentication username {{ secrets.pppoe_username }}
@@ -36,6 +37,7 @@
           - set interfaces pppoe pppoe0 source-interface eth0
           - set interfaces pppoe pppoe0 ip adjust-mss 1452
         save: true
+      no_log: true
 
     - name: Configure routed WireGuard site fabric
       vyos.vyos.vyos_config:
@@ -56,6 +58,7 @@
           - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.254.0.3/32
           - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.3.0.0/16
           - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.254.0.4/32
+          - set interfaces wireguard wg10 peer {{ site_wireguard_peer.site }} allowed-ips 10.53.0.1/32
           - set protocols static route 10.1.0.0/16 interface wg10
           - set protocols static route 10.2.0.0/16 interface wg10
           - set protocols static route 10.3.0.0/16 interface wg10
@@ -101,56 +104,90 @@
           - set nat source rule 102 translation address masquerade
         save: true
 
+    # Failover semantics: the VIP hop is checked by ARP, not tcp:53 - the VIP
+    # is a routing next-hop only (nodes bind their own IP + 10.53.0.1, never
+    # the VIP; a wildcard bind would answer UDP from the wrong source). ARP
+    # for .238 is answered only by a live keepalived MASTER, and keepalived
+    # withdraws the VIP when its dig health check fails, so ARP presence ==
+    # "a home node passed a real DNS query". The rama hop keeps tcp:53: it is
+    # routed via the static 10.3.0.0/16 route (no circularity), and rama's
+    # health gate rejects tcp when its own dig check fails. check target is
+    # mandatory per hop. ORDER MATTERS: this task MUST precede the DNS DNAT
+    # cutover below - 2026-07-18 outage: DNAT to 10.53.0.1 committed before
+    # the route existed, blackholing all client DNS (and with it the SOPS/KMS
+    # lookups the rest of this play needed).
+    - name: Configure DNS anycast failover routing
+      vyos.vyos.vyos_config:
+        lines:
+          - set protocols failover route 10.53.0.1/32 next-hop 192.168.2.238 metric 10
+          - set protocols failover route 10.53.0.1/32 next-hop 192.168.2.238 check type arp
+          - set protocols failover route 10.53.0.1/32 next-hop 192.168.2.238 check target 192.168.2.238
+          - set protocols failover route 10.53.0.1/32 next-hop 192.168.2.238 interface eth0
+          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 metric 20
+          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 interface wg10
+          # onlink is REQUIRED for the wg10 hop: wg10 is a /32 point-to-point
+          # interface, so 10.3.0.10 is not an on-link gateway - without it the
+          # kernel rejects the add ("Nexthop has invalid gateway") and
+          # vyos-failover fails SILENTLY (it only logs failed adds in debug).
+          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 onlink
+          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 check type tcp
+          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 check port 53
+          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 check target 10.3.0.10
+        save: true
+
     # Per-VLAN DNS interception: clients keep asking 10.0.x.1 (stable service
-    # address forever), the router steers it to the Technitium cluster node.
-    # DNAT preserves the client source IP -> per-client attribution in the
-    # query log. Rollback per VLAN = delete one rule; the VyOS pdns forwarding
-    # below stays configured as the shadow fallback.
+    # address forever), and the router steers it to the DNS anycast service IP.
+    # The home failover route prefers the VRRP VIP 192.168.2.238 (keepalived on
+    # ns1/ns2 with real dig health checks) and falls back to rama over wg10.
+    # DNAT preserves each client source address end to end for per-client
+    # attribution; PROXY is not needed, and no SNAT rule matches 10.53.0.1.
+    # Rollback per VLAN = delete one rule; the VyOS pdns forwarding below stays
+    # configured as the shadow fallback.
     - name: Configure DNS DNAT to Technitium
       vyos.vyos.vyos_config:
         lines:
-          - set nat destination rule 60 description 'eth1 native DNS -> ns2'
+          - set nat destination rule 60 description 'eth1 native DNS -> DNS anycast 10.53.0.1'
           - set nat destination rule 60 inbound-interface name eth1
           - set nat destination rule 60 destination address 10.0.0.1/32
           - set nat destination rule 60 destination port 53
           - set nat destination rule 60 protocol tcp_udp
-          - set nat destination rule 60 translation address 192.168.2.237
-          - set nat destination rule 62 description 'VLAN2 DNS -> ns2'
+          - set nat destination rule 60 translation address 10.53.0.1
+          - set nat destination rule 62 description 'VLAN2 DNS -> DNS anycast 10.53.0.1'
           - set nat destination rule 62 inbound-interface name eth1.2
           - set nat destination rule 62 destination address 10.0.2.1/32
           - set nat destination rule 62 destination port 53
           - set nat destination rule 62 protocol tcp_udp
-          - set nat destination rule 62 translation address 192.168.2.237
-          - set nat destination rule 63 description 'VLAN3 DNS -> ns2'
+          - set nat destination rule 62 translation address 10.53.0.1
+          - set nat destination rule 63 description 'VLAN3 DNS -> DNS anycast 10.53.0.1'
           - set nat destination rule 63 inbound-interface name eth1.3
           - set nat destination rule 63 destination address 10.0.3.1/32
           - set nat destination rule 63 destination port 53
           - set nat destination rule 63 protocol tcp_udp
-          - set nat destination rule 63 translation address 192.168.2.237
-          - set nat destination rule 64 description 'VLAN4 DNS -> ns2'
+          - set nat destination rule 63 translation address 10.53.0.1
+          - set nat destination rule 64 description 'VLAN4 DNS -> DNS anycast 10.53.0.1'
           - set nat destination rule 64 inbound-interface name eth1.4
           - set nat destination rule 64 destination address 10.0.4.1/32
           - set nat destination rule 64 destination port 53
           - set nat destination rule 64 protocol tcp_udp
-          - set nat destination rule 64 translation address 192.168.2.237
-          - set nat destination rule 65 description 'VLAN5 DNS -> ns2'
+          - set nat destination rule 64 translation address 10.53.0.1
+          - set nat destination rule 65 description 'VLAN5 DNS -> DNS anycast 10.53.0.1'
           - set nat destination rule 65 inbound-interface name eth1.5
           - set nat destination rule 65 destination address 10.0.5.1/32
           - set nat destination rule 65 destination port 53
           - set nat destination rule 65 protocol tcp_udp
-          - set nat destination rule 65 translation address 192.168.2.237
-          - set nat destination rule 66 description 'VLAN6 DNS -> ns2'
+          - set nat destination rule 65 translation address 10.53.0.1
+          - set nat destination rule 66 description 'VLAN6 DNS -> DNS anycast 10.53.0.1'
           - set nat destination rule 66 inbound-interface name eth1.6
           - set nat destination rule 66 destination address 10.0.6.1/32
           - set nat destination rule 66 destination port 53
           - set nat destination rule 66 protocol tcp_udp
-          - set nat destination rule 66 translation address 192.168.2.237
-          - set nat destination rule 67 description 'VLAN7 DNS -> ns2'
+          - set nat destination rule 66 translation address 10.53.0.1
+          - set nat destination rule 67 description 'VLAN7 DNS -> DNS anycast 10.53.0.1'
           - set nat destination rule 67 inbound-interface name eth1.7
           - set nat destination rule 67 destination address 10.0.7.1/32
           - set nat destination rule 67 destination port 53
           - set nat destination rule 67 protocol tcp_udp
-          - set nat destination rule 67 translation address 192.168.2.237
+          - set nat destination rule 67 translation address 10.53.0.1
         save: true
 
     - name: Configure DNS Forwarding
@@ -238,10 +275,14 @@
     # Here we just deploy the CA key and principals from step-ca.
     # -------------------------------------------------------------------------
     - name: Fetch SSH user CA public key from step-ca
+      # Pinned to the checked-in Aether root (files/step-ca-root.crt,
+      # SHA256 0F905AB355CD4378D09A36797E8CED5B75AA424BCBBE6387D5E4BB15D3B4FEDF).
+      # This key is the router's admin trust anchor - never fetch unverified.
       ansible.builtin.uri:
         url: "https://ca.shdr.ch/1.0/ssh/federation"
         return_content: true
-        validate_certs: false
+        validate_certs: true
+        ca_path: "{{ playbook_dir }}/files/step-ca-root.crt"
       register: ca_pubkey_response
       delegate_to: localhost
       retries: 3
@@ -382,6 +423,10 @@
           - set firewall zone UNTRUSTED description 'IoT and Guest networks'
           - set firewall zone UNTRUSTED member interface eth1.6
           - set firewall zone UNTRUSTED member interface eth1.7
+          # Native (untagged) eth1 carries 10.0.0.1/16 from the image but has
+          # no declared tenants (no DHCP subnet, empty neighbor table). Zoned
+          # here so any stray untagged device is governed, not ambiguous.
+          - set firewall zone UNTRUSTED member interface eth1
           - set firewall zone UNTRUSTED default-action drop
 
           # Define LOCAL zone for router itself
@@ -525,6 +570,11 @@
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 source address {{ vm.estate_scanner.ip }}
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 destination address 10.2.0.10/32
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 51 description 'Estate scanner discovers GCP WG identity'
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 60 action accept
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 60 protocol tcp_udp
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 60 destination address 10.53.0.1/32
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 60 destination port 53
+          - set firewall ipv4 name TRUSTED-to-CLOUD rule 60 description 'DNS to DNS anycast 10.53.0.1 via rama failover'
           - set firewall ipv4 name CLOUD-to-LOCAL default-action drop
           - set firewall ipv4 name CLOUD-to-LOCAL rule 10 action accept
           - set firewall ipv4 name CLOUD-to-LOCAL rule 10 state established
@@ -610,9 +660,9 @@
           - set firewall ipv4 name SERVICES-to-MGMT rule 10 state related
           - set firewall ipv4 name SERVICES-to-MGMT rule 50 action accept
           - set firewall ipv4 name SERVICES-to-MGMT rule 50 protocol tcp_udp
-          - set firewall ipv4 name SERVICES-to-MGMT rule 50 destination address 192.168.2.237/32
+          - set firewall ipv4 name SERVICES-to-MGMT rule 50 destination address 10.53.0.1/32
           - set firewall ipv4 name SERVICES-to-MGMT rule 50 destination port 53
-          - set firewall ipv4 name SERVICES-to-MGMT rule 50 description 'DNS to Technitium ns2 (DNAT from 10.0.3.1)'
+          - set firewall ipv4 name SERVICES-to-MGMT rule 50 description 'DNS to DNS anycast 10.53.0.1 (DNAT from 10.0.3.1)'
           # Step-CA access for certificate operations
           - set firewall ipv4 name SERVICES-to-MGMT rule 20 action accept
           - set firewall ipv4 name SERVICES-to-MGMT rule 20 protocol tcp
@@ -657,11 +707,20 @@
           - set firewall ipv4 name MEDIA-to-MGMT rule 10 state related
           - set firewall ipv4 name MEDIA-to-MGMT rule 50 action accept
           - set firewall ipv4 name MEDIA-to-MGMT rule 50 protocol tcp_udp
-          - set firewall ipv4 name MEDIA-to-MGMT rule 50 destination address 192.168.2.237/32
+          - set firewall ipv4 name MEDIA-to-MGMT rule 50 destination address 10.53.0.1/32
           - set firewall ipv4 name MEDIA-to-MGMT rule 50 destination port 53
-          - set firewall ipv4 name MEDIA-to-MGMT rule 50 description 'DNS to Technitium ns2 (DNAT from 10.0.5.1)'
+          - set firewall ipv4 name MEDIA-to-MGMT rule 50 description 'DNS to DNS anycast 10.53.0.1 (DNAT from 10.0.5.1)'
           - set firewall ipv4 name MEDIA-to-UNTRUSTED default-action drop
           - set firewall ipv4 name UNTRUSTED-to-MEDIA default-action drop
+          - set firewall ipv4 name MEDIA-to-CLOUD default-action drop
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 10 action accept
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 10 state established
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 10 state related
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 20 action accept
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 20 protocol tcp_udp
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 20 destination address 10.53.0.1/32
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 20 destination port 53
+          - set firewall ipv4 name MEDIA-to-CLOUD rule 20 description 'DNS to DNS anycast 10.53.0.1 via rama failover'
 
           # Configure services zone policies
           - set firewall ipv4 name SERVICES-to-TRUSTED default-action drop
@@ -696,8 +755,10 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 protocol tcp
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 destination port {{ vm.notifications_stack.ports.smtp }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 destination address {{ vm.notifications_stack.ip }}
-          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 source address {{ vm.gitlab.ip }}
-          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 description 'Allow SMTP from GitLab to notifications relay'
+          # Widened from vm.gitlab.ip on 2026-06-27 (live) - k8s pods also
+          # relay SMTP; adopted into IaC 2026-07-18 after an apply stomped it.
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 source address 10.0.3.0/24
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 24 description 'Allow SMTP from Services VLAN (GitLab, k8s) to notifications relay'
           # SeaweedFS S3 + Filer (live rule 25; keep declared so full applies do not stomp it)
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 25 action accept
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 25 protocol tcp
@@ -733,6 +794,11 @@
           - set firewall ipv4 name SERVICES-to-CLOUD rule 20 destination address 10.1.0.10/32
           - set firewall ipv4 name SERVICES-to-CLOUD rule 20 source group address-group TALOS-NODES
           - set firewall ipv4 name SERVICES-to-CLOUD rule 20 description 'Allow Kestra CrowdSec IP sync over WireGuard'
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 30 action accept
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 30 protocol tcp_udp
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 30 destination address 10.53.0.1/32
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 30 destination port 53
+          - set firewall ipv4 name SERVICES-to-CLOUD rule 30 description 'DNS to DNS anycast 10.53.0.1 via rama failover'
           - set firewall ipv4 name SERVICES-to-MEDIA default-action accept
           - set firewall ipv4 name SERVICES-to-UNTRUSTED default-action drop
           - set firewall ipv4 name SERVICES-to-UNTRUSTED rule 10 action accept
@@ -762,13 +828,55 @@
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state related
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 action accept
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 protocol tcp_udp
-          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 destination address 192.168.2.237/32
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 destination address 10.53.0.1/32
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 destination port 53
-          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 description 'DNS to Technitium ns2 (DNAT from 10.0.6.1/10.0.7.1)'
+          - set firewall ipv4 name UNTRUSTED-to-MGMT rule 50 description 'DNS to DNS anycast 10.53.0.1 (DNAT from 10.0.6.1/10.0.7.1)'
           - set firewall ipv4 name UNTRUSTED-to-SERVICES default-action drop
           - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 action accept
           - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 state established
           - set firewall ipv4 name UNTRUSTED-to-SERVICES rule 10 state related
+
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD default-action drop
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 10 action accept
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 10 state established
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 10 state related
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 20 action accept
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 20 protocol tcp_udp
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 20 destination address 10.53.0.1/32
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 20 destination port 53
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD rule 20 description 'DNS to DNS anycast 10.53.0.1 via rama failover'
+          # Default-drop logging: every drop policy logs its default verdict so
+          # the detection stack (journal -> OTel -> Loki/ClickHouse) sees what
+          # the firewall itself rejects - the eth2 mirror only taps eth1, so
+          # router-local and WAN-side drops are otherwise invisible. WAN-facing
+          # policies included deliberately: internet background radiation is
+          # the signal CrowdSec/Suricata correlate against.
+          - set firewall ipv4 name WAN-to-ZONES default-log
+          - set firewall ipv4 name WAN-to-LOCAL default-log
+          - set firewall ipv4 name MEDIA-to-LOCAL default-log
+          - set firewall ipv4 name UNTRUSTED-to-LOCAL default-log
+          - set firewall ipv4 name SERVICES-to-LOCAL default-log
+          - set firewall ipv4 name MGMT-to-LOCAL default-log
+          - set firewall ipv4 name CLOUD-to-TRUSTED default-log
+          - set firewall ipv4 name TRUSTED-to-CLOUD default-log
+          - set firewall ipv4 name CLOUD-to-LOCAL default-log
+          - set firewall ipv4 name CLOUD-to-SERVICES default-log
+          - set firewall ipv4 name MGMT-to-CLOUD default-log
+          - set firewall ipv4 name CLOUD-to-MGMT default-log
+          - set firewall ipv4 name SERVICES-to-MGMT default-log
+          - set firewall ipv4 name SERVICES-to-TRUSTED default-log
+          - set firewall ipv4 name SERVICES-to-CLOUD default-log
+          - set firewall ipv4 name SERVICES-to-UNTRUSTED default-log
+          - set firewall ipv4 name MEDIA-to-TRUSTED default-log
+          - set firewall ipv4 name MEDIA-to-MGMT default-log
+          - set firewall ipv4 name MEDIA-to-UNTRUSTED default-log
+          - set firewall ipv4 name MEDIA-to-CLOUD default-log
+          - set firewall ipv4 name UNTRUSTED-to-CLOUD default-log
+          - set firewall ipv4 name UNTRUSTED-to-MEDIA default-log
+          - set firewall ipv4 name UNTRUSTED-INTRA default-log
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED default-log
+          - set firewall ipv4 name UNTRUSTED-to-MGMT default-log
+          - set firewall ipv4 name UNTRUSTED-to-SERVICES default-log
 
           # Apply WAN zone firewall policies
           - set firewall zone WAN from TRUSTED firewall name ZONES-to-WAN
@@ -812,6 +920,8 @@
           - set firewall zone CLOUD from TRUSTED firewall name TRUSTED-to-CLOUD
           - set firewall zone TRUSTED from CLOUD firewall name CLOUD-to-TRUSTED
           - set firewall zone CLOUD from SERVICES firewall name SERVICES-to-CLOUD
+          - set firewall zone CLOUD from MEDIA firewall name MEDIA-to-CLOUD
+          - set firewall zone CLOUD from UNTRUSTED firewall name UNTRUSTED-to-CLOUD
           - set firewall zone SERVICES from CLOUD firewall name CLOUD-to-SERVICES
           - set firewall zone CLOUD from MGMT firewall name MGMT-to-CLOUD
           - set firewall zone MGMT from CLOUD firewall name CLOUD-to-MGMT

@@ -1,0 +1,14 @@
+# Managed by Ansible (technitium_dns role). Do not edit by hand.
+[Unit]
+Description=Technitium routed anycast loopback address
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ip addr replace {{ technitium_anycast_ip }}/32 dev lo
+ExecStop=-/usr/sbin/ip addr del {{ technitium_anycast_ip }}/32 dev lo
+
+[Install]
+WantedBy=multi-user.target
