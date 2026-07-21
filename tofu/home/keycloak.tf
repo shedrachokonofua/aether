@@ -335,7 +335,8 @@ resource "keycloak_user_roles" "shdrch_aether_roles" {
   realm_id = keycloak_realm.aether.id
   user_id  = keycloak_user.shdrch_aether.id
   role_ids = [
-    keycloak_role.admin.id
+    keycloak_role.admin.id,
+    keycloak_role.dns_admin.id,
   ]
 }
 
@@ -1016,6 +1017,60 @@ resource "keycloak_openid_client_default_scopes" "oauth2_proxy_default_scopes" {
     "email",
     "roles",
   ]
+}
+
+# =============================================================================
+# Technitium DNS OIDC Client (native console SSO, Technitium >= 15.0)
+# =============================================================================
+# Consumed by scripts/technitium-apply.sh (api/admin/sso/set) on the cluster
+# primary; the SSO config then cluster-syncs to ns1 and rama. The client
+# secret's single source of truth is sops (technitium.sso_client_secret) -
+# read here for Keycloak and seeded once, root-only, at
+# /var/lib/technitium-apply/sso_client.secret on the primary (same channel
+# as primary.pass). Local Technitium accounts remain the break-glass path.
+
+resource "keycloak_role" "dns_admin" {
+  realm_id    = keycloak_realm.aether.id
+  name        = "dns_admin"
+  description = "Technitium DNS console Administrators via SSO group mapping"
+}
+
+resource "keycloak_openid_client" "technitium_dns" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "technitium-dns"
+  name      = "Technitium DNS"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  client_secret = var.secrets["technitium.sso_client_secret"]
+
+  valid_redirect_uris = [
+    "https://dns.home.shdr.ch/sso/callback",
+    "https://dns.oci.shdr.ch/sso/callback",
+  ]
+
+  web_origins = [
+    "https://dns.home.shdr.ch",
+    "https://dns.oci.shdr.ch",
+  ]
+}
+
+# Technitium's ssoGroupMap matches against a "groups" claim; emit realm roles
+# under that name (the realm models access as roles, not Keycloak groups).
+resource "keycloak_openid_user_realm_role_protocol_mapper" "technitium_dns_groups" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.technitium_dns.id
+  name      = "realm-roles-as-groups"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 
 # =============================================================================
