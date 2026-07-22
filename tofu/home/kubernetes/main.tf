@@ -81,6 +81,22 @@ variable "oidc_client_id" {
   description = "OIDC client ID"
 }
 
+variable "cloud_audit" {
+  type = object({
+    aws_role_arn          = string
+    aws_region            = string
+    gcp_wif_provider      = string
+    gcp_service_account   = string
+    gcp_project_id        = string
+    oci_domain_url        = string
+    oci_tenancy_ocid      = string
+    tailnet               = string
+    cloudflare_account_id = string
+  })
+  default     = null
+  description = "vigil runtime config (cloud_audit.tf); null disables the cloud-audit deployment"
+}
+
 variable "gateway_api_version" {
   type        = string
   description = "Gateway API CRD version"

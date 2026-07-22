@@ -595,5 +595,18 @@ module "kubernetes" {
   nfs_server_ip       = local.vm.nfs.ip.vyos
   rotating_proxy_addr = "${local.vm.home_gateway_stack.ip}:${local.vm.home_gateway_stack.ports.rotating_proxy}"
 
+  # cloud-audit (vigil) runtime config — see kubernetes/cloud_audit.tf
+  cloud_audit = {
+    aws_role_arn          = var.cloud_audit_aws_role_arn
+    aws_region            = var.cloud_audit_aws_region
+    gcp_wif_provider      = var.cloud_audit_gcp_wif_provider
+    gcp_service_account   = var.cloud_audit_gcp_service_account
+    gcp_project_id        = var.cloud_audit_gcp_project_id
+    oci_domain_url        = var.cloud_audit_oci_domain_url
+    oci_tenancy_ocid      = var.cloud_audit_oci_tenancy_ocid
+    tailnet               = var.cloud_audit_tailnet
+    cloudflare_account_id = var.cloud_audit_cloudflare_account_id
+  }
+
   depends_on = [talos_cluster_kubeconfig.this]
 }
