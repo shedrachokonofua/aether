@@ -143,6 +143,23 @@ resource "kubernetes_secret_v1" "kestra_crowdsec_sync" {
   }
 }
 
+resource "kubernetes_secret_v1" "kestra_router_drift" {
+  depends_on = [module.namespace["kestra"]]
+
+  metadata {
+    name      = "kestra-router-drift"
+    namespace = local.kestra_ns
+  }
+
+  type = "Opaque"
+
+  data = {
+    # Read-only Grafana SA token — the router-drift flow queries ClickHouse
+    # (live + declared config snapshots) through the Grafana datasource proxy.
+    SECRET_GRAFANA_SA_TOKEN = base64encode(var.secrets["grafana_sa_token"])
+  }
+}
+
 resource "kubectl_manifest" "kestra_cnpg_cluster" {
   depends_on = [
     helm_release.cnpg,
@@ -238,11 +255,13 @@ resource "helm_release" "kestra" {
         "aether.shdr.ch/kestra-inquest-sha"       = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_inquest.data)))
         "aether.shdr.ch/kestra-estate-scan-sha"   = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_estate_scan.data)))
         "aether.shdr.ch/kestra-crowdsec-sync-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_crowdsec_sync.data)))
+        "aether.shdr.ch/kestra-router-drift-sha"  = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_router_drift.data)))
       }
       extraEnvFrom = [
         { secretRef = { name = kubernetes_secret_v1.kestra_inquest.metadata[0].name } },
         { secretRef = { name = kubernetes_secret_v1.kestra_estate_scan.metadata[0].name } },
         { secretRef = { name = kubernetes_secret_v1.kestra_crowdsec_sync.metadata[0].name } },
+        { secretRef = { name = kubernetes_secret_v1.kestra_router_drift.metadata[0].name } },
       ]
       extraVolumeMounts = [{
         name      = "kestra-storage"
