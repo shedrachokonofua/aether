@@ -492,7 +492,8 @@
         - 13-qss-observations.sql
         - 14-mac-first-seen.sql
         - 15-mac-ip-history.sql
-      tags: [clickhouse, qss-exporter]
+        - 16-gigahub-observations.sql
+      tags: [clickhouse, qss-exporter, gigahub-exporter]
 
     - name: Apply idempotent observation pipeline schemas
       containers.podman.podman_container_exec:
@@ -508,8 +509,9 @@
         - 13-qss-observations.sql
         - 14-mac-first-seen.sql
         - 15-mac-ip-history.sql
+        - 16-gigahub-observations.sql
       no_log: false
-      tags: [clickhouse, qss-exporter]
+      tags: [clickhouse, qss-exporter, gigahub-exporter]
 
     - name: Backfill mac_first_seen from existing observations (idempotent)
       containers.podman.podman_container_exec:

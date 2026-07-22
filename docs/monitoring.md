@@ -30,7 +30,7 @@ flowchart TB
     Collector -->|Loki-bound logs| Loki
     Collector -->|archive copy of Loki-bound logs| Greptime
     Collector -->|traces| Tempo
-    Collector -->|Zeek, Suricata, VyOS| ClickHouse
+    Collector -->|Zeek, Suricata, network observations| ClickHouse
     Prometheus -->|remote write| Greptime
     Greptime -->|Parquet and metadata| SeaweedFS
     Loki --> TelemetryDisk
@@ -51,7 +51,7 @@ flowchart TB
 | GreptimeDB | Long-term metrics and Loki-bound log archive in scoped SeaweedFS object storage |
 | Loki | Primary LogQL backend |
 | Tempo | Distributed trace storage |
-| ClickHouse | Network/IDS logs and replay-idempotent VyOS observations with SQL analytics |
+| ClickHouse | Network/IDS logs and replay-idempotent VyOS, QSS, and GigaHub observations with SQL analytics |
 | Grafana | Visualization and alerting across live and archive datasources |
 
 ### Data Retention
@@ -68,6 +68,22 @@ Loki data and GreptimeDB local state live on the 1 TiB `local-fast` disk mounted
 `/var/lib/telemetry`; the GreptimeDB object store remains the durable archive. Thanos
 query, sidecar, store, and compactor services were retired on 2026-07-18. The old
 `thanos-metrics` bucket is retained until its historical data is explicitly destroyed.
+
+### Network observations
+
+VyOS, QSS, and GigaHub exporters use the shared schema-v1 sealed-NDJSON
+contract. Host agents tail only atomically sealed `.ndjson` files, retain
+persistent cursors, delete files after accepted OTLP delivery, and route each
+source through a dedicated `log.source` value into the replay-idempotent
+`network.observations` ClickHouse table.
+
+GigaHub host observations carry every `Device/Hosts` entry—MAC, IP, hostname,
+active state, lease data, and normalized Ethernet/Wi-Fi interface—without
+identity-valued Prometheus labels or exporter-side truncation. The low-cardinality
+`gigahub_hosts_active_by_interface_type` metric answers aggregate activity.
+The Aether role keeps `gigahub_observations_enabled` false while the deployed
+package remains pinned to v0.2.0; enable it with the first compatible exporter
+artifact to activate the prepared filelog and ClickHouse path.
 
 ### Zeek `conn.IngestedAt` (Argos ingestion cursor)
 

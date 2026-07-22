@@ -28,4 +28,8 @@ gigahub_exporter_tls_accept_invalid_certs: true
 gigahub_exporter_handoff_interface: "eth4"
 
 gigahub_exporter_service_state: started
+
+# The currently pinned v0.2.0 package predates structured observations. Enable
+# this only with an exporter artifact containing the observation pipeline.
+gigahub_observations_enabled: false
 gigahub_exporter_service_enabled: true

@@ -239,6 +239,16 @@
       become: true
       when: qss_observations_enabled | default(false)
 
+    - name: Create GigaHub observation cursor storage directory
+      ansible.builtin.file:
+        path: /var/lib/gigahub-exporter/otel-storage
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      become: true
+      when: gigahub_observations_enabled | default(false)
+
     # Deploy configuration
     - name: Create OTEL config file
       template:

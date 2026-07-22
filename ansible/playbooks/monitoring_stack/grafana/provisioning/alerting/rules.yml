@@ -4668,7 +4668,7 @@ groups:
               rawSql: |
                 SELECT source_type, dateDiff('minute', max(timestamp), now()) AS value
                 FROM network.observations
-                WHERE source_type IN ('vyos_neighbor','vyos_dhcp','vyos_connectivity','qss_fdb','qss_lldp','qss_switch')
+                WHERE source_type IN ('vyos_neighbor','vyos_dhcp','vyos_connectivity','qss_fdb','qss_lldp','qss_switch','gigahub_host')
                 GROUP BY source_type
               refId: A
           - refId: B
