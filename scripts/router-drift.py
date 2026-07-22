@@ -147,15 +147,58 @@ def live_lines(host: str, identity: str | None) -> list[str]:
     return [l for l in r.stdout.splitlines() if l.startswith("set ")]
 
 
+def clickhouse_live_lines(grafana_url: str, ds_uid: str, source_instance: str) -> list[str]:
+    """Latest redacted config the router pushed to ClickHouse (no router access).
+
+    Reads network.router_config_snapshots via the Grafana datasource proxy with
+    the read-only SA token (env GRAFANA_SA_TOKEN). This is the push-pipeline
+    path: the router publishes its own redacted config outbound, and the
+    comparator never touches the router.
+    """
+    import json
+    import urllib.request
+
+    token = os.environ.get("GRAFANA_SA_TOKEN")
+    if not token:
+        print("ERROR: GRAFANA_SA_TOKEN not set (sops grafana_sa_token)", file=sys.stderr)
+        sys.exit(2)
+    sql = ("SELECT config FROM network.router_config_snapshots FINAL "
+           f"WHERE source_instance = '{source_instance}' "
+           "ORDER BY timestamp DESC LIMIT 1")
+    payload = json.dumps({"queries": [{
+        "refId": "A",
+        "datasource": {"uid": ds_uid, "type": "grafana-clickhouse-datasource"},
+        "rawSql": sql, "format": 1,
+    }]}).encode()
+    req = urllib.request.Request(
+        f"{grafana_url}/api/ds/query", data=payload,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            frames = json.load(resp)["results"]["A"]["frames"]
+        values = frames[0]["data"]["values"]
+        if not values or not values[0]:
+            print(f"ERROR: no config snapshot in ClickHouse for {source_instance}", file=sys.stderr)
+            sys.exit(2)
+        cfg = values[0][0]
+    except (KeyError, IndexError, ValueError) as e:
+        print(f"ERROR: unexpected ClickHouse/Grafana response: {e}", file=sys.stderr)
+        sys.exit(2)
+    return [l for l in cfg.splitlines() if l.startswith("set ")]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="aether@10.0.2.1")
     ap.add_argument("--identity", default=None,
                     help="SSH private key (e.g. the CI drift-probe key); default uses the agent")
-    ap.add_argument("--emit-declared", action="store_true",
-                    help="print the rendered declared snapshot (EXACT/PREFIX/ALLOW/SECTION "
-                         "lines) for /config/drift/declared.txt on the router - consumed by "
-                         "the on-router drift-report.sh that Kestra's nightly probe runs")
+    ap.add_argument("--clickhouse", action="store_true",
+                    help="read live config from the router's pushed snapshot in "
+                         "ClickHouse via the Grafana proxy (no router access; needs "
+                         "env GRAFANA_SA_TOKEN) instead of SSH")
+    ap.add_argument("--grafana-url", default="https://grafana.home.shdr.ch")
+    ap.add_argument("--ch-datasource-uid", default="clickhouse")
+    ap.add_argument("--source-instance", default="aether-home-router")
     args = ap.parse_args()
 
     ctx = load_context()
@@ -181,19 +224,11 @@ def main() -> int:
             return 2
         declared_exact.add(norm(rendered))
 
-    if args.emit_declared:
-        managed = sorted({tuple(l.split()[1:3]) for l in declared_exact})
-        for a, b in managed:
-            print(f"SECTION {a} {b}")
-        for a in UNDECLARED_ALLOWLIST:
-            print(f"ALLOW {norm(a)}")
-        for p in sorted(declared_secret_prefixes):
-            print(f"PREFIX {p}")
-        for l in sorted(declared_exact):
-            print(f"EXACT {l}")
-        return 0
-
-    live = [norm(l) for l in live_lines(args.host, args.identity)]
+    if args.clickhouse:
+        live = [norm(l) for l in clickhouse_live_lines(
+            args.grafana_url, args.ch_datasource_uid, args.source_instance)]
+    else:
+        live = [norm(l) for l in live_lines(args.host, args.identity)]
     live_set = set(live)
 
     # Sections the playbook manages = first two tokens after `set`.
