@@ -347,6 +347,10 @@ tasks:
       - ansible-playbook ansible/playbooks/home_router/site.yml
   configure:router:
     cmds: [ansible-playbook ansible/playbooks/home_router/configure_router.yml]
+  audit:router-drift:
+    desc: Bidirectional live-vs-IaC drift check for the VyOS router (exit 1 on drift)
+    cmds:
+      - ./scripts/router-drift.py
   configure:router-estate-scanner-dispatch:
     desc: Surgical SERVICES-to-TRUSTED rule 26 — Talos→estate-scanner:22 only
     cmds:

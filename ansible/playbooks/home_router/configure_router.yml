@@ -23,7 +23,10 @@
     - name: Disable IPv6
       vyos.vyos.vyos_config:
         lines:
-          - set system ipv6 disable
+          # `system ipv6 disable` was removed in VyOS 1.5 (drift check caught
+          # the dead declaration 2026-07-18); disable-forwarding is the
+          # surviving knob and matches live config.
+          - set system ipv6 disable-forwarding
           - set interfaces ethernet eth0 ipv6 address no-default-link-local
           - set interfaces ethernet eth1 ipv6 address no-default-link-local
         save: true
@@ -494,6 +497,15 @@
           - set firewall ipv4 name MGMT-to-LOCAL rule 20 destination port 22
           - set firewall ipv4 name MGMT-to-LOCAL rule 20 source address 192.168.2.0/24
           - set firewall ipv4 name MGMT-to-LOCAL rule 20 description 'Allow SSH from Gigahub network'
+          # Adopted 2026-07-18 from live drift (hand-added 2025-12-21, found by
+          # the archive sweep): Gigahub-side clients query the router's pdns
+          # listener on 192.168.2.231 - allow-from and listen-address were
+          # always declared, this firewall leg never was.
+          - set firewall ipv4 name MGMT-to-LOCAL rule 30 action accept
+          - set firewall ipv4 name MGMT-to-LOCAL rule 30 protocol tcp_udp
+          - set firewall ipv4 name MGMT-to-LOCAL rule 30 destination port 53
+          - set firewall ipv4 name MGMT-to-LOCAL rule 30 source address 192.168.2.0/24
+          - set firewall ipv4 name MGMT-to-LOCAL rule 30 description 'Allow DNS from Gigahub network'
 
           # Create WAN to LOCAL firewall rules
           - set firewall ipv4 name WAN-to-LOCAL default-action drop
