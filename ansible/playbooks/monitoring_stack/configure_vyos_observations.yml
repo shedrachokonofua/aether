@@ -7,6 +7,11 @@
   gather_facts: false
   vars:
     clickhouse_admin_user: aether
+    # otel_config.yml.j2 references greptime_credentials for its secondary
+    # archive exporter; site.yml loads it, so mirror that here or the standalone
+    # task (and the config-snapshot deploy that depends on it) fails to render.
+    greptime_credentials_path: "{{ playbook_dir }}/../../../tofu/home/secrets/greptime-credentials.yml"
+    greptime_credentials: "{{ lookup('ansible.builtin.file', greptime_credentials_path) | from_yaml }}"
   roles:
     - common
   tasks:

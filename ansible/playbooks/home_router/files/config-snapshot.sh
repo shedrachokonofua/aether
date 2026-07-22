@@ -5,4 +5,4 @@
 # inbound access, no login/ssh config touched.
 set -eu
 /opt/vyatta/bin/vyatta-op-cmd-wrapper show configuration commands \
-  | /usr/bin/python3 /config/scripts/config-snapshot-emit.py /config/vyos-exporter/observations
+  | /usr/bin/python3 /config/scripts/config-snapshot-emit.py /config/router-drift/observations

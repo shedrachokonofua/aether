@@ -89,6 +89,13 @@ connectors:
       - context: resource
         condition: attributes["log.source"] == "gigahub_observations"
         pipelines: [logs/clickhouse/gigahub_observations]
+      - context: resource
+        # Router config-drift channel: separate log.source from the exporter's
+        # vyos_observations (which is content-free by contract). Reuses the
+        # clickhouse pipeline (lands in network.ingest); the 17-* MV routes it
+        # by log.source='router_drift'. See clickhouse/17-router-config-snapshots.sql.
+        condition: attributes["log.source"] == "router_drift"
+        pipelines: [logs/clickhouse/vyos_observations]
 
 
   # Route traces by tenant for Tempo multi-tenancy
