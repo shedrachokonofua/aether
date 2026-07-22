@@ -1,6 +1,6 @@
 # Bug: intermittent NXDOMAIN for `logging-alv.googleapis.com` via estate DNS
 
-**Status:** open · **Severity:** medium (one workload degraded; potential for others)
+**Status:** resolved (2026-07-22) · **Severity:** medium (one workload degraded; potential for others)
 **Reported:** 2026-07-22 · **Reporter:** vigil rollout (cloud-audit)
 
 ## Summary
