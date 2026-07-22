@@ -8,6 +8,13 @@
     litellm_key_models:
       - all-team-models
     litellm_key_user_id: default_user_id
+    litellm_key_models_by_alias:
+      holmes:
+        - router/glm-5.2
+        - zai/glm-5.2
+        - aether/qwen3.6-35b-a3b:think
+        - aether/qwen3.6-27b:think
+        - qwen-cloud/qwen3.8-max-preview
 
   tasks:
     - name: Load secrets
@@ -74,13 +81,27 @@
         body:
           key: "{{ item.item.value }}"
           key_alias: "{{ item.item.key }}"
-          models: "{{ litellm_key_models }}"
+          models: "{{ litellm_key_models_by_alias[item.item.key] | default(litellm_key_models) }}"
           user_id: "{{ litellm_key_user_id }}"
         status_code: [200]
       loop: "{{ litellm_key_check.results }}"
       loop_control:
         label: "{{ item.item.key }}"
       when: item.json.total_count | default(0) | int == 0
+      no_log: true
+
+    - name: Synchronize Holmes virtual-key model allowlist
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ secrets.litellm.virtual_keys.holmes }}"
+          models: "{{ litellm_key_models_by_alias.holmes }}"
+        status_code: [200]
       no_log: true
 
     - name: Report virtual key registration
