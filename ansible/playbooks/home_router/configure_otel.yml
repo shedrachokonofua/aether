@@ -32,6 +32,13 @@
           - "sudo chmod 777 /config/containers/otel-storage"
           - "sudo chmod 755 /config/vyos-exporter"
           - "sudo chmod 700 /config/vyos-exporter/otel-storage"
+          # Router config-drift channel (separate from the exporter's content-
+          # free vyos_observations stream). observations/ holds redacted config
+          # snapshots; otel-storage/ is this receiver's own filelog cursor.
+          - "sudo mkdir -p /config/router-drift/observations"
+          - "sudo mkdir -p /config/router-drift/otel-storage"
+          - "sudo chmod 755 /config/router-drift /config/router-drift/observations"
+          - "sudo chmod 700 /config/router-drift/otel-storage"
 
     - name: Generate OTEL config locally
       template:
@@ -117,6 +124,12 @@
           - set container name otel-collector volume vyos-exporter source /config/vyos-exporter
           - set container name otel-collector volume vyos-exporter destination /var/lib/vyos-exporter
           - set container name otel-collector volume vyos-exporter mode rw
+
+          # Router config-drift channel: own mount, separate from the exporter's
+          # vyos-exporter volume so the content-free contract stays intact.
+          - set container name otel-collector volume router-drift source /config/router-drift
+          - set container name otel-collector volume router-drift destination /var/lib/router-drift
+          - set container name otel-collector volume router-drift mode rw
 
           # Mount host logs for collection (read-only)
           - set container name otel-collector volume host-logs source /var/log

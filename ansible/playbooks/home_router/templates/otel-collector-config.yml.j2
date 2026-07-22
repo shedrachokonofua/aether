@@ -62,6 +62,32 @@ receivers:
         value: vyos_observations
     max_log_size: 1MiB
 
+  # Router config-drift snapshots — SEPARATE channel from the exporter's
+  # content-free vyos_observations. Own dir + cursor + log.source so redacted
+  # config content never touches the exporter's stream.
+  filelog/router_drift:
+    include:
+      - /var/lib/router-drift/observations/*.ndjson
+    exclude:
+      - /var/lib/router-drift/observations/*.tmp
+    storage: file_storage/router_drift_cursor
+    start_at: beginning
+    delete_after_read: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0
+    operators:
+      - type: json_parser
+        parse_from: body
+        parse_to: attributes
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+      - type: add
+        field: attributes["log.source"]
+        value: router_drift
+    max_log_size: 4MiB
+
   hostmetrics:
     collection_interval: {{ vyos_otel_host_metrics_interval | default('15s') }}
     initial_delay: 1s
@@ -141,6 +167,18 @@ processors:
         value: "vyos_observations"
         action: insert
 
+  resource/router_drift:
+    attributes:
+      - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: service.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: log.source
+        value: "router_drift"
+        action: insert
+
 extensions:
   file_storage/filelog_cursor_storage:
     directory: /var/lib/otelcol/storage
@@ -151,6 +189,13 @@ extensions:
       # compaction.directory is a SEPARATE setting from directory; its default
       # (/var/lib/otelcol/file_storage) fails validation inside this container.
       directory: /var/lib/vyos-exporter/otel-storage
+      on_start: true
+      on_rebound: true
+  file_storage/router_drift_cursor:
+    directory: /var/lib/router-drift/otel-storage
+    timeout: 1s
+    compaction:
+      directory: /var/lib/router-drift/otel-storage
       on_start: true
       on_rebound: true
   health_check:
@@ -174,7 +219,7 @@ service:
   telemetry:
     logs:
       level: warn
-  extensions: [file_storage/filelog_cursor_storage, file_storage/vyos_observation_cursor, health_check]
+  extensions: [file_storage/filelog_cursor_storage, file_storage/vyos_observation_cursor, file_storage/router_drift_cursor, health_check]
   pipelines:
     metrics:
       receivers: [otlp, hostmetrics, podman_stats, prometheus/vyos_exporter]
@@ -195,6 +240,11 @@ service:
     logs/vyos_observations:
       receivers: [filelog/vyos_observations]
       processors: [resource/vyos_observations]
+      exporters: [otlphttp]
+    # Router config-drift snapshots -> ClickHouse (separate log.source).
+    logs/router_drift:
+      receivers: [filelog/router_drift]
+      processors: [resource/router_drift]
       exporters: [otlphttp]
     traces:
       receivers: [otlp]
