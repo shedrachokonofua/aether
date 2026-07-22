@@ -65,6 +65,32 @@ receivers:
         value: qss_observations
     max_log_size: 1MiB
 {% endif %}
+{% if gigahub_observations_enabled | default(false) %}
+  # Sealed gigahub-exporter host observations.
+  filelog/gigahub_observations:
+    include:
+      - /var/lib/gigahub-exporter/observations/*.ndjson
+    exclude:
+      - /var/lib/gigahub-exporter/observations/*.tmp
+      - /var/lib/gigahub-exporter/observations/quarantine/*
+    start_at: beginning
+    storage: file_storage/gigahub_observation_cursor
+    delete_after_read: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0
+    operators:
+      - type: json_parser
+        parse_from: body
+        parse_to: attributes
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+      - type: add
+        field: attributes["log.source"]
+        value: gigahub_observations
+    max_log_size: 1MiB
+{% endif %}
 
   filelog:
     storage: file_storage/filelog_cursor_storage
@@ -140,6 +166,19 @@ processors:
         value: "qss_observations"
         action: insert
 {% endif %}
+{% if gigahub_observations_enabled | default(false) %}
+  resource/gigahub_observations:
+    attributes:
+      - key: host.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: service.name
+        value: "{{ inventory_hostname }}"
+        action: insert
+      - key: log.source
+        value: "gigahub_observations"
+        action: insert
+{% endif %}
 
 extensions:
   file_storage/journald_cursor_storage:
@@ -154,6 +193,14 @@ extensions:
     compaction:
       on_start: true
       directory: /var/lib/qss-exporter/otel-storage
+{% endif %}
+{% if gigahub_observations_enabled | default(false) %}
+  file_storage/gigahub_observation_cursor:
+    directory: /var/lib/gigahub-exporter/otel-storage
+    timeout: 1s
+    compaction:
+      on_start: true
+      directory: /var/lib/gigahub-exporter/otel-storage
 {% endif %}
 
 exporters:
@@ -172,7 +219,7 @@ service:
               otlp:
                 protocol: http/protobuf
                 endpoint: {{ otlp_endpoint }}
-  extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage{% if qss_observations_enabled | default(false) %}, file_storage/qss_observation_cursor{% endif %}]
+  extensions: [file_storage/journald_cursor_storage, file_storage/filelog_cursor_storage{% if qss_observations_enabled | default(false) %}, file_storage/qss_observation_cursor{% endif %}{% if gigahub_observations_enabled | default(false) %}, file_storage/gigahub_observation_cursor{% endif %}]
 
   pipelines:
     metrics:
@@ -187,6 +234,12 @@ service:
     logs/qss_observations:
       receivers: [filelog/qss_observations]
       processors: [batch, resource/qss_observations]
+      exporters: [otlphttp]
+{% endif %}
+{% if gigahub_observations_enabled | default(false) %}
+    logs/gigahub_observations:
+      receivers: [filelog/gigahub_observations]
+      processors: [batch, resource/gigahub_observations]
       exporters: [otlphttp]
 {% endif %}
 {% if otlp_receiver_enabled | default(true) %}

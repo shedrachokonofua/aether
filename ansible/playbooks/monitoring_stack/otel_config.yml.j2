@@ -86,6 +86,9 @@ connectors:
       - context: resource
         condition: attributes["log.source"] == "qss_observations"
         pipelines: [logs/clickhouse/qss_observations]
+      - context: resource
+        condition: attributes["log.source"] == "gigahub_observations"
+        pipelines: [logs/clickhouse/gigahub_observations]
 
 
   # Route traces by tenant for Tempo multi-tenancy
@@ -238,6 +241,12 @@ service:
 
     # qss switch observations -> ClickHouse (same table as vyos)
     logs/clickhouse/qss_observations:
+      receivers: [routing/logs]
+      processors: [batch/vyos_observations]
+      exporters: [clickhouse/network_observations]
+
+    # GigaHub host presence observations -> shared network observations.
+    logs/clickhouse/gigahub_observations:
       receivers: [routing/logs]
       processors: [batch/vyos_observations]
       exporters: [clickhouse/network_observations]
