@@ -282,6 +282,9 @@ def main() -> int:
                          "network.router_config_declared (env CH_ADMIN_PASSWORD); then exit")
     ap.add_argument("--grafana-url", default="https://grafana.home.shdr.ch")
     ap.add_argument("--ch-datasource-uid", default="clickhouse")
+    ap.add_argument("--max-age-minutes", type=int, default=0,
+                    help="with --clickhouse: fail (exit 3) if the newest live snapshot "
+                         "is older than this - catches a broken router producer")
     ap.add_argument("--source-instance", default="aether-home-router")
     args = ap.parse_args()
 
@@ -297,6 +300,15 @@ def main() -> int:
         declared_exact, declared_secret_prefixes = build_declared_from_repo(load_context())
 
     if args.clickhouse:
+        if args.max_age_minutes:
+            age = _grafana_ch_query(args.grafana_url, args.ch_datasource_uid,
+                "SELECT dateDiff('minute', max(timestamp), now()) FROM "
+                "network.router_config_snapshots FINAL WHERE source_instance = "
+                f"'{args.source_instance}'")
+            if age is None or int(age) > args.max_age_minutes:
+                print(f"STALE: newest live snapshot is {age} min old "
+                      f"(> {args.max_age_minutes}) - the router producer is broken", file=sys.stderr)
+                return 3
         live = [norm(l) for l in clickhouse_live_lines(
             args.grafana_url, args.ch_datasource_uid, args.source_instance)]
     else:

@@ -1,0 +1,39 @@
+id: router-drift-check
+namespace: aether.network
+
+description: |
+  Nightly router config-drift check, fully unattended and with NO router
+  access. Compares the router's live config (pushed hourly to ClickHouse,
+  network.router_config_snapshots) against the declared config published at
+  apply time (network.router_config_declared) - both read through the Grafana
+  datasource proxy with a read-only SA token. The comparison logic is
+  scripts/router-drift.py, injected here as an input file (single source of
+  truth; refreshed on tofu apply of the kestra-flows stack).
+
+  The task exits non-zero on drift (undeclared live patches / reverted or
+  never-applied declarations) OR staleness (newest live snapshot older than
+  180 min = the on-router producer is broken), failing the execution so Kestra
+  surfaces it. On-demand repo-HEAD comparison remains `task audit:router-drift`.
+
+concurrency:
+  behavior: QUEUE
+  limit: 1
+
+tasks:
+  - id: drift_check
+    type: io.kestra.plugin.scripts.python.Commands
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    env:
+      GRAFANA_SA_TOKEN: "{{ secret('GRAFANA_SA_TOKEN') }}"
+    # The script is base64-embedded (not an inputFile) so Kestra's Pebble
+    # renderer never parses the Python braces; decoded at runtime. Single
+    # source of truth: scripts/router-drift.py via tofu file()+base64encode.
+    commands:
+      - echo "${base64encode(script)}" | base64 -d > router-drift.py
+      - python3 router-drift.py --clickhouse --declared-source clickhouse --max-age-minutes 180
+
+triggers:
+  - id: nightly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "30 5 * * *"
