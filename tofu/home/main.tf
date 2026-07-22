@@ -89,6 +89,60 @@ variable "cloud_audit_oci_token_exchange_client_secret" {
   description = "OCI token-exchange app client secret for the UPST exchange (oci/federation.tf output)"
 }
 
+variable "cloud_audit_aws_role_arn" {
+  type        = string
+  default     = ""
+  description = "AWS role vigil assumes (module.aws.cloud_audit_role_arn)"
+}
+
+variable "cloud_audit_aws_region" {
+  type        = string
+  default     = "us-east-1"
+  description = "AWS region for vigil's signed calls"
+}
+
+variable "cloud_audit_gcp_wif_provider" {
+  type        = string
+  default     = ""
+  description = "GCP WIF provider resource name for vigil (module.google cloud_audit_wif_provider)"
+}
+
+variable "cloud_audit_gcp_service_account" {
+  type        = string
+  default     = ""
+  description = "GCP service account vigil impersonates (module.google cloud_audit_service_account_email)"
+}
+
+variable "cloud_audit_gcp_project_id" {
+  type        = string
+  default     = ""
+  description = "GCP project for vigil's logging reads"
+}
+
+variable "cloud_audit_oci_domain_url" {
+  type        = string
+  default     = ""
+  description = "OCI Identity Domain base URL (module.oci domain_url)"
+}
+
+variable "cloud_audit_oci_tenancy_ocid" {
+  type        = string
+  default     = ""
+  description = "OCI tenancy OCID (audit compartment)"
+}
+
+variable "cloud_audit_tailnet" {
+  type        = string
+  default     = ""
+  description = "Tailscale tailnet name for vigil's state differ"
+}
+
+variable "cloud_audit_cloudflare_account_id" {
+  type        = string
+  default     = ""
+  description = "Cloudflare account id for vigil's audit-log reads"
+}
+
 variable "litellm_google_maps_enabled" {
   type        = bool
   default     = false

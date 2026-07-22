@@ -107,9 +107,20 @@ module "home" {
   # cloud-audit (vigil): provider-generated tokens -> Bao kv/aether/cloud-audit
   cloud_audit_tailscale_client_id              = tailscale_oauth_client.cloud_audit.id
   cloud_audit_tailscale_client_secret          = tailscale_oauth_client.cloud_audit.key
-  cloud_audit_cloudflare_api_token             = try(one(cloudflare_api_token.cloud_audit[*].value), "")
+  cloud_audit_cloudflare_api_token             = coalesce(try(one(cloudflare_api_token.cloud_audit[*].value), ""), "")
   cloud_audit_oci_token_exchange_client_id     = try(module.oci[0].tokenexchange_client_id, "")
   cloud_audit_oci_token_exchange_client_secret = try(module.oci[0].tokenexchange_client_secret, "")
+
+  # cloud-audit (vigil): runtime config -> kubernetes/cloud_audit.tf
+  cloud_audit_aws_role_arn          = module.aws.cloud_audit_role_arn
+  cloud_audit_aws_region            = var.aws_region
+  cloud_audit_gcp_wif_provider      = try(module.google[0].cloud_audit_wif_provider, "")
+  cloud_audit_gcp_service_account   = try(module.google[0].cloud_audit_service_account_email, "")
+  cloud_audit_gcp_project_id        = local.google.project_id
+  cloud_audit_oci_domain_url        = try(module.oci[0].domain_url, "")
+  cloud_audit_oci_tenancy_ocid      = local.oci.tenancy_ocid
+  cloud_audit_tailnet               = local.tailscale.tailnet_name
+  cloud_audit_cloudflare_account_id = local.cloudflare.account_id
 }
 
 # Bring the kubernetes-typed IdP (created during the cloud-audit acceptance
