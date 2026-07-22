@@ -10,7 +10,7 @@
 # Bao runtime fetch — nothing static, nothing in etcd).
 
 locals {
-  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:f9a4d0721e966cf13885cbe432fcad7608ec67a17deee94a070d95c276f7d2d1"
+  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:03fce07702e80b46bbaea8719008311d40a6a64fd78b8c9a88c7519f95a36fa8"
   vigil_ns    = module.namespace["cloud-audit"].name
 
   vigil_config_toml = <<-EOT
@@ -130,6 +130,10 @@ resource "kubernetes_deployment_v1" "vigil" {
   }
   spec {
     replicas = 1
+    # RWO cursor PVC can't multi-attach; never surge.
+    strategy {
+      type = "Recreate"
+    }
     selector {
       match_labels = {
         "app.kubernetes.io/name" = "vigil"
