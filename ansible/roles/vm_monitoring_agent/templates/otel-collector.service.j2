@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User={{ monitoring_agent_service_user }}
-ExecStart={{ otel_collector_binary_path }} --config={{ otel_collector_config_path }}{{ ' --feature-gates=+filelog.allowFileDeletion' if qss_observations_enabled | default(false) else '' }}
+ExecStart={{ otel_collector_binary_path }} --config={{ otel_collector_config_path }}{{ ' --feature-gates=+filelog.allowFileDeletion' if (qss_observations_enabled | default(false)) or (gigahub_observations_enabled | default(false)) else '' }}
 Restart=always
 RestartSec=10
 StandardOutput=journal

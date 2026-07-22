@@ -5,6 +5,9 @@ state_directory = "{{ gigahub_exporter_state_dir }}"
 
 [device]
 address = "{{ gigahub_exporter_device_address }}"
+{% if gigahub_observations_enabled | default(false) %}
+instance = "gigahub"
+{% endif %}
 scheme = "{{ gigahub_exporter_scheme }}"
 {% if gigahub_exporter_scheme == "https" %}
 tls_accept_invalid_certs = {{ gigahub_exporter_tls_accept_invalid_certs | lower }}
@@ -15,6 +18,11 @@ method = "sha512"
 username_file = "{{ gigahub_exporter_creds_dir }}/username"
 password_file = "{{ gigahub_exporter_creds_dir }}/password"
 
+{% if gigahub_observations_enabled | default(false) %}
+[observations]
+enabled = true
+directory = "{{ gigahub_exporter_state_dir }}/observations"
+{% endif %}
 [collectors.device_info]
 enabled = true
 
