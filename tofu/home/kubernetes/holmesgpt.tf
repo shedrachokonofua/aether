@@ -10,14 +10,15 @@
 # Server: holmes-holmes.<ns>.svc:80 -> pod :5050, endpoints /api/chat etc.
 
 locals {
-  holmes_ns             = module.namespace["holmesgpt"].name
-  holmes_chart_version  = "0.35.0"
-  holmes_litellm_base   = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
-  holmes_model_primary  = "router/glm-5.2"
-  holmes_model_local    = "qwen-local"
-  holmes_model_trial    = "aether/qwen3.6-27b:think"
-  holmes_prometheus_url = "https://prometheus.home.shdr.ch"
-  holmes_loki_url       = "https://loki.home.shdr.ch"
+  holmes_ns               = module.namespace["holmesgpt"].name
+  holmes_chart_version    = "0.35.0"
+  holmes_litellm_base     = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
+  holmes_model_primary    = "router/glm-5.2"
+  holmes_model_local      = "qwen-local"
+  holmes_model_trial      = "aether/qwen3.6-27b:think"
+  holmes_model_qwen_cloud = "qwen-cloud/qwen3.8-max-preview"
+  holmes_prometheus_url   = "https://prometheus.home.shdr.ch"
+  holmes_loki_url         = "https://loki.home.shdr.ch"
 }
 
 # LiteLLM virtual key (minted against /key/generate, stored in SOPS).
@@ -107,6 +108,12 @@ resource "helm_release" "holmesgpt" {
         api_key     = "{{ env.OPENAI_API_KEY }}"
         api_base    = "{{ env.OPENAI_API_BASE }}"
         model       = "openai/aether/qwen3.6-27b:think"
+        temperature = 1
+      }
+      (local.holmes_model_qwen_cloud) = {
+        api_key     = "{{ env.OPENAI_API_KEY }}"
+        api_base    = "{{ env.OPENAI_API_BASE }}"
+        model       = "openai/qwen-cloud/qwen3.8-max-preview"
         temperature = 1
       }
     }

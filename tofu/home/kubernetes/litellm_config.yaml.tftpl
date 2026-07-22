@@ -94,27 +94,15 @@ model_list:
       model: "openai/cline-pass/mimo-v2.5-pro"
       litellm_credential_name: clinepass_credential
 
-  # Alibaba models (https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1)
-  - model_name: "router/deepseek-v4-pro"
+  # Qwen Cloud models (https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1)
+  - model_name: "qwen-cloud/qwen3.8-max-preview"
     litellm_params:
-      model: "openai/deepseek-v4-pro"
-      litellm_credential_name: alibaba_credential
-  - model_name: "router/deepseek-v4-flash"
-    litellm_params:
-      model: "openai/deepseek-v4-flash"
-      litellm_credential_name: alibaba_credential
-  - model_name: "router/kimi-k2.7-code"
-    litellm_params:
-      model: "openai/kimi-k2.7-code"
-      litellm_credential_name: alibaba_credential
-  - model_name: "router/glm-5.2"
+      model: "openai/qwen3.8-max-preview"
+      litellm_credential_name: qwen_cloud_credential
+  - model_name: "qwen-cloud/glm-5.2"
     litellm_params:
       model: "openai/glm-5.2"
-      litellm_credential_name: alibaba_credential
-  - model_name: "router/qwen3.7-max"
-    litellm_params:
-      model: "openai/qwen3.7-max"
-      litellm_credential_name: alibaba_credential
+      litellm_credential_name: qwen_cloud_credential
 
   # Z.AI models (native LiteLLM provider)
   - model_name: "router/glm-5.2"
@@ -330,12 +318,12 @@ credential_list:
       api_key: os.environ/XIAOMI_API_KEY
     credential_info:
       description: "Xiaomi MiMo"
-  - credential_name: alibaba_credential
+  - credential_name: qwen_cloud_credential
     credential_values:
       api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
-      api_key: os.environ/ALIBABA_API_KEY
+      api_key: os.environ/QWEN_CLOUD_API_KEY
     credential_info:
-      description: "Alibaba Model-as-a-Service"
+      description: "Qwen Cloud (Alibaba MaaS)"
   - credential_name: zai_credential
     credential_values:
       api_base: https://api.z.ai/api/coding/paas/v4
@@ -409,20 +397,15 @@ router_settings:
     "minimax-m3": "router/minimax-m3"
     "mimo-v2.5-pro": "router/mimo-v2.5-pro"
     "clinepass/glm-5.2": "router/glm-5.2"
-    "alibaba/glm-5.2": "router/glm-5.2"
     "zai/glm-5.2": "router/glm-5.2"
     "ollama-cloud/glm-5.2": "router/glm-5.2"
     "clinepass/kimi-k2.7-code": "router/kimi-k2.7-code"
-    "alibaba/kimi-k2.7-code": "router/kimi-k2.7-code"
     "ollama-cloud/kimi-k2.7-code": "router/kimi-k2.7-code"
     "clinepass/deepseek-v4-pro": "router/deepseek-v4-pro"
-    "alibaba/deepseek-v4-pro": "router/deepseek-v4-pro"
     "ollama-cloud/deepseek-v4-pro:cloud": "router/deepseek-v4-pro"
     "clinepass/deepseek-v4-flash": "router/deepseek-v4-flash"
-    "alibaba/deepseek-v4-flash": "router/deepseek-v4-flash"
     "ollama-cloud/deepseek-v4-flash:cloud": "router/deepseek-v4-flash"
     "clinepass/qwen3.7-max": "router/qwen3.7-max"
-    "alibaba/qwen3.7-max": "router/qwen3.7-max"
     "clinepass/minimax-m3": "router/minimax-m3"
     "ollama-cloud/minimax-m3": "router/minimax-m3"
     "clinepass/mimo-v2.5-pro": "router/mimo-v2.5-pro"
@@ -446,6 +429,8 @@ mcp_servers:
     auth_value: "${affine_mcp_http_token}"
   espn:
     url: "http://localhost:8080/mcp"
+  tmdb:
+    url: "http://localhost:8006/mcp"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"

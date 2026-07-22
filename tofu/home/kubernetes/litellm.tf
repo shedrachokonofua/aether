@@ -13,6 +13,7 @@ locals {
   litellm_google_maps_image   = "docker.io/node:22-slim"
   litellm_google_maps_package = "@cablate/mcp-google-map@0.0.52"
   litellm_affine_mcp_image    = "ghcr.io/dawncr0w/affine-mcp-server:latest"
+  litellm_tmdb_image          = "ghcr.io/cyanheads/tmdb-mcp-server:0.1.1"
   litellm_host                = "litellm.home.shdr.ch"
   litellm_espn_mcp_host       = "espn-mcp.home.shdr.ch"
   litellm_ns                  = module.namespace["litellm"].name
@@ -23,6 +24,7 @@ locals {
   litellm_time_mcp_port       = 8003
   litellm_google_maps_port    = 8004
   litellm_affine_mcp_port     = 8005
+  litellm_tmdb_port           = 8006
   litellm_espn_mcp_port       = 8080
   litellm_postgres_port       = 5432
   litellm_cnpg_cluster        = "litellm-cnpg"
@@ -58,11 +60,12 @@ resource "kubernetes_secret_v1" "litellm_env" {
       OLLAMA_API_KEY        = var.secrets["litellm.ollama_cloud_api_key"]
       CLINEPASS_API_KEY     = var.secrets["litellm.clinepass_api_key"]
       XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
-      ALIBABA_API_KEY       = var.secrets["litellm.alibaba_api_key"]
+      QWEN_CLOUD_API_KEY    = var.secrets["litellm.qwen_cloud_api_key"]
       ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
       CURSOR_API_KEY        = var.secrets["composer.cursor_api_key"]
       FINVIZ_API_KEY        = var.secrets["finviz_api_key"]
       COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
+      TMDB_API_KEY          = var.secrets["tmdb_read_access_token"]
       AFFINE_API_TOKEN      = var.secrets["litellm.affine_api_token"]
       AFFINE_MCP_HTTP_TOKEN = random_password.litellm_affine_mcp_http.result
       LITELLM_CONFIG_SHA    = sha256(local.litellm_config_yaml)
@@ -280,11 +283,11 @@ resource "kubernetes_deployment_v1" "litellm" {
           }
 
           env {
-            name = "ALIBABA_API_KEY"
+            name = "QWEN_CLOUD_API_KEY"
             value_from {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "ALIBABA_API_KEY"
+                key  = "QWEN_CLOUD_API_KEY"
               }
             }
           }
@@ -631,6 +634,83 @@ resource "kubernetes_deployment_v1" "litellm" {
           }
         }
 
+        container {
+          name  = "tmdb-mcp-server"
+          image = local.litellm_tmdb_image
+          # Native Streamable HTTP; auth is TMDB v4 Read Access Token (Bearer).
+
+          port {
+            container_port = local.litellm_tmdb_port
+            name           = "tmdb-mcp"
+          }
+
+          env {
+            name  = "MCP_TRANSPORT_TYPE"
+            value = "http"
+          }
+
+          env {
+            name  = "MCP_HTTP_HOST"
+            value = "0.0.0.0"
+          }
+
+          env {
+            name  = "MCP_HTTP_PORT"
+            value = tostring(local.litellm_tmdb_port)
+          }
+
+          env {
+            name  = "MCP_AUTH_MODE"
+            value = "none"
+          }
+
+          env {
+            name  = "MCP_LOG_LEVEL"
+            value = "info"
+          }
+
+          env {
+            name = "TMDB_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "TMDB_API_KEY"
+              }
+            }
+          }
+
+
+          readiness_probe {
+            http_get {
+              path = "/healthz"
+              port = local.litellm_tmdb_port
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 10
+            failure_threshold     = 12
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/healthz"
+              port = local.litellm_tmdb_port
+            }
+            initial_delay_seconds = 45
+            period_seconds        = 30
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "256Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "1Gi"
+            }
+          }
+        }
         volume {
           name = "litellm-config"
           secret {
