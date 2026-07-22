@@ -62,7 +62,8 @@
     "app.lemonade.finance",
     "media.brightdata.com",
     "brightdata.com",
-    "ng"
+    "ng",
+    "logging-alv.googleapis.com"
   ],
   "blockedZones": [
     "www.langflow.store"
