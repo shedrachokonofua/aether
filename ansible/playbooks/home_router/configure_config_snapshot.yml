@@ -1,0 +1,46 @@
+---
+# Router config-snapshot producer for drift detection.
+#
+# Deploys a script that dumps `show configuration commands`, REDACTS secret
+# lines at source, and drops one NDJSON record into the vyos-exporter
+# observations dir - which the existing filelog -> OTel -> ClickHouse push
+# path already ships (lands in network.router_config_snapshots via the
+# 17-router-config-snapshots MV). The comparator (scripts/router-drift.py
+# --clickhouse) reads that snapshot and diffs against the repo; the router is
+# never accessed inbound. A VyOS task-scheduler entry runs the producer hourly.
+#
+# Deliberately touches NO login/ssh config: VyOS regenerates sshd on any
+# login/ssh commit WITHOUT re-running the ECDSA CA-trust ExecStartPre patch,
+# which drops admin CA trust. task-scheduler is a separate (cron) subsystem.
+- name: Configure router config-snapshot producer
+  hosts: router
+  gather_facts: false
+  vars:
+    ansible_persistent_connect_timeout: 0
+  tasks:
+    - name: Deploy config-snapshot scripts (base64 to preserve content exactly)
+      vyos.vyos.vyos_command:
+        commands:
+          - "echo '{{ lookup('file', playbook_dir + '/files/config-snapshot.sh') | b64encode }}' | base64 -d | sudo tee /config/scripts/config-snapshot.sh"
+          - "echo '{{ lookup('file', playbook_dir + '/files/config-snapshot-emit.py') | b64encode }}' | base64 -d | sudo tee /config/scripts/config-snapshot-emit.py"
+          - "sudo chmod 755 /config/scripts/config-snapshot.sh /config/scripts/config-snapshot-emit.py"
+
+    - name: Schedule hourly config snapshot (task-scheduler; no login/ssh touch)
+      vyos.vyos.vyos_config:
+        lines:
+          - set system task-scheduler task router-config-snapshot executable path /config/scripts/config-snapshot.sh
+          - set system task-scheduler task router-config-snapshot interval 1h
+        save: true
+
+    - name: Prime one snapshot immediately
+      vyos.vyos.vyos_command:
+        commands:
+          - "sudo /config/scripts/config-snapshot.sh"
+
+    - name: Verify admin SSH CA trust survived the commit (guard against lockout)
+      ansible.builtin.command:
+        cmd: ssh -o BatchMode=yes -o ConnectTimeout=8 aether@10.0.2.1 'echo ca-trust-ok'
+      delegate_to: localhost
+      changed_when: false
+      register: ca_probe
+      failed_when: "'ca-trust-ok' not in ca_probe.stdout"

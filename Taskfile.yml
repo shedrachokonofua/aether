@@ -347,10 +347,17 @@ tasks:
       - ansible-playbook ansible/playbooks/home_router/site.yml
   configure:router:
     cmds: [ansible-playbook ansible/playbooks/home_router/configure_router.yml]
+  configure:router-config-snapshot:
+    desc: Deploy the router config-snapshot producer + hourly task-scheduler
+    cmds: [ansible-playbook ansible/playbooks/home_router/configure_config_snapshot.yml]
   audit:router-drift:
-    desc: Bidirectional live-vs-IaC drift check for the VyOS router (exit 1 on drift)
+    desc: Live-vs-IaC drift check over admin SSH (exit 1 on drift)
     cmds:
       - ./scripts/router-drift.py
+  audit:router-drift-remote:
+    desc: Drift check with NO router access — reads the pushed snapshot from ClickHouse
+    cmds:
+      - GRAFANA_SA_TOKEN=$(sops -d --extract '["grafana_sa_token"]' secrets/secrets.yml) ./scripts/router-drift.py --clickhouse
   configure:router-estate-scanner-dispatch:
     desc: Surgical SERVICES-to-TRUSTED rule 26 — Talos→estate-scanner:22 only
     cmds:
