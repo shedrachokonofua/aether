@@ -147,14 +147,9 @@ def live_lines(host: str, identity: str | None) -> list[str]:
     return [l for l in r.stdout.splitlines() if l.startswith("set ")]
 
 
-def clickhouse_live_lines(grafana_url: str, ds_uid: str, source_instance: str) -> list[str]:
-    """Latest redacted config the router pushed to ClickHouse (no router access).
-
-    Reads network.router_config_snapshots via the Grafana datasource proxy with
-    the read-only SA token (env GRAFANA_SA_TOKEN). This is the push-pipeline
-    path: the router publishes its own redacted config outbound, and the
-    comparator never touches the router.
-    """
+def _grafana_ch_query(grafana_url: str, ds_uid: str, sql: str) -> str:
+    """Run one SQL via the Grafana ClickHouse datasource proxy (read-only SA
+    token, env GRAFANA_SA_TOKEN); return the first column of the first row."""
     import json
     import urllib.request
 
@@ -162,9 +157,6 @@ def clickhouse_live_lines(grafana_url: str, ds_uid: str, source_instance: str) -
     if not token:
         print("ERROR: GRAFANA_SA_TOKEN not set (sops grafana_sa_token)", file=sys.stderr)
         sys.exit(2)
-    sql = ("SELECT config FROM network.router_config_snapshots FINAL "
-           f"WHERE source_instance = '{source_instance}' "
-           "ORDER BY timestamp DESC LIMIT 1")
     payload = json.dumps({"queries": [{
         "refId": "A",
         "datasource": {"uid": ds_uid, "type": "grafana-clickhouse-datasource"},
@@ -178,13 +170,100 @@ def clickhouse_live_lines(grafana_url: str, ds_uid: str, source_instance: str) -
             frames = json.load(resp)["results"]["A"]["frames"]
         values = frames[0]["data"]["values"]
         if not values or not values[0]:
-            print(f"ERROR: no config snapshot in ClickHouse for {source_instance}", file=sys.stderr)
+            print("ERROR: empty ClickHouse result", file=sys.stderr)
             sys.exit(2)
-        cfg = values[0][0]
+        return values[0][0]
     except (KeyError, IndexError, ValueError) as e:
         print(f"ERROR: unexpected ClickHouse/Grafana response: {e}", file=sys.stderr)
         sys.exit(2)
-    return [l for l in cfg.splitlines() if l.startswith("set ")]
+
+
+def clickhouse_live_lines(grafana_url: str, ds_uid: str, source_instance: str) -> list[str]:
+    """Latest redacted LIVE config the router pushed to ClickHouse (no router
+    access) — network.router_config_snapshots via the Grafana proxy."""
+    sql = ("SELECT config FROM network.router_config_snapshots FINAL "
+           f"WHERE source_instance = '{source_instance}' "
+           "ORDER BY timestamp DESC LIMIT 1")
+    return [l for l in _grafana_ch_query(grafana_url, ds_uid, sql).splitlines()
+            if l.startswith("set ")]
+
+
+def build_declared_from_repo(ctx):
+    """(declared_exact, declared_secret_prefixes) rendered from the repo."""
+    declared_exact: set[str] = set()
+    declared_secret_prefixes: set[str] = set()
+    for raw in declared_lines():
+        if raw.startswith("delete "):
+            continue
+        if "secrets." in raw or ("tf_outputs." in raw and "tf_outputs" not in ctx):
+            declared_secret_prefixes.add(norm(raw.split("{{", 1)[0]))
+            continue
+        rendered, complete = render(raw, ctx)
+        if not complete:
+            print(f"ERROR: unresolved variable in declared line: {raw}", file=sys.stderr)
+            sys.exit(2)
+        declared_exact.add(norm(rendered))
+    return declared_exact, declared_secret_prefixes
+
+
+def serialize_declared(declared_exact, declared_secret_prefixes) -> str:
+    """EXACT/PREFIX lines — the structured declared snapshot published to CH.
+    Keeps secret lines as PREFIX matches (not redacted content) so the compare
+    is identical whether declared comes from the repo or ClickHouse."""
+    out = [f"PREFIX {p}" for p in sorted(declared_secret_prefixes)]
+    out += [f"EXACT {l}" for l in sorted(declared_exact)]
+    return "\n".join(out)
+
+
+def parse_declared(blob: str):
+    declared_exact, declared_secret_prefixes = set(), set()
+    for line in blob.splitlines():
+        if line.startswith("EXACT "):
+            declared_exact.add(line[6:])
+        elif line.startswith("PREFIX "):
+            declared_secret_prefixes.add(line[7:])
+    return declared_exact, declared_secret_prefixes
+
+
+def publish_declared_to_ch(blob: str, source_instance: str) -> None:
+    """INSERT the declared snapshot into network.router_config_declared via the
+    ClickHouse admin HTTP endpoint (env CH_URL/CH_USER/CH_ADMIN_PASSWORD).
+    Runs where the repo+secrets already live (router apply), not in Kestra."""
+    import base64, hashlib, json as _json, subprocess, urllib.request
+    url = os.environ.get("CH_URL", "https://clickhouse.home.shdr.ch")
+    user = os.environ.get("CH_USER", "aether")
+    pw = os.environ.get("CH_ADMIN_PASSWORD")
+    if not pw:
+        print("ERROR: CH_ADMIN_PASSWORD not set (sops clickhouse.password)", file=sys.stderr)
+        sys.exit(2)
+    try:
+        git_sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                                 capture_output=True, text=True, cwd=str(REPO)).stdout.strip()
+    except Exception:
+        git_sha = "unknown"
+    row = {
+        "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+            .strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+        "source_instance": source_instance, "git_sha": git_sha,
+        "sha256": hashlib.sha256(blob.encode()).hexdigest(),
+        "line_count": blob.count("\n") + 1 if blob else 0, "config": blob,
+    }
+    body = ("INSERT INTO network.router_config_declared "
+            "(timestamp, source_instance, git_sha, sha256, line_count, config) "
+            "FORMAT JSONEachRow\n" + _json.dumps(row)).encode()
+    auth = base64.b64encode(f"{user}:{pw}".encode()).decode()
+    req = urllib.request.Request(url, data=body, headers={"Authorization": f"Basic {auth}"})
+    with urllib.request.urlopen(req, timeout=30):
+        pass
+    print(f"published declared snapshot: git={git_sha} sha256={row['sha256'][:16]} "
+          f"({row['line_count']} lines) -> network.router_config_declared")
+
+
+def clickhouse_declared_blob(grafana_url: str, ds_uid: str, source_instance: str) -> str:
+    """Latest declared snapshot blob from CH via the read-only Grafana proxy."""
+    sql = ("SELECT config FROM network.router_config_declared FINAL "
+           f"WHERE source_instance = '{source_instance}' ORDER BY timestamp DESC LIMIT 1")
+    return _grafana_ch_query(grafana_url, ds_uid, sql)
 
 
 def main() -> int:
@@ -193,36 +272,29 @@ def main() -> int:
     ap.add_argument("--identity", default=None,
                     help="SSH private key (e.g. the CI drift-probe key); default uses the agent")
     ap.add_argument("--clickhouse", action="store_true",
-                    help="read live config from the router's pushed snapshot in "
-                         "ClickHouse via the Grafana proxy (no router access; needs "
-                         "env GRAFANA_SA_TOKEN) instead of SSH")
+                    help="read LIVE config from the router's pushed snapshot in ClickHouse "
+                         "via the Grafana proxy (no router access; needs env GRAFANA_SA_TOKEN)")
+    ap.add_argument("--declared-source", choices=["repo", "clickhouse"], default="repo",
+                    help="where DECLARED config comes from: repo (render, needs the tree) or "
+                         "clickhouse (published snapshot; unattended, no repo)")
+    ap.add_argument("--publish-declared", action="store_true",
+                    help="render declared from repo and INSERT it to "
+                         "network.router_config_declared (env CH_ADMIN_PASSWORD); then exit")
     ap.add_argument("--grafana-url", default="https://grafana.home.shdr.ch")
     ap.add_argument("--ch-datasource-uid", default="clickhouse")
     ap.add_argument("--source-instance", default="aether-home-router")
     args = ap.parse_args()
 
-    ctx = load_context()
+    if args.publish_declared:
+        exact, prefixes = build_declared_from_repo(load_context())
+        publish_declared_to_ch(serialize_declared(exact, prefixes), args.source_instance)
+        return 0
 
-    declared_exact: set[str] = set()      # fully rendered lines
-    declared_secret_prefixes: set[str] = set()  # lines templating secrets.*: prefix up to the ref
-    deletes: set[str] = set()
-
-    for raw in declared_lines():
-        if raw.startswith("delete "):
-            deletes.add(norm(raw.removeprefix("delete ")))
-            continue
-        # Secret-templated lines never render; tf_outputs lines degrade to
-        # prefix comparison when secrets/tf-outputs.json is absent (CI runner).
-        if "secrets." in raw or ("tf_outputs." in raw and "tf_outputs" not in ctx):
-            declared_secret_prefixes.add(norm(raw.split("{{", 1)[0]))
-            continue
-        rendered, complete = render(raw, ctx)
-        if not complete:
-            # Unresolvable ref = a play var this script does not know about.
-            # Fail loudly rather than silently weakening the check.
-            print(f"ERROR: unresolved variable in declared line: {raw}", file=sys.stderr)
-            return 2
-        declared_exact.add(norm(rendered))
+    if args.declared_source == "clickhouse":
+        declared_exact, declared_secret_prefixes = parse_declared(
+            clickhouse_declared_blob(args.grafana_url, args.ch_datasource_uid, args.source_instance))
+    else:
+        declared_exact, declared_secret_prefixes = build_declared_from_repo(load_context())
 
     if args.clickhouse:
         live = [norm(l) for l in clickhouse_live_lines(
@@ -231,7 +303,6 @@ def main() -> int:
         live = [norm(l) for l in live_lines(args.host, args.identity)]
     live_set = set(live)
 
-    # Sections the playbook manages = first two tokens after `set`.
     managed = {tuple(l.split()[1:3]) for l in declared_exact}
 
     def is_declared(l: str) -> bool:
@@ -246,14 +317,14 @@ def main() -> int:
         and not any(l.startswith(a) for a in (norm(x) + " " if x.endswith(" ") else norm(x) for x in UNDECLARED_ALLOWLIST))
     ]
 
-    # Declared-but-missing. Secret-prefix lines checked by prefix presence.
     missing = [l for l in sorted(declared_exact) if l not in live_set]
     for p in sorted(declared_secret_prefixes):
         if not any(l.startswith(p) for l in live):
             missing.append(f"{p}<secret> (no live line matches prefix)")
 
     drift = bool(undeclared or missing)
-    print(f"router drift check: {args.host}")
+    print(f"router drift check: live={'clickhouse' if args.clickhouse else args.host} "
+          f"declared={args.declared_source}")
     print(f"  declared lines: {len(declared_exact) + len(declared_secret_prefixes)}"
           f"  live lines: {len(live)}  managed sections: {len(managed)}")
     if undeclared:
