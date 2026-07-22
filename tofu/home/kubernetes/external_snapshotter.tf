@@ -206,10 +206,19 @@ resource "kubernetes_cluster_role_v1" "volume_snapshot_scheduler" {
     verbs      = ["get", "list"]
   }
 
+  # kubectl wait deployment/snapshot-controller (preflight #1) needs get+watch.
+  rule {
+    api_groups = ["apps"]
+    resources  = ["deployments"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  # get/list for the stuck-snapshot preflight, get+watch for the readyToUse
+  # verify wait, create for the snapshots themselves.
   rule {
     api_groups = ["snapshot.storage.k8s.io"]
     resources  = ["volumesnapshots"]
-    verbs      = ["create"]
+    verbs      = ["create", "get", "list", "watch"]
   }
 }
 
