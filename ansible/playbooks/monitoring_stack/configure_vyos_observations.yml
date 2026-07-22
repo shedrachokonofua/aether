@@ -83,6 +83,29 @@
           - --queries-file
           - /docker-entrypoint-initdb.d/17-router-config-snapshots.sql
 
+    - name: Stage router config-declared ClickHouse schema
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/clickhouse/18-router-config-declared.sql"
+        dest: /home/aether/clickhouse/init/18-router-config-declared.sql
+        mode: "0644"
+
+    - name: Label router config-declared schema for the ClickHouse container
+      ansible.builtin.file:
+        path: /home/aether/clickhouse/init/18-router-config-declared.sql
+        setype: container_file_t
+      become: true
+
+    - name: Reconcile router config-declared ClickHouse schema
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --queries-file
+          - /docker-entrypoint-initdb.d/18-router-config-declared.sql
+
     - name: Render central OTel route for VyOS observations
       ansible.builtin.template:
         src: otel_config.yml.j2
