@@ -16,7 +16,7 @@ resource "random_password" "affine_db_password" {
 }
 
 locals {
-  affine_version         = "0.26.3"
+  affine_version         = "0.27.3"
   affine_image           = "ghcr.io/toeverything/affine:${local.affine_version}"
   affine_pg_image        = "pgvector/pgvector:pg16"
   affine_redis_image     = "redis:latest"
@@ -356,7 +356,7 @@ resource "kubernetes_deployment_v1" "affine" {
         enable_service_links = false
         init_container {
           name  = "wait-for-litellm"
-          image = "curlimages/curl:8.12.1"
+          image = "curlimages/curl:8.21.0"
           command = [
             "sh", "-c",
             "until curl -sf http://litellm.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/health/liveliness; do sleep 2; done; sleep 5",
