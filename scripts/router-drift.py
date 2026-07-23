@@ -26,6 +26,8 @@ Needs the aether SSH cert (task login) in the agent, or run with
 SSH_AUTH_SOCK=$HOME/.aether-toolbox/ssh/agent.sock.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -45,22 +47,37 @@ PLAY_VARS = {
     "site_wireguard_peer": {"site": "aws", "host": "link"},
 }
 
-# Live lines the playbook deliberately does not own. Prefix match, normalized
-# (quotes stripped). Keep this list SHORT and justified.
+# Ownership manifest (default-deny): every live line is drift UNLESS it is
+# declared, a secret-prefix match, or listed here as legitimately live-only.
+# Entries are NARROW on security-sensitive sections on purpose - e.g. only the
+# known `aether` admin is allowed, so a rogue `system login user <x>` trips;
+# only the `otel-collector` container is allowed, so a new container trips.
+# Anything in a section no IaC owns is flagged rather than silently ignored.
 UNDECLARED_ALLOWLIST = (
-    "set interfaces ethernet eth0 address ",   # packer image (packer-vyos-configure.sh.j2)
-    "set interfaces ethernet eth1 address ",   # packer image
-    "set interfaces ethernet eth0 hw-id ",     # VyOS persists NIC identity
+    # --- image / packer-baked (config/vm.yml, packer-vyos-configure.sh.j2) ---
+    "set system login user aether ",           # the ONE known admin; a new user is drift
+    "set system host-name ",
+    "set system name-server ",
+    "set interfaces ethernet eth0 address ",
+    "set interfaces ethernet eth1 address ",
+    "set interfaces ethernet eth0 hw-id ",
     "set interfaces ethernet eth1 hw-id ",
     "set interfaces ethernet eth2 hw-id ",
-    "set system ipv6 disable-forwarding",      # migration companion of declared `ipv6 disable`
-    "set system login user ",                  # image-baked admin user + keys
-    "set system host-name ",                   # image
-    "set service ntp ",                        # VyOS defaults
-    "set system syslog ",                      # VyOS defaults
-    "set system config-management ",           # commit-archive defaults
-    "set system console ",                     # VyOS defaults
-    "set system conntrack ",                   # VyOS defaults
+    "set interfaces loopback lo",
+    # --- VyOS platform defaults ---
+    "set service ntp ",
+    "set service monitoring ",
+    "set system syslog ",
+    "set system config-management ",
+    "set system console ",
+    "set system conntrack ",
+    "set system option ",
+    "set system ipv6 disable-forwarding",
+    # --- owned by sibling router playbooks (each its own IaC) ---
+    "set container name otel-collector ",                       # configure_otel.yml
+    "set service suricata ",                                    # configure_suricata.yml
+    "set system task-scheduler task router-config-snapshot ",   # configure_config_snapshot.yml
+    "set system task-scheduler task vyos-exporter",             # vyos_exporter role
 )
 
 
@@ -322,10 +339,28 @@ def main() -> int:
             return True
         return any(l.startswith(p) for p in declared_secret_prefixes)
 
+    # Apply-race guard: if declared is newer than the newest live sample (an
+    # apply just published intent but the hourly producer hasn't resampled),
+    # diffing would report phantom drift. Skip until live catches up.
+    if args.clickhouse and args.declared_source == "clickhouse":
+        skew = _grafana_ch_query(args.grafana_url, args.ch_datasource_uid,
+            "SELECT dateDiff('second', "
+            "(SELECT max(timestamp) FROM network.router_config_snapshots FINAL "
+            f"WHERE source_instance='{args.source_instance}'), "
+            "(SELECT max(timestamp) FROM network.router_config_declared FINAL "
+            f"WHERE source_instance='{args.source_instance}'))")
+        if skew is not None and int(skew) > 0:
+            print(f"  declared is {skew}s newer than newest live (apply in flight) - "
+                  "skipping until live resamples")
+            return 0
+
+    # Default-deny: every live line is drift unless declared, a secret-prefix
+    # match, or on the ownership manifest. (Was default-allow, scoped to managed
+    # sections - which silently ignored whole new undeclared sections, e.g. a
+    # rogue admin user or re-enabled service. Fixed per external review.)
     undeclared = [
         l for l in live
-        if tuple(l.split()[1:3]) in managed
-        and not is_declared(l)
+        if not is_declared(l)
         and not any(l.startswith(a) for a in (norm(x) + " " if x.endswith(" ") else norm(x) for x in UNDECLARED_ALLOWLIST))
     ]
 
