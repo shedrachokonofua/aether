@@ -15,6 +15,50 @@
         - aether/qwen3.6-35b-a3b:think
         - aether/qwen3.6-27b:think
         - qwen-cloud/qwen3.8-max-preview
+      omp:
+        - glm
+        - clinepass/glm-5.2
+        - ollama-cloud/glm-5.2
+        - qwen-cloud/glm-5.2
+        - router/glm-5.2
+        - zai/glm-5.2
+        - aether/qwen3.5-9b
+        - aether/qwen3.5-9b:think
+        - aether/qwen3.6-27b
+        - aether/qwen3.6-27b:code
+        - aether/qwen3.6-27b:think
+        - aether/qwen3.6-35b-a3b
+        - aether/qwen3.6-35b-a3b:code
+        - aether/qwen3.6-35b-a3b:think
+        - clinepass/qwen3.7-max
+        - qwen-cloud/qwen3.8-max-preview
+        - qwen3.7-max
+        - router/qwen3.7-max
+        - kimi
+        - clinepass/kimi-k2.7-code
+        - ollama-cloud/kimi-k2.6
+        - ollama-cloud/kimi-k2.7-code
+        - router/kimi-k2.7-code
+        - deepseek-v4-flash
+        - deepseek-v4-pro
+        - clinepass/deepseek-v4-flash
+        - clinepass/deepseek-v4-pro
+        - ollama-cloud/deepseek-v4-flash:cloud
+        - ollama-cloud/deepseek-v4-pro:cloud
+        - router/deepseek-v4-flash
+        - router/deepseek-v4-pro
+        - minimax-m3
+        - clinepass/minimax-m3
+        - ollama-cloud/minimax-m3
+        - router/minimax-m3
+        - mimo-v2.5-pro
+        - clinepass/mimo-v2.5-pro
+        - router/mimo-v2.5-pro
+        - xiaomi/mimo-v2.5-pro
+      deskplane_mcp:
+        - router/minimax-m3
+        - openai/gpt-5.4
+        - openai/gpt-5.4-mini
 
   tasks:
     - name: Load secrets
@@ -101,6 +145,34 @@
         body:
           key: "{{ secrets.litellm.virtual_keys.holmes }}"
           models: "{{ litellm_key_models_by_alias.holmes }}"
+        status_code: [200]
+      no_log: true
+
+    - name: Synchronize omp virtual-key model allowlist
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ secrets.litellm.virtual_keys.omp }}"
+          models: "{{ litellm_key_models_by_alias.omp }}"
+        status_code: [200]
+      no_log: true
+
+    - name: Synchronize deskplane_mcp virtual-key model allowlist
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ secrets.litellm.virtual_keys.deskplane_mcp }}"
+          models: "{{ litellm_key_models_by_alias.deskplane_mcp }}"
         status_code: [200]
       no_log: true
 

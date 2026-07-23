@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-1141c217"
+  deskplane_chart_version  = "0.1.0-b21fde90"
   deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -19,6 +19,8 @@ locals {
   deskplane_node_selector = {
     "kubernetes.io/hostname" = "talos-smith"
   }
+  deskplane_mcp_token   = var.secrets["deskplane.mcp_api_token"]
+  deskplane_mcp_llm_key = var.secrets["litellm.virtual_keys.deskplane_mcp"]
 }
 
 
@@ -60,11 +62,37 @@ resource "kubernetes_secret_v1" "deskplane_oidc" {
   type = "Opaque"
 }
 
+resource "kubernetes_secret_v1" "deskplane_mcp_token" {
+  depends_on = [module.namespace["deskplane"]]
+  metadata {
+    name      = "deskplane-mcp-token"
+    namespace = local.deskplane_namespace
+  }
+  data = {
+    token = local.deskplane_mcp_token
+  }
+  type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "deskplane_mcp_llm_key" {
+  depends_on = [module.namespace["deskplane"]]
+  metadata {
+    name      = "deskplane-mcp-llm-key"
+    namespace = local.deskplane_namespace
+  }
+  data = {
+    api-key = local.deskplane_mcp_llm_key
+  }
+  type = "Opaque"
+}
+
 resource "helm_release" "deskplane" {
   depends_on = [
     module.namespace["deskplane"],
     kubernetes_secret_v1.deskplane_gitlab_registry,
     kubernetes_secret_v1.deskplane_oidc,
+    kubernetes_secret_v1.deskplane_mcp_token,
+    kubernetes_secret_v1.deskplane_mcp_llm_key,
     kubernetes_storage_class_v1.ceph_rbd,
     kubernetes_manifest.main_gateway,
   ]
@@ -153,6 +181,100 @@ resource "helm_release" "deskplane" {
         ]
       }
     ]
+
+    catalog = {
+      images = [
+        {
+          name = "chrome", displayName = "Chrome", image = "kasmweb/chrome:1.17.0"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        },
+        {
+          name = "firefox", displayName = "Firefox", image = "kasmweb/firefox:1.17.0"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        },
+        {
+          name = "brave", displayName = "Brave", image = "kasmweb/brave:1.17.0"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        },
+        {
+          name = "kali", displayName = "Kali Linux", image = "kasmweb/core-kali-rolling:1.17.0"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        },
+        {
+          name = "tor", displayName = "Tor Browser", image = "kasmweb/tor-browser:1.17.0"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        },
+        {
+          name = "terminal", displayName = "Terminal", image = "kasmweb/desktop:1.17.0"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        },
+        {
+          name = "dosbox-x", displayName = "DOS (DOSBox-X)", image = "${local.deskplane_registry_image}/dosbox-x-kasm:latest"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        },
+        {
+          name = "win9x", displayName = "Windows 95 / 98", image = "${local.deskplane_registry_image}/win9x-qemu-kasm:latest"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1", WIN9X_DISK_URL = "", WIN9X_DISK_SHA256 = "" }
+        },
+        {
+          name = "cua-ubuntu", displayName = "Computer-Use Desktop", image = "docker.io/trycua/cua-ubuntu:0.1.4"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 8000 }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+        }
+      ]
+    }
+
+    apiTokensSecretRef = [
+      {
+        name     = kubernetes_secret_v1.deskplane_mcp_token.metadata[0].name
+        key      = "token"
+        subject  = "svc:deskplane-mcp"
+        username = "deskplane-mcp"
+      }
+    ]
+
+    adminSubjects = []
+
+    mcp = {
+      enabled = true
+      image = {
+        repository = "${local.deskplane_registry_image}/mcp"
+        tag        = local.deskplane_image_tag
+      }
+      env = {
+        DESKPLANE_API_URL             = "http://deskplane-serve.deskplane.svc.cluster.local:8080"
+        DESKPLANE_PUBLIC_URL          = local.deskplane_public_url
+        DESKPLANE_MCP_IMAGE_REF       = "cua-ubuntu"
+        DESKPLANE_MCP_MODEL           = "router/minimax-m3"
+        DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
+      }
+      apiTokenSecretRef = {
+        name = kubernetes_secret_v1.deskplane_mcp_token.metadata[0].name
+        key  = "token"
+      }
+      openaiApiKeySecretRef = {
+        name = kubernetes_secret_v1.deskplane_mcp_llm_key.metadata[0].name
+        key  = "api-key"
+      }
+      controlPort = 8000
+    }
   })]
 }
 
