@@ -264,6 +264,7 @@ resource "helm_release" "deskplane" {
         DESKPLANE_MCP_IMAGE_REF       = "cua-ubuntu"
         DESKPLANE_MCP_MODEL           = "router/minimax-m3"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
+        DESKPLANE_MCP_PORT            = "8100"
       }
       apiTokenSecretRef = {
         name = kubernetes_secret_v1.deskplane_mcp_token.metadata[0].name
