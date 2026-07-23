@@ -116,7 +116,7 @@ resource "kubectl_manifest" "immich_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/tensorchord/cloudnative-vectorchord:14-0.4.3"
+      imageName = "ghcr.io/tensorchord/cloudnative-vectorchord:14-1.1.1"
       storage = {
         size         = "30Gi"
         storageClass = local.cnpg_storage_class
@@ -351,7 +351,7 @@ resource "kubectl_manifest" "matrix_cnpg_cluster" {
     }
     spec = {
       instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
+      imageName = "ghcr.io/cloudnative-pg/postgresql:17.10"
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class

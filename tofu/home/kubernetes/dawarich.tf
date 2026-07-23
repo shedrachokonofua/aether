@@ -34,8 +34,8 @@ resource "random_password" "dawarich_otp_encryption_key_derivation_salt" {
 }
 
 locals {
-  dawarich_image         = "freikin/dawarich:1.9.2"
-  dawarich_postgis_image = "postgis/postgis:17-3.5-alpine"
+  dawarich_image         = "freikin/dawarich:1.10.1"
+  dawarich_postgis_image = "postgis/postgis:17-3.6-alpine"
   dawarich_redis_image   = "redis:7.4-alpine"
 
   dawarich_host = "dawarich.home.shdr.ch"

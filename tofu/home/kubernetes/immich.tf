@@ -15,7 +15,7 @@ locals {
   immich_namespace = "immich"
   immich_host      = "immich.home.shdr.ch"
 
-  immich_version        = "v3.0.1"
+  immich_version        = "v3.0.3"
   immich_server_image   = "ghcr.io/immich-app/immich-server:${local.immich_version}"
   immich_ml_image       = "ghcr.io/immich-app/immich-machine-learning:${local.immich_version}-cuda"
   immich_postgres_image = "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
