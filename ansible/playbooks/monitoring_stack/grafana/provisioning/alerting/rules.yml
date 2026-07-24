@@ -2272,8 +2272,8 @@ groups:
             model:
               expr: |
                 (
-                  max by (namespace, image_repository) (
-                    trivy_image_vulnerabilities{severity="Critical"}
+                  count by (namespace, image_repository) (
+                    trivy_vulnerability_id{severity="Critical", fixed_version!=""}
                   ) > 0
                 )
                 * on(namespace) group_left(backup, exposure)
@@ -2305,8 +2305,8 @@ groups:
           severity: warning
           domain: security
         annotations:
-          summary: "Critical image CVEs in {{ $labels.namespace }}/{{ $labels.image_repository }}"
-          description: "Trivy reports critical vulnerabilities in a backup-critical or public namespace"
+          summary: "Fixable critical image CVEs in {{ $labels.namespace }}/{{ $labels.image_repository }}"
+          description: "Trivy reports critical vulnerabilities WITH an available fix in a backup-critical or public namespace. Bump the image; unfixed-upstream criticals are excluded by design."
 
       - uid: keycloak-login-failure-burst
         title: Keycloak Login Failure Burst
