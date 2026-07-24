@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-ccf0ef1a"
+  deskplane_chart_version  = "0.1.0-aea840da"
   deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -256,13 +256,16 @@ resource "helm_release" "deskplane" {
       enabled = true
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "ccf0ef1a"
+        tag        = "aea840da"
       }
       env = {
         DESKPLANE_API_URL             = "http://deskplane.deskplane.svc.cluster.local"
         DESKPLANE_PUBLIC_URL          = local.deskplane_public_url
         DESKPLANE_MCP_IMAGE_REF       = "cua-ubuntu"
-        DESKPLANE_MCP_MODEL           = "openai/router/minimax-m3"
+        # Local llama-swap model: free, no egress, and the dialect this loop
+        # was written for. MiniMax narrates instead of emitting tool calls and
+        # stalls mid-task; see tool_call_compat.py.
+        DESKPLANE_MCP_MODEL           = "openai/aether/qwen3.6-27b"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
       }
