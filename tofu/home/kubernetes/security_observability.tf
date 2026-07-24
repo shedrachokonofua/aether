@@ -164,6 +164,10 @@ resource "helm_release" "trivy_operator" {
       exposedSecretScannerEnabled                  = true
       vulnerabilityScannerScanOnlyCurrentRevisions = true
       configAuditScannerScanOnlyCurrentRevisions   = true
+      # Per-CVE metric (trivy_vulnerability_id) with fixed-version label so the
+      # critical-vulns alert can count only actionable (fixable) findings.
+      # Cardinality cost is bounded: local Prometheus, ~250 reports.
+      metricsVulnIdEnabled                         = true
     }
 
     podAnnotations = {
@@ -186,9 +190,10 @@ resource "helm_release" "trivy_operator" {
     # Operator runs 6 scanner types over ~244 reports with 4 concurrent scan
     # jobs; at a 500m CPU limit it throttled hard and its 1s /healthz/ probe
     # stalled, triggering liveness kills (200+ restarts). Give it real headroom.
+    # 2Gi: per-CVE metrics (metricsVulnIdEnabled) OOMKilled the 1Gi limit.
     resources = {
-      requests = { cpu = "100m", memory = "256Mi" }
-      limits   = { cpu = "1", memory = "1Gi" }
+      requests = { cpu = "100m", memory = "512Mi" }
+      limits   = { cpu = "1", memory = "2Gi" }
     }
 
     trivy = {

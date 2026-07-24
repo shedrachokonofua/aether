@@ -65,7 +65,9 @@ locals {
   }
 
   otel_exporters           = { otlphttp = { endpoint = local.otlp_endpoint } }
-  otel_resources           = { requests = { cpu = "100m", memory = "256Mi" }, limits = { cpu = "500m", memory = "512Mi" } }
+  # 1Gi: trivy-operator per-CVE metrics (~88k samples/scrape, heavy labels)
+  # tripped the 80% memory_limiter at 512Mi and refused every scrape pool.
+  otel_resources           = { requests = { cpu = "100m", memory = "512Mi" }, limits = { cpu = "500m", memory = "1Gi" } }
   otel_daemonset_resources = { requests = { cpu = "50m", memory = "64Mi" }, limits = { cpu = "500m", memory = "512Mi" } }
   otel_processor_chain     = ["memory_limiter", "k8sattributes", "resource", "transform/k8s_labels", "batch"]
 }
@@ -546,10 +548,22 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
-                job_name        = "trivy-operator"
-                scrape_interval = "30s"
+                job_name = "trivy-operator"
+                # 5m: the endpoint carries ~88k per-CVE samples since
+                # metricsVulnIdEnabled; parsing that at 30s tripped the
+                # collector memory_limiter and refused ALL scrape pools.
+                # CVE findings change on scan cadence, not seconds.
+                scrape_interval = "5m"
+                scrape_timeout  = "1m"
                 static_configs = [{
                   targets = ["trivy-operator.${local.trivy_operator_namespace}.svc.cluster.local:80"]
+                }]
+                # Keep only Critical rows of trivy_vulnerability_id (used by the
+                # fixable-criticals alert); drop the rest at scrape time.
+                metric_relabel_configs = [{
+                  source_labels = ["__name__", "severity"]
+                  regex         = "trivy_vulnerability_id;(Unknown|Low|Medium|High)"
+                  action        = "drop"
                 }]
               },
               {
