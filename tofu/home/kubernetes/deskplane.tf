@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-b21fde90"
+  deskplane_chart_version  = "0.1.0-ccf0ef1a"
   deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -233,7 +233,7 @@ resource "helm_release" "deskplane" {
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1", WIN9X_DISK_URL = "", WIN9X_DISK_SHA256 = "" }
         },
         {
-          name = "cua-ubuntu", displayName = "Computer-Use Desktop", image = "docker.io/trycua/cua-ubuntu:0.1.4"
+          name = "cua-ubuntu", displayName = "Computer-Use Desktop", image = "${local.deskplane_registry_image}/cua-ubuntu-kasm:a2980172"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 8000 }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
@@ -256,13 +256,13 @@ resource "helm_release" "deskplane" {
       enabled = true
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = local.deskplane_image_tag
+        tag        = "ccf0ef1a"
       }
       env = {
-        DESKPLANE_API_URL             = "http://deskplane-serve.deskplane.svc.cluster.local:8080"
+        DESKPLANE_API_URL             = "http://deskplane.deskplane.svc.cluster.local"
         DESKPLANE_PUBLIC_URL          = local.deskplane_public_url
         DESKPLANE_MCP_IMAGE_REF       = "cua-ubuntu"
-        DESKPLANE_MCP_MODEL           = "router/minimax-m3"
+        DESKPLANE_MCP_MODEL           = "openai/router/minimax-m3"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
       }
