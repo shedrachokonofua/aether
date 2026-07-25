@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-bfc482f6"
+  deskplane_chart_version  = "0.1.0-9aa6d953"
   deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -256,16 +256,19 @@ resource "helm_release" "deskplane" {
       enabled = true
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "bfc482f6"
+        tag        = "9aa6d953"
       }
       env = {
         DESKPLANE_API_URL             = "http://deskplane.deskplane.svc.cluster.local"
         DESKPLANE_PUBLIC_URL          = local.deskplane_public_url
         DESKPLANE_MCP_IMAGE_REF       = "cua-ubuntu"
-        # Local llama-swap model: free, no egress, and the dialect this loop
-        # was written for. MiniMax narrates instead of emitting tool calls and
-        # stalls mid-task; see tool_call_compat.py.
-        DESKPLANE_MCP_MODEL           = "openai/aether/qwen3.6-27b"
+        # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
+        # drives the chat API directly, so no "openai/" litellm-SDK prefix.
+        # Alibaba's hosted Qwen is the only model that has finished a
+        # multi-step task here; the local qwen3.6-27b works but is slower and
+        # loses the thread on longer runs, and MiniMax narrates instead of
+        # emitting tool calls. Falling back is one edit: "aether/qwen3.6-27b".
+        DESKPLANE_MCP_MODEL           = "qwen-cloud/qwen3.8-max-preview"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
         # 40 covers the tasks this model can actually finish (~20 actions);
