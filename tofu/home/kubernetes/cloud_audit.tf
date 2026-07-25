@@ -10,7 +10,7 @@
 # Bao runtime fetch — nothing static, nothing in etcd).
 
 locals {
-  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:7ca69e5f4fe6a8c1cc025beb53867efb33fa980fc861b15bbb1f5cafc489fee0"
+  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:4aa4044bb46257162c8f6e39c9e0599160358bac1205001a638d4f90c88d7490"
   vigil_ns    = module.namespace["cloud-audit"].name
 
   vigil_config_toml = <<-EOT
@@ -159,6 +159,38 @@ resource "kubernetes_deployment_v1" "vigil" {
           name  = "vigil"
           image = local.vigil_image
           args  = ["serve", "--config", "/etc/vigil/config.toml"]
+          # Downward-API pod identity exported as OTLP resource attributes:
+          # the otel collector's k8sattributes processor then associates by
+          # resource attribute (deterministic) instead of connection source
+          # IP (breaks under SNAT/ztunnel, produced duplicate bare series).
+          env {
+            name = "POD_NAME"
+            value_from {
+              field_ref {
+                field_path = "metadata.name"
+              }
+            }
+          }
+          env {
+            name = "POD_NAMESPACE"
+            value_from {
+              field_ref {
+                field_path = "metadata.namespace"
+              }
+            }
+          }
+          env {
+            name = "NODE_NAME"
+            value_from {
+              field_ref {
+                field_path = "spec.nodeName"
+              }
+            }
+          }
+          env {
+            name  = "OTEL_RESOURCE_ATTRIBUTES"
+            value = "k8s.pod.name=$(POD_NAME),k8s.namespace.name=$(POD_NAMESPACE),k8s.node.name=$(NODE_NAME)"
+          }
           security_context {
             allow_privilege_escalation = false
             read_only_root_filesystem  = true
