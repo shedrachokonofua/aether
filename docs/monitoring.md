@@ -201,6 +201,24 @@ Metrics on `127.0.0.1:9091` (`ojgf_*`) are scraped by the VM agent; the
 `Journal Forwarder` Grafana group alerts on poll-stale, poll-errors, and absent
 (all `severity: warning`).
 
+### vigil (cloud control-plane audit)
+
+The control-plane audit layer (CloudTrail, GCP Cloud Audit, OCI Audit,
+Tailscale state, Cloudflare audit logs) is collected by **vigil**, a Rust
+forwarder (sibling repo `~/projects/vigil`) deployed as a single-replica
+`serve` Deployment in the `cloud-audit` namespace. It polls provider audit
+APIs on a per-collector cadence (5 min mutation feeds, daily posture
+snapshots), normalizes into the contract in vigil `docs/schema.md`, and
+ships OTLP logs (Loki, `{service_name="vigil", domain="security"}`) and
+OTLP gauges (Prometheus `vigil_*`). Auth is keyless: pod SA token →
+Keycloak federated-jwt (`aud=cloud-audit`) → per-provider read-only
+federation; the two static tokens (Tailscale/Cloudflare) are read from
+OpenBao per iteration. Heartbeat is the `vigil_collector_*` gauge triple
+plus a per-run summary log line; the `cloud-audit-*` Grafana group alerts
+on feed-absent/run-failed plus the estate-specific event rules
+(warning-first, soak-then-promote). Deployment, Kyverno pod pin, and Cilium
+egress pin live in `tofu/home/kubernetes/cloud_audit.tf`.
+
 ## API-Based Exporters
 
 Running in the monitoring stack pod, scraped by the central OTEL Collector:
@@ -421,6 +439,46 @@ hourly evaluation boundary, a one-day feature lookback, and a ten-day aligned
 bootstrap watermark. Review the current raw-retention horizon and expected
 catch-up time before enabling; do not reuse the bootstrap watermark after it is
 outside retention.
+
+Before both `argos check` and service startup can report systemd readiness, Argos
+reads the live `zeek.conn` TTL horizon from `system.tables.create_table_query`
+and compares it with the declared `ARGOS_ZEEK_RETENTION_SECONDS`. A measured
+TTL shorter than the declared value is a hard failure (exit code 9); a measured
+TTL greater than or equal to it passes, and the measured value is logged.
+Shortening the `zeek.conn` TTL without updating
+`argos_zeek_retention_seconds` in `ansible/playbooks/monitoring_stack/site.yml`
+therefore fails deployment preflight instead of silently creating blind spots.
+
+Argos refuses to start with exit code 10 when `ARGOS_BOOTSTRAP_START` is already
+outside the live retention horizon. This gate applies only while no durable
+checkpoint exists. As the 14-day TTL window slides,
+`argos_bootstrap_start` in `site.yml` becomes stale; refresh it to a currently
+valid, interval-aligned instant in the same change that bumps `argos_version`.
+
+If a running service falls behind the horizon, for example during a long outage,
+it does not replay deleted data. It appends exactly one checkpoint with
+`advancement_reason = 'source_retention_gap'`, `lost_range_start` set to the
+abandoned watermark, `lost_range_end` set to the new watermark, and
+`source_retention_contract_version = 'zeek-conn-ttl-v1'`, then resumes normal
+cycles. This increments the `argos.detector.data_gaps` counter, allowing the
+`argos-source-retention-gap` Grafana rule and the Security-Triage “Argos data
+gaps (24h)” panel to fire. Any non-zero data-gap count means real evidence was
+lost and requires review.
+
+The Security-Triage “Argos candidate findings” panel resolves each finding's
+source IPv4 through `network.mac_ip_history` for MAC and hostname, aggregating
+with `argMax` over `last_seen`, and through `network.mac_first_seen` for the
+device first-seen date. A companion stat panel reports the share of current
+candidates that resolve. These tables are fed by sealed-NDJSON observations
+from `vyos-exporter`, `gigahub-exporter`, and `qss-exporter` into
+`network.observations`; an address never observed by any of those exporters
+stays unattributed.
+
+Both identity tables are `AggregatingMergeTree` tables whose parts merge
+lazily, so queries against them must aggregate rather than select aggregate
+columns raw. Grafana's `grafana_readonly` identity already holds `SELECT` on
+`network.*` through `clickhouse_grafana_databases` in `site.yml`; no additional
+grant was needed.
 
 Security Triage contains the Argos checkpoint lag, retention headroom, failed
 cycle, explicit data-gap, and candidate-finding panels. The corresponding
