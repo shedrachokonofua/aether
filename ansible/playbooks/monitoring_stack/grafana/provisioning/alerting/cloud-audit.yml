@@ -1,0 +1,667 @@
+# =============================================================================
+# Cloud-audit (vigil) alerting
+# =============================================================================
+# All rules ship severity=warning under soak-then-promote (PLAN.md §8):
+# 14 days clean, then a single reviewed commit flips the page-class rules to
+# critical. The emitted-data contract these match against is
+# vigil/docs/schema.md — envelopes, not `raw`.
+#
+# Not shipped (per PLAN):
+# - cloudflare-dns-or-zone-change: collector disabled until the CF token lands.
+# - any-mutation-outside-apply-window: needs the tofu-apply marker signal
+#   (continuous-deployment Phase 0); ship disabled later, don't invent it.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Cloud Audit
+    folder: Security
+    interval: 1m
+    rules:
+
+      # ================= Meta: heartbeat (alerting keys on metrics) =========
+
+      - uid: cloud-audit-run-failed
+        title: Cloud Audit Collector Run Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: vigil_collector_run_ok == 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "vigil collector {{ $labels.collector }} last run failed"
+          description: "The last run of {{ $labels.collector }} (provider {{ $labels.provider }}) reported run_ok=0. Check the vigil pod logs in cloud-audit."
+
+      - uid: cloud-audit-feed-absent-5min
+        title: Cloud Audit Feed Absent (5m cadence)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: time() - max_over_time(vigil_collector_last_success_timestamp_seconds{kind!="snapshot"}[2h]) > 1800
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "vigil collector {{ $labels.collector }} silent >30m"
+          description: "No successful collect from {{ $labels.collector }} in over 30 minutes. The push-gauge may also have gone Prometheus-stale; check the pod first, then this rule's max_over_time wrapper."
+
+      - uid: cloud-audit-feed-absent-daily
+        title: Cloud Audit Feed Absent (daily cadence)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: time() - max_over_time(vigil_collector_last_success_timestamp_seconds{kind="snapshot"}[2h]) > 93600
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "vigil snapshot collector {{ $labels.collector }} silent >26h"
+          description: "No successful collect from {{ $labels.collector }} in over 26 hours."
+
+      # ================= AWS ================================================
+
+      - uid: cloud-audit-aws-root-or-console-login
+        title: AWS Root or No-MFA Console Login
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(
+                  count_over_time({service_name="vigil", provider="aws"} |~ "ConsoleLogin" | json | raw_userIdentity_type="Root" [10m])
+                  or
+                  count_over_time({service_name="vigil", provider="aws"} |~ "ConsoleLogin" | json | raw_additionalEventData_MFAUsed="No" [10m])
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "AWS console login as root or without MFA"
+          description: "CloudTrail saw a ConsoleLogin with userIdentity.type=Root or MFAUsed=No. Base rate of legit occurrences ≈ 0 in this estate."
+
+      - uid: cloud-audit-aws-iam-mutation
+        title: AWS IAM Mutation
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="aws", event_source="iam.amazonaws.com"}
+                    |~ "\"event_name\":\"(Create|Put|Attach|Detach|Update|Delete)[A-Za-z]+\""
+                  [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "AWS IAM Create/Put/Attach/Update/Delete outside review"
+          description: "IAM mutation on users, roles, policies, or OIDC providers. Legit changes come from tofu applies; anything else is an incident."
+
+      - uid: cloud-audit-aws-kms-unseal-key-tamper
+        title: AWS KMS Unseal Key Tamper
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(
+                  count_over_time(
+                    {service_name="vigil", provider="aws"}
+                      |~ "3ab7209d-870a-42b4-a201-8fca65538c6a"
+                      |~ "\"event_name\":\"(ScheduleKeyDeletion|DisableKey|PutKeyPolicy|UpdateKeyDescription|RevokeGrant|CreateGrant)\""
+                    [10m])
+                  or
+                  count_over_time(
+                    {service_name="vigil", provider="aws"}
+                      |~ "3ab7209d-870a-42b4-a201-8fca65538c6a"
+                      |~ "\"event_name\":\"Decrypt\""
+                      |~ "\"outcome\":\"failure\""
+                    [10m])
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "openbao-auto-unseal KMS key tamper or denied Decrypt"
+          description: "Key-policy/schedule-deletion/disable/grant change or a failed Decrypt on the openbao-auto-unseal key (3ab7209d-…). This is a crown-jewel key."
+
+      - uid: cloud-audit-aws-backup-bucket-tamper
+        title: AWS Offsite Backup Bucket Tamper
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="aws"}
+                    |~ "aether-home-offsite-backup"
+                    |~ "\"event_name\":\"(PutBucketVersioning|PutBucketPolicy|DeleteBucketPolicy|PutLifecycleConfiguration|PutPublicAccessBlock|DeleteBucket|PutBucketAcl|PutObjectLockConfiguration)\""
+                  [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Offsite restic bucket (aether-home-offsite-backup) config mutation"
+          description: "Versioning/policy/lifecycle/public-access-block/object-lock change on the offsite restic bucket. Base rate ≈ 0."
+
+      - uid: cloud-audit-aws-rolesanywhere-mutation
+        title: AWS Roles Anywhere Mutation
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="aws", event_source="rolesanywhere.amazonaws.com"}
+                    |~ "\"event_name\":\"(CreateTrustAnchor|DeleteTrustAnchor|UpdateTrustAnchor|CreateProfile|DeleteProfile|UpdateProfile|CreateCrl|DeleteCrl)\""
+                  [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Roles Anywhere trust-anchor/profile/CRL mutation"
+          description: "Mutation on the keyless cert-based trust chain. CreateSession with an unexpected cert CN is reviewed on the dashboard (CN lives in the raw cert PEM)."
+
+      - uid: cloud-audit-aws-access-analyzer-finding
+        title: AWS Access Analyzer Active Finding
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: increase(vigil_aws_access_analyzer_findings{status="active"}[1d])
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "New active IAM Access Analyzer finding ({{ $labels.analyzer }})"
+          description: "Daily snapshot shows an increase in active findings. Review the analyzer in the AWS console."
+
+      - uid: cloud-audit-aws-ses-reputation
+        title: AWS SES Reputation Threshold
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: vigil_aws_ses_bounce_rate > 0.05 or vigil_aws_ses_complaint_rate > 0.001
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "SES bounce/complaint rate over threshold"
+          description: "Bounce rate >5% or complaint rate >0.1% in the trailing 24h — deliverability risk for the estate's mail."
+
+      # ================= GCP ================================================
+
+      - uid: cloud-audit-gcp-wif-or-iam-mutation
+        title: GCP WIF or IAM Mutation
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="gcp"}
+                    |~ "\"event_name\":\"google.iam.(admin|workloadidentity).v1.(CreateServiceAccountKey|CreateServiceAccount|DeleteServiceAccount|SetIamPolicy|UpdateWorkloadIdentityPool|CreateWorkloadIdentityPool|CreateWorkloadIdentityPoolProvider|UpdateWorkloadIdentityPoolProvider|DeleteWorkloadIdentityPool|DeleteWorkloadIdentityPoolProvider)\""
+                    or~ "\"event_name\":\"(SetIamPolicy|CreateApiKey|UpdateApiKey|DeleteApiKey|CreateRole|UpdateRole|DeleteRole)\""
+                  [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "GCP admin-activity on WIF pool/provider, IAM bindings, SA keys, or API keys"
+          description: "Admin-activity audit event touching the WIF chain, IAM policy, service-account keys, or API keys. Legit changes come from tofu."
+
+      # ================= OCI ================================================
+
+      - uid: cloud-audit-oci-trust-or-iam-mutation
+        title: OCI Trust or IAM Mutation
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="oci"}
+                    |~ "\"event_name\":\"(CreateIdentityPropagationTrust|UpdateIdentityPropagationTrust|DeleteIdentityPropagationTrust|CreateApp|UpdateApp|DeleteApp|CreatePolicy|UpdatePolicy|DeletePolicy|CreateGroup|UpdateGroup|DeleteGroup|AddUserToGroup|RemoveUserFromGroup)\""
+                  [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "OCI IdentityPropagationTrust / confidential-app / policy / group change"
+          description: "Change to the UPST trust, OAuth apps, IAM policies, or groups. Legit changes come from tofu."
+
+      - uid: cloud-audit-oci-instance-or-network-change
+        title: OCI Instance or Network Change
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="oci"}
+                    |~ "\"event_name\":\"(LaunchInstance|TerminateInstance|StopInstance|RebootInstance|UpdateInstance|ChangeInstanceCompartment|UpdateSecurityList|CreateNetworkSecurityGroup|UpdateNetworkSecurityGroup|DeleteNetworkSecurityGroup|UpdateRouteTable|UpdateDhcpOptions)\""
+                  [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "OCI instance lifecycle or network-security change"
+          description: "Instance lifecycle or security-list/NSG/route change in the tenancy."
+
+      # ================= Tailscale ==========================================
+
+      - uid: cloud-audit-tailscale-device-or-route
+        title: Tailscale Device or Route Change
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="tailscale"}
+                    |~ "\"event_name\":\"(device.added|device.removed|device.tagged|device.key_expiry_disabled|route.approved)\""
+                  [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Tailscale device lifecycle, tag, key-expiry, or route-approval change"
+          description: "State differ saw a device add/remove, tag change, key-expiry disable, or newly approved route. Check whether it matches an intended change."
+
+      - uid: cloud-audit-tailscale-acl-drift
+        title: Tailscale ACL Drift
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="tailscale"} |~ "\"event_name\":\"acl.changed\"" [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Live tailscale ACL differs from declared (acl.changed without matching apply)"
+          description: "The live policy file changed. tofu/tailscale.tf is the declared source; investigate any change without a matching apply."
