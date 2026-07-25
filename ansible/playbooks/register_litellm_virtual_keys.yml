@@ -60,6 +60,11 @@
         - aether/qwen3.6-35b-a3b
         - aether/gemma-4-31b
         - qwen-cloud/qwen3.8-max-preview
+        # Validated on the flight task, but only with a native-pixel
+        # coordinate frame: GPT emits real screen pixels while the loop's
+        # prompt asks for Qwen's normalized 0-1000. Do not point
+        # DESKPLANE_MCP_MODEL at this without teaching the loop that frame.
+        - openai/gpt-5.5
 
   tasks:
     - name: Load secrets
