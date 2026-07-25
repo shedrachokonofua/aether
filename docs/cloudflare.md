@@ -56,3 +56,13 @@ The SPF record includes `amazonses.com` to authorize SES as a sender.
 ### ACME DNS Validation
 
 Caddy uses Cloudflare's DNS API to perform ACME DNS validation for `*.home.shdr.ch` subdomains. This allows automatic SSL certificate provisioning without requiring explicit DNS records in Cloudflare for each internal service.
+
+## Audit collection (vigil)
+
+Account audit logs are collected by **vigil** (`cloudflare.audit`, every
+5 min) once the token lands: an `Audit Logs Read` account token, read from
+Bao at runtime (Cloudflare has no federation — one of the two irreducibly
+static credentials, PLAN.md inventory). Currently **pending** the token
+decision (tofu-managed via `cloudflare_cloud_audit.tf` gate, or
+dashboard-minted via SOPS); the collector is disabled and `vigil check`
+reports the missing key.

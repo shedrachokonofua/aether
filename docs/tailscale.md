@@ -86,3 +86,13 @@ The tailnet is a cloud resource and survives infra loss. Rebuild sequence:
 2. Generate a **one-time auth key** for gateway bootstrap (break-glass; not stored anywhere).
 3. Rebuild infra; use the one-time key for initial gateway auth.
 4. Steady-state gateway auth keys come from the Tofu-provisioned OAuth clients (home/admin gateway).
+
+## Audit collection (vigil)
+
+Tailscale has no audit log, so **vigil** diffs state instead
+(`tailscale.state`, every 5 min): devices/keys/ACL snapshots from a
+read-only OAuth client (tofu/tailscale.tf `cloud_audit`, secret in Bao
+`kv/aether/cloud-audit`), emitting synthetic `device.added/removed/tagged`,
+`device.key_expiry_disabled`, `route.approved`, and `acl.changed` events into
+Loki. Alert rules `cloud-audit-tailscale-device-or-route` and
+`cloud-audit-tailscale-acl-drift` (warning-first).
