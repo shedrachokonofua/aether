@@ -41,8 +41,14 @@
     argos_max_changed_pairs_per_page: 5000
     argos_max_changed_pairs_per_cycle: 250000
     argos_query_timeout_seconds: 60
-    # Ten days of the current fourteen-day Zeek retention leaves four days for
-    # catch-up and the required 24-hour retention headroom before enablement.
+    # Ten days of the then-current fourteen-day Zeek retention. This value goes
+    # stale as the TTL window slides. Argos now reads the live zeek.conn TTL
+    # horizon during preflight and refuses to start (exit 10, and `argos check`
+    # fails) when the bootstrap watermark already sits outside it, rather than
+    # replaying deleted data as successful empty cycles. Refresh this to a
+    # currently-valid interval-aligned instant in the same change that bumps
+    # argos_version, and keep at least 24 hours of retention headroom beyond
+    # the measured catch-up duration.
     argos_bootstrap_start: "2026-07-01T00:00:00Z"
     argos_service_enabled: false
     greptime_image: docker.io/greptime/greptimedb:v1.1.3
