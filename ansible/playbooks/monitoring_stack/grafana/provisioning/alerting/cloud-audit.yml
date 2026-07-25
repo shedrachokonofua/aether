@@ -368,7 +368,7 @@ groups:
           summary: "Roles Anywhere trust-anchor/profile/CRL mutation"
           description: "Mutation on the keyless cert-based trust chain. CreateSession with an unexpected cert CN is reviewed on the dashboard (CN lives in the raw cert PEM)."
 
-      - uid: cloud-audit-aws-access-analyzer-finding
+      - uid: cloud-audit-aws-analyzer-finding
         title: AWS Access Analyzer Active Finding
         condition: C
         data:
@@ -537,7 +537,7 @@ groups:
           summary: "OCI IdentityPropagationTrust / confidential-app / policy / group change"
           description: "Change to the UPST trust, OAuth apps, IAM policies, or groups. Legit changes come from tofu."
 
-      - uid: cloud-audit-oci-instance-or-network-change
+      - uid: cloud-audit-oci-instance-network-change
         title: OCI Instance or Network Change
         condition: C
         data:
