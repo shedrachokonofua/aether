@@ -59,7 +59,7 @@
         - aether/qwen3.6-27b
         - aether/qwen3.6-35b-a3b
         - aether/gemma-4-31b
-        - router/minimax-m3
+        - qwen-cloud/qwen3.8-max-preview
 
   tasks:
     - name: Load secrets
