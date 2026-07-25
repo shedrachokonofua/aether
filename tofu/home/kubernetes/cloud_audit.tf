@@ -10,7 +10,7 @@
 # Bao runtime fetch — nothing static, nothing in etcd).
 
 locals {
-  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:03fce07702e80b46bbaea8719008311d40a6a64fd78b8c9a88c7519f95a36fa8"
+  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:7ca69e5f4fe6a8c1cc025beb53867efb33fa980fc861b15bbb1f5cafc489fee0"
   vigil_ns    = module.namespace["cloud-audit"].name
 
   vigil_config_toml = <<-EOT
