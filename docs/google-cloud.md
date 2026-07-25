@@ -120,3 +120,14 @@ task configure:uptime-monitor -- --check --diff
 Targeting the Google module does not isolate parsing: OpenTofu still loads the
 entire root configuration before planning. Use the target only to inspect a
 known scope, and review the complete plan before applying.
+
+## Audit collection (vigil)
+
+Admin-activity audit logs are collected by **vigil** (`gcp.audit`, every
+5 min): Keycloak `aud=cloud-audit` JWT → WIF STS exchange (sibling provider
+`cloud-audit` in the `aether` pool, tofu/google/cloud-audit.tf) →
+impersonation of the read-only `cloud-audit` SA (`roles/logging.viewer`) →
+Logging `entries:list` into Loki. Alert rule
+`cloud-audit-gcp-wif-or-iam-mutation` (warning-first). Note: the estate DNS
+path intermittently NXDOMAINs `logging-alv.googleapis.com` — see
+`docs/exploration/bug-gcp-logging-dns-nxdomain.md`.
