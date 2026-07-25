@@ -13,6 +13,13 @@
 
 apiVersion: 1
 
+# One-off reconciliation: the first crashed provision (over-long UIDs) left this
+# stale UID behind and this Grafana version does not prune rules removed from
+# files. Remove this block once the stale rule is gone.
+deleteRules:
+  - orgId: 1
+    uid: cloud-audit-aws-access-analyzer-finding
+
 groups:
   - orgId: 1
     name: Cloud Audit
@@ -71,7 +78,7 @@ groups:
               to: 0
             datasourceUid: prometheus-local
             model:
-              expr: time() - max_over_time(vigil_collector_last_success_timestamp_seconds{kind!="snapshot"}[2h]) > 1800
+              expr: time() - max by (collector, provider) (max_over_time(vigil_collector_last_success_timestamp_seconds{kind!="snapshot"}[2h])) > bool 1800
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -110,7 +117,7 @@ groups:
               to: 0
             datasourceUid: prometheus-local
             model:
-              expr: time() - max_over_time(vigil_collector_last_success_timestamp_seconds{kind="snapshot"}[2h]) > 93600
+              expr: time() - max by (collector, provider) (max_over_time(vigil_collector_last_success_timestamp_seconds{kind="snapshot"}[26h])) > bool 93600
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -461,8 +468,7 @@ groups:
               expr: |
                 sum(count_over_time(
                   {service_name="vigil", provider="gcp"}
-                    |~ "\"event_name\":\"google.iam.(admin|workloadidentity).v1.(CreateServiceAccountKey|CreateServiceAccount|DeleteServiceAccount|SetIamPolicy|UpdateWorkloadIdentityPool|CreateWorkloadIdentityPool|CreateWorkloadIdentityPoolProvider|UpdateWorkloadIdentityPoolProvider|DeleteWorkloadIdentityPool|DeleteWorkloadIdentityPoolProvider)\""
-                    or~ "\"event_name\":\"(SetIamPolicy|CreateApiKey|UpdateApiKey|DeleteApiKey|CreateRole|UpdateRole|DeleteRole)\""
+                    |~ "\"event_name\":\"(google.iam.(admin|workloadidentity).v1.(CreateServiceAccountKey|CreateServiceAccount|DeleteServiceAccount|SetIamPolicy|UpdateWorkloadIdentityPool|CreateWorkloadIdentityPool|CreateWorkloadIdentityPoolProvider|UpdateWorkloadIdentityPoolProvider|DeleteWorkloadIdentityPool|DeleteWorkloadIdentityPoolProvider)|(SetIamPolicy|CreateApiKey|UpdateApiKey|DeleteApiKey|CreateRole|UpdateRole|DeleteRole))\""
                   [10m]))
               refId: A
           - refId: B
