@@ -1,10 +1,25 @@
-{
+# Access logs for CrowdSec (file) and Loki (stderr → journal → journal-gateway).
+# Both destinations are required: CrowdSec acquis reads the file; link has no
+# local filelog shipper, so stderr is how access lines reach Loki.
+(access_logs) {
   log {
-    level DEBUG
+    output stderr
+  }
+  log {
     output file /var/log/caddy/access.log {
       roll_size 100mb
       roll_keep 5
     }
+  }
+}
+
+{
+  # Runtime/process logger only (tls/acme/errors). Access logs are enabled
+  # per-site via the access_logs snippet — the old global `log { output file
+  # /var/log/caddy/access.log }` was misnamed and only captured process logs.
+  log {
+    output stderr
+    level INFO
   }
 
   acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
@@ -25,6 +40,7 @@
 # tv.shdr.ch - Direct access (bypasses Cloudflare proxy)
 # Protected by CrowdSec bouncer + AppSec WAF
 tv.shdr.ch {
+  import access_logs
   route {
     crowdsec
     appsec
@@ -39,6 +55,7 @@ tv.shdr.ch {
 }
 
 nextcloud.shdr.ch {
+  import access_logs
   header Strict-Transport-Security "max-age=15552000; includeSubDomains"
 
   route {
@@ -54,6 +71,7 @@ nextcloud.shdr.ch {
 }
 
 seven30.xyz, *.seven30.xyz {
+  import access_logs
   # Block direct access: must come through Cloudflare proxy
   @direct_access `{http.request.remote.host} == {client_ip}`
   respond @direct_access "Access denied" 403
@@ -73,6 +91,7 @@ seven30.xyz, *.seven30.xyz {
 # All other *.shdr.ch traffic - Must come through Cloudflare
 # Uses trusted_proxies IP verification to detect direct access attempts
 shdr.ch, *.shdr.ch {
+  import access_logs
   # Block direct access: if remote_ip == client_ip, request didn't come through trusted proxy
   # (Caddy ignores X-Forwarded-For from untrusted IPs, so client_ip = remote_ip for direct requests)
   @direct_access `{http.request.remote.host} == {client_ip}`
