@@ -10,6 +10,12 @@
 # tokens (403 9109 on plan, verified 2026-07-18). Flip `cloud_audit_cf_enabled`
 # once the provider credential gains Account API Tokens Write — or drop the
 # resource entirely and wire a dashboard-minted token via SOPS instead.
+#
+# 2026-07-25 update: the SOPS route was taken — vigil currently shares
+# cloudflare_dns_api_key (see tofu/main.tf). NOTE: the permission group below
+# is wrong for this endpoint; the account audit_logs API accepts
+# "Account Settings Read" (verified against the official API reference).
+# Fix the data source name before ever enabling this gate.
 
 locals {
   cloud_audit_cf_enabled = false
