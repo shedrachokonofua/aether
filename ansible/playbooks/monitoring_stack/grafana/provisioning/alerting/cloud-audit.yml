@@ -6,6 +6,12 @@
 # critical. The emitted-data contract these match against is
 # vigil/docs/schema.md — envelopes, not `raw`.
 #
+# LogQL selectors may only use INDEXED labels: service_name, provider,
+# collector, domain (+ k8s.*). Envelope fields like event_source/event_name
+# live in the JSON body and belong in |~ line filters — Loki's OTLP defaults
+# (now extended in loki_config.yml) don't index them, and a selector on an
+# unindexed label silently matches nothing while the rule shows health=ok.
+#
 # Not shipped (per PLAN):
 # - any-mutation-outside-apply-window: needs the tofu-apply marker signal
 #   (continuous-deployment Phase 0); ship disabled later, don't invent it.
@@ -237,7 +243,8 @@ groups:
             model:
               expr: |
                 sum(count_over_time(
-                  {service_name="vigil", provider="aws", event_source="iam.amazonaws.com"}
+                  {service_name="vigil", provider="aws"}
+                    |~ "\"event_source\":\"iam.amazonaws.com\""
                     |~ "\"event_name\":\"(Create|Put|Attach|Detach|Update|Delete)[A-Za-z]+\""
                   [10m]))
               refId: A
@@ -377,7 +384,8 @@ groups:
             model:
               expr: |
                 sum(count_over_time(
-                  {service_name="vigil", provider="aws", event_source="rolesanywhere.amazonaws.com"}
+                  {service_name="vigil", provider="aws"}
+                    |~ "\"event_source\":\"rolesanywhere.amazonaws.com\""
                     |~ "\"event_name\":\"(CreateTrustAnchor|DeleteTrustAnchor|UpdateTrustAnchor|CreateProfile|DeleteProfile|UpdateProfile|CreateCrl|DeleteCrl)\""
                   [10m]))
               refId: A
@@ -719,7 +727,7 @@ groups:
             model:
               expr: |
                 sum(count_over_time(
-                  {service_name="vigil", provider="cloudflare", event_source=~"dns_record|zone"} [10m]))
+                  {service_name="vigil", provider="cloudflare"} |~ "\"event_source\":\"(dns_record|zone)\"" [10m]))
               refId: A
           - refId: B
             datasourceUid: __expr__

@@ -9,9 +9,10 @@
   - [x] P4 alert rules authored warning-first (`grafana/provisioning/alerting/cloud-audit.yml`)
   - [x] Deploy monitoring_stack (grafana tag) to provision the rules; verify they evaluate
   - [x] Security Triage: vigil signal-stats panel + recent-events table per provider
-  - [ ] Soak review ~2026-08-08 (14 days): flip page-class rules to critical in one commit
+  - [ ] Soak review ~2026-08-09 (14 days): flip page-class rules to critical in one commit. NOTE: Loki-based rules only started seeing data 2026-07-26 (provider/collector/domain were structured metadata, not index labels — selectors matched nothing until the loki_config otlp_config fix); the soak clock for those starts then.
   - [x] Cloudflare token decision (dashboard route: shared DNS token gained Account Settings Read) — cloudflare.audit live + DNS/zone rule shipped
   - [ ] GCP DNS flake: fix logging-alv NXDOMAIN ([bug report](exploration/bug-gcp-logging-dns-nxdomain.md)); vigil release tag after soak
+  - [ ] Podman runtime-cgroup nesting wedges restarted units ([bug report](exploration/bug-podman-runtime-cgroup-nesting.md)); workaround documented, root cause open
 - [ ] Monitoring pre-migration hardening — survivable subset ([exploration](exploration/monitoring-stack-nix.md))
   - [ ] Pin all 13 container images (10 floating tags) — Track B prerequisite
   - [ ] Re-point Caddy route consumers (Goldilocks/Holmes/Orion) through Janus; drop raw routes

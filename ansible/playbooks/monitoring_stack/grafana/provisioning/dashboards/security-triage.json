@@ -1345,7 +1345,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{service_name=\"vigil\", domain=\"security\"} | json | line_format \"{{.event_time}}\t{{.provider}}/{{.collector}}\t{{.event_name}}\t{{.principal}}\t{{.resource}}\t{{.outcome}}\"",
+          "expr": "{service_name=\"vigil\", domain=\"security\"} |~ \"\\\"event_name\\\":\" | json | line_format \"{{.event_time}}\t{{.provider}}/{{.collector}}\t{{.event_name}}\t{{.principal}}\t{{.resource}}\t{{.outcome}}\"",
           "refId": "A",
           "queryType": "range"
         }
