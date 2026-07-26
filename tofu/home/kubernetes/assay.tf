@@ -207,19 +207,38 @@ resource "kubectl_manifest" "assay_grafana_external_secret" {
     }
   })
 }
-resource "kubernetes_secret_v1" "assay_grafana_alerting" {
-  depends_on = [module.namespace["assay"]]
+resource "kubectl_manifest" "assay_grafana_alerting_external_secret" {
+  depends_on = [
+    kubectl_manifest.namespace_secret_store["assay"],
+  ]
 
-  metadata {
-    name      = "assay-grafana-alerting"
-    namespace = local.assay_namespace
-    labels    = local.assay_labels
-  }
-
-  type = "Opaque"
-  data = {
-    GRAFANA_TOKEN = var.secrets["grafana_sa_token"]
-  }
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "assay-grafana-alerting-admin"
+      namespace = local.assay_namespace
+      labels    = local.assay_labels
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        kind = "SecretStore"
+        name = "openbao"
+      }
+      target = {
+        name           = "assay-grafana-alerting-admin"
+        creationPolicy = "Owner"
+      }
+      data = [{
+        secretKey = "GRAFANA_TOKEN"
+        remoteRef = {
+          key      = "${local.assay_namespace}/grafana-alerting"
+          property = "api_token"
+        }
+      }]
+    }
+  })
 }
 
 
@@ -445,7 +464,7 @@ resource "helm_release" "assay" {
           tokenKey = "GRAFANA_TOKEN"
         }
         alertingSecretRef = {
-          name     = kubernetes_secret_v1.assay_grafana_alerting.metadata[0].name
+          name     = "assay-grafana-alerting-admin"
           tokenKey = "GRAFANA_TOKEN"
         }
       }
