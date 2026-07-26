@@ -7,10 +7,10 @@
   - [x] P2 on-cluster (cloud-audit ns, Kyverno pin, CNP, PVC, serve Deployment; all collectors green)
   - [x] P3 synthetic-event checks (aws/gcp/oci landed; tailscale differ bug found+fixed)
   - [x] P4 alert rules authored warning-first (`grafana/provisioning/alerting/cloud-audit.yml`)
-  - [ ] Deploy monitoring_stack (grafana tag) to provision the rules; verify they evaluate
-  - [ ] Security Triage: vigil signal-stats panel + recent-events table per provider
+  - [x] Deploy monitoring_stack (grafana tag) to provision the rules; verify they evaluate
+  - [x] Security Triage: vigil signal-stats panel + recent-events table per provider
   - [ ] Soak review ~2026-08-08 (14 days): flip page-class rules to critical in one commit
-  - [ ] Cloudflare token decision (provider-credential extension vs dashboard-minted) then enable cloudflare.audit + its rule
+  - [x] Cloudflare token decision (dashboard route: shared DNS token gained Account Settings Read) — cloudflare.audit live + DNS/zone rule shipped
   - [ ] GCP DNS flake: fix logging-alv NXDOMAIN ([bug report](exploration/bug-gcp-logging-dns-nxdomain.md)); vigil release tag after soak
 - [ ] Monitoring pre-migration hardening — survivable subset ([exploration](exploration/monitoring-stack-nix.md))
   - [ ] Pin all 13 container images (10 floating tags) — Track B prerequisite
