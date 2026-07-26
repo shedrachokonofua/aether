@@ -43,3 +43,16 @@ limits_config:
   per_stream_rate_limit: 16MB
   per_stream_rate_limit_burst: 32MB
   max_line_size: 512KB
+  # vigil envelope attributes (provider/collector/domain) must be index
+  # labels, not structured metadata — LogQL alert selectors on unindexed
+  # labels silently match nothing (cloud-audit rules ran blind until
+  # 2026-07-26). Custom entries merge with Loki's built-in default mapping
+  # (service.name, k8s.*, …) unless ignore_defaults is set.
+  otlp_config:
+    resource_attributes:
+      attributes_config:
+        - action: index_label
+          attributes:
+            - provider
+            - collector
+            - domain
