@@ -1212,6 +1212,124 @@
       "description": "Collectors whose most recent run failed in the last hour."
     },
     {
+      "type": "stat",
+      "title": "vigil pod ready",
+      "id": 30,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 74
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-local"
+          },
+          "expr": "kube_deployment_status_replicas_available{namespace=\"cloud-audit\", deployment=\"vigil\"}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "description": "Available replicas of the vigil Deployment. 0 = pod down or never scheduled; k8s-replicaset-not-ready is the alert for this."
+    },
+    {
+      "type": "stat",
+      "title": "vigil pod restarts (24h)",
+      "id": 31,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 74
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-local"
+          },
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"cloud-audit\", container=\"vigil\"}[24h]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "description": "Container restarts in 24h. k8s-container-restart-loop alerts at >=5."
+    },
+    {
+      "type": "stat",
+      "title": "vigil loop iterations (5m)",
+      "id": 32,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 74
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_name=~\"cloud-audit/vigil-.*\"} |= \"iteration complete\" [5m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "description": "Stdout 'iteration complete' lines in 5m (~1/min expected). 0 = process hung or pod down; cloud-audit-loop-absent is the alert."
+    },
+    {
       "type": "table",
       "title": "Recent cloud-audit events (24h)",
       "id": 29,
@@ -1219,7 +1337,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 74
+        "y": 80
       },
       "targets": [
         {
