@@ -1217,6 +1217,65 @@
         status_code: [200]
       tags: [grafana-tenants]
 
+    - name: Create Assay alerting Grafana service account
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts"
+        method: POST
+        user: "{{ secrets.grafana.username | default('shdrch') }}"
+        password: "{{ secrets.grafana_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: assay-alerting-admin
+          role: Admin
+        status_code: [200, 201, 400, 409]
+      tags: [grafana-tenants]
+
+    - name: Look up Assay alerting Grafana service account
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts/search?query=assay-alerting-admin"
+        method: GET
+        user: "{{ secrets.grafana.username | default('shdrch') }}"
+        password: "{{ secrets.grafana_password }}"
+        force_basic_auth: true
+        status_code: 200
+      register: assay_alerting_sa
+      tags: [grafana-tenants]
+
+    - name: Create Assay alerting Grafana token
+      uri:
+        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts/{{ assay_alerting_sa.json.serviceAccounts[0].id }}/tokens"
+        method: POST
+        user: "{{ secrets.grafana.username | default('shdrch') }}"
+        password: "{{ secrets.grafana_password }}"
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: assay-alerting-admin-token
+        status_code: [200, 400, 409]
+      register: assay_alerting_token
+      when: assay_alerting_sa.json.serviceAccounts | length > 0
+      tags: [grafana-tenants]
+
+    - name: Write Assay alerting Grafana token to OpenBao
+      uri:
+        url: "https://bao.home.shdr.ch/v1/kv/data/assay/grafana-alerting"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ lookup('file', lookup('env', 'HOME') + '/.aether-toolbox/bao/token') | trim }}"
+        body_format: json
+        body:
+          data:
+            api_token: "{{ assay_alerting_token.json.key }}"
+            org_id: 1
+            url: "https://grafana.home.shdr.ch"
+        status_code: 200
+      when: assay_alerting_token.json.key is defined
+      delegate_to: localhost
+      become: false
+      no_log: true
+      tags: [grafana-tenants]
+
 - name: Deploy Fleet
   import_playbook: fleet.yml
 

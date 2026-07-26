@@ -55,6 +55,10 @@ resource "vault_policy" "assay_grafana_reader" {
     path "${var.openbao_kv_mount_path}/data/assay/grafana" {
       capabilities = ["read"]
     }
+
+    path "${var.openbao_kv_mount_path}/data/assay/grafana-alerting" {
+      capabilities = ["read"]
+    }
   EOT
 }
 
