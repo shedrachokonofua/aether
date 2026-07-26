@@ -16,7 +16,17 @@
   default_bind 10.0.2.2
 }
 
+# HTTP access logs → stderr → container journal → OTel → Loki.
+# Site-level `log` is required: this Caddy build rejects global `servers.logs`.
+# Skip high-cardinality firehose hosts (otel/s3/gitlab/bao/metrics).
+(access_logs) {
+  log {
+    output stderr
+  }
+}
+
 home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -32,6 +42,7 @@ caddy.home.shdr.ch {
 }
 
 niobe.home.shdr.ch {
+  import access_logs
   reverse_proxy 192.168.2.201:8006 {
     transport http {
       tls
@@ -46,14 +57,17 @@ niobe.home.shdr.ch {
 }
 
 rack-switch.home.shdr.ch {
+  import access_logs
   reverse_proxy 192.168.2.221
 }
 
 pi-switch.home.shdr.ch {
+  import access_logs
   reverse_proxy 192.168.2.224
 }
 
 office-switch.home.shdr.ch {
+  import access_logs
   reverse_proxy 192.168.2.222 {
     transport http {
       versions 1.1
@@ -77,15 +91,18 @@ office-switch.home.shdr.ch {
 # Home UI proxies the DNS VRRP VIP, not a fixed node: the admin portal
 # follows whichever home node is healthy (keepalived, docs/networking.md).
 dns.home.shdr.ch {
+  import access_logs
   reverse_proxy 192.168.2.238:5380
 }
 
 # OCI offsite Technitium DNS admin UI, reached over the WireGuard fabric (10.3.0.10).
 dns.oci.shdr.ch {
+  import access_logs
   reverse_proxy 10.3.0.10:5380
 }
 
 seaweed.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.filer }} {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -104,6 +121,7 @@ s3.seaweed.home.shdr.ch {
 }
 
 master.seaweed.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.master }} {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -113,6 +131,7 @@ master.seaweed.home.shdr.ch {
 }
 
 ap.home.shdr.ch {
+  import access_logs
   reverse_proxy https://{{ vm.home_gateway_stack.ip }}:{{ vm.home_gateway_stack.ports.unifi_admin }} {
     transport http {
       tls
@@ -127,6 +146,7 @@ ap.home.shdr.ch {
 }
 
 grafana.home.shdr.ch {
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}
 }
@@ -134,6 +154,7 @@ grafana.home.shdr.ch {
 # CORS-stripping feed proxy for the Grafana home dashboard.
 # Lets the news panel fetch feeds whose origins don't send CORS headers.
 feeds.home.shdr.ch {
+  import access_logs
   header {
     Access-Control-Allow-Origin "https://grafana.home.shdr.ch"
     Access-Control-Allow-Methods "GET, OPTIONS"
@@ -221,6 +242,7 @@ clickhouse.home.shdr.ch {
 }
 
 wazuh.home.shdr.ch {
+  import access_logs
   reverse_proxy https://{{ vm.ids_stack.ip }}:{{ vm.ids_stack.ports.wazuh_api }} {
     transport http {
       tls
@@ -230,6 +252,7 @@ wazuh.home.shdr.ch {
 }
 
 hids.home.shdr.ch {
+  import access_logs
   reverse_proxy https://{{ vm.ids_stack.ip }}:{{ vm.ids_stack.ports.wazuh_dashboard }} {
     transport http {
       tls
@@ -239,6 +262,7 @@ hids.home.shdr.ch {
 }
 
 kvm.home.shdr.ch {
+  import access_logs
   reverse_proxy 192.168.2.220
 }
 
@@ -261,6 +285,7 @@ pages.gitlab.home.shdr.ch {
 
 # vcluster API: LAN + Tailscale for co-founders (OIDC/cert auth on API server)
 k8s.seven30.xyz {
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy https://10.0.3.21 {
     transport http {
@@ -270,6 +295,7 @@ k8s.seven30.xyz {
 }
 
 mars.seven30.xyz, *.mars.seven30.xyz {
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
@@ -280,6 +306,7 @@ mars.seven30.xyz, *.mars.seven30.xyz {
 }
 
 seven30.xyz, *.seven30.xyz {
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
@@ -291,11 +318,13 @@ seven30.xyz, *.seven30.xyz {
 
 # Catch-all for the Tailscale listener: reject anything that isn't a studio route
 :443 {
+  import access_logs
   bind {{ tf_outputs.home_gateway_tailscale_ip.value }}
   respond 403
 }
 
 ha.home.shdr.ch {
+  import access_logs
   # Avoid duplicate Server header (upstream + Caddy) — strict aiohttp
   # clients (hermes) reject it with 400. Needs both: header_down for normal
   # responses, site-level header for the websocket 101 upgrade response.
@@ -306,10 +335,12 @@ ha.home.shdr.ch {
 }
 
 z.ha.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.zwavejs }}
 }
 
 m.ha.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.matter_server }} {
     header_up Upgrade {http.request.header.Upgrade}
     header_up Connection {http.request.header.Connection}
@@ -317,6 +348,7 @@ m.ha.home.shdr.ch {
 }
 
 sunshine.home.shdr.ch {
+  import access_logs
   # Game server Sunshine web UI — now a k8s LoadBalancer VIP (reuses the retired
   # VM 1014 IP, 10.0.3.13). Web UI only; Moonlight streaming connects to the VIP
   # directly (multi-port TCP+UDP, can't traverse this HTTP gateway).
@@ -333,6 +365,7 @@ sunshine.home.shdr.ch {
 }
 
 cockpit.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.cockpit.ip }}:{{ vm.cockpit.ports.cockpit }} {
     transport http {
       tls_insecure_skip_verify
@@ -345,14 +378,17 @@ cockpit.home.shdr.ch {
 # *.home.shdr.ch wildcard below.
 
 ntfy.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}
 }
 
 apprise.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.apprise }}
 }
 
 litellm.home.shdr.ch {
+  import access_logs
   redir /ui /ui/ 308
   redir /ui/login /ui/login/ 308
   redir /mcp /mcp/ 308
@@ -366,6 +402,7 @@ litellm.home.shdr.ch {
 }
 
 ups.home.shdr.ch {
+  import access_logs
   reverse_proxy 192.168.2.223 {
     transport http {
       versions 1.1
@@ -386,6 +423,7 @@ ups.home.shdr.ch {
 }
 
 qbittorrent.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -396,6 +434,7 @@ qbittorrent.home.shdr.ch {
 }
 
 prowlarr.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -406,6 +445,7 @@ prowlarr.home.shdr.ch {
 }
 
 sabnzbd.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -416,6 +456,7 @@ sabnzbd.home.shdr.ch {
 }
 
 files.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -426,6 +467,7 @@ files.home.shdr.ch {
 }
 
 bastion.home.shdr.ch {
+  import access_logs
   # oauth2-proxy + termix run on the bastion LXC. Auth (incl. admin-role gate)
   # happens there; this gateway entry just terminates public TLS and forwards.
   reverse_proxy {{ vm.bastion.ip }}:{{ vm.bastion.ports.oauth2_proxy }} {
@@ -438,6 +480,7 @@ bastion.home.shdr.ch {
 }
 
 tv.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host tv.shdr.ch
     header_up X-Real-IP {http.request.remote}
@@ -448,6 +491,7 @@ tv.shdr.ch {
 }
 
 sonarr.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -458,6 +502,7 @@ sonarr.home.shdr.ch {
 }
 
 radarr.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -468,6 +513,7 @@ radarr.home.shdr.ch {
 }
 
 lidarr.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -478,6 +524,7 @@ lidarr.home.shdr.ch {
 }
 
 aiostreams.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -488,6 +535,7 @@ aiostreams.home.shdr.ch {
 }
 
 stremthru.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -498,6 +546,7 @@ stremthru.home.shdr.ch {
 }
 
 tuliprox.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -508,10 +557,12 @@ tuliprox.home.shdr.ch {
 }
 
 stats.proxy.home.shdr.ch {
+  import access_logs
   reverse_proxy localhost:{{ vm.home_gateway_stack.ports.rotating_proxy_metrics }}
 }
 
 temporal.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -521,6 +572,7 @@ temporal.home.shdr.ch {
 }
 
 auth.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.keycloak.ip }}:{{ vm.keycloak.ports.http }}
 }
 
@@ -540,6 +592,7 @@ bao.home.shdr.ch {
 }
 
 backrest.home.shdr.ch {
+  import access_logs
   reverse_proxy {{ vm.backup_stack.ip }}:{{ vm.backup_stack.ports.backrest }}
 }
 
@@ -575,6 +628,7 @@ s3.home.shdr.ch {
 }
 
 shdr.ch {
+  import access_logs
   @shdrchRoot path /
   rewrite @shdrchRoot /shdrch/index.html
   @shdrchNotRoot not path /
@@ -593,6 +647,7 @@ shdr.ch {
 # =============================================================================
 # Expose Kubernetes OIDC discovery + JWKS (for RGW STS validation)
 oidc.k8s.home.shdr.ch {
+  import access_logs
   @oidc path /.well-known/openid-configuration /openid/v1/jwks
 
   handle @oidc {
@@ -612,6 +667,7 @@ oidc.k8s.home.shdr.ch {
 
 
 *.home.shdr.ch {
+  import access_logs
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote.host}
@@ -624,6 +680,7 @@ oidc.k8s.home.shdr.ch {
 }
 
 :9443 {
+  import access_logs
   @shdrch host shdr.ch
   @auth host auth.shdr.ch
   @ai host ai.shdr.ch
