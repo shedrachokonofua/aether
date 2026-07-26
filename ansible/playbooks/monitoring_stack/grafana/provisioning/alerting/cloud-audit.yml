@@ -138,6 +138,47 @@ groups:
           summary: "vigil snapshot collector {{ $labels.collector }} silent >26h"
           description: "No successful collect from {{ $labels.collector }} in over 26 hours."
 
+      - uid: cloud-audit-loop-absent
+        title: Cloud Audit Loop Absent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name=~"cloud-audit/vigil-.*"} |= "iteration complete" [6m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "vigil orchestrator loop silent >6m"
+          description: "No 'iteration complete' stdout line in 6m (~1/min expected). Catches a hung process and pod death ~9m ahead of k8s-replicaset-not-ready; the feed-absent rules cover per-collector staleness."
+
       # ================= AWS ================================================
 
       - uid: cloud-audit-aws-root-or-console-login
