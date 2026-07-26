@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-e7fc6e5a"
+  deskplane_chart_version  = "0.1.0-527bbcba"
   deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -256,7 +256,7 @@ resource "helm_release" "deskplane" {
       enabled = true
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "e7fc6e5a"
+        tag        = "527bbcba"
       }
       env = {
         DESKPLANE_API_URL             = "http://deskplane.deskplane.svc.cluster.local"
@@ -271,9 +271,12 @@ resource "helm_release" "deskplane" {
         DESKPLANE_MCP_MODEL           = "qwen-cloud/qwen3.8-max-preview"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
-        # 40 covers the tasks this model can actually finish (~20 actions);
-        # raising it to 80 only let a doomed run flail twice as long.
-        DESKPLANE_MCP_MAX_TURNS       = "40"
+        # 40 was tuned when every long run was doomed by the stale-screenshot
+        # bug, so raising it only bought more flailing. With the settle delay
+        # and the agent's carried-forward memory a real multi-page flow makes
+        # steady progress and now needs the room: the ServiceOntario booking
+        # flow reaches its blocking step around turn 40.
+        DESKPLANE_MCP_MAX_TURNS       = "80"
       }
       apiTokenSecretRef = {
         name = kubernetes_secret_v1.deskplane_mcp_token.metadata[0].name
