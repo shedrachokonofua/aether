@@ -604,6 +604,31 @@ tasks:
             "cd {{.REMOTE_PATH}} && SSH_CA_PUBKEY=\"$SSH_CA_PUBKEY\" nix --extra-experimental-features 'nix-command flakes' run nixpkgs#nixos-rebuild -- switch --flake .#{{.FLAKE_TARGET}} --impure"
         fi
 
+  configure:seaweedfs:
+    desc: |
+      Deploy NixOS configuration to the SeaweedFS LXC.
+
+      This host is the backup store for every namespace. The flake already
+      pins seaweedfs 4.39 while the host has been running 3.97, so the first
+      run of this is a major version jump. Before it: snapshot the LXC on
+      smith (`pct snapshot 1022 pre-seaweed-4x`) and back up filer metadata
+      (`weed filer.meta.backup`). Rollback is `nixos-rebuild --rollback` on
+      the target for the software, the LXC snapshot for the data.
+
+      4.05+ is what makes keyless S3 possible: it adds the STS
+      AssumeRoleWithWebIdentity endpoint the cluster's OIDC issuer can feed.
+    vars:
+      TARGET_IP:
+        sh: yq '.seaweedfs.ip' config/vm.yml
+      BUILD_IP:
+        sh: yq '.nix_builder.ip' config/vm.yml
+    cmds:
+      - task: _nixos-deploy
+        vars:
+          TARGET_IP: "{{.TARGET_IP}}"
+          BUILD_IP: "{{.BUILD_IP}}"
+          FLAKE_TARGET: seaweedfs
+
   configure:adguard:
     desc: Deploy NixOS configuration to AdGuard LXC
     vars:
