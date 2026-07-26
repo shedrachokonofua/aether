@@ -1162,7 +1162,7 @@
             "type": "prometheus",
             "uid": "prometheus-local"
           },
-          "expr": "max by (collector) (time() - max_over_time(vigil_collector_last_success_timestamp_seconds[2h]))",
+          "expr": "time() - max by (collector) (max_over_time(vigil_collector_last_success_timestamp_seconds[26h]))",
           "refId": "A",
           "legendFormat": "{{collector}}"
         }
@@ -1177,7 +1177,7 @@
         "textMode": "value_and_name",
         "unit": "s"
       },
-      "description": "Seconds since each collector's last successful collect (push-gauges go stale ~5m after a run; this uses the 2h max_over_time wrapper)."
+      "description": "Seconds since each collector's last successful collect (push-gauges go stale ~5m after a run; the 26h max_over_time wrapper keeps daily snapshot collectors visible between runs, matching the feed-absent rule)."
     },
     {
       "type": "stat",
