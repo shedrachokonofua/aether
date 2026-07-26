@@ -7,8 +7,8 @@
 locals {
   assay_namespace            = module.namespace["assay"].name
   assay_host                 = "assay.home.shdr.ch"
-  assay_chart_version        = "0.2.21"
-  assay_image_tag            = "v0.2.21"
+  assay_chart_version        = "0.2.22"
+  assay_image_tag            = "v0.2.22"
   assay_registry_host        = "registry.gitlab.home.shdr.ch"
   assay_registry_repository  = "${local.assay_registry_host}/so/assay"
   assay_cnpg                 = "assay-cnpg"
@@ -207,6 +207,21 @@ resource "kubectl_manifest" "assay_grafana_external_secret" {
     }
   })
 }
+resource "kubernetes_secret_v1" "assay_grafana_alerting" {
+  depends_on = [module.namespace["assay"]]
+
+  metadata {
+    name      = "assay-grafana-alerting"
+    namespace = local.assay_namespace
+    labels    = local.assay_labels
+  }
+
+  type = "Opaque"
+  data = {
+    GRAFANA_TOKEN = var.secrets["grafana_sa_token"]
+  }
+}
+
 
 resource "kubernetes_secret_v1" "assay_artifact_store" {
   depends_on = [module.namespace["assay"]]
@@ -421,11 +436,16 @@ resource "helm_release" "assay" {
         }
       }
       grafana = {
-        enabled       = true
-        url           = "https://grafana.home.shdr.ch"
-        prometheusUid = "ffs597mxke39ca"
+        enabled               = true
+        url                   = "https://grafana.home.shdr.ch"
+        prometheusUid         = "ffs597mxke39ca"
+        alertingPrometheusUid = "prometheus-local"
         secretRef = {
           name     = "assay-grafana"
+          tokenKey = "GRAFANA_TOKEN"
+        }
+        alertingSecretRef = {
+          name     = kubernetes_secret_v1.assay_grafana_alerting.metadata[0].name
           tokenKey = "GRAFANA_TOKEN"
         }
       }
