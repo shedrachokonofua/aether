@@ -53,8 +53,9 @@ locals {
     [cloudflare]
     account_id = "${var.cloud_audit.cloudflare_account_id}"
 
-    # cloudflare.audit stays disabled until the audit-logs token lands
-    # (tofu/cloudflare_cloud_audit.tf gate).
+    # cloudflare.audit token: dashboard-minted Audit-Logs-Read, lives in Bao
+    # (kv/data/aether/cloud-audit:cloudflare_api_token); tofu gate in
+    # tofu/cloudflare_cloud_audit.tf stays off.
 
     [collectors."aws.cloudtrail"]
     enabled = true
@@ -75,7 +76,7 @@ locals {
     enabled = true
 
     [collectors."cloudflare.audit"]
-    enabled = false
+    enabled = true
   EOT
 }
 

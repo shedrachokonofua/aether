@@ -7,18 +7,10 @@
 # vigil/docs/schema.md — envelopes, not `raw`.
 #
 # Not shipped (per PLAN):
-# - cloudflare-dns-or-zone-change: collector disabled until the CF token lands.
 # - any-mutation-outside-apply-window: needs the tofu-apply marker signal
 #   (continuous-deployment Phase 0); ship disabled later, don't invent it.
 
 apiVersion: 1
-
-# One-off reconciliation: the first crashed provision (over-long UIDs) left this
-# stale UID behind and this Grafana version does not prune rules removed from
-# files. Remove this block once the stale rule is gone.
-deleteRules:
-  - orgId: 1
-    uid: cloud-audit-aws-access-analyzer-finding
 
 groups:
   - orgId: 1
@@ -671,3 +663,46 @@ groups:
         annotations:
           summary: "Live tailscale ACL differs from declared (acl.changed without matching apply)"
           description: "The live policy file changed. tofu/tailscale.tf is the declared source; investigate any change without a matching apply."
+
+      # ================= Cloudflare ===========================================
+
+      - uid: cloud-audit-cloudflare-dns-or-zone
+        title: Cloudflare DNS or Zone Change
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              expr: |
+                sum(count_over_time(
+                  {service_name="vigil", provider="cloudflare", event_source=~"dns_record|zone"} [10m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Cloudflare DNS record or zone change"
+          description: "Account audit log saw a dns_record or zone create/update/delete. Legit changes come from tofu applies; anything else is an incident."
