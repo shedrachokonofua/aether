@@ -6,8 +6,8 @@
 # Kubernetes AWS credentials.
 
 locals {
-  db_backup_bucket          = "aether-db-dumps"
-  db_backup_s3_endpoint     = "https://s3.seaweed.home.shdr.ch"
+  db_backup_bucket      = "aether-db-dumps"
+  db_backup_s3_endpoint = "https://s3.seaweed.home.shdr.ch"
   # Historical Thanos blocks and their scoped read/write identity remain until
   # destructive archive removal is explicitly approved.
   thanos_metrics_bucket     = "thanos-metrics"
@@ -333,6 +333,106 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
         }
       ],
     )
+  })
+}
+# ---------------------------------------------------------------------------
+# SeaweedFS advanced IAM: exchange a Kubernetes ServiceAccount token for
+# short-lived S3 credentials, so a workload never holds a static key.
+#
+# The cluster already publishes an OIDC issuer whose JWKS is reachable from
+# the SeaweedFS LXC, and audience-scoped projected tokens already mint, so
+# only the gateway side is missing. Requires SeaweedFS >= 4.05 for the
+# AssumeRoleWithWebIdentity endpoint; the host runs 4.38.
+#
+# This file sits beside seaweedfs-s3.json and is pushed by the same playbook.
+# Legacy static identities in that file keep working: the gateway only takes
+# the session-token path when a request carries X-Amz-Security-Token.
+# ---------------------------------------------------------------------------
+
+resource "random_password" "seaweedfs_sts_signing_key" {
+  length  = 48
+  special = false
+}
+
+locals {
+  seaweedfs_oidc_issuer = "https://oidc.k8s.home.shdr.ch"
+  # The audience a workload must request on its projected token. Enforced by
+  # the provider's clientId, NOT by an oidc:aud trust condition: SeaweedFS
+  # only populates that condition when the JWT aud is a string, and
+  # Kubernetes always emits an array, so such a condition silently fails.
+  seaweedfs_oidc_audience = "seaweedfs"
+  deskplane_traces_bucket = "deskplane-traces"
+}
+
+resource "local_sensitive_file" "seaweedfs_iam_config" {
+  filename        = "${path.module}/../secrets/seaweedfs-iam.json"
+  file_permission = "0600"
+
+  content = jsonencode({
+    sts = {
+      tokenDuration    = "1h"
+      maxSessionLength = "12h"
+      issuer           = "seaweedfs-home-sts"
+      signingKey       = base64encode(random_password.seaweedfs_sts_signing_key.result)
+    }
+
+    providers = [
+      {
+        name    = "k8s"
+        type    = "oidc"
+        enabled = true
+        config = {
+          issuer   = local.seaweedfs_oidc_issuer
+          clientId = local.seaweedfs_oidc_audience
+        }
+        roleMapping = {
+          rules = [
+            {
+              claim = "sub"
+              value = "system:serviceaccount:deskplane:deskplane-mcp"
+              role  = "DeskplaneTraceWriter"
+            },
+          ]
+        }
+      },
+    ]
+
+    policies = [
+      {
+        name = "DeskplaneTraceWrite"
+        document = {
+          Version = "2012-10-17"
+          Statement = [
+            {
+              Effect = "Allow"
+              Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+              Resource = [
+                "arn:aws:s3:::${local.deskplane_traces_bucket}",
+                "arn:aws:s3:::${local.deskplane_traces_bucket}/*",
+              ]
+            },
+          ]
+        }
+      },
+    ]
+
+    roles = [
+      {
+        name             = "DeskplaneTraceWriter"
+        roleArn          = "arn:seaweed:iam::role/DeskplaneTraceWriter"
+        attachedPolicies = ["DeskplaneTraceWrite"]
+        trustPolicy = {
+          Version = "2012-10-17"
+          Statement = [
+            {
+              Effect    = "Allow"
+              Principal = { Federated = "k8s" }
+              Action    = ["sts:AssumeRoleWithWebIdentity"]
+            },
+          ]
+        }
+      },
+    ]
   })
 }
 

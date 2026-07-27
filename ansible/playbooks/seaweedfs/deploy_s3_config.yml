@@ -9,6 +9,12 @@
     seaweedfs_s3_config_remote: "/mnt/hdd/seaweedfs/secrets/s3.json"
     seaweedfs_s3_generated_config_path: "{{ playbook_dir }}/../../../tofu/home/secrets/seaweedfs-s3.json"
     seaweedfs_s3_generated_config: "{{ lookup('ansible.builtin.file', seaweedfs_s3_generated_config_path, errors='ignore') }}"
+    # Advanced IAM (OIDC -> STS). Optional: the gateway's ExecStart only adds
+    # -iam.config when this file exists, so a host without it keeps serving
+    # the legacy static identities exactly as before.
+    seaweedfs_iam_config_remote: "/mnt/hdd/seaweedfs/secrets/iam.json"
+    seaweedfs_iam_generated_config_path: "{{ playbook_dir }}/../../../tofu/home/secrets/seaweedfs-iam.json"
+    seaweedfs_iam_generated_config: "{{ lookup('ansible.builtin.file', seaweedfs_iam_generated_config_path, errors='ignore') }}"
     seaweedfs_s3_admin_config: |
       {
         "identities": [
@@ -30,6 +36,7 @@
       - aether-db-dumps
       - thanos-metrics
       - greptime-telemetry
+      - deskplane-traces
 
   pre_tasks:
     - name: Load SOPS secrets
@@ -73,6 +80,34 @@
       ansible.builtin.file:
         path: /tmp/seaweedfs-s3.json
         state: absent
+      no_log: true
+
+    - name: Stage SeaweedFS IAM config on Proxmox host
+      ansible.builtin.copy:
+        src: "{{ seaweedfs_iam_generated_config_path }}"
+        dest: /tmp/seaweedfs-iam.json
+        owner: root
+        group: root
+        mode: "0600"
+      when: seaweedfs_iam_generated_config | trim | length > 0
+      no_log: true
+
+    - name: Push SeaweedFS IAM config into LXC
+      ansible.builtin.command: >
+        pct push {{ seaweedfs_vm.id }}
+        /tmp/seaweedfs-iam.json
+        {{ seaweedfs_iam_config_remote }}
+        --user seaweed
+        --group seaweed
+        --perms 0600
+      when: seaweedfs_iam_generated_config | trim | length > 0
+      changed_when: true
+
+    - name: Remove staged SeaweedFS IAM config
+      ansible.builtin.file:
+        path: /tmp/seaweedfs-iam.json
+        state: absent
+      when: seaweedfs_iam_generated_config | trim | length > 0
       no_log: true
 
     # Prefer unit restart over LXC reboot. HUP/reload alone has been observed
