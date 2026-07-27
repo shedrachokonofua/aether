@@ -443,7 +443,7 @@ resource "local_sensitive_file" "seaweedfs_iam_config" {
               # audiences (iam_manager.go:1373-1380).
               Condition = {
                 StringEquals = {
-                  "oidc:sub" = "system:serviceaccount:deskplane:default"
+                  "oidc:sub" = "system:serviceaccount:deskplane:deskplane-mcp"
                 }
               }
             },
