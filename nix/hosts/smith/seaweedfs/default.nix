@@ -51,6 +51,19 @@ in
 
   networking.hostName = lib.mkOverride 10 vm.name;
 
+  # The Proxmox container declares nameserver ${vm.gateway}, but nothing in
+  # NixOS ever consumed it, so systemd-resolved fell through to its public
+  # fallback list and this host has been resolving via 8.8.4.4.
+  #
+  # Internal names are split-horizon. oidc.k8s.home.shdr.ch answers as a
+  # Cloudflare address publicly and as the VLAN gateway stack (10.0.2.2)
+  # internally, so the advanced IAM provider could not fetch the cluster's
+  # JWKS: it resolved the public record and failed the TLS handshake against
+  # Cloudflare. Forcing the internal resolver fixes discovery; the internal
+  # CA is already trusted, so nothing else was needed.
+  networking.nameservers = [ vm.gateway ];
+  services.resolved.fallbackDns = [ ];
+
   users.groups.seaweed = { };
   users.users.seaweed = {
     isSystemUser = true;
