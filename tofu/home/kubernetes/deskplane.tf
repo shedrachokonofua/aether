@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-527bbcba"
+  deskplane_chart_version  = "0.1.0-0b23164e"
   deskplane_image_tag      = "latest"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -185,55 +185,55 @@ resource "helm_release" "deskplane" {
     catalog = {
       images = [
         {
-          name = "chrome", displayName = "Chrome", image = "kasmweb/chrome:1.17.0"
+          name        = "chrome", displayName = "Chrome", image = "kasmweb/chrome:1.17.0"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          name = "firefox", displayName = "Firefox", image = "kasmweb/firefox:1.17.0"
+          name        = "firefox", displayName = "Firefox", image = "kasmweb/firefox:1.17.0"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          name = "brave", displayName = "Brave", image = "kasmweb/brave:1.17.0"
+          name        = "brave", displayName = "Brave", image = "kasmweb/brave:1.17.0"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          name = "kali", displayName = "Kali Linux", image = "kasmweb/core-kali-rolling:1.17.0"
+          name        = "kali", displayName = "Kali Linux", image = "kasmweb/core-kali-rolling:1.17.0"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          name = "tor", displayName = "Tor Browser", image = "kasmweb/tor-browser:1.17.0"
+          name        = "tor", displayName = "Tor Browser", image = "kasmweb/tor-browser:1.17.0"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          name = "terminal", displayName = "Terminal", image = "kasmweb/desktop:1.17.0"
+          name        = "terminal", displayName = "Terminal", image = "kasmweb/desktop:1.17.0"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          name = "dosbox-x", displayName = "DOS (DOSBox-X)", image = "${local.deskplane_registry_image}/dosbox-x-kasm:latest"
+          name        = "dosbox-x", displayName = "DOS (DOSBox-X)", image = "${local.deskplane_registry_image}/dosbox-x-kasm:latest"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          name = "win9x", displayName = "Windows 95 / 98", image = "${local.deskplane_registry_image}/win9x-qemu-kasm:latest"
+          name        = "win9x", displayName = "Windows 95 / 98", image = "${local.deskplane_registry_image}/win9x-qemu-kasm:latest"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1", WIN9X_DISK_URL = "", WIN9X_DISK_SHA256 = "" }
         },
         {
-          name = "cua-ubuntu", displayName = "Computer-Use Desktop", image = "${local.deskplane_registry_image}/cua-ubuntu-kasm:a2980172"
+          name        = "cua-ubuntu", displayName = "Computer-Use Desktop", image = "${local.deskplane_registry_image}/cua-ubuntu-kasm:a2980172"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 8000 }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
@@ -256,12 +256,12 @@ resource "helm_release" "deskplane" {
       enabled = true
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "527bbcba"
+        tag        = "0b23164e"
       }
       env = {
-        DESKPLANE_API_URL             = "http://deskplane.deskplane.svc.cluster.local"
-        DESKPLANE_PUBLIC_URL          = local.deskplane_public_url
-        DESKPLANE_MCP_IMAGE_REF       = "cua-ubuntu"
+        DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
+        DESKPLANE_PUBLIC_URL    = local.deskplane_public_url
+        DESKPLANE_MCP_IMAGE_REF = "cua-ubuntu"
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # Alibaba's hosted Qwen is the only model that has finished a
@@ -276,7 +276,20 @@ resource "helm_release" "deskplane" {
         # and the agent's carried-forward memory a real multi-page flow makes
         # steady progress and now needs the room: the ServiceOntario booking
         # flow reaches its blocking step around turn 40.
-        DESKPLANE_MCP_MAX_TURNS       = "80"
+        DESKPLANE_MCP_MAX_TURNS = "80"
+
+        # Flight recorder. Every agent run is written out as a task: the
+        # prompt, a frame and the agent's own reasoning per turn, and the
+        # final answer. Until this existed a failed run left nothing behind
+        # to look at once it ended.
+        #
+        # Credentials are keyless: the pod exchanges its projected
+        # ServiceAccount token for short-lived credentials via SeaweedFS STS,
+        # so nothing here is a key and there is no secret to rotate. The
+        # role's trust policy pins this pod's ServiceAccount.
+        DESKPLANE_MCP_TRACE_S3_ENDPOINT = "https://s3.seaweed.home.shdr.ch"
+        DESKPLANE_MCP_TRACE_S3_BUCKET   = "deskplane-traces"
+        DESKPLANE_MCP_TRACE_S3_ROLE_ARN = "arn:aws:iam::000000000000:role/DeskplaneTraceWriter"
       }
       apiTokenSecretRef = {
         name = kubernetes_secret_v1.deskplane_mcp_token.metadata[0].name
