@@ -143,6 +143,28 @@
             sshCaModule
           ];
         };
+        seaweedfs = nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = sharedSpecialArgs;
+          modules = [
+            {
+              nixpkgs.overlays = [
+                otelFixOverlay
+                # nixos-25.11 ships SeaweedFS 3.97, which has no STS endpoint:
+                # AssumeRoleWithWebIdentity landed in 4.05 (commit ae9a943).
+                # Without it every namespace must hold a static S3 key, when
+                # the cluster already publishes an OIDC issuer that could mint
+                # short-lived credentials instead. Pull 4.38 from unstable for
+                # the object store only.
+                (final: prev: {
+                  seaweedfs = nixpkgsUnstable.legacyPackages.${system}.seaweedfs;
+                })
+              ];
+            }
+            ./nix/hosts/smith/seaweedfs
+            sshCaModule
+          ];
+        };
       };
     in
     # Per-system outputs (dev shells + packages)
