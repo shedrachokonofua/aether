@@ -418,8 +418,14 @@ resource "local_sensitive_file" "seaweedfs_iam_config" {
 
     roles = [
       {
-        name             = "DeskplaneTraceWriter"
-        roleArn          = "arn:seaweed:iam::role/DeskplaneTraceWriter"
+        # RoleDefinition unmarshals this as "roleName"; a plain "name" here
+        # loads as an empty role and the gateway logs "role name cannot be
+        # empty". Note policies[] really do use "name" -- the two differ.
+        roleName = "DeskplaneTraceWriter"
+        # Must be the AWS ARN shape: SeaweedFS parses the role name out of
+        # the segment after "role/", and a seaweed-flavoured ARN yields an
+        # empty name and "role not found".
+        roleArn          = "arn:aws:iam::000000000000:role/DeskplaneTraceWriter"
         attachedPolicies = ["DeskplaneTraceWrite"]
         trustPolicy = {
           Version = "2012-10-17"
@@ -428,6 +434,18 @@ resource "local_sensitive_file" "seaweedfs_iam_config" {
               Effect    = "Allow"
               Principal = { Federated = "k8s" }
               Action    = ["sts:AssumeRoleWithWebIdentity"]
+              # Without this the role is assumable by ANY ServiceAccount in
+              # the cluster that can mint a seaweedfs-audience token --
+              # verified by successfully assuming it as kube-system:default.
+              # oidc:sub is safe to condition on because the sub claim is a
+              # string; oidc:aud is not, because Kubernetes emits aud as an
+              # array and SeaweedFS only populates that key for string
+              # audiences (iam_manager.go:1373-1380).
+              Condition = {
+                StringEquals = {
+                  "oidc:sub" = "system:serviceaccount:deskplane:default"
+                }
+              }
             },
           ]
         }
