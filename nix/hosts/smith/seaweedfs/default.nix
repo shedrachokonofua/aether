@@ -13,6 +13,35 @@ let
   indexDir = "${activeDataRoot}/index";
   secretDir = "${dataRoot}/secrets";
   s3Config = "${secretDir}/s3.json";
+  iamConfig = "${secretDir}/iam.json";
+
+  # Advanced IAM (OIDC -> STS -> temporary credentials) is opt-in on the
+  # presence of iam.json, which ansible pushes alongside s3.json. The flag
+  # cannot be unconditional: the gateway has to keep starting on a host where
+  # that file has not landed yet, and this one serves every namespace's
+  # backups.
+  #
+  # Enabling it does not disturb the legacy static identities in s3.json.
+  # verifyV4Signature only takes the session-token path when the request
+  # carries X-Amz-Security-Token and otherwise falls through to
+  # lookupByAccessKey, and authorizationRoute keeps selecting legacy Actions
+  # for identities that declare them (weed/s3api/auth_credentials.go, 4.38).
+  #
+  # Note the flag is -iam.config for standalone `weed s3`; -s3.iam.config is
+  # the `weed server` spelling and is silently ignored here.
+  s3Start = pkgs.writeShellScript "seaweedfs-s3-start" ''
+    set -eu
+    args=(
+      -ip.bind=${vm.ip}
+      -port=${toString ports.s3}
+      -filer=${vm.ip}:${toString ports.filer}
+      -config=${s3Config}
+    )
+    if [ -f ${iamConfig} ]; then
+      args+=(-iam.config=${iamConfig})
+    fi
+    exec ${weed} s3 "''${args[@]}"
+  '';
 in
 {
   imports = [
@@ -148,13 +177,7 @@ in
       User = "seaweed";
       Group = "seaweed";
       ExecStartPre = "${pkgs.coreutils}/bin/test -f ${s3Config}";
-      ExecStart = ''
-        ${weed} s3 \
-          -ip.bind=${vm.ip} \
-          -port=${toString ports.s3} \
-          -filer=${vm.ip}:${toString ports.filer} \
-          -config=${s3Config}
-      '';
+      ExecStart = s3Start;
       ExecReload = "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
       Restart = "always";
       RestartSec = "2s";
