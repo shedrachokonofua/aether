@@ -225,10 +225,6 @@ otel-metrics.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_metrics }}
 }
 
-otel-prometheus.home.shdr.ch {
-  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_prometheus }}
-}
-
 prometheus.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.prometheus }}
 }

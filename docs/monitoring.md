@@ -26,7 +26,7 @@ flowchart TB
 
     Agent -->|OTLP| Collector
     Exporters -->|scrape| Prometheus
-    Collector -->|metrics exposition| Prometheus
+    Collector -->|metrics remote-write| Prometheus
     Collector -->|Loki-bound logs| Loki
     Collector -->|archive copy of Loki-bound logs| Greptime
     Collector -->|traces| Tempo

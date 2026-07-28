@@ -5,6 +5,14 @@ global:
     cluster: "aether"
     replica: "monitoring-stack"
 
+# Remote-write ingestion (central OTel collector) merges many producers with
+# independent clocks into one stream; a bounded out-of-order window absorbs
+# their skew instead of 400-rejecting whole write requests (which makes the
+# PRW exporter drop the entire batch — 2026-07-26 cutover lesson).
+storage:
+  tsdb:
+    out_of_order_time_window: 10m
+
 rule_files:
   - "/etc/prometheus/rules/*.yml"
 
@@ -59,14 +67,11 @@ scrape_configs:
       - targets: ["localhost:4000"]
 
   - job_name: "otel-collector"
+    # Collector self-metrics only. Fleet metrics arrive via remote-write
+    # (prometheusremotewrite exporter in otel_config.yml.j2) since 2026-07-26;
+    # the old otel-metrics pull job on :8889 was the incident-prone hot path.
     static_configs:
       - targets: ["otel_collector:8888"]
-
-  - job_name: "otel-metrics"
-    scrape_interval: 30s # source pushes at 30s; 15s global double-scraped ~277k series (pure waste)
-    scrape_timeout: 25s # 277k-series exposition scrapes in ~6s; default 10s timeout flapped under load -> whole job (incl. monitoring-stack hostmetrics) dropped out. 25s (<30s interval) gives headroom.
-    static_configs:
-      - targets: ["otel_collector:8889"]
 
 
   # Physical Proxmox hosts - Node Exporter

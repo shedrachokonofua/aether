@@ -1158,6 +1158,103 @@ groups:
           summary: "Kubernetes metrics pipeline is blind"
           description: "Prometheus cannot see kube-state-metrics namespace labels; ksm, otel-cluster, central OTel, or Prometheus scrape may be down"
 
+      # Central collector memory_limiter refusal = total OTLP ingest blackout
+      # (metrics, logs, spans) while Grafana itself still looks green — the
+      # 2026-07-26 incident ran ~40 minutes with zero signal. Evaluated from the
+      # :8888 direct scrape (job=otel-collector), which keeps working while
+      # ingest is refused. `or vector(0)` per term: a freshly restarted
+      # collector may not have registered all three counters yet, and an empty
+      # operand would blank the whole sum.
+      - uid: otel-ingest-refused
+        title: Central OTel Ingest Refused
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: |
+                (sum(rate(otelcol_processor_memory_limiter_refused_metric_points{job="otel-collector"}[5m])) or vector(0))
+                + (sum(rate(otelcol_processor_memory_limiter_refused_log_records{job="otel-collector"}[5m])) or vector(0))
+                + (sum(rate(otelcol_processor_memory_limiter_refused_spans{job="otel-collector"}[5m])) or vector(0))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Central OTel collector is refusing ingest"
+          description: "memory_limiter is rejecting OTLP data — every dashboard fed through the collector is silently gapping. Check otelcol heap/RSS on monitoring-stack; the 2026-07-26 incident was the :8889 serialization path."
+
+      # Remote-write delivery failing at blackout scale: queue overflow surfaces
+      # as enqueue failures, endpoint errors as send failures. Metrics-only
+      # blindness (logs/traces unaffected) — the bounded successor failure mode
+      # of the removed :8889 pull path. Threshold 500 pts/s (~6% of the ~8k/s
+      # stream), not >0: a residual trickle of identity-colliding series
+      # (same labels from two producers) 400s a batch every minute or so, and
+      # Prometheus partial-ingests everything else in those batches.
+      - uid: otel-remote-write-failing
+        title: OTel Prometheus Remote-Write Failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: |
+                (sum(rate(otelcol_exporter_enqueue_failed_metric_points_total{job="otel-collector"}[5m])) or vector(0))
+                + (sum(rate(otelcol_exporter_send_failed_metric_points_total{job="otel-collector",exporter="prometheusremotewrite"}[5m])) or vector(0))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [500]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "OTel remote-write to Prometheus is dropping metrics"
+          description: "The prometheusremotewrite exporter is failing to enqueue or deliver batches. Fleet metrics are gapping; logs/traces are unaffected. Check Prometheus availability and the collector's queue metrics on monitoring-stack."
+
       - uid: k8s-cronjob-failing
         title: Kubernetes CronJob Failing
         condition: C
