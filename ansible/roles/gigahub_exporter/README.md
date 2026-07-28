@@ -16,7 +16,7 @@ read-only `gigahub-exporter check` preflight gates the play before the unit is
 
 Metrics are collected by the node `vm_monitoring_agent` OTel collector via the
 `prometheus_scrape_configs` inventory var on `monitoring-stack` (pushed OTLP to
-the central collector, scraped by Prometheus's `otel-metrics` job) — **not** the
+the central collector, which remote-writes into Prometheus) — **not** the
 pod Prometheus. There is no exposed pod port.
 
 Wired via `ansible/playbooks/monitoring_stack/gigahub_exporter.yml`

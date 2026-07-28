@@ -28,11 +28,19 @@ resource "helm_release" "vpa_recommender" {
       extraArgs = {
         storage                      = "prometheus"
         prometheus-address           = "https://prometheus.home.shdr.ch"
-        prometheus-cadvisor-job-name = "otel-metrics"
+        # Job labels follow the 2026-07-26 remote-write cutover: cadvisor series
+        # now carry their source job name instead of the removed otel-metrics
+        # pull job on :8889.
+        prometheus-cadvisor-job-name = "kubelet-cadvisor"
         container-name-label         = "container"
         container-namespace-label    = "namespace"
         container-pod-name-label     = "pod"
-        metric-for-pod-labels        = "kube_pod_labels{job=\"otel-metrics\",exported_job=\"kube-state-metrics\"}[8d]"
+        # NOTE: kube-state-metrics no longer emits kube_pod_labels at all
+        # (newer KSM makes *_labels metrics opt-in via --metric-labels-allowlist);
+        # this query has returned empty since that chart bump, independent of the
+        # cutover. Revive via the allowlist flag on KSM if VPA history matching
+        # regresses.
+        metric-for-pod-labels        = "kube_pod_labels{job=\"kube-state-metrics\"}[8d]"
         pod-label-prefix             = "label_"
         pod-name-label               = "pod"
         pod-namespace-label          = "namespace"

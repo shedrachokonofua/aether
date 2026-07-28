@@ -658,6 +658,9 @@
           - "--web.console.libraries=/etc/prometheus/console_libraries"
           - "--web.console.templates=/etc/prometheus/consoles"
           - "--web.enable-lifecycle"
+          # Central OTel collector pushes fleet metrics here (prometheusremotewrite
+          # exporter -> localhost:9090/api/v1/write) since the 2026-07-26 cutover.
+          - "--web.enable-remote-write-receiver"
         env:
           # GOGC=200: verified ~0.15 core less GC CPU (16% vs ~20% VM). Costs ~2GB RSS (prom ~4.8GB);
           # box has 7GB+ free so it's a good RAM-for-CPU trade on this power-optimized stack.
