@@ -10,8 +10,8 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-0b23164e"
-  deskplane_image_tag      = "latest"
+  deskplane_chart_version  = "0.1.0-1fd71220"
+  deskplane_image_tag      = "1fd71220"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
   deskplane_registry_pass  = var.secrets["gitlab.root_password"]
@@ -256,7 +256,7 @@ resource "helm_release" "deskplane" {
       enabled = true
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "0b23164e"
+        tag        = "1fd71220"
       }
       env = {
         DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
