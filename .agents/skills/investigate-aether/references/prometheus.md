@@ -18,12 +18,12 @@ The range helper defaults to the last hour. Pass Unix seconds for explicit start
 
 Direct central scrape jobs declared in `prometheus.yml.j2` include:
 
-- `prometheus`, `otel-collector`, `otel-metrics`
+- `prometheus`, `otel-collector`, `greptime`
 - `proxmox-hosts-node`, `proxmox-hosts-smart`, `proxmox-cluster`
 - `proxmox-backup`, `ceph`
 - `blackbox-tls`, `blackbox-http-apps`
 
-`otel-metrics` is one central endpoint aggregating metrics pushed by VM and Kubernetes collectors. Its `up` series describe downstream scrape targets and must not be read as many direct central targets.
+Fleet metrics pushed by VM and Kubernetes collectors arrive via the central collector's `prometheusremotewrite` exporter (since 2026-07-26), not a scrape job: their `job` label is the source job or `service.namespace/service.name`, and their `up` series describe downstream scrape targets, not central targets. `otel-collector` scrapes only the central collector's own :8888 self-telemetry.
 
 ## Starting Queries
 

@@ -55,6 +55,25 @@ processors:
           - set(attributes["container_id"], resource.attributes["container.id"]) where resource.attributes["container.id"] != nil
           # Tenant scoping
           - set(attributes["service_namespace"], resource.attributes["service.namespace"]) where resource.attributes["service.namespace"] != nil
+          # Replica disambiguation for the remote-write path: multi-replica SDK
+          # pushers (e.g. vigil) carry identity only in resource attrs, which we
+          # deliberately do not convert wholesale. The old :8889 pull exporter
+          # silently last-write-wins deduped such collisions; the PRW receiver
+          # 400s them (out-of-order/duplicate sample) and the whole batch drops.
+          # (service.instance.id needs no promotion: PRW maps it to `instance`.)
+          - set(attributes["pod_name"], resource.attributes["k8s.pod.name"]) where attributes["pod_name"] == nil and resource.attributes["k8s.pod.name"] != nil
+          # k8sclusterreceiver object gauges (k8s_deployment_*, k8s_hpa_*, ...)
+          # carry their identity ONLY in these resource attrs. Without them every
+          # object in a namespace collapses to one label set: the pull exporter
+          # hid that as silent last-write-wins; remote-write 400s the duplicates
+          # and drags whole batches (incl. innocent KSM series) down with them.
+          - set(attributes["deployment_name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["k8s.deployment.name"] != nil
+          - set(attributes["statefulset_name"], resource.attributes["k8s.statefulset.name"]) where resource.attributes["k8s.statefulset.name"] != nil
+          - set(attributes["daemonset_name"], resource.attributes["k8s.daemonset.name"]) where resource.attributes["k8s.daemonset.name"] != nil
+          - set(attributes["replicaset_name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.replicaset.name"] != nil
+          - set(attributes["cronjob_name"], resource.attributes["k8s.cronjob.name"]) where resource.attributes["k8s.cronjob.name"] != nil
+          - set(attributes["job_name"], resource.attributes["k8s.job.name"]) where resource.attributes["k8s.job.name"] != nil
+          - set(attributes["hpa_name"], resource.attributes["k8s.hpa.name"]) where resource.attributes["k8s.hpa.name"] != nil
 
   # Journal-forwarder logs arrive with service.name = the systemd unit and the
   # host in host.name. Rewrite service.name to the host so these sources match
@@ -110,16 +129,36 @@ connectors:
 {% endfor %}
 
 exporters:
-  prometheus:
-    endpoint: "0.0.0.0:8889"
-    send_timestamps: true
-    # 2m (was 5m): dead pods' series linger in the :8889 exposition metric_expiration-long, and
-    # Prometheus scrapes+parses every one every 30s (was 433k samples vs 205k active). 2m = 4x the
-    # 30s push interval, so no flap; halves the churn-driven serialize(otel)+parse(prom) cost.
-    metric_expiration: 2m
+  # Push metrics into Prometheus via remote-write instead of accumulating a
+  # pull exposition on :8889. The pull path held every live fleet series in
+  # the exporter (O(total series) heap) and re-serialized ~220k samples per
+  # 30s scrape under a 25s deadline — the 2026-07-26 memory_limiter blackout
+  # started exactly there. Remote-write heap scales with in-flight batches.
+  prometheusremotewrite:
+    endpoint: http://localhost:9090/api/v1/write
+    # WithSuffixes matches the old :8889 names: the pull exporter appended
+    # _total/_bucket/_count/_sum type suffixes even with add_metric_suffixes:
+    # false (that flag only governed unit suffixes). WithoutSuffixes silently
+    # renamed every counter (DCGM_*_total, cnpg_*_total, ...) out from under
+    # rules.yml during the 2026-07-26 cutover.
+    translation_strategy: UnderscoreEscapingWithSuffixes
     resource_to_telemetry_conversion:
       enabled: false
-    add_metric_suffixes: false
+    # No target_info clutter; transform/metrics already promotes what we use.
+    target_info:
+      enabled: false
+    # Single consumer + no split parallelism: vanilla Prometheus rejects
+    # out-of-order samples, and multiple queue workers reorder writes.
+    remote_write_queue:
+      enabled: true
+      num_consumers: 1
+      queue_size: 50000 # data points; ~6s of buffer at current rate, bounded (2026-07-11 lesson)
+    max_batch_request_parallelism: 1
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 120s # bounded: past this the batch drops and enqueue/send-failed counters fire the alert
 
   otlphttp/loki:
     endpoint: http://localhost:3100/otlp
@@ -221,7 +260,7 @@ service:
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      exporters: [prometheus]
+      exporters: [prometheusremotewrite]
 
 
     # Ingest logs and route based on source
