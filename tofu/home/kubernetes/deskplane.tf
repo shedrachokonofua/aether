@@ -254,9 +254,13 @@ resource "helm_release" "deskplane" {
 
     mcp = {
       enabled = true
+      # CI path-filters build:image:mcp to mcp/**, so this tag only advances
+      # on commits that touch the MCP. Bumping it in lockstep with the
+      # control-plane SHA pins a tag that was never built: the pod cannot
+      # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "1fd71220"
+        tag        = "376f9980"
       }
       env = {
         DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
