@@ -481,7 +481,10 @@
         src: ./clickhouse/
         dest: ./clickhouse/init/
         mode: "0644"
-      tags: [clickhouse]
+      # Carries the exporter tags too: the labeling tasks below run under those
+      # tags and fail on files this copy never delivered (2026-07-28: a
+      # --tags gigahub-exporter run hit an absent 16-gigahub-observations.sql).
+      tags: [clickhouse, qss-exporter, gigahub-exporter, vyos-exporter]
 
     - name: Label VyOS observation schema for the ClickHouse container
       ansible.builtin.file:
