@@ -11,7 +11,11 @@ Group={{ gigahub_exporter_group }}
 ExecStart={{ gigahub_exporter_binary_path }} --config {{ gigahub_exporter_config_path }}
 Restart=on-failure
 RestartSec=5
-WatchdogSec=90
+# No WatchdogSec: the exporter signals READY (Type=notify) but never sends
+# WATCHDOG=1 keepalives, so WatchdogSec=90 SIGABRT-killed it every ~95s —
+# restart counter hit 935 and every cycle dropped a scrape (the Network
+# dashboard's chronic sample gaps, unmasked by the 2026-07-26 remote-write
+# cutover). Restart=on-failure plus the scrape-freshness alerts cover hangs.
 
 # Process lock + runtime state (0700 per the exporter's contract).
 StateDirectory=gigahub-exporter
