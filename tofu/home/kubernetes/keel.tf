@@ -61,6 +61,25 @@ resource "helm_release" "keel" {
       enabled = true
     }
 
+    # The chart ships 100m CPU / 128Mi. Average use is ~5m, but the per-minute
+    # poll fans registry digest checks across every annotated workload in every
+    # namespace at once, and those bursts hit the ceiling: 174,894 throttled
+    # periods and ~11.9h of cumulative throttled time on a 17d-old pod.
+    #
+    # The symptom is misleading. Throttling stalls Keel's own client, so secret
+    # lookups fail with "the server was unable to return a response in the time
+    # allotted" and Keel then logs "docker credentials were not found ... is
+    # secret in the namespace?" -- which reads as a missing secret or broken
+    # RBAC. Both were fine: the secret exists and the same GET as Keel's own
+    # ServiceAccount returns in 67ms. The effect was that Keel silently stopped
+    # detecting new images across deskplane, litellm, orion, mnemo and composer.
+    #
+    # Memory was separately at 94% of its limit (125.7Mi of 134.2Mi).
+    resources = {
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { cpu = "500m", memory = "512Mi" }
+    }
+
     # Route update notifications to the Apprise gateway. Keel POSTs
     # {name, message, createdAt, type, level}. Apprise reserves `type` for its
     # severity enum and rejects Keel's `type="deployment update"`, so the remap
