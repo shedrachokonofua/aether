@@ -59,7 +59,7 @@ locals {
       criticality = "normal"
     }
     "dns.home.shdr.ch" = {
-      path        = "/control/status"
+      path        = ""
       namespace   = "adguard"
       exposure    = "internal"
       criticality = "high"
@@ -133,12 +133,6 @@ locals {
     "office-switch.home.shdr.ch" = {
       path        = ""
       namespace   = "network"
-      exposure    = "internal"
-      criticality = "normal"
-    }
-    "otel-prometheus.home.shdr.ch" = {
-      path        = "/metrics"
-      namespace   = "monitoring-stack"
       exposure    = "internal"
       criticality = "normal"
     }
