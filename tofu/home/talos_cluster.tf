@@ -568,6 +568,10 @@ module "kubernetes" {
   openbao_kv_mount_path     = vault_mount.kv.path
   secrets                   = var.secrets
 
+  # The operator's OIDC subject (= Keycloak user id), for grants that name a
+  # person rather than a service -- e.g. deskplane's watch-any-session list.
+  operator_oidc_subject = keycloak_user.shdrch_aether.id
+
   # Crossplane Keycloak provider credentials
   keycloak_url                     = "https://auth.shdr.ch"
   keycloak_client_id               = keycloak_openid_client.crossplane.client_id
