@@ -256,14 +256,14 @@ locals {
 }
 
 resource "random_password" "hermes_api_server_key" {
-  for_each = local.hermes_agents
+  for_each = toset(["beryl", "tungsten"])
 
   length  = 48
   special = false
 }
 
 resource "kubernetes_secret_v1" "hermes_env" {
-  for_each = local.hermes_agents
+  for_each = toset(["beryl", "tungsten"])
 
   depends_on = [module.namespace["hermes"]]
 
@@ -476,14 +476,10 @@ resource "kubernetes_cluster_role_binding_v1" "hermes_tungsten_readonly" {
 }
 
 resource "kubernetes_deployment_v1" "hermes" {
-  for_each = local.hermes_agents
+  for_each = toset(["beryl", "tungsten"])
 
   depends_on = [
-    kubernetes_config_map_v1.hermes_bootstrap,
     kubernetes_config_map_v1.hermes_tungsten_skills,
-    kubernetes_persistent_volume_claim_v1.hermes_data,
-    kubernetes_secret_v1.hermes_env,
-    kubernetes_service_account_v1.hermes,
     kubernetes_service_v1.llama_swap,
   ]
 
@@ -515,7 +511,7 @@ resource "kubernetes_deployment_v1" "hermes" {
         }
         annotations = merge(
           {
-            "checksum/config"    = sha256(each.value.config)
+            "checksum/config"    = sha256(local.hermes_agents[each.key].config)
             "checksum/env"       = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.hermes_env[each.key].data)))
             "checksum/bootstrap" = sha256(jsonencode(kubernetes_config_map_v1.hermes_bootstrap[each.key].data))
           },
@@ -604,7 +600,7 @@ resource "kubernetes_deployment_v1" "hermes" {
           }
 
           dynamic "env" {
-            for_each = each.value.env
+            for_each = local.hermes_agents[each.key].env
             content {
               name  = env.key
               value = env.value
@@ -612,7 +608,7 @@ resource "kubernetes_deployment_v1" "hermes" {
           }
 
           dynamic "env" {
-            for_each = each.value.secret_env_keys
+            for_each = local.hermes_agents[each.key].secret_env_keys
             content {
               name = env.value
               value_from {
@@ -714,7 +710,7 @@ resource "kubernetes_deployment_v1" "hermes" {
 
           env {
             name  = "HERMES_DASHBOARD_PUBLIC_URL"
-            value = "https://${each.value.dashboard_host}"
+            value = "https://${local.hermes_agents[each.key].dashboard_host}"
           }
 
           env {
@@ -753,7 +749,7 @@ resource "kubernetes_deployment_v1" "hermes" {
           }
 
           dynamic "env" {
-            for_each = each.value.env
+            for_each = local.hermes_agents[each.key].env
             content {
               name  = env.key
               value = env.value
@@ -761,7 +757,7 @@ resource "kubernetes_deployment_v1" "hermes" {
           }
 
           dynamic "env" {
-            for_each = each.value.secret_env_keys
+            for_each = local.hermes_agents[each.key].secret_env_keys
             content {
               name = env.value
               value_from {
