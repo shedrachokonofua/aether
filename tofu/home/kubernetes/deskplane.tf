@@ -10,8 +10,8 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-4549d590"
-  deskplane_image_tag      = "4549d590"
+  deskplane_chart_version  = "0.1.0-f4afbb87"
+  deskplane_image_tag      = "f4afbb87"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
   deskplane_registry_pass  = var.secrets["gitlab.root_password"]
@@ -233,7 +233,7 @@ resource "helm_release" "deskplane" {
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1", WIN9X_DISK_URL = "", WIN9X_DISK_SHA256 = "" }
         },
         {
-          name        = "cua-ubuntu", displayName = "Computer-Use Desktop", image = "${local.deskplane_registry_image}/cua-ubuntu-kasm:a2980172"
+          name        = "cua-ubuntu", displayName = "Computer-Use Desktop", image = "${local.deskplane_registry_image}/cua-ubuntu-kasm:f4afbb87"
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 8000 }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
@@ -264,7 +264,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "4549d590"
+        tag        = "f4afbb87"
       }
       env = {
         DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
