@@ -72,6 +72,7 @@ resource "kubernetes_secret_v1" "affine_config" {
             issuer       = var.oidc_issuer_url
             clientId     = "affine"
             clientSecret = var.affine_oauth_client_secret
+            allowPrivateNetwork = true
             args = {
               scope = "openid profile email"
             }
@@ -80,24 +81,40 @@ resource "kubernetes_secret_v1" "affine_config" {
       }
       copilot = {
         enabled = true
-        "providers.openai" = {
-          apiKey  = var.secrets["litellm.virtual_keys.affine"]
-          baseURL = "https://litellm.home.shdr.ch/v1"
+        byok = {
+          enabled = true
         }
-        scenarios = {
-          override_enabled = true
-          scenarios = {
-            chat                    = "aether/gemma-4-26b-a4b"
-            coding                  = "aether/qwen3.6-35b-a3b:code"
-            complex_text_generation = "aether/gemma-4-26b-a4b"
-            polish_and_summarize    = "aether/qwen3.5-9b"
-            quick_decision_making   = "aether/qwen3.5-9b"
-            quick_text_generation   = "aether/gemma-4-26b-a4b"
-            rerank                  = "aether/bge-reranker-v2-m3"
-            embedding               = "text-embedding-3-large"
-            audio_transcribing      = "aether/whisper-large-v3"
-            image                   = "gpt-image-1"
+        # 0.27.x replaced the old global scenarios config with per-profile model
+        # lists + providers.defaults. The OpenAI provider points at LiteLLM, which
+        # routes chat/text model names to local llama-swap backends.
+        #
+        # Embedding is NOT wired: AFFiNE hardcodes DEFAULT_EMBEDDING_MODEL =
+        # 'gemini-embedding-001' (task-policy.ts) and the native model registry only
+        # resolves it under the Gemini backend kind (gemini_api). LiteLLM exposes
+        # only the OpenAI-compatible API, not the Google Generative AI API. Until
+        # upstream makes the embedding model name configurable, workspace indexing
+        # and semantic search will emit no_copilot_provider_available for embeddings.
+        "providers.profiles" = [
+          {
+            id          = "litellm"
+            type        = "openai"
+            displayName = "LiteLLM (local models)"
+            config = {
+              apiKey  = var.secrets["litellm.virtual_keys.affine"]
+              baseURL = "https://litellm.home.shdr.ch/v1"
+            }
+            models = [
+              "aether/gemma-4-26b-a4b",
+              "aether/qwen3.5-9b",
+              "aether/qwen3.6-35b-a3b:code",
+            ]
           }
+        ]
+        "providers.defaults" = {
+          text       = "litellm"
+          object     = "litellm"
+          structured = "litellm"
+          fallback   = "litellm"
         }
       }
     })
@@ -330,7 +347,11 @@ resource "kubernetes_job_v1" "affine_migration" {
       }
     }
   }
-  lifecycle { ignore_changes = [spec[0].template] }
+  lifecycle { replace_triggered_by = [terraform_data.affine_migration_trigger.id] }
+}
+
+resource "terraform_data" "affine_migration_trigger" {
+  triggers_replace = [local.affine_version]
 }
 
 # AFFiNE Server
@@ -368,8 +389,7 @@ resource "kubernetes_deployment_v1" "affine" {
           name  = "sync-copilot-config"
           image = "docker.io/postgres:16-alpine"
           command = [
-            "sh", "-c",
-            "until pg_isready -h ${local.affine_db_host} -U affine; do sleep 2; done; PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h ${local.affine_db_host} -U affine -d affine -v ON_ERROR_STOP=1 -c \"DELETE FROM app_configs WHERE id IN ('copilot.providers.openai', 'copilot.scenarios');\"",
+            "until pg_isready -h ${local.affine_db_host} -U affine; do sleep 2; done; PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h ${local.affine_db_host} -U affine -d affine -v ON_ERROR_STOP=1 -c \"DELETE FROM app_configs WHERE id IN ('copilot.providers.openai', 'copilot.providers.profiles', 'copilot.providers.defaults', 'copilot.scenarios');\" -c \"UPDATE effective_user_quota_states SET flags = jsonb_set(flags, '{unlimitedCopilot}', 'true'::jsonb) WHERE flags->>'unlimitedCopilot' = 'false';\" -c \"UPDATE effective_workspace_quota_states SET flags = jsonb_set(flags, '{unlimitedCopilot}', 'true'::jsonb) WHERE flags->>'unlimitedCopilot' = 'false';\"",
           ]
           env_from {
             secret_ref {
@@ -431,6 +451,7 @@ resource "kubernetes_deployment_v1" "affine" {
             requests = { cpu = "50m", memory = "512Mi" }
             limits   = { cpu = "2", memory = "4Gi" }
           }
+
 
           readiness_probe {
             http_get {
