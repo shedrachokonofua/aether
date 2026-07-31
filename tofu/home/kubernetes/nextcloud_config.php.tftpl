@@ -23,10 +23,18 @@ $CONFIG = array (
   'memcache.locking'     => '\OC\Memcache\Redis',
   'filelocking.enabled'  => true,
   'redis' => array(
-    'host'    => 'nextcloud-redis.nextcloud.svc.cluster.local',
-    'port'    => 6379,
-    'timeout' => 1.5,
+    'host'         => 'nextcloud-redis.nextcloud.svc.cluster.local',
+    'port'         => 6379,
+    'timeout'      => 1.5,
+    'read_timeout' => 3.0,
   ),
+  // RedisFactory::create reads the TOP-LEVEL key 'redis.persistent' — NOT
+  // redis['persistent'] — defaulting to true. Persistent connections (pconnect)
+  // survive across PHP requests, but once the underlying socket dies (Cilium
+  // idle-flow drop / network blip) the stale handle throws "Operation not
+  // permitted" / "Redis server went away" and crashes the task-worker
+  // (~1 restart/day). Disable persistence so connections re-establish cleanly.
+  'redis.persistent' => false,
 
   'log_type'                => 'errorlog',
   'loglevel'                => 2,
