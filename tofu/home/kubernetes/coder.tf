@@ -12,7 +12,7 @@ locals {
   coder_cnpg_cluster     = "coder-cnpg"
   coder_postgres_host    = "${local.coder_cnpg_cluster}-rw.${local.coder_namespace}.svc.cluster.local"
   coder_postgres_url     = "postgresql://${local.coder_postgres_user}:${random_password.coder_postgres_password.result}@${local.coder_postgres_host}:${local.coder_postgres_port}/${local.coder_postgres_db}?sslmode=disable"
-  coder_version          = "2.34.5"
+  coder_version          = "2.35.3"
 }
 
 
