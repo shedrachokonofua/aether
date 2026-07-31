@@ -51,3 +51,10 @@ resource "kestra_flow" "estate_scan_home" {
 
   content = file("${path.module}/../../../kestra/flows/estate-scan-home.yaml")
 }
+
+resource "kestra_flow" "crowdsec_home_ip_sync" {
+  namespace = "aether.network"
+  flow_id   = "crowdsec-home-ip-sync"
+
+  content = file("${path.module}/../../../kestra/flows/crowdsec-home-ip-sync.yaml")
+}
