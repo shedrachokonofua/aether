@@ -25,6 +25,10 @@ resource "tailscale_acl" "tailnet_acl" {
     tagOwners : {
       "tag:home-gateway" : local.tailscale_admin_sources,
       "tag:admin-gateway" : local.tailscale_admin_sources,
+      # vigil P3 synthetic-event probe (2026-07-22): lets us tag a test device
+      # and watch tailscale.state emit device.tagged + acl.changed. Remove with
+      # the probe cleanup.
+      "tag:vigil-probe" : local.tailscale_admin_sources,
     },
     acls : [
       // Admin can access own infrastructure and own devices only
