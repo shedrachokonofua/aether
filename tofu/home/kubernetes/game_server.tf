@@ -61,7 +61,7 @@ resource "kubernetes_secret_v1" "game_server" {
 
 # =============================================================================
 # Boot-fix script — runs (as root) via a postStart hook before the X session +
-# Sunshine start. Fixes three steam-headless-in-headless-container issues:
+# Sunshine start. Fixes four steam-headless-in-headless-container issues:
 #   1. light-locker (XFCE screen locker) hits a glib assertion and crash-loops
 #      the desktop session -> disable its autostart + binary.
 #   2. Sunshine's "main loop" IS its GTK system-tray loop, which quits unless it
@@ -71,6 +71,10 @@ resource "kubernetes_secret_v1" "game_server" {
 #   3. start-dumb-udev.sh restarts Xorg when Sunshine uinput devices appear;
 #      current Sunshine creates those devices at startup, so the restart tears
 #      down Sunshine, removes the devices, clears the guard, and loops forever.
+#   4. Sunshine never resizes the X screen on Linux (display_device.cpp's
+#      make_settings_manager returns nullptr off Windows), so a client whose
+#      viewport differs from the desktop gets a rescaled, letterboxed image.
+#      Install a global_prep_cmd that switches the mode to the client's request.
 # =============================================================================
 
 resource "kubernetes_config_map_v1" "game_server_bootfix" {
@@ -124,6 +128,123 @@ resource "kubernetes_config_map_v1" "game_server_bootfix" {
       chmod +x /usr/local/bin/gs-sunshine-env.sh
       if ! grep -q gs-sunshine-env /usr/bin/start-sunshine.sh; then
         sed -i '/# Start the sunshine server/i . /usr/local/bin/gs-sunshine-env.sh' /usr/bin/start-sunshine.sh
+      fi
+      # --- Client-matched display resolution ---------------------------------
+      # Sunshine on X11 captures the root window as-is and rescales it into the
+      # client's requested viewport, preserving aspect. Any client whose
+      # viewport differs from the desktop therefore gets a soft, letterboxed
+      # image with much of the bitrate spent on black bars -- e.g. a 1024x768
+      # desktop streamed to a 2560x1080 viewport is upscaled to 1440x1080 and
+      # pillarboxed, then letterboxed again by the client's own window.
+      # Sunshine exports SUNSHINE_CLIENT_{WIDTH,HEIGHT,FPS} into prep commands
+      # and inherits its own DISPLAY, so this hook makes the X mode follow
+      # whatever each client asks for -- no geometry is assumed or pinned here,
+      # and capture -> encode -> client stays 1:1 for every paired device.
+      cat > /usr/local/bin/gs-set-resolution.sh <<'GSRES'
+      #!/bin/sh
+      # usage: gs-set-resolution.sh [width height [rate]]
+      # With no arguments, take the geometry Sunshine exports for this stream.
+      # Never fail the launch: Sunshine aborts the stream on a non-zero prep
+      # exit, so every path here exits 0 and records why -- a silent no-op is
+      # otherwise indistinguishable from a broken hook.
+      # The journal must never be load-bearing: Sunshine runs this as the
+      # desktop user, and a root-owned log (left by a manual root invocation)
+      # would make every `2>>"$LOG"` redirection fail, which in sh aborts the
+      # command *before* it runs. Probe for appendability and degrade to
+      # /dev/null so a stale log can never stop the resolution switch.
+      # The probe runs in a subshell with a NON-special builtin on purpose:
+      # /bin/sh here is dash, and POSIX has a redirection error on a special
+      # builtin (`:`) kill a non-interactive shell outright -- as `{ : >>$LOG; }`
+      # did, silently killing this script instead of falling back.
+      LOG=/tmp/gs-set-resolution.log
+      ( true >> "$LOG" ) 2>/dev/null || LOG=/dev/null
+      log() {
+        echo "$(date -Is) $*" >> "$LOG"
+      }
+      W=$1; [ -n "$W" ] || W=$SUNSHINE_CLIENT_WIDTH
+      H=$2; [ -n "$H" ] || H=$SUNSHINE_CLIENT_HEIGHT
+      R=$3; [ -n "$R" ] || R=$SUNSHINE_CLIENT_FPS
+      [ -n "$R" ] || R=60
+      for v in "$W" "$H" "$R"; do
+        case "$v" in '' | *[!0-9]*)
+          log "ignoring non-numeric geometry: w=$W h=$H r=$R"
+          exit 0
+          ;;
+        esac
+      done
+      # Refuse implausible geometry rather than wedging the session in one.
+      if [ "$W" -lt 640 ] || [ "$W" -gt 7680 ] || [ "$H" -lt 480 ] || [ "$H" -gt 4320 ]; then
+        log "refusing out-of-range geometry: $W"x"$H"
+        exit 0
+      fi
+      [ "$R" -ge 24 ] && [ "$R" -le 360 ] || R=60
+      # Prep commands inherit Sunshine's DISPLAY; fall back to the live socket
+      # rather than assuming a display number.
+      if [ -z "$DISPLAY" ]; then
+        for s in /tmp/.X11-unix/X*; do
+          [ -S "$s" ] || continue
+          DISPLAY=:$(basename "$s" | tr -d X)
+          break
+        done
+      fi
+      if [ -z "$DISPLAY" ]; then
+        log "no X display found"
+        exit 0
+      fi
+      export DISPLAY
+      OUT=$(xrandr --query 2>>"$LOG" | awk '/ connected/ {print $1; exit}')
+      if [ -z "$OUT" ]; then
+        log "no connected output on $DISPLAY"
+        exit 0
+      fi
+      MODE=$W"x"$H
+      CUR=$(xrandr --query | awk '/ connected/ {print $3; exit}')
+      # Driver already advertises it (the NVIDIA synthetic list is generous).
+      if xrandr --query | grep -qE "^[[:space:]]+$MODE[[:space:]]"; then
+        if xrandr --output "$OUT" --mode "$MODE" --rate "$R" 2>>"$LOG" ||
+          xrandr --output "$OUT" --mode "$MODE" 2>>"$LOG"; then
+          log "$OUT $CUR -> $MODE@$R (native)"
+        else
+          log "FAILED native $MODE@$R on $OUT (was $CUR)"
+        fi
+        exit 0
+      fi
+      # Otherwise synthesise a modeline once, then switch. Prefer reduced
+      # blanking (lower pixel clock), but cvt only accepts -r at multiples of
+      # 60 Hz -- fall back to standard CVT timings so refresh rates like a
+      # 75 Hz client panel still resolve instead of silently doing nothing.
+      NAME=gs-$MODE-$R
+      if ! xrandr --query | grep -q "$NAME"; then
+        LINE=$(cvt -r "$W" "$H" "$R" 2>/dev/null | sed -n 's/^Modeline "[^"]*" *//p')
+        [ -n "$LINE" ] || LINE=$(cvt "$W" "$H" "$R" 2>/dev/null | sed -n 's/^Modeline "[^"]*" *//p')
+        if [ -z "$LINE" ]; then
+          log "cvt produced no modeline for $MODE@$R"
+          exit 0
+        fi
+        xrandr --newmode "$NAME" $LINE 2>>"$LOG" || { log "newmode $NAME failed"; exit 0; }
+        xrandr --addmode "$OUT" "$NAME" 2>>"$LOG" || { log "addmode $NAME failed"; exit 0; }
+      fi
+      if xrandr --output "$OUT" --mode "$NAME" 2>>"$LOG"; then
+        log "$OUT $CUR -> $MODE@$R (synthesised)"
+      else
+        log "FAILED synthesised $MODE@$R on $OUT (was $CUR)"
+      fi
+      GSRES
+      chmod +x /usr/local/bin/gs-set-resolution.sh
+      # Own the journal as the desktop user up front, so the very first stream
+      # records normally instead of silently degrading to /dev/null.
+      touch /tmp/gs-set-resolution.log
+      chown 1000:1000 /tmp/gs-set-resolution.log
+      # Register the hook. Sunshine does no shell or $${...} expansion on prep
+      # commands (it execs argv directly), so the script reads its geometry from
+      # the inherited environment. No undo: resetting would only pin some
+      # arbitrary idle geometry, and the next client sets its own anyway.
+      # This key is owned here: a stale hand-edited value is replaced on boot.
+      GSCONF=/home/default/.config/sunshine/sunshine.conf
+      if [ -f "$GSCONF" ]; then
+        sed -i '/^global_prep_cmd/d' "$GSCONF"
+        echo 'global_prep_cmd = [{"do":"/usr/local/bin/gs-set-resolution.sh","elevated":"false"}]' >> "$GSCONF"
+        chown 1000:1000 "$GSCONF"
       fi
     EOT
   }
