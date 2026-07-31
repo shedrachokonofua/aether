@@ -10,8 +10,8 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-8d1abd0b"
-  deskplane_image_tag      = "8d1abd0b"
+  deskplane_chart_version  = "0.1.0-dd2c135e"
+  deskplane_image_tag      = "dd2c135e"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
   deskplane_registry_pass  = var.secrets["gitlab.root_password"]
@@ -250,7 +250,11 @@ resource "helm_release" "deskplane" {
       }
     ]
 
-    adminSubjects = []
+    # The operator may watch any session through /s/* -- including the ones
+    # the MCP service creates for agent runs, which is what the task page's
+    # live stage embeds. Referenced from the Keycloak resource so the subject
+    # can never drift from the actual user id.
+    adminSubjects = [keycloak_user.shdrch_aether.id]
 
     mcp = {
       enabled = true
@@ -260,7 +264,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "8d1abd0b"
+        tag        = "dd2c135e"
       }
       env = {
         DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
