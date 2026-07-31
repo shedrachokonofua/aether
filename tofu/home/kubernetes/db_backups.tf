@@ -424,7 +424,8 @@ resource "local_sensitive_file" "seaweedfs_iam_config" {
           Statement = [
             {
               Effect = "Allow"
-              Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+              # DeleteObject: task deletion removes a trace's every object.
+              Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket", "s3:DeleteObject"]
               Resource = [
                 "arn:aws:s3:::${local.deskplane_traces_bucket}",
                 "arn:aws:s3:::${local.deskplane_traces_bucket}/*",
