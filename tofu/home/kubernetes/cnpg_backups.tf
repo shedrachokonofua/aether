@@ -12,6 +12,12 @@ locals {
       retention = "14d"
       schedule  = "0 7 2 * * *"
     }
+    buzz = {
+      namespace = local.buzz_namespace
+      cluster   = local.buzz_cnpg
+      retention = "14d"
+      schedule  = "0 12 2 * * *"
+    }
     coder = {
       namespace = local.coder_namespace
       cluster   = local.coder_cnpg_cluster
@@ -201,6 +207,7 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     kubectl_manifest.cnpg_barman_object_store,
     kubectl_manifest.affine_cnpg_cluster,
     kubectl_manifest.assay_cnpg_cluster,
+    kubectl_manifest.buzz_cnpg_cluster,
     kubectl_manifest.coder_cnpg_cluster,
     kubectl_manifest.firecrawl_cnpg_cluster,
     kubectl_manifest.hoppscotch_cnpg_cluster,
