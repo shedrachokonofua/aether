@@ -288,3 +288,8 @@ locals {
   # Cilium creates a service for the Gateway
   cilium_gateway_service = "cilium-gateway-main-gateway.default.svc.cluster.local"
 }
+
+variable "operator_oidc_subject" {
+  description = "OIDC subject (Keycloak user id) of the human operator."
+  type        = string
+}
