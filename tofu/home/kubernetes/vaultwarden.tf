@@ -16,7 +16,8 @@ resource "random_password" "vaultwarden_admin_token" {
 }
 
 locals {
-  vaultwarden_image  = "vaultwarden/server:latest"
+  vaultwarden_version = "1.37.1"
+  vaultwarden_image  = "vaultwarden/server:${local.vaultwarden_version}"
   vaultwarden_host   = "vaultwarden.home.shdr.ch"
   vaultwarden_port   = 80
   vaultwarden_ns     = module.namespace["vaultwarden"].name
