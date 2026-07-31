@@ -94,6 +94,12 @@ model_list:
       model: "openai/cline-pass/mimo-v2.5-pro"
       litellm_credential_name: clinepass_credential
 
+  # Kimi Coding models (https://api.kimi.com/coding/v1 — OpenAI-compatible).
+  - model_name: "kimi/k3"
+    litellm_params:
+      model: "openai/k3"
+      litellm_credential_name: kimi_credential
+
   # Qwen Cloud models (https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1)
   - model_name: "qwen-cloud/qwen3.8-max-preview"
     litellm_params:
@@ -336,6 +342,12 @@ credential_list:
       api_key: os.environ/CLINEPASS_API_KEY
     credential_info:
       description: "Clinepass (Cline API)"
+  - credential_name: kimi_credential
+    credential_values:
+      api_base: https://api.kimi.com/coding/v1
+      api_key: os.environ/KIMI_API_KEY
+    credential_info:
+      description: "Kimi Coding"
 
 litellm_settings:
   drop_params: true
