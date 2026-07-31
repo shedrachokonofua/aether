@@ -180,6 +180,23 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "buzz" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Buzz Nostr relay workspace (block/buzz)",
+      source_file             = "tofu/home/kubernetes/buzz.tf",
+      egress                  = "internet",
+      registry_access         = "github",
+      hostnames = [
+        "buzz.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "cloud-audit" = {
       # vigil — cloud control-plane audit forwarder (vigil repo PLAN.md §6).
       # Egress-controlled tier by design; cursor PVC contents are rebuildable.
