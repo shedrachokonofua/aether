@@ -160,6 +160,12 @@ resource "proxmox_virtual_environment_vm" "talos" {
     vlan_id = 3
   }
 
+  # backup=false: the system disk holds Talos EPHEMERAL (etcd, containerd,
+  # images). A live vzdump of it stalls etcd fsyncs via copy-before-write
+  # (2026-07-31 outage: 108 GiB dirty -> 47 min backup -> etcd timeouts ->
+  # multi-node NotReady). A node-image restore is never the correct recovery
+  # path for these nodes anyway; cluster state is protected by the daily
+  # talosctl etcd snapshot on backup-stack (02:20).
   disk {
     datastore_id = try(each.value.disk_datastore, "ceph-vm-disks")
     size         = each.value.disk_gb
@@ -167,6 +173,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
     iothread     = true
     discard      = "on"
     file_format  = "raw"
+    backup       = false
   }
 
   # Optional dedicated local-NVMe disk for etcd dataDir (per-node).
