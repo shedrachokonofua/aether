@@ -399,11 +399,32 @@ resource "helm_release" "otel_collector_deployment" {
                 ]
               },
               {
+                # DaemonSet on talos-neo + talos-smith. Do NOT scrape the
+                # ClusterIP Service DNS — kube-proxy picks one endpoint per
+                # scrape, so the other GPU series goes null and Grafana shows
+                # white stripes (especially visible once GPUs are idle).
                 job_name        = "dcgm-exporter"
                 scrape_interval = "30s"
-                static_configs = [{
-                  targets = ["dcgm-exporter.${module.namespace["gpu-system"].name}.svc.cluster.local:9400"]
+                kubernetes_sd_configs = [{
+                  role       = "endpoints"
+                  namespaces = { names = [module.namespace["gpu-system"].name] }
                 }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = "dcgm-exporter"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+                    action        = "keep"
+                    regex         = "metrics"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_node_name"]
+                    target_label  = "node"
+                  },
+                ]
               },
               {
                 job_name        = "node-exporter"
