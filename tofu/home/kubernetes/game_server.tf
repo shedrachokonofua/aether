@@ -507,12 +507,15 @@ resource "kubernetes_deployment_v1" "game_server" {
 
           resources {
             requests = {
-              # Guaranteed CPU share for the emulator: RPCS3 (PS3) is brutally
-              # CPU-bound and was being starved by smith's ~52 co-tenant pods.
-              # An 8-core request floors its CFS weight under contention; with
-              # no CPU *limit* it still bursts higher when the node is idle, and
+              # Guaranteed CPU share for games: RPCS3 and FM26 are CPU-bound
+              # and this pod queues behind CI-runner bursts on talos-neo
+              # (measured 2026-07-25: pod cgroup PSI cpu some avg60=81%, node
+              # avg60=62% while four gitlab runners shared the node). An 8-core
+              # request floors its CFS weight under contention -- the comment
+              # here always said 8, but the value had drifted to 4; with no CPU
+              # *limit* it still bursts higher when the node is idle, and
               # neighbors reclaim these cycles whenever nobody is streaming.
-              cpu              = "4"
+              cpu              = "8"
               memory           = "8Gi"
               "nvidia.com/gpu" = "1"
             }
