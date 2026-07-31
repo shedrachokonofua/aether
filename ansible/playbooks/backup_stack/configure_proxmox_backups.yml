@@ -6,6 +6,16 @@
   vars:
     backup_storage_id: "pbs-backups-vm"
     backup_job_id: "pbs-backup"
+    # Talos VMs run the QEMU guest agent, so vzdump issues fs-freeze/fs-thaw
+    # during snapshot backups. Freezing the filesystem under etcd blocks its
+    # fsyncs (2026-07-31 outage); Talos gains nothing from quiesce, so disable
+    # it. The bpg tofu provider has no field for this agent sub-option, hence
+    # it is enforced here.
+    talos_vm_keys:
+      - talos_trinity
+      - talos_neo
+      - talos_niobe
+      - talos_smith
   tasks:
     - name: Get certificate information
       delegate_to: backup-stack
@@ -56,3 +66,20 @@
       when: check_backup_job.rc != 0
       register: create_backup_result
       changed_when: create_backup_result.rc == 0
+
+
+    - name: Read Talos VM agent configuration
+      command: pvesh get /nodes/{{ vm[item].node }}/qemu/{{ vm[item].id }}/config --output-format json
+      loop: "{{ talos_vm_keys }}"
+      register: talos_vm_configs
+      changed_when: false
+      check_mode: false
+
+    - name: Disable QGA fs-freeze during backups on Talos VMs
+      command: >
+        pvesh set /nodes/{{ vm[item.item].node }}/qemu/{{ vm[item.item].id }}/config
+        --agent "{{ (item.stdout | from_json).agent }},freeze-fs-on-backup=0"
+      loop: "{{ talos_vm_configs.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: "'freeze-fs-on-backup' not in ((item.stdout | from_json).agent | default(''))"
