@@ -574,14 +574,13 @@ resource "kubernetes_deployment_v1" "litellm" {
             }
           }
 
-          readiness_probe {
-            http_get {
-              path = "/readyz"
-              port = local.litellm_affine_mcp_port
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-          }
+          # No readiness probe: pod readiness gates the shared litellm
+          # Service endpoints, so an unready MCP sidecar removes the LLM
+          # gateway for every consumer in the cluster. This one deadlocked
+          # after a node eviction on 2026-07-31: affine's init container
+          # waits for litellm, litellm's pod was held unready by this
+          # sidecar, and this sidecar reports unready while affine is down.
+          # The liveness probe below still restarts the sidecar if it hangs.
 
           liveness_probe {
             http_get {

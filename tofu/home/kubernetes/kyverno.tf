@@ -1098,8 +1098,12 @@ locals {
   }
 
   namespace_resourcequota_gitlab_runner = {
-    "requests.cpu"               = "12"
-    "requests.memory"            = "20Gi"
+    # Sized for steady state (4 managers x 100m + 4 job pods x 2.1 CPU = 8.8)
+    # plus teardown overlap: ResourceQuota counts Terminating pods until
+    # removal, and the runner starts the next job immediately, so churn
+    # transiently holds 6 job pods (13.0 CPU). 16 gives ~23% headroom.
+    "requests.cpu"               = "16"
+    "requests.memory"            = "24Gi"
     "requests.ephemeral-storage" = "96Gi"
     "limits.cpu"                 = "20"
     "limits.memory"              = "40Gi"
