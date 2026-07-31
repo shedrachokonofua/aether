@@ -4,9 +4,10 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  openwebui_namespace    = "openwebui"
-  openwebui_host         = "openwebui.home.shdr.ch"
-  openwebui_image        = "ghcr.io/open-webui/open-webui:latest"
+  openwebui_namespace = "openwebui"
+  openwebui_host      = "openwebui.home.shdr.ch"
+  # Pinned for reproducible upgrades (was :latest). Bump intentionally.
+  openwebui_image        = "ghcr.io/open-webui/open-webui:v0.11.0"
   mcpo_image             = "ghcr.io/open-webui/mcpo:main"
   open_terminal_image    = "ghcr.io/open-webui/open-terminal:slim"
   postgres_image         = "pgvector/pgvector:pg16"
@@ -260,6 +261,12 @@ resource "kubernetes_deployment_v1" "openwebui" {
         labels = {
           app = "openwebui"
         }
+        # Model routes are discovered at startup. Keep the UI's pod template
+        # coupled to the declarative LiteLLM model configuration so a model
+        # change is served without an imperative rollout restart.
+        annotations = {
+          "aether.shdr.ch/litellm-config-sha" = sha256(local.litellm_config_yaml)
+        }
       }
 
       spec {
@@ -268,6 +275,29 @@ resource "kubernetes_deployment_v1" "openwebui" {
           fs_group        = 1000
           seccomp_profile {
             type = "RuntimeDefault"
+          }
+        }
+
+        # MCPO performs one-shot MCP discovery during startup and does not
+        # restore routes after a failed initial connection. Wait for LiteLLM to
+        # serve traffic before starting either application container.
+        init_container {
+          name  = "wait-for-litellm"
+          image = "curlimages/curl:8.21.0"
+          command = [
+            "sh", "-c",
+            "until curl -sf http://litellm.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/health/liveliness; do sleep 2; done; sleep 5",
+          ]
+          # curlimages/curl declares the non-numeric user curl_user (UID 100,
+          # GID 101). Specify it numerically because the pod is non-root.
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+            run_as_non_root = true
+            run_as_user     = 100
+            run_as_group    = 101
           }
         }
 
@@ -559,6 +589,25 @@ resource "kubernetes_deployment_v1" "openwebui" {
           env {
             name  = "OAUTH_ADMIN_ROLES"
             value = "admin"
+          }
+          # v0.11.0: sub-agents (model can hand work to tool-driven helpers).
+          # Limits intentionally left at upstream defaults.
+          env {
+            name  = "ENABLE_SUBAGENTS"
+            value = "true"
+          }
+          env {
+            name  = "SUBAGENTS_BACKGROUND_ENABLED"
+            value = "true"
+          }
+
+          # Pre-toggle chat features + MCPO tools for new chats (users can still turn them off).
+          env {
+            name = "DEFAULT_MODEL_METADATA"
+            value = jsonencode({
+              defaultFeatureIds = ["web_search", "code_interpreter"]
+              toolIds           = ["server:litellm"]
+            })
           }
 
           # Performance tuning for small multi-user deployments.
