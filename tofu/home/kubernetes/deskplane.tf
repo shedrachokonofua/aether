@@ -10,8 +10,8 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-ceb78035"
-  deskplane_image_tag      = "ceb78035"
+  deskplane_chart_version  = "0.1.0-c79db0e7"
+  deskplane_image_tag      = "c79db0e7"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
   deskplane_registry_pass  = var.secrets["gitlab.root_password"]
@@ -237,7 +237,20 @@ resource "helm_release" "deskplane" {
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 8000 }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
-        }
+        },
+        {
+          # Headless Chromium for browser-only agent tasks: text perception over
+          # CDP, no desktop, boots in seconds. The controller TCP-probes the
+          # controlPort, and CDP on 9222 is the control endpoint itself.
+          name        = "headless-chromium", displayName = "Headless Browser"
+          image       = "${local.deskplane_registry_image}/headless-chromium:c79db0e7"
+          runtime = {
+            type        = "cdp"
+            port        = 9222
+            scheme      = "http"
+            controlPort = 9222
+          }
+        },
       ]
     }
 
@@ -264,12 +277,13 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "f4afbb87"
+        tag        = "c79db0e7"
       }
       env = {
         DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
         DESKPLANE_PUBLIC_URL    = local.deskplane_public_url
         DESKPLANE_MCP_IMAGE_REF = "cua-ubuntu"
+        DESKPLANE_MCP_BROWSER_IMAGE_REF = "headless-chromium"
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # Alibaba's hosted Qwen is the only model that has finished a
