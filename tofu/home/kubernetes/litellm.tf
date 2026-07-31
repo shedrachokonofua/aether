@@ -59,6 +59,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       OPENROUTER_API_KEY    = var.secrets["litellm.openrouter_api_key"]
       OLLAMA_API_KEY        = var.secrets["litellm.ollama_cloud_api_key"]
       CLINEPASS_API_KEY     = var.secrets["litellm.clinepass_api_key"]
+      KIMI_API_KEY          = var.secrets["litellm.kimi_api_key"]
       XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
       QWEN_CLOUD_API_KEY    = var.secrets["litellm.qwen_cloud_api_key"]
       ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
@@ -272,6 +273,7 @@ resource "kubernetes_deployment_v1" "litellm" {
             }
           }
 
+
           env {
             name = "XIAOMI_API_KEY"
             value_from {
@@ -318,6 +320,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "LITELLM_CONFIG_SHA"
+              }
+            }
+          }
+
+          env {
+            name = "KIMI_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "KIMI_API_KEY"
               }
             }
           }
