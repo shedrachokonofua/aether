@@ -337,6 +337,31 @@ resource "helm_release" "otel_collector_deployment" {
                 }]
               },
               {
+                # deskplane-mcp agent-loop metrics: task outcomes, turn counts, and
+                # llm/ttft/action/screenshot latency histograms from /metrics.
+                job_name        = "deskplane-mcp"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["deskplane-mcp.deskplane.svc.cluster.local:8100"]
+                }]
+              },
+              {
+                # web tier http histograms + proxy/session gauges on the private metrics port.
+                job_name        = "deskplane-serve"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["deskplane.deskplane.svc.cluster.local:9090"]
+                }]
+              },
+              {
+                # reconciler metrics (sessions_total, failures, create latency).
+                job_name        = "deskplane-controller"
+                scrape_interval = "30s"
+                static_configs = [{
+                  targets = ["deskplane-controller-metrics.deskplane.svc.cluster.local:8081"]
+                }]
+              },
+              {
                 # Cilium Hubble L7/L4 metrics — `hubble_*` series with
                 # source/destination workload labels. Cilium-agent exposes
                 # them on :9965 when hubble.metrics.enabled is set (see
