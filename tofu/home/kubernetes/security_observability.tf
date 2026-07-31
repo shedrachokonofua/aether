@@ -155,7 +155,10 @@ resource "helm_release" "trivy_operator" {
       scanJobsConcurrentLimit                      = 4
       scanNodeCollectorLimit                       = 1
       builtInTrivyServer                           = true
-      scannerReportTTL                             = "168h"
+      # The 2026-07-31 incident showed that 168h retained a full week of report
+      # churn in etcd; 24h is enough because Grafana/Prometheus retain findings
+      # history and reports regenerate on the scan schedule.
+      scannerReportTTL                             = "24h"
       vulnerabilityScannerEnabled                  = true
       configAuditScannerEnabled                    = true
       rbacAssessmentScannerEnabled                 = true

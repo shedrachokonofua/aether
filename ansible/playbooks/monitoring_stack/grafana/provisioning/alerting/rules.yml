@@ -892,6 +892,127 @@ groups:
           summary: "Workload {{ $labels.namespace }}/{{ $labels.deployment }}{{ $labels.replicaset }} is not ready"
           description: 'Desired replicas exceed ready replicas for 15 minutes. Check Deployment/rollout events for admission/PSA FailedCreate errors.'
 
+
+      # Control-plane readiness signals added after the 2026-07-31 etcd/vzdump
+      # outage produced NotReady blips no existing rule could see; nearest rule
+      # required 15m.
+      - uid: k8s-node-not-ready
+        title: Kubernetes Node Not Ready
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: kube_node_status_condition{condition="Ready",status="true"} == bool 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Kubernetes node {{ $labels.node }} is NotReady"
+          description: "kube-state-metrics reports Ready=false for {{ $labels.node }} for at least one minute (2026-07-31 outage class)"
+
+      - uid: k8s-control-plane-quorum-risk
+        title: Kubernetes Control Plane Ready Quorum At Risk
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: sum(kube_node_status_condition{condition="Ready",status="true",node=~"talos-(trinity|neo|niobe)"}) < 3
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Kubernetes control-plane Ready count below 3"
+          description: 'Only {{ $values.B.Value | printf "%.0f" }} of 3 control-plane nodes are ready'
+
+      - uid: k8s-node-readiness-flapping
+        title: Kubernetes Node Readiness Flapping
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: changes(kube_node_status_condition{condition="Ready",status="true"}[1h]) > 2
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Kubernetes node {{ $labels.node }} readiness is flapping"
+          description: "Node changed Ready state more than twice in the last hour."
+
       - uid: k8s-pod-create-blocked
         title: Kubernetes Pod Create Blocked
         condition: C
