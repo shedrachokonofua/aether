@@ -14,7 +14,7 @@ groups:
             relativeTimeRange: { from: 900, to: 0 }
             datasourceUid: prometheus-local
             model:
-              expr: 'absent(colony_process_uptime{service_name="colony-worker"})'
+              expr: 'absent(colony_process_uptime_seconds{service_name="colony-worker"})'
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -46,7 +46,7 @@ groups:
             relativeTimeRange: { from: 900, to: 0 }
             datasourceUid: prometheus-local
             model:
-              expr: '(sum(increase(colony_agent_runs_total{status=~"failed|canceled|envelope_rejected"}[15m])) / clamp_min(sum(increase(colony_agent_runs_total[15m])), 1)) and scalar(sum(increase(colony_agent_runs_total[15m])) >= 5)'
+              expr: '(sum(increase(colony_agent_runs_total{status=~"failed|canceled|envelope_rejected"}[15m])) / clamp_min(sum(increase(colony_agent_runs_total[15m])), 1)) and on() (sum(increase(colony_agent_runs_total[15m])) >= 5)'
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -78,7 +78,7 @@ groups:
             relativeTimeRange: { from: 1200, to: 0 }
             datasourceUid: prometheus-local
             model:
-              expr: '(sum(colony_agent_active_runs) > 0) and scalar(time() - max(colony_agent_last_progress_timestamp) > 600)'
+              expr: '(sum(colony_agent_active_runs) > 0) and on() (time() - max(colony_agent_last_progress_timestamp_seconds) > 600)'
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -110,7 +110,7 @@ groups:
             relativeTimeRange: { from: 3600, to: 0 }
             datasourceUid: prometheus-local
             model:
-              expr: 'histogram_quantile(0.95, sum by (le, role) (rate(colony_agent_run_duration_bucket[30m])))'
+              expr: 'histogram_quantile(0.95, sum by (le, role) (rate(colony_agent_run_duration_seconds_bucket[30m])))'
               refId: A
           - refId: B
             datasourceUid: __expr__
