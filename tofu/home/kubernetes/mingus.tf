@@ -4,8 +4,8 @@
 
 locals {
   mingus_namespace     = module.namespace["mingus"].name
-  mingus_chart_version = "0.1.0-1404be2d"
-  mingus_image_tag     = "1404be2d"
+  mingus_chart_version = "0.1.0-3aeeafce"
+  mingus_image_tag     = "3aeeafce"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
@@ -86,7 +86,7 @@ resource "helm_release" "mingus" {
     }
 
     m0 = {
-      enabled = true
+      enabled = false
       nodeSelector = {
         "kubernetes.io/hostname" = "talos-smith"
       }
