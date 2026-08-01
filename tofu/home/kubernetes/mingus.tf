@@ -77,7 +77,9 @@ resource "helm_release" "mingus" {
       storageClass = "ceph-rbd"
       backup = {
         enabled         = true
-        destinationPath = "s3://${local.db_backup_bucket}/cnpg/mingus/mingus"
+        # -v2: cluster was recreated 2026-08-01; old incarnation's WALs occupy
+        # the previous path and CNPG refuses to archive into a non-empty dir.
+        destinationPath = "s3://${local.db_backup_bucket}/cnpg/mingus/mingus-v2"
         endpointURL     = local.db_backup_s3_endpoint
         schedule        = "0 0 3 * * *"
         retentionPolicy = "30d"
