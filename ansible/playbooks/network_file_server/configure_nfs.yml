@@ -16,6 +16,13 @@
         allowed_ips:
           - "10.0.2.0/24"
           - "10.0.3.0/24"
+    mingus_runtime_uid: "65532"
+    mingus_runtime_gid: "65532"
+    mingus_output_directories:
+      - /mnt/hdd/data/ml/eno/processed
+      - /mnt/hdd/data/ml/eno/processed/taxonomy
+      - /mnt/hdd/data/ml/eno/processed/taxonomy/v1
+      - /mnt/hdd/data/ml/eno/processed/corpus
   roles:
     - common
     # - dnf
@@ -37,6 +44,15 @@
         group: root
       loop:
         - { path: /mnt/hdd/data/ml, mode: "0777" }
+
+    - name: Ensure Mingus output directories are writable by its runtime
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0750"
+        owner: "{{ mingus_runtime_uid }}"
+        group: "{{ mingus_runtime_gid }}"
+      loop: "{{ mingus_output_directories }}"
 
     - name: Ensure /var/lib/nfs directory exists with correct permissions
       file:
