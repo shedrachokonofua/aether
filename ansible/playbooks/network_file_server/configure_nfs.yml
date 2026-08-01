@@ -53,6 +53,7 @@
         owner: "{{ mingus_runtime_uid }}"
         group: "{{ mingus_runtime_gid }}"
       loop: "{{ mingus_output_directories }}"
+      tags: [mingus]
 
     - name: Ensure /var/lib/nfs directory exists with correct permissions
       file:
