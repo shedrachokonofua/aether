@@ -243,7 +243,7 @@ resource "helm_release" "deskplane" {
           # CDP, no desktop, boots in seconds. The controller TCP-probes the
           # controlPort, and CDP on 9222 is the control endpoint itself.
           name        = "headless-chromium", displayName = "Headless Browser"
-          image       = "${local.deskplane_registry_image}/headless-chromium:c79db0e7"
+          image       = "${local.deskplane_registry_image}/headless-chromium:efcbbb04"
           runtime = {
             type        = "cdp"
             port        = 9222
