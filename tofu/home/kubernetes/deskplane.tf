@@ -277,7 +277,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "c79db0e7"
+        tag        = "7c58d07b"
       }
       env = {
         DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
