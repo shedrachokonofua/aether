@@ -74,9 +74,10 @@ Restic + Backrest sync critical data to AWS S3 for offsite disaster recovery.
 ### Components
 
 - **Restic** — Deduplicating backup program with encryption
+- **rclone** — Restic S3 transport; resolves and refreshes IAM Roles Anywhere sessions through AWS `credential_process`
 - **Backrest** — Web UI and scheduler for Restic (port 9898)
 - **Web UI** — `https://backrest.home.shdr.ch`
-- **Repository** — `s3:s3.amazonaws.com/aether-home-offsite-backup/restic-v2`
+- **Repository** — `rclone:offsite-s3:aether-home-offsite-backup/restic-v2`
 
 ### Backup Sources
 
@@ -86,7 +87,7 @@ Restic + Backrest sync critical data to AWS S3 for offsite disaster recovery.
 | /mnt/hdd/data       | HDD pool data              | Daily @ 8AM |
 | /mnt/hdd/backups-vm | PBS VM backups             | Daily @ 8AM |
 
-The PBS datastore plan uses restic `--compression off` and `--read-concurrency 4`. PBS chunk data is already content-addressed/compressed, and the offsite window is bounded by the 12-hour IAM Roles Anywhere session maximum.
+The PBS datastore plan uses restic `--compression off` and `--read-concurrency 4`. PBS chunk data is already content-addressed/compressed. The rclone transport refreshes temporary IAM Roles Anywhere sessions through `credential_process`, so runs are not capped by one 12-hour session.
 
 `/mnt/hdd/data` also contains backup-stack generated control-plane snapshots under
 `/mnt/hdd/data/backups/talos-etcd`, so those snapshots are swept offsite by the same Backrest plan
@@ -110,7 +111,7 @@ Backrest on config load — do not reintroduce flat `policyKeepDaily`-style keys
 Uses **IAM Roles Anywhere** with step-ca certificates — no static AWS credentials:
 
 - TLS certificate from step-ca (`backup-stack.home.shdr.ch`)
-- The Backrest restic wrapper uses AWS Signing Helper to fetch fresh temporary credentials per restic process
+- The Backrest restic wrapper selects the Roles Anywhere AWS profile; rclone invokes its `credential_process` and refreshes temporary credentials as needed during a restic operation
 - Certificate renewal uses a oneshot `backrest-cert-renew.service` on a twice-daily systemd timer. It only re-splits the renewed bundle for IAM Roles Anywhere; it must not restart Backrest because active restic backups would be interrupted.
 
 ### AWS S3 Configuration
