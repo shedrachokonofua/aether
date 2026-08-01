@@ -86,7 +86,7 @@ resource "helm_release" "mingus" {
     }
 
     m0 = {
-      enabled = false
+      enabled = true
       nodeSelector = {
         "kubernetes.io/hostname" = "talos-smith"
       }
