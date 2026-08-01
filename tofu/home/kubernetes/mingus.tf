@@ -73,7 +73,8 @@ resource "helm_release" "mingus" {
     audio          = { enabled = false }
 
     cnpg = {
-      enabled = true
+      enabled      = true
+      storageClass = "ceph-rbd"
       backup = {
         enabled         = true
         destinationPath = "s3://${local.db_backup_bucket}/cnpg/mingus/mingus"
