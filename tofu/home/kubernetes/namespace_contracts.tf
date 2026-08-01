@@ -511,6 +511,24 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "mingus" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "critical",
+      exposure                = "internal",
+      create_s3_backup_secret = true,
+      description             = "Personal music discovery, tagging, and recommendation system",
+      source_file             = "tofu/home/kubernetes/mingus.tf",
+      egress                  = "allowlist",
+      registry_access         = "gitlab",
+      hostnames = [
+        "mingus.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "jupyter" = {
       tier                    = "agent",
       owner                   = "aether",
@@ -700,10 +718,12 @@ locals {
       registry_access         = "dockerhub",
       hostnames = [
         "aiostreams.home.shdr.ch",
+        "aiometadata.home.shdr.ch",
         "files.home.shdr.ch",
         "lidarr.home.shdr.ch",
         "prowlarr.home.shdr.ch",
         "radarr.home.shdr.ch",
+        "remux.home.shdr.ch",
         "sabnzbd.home.shdr.ch",
         "sonarr.home.shdr.ch",
         "stremthru.home.shdr.ch",
