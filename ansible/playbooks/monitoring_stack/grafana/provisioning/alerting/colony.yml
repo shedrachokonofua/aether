@@ -1,0 +1,199 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Colony Agent Factory
+    folder: Colony
+    interval: 1m
+    rules:
+      - uid: colony-worker-telemetry-absent
+        title: Colony worker telemetry absent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus-local
+            model:
+              expr: 'absent(colony_process_uptime{service_name="colony-worker"})'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model: { type: reduce, expression: A, reducer: last, refId: B }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+          channel: page
+          service: colony
+        annotations:
+          summary: Colony worker stopped exporting telemetry
+          description: No colony-worker process uptime series has reached Prometheus for 10 minutes. Check the worker pod, OTLP endpoint, central collector, and remote-write pipeline.
+
+      - uid: colony-agent-failure-ratio
+        title: Colony agent failure ratio high
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus-local
+            model:
+              expr: '(sum(increase(colony_agent_runs_total{status=~"failed|canceled|envelope_rejected"}[15m])) / clamp_min(sum(increase(colony_agent_runs_total[15m])), 1)) and scalar(sum(increase(colony_agent_runs_total[15m])) >= 5)'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model: { type: reduce, expression: A, reducer: last, refId: B }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.2] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+          service: colony
+        annotations:
+          summary: More than 20% of Colony agent runs are failing
+          description: At least five agent runs completed in 15 minutes and more than 20% failed, were canceled, or produced a rejected envelope. Inspect the dashboard by role/model and worker logs.
+
+      - uid: colony-agent-progress-stalled
+        title: Colony active agent has no progress
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1200, to: 0 }
+            datasourceUid: prometheus-local
+            model:
+              expr: '(sum(colony_agent_active_runs) > 0) and scalar(time() - max(colony_agent_last_progress_timestamp) > 600)'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model: { type: reduce, expression: A, reducer: last, refId: B }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+          service: colony
+        annotations:
+          summary: Active Colony agent has made no progress for 10 minutes
+          description: Colony reports an active agent run but no assistant message or tool completion for at least 10 minutes. Inspect worker logs, sandbox state, model availability, and Temporal activity heartbeat.
+
+      - uid: colony-agent-p95-slow
+        title: Colony agent p95 runtime high
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus-local
+            model:
+              expr: 'histogram_quantile(0.95, sum by (le, role) (rate(colony_agent_run_duration_bucket[30m])))'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model: { type: reduce, expression: A, reducer: last, refId: B }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [1200] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          channel: digest
+          service: colony
+        annotations:
+          summary: 'Colony {{ $labels.role }} agent p95 exceeds 20 minutes'
+          description: 'The 30-minute p95 end-to-end agent duration is {{ $values.B.Value | printf "%.0f" }} seconds. Check model latency, serial review loops, tool-call volume, and sandbox startup.'
+
+      - uid: colony-agent-limit-exceeded
+        title: Colony agent run hit a safety limit
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus-local
+            model:
+              expr: 'sum by (role, reason) (increase(colony_agent_limit_exceeded_total[15m]))'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model: { type: reduce, expression: A, reducer: last, refId: B }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          channel: digest
+          service: colony
+        annotations:
+          summary: 'Colony {{ $labels.role }} run hit {{ $labels.reason }}'
+          description: An agent exhausted a turn, cost, timeout, cancellation, or envelope boundary. This should fail closed; inspect the matching worker run before retrying.
+
+      - uid: colony-http-server-errors
+        title: Colony HTTP 5xx ratio high
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus-local
+            model:
+              expr: '(sum by (service) (increase(colony_http_server_requests_total{http_response_status_code=~"5.."}[10m])) / clamp_min(sum by (service) (increase(colony_http_server_requests_total[10m])), 1)) and (sum by (service) (increase(colony_http_server_requests_total[10m])) >= 20)'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model: { type: reduce, expression: A, reducer: last, refId: B }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          channel: digest
+          service: colony
+        annotations:
+          summary: 'Colony {{ $labels.service }} HTTP 5xx ratio exceeds 5%'
+          description: At least 20 requests were served in 10 minutes and more than 5% returned 5xx. Inspect route/status breakdown and service logs.
