@@ -33,7 +33,7 @@
 
     # --- S3 Repository ---
     s3_bucket: "{{ tf_outputs.aws_offsite_backup_bucket_name.value }}"
-    restic_repository: "s3:s3.amazonaws.com/{{ s3_bucket }}/restic-v2"
+    restic_repository: "rclone:offsite-s3:{{ s3_bucket }}/restic-v2"
 
     # --- IAM Roles Anywhere ---
     trust_anchor_arn: "{{ tf_outputs.aws_offsite_backup_trust_anchor_arn.value }}"
@@ -94,10 +94,13 @@
       ansible.builtin.set_fact:
         backrest_active_operations: >-
           {{
-            (backrest_operations_check.json.operations | default([]) | selectattr('status', 'equalto', 'STATUS_PENDING') | list)
-            + (backrest_operations_check.json.operations | default([]) | selectattr('status', 'equalto', 'STATUS_INPROGRESS') | list)
+            (backrest_operations_check.json.operations | default([])
+             | selectattr('status', 'equalto', 'STATUS_INPROGRESS') | list)
+            + (backrest_operations_check.json.operations | default([])
+               | selectattr('status', 'equalto', 'STATUS_PENDING')
+               | selectattr('unixTimeStartMs', 'le', ((ansible_date_time.epoch | int * 1000) | string))
+               | list)
           }}
-      when: backrest_operations_check.status | default(0) == 200
 
     - name: Require an override reason before restarting Backrest with active operations
       ansible.builtin.fail:
@@ -374,6 +377,28 @@
       changed_when: "'already' not in restic_update.stdout"
       failed_when: false
 
+    - name: Install rclone
+      ansible.builtin.apt:
+        name: rclone
+        state: present
+
+    - name: Create rclone configuration directory
+      ansible.builtin.file:
+        path: /root/.config/rclone
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Create rclone configuration for offsite backups
+      ansible.builtin.template:
+        src: rclone.conf.j2
+        dest: /root/.config/rclone/rclone.conf
+        owner: root
+        group: root
+        mode: "0600"
+      notify: Restart backrest
+
     # =========================================================================
     # Install Backrest
     # =========================================================================
@@ -427,9 +452,8 @@
           #!/bin/bash
           set -e
 
-          # Restic credentials are minted per restic process by the wrapper at
-          # {{ backrest_data_dir }}/restic. Do not export long-lived AWS_* env
-          # vars into the Backrest daemon.
+          # rclone resolves AWS credentials at runtime through the configured
+          # profile chain. Do not export AWS_* credentials into the Backrest daemon.
           exec /usr/local/bin/backrest
         dest: "{{ step_config_dir }}/start-backrest.sh"
         owner: "{{ backrest_user }}"
@@ -478,35 +502,16 @@
 
           REAL="{{ backrest_data_dir }}/restic-real"
 
-          case "${1:-}" in
-            version|--version|self-update)
-              exec "$REAL" "$@"
-              ;;
-          esac
-
-          # Restic's minio-go S3 backend does not support credential_process.
-          # Mint Roles Anywhere credentials for every restic process so each
-          # Backrest plan gets a fresh session window.
-          CREDS=$(/usr/local/bin/aws_signing_helper credential-process \
-            --certificate {{ certs_dir }}/cert-leaf.pem \
-            --private-key {{ certs_dir }}/key.pem \
-            --intermediates {{ certs_dir }}/cert-chain.pem \
-            --trust-anchor-arn {{ trust_anchor_arn }} \
-            --profile-arn {{ profile_arn }} \
-            --role-arn {{ role_arn }} \
-            --session-duration {{ aws_session_duration_seconds }})
-
-          export AWS_ACCESS_KEY_ID
-          export AWS_SECRET_ACCESS_KEY
-          export AWS_SESSION_TOKEN
+          # Credentials resolve at runtime through the AWS profile chain:
+          # rclone calls credential_process in {{ aws_config_dir }}/config
+          # and refreshes it on expiry, so backups are no longer capped at
+          # 12-hour sessions.
+          export AWS_PROFILE="{{ aws_profile }}"
+          export AWS_CONFIG_FILE="{{ aws_config_dir }}/config"
           export AWS_DEFAULT_REGION="{{ aws_region }}"
           export AWS_EC2_METADATA_DISABLED=true
+          export RCLONE_CONFIG="/root/.config/rclone/rclone.conf"
 
-          AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
-          AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
-          AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
-
-          logger -t aether-restic-credentials "minted AWS session for restic ${1:-unknown}" || true
           exec "$REAL" "$@"
       notify: Restart backrest
 

@@ -9,7 +9,8 @@
       "password": "{{ restic_password }}",
       "autoInitialize": true,
       "flags": [
-        "-o", "s3.connections=50"
+        "-o", "rclone.program=/usr/bin/rclone",
+        "-o", "rclone.connections=16"
       ],
       "prunePolicy": {
         "maxUnusedPercent": 25
