@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-9143feba"
+  deskplane_chart_version  = "0.1.0-f78ecffb"
   deskplane_image_tag      = "9143feba"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
