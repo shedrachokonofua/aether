@@ -455,6 +455,7 @@
         - rules.yml
         - notification-policies.yml
         - cloud-audit.yml
+        - colony.yml
       tags: [grafana]
 
     - name: Template grafana contact points
