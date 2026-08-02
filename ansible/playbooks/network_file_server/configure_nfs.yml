@@ -23,6 +23,10 @@
       - /mnt/hdd/data/ml/eno/processed/taxonomy
       - /mnt/hdd/data/ml/eno/processed/taxonomy/v1
       - /mnt/hdd/data/ml/eno/processed/corpus
+      - /mnt/hdd/data/ml/mingus
+      - /mnt/hdd/data/ml/mingus/derived
+      - /mnt/hdd/data/ml/mingus/audio
+      - /mnt/hdd/data/ml/mingus/cache
   roles:
     - common
     # - dnf
