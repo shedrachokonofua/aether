@@ -75,6 +75,11 @@
         - ./gitlab-runner
         - ./gitlab-runner/config
         - ./gitlab-runner/cache
+    - name: Remove legacy DinD Quadlet
+      file:
+        path: "{{ ansible_env.HOME }}/.config/containers/systemd/gitlab-runner-dind.container"
+        state: absent
+
 
     - name: Create runner pod
       containers.podman.podman_pod:
@@ -120,6 +125,7 @@
           [Socket]
           SocketGroup=podman
           SocketMode=0666
+          DirectoryMode=0755
         mode: "0644"
 
     - name: Reload systemd daemon
