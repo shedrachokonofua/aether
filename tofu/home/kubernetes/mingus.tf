@@ -1,11 +1,11 @@
 # Personal music discovery and tagging system.
-# M0 deliberately deploys only PostgreSQL plus the versioned metadata pipeline;
-# runtime services stay disabled until their product contracts are complete.
+# M1 deploys PostgreSQL, source-attributed historical datasets, and the
+# rate-limited audio acquisition workers; serving remains gated on M2.
 
 locals {
   mingus_namespace     = module.namespace["mingus"].name
-  mingus_chart_version = "0.1.0-ceb35e7d"
-  mingus_image_tag     = "ceb35e7d"
+  mingus_chart_version = "0.1.0-92065cc"
+  mingus_image_tag     = "92065cc"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
@@ -52,7 +52,7 @@ resource "helm_release" "mingus" {
   namespace  = local.mingus_namespace
   wait       = true
   atomic     = true
-  timeout    = 3600
+  timeout    = 7200
 
   values = [yamlencode({
     images = {
@@ -62,21 +62,31 @@ resource "helm_release" "mingus" {
         tag        = local.mingus_image_tag
         pullPolicy = "IfNotPresent"
       }
+      workers = {
+        repository = "${local.gitlab_registry_host}/so/mingus/workers"
+        tag        = local.mingus_image_tag
+        pullPolicy = "IfNotPresent"
+      }
     }
 
     api            = { enabled = false }
-    workers        = { enabled = false }
+    workers        = { enabled = true }
     infer          = { enabled = false }
     web            = { enabled = false }
-    schedules      = { enabled = false }
     externalSecret = { enabled = false }
-    audio          = { enabled = false }
+    audio = {
+      enabled = true
+      nfs = {
+        server = "10.0.2.4"
+        path   = "/mnt/hdd/data/ml/mingus/audio"
+      }
+    }
 
     cnpg = {
       enabled      = true
       storageClass = "ceph-rbd"
       backup = {
-        enabled         = true
+        enabled = true
         # -v2: cluster was recreated 2026-08-01; old incarnation's WALs occupy
         # the previous path and CNPG refuses to archive into a non-empty dir.
         destinationPath = "s3://${local.db_backup_bucket}/cnpg/mingus/mingus-v2"
@@ -99,7 +109,25 @@ resource "helm_release" "mingus" {
       parquetPath        = "/data/ml/eno/raw/metadata/albums.parquet"
       taxonomyPath       = "/data/ml/eno/processed/taxonomy/v1/labels.json"
       corpusManifestPath = "/data/ml/eno/processed/corpus/corpus_manifest.parquet"
+      snapshotVersion    = "2026-08-01"
       sampleSize         = 40000
     }
+    spotifySnapshot = {
+      enabled            = true
+      version            = "spotify-2025-07"
+      databaseSecretName = "mingus-app"
+      data = {
+        server = "10.0.2.4"
+        path   = "/mnt/hdd/data"
+      }
+      corpusPath           = "/data/ml/eno/processed/corpus/corpus_manifest.parquet"
+      metadataDatabasePath = "/data/ml/mingus/raw/spotify/spotify_clean.sqlite3"
+      featuresDatabasePath = "/data/ml/mingus/raw/spotify/spotify_clean_audio_features.sqlite3"
+      outputDirectory      = "/data/ml/mingus/derived/spotify-2025-07"
+      nodeSelector = {
+        "kubernetes.io/hostname" = "talos-smith"
+      }
+    }
   })]
+
 }
