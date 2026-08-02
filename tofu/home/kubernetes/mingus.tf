@@ -4,8 +4,8 @@
 
 locals {
   mingus_namespace     = module.namespace["mingus"].name
-  mingus_chart_version = "0.1.0-92065cc3"
-  mingus_image_tag     = "92065cc3"
+  mingus_chart_version = "0.1.0-e4a3675b"
+  mingus_image_tag     = "e4a3675b"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
@@ -37,12 +37,65 @@ resource "kubernetes_secret_v1" "mingus_gitlab_registry" {
   }
 }
 
+resource "kubernetes_job_v1" "mingus_temporal_namespace" {
+  depends_on = [kubernetes_service_v1.temporal_server]
+
+  metadata {
+    name      = "mingus-namespace"
+    namespace = local.temporal_namespace
+    labels    = local.mingus_labels
+  }
+
+  spec {
+    backoff_limit = 3
+    template {
+      metadata {
+        labels = local.mingus_labels
+      }
+      spec {
+        restart_policy                  = "OnFailure"
+        automount_service_account_token = false
+        enable_service_links            = false
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65532
+          run_as_group    = 65532
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
+        container {
+          name    = "register"
+          image   = local.temporal_image
+          command = ["sh", "-ec"]
+          args = [<<-EOT
+            temporal --address temporal-server.temporal.svc.cluster.local:7233 \
+              operator namespace describe -n mingus ||
+            temporal --address temporal-server.temporal.svc.cluster.local:7233 \
+              operator namespace create -n mingus --retention 30d
+          EOT
+          ]
+          security_context {
+            allow_privilege_escalation = false
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 resource "helm_release" "mingus" {
   depends_on = [
     module.namespace["mingus"],
     kubernetes_secret_v1.db_backup_s3["mingus"],
     kubernetes_secret_v1.mingus_gitlab_registry,
     kubernetes_storage_class_v1.ceph_rbd,
+    kubernetes_job_v1.mingus_temporal_namespace,
   ]
 
   name       = "mingus"
@@ -98,7 +151,7 @@ resource "helm_release" "mingus" {
     }
 
     m0 = {
-      enabled = true
+      enabled = false
       nodeSelector = {
         "kubernetes.io/hostname" = "talos-smith"
       }
