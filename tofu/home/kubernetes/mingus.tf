@@ -4,8 +4,8 @@
 
 locals {
   mingus_namespace     = module.namespace["mingus"].name
-  mingus_chart_version = "0.1.0-4b0c5e3b"
-  mingus_image_tag     = "4b0c5e3b"
+  mingus_chart_version = "0.1.0-43726aff"
+  mingus_image_tag     = "5149b32f"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
@@ -35,6 +35,36 @@ resource "kubernetes_secret_v1" "mingus_gitlab_registry" {
       }
     })
   }
+}
+
+resource "kubernetes_secret_v1" "mingus_acquisition" {
+  depends_on = [module.namespace["mingus"]]
+
+  metadata {
+    name      = "mingus-acquisition"
+    namespace = local.mingus_namespace
+    labels    = local.mingus_labels
+  }
+
+  type = "Opaque"
+
+  data = merge(
+    {
+      prowlarr_url         = "http://prowlarr.media.svc.cluster.local:9696"
+      prowlarr_api_key     = var.secrets["prowlarr.api_key"]
+      sabnzbd_url          = "http://sabnzbd.media.svc.cluster.local:8080"
+      sabnzbd_api_key      = var.secrets["sabnzbd.api_key"]
+      qbittorrent_url      = "http://qbittorrent.qbittorrent.svc.cluster.local:8080"
+      qbittorrent_username = var.secrets["qbittorrent.username"]
+      qbittorrent_password = var.secrets["qbittorrent.password"]
+    },
+    contains(keys(var.secrets), "deezer.arl") ? {
+      deezer_arl = var.secrets["deezer.arl"]
+    } : {},
+    contains(keys(var.secrets), "tidal.access_token") ? {
+      tidal_access_token = var.secrets["tidal.access_token"]
+    } : {},
+  )
 }
 
 resource "kubernetes_job_v1" "mingus_temporal_namespace" {
@@ -94,6 +124,7 @@ resource "helm_release" "mingus" {
     module.namespace["mingus"],
     kubernetes_secret_v1.db_backup_s3["mingus"],
     kubernetes_secret_v1.mingus_gitlab_registry,
+    kubernetes_secret_v1.mingus_acquisition,
     kubernetes_storage_class_v1.ceph_rbd,
     kubernetes_job_v1.mingus_temporal_namespace,
   ]
@@ -122,8 +153,11 @@ resource "helm_release" "mingus" {
       }
     }
 
-    api            = { enabled = false }
-    workers        = { enabled = true }
+    api = { enabled = false }
+    workers = {
+      enabled               = true
+      acquisitionSecretName = kubernetes_secret_v1.mingus_acquisition.metadata[0].name
+    }
     infer          = { enabled = false }
     web            = { enabled = false }
     externalSecret = { enabled = false }
@@ -132,6 +166,13 @@ resource "helm_release" "mingus" {
       nfs = {
         server = "10.0.2.4"
         path   = "/mnt/hdd/data/ml/mingus/audio"
+      }
+    }
+    downloads = {
+      enabled = true
+      nfs = {
+        server = "10.0.2.4"
+        path   = "/mnt/hdd/data/downloads"
       }
     }
 
@@ -166,7 +207,7 @@ resource "helm_release" "mingus" {
       sampleSize         = 40000
     }
     spotifySnapshot = {
-      enabled            = true
+      enabled            = false
       version            = "spotify-2025-07"
       databaseSecretName = "mingus-app"
       data = {
