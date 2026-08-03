@@ -5,7 +5,7 @@
 locals {
   mingus_namespace     = module.namespace["mingus"].name
   mingus_chart_version = "0.1.0-43726aff"
-  mingus_image_tag     = "f448dcea"
+  mingus_image_tag     = "50574c42"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
