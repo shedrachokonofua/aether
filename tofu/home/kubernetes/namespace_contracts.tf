@@ -511,6 +511,23 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "instacart-mcp" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Instacart.ca shopping MCP (nodriver + mnemo OTP)"
+      source_file             = "tofu/home/kubernetes/instacart_mcp.tf"
+      egress                  = "internet"
+      registry_access         = "gitlab"
+      hostnames               = ["instacart-mcp.home.shdr.ch"]
+      extra_labels = {
+        "aether.shdr.ch/arch"                = "amd64"
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "mingus" = {
       tier                    = "app",
       owner                   = "aether",
