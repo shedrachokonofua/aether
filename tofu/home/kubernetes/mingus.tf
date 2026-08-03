@@ -3,9 +3,10 @@
 # rate-limited audio acquisition workers; serving remains gated on M2.
 
 locals {
-  mingus_namespace     = module.namespace["mingus"].name
-  mingus_chart_version = "0.1.0-43726aff"
-  mingus_image_tag     = "50574c42"
+  mingus_namespace          = module.namespace["mingus"].name
+  mingus_chart_version      = "0.1.0-43726aff"
+  mingus_training_image_tag = "f448dcea"
+  mingus_workers_image_tag  = "f7c92278"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
@@ -143,12 +144,12 @@ resource "helm_release" "mingus" {
       pullSecret = kubernetes_secret_v1.mingus_gitlab_registry.metadata[0].name
       training = {
         repository = "${local.gitlab_registry_host}/so/mingus/training"
-        tag        = local.mingus_image_tag
+        tag        = local.mingus_training_image_tag
         pullPolicy = "IfNotPresent"
       }
       workers = {
         repository = "${local.gitlab_registry_host}/so/mingus/workers"
-        tag        = local.mingus_image_tag
+        tag        = local.mingus_workers_image_tag
         pullPolicy = "IfNotPresent"
       }
     }
