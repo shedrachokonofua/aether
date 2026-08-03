@@ -4,9 +4,9 @@
 
 locals {
   mingus_namespace          = module.namespace["mingus"].name
-  mingus_chart_version      = "0.1.0-ccf9ca1c"
+  mingus_chart_version      = "0.1.0-ef325c7e"
   mingus_training_image_tag = "f448dcea"
-  mingus_workers_image_tag  = "c969a826"
+  mingus_workers_image_tag  = "ef325c7e"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
@@ -155,10 +155,11 @@ resource "helm_release" "mingus" {
       acquisitionSecretName = kubernetes_secret_v1.mingus_acquisition.metadata[0].name
     }
     acquisitionProducer = {
-      enabled   = true
-      schedule  = "*/10 * * * *"
-      dataset   = "spotify-supervision"
-      batchSize = 100
+      enabled    = true
+      schedule   = "*/10 * * * *"
+      dataset    = "spotify-supervision"
+      batchSize  = 100
+      maxPending = 200
     }
     infer          = { enabled = false }
     web            = { enabled = false }
