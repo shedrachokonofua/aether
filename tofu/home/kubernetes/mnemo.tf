@@ -99,6 +99,7 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     GMAIL_CLIENT_ID     = var.secrets["gmail.client_id"]
     GMAIL_CLIENT_SECRET = var.secrets["gmail.client_secret"]
     GMAIL_REFRESH_TOKEN = var.secrets["gmail.refresh_token"]
+    GMAIL_SYNC_INTERVAL_SECONDS = "10"
 
     # OTEL (Aether in-cluster collector)
     # opentelemetry_exporter uses HTTP (:httpc); collector HTTP receiver is 4318 (4317 is gRPC).
@@ -832,6 +833,18 @@ resource "kubernetes_manifest" "mnemo_cilium_network" {
             matchLabels = {
               "io.kubernetes.pod.namespace" = local.assay_namespace
               "app.kubernetes.io/component" = "worker"
+            }
+          }]
+          toPorts = [{
+            ports = [{ port = tostring(local.mnemo_port), protocol = "TCP" }]
+          }]
+        },
+        # Instacart MCP uses Mnemo's in-cluster API to fetch login OTP messages.
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = module.namespace["instacart-mcp"].name
+              "app"                         = "instacart-mcp"
             }
           }]
           toPorts = [{
