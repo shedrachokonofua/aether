@@ -767,6 +767,25 @@ locals {
         "pod-security.kubernetes.io/enforce" = "privileged"
       }
     }
+    "siren" = {
+      tier                    = "app"
+      owner                   = "siren"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Siren - self-deployed from its own repo CI; SQLite backups via in-chart CronJob"
+      source_file             = "tofu/home/kubernetes/siren.tf"
+      egress                  = "internet"
+      registry_access         = "none"
+      hostnames = [
+        "api.siren.home.shdr.ch",
+      ]
+      extra_labels = {
+        "aether.shdr.ch/arch"                = "amd64"
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "medik8s-leases" = {
       tier                    = "platform",
       owner                   = "aether",
