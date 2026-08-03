@@ -4,9 +4,9 @@
 
 locals {
   mingus_namespace          = module.namespace["mingus"].name
-  mingus_chart_version      = "0.1.0-43726aff"
+  mingus_chart_version      = "0.1.0-bb9a0ed4"
   mingus_training_image_tag = "f448dcea"
-  mingus_workers_image_tag  = "f7c92278"
+  mingus_workers_image_tag  = "bb9a0ed4"
   mingus_labels = {
     app                         = "mingus"
     "app.kubernetes.io/name"    = "mingus"
@@ -49,23 +49,18 @@ resource "kubernetes_secret_v1" "mingus_acquisition" {
 
   type = "Opaque"
 
-  data = merge(
-    {
-      prowlarr_url         = "http://prowlarr.media.svc.cluster.local:9696"
-      prowlarr_api_key     = var.secrets["prowlarr.api_key"]
-      sabnzbd_url          = "http://sabnzbd.media.svc.cluster.local:8080"
-      sabnzbd_api_key      = var.secrets["sabnzbd.api_key"]
-      qbittorrent_url      = "http://qbittorrent.qbittorrent.svc.cluster.local:8080"
-      qbittorrent_username = var.secrets["qbittorrent.username"]
-      qbittorrent_password = var.secrets["qbittorrent.password"]
-    },
-    contains(keys(var.secrets), "deezer.arl") ? {
-      deezer_arl = var.secrets["deezer.arl"]
-    } : {},
-    contains(keys(var.secrets), "tidal.access_token") ? {
-      tidal_access_token = var.secrets["tidal.access_token"]
-    } : {},
-  )
+  data = {
+    prowlarr_url         = "http://prowlarr.media.svc.cluster.local:9696"
+    prowlarr_api_key     = var.secrets["prowlarr.api_key"]
+    sabnzbd_url          = "http://sabnzbd.media.svc.cluster.local:8080"
+    sabnzbd_api_key      = var.secrets["sabnzbd.api_key"]
+    qbittorrent_url      = "http://qbittorrent.qbittorrent.svc.cluster.local:8080"
+    qbittorrent_username = var.secrets["qbittorrent.username"]
+    qbittorrent_password = var.secrets["qbittorrent.password"]
+    slskd_url            = "http://slskd.slskd.svc.cluster.local:5030"
+    slskd_username       = "shdrch"
+    slskd_password       = var.secrets["slskd.web_password"]
+  }
 }
 
 resource "kubernetes_job_v1" "mingus_temporal_namespace" {
