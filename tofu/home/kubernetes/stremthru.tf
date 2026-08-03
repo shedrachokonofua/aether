@@ -16,6 +16,11 @@ locals {
 # Secret
 # =============================================================================
 
+resource "random_password" "stremthru_mingus" {
+  length  = 32
+  special = false
+}
+
 resource "kubernetes_secret_v1" "stremthru" {
   depends_on = [module.namespace["media"]]
 
@@ -27,6 +32,7 @@ resource "kubernetes_secret_v1" "stremthru" {
   type = "Opaque"
 
   data = {
+    auth = "mingus:${random_password.stremthru_mingus.result}"
     # Multi-store auth string consumed by stremthru.
     store_auth = "*:realdebrid:${var.secrets["stremthru.realdebrid_api_token"]},*:premiumize:${var.secrets["stremthru.premiumize_api_key"]}"
   }
@@ -112,6 +118,16 @@ resource "kubernetes_deployment_v1" "stremthru" {
           env {
             name  = "STREMTHRU_DATABASE_URI"
             value = "sqlite://./data/stremthru.db"
+          }
+
+          env {
+            name = "STREMTHRU_AUTH"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.stremthru.metadata[0].name
+                key  = "auth"
+              }
+            }
           }
 
           env {
