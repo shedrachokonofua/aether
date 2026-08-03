@@ -14,7 +14,7 @@
         - zai/glm-5.2
         - aether/qwen3.6-35b-a3b:think
         - aether/qwen3.6-27b:think
-        - qwen-cloud/qwen3.8-max-preview
+        - qwen-cloud/qwen3.8-max
       omp:
         - glm
         - clinepass/glm-5.2
@@ -31,7 +31,7 @@
         - aether/qwen3.6-35b-a3b:code
         - aether/qwen3.6-35b-a3b:think
         - clinepass/qwen3.7-max
-        - qwen-cloud/qwen3.8-max-preview
+        - qwen-cloud/qwen3.8-max
         - qwen3.7-max
         - router/qwen3.7-max
         - kimi
@@ -63,7 +63,7 @@
         - aether/qwen3.6-27b
         - aether/qwen3.6-35b-a3b
         - aether/gemma-4-31b
-        - qwen-cloud/qwen3.8-max-preview
+        - qwen-cloud/qwen3.8-max
         # Validated on the flight task, but only with a native-pixel
         # coordinate frame: GPT emits real screen pixels while the loop's
         # prompt asks for Qwen's normalized 0-1000. Do not point

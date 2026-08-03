@@ -40,9 +40,9 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 
 Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, cloud providers, Cursor Composer routes, and MCP tools. The Cursor Composer models are exposed as `cursor/composer-2.5` and `cursor/composer-2.5-fast`; LiteLLM bridges `/responses` clients to the self-hosted composer-api chat-completions endpoint, and also exposes first-class Cursor BYOK routes under `/cursor/*`.
 
-Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max-preview` and
+Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/glm-5.2` models through Alibaba MaaS. Inquest sends Holmes
-investigations to `qwen-cloud/qwen3.8-max-preview`.
+investigations to `qwen-cloud/qwen3.8-max`.
 
 GLM and Kimi deployments are pooled across their configured providers under the
 canonical `router/glm-5.2` and `router/kimi-k2.7-code` model groups. Routing

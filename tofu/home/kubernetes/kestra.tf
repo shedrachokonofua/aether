@@ -96,7 +96,7 @@ resource "kubernetes_secret_v1" "kestra_inquest" {
     ENV_INQUEST_GITLAB_PROJECT = "so/aether/incidents"
     ENV_HOLMES_URL             = "http://holmes-holmes.holmesgpt.svc"
     # Trial rollback: restore aether/qwen3.6-27b:think here to return investigations to the local llama-swap model.
-    ENV_HOLMES_MODEL       = "qwen-cloud/qwen3.8-max-preview"
+    ENV_HOLMES_MODEL       = "qwen-cloud/qwen3.8-max"
     ENV_LITELLM_URL        = "https://litellm.home.shdr.ch"
     ENV_APPRISE_NOTIFY_URL = "https://apprise.home.shdr.ch/notify/aether"
     ENV_APPRISE_TAG        = "standard"

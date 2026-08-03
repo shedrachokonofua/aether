@@ -290,7 +290,7 @@ resource "helm_release" "deskplane" {
         # multi-step task here; the local qwen3.6-27b works but is slower and
         # loses the thread on longer runs, and MiniMax narrates instead of
         # emitting tool calls. Falling back is one edit: "aether/qwen3.6-27b".
-        DESKPLANE_MCP_MODEL           = "qwen-cloud/qwen3.8-max-preview"
+        DESKPLANE_MCP_MODEL           = "qwen-cloud/qwen3.8-max"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
         # 40 was tuned when every long run was doomed by the stale-screenshot
