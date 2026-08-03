@@ -131,6 +131,14 @@ resource "kubernetes_deployment_v1" "instacart_mcp" {
             value = "/data/profile"
           }
           env {
+            name  = "BROWSER_SESSION_FILE"
+            value = "/data/session.json"
+          }
+          env {
+            name  = "CACHE_DIR"
+            value = "/data/cache"
+          }
+          env {
             name  = "HEADLESS"
             value = "false"
           }
