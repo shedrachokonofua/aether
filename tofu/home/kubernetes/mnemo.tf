@@ -150,8 +150,23 @@ resource "kubectl_manifest" "mnemo_cnpg_cluster" {
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
       resources = {
         claims   = []
-        requests = { cpu = "250m", memory = "256Mi" }
-        limits   = { cpu = "2000m", memory = "2Gi" }
+        requests = { cpu = "250m", memory = "1Gi" }
+        limits   = { cpu = "2000m", memory = "4Gi" }
+      }
+      # Default 128MB shared_buffers churned every search: the scored stage
+      # detoasts ~2000 candidate tsvectors/body prefixes per query and ceph
+      # cold reads dominated (20-30s default search after the 2026-08-02
+      # transactional un-bulking grew the visible corpus). random_page_cost
+      # matches ceph-rbd-on-flash reality so GIN/ivfflat index scans win
+      # over parallel seq scans.
+      postgresql = {
+        parameters = {
+          shared_buffers           = "1GB"
+          effective_cache_size     = "3GB"
+          random_page_cost         = "1.1"
+          effective_io_concurrency = "64"
+          max_wal_size             = "2GB"
+        }
       }
       affinity = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
       storage = {
