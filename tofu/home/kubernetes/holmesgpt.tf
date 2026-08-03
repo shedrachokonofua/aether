@@ -16,7 +16,7 @@ locals {
   holmes_model_primary    = "router/glm-5.2"
   holmes_model_local      = "qwen-local"
   holmes_model_trial      = "aether/qwen3.6-27b:think"
-  holmes_model_qwen_cloud = "qwen-cloud/qwen3.8-max-preview"
+  holmes_model_qwen_cloud = "qwen-cloud/qwen3.8-max"
   holmes_prometheus_url   = "https://prometheus.home.shdr.ch"
   holmes_loki_url         = "https://loki.home.shdr.ch"
 }
@@ -113,7 +113,7 @@ resource "helm_release" "holmesgpt" {
       (local.holmes_model_qwen_cloud) = {
         api_key     = "{{ env.OPENAI_API_KEY }}"
         api_base    = "{{ env.OPENAI_API_BASE }}"
-        model       = "openai/qwen-cloud/qwen3.8-max-preview"
+        model       = "openai/qwen-cloud/qwen3.8-max"
         temperature = 1
       }
     }
