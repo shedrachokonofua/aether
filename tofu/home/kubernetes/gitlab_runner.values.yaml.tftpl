@@ -92,6 +92,15 @@ runners:
         pull_policy = "if-not-present"
         priority_class_name = "${priority_class_name}"
 
+        # Job/helper containers ignore SIGTERM after the build has finished and
+        # ride out the full default 30s grace; the ResourceQuota counts those
+        # Terminating pods, so churn overlap was rejecting new job pods
+        # (backtested 2026-08-01: ~30-45s effective tail explained 78/102
+        # historical quota rejections). 5s keeps teardown prompt without
+        # cutting anything alive.
+        pod_termination_grace_period_seconds = 5
+        cleanup_grace_period_seconds = 5
+
         # CI depends on the in-cluster GitLab endpoint for source, registry, and
         # artifacts. Pin its stable service address so CoreDNS forwarding
         # outages cannot strand runner jobs before their scripts execute.

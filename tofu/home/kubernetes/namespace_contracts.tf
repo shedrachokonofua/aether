@@ -356,6 +356,13 @@ locals {
       extra_labels = {
         "pod-security.kubernetes.io/enforce" = "privileged"
       }
+      extra_annotations = {
+        # Mirrors namespace_resourcequota_gitlab_runner (kyverno.tf). The CEL
+        # GeneratingPolicy only re-evaluates on namespace CREATE/UPDATE, not on
+        # policy edits or downstream deletes (confirmed 2026-08-01/03), so bump
+        # this alongside any quota change to force the sync.
+        "aether.shdr.ch/runner-quota-rev" = "cpu18-22.mem24-40.eph96-264.r2"
+      }
     }
     "globalping" = {
       tier                    = "guest",

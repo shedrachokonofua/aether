@@ -1098,16 +1098,17 @@ locals {
   }
 
   namespace_resourcequota_gitlab_runner = {
-    # Sized for steady state (4 managers x 100m + 4 job pods x 2.1 CPU = 8.8)
-    # plus teardown overlap: ResourceQuota counts Terminating pods until
-    # removal, and the runner starts the next job immediately, so churn
-    # transiently holds 6 job pods (13.0 CPU). 16 gives ~23% headroom.
-    "requests.cpu"               = "16"
+    # Sized for 8 counted pods (4 running x 2.1/2.5 CPU + 4 Terminating with
+    # the runner's 5s termination grace) plus 4 managers (0.4 req / 2.0 lim).
+    # Backtested 2026-08-01 against 3 weeks of job timelines: cap 8 + 5s grace
+    # removes ~87% of quota rejections; bigger bumps buy nothing while the
+    # grace period is short.
+    "requests.cpu"               = "18"
     "requests.memory"            = "24Gi"
     "requests.ephemeral-storage" = "96Gi"
-    "limits.cpu"                 = "20"
+    "limits.cpu"                 = "22"
     "limits.memory"              = "40Gi"
-    "limits.ephemeral-storage"   = "256Gi"
+    "limits.ephemeral-storage"   = "264Gi"
     "pods"                       = "20"
   }
 }
