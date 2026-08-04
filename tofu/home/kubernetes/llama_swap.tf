@@ -206,7 +206,6 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             -hf unsloth/gemma-4-31B-it-GGUF:Q8_0
             -hff gemma-4-31B-it-Q8_0.gguf
             -ngl 99
-            --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 262144
@@ -237,7 +236,6 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             -hf unsloth/gemma-4-26B-A4B-it-GGUF:Q8_0
             -hff gemma-4-26B-A4B-it-Q8_0.gguf
             -ngl 99
-            --no-mmap
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 262144
@@ -401,7 +399,12 @@ resource "kubernetes_deployment_v1" "llama_swap" {
               "nvidia.com/gpu" = "1"
             }
             limits = {
-              memory           = "32Gi"
+              # 40Gi: pinned qwen3.6-27b Q8_0 (~29GB mmap'd, reclaimable) +
+              # KV/CUDA host buffers. Weights are file-backed (no --no-mmap
+              # anywhere): the kernel reclaims them under pressure instead of
+              # OOM-killing. 32Gi + --no-mmap gemma loads caused the 2026-08-03
+              # OOM crash-loop (48 restarts/day, collateral jellyfin outages).
+              memory           = "40Gi"
               "nvidia.com/gpu" = "1"
             }
           }
