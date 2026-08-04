@@ -42,7 +42,10 @@ resource "kubernetes_persistent_volume_claim_v1" "jellyfin_config" {
     storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
 
     resources {
-      requests = { storage = "10Gi" }
+      # 20Gi (was 10): 2026-08-04 — /config hit 2.2GiB free, brushing
+      # Jellyfin's 2GiB startup minimum; slow SQLite on the nearly-full
+      # volume degraded /health for days.
+      requests = { storage = "20Gi" }
     }
   }
 }
@@ -60,7 +63,10 @@ resource "kubernetes_persistent_volume_claim_v1" "jellyfin_cache" {
     storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
 
     resources {
-      requests = { storage = "20Gi" }
+      # 60Gi (was 20): 2026-08-04 — /cache filled to 92KiB free; Jellyfin's
+      # startup storage check (2GiB min) hard-refused to boot -> crash-loop,
+      # tv.shdr.ch 503s. Transcode + image cache need real headroom.
+      requests = { storage = "60Gi" }
     }
   }
 }
@@ -348,14 +354,32 @@ resource "kubernetes_deployment_v1" "jellyfin" {
             }
           }
 
+          # Probe contract (2026-08-04 incident): /health legitimately exceeds
+          # 1s under transcode load, and boot ("Jellyfin Server is loading",
+          # HTTP 503) can outlast 3min with the plugin set. The old
+          # timeout_seconds=1 liveness killed busy-but-healthy servers, then
+          # killed them again mid-boot -> crash-loop -> tv.shdr.ch 503s.
+          # startup_probe owns boot (up to 5min); liveness fires only on a
+          # truly hung process; readiness pulls a slow pod from rotation
+          # without killing it.
+          startup_probe {
+            http_get {
+              path = "/health"
+              port = local.jellyfin_port
+            }
+            period_seconds    = 10
+            timeout_seconds   = 5
+            failure_threshold = 30
+          }
+
           liveness_probe {
             http_get {
               path = "/health"
               port = local.jellyfin_port
             }
-            initial_delay_seconds = 30
-            period_seconds        = 30
-            failure_threshold     = 5
+            period_seconds    = 30
+            timeout_seconds   = 10
+            failure_threshold = 6
           }
 
           readiness_probe {
@@ -363,8 +387,9 @@ resource "kubernetes_deployment_v1" "jellyfin" {
               path = "/health"
               port = local.jellyfin_port
             }
-            initial_delay_seconds = 10
-            period_seconds        = 10
+            period_seconds    = 10
+            timeout_seconds   = 5
+            failure_threshold = 3
           }
         }
 
