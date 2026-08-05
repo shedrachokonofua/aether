@@ -56,6 +56,14 @@ resource "kubernetes_deployment_v1" "comfyui" {
           # restored state and a recursive chmod re-walks it on every restart.
           command = ["sh", "-c", "mkdir -p /gpu-storage/${local.comfyui_subpath} && chmod 777 /gpu-storage/${local.comfyui_subpath}"]
 
+          # Full-pod memory.max requires limits on every container (init
+          # included) or the Talos OOM controller ranks this pod for PSI
+          # sweeps (docs/worklogs/talos-oom-sweeps-2026-08.md).
+          resources {
+            requests = { cpu = "50m", memory = "32Mi" }
+            limits   = { cpu = "200m", memory = "128Mi" }
+          }
+
           volume_mount {
             name       = "storage"
             mount_path = "/gpu-storage"
