@@ -257,6 +257,13 @@ resource "helm_release" "kestra" {
         "aether.shdr.ch/kestra-crowdsec-sync-sha" = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_crowdsec_sync.data)))
         "aether.shdr.ch/kestra-router-drift-sha"  = sha256(jsonencode(nonsensitive(kubernetes_secret_v1.kestra_router_drift.data)))
       }
+      # JVM heap sizing must accompany the container limit below: a
+      # container-aware JVM defaults to MaxRAMPercentage=25 (1Gi heap of a
+      # 4Gi limit) which is below Kestra's observed working set. 50% -> 2Gi
+      # heap, matching the 40h observed profile (median 1.62Gi, peak 2.74Gi).
+      extraEnv = [
+        { name = "JAVA_TOOL_OPTIONS", value = "-XX:MaxRAMPercentage=50.0" },
+      ]
       extraEnvFrom = [
         { secretRef = { name = kubernetes_secret_v1.kestra_inquest.metadata[0].name } },
         { secretRef = { name = kubernetes_secret_v1.kestra_estate_scan.metadata[0].name } },
@@ -273,6 +280,17 @@ resource "helm_release" "kestra" {
           claimName = kubernetes_persistent_volume_claim_v1.kestra_storage.metadata[0].name
         }
       }]
+      # Sized from the 40h Prometheus profile (working set: median 1.62Gi,
+      # p100 2.74Gi, n=476 samples). BestEffort QoS made kestra the
+      # top-scored victim of Talos's PSI OOM sweeps: 122 SIGKILLs between
+      # 2026-08-03 10:02 and 2026-08-04 23:42 despite never exceeding
+      # 2.74Gi on a 64Gi node. A full-pod memory limit sets pod-level
+      # memory.max, which scores this cgroup 0.0 (immune) in the Talos
+      # ranking expression (chart schema: resources lives under `common`).
+      resources = {
+        requests = { cpu = "250m", memory = "2Gi" }
+        limits   = { memory = "4Gi" }
+      }
     }
 
     configurations = {

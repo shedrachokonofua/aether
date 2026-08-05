@@ -359,6 +359,16 @@ resource "kubernetes_deployment_v1" "llama_swap" {
           # restart.
           command = ["sh", "-c", "mkdir -p /gpu-storage/${local.llama_swap_subpath} && chmod 777 /gpu-storage/${local.llama_swap_subpath}"]
 
+          # Limits on the init container are required for the POD-level
+          # cgroup memory.max: kubelet only sets it when every container
+          # (init included) has a limit, and Talos's OOM controller only
+          # spares cgroups with memory.max set (2026-08-04: 303 PSI-sweep
+          # kills against this pod's cgroup).
+          resources {
+            requests = { cpu = "50m", memory = "32Mi" }
+            limits   = { cpu = "200m", memory = "128Mi" }
+          }
+
           volume_mount {
             name       = "models"
             mount_path = "/gpu-storage"
