@@ -8,9 +8,12 @@ locals {
   nvidia_device_plugin_version = "v0.19.0"
   dcgm_exporter_version        = "4.8.1"
 
-  gpu_node_selector = {
-    "extensions.talos.dev/nvidia-container-toolkit-lts" = "580.105.08-v1.18.1"
-  }
+  # nodeSelector must NOT pin the Talos extension version label: the value
+  # embeds driver+toolkit versions and changes on every Talos upgrade —
+  # after neo's 1.12.1 -> 1.13.2 upgrade (2026-08-05) it left every GPU pod
+  # Pending. Hostname is the stable identity; the DaemonSets that need
+  # "any GPU node" use an Exists matchExpression on the extension label key.
+  gpu_node_selector = {}
   gpu_neo_node_selector = merge(local.gpu_node_selector, {
     "kubernetes.io/hostname" = "talos-neo"
   })
