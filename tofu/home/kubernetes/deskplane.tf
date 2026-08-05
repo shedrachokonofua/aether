@@ -10,7 +10,7 @@ locals {
   deskplane_namespace      = "deskplane"
   deskplane_host           = "desktop.home.shdr.ch"
   deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-f78ecffb"
+  deskplane_chart_version  = "0.1.0-3282fece"
   deskplane_image_tag      = "9143feba"
   deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user  = var.secrets["gitlab.root_email"]
@@ -277,7 +277,10 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "7c58d07b"
+        tag        = "e7a530bc"
+      }
+      nodeSelector = {
+        "kubernetes.io/arch" = "amd64"
       }
       env = {
         DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
