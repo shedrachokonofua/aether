@@ -1109,6 +1109,141 @@ groups:
           summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} is restart-looping"
           description: "{{ $values.B.Value | printf \"%.0f\" }} restarts in 24h. Slow crashloops rot silently until a reschedule turns them into an outage — check logs before that happens."
 
+      # Talos's userspace OOM controller (>=1.12) SIGKILLs pod cgroups when
+      # root memory PSI full avg10 crosses its trigger (12.0 on the 1.12.x
+      # nodes), regardless of free RAM, sparing only pods with a pod-level
+      # memory.max. 2026-08-04: 412 kills / 88 sweeps on talos-neo while
+      # MemAvailable stayed >30Gi (docs/worklogs/talos-oom-sweeps-2026-08.md).
+      # Early warning at 6% sustained: real churn, still below the kill line.
+      - uid: talos-node-memory-psi-high
+        title: Talos Node Memory Pressure (PSI)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: 100 * max by (node) (rate(node_pressure_memory_stalled_seconds_total{job="observability/node-exporter"}[2m]))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [6]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory PSI high on {{ $labels.node }} ({{ $values.B.Value | printf \"%.1f\" }}% full-stall)"
+          description: "Sustained memory full-stall approaching the Talos OOM controller trigger (12% on 1.12.x). Reclaim churn, not necessarily low free RAM. Find the churn source before the controller starts killing: talosctl -n <node> get oomactions."
+
+      # The sweep itself: >=2 containers on one node whose LAST termination
+      # was exit 137 within 15m. Talos controller kills are reason=Error/137
+      # (not OOMKilled), so kernel-OOM rules miss them. Pages immediately —
+      # this is the signature that took jellyfin down mid-stream 2026-08-04.
+      - uid: talos-oom-sweep-detected
+        title: Talos OOM Sweep Detected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: |
+                count by (node) (
+                  (
+                    (kube_pod_container_status_last_terminated_exitcode == 137)
+                    and on (namespace, pod, container)
+                    ((time() - kube_pod_container_status_last_terminated_timestamp) < 900)
+                  )
+                  * on (namespace, pod) group_left(node) topk by (namespace, pod) (1, kube_pod_info)
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OOM kill sweep on {{ $labels.node }}: {{ $values.B.Value | printf \"%.0f\" }} containers SIGKILLed (exit 137) in 15m"
+          description: "Multiple simultaneous 137 exits on one node = Talos PSI OOM sweep or node memory exhaustion. Victims are pods without a full-pod memory limit. Evidence: talosctl -n <node> get oomactions -o yaml; dmesg | grep 'OOM controller'."
+
+      # Kernel memcg OOM loop: a pod repeatedly killed by ITS OWN memory
+      # limit (llama-swap 48/day, postgrest 237/day before anyone noticed).
+      # Distinct from the sweep rule: these are limit-vs-workload contradictions.
+      - uid: container-memcg-oom-loop
+        title: Container Memcg OOM Loop
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus-local
+            model:
+              expr: sum by (namespace, pod) (increase(container_oom_events_total[30m])) > 2
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} OOM-killed {{ $values.B.Value | printf \"%.0f\" }}x in 30m by its memory limit"
+          description: "The pod's memory limit contradicts its workload (model too big, heap unbounded, etc.). Fix the limit or the workload in IaC — each kill also drives node PSI toward the Talos sweep trigger."
+
       # Ambient mesh CA outage: ztunnel cannot mint workload identities, so
       # every pod that (re)schedules in an ambient namespace comes up unable
       # to talk mTLS. Exact minute-zero signal of the 2026-07-07 wordpress
