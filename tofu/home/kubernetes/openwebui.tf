@@ -299,6 +299,15 @@ resource "kubernetes_deployment_v1" "openwebui" {
             run_as_user     = 100
             run_as_group    = 101
           }
+
+          # Full-pod memory.max requires limits on every container (init
+          # included) or the Talos OOM controller ranks this pod for PSI
+          # sweeps — 18 restarts in 30h as a sweep victim before this
+          # (docs/worklogs/talos-oom-sweeps-2026-08.md).
+          resources {
+            requests = { cpu = "25m", memory = "16Mi" }
+            limits   = { cpu = "100m", memory = "64Mi" }
+          }
         }
 
         container {
