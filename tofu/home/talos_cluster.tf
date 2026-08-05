@@ -313,6 +313,28 @@ resource "talos_machine_configuration_apply" "this" {
 
   config_patches = concat(
     [
+      # Talos 1.12.x's default OOM trigger (memory_full_avg10 > 12.0 at
+      # 500ms cadence) executes unlimited pod cgroups (cilium 45x, neo's
+      # kube-apiserver 83x on 2026-08-04/05) on transient reclaim blips
+      # while the node has >30Gi available. Recurring PSI source per
+      # adversarial review: llama-swap's memcg OOM reload churn — sweep
+      # kills are collateral, not a control-plane feedback loop
+      # (docs/worklogs/talos-oom-sweeps-2026-08.md).
+      # Override with the 1.13 workload branch (75% full-stall, >=10s
+      # between kills), in 1.12-compatible CEL only. Hot-reloaded: no
+      # reboot. SCOPED to pre-1.13 nodes — on 1.13.x an override would
+      # REPLACE the default and drop its System/Podruntime early-protection
+      # branch (multiply_qos_vectors is 1.13-only CEL). Remove this patch
+      # per node as it reaches 1.13.x.
+    ],
+    contains(["talos_dozer", "talos_tank", "talos_neo"], each.key) ? [] : [
+      yamlencode({
+        apiVersion        = "v1alpha1"
+        kind              = "OOMConfig"
+        triggerExpression = "memory_full_avg10 > 75.0 && time_since_trigger > duration(\"10s\")"
+      }),
+    ],
+    [
       contains(keys(local.talos_controlplane_nodes), each.key) ? yamlencode({
         cluster = {
           allowSchedulingOnControlPlanes = true
