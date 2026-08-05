@@ -409,12 +409,17 @@ resource "kubernetes_deployment_v1" "llama_swap" {
               "nvidia.com/gpu" = "1"
             }
             limits = {
-              # 40Gi: pinned qwen3.6-27b Q8_0 (~29GB mmap'd, reclaimable) +
-              # KV/CUDA host buffers. Weights are file-backed (no --no-mmap
-              # anywhere): the kernel reclaims them under pressure instead of
-              # OOM-killing. 32Gi + --no-mmap gemma loads caused the 2026-08-03
-              # OOM crash-loop (48 restarts/day, collateral jellyfin outages).
-              memory           = "40Gi"
+              # 56Gi (was 40, was 32): sized to the VPA/goldilocks
+              # recommendation (56.8G observed need). History: 32Gi +
+              # --no-mmap gemma = 48 OOM kills/day (2026-08-03); 40Gi still
+              # memcg-OOM-looped on model reloads, and each reload's page-
+              # cache churn drove node PSI past the Talos 1.12.1 OOM trigger
+              # — this sweep-immune pod's churn got cilium/kube-apiserver
+              # killed as collateral (adversarial review, 2026-08-05;
+              # docs/worklogs/talos-oom-sweeps-2026-08.md). Weights stay
+              # mmap'd/reclaimable; the limit must fit the full co-resident
+              # set's host buffers, not just the pinned model.
+              memory           = "56Gi"
               "nvidia.com/gpu" = "1"
             }
           }

@@ -206,3 +206,41 @@ neo runs v1.12.1; dozer/tank run 1.13.2. Three OOM-relevant changes:
 
 Upgrade is a node reboot (drain jellyfin/llama/comfyui/docling); use the
 normal Talos upgrade flow when a media-idle window exists.
+
+## Resolution (2026-08-05)
+
+Adversarial review (spawned reviewer agent) corrected two claims before the
+final fix: the sustaining PSI source was llama-swap's memcg OOM reload churn
+under an undersized 40Gi limit (VPA recommendation 56.8G), NOT an apiserver
+watch-cache feedback loop; and Mingus-as-ignition was overfit. Overnight the
+sweep ranking reached the CNI and control plane: cilium agent 45+ kills,
+kube-apiserver-talos-neo 83+ kills.
+
+Actions, in order:
+1. OOMConfig override (75%/10s) via tofu machine config — the 1.12.1
+   controller did NOT hot-reload it despite the config being active
+   (contrary to a code-reading of oom.go's event loop).
+2. `talosctl upgrade` talos-neo -> 1.13.2 (nvidia schematic, same ID, new
+   tag). Post-check passed; NVIDIA 580.159.03 loaded; 12 GPU slots
+   advertised. Zero OOM triggers since — through reboots, GPU pod storms,
+   and 27B model preloads that reliably fired the old trigger.
+3. llama-swap limit 40 -> 56Gi (VPA), neo excluded from the OOMConfig
+   override (1.13 native defaults are better).
+4. Reboot aftershock: `gpu_neo_node_selector` pinned the exact Talos
+   NVIDIA extension version label, which changes on upgrade — all GPU pods
+   Pending until unpinned (nvidia.tf).
+5. Reboot aftershock: stale cilium state fleet-wide (dozer envoy serving
+   2-day-old xDS routes to dead pod IPs; smith's eBPF service map not
+   programming current endpoints -> litellm crash-looped on
+   deskplane-mcp ConnectError, blocking openwebui). Fixed with a rolling
+   `rollout restart daemonset cilium cilium-envoy`.
+6. talos-sparks cordoned+drained: neo's reboot pushed pods onto the
+   memory-starved Pi, its cilium OOM-looped (157 restarts), and the
+   gateway L2 lease churned 56 times causing estate-wide 503 flaps.
+   Sparks stays cordoned pending capacity review.
+
+End state: all public/internal services 200, zero OOM controller triggers
+on neo since the upgrade. Remaining fleet followups: upgrade smith/mouse/
+sparks/niobe/trinity to 1.13.2; sparks/tank/dozer capacity; rewire the
+container-memcg-oom-loop alert off the dead container_oom_events_total
+metric onto kube_pod_container_status_last_terminated_reason.
