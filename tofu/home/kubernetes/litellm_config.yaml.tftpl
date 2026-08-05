@@ -366,6 +366,10 @@ router_settings:
   # cooldown prevents repeated quota/429 traffic against low-limit providers.
   allowed_fails: 1
   cooldown_time: 300
+  # Alibaba's token plan periodically exhausts its five-hour quota. Preserve
+  # the stable model name for clients while failing over to the local Qwen.
+  fallbacks:
+    - qwen-cloud/qwen3.8-max: ["aether/qwen3.6-27b"]
   # Retry the initial request across the four-provider GLM pool when needed.
   num_retries: 3
   max_fallbacks: 3
@@ -425,6 +429,10 @@ router_settings:
 
 general_settings:
   store_prompts_in_spend_logs: true
+  # Raw prompts/responses make SpendLogs large (~19 GiB after 592k rows).
+  # Daily aggregate tables retain cost history; bound the raw audit detail.
+  maximum_spend_logs_retention_period: "7d"
+  maximum_spend_logs_retention_interval: "1d"
 
 mcp_servers:
   time:
