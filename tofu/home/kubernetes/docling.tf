@@ -107,6 +107,16 @@ resource "kubernetes_deployment_v1" "docling" {
             EOT
           ]
 
+          # Full-pod memory.max requires limits on every container (init
+          # included); without it the Talos OOM controller ranks this pod for
+          # PSI sweeps — killed 2026-08-05T00:51:34Z despite the main
+          # container's 8Gi limit (docs/worklogs/talos-oom-sweeps-2026-08.md).
+          # 1Gi headroom: the HF model download buffers in page cache.
+          resources {
+            requests = { cpu = "100m", memory = "256Mi" }
+            limits   = { cpu = "1", memory = "1Gi" }
+          }
+
           volume_mount {
             name       = "models"
             mount_path = local.docling_models_path
