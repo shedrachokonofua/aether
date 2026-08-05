@@ -350,6 +350,14 @@ resource "kubernetes_deployment_v1" "jellyfin" {
               "nvidia.com/gpu" = "1"
             }
             limits = {
+              # Memory limit is load-bearing beyond hygiene: Talos's OOM
+              # controller ranks pod cgroups by
+              #   memory_max.hasValue() ? 0.0 : qos_weight * memory_current
+              # A pod-level memory.max (requires EVERY container limited)
+              # makes this pod immune to node PSI sweeps — which killed
+              # jellyfin 11x on 2026-08-04, mid-stream, while the node had
+              # 30GB+ available.
+              memory           = "8Gi"
               "nvidia.com/gpu" = "1"
             }
           }
