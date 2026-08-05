@@ -160,13 +160,49 @@ talosctl -n 10.0.3.17 get oomactions -o yaml | tail -40
 
 ## Follow-ups (not done here)
 
-- Audit remaining unlimited pods on neo/dozer (`kubectl get pods -A -o json |
-  jq '.., qosClass'` for BestEffort on those nodes) — same fix shape.
 - dozer/sparks/tank report 101–109% memory in `kubectl top` — genuine
   overcommit, separate from this mechanism.
-- Consider scraping PSI + alerting on `oomactions` (restart-loop alerts fired
-  for days without paging anyone at severity).
-- talos-neo runs Talos v1.12.1 (fleet has 1.13.2); 1.12.x is the release line
-  with the known aggressive-OOM reports. Upgrade with the normal Talos flow.
-- postgrest (vc-seven30, 237 restarts/day) has the classic memcg OOM loop —
-  owned by the seven30 tenant repo, needs its limit raised there.
+- PVE hosts 192.168.2.202/203 show 15–18% memory full-stall PSI
+  (`rate(node_pressure_memory_stalled_seconds_total{job="proxmox-hosts-node"}[5m])`)
+  — chronic host-level pressure, uninvestigated.
+- postgrest (vc-seven30, 237 restarts/day) — owned by the seven30 tenant repo,
+  needs its limit (or its liveness probe) fixed there.
+- Remaining unlimited pods on neo are daemonsets and control-plane static pods
+  (cilium, csi nodeplugins, istio-cni, nvidia-device-plugin, kube-apiserver/
+  controller-manager/scheduler) plus deskplane-mcp, jupyter, mingus-1 — not
+  sensibly limitable one by one. The durable fix is the 1.13 upgrade below.
+
+## Addendum (2026-08-05 00:51): limits are necessary but not sufficient on 1.12.1
+
+The controller swept again at 00:51:34Z and killed **docling** — whose main
+container had an 8Gi limit, but whose `init-models` init container did not, so
+the pod-level `memory.max` was unset (same trap as llama-swap). Fixed the
+ai-serving trio's init containers (docling, comfyui; speaches had no init);
+verified pod-level `memory.max` = 8Gi / 32Gi post-rollout.
+
+Alerting (deployed, `rules.yml`): `talos-node-memory-psi-high` (warning, node
+full-stall >6% 3m), `talos-oom-sweep-detected` (critical, ≥2 exit-137
+containers per node in 15m — caught the 00:51 sweep within minutes of
+deployment), `container-memcg-oom-loop` (warning, >2 kernel OOM kills/30m).
+Note the pre-existing restart-loop rule routes to `channel: digest`, which is
+why 122 kestra restarts never paged.
+
+## Why upgrade talos-neo to 1.13.x (quantified)
+
+neo runs v1.12.1; dozer/tank run 1.13.2. Three OOM-relevant changes:
+
+1. **Trigger rewrite.** 1.13.2 default only fires early for System/Podruntime
+   cgroup stall (protecting kubelet/containerd/etcd); generic workload
+   pressure needs `memory_full_avg10 > 75.0` with ≥10s between kills — vs
+   1.12.1's `> 12.0` at 500ms. Every one of the 88 observed sweep episodes
+   fired between 12.9 and ~15; **none would have triggered under 1.13.2
+   defaults.**
+2. **Zero-rank fix** (`ignore cgroups with zero rank in OOM handler`): on
+   1.12.1 the victim loop starts at -inf, so when every pod scores 0.0 a
+   limited pod can still be killed. On 1.12.1 limits shrink the target set;
+   only 1.13 makes them a guarantee.
+3. `strict QoS ordering in OOM victim selection`, `oom podruntime protection`,
+   and `OOMActionLogKeep = 50` (better forensics).
+
+Upgrade is a node reboot (drain jellyfin/llama/comfyui/docling); use the
+normal Talos upgrade flow when a media-idle window exists.
