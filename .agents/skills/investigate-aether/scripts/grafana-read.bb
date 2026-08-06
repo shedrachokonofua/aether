@@ -193,6 +193,38 @@
            :lastError (:lastError target)})
         (:activeTargets (backend-data! "Prometheus" response))))
 
+(defn run-alert-history! [args]
+  (let [hours (try
+                (Long/parseLong (str (or (first args) "24")))
+                (catch Throwable _ (fail! "alert-history takes hours (a positive integer)")))
+        _ (when-not (pos? hours) (fail! "alert-history hours must be positive"))
+        to-ms (* (long (/ (System/currentTimeMillis) 1000)) 1000)
+        from-ms (- to-ms (* hours 3600 1000))
+        annotations (request-json! :get "/api/annotations"
+                                   {:query-params {:type "alert"
+                                                   :from (str from-ms)
+                                                   :to (str to-ms)
+                                                   :limit "500"}})
+        transitions (->> annotations
+                         (keep (fn [a]
+                                 (when-let [state (:newState a)]
+                                   {:time (str (java.time.Instant/ofEpochMilli (:time a)))
+                                    :alert (or (:alertName a) (:title a))
+                                    :state state})))
+                         (sort-by :time)
+                         vec)
+        fired (->> transitions
+                   (filter #(str/includes? (:state %) "Alerting"))
+                   (map :alert)
+                   frequencies
+                   (sort-by val >)
+                   (mapv (fn [[alert n]] {:alert alert :fired n})))]
+    (print-json! {:window-hours hours
+                  :note (when (= 500 (count annotations))
+                          "hit the 500-row cap; narrow the window for full coverage")
+                  :fired-counts fired
+                  :transitions transitions})))
+
 (defn run-clickhouse! [args]
   (let [sql (prepare-clickhouse-sql (require-arg "clickhouse" args))
         [_ start end] args
@@ -246,6 +278,8 @@
    {:name "alerts" :usage "alerts [--all]"
     :path "/api/alertmanager/grafana/api/v2/alerts"
     :decode-args #(summarize-alerts %1 (= "--all" (first %2)))}
+   {:name "alert-history" :usage "alert-history [hours (default 24)]"
+    :run run-alert-history!}
    {:name "rules" :usage "rules" :path "/api/v1/provisioning/alert-rules"
     :decode (project [:title :uid :ruleGroup :folderUID :labels :noDataState :execErrState])}
    {:name "contact-points" :usage "contact-points"
