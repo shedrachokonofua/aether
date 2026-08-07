@@ -327,7 +327,7 @@ resource "talos_machine_configuration_apply" "this" {
       # branch (multiply_qos_vectors is 1.13-only CEL). Remove this patch
       # per node as it reaches 1.13.x.
     ],
-    contains(["talos_dozer", "talos_tank", "talos_neo"], each.key) ? [] : [
+    contains(["talos_dozer", "talos_tank", "talos_neo", "talos_smith"], each.key) ? [] : [
       yamlencode({
         apiVersion        = "v1alpha1"
         kind              = "OOMConfig"
