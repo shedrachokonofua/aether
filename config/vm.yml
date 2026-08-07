@@ -420,12 +420,12 @@ talos_smith:
   gpu_class: "gtx-1660-super"
   gpu_hostpci_id: "0000:0a:00.0"
   gpu_rom_file: "gtx1660super.rom"
-  # smith is the fleet's busiest host; its TSC watchdog false-trips on CPU-busy
-  # boots and demotes the invariant Zen2 TSC, falling to non-vDSO acpi_pm — which
-  # turns every guest clock_gettime into a port-0x608 PIO vmexit (~300k/s, ~60%
-  # of all KVM exits on this host). Pin TSC reliable so it survives busy boots.
-  extra_kernel_args:
-    - "tsc=reliable"
+  # tsc=reliable extraKernelArgs retired 2026-08-07: the TSC-watchdog false-trip
+  # is fixed on the 1.13.2 kernel (6.18.29), and machine.install.extraKernelArgs
+  # was the one config delta from neo's clean upgrade when smith's 1.13.2
+  # installer FATAL'd 3x at phase 9 (unproven but sole suspect). Verify
+  # current_clocksource=tsc post-upgrade; the smith-high-system-cpu tripwire
+  # rule pages if the regression returns.
   ip: "10.0.3.22"
   gateway: "10.0.3.1"
 

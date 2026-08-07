@@ -15,6 +15,7 @@
         - aether/qwen3.6-35b-a3b:think
         - aether/qwen3.6-27b:think
         - qwen-cloud/qwen3.8-max
+        - ollama-cloud/deepseek-v4-flash
       omp:
         - glm
         - clinepass/glm-5.2
