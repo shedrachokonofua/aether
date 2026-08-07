@@ -74,8 +74,8 @@ locals {
 # Schematic ID includes: siderolabs/qemu-guest-agent
 
 locals {
-  talos_version      = "v1.12.1"
-  talos_rpi_version  = "v1.12.7"
+  talos_version      = "v1.13.2"
+  talos_rpi_version  = "v1.13.2"
   talos_rpi5_version = "v1.13.2"
 
   # Standard schematic: qemu-guest-agent + kata-containers + gVisor +
