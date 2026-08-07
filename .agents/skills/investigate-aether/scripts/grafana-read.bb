@@ -10,7 +10,7 @@
            [java.nio.charset StandardCharsets]))
 
 (def default-grafana-url "https://grafana.home.shdr.ch")
-(def request-timeout-ms 30000)
+(def request-timeout-ms 60000)
 (def now (quot (System/currentTimeMillis) 1000))
 (def default-start (- now 3600))
 (def http-client
@@ -46,7 +46,7 @@
       (fail! "sops is unavailable; run inside the Aether Nix shell"))
     (if (zero? (:exit result))
       (:out result)
-      (fail! "unable to decrypt the Aether secrets file"))))
+      (fail! "unable to decrypt the Aether secrets file (expired AWS/KMS credentials? run `task login`, or set GRAFANA_TOKEN to skip SOPS)"))))
 
 (defn load-grafana-token []
   (let [environment-token (some-> (System/getenv "GRAFANA_TOKEN") str/trim)]
@@ -225,6 +225,38 @@
                   :fired-counts fired
                   :transitions transitions})))
 
+(defn run-kuma-history! [args]
+  (let [hours (try
+                (Long/parseLong (str (or (first args) "24")))
+                (catch Throwable _ (fail! "kuma-history takes hours (a positive integer)")))
+        _ (when-not (pos? hours) (fail! "kuma-history hours must be positive"))
+        end-ns (* (System/currentTimeMillis) 1000000)
+        start-ns (- end-ns (* hours 3600 1000000000))
+        uid (uid-by-name "Loki")
+        response (request-json! :get (str "/api/datasources/proxy/uid/" uid "/loki/api/v1/query_range")
+                                {:query-params {:query "{service_name=\"vigilant\"} |= `WARN:` |~ `Monitor #\\d+`"
+                                                :start (str start-ns)
+                                                :end (str end-ns)
+                                                :limit "500"
+                                                :direction "backward"}})
+        events (->> (get-in response [:data :result])
+                    (mapcat (fn [stream]
+                              (map (fn [[ts line]]
+                                     (when-let [[_ monitor msg] (re-find #"Monitor #\d+ '([^']+)': \w+:?\s*(.*?)\s*\| Interval" line)]
+                                       {:time (str (java.time.Instant/ofEpochMilli (quot (Long/parseLong ts) 1000000)))
+                                        :monitor monitor
+                                        :message (if (str/blank? msg) "timeout/no-response" msg)}))
+                                   (:values stream))))
+                    (remove nil?)
+                    (sort-by :time)
+                    vec)]
+    (print-json! {:window-hours hours
+                  :source "Uptime Kuma monitor log (vigilant journal via Loki)"
+                  :failure-counts (->> events (map :monitor) frequencies
+                                       (sort-by val >)
+                                       (mapv (fn [[m n]] {:monitor m :failures n})))
+                  :events events})))
+
 (defn run-clickhouse! [args]
   (let [sql (prepare-clickhouse-sql (require-arg "clickhouse" args))
         [_ start end] args
@@ -280,6 +312,8 @@
     :decode-args #(summarize-alerts %1 (= "--all" (first %2)))}
    {:name "alert-history" :usage "alert-history [hours (default 24)]"
     :run run-alert-history!}
+   {:name "kuma-history" :usage "kuma-history [hours (default 24)]"
+    :run run-kuma-history!}
    {:name "rules" :usage "rules" :path "/api/v1/provisioning/alert-rules"
     :decode (project [:title :uid :ruleGroup :folderUID :labels :noDataState :execErrState])}
    {:name "contact-points" :usage "contact-points"
