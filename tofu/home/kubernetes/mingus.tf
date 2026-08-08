@@ -4,7 +4,7 @@
 
 locals {
   mingus_namespace          = module.namespace["mingus"].name
-  mingus_chart_version      = "0.1.0-ef325c7e"
+  mingus_chart_version      = "0.1.0-75a0228"
   mingus_training_image_tag = "f448dcea"
   mingus_workers_image_tag  = "ef325c7e"
   mingus_labels = {
@@ -57,9 +57,7 @@ resource "kubernetes_secret_v1" "mingus_acquisition" {
     qbittorrent_url      = "http://qbittorrent.qbittorrent.svc.cluster.local:8080"
     qbittorrent_username = var.secrets["qbittorrent.username"]
     qbittorrent_password = var.secrets["qbittorrent.password"]
-    stremthru_url        = "http://stremthru.media.svc.cluster.local:8080"
-    stremthru_username   = "mingus"
-    stremthru_password   = random_password.stremthru_mingus.result
+    realdebrid_api_token = var.secrets["stremthru.realdebrid_api_token"]
     slskd_url            = "http://slskd.slskd.svc.cluster.local:5030"
     slskd_username       = "shdrch"
     slskd_password       = var.secrets["slskd.web_password"]
