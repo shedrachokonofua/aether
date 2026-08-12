@@ -4,7 +4,7 @@
 
 locals {
   mingus_namespace          = module.namespace["mingus"].name
-  mingus_chart_version      = "0.1.0-c7f8ce0"
+  mingus_chart_version      = "0.1.0-c7f8ce00"
   mingus_training_image_tag = "f448dcea"
   mingus_workers_image_tag  = "ef325c7e"
   mingus_labels = {
