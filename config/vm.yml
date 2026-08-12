@@ -237,7 +237,7 @@ adguard:
   node: "oracle"
   admin: "aether"
   cores: 1
-  memory: 1024
+  memory: 2048
   disk_gb: 20
   ip: "192.168.2.236"
   gateway: "192.168.2.1"
