@@ -24,6 +24,13 @@
     output stderr
   }
 }
+(home_acme_dns) {
+  tls {
+    dns cloudflare {{ secrets.cloudflare_dns_api_key }}
+    resolvers 1.1.1.1 8.8.8.8
+  }
+}
+
 
 home.shdr.ch {
   import access_logs
@@ -36,13 +43,16 @@ home.shdr.ch {
 }
 
 caddy.home.shdr.ch {
+  import home_acme_dns
   reverse_proxy localhost:2019 {
     header_up Host localhost
   }
 }
 
+
 niobe.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy 192.168.2.201:8006 {
     transport http {
       tls
@@ -265,16 +275,20 @@ kvm.home.shdr.ch {
 # Studio services: bind to both LAN and Tailscale IP so co-founders
 # with shared node access can reach them via Tailscale
 gitlab.home.shdr.ch {
+  import home_acme_dns
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}
 }
 
 registry.gitlab.home.shdr.ch {
+  import home_acme_dns
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_registry }}
 }
 
+
 pages.gitlab.home.shdr.ch {
+  import home_acme_dns
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_pages }}
 }
@@ -375,13 +389,16 @@ cockpit.home.shdr.ch {
 
 ntfy.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy {{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.ntfy }}
 }
 
 apprise.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy {{ vm.notifications_stack.ip }}:{{ vm.notifications_stack.ports.apprise }}
 }
+
 
 litellm.home.shdr.ch {
   import access_logs
@@ -420,6 +437,7 @@ ups.home.shdr.ch {
 
 qbittorrent.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
