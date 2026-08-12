@@ -73,8 +73,8 @@ in
   systemd.services.technitium-dns-server = {
     environment.DOTNET_GCHeapHardLimitPercent = "60";
     serviceConfig = {
-      MemoryHigh = "1G";
-      MemoryMax = "1536M";
+      MemoryHigh = "1536M";
+      MemoryMax = "1792M";
       # Static identity instead of DynamicUser: with DynamicUser, LogsDirectory
       # becomes a /var/log/private (0700) symlink the OTel collector cannot
       # traverse. Log Exporter writes /var/log/technitium/query.ndjson; the
