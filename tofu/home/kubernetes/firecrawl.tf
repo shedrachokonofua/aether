@@ -10,7 +10,7 @@ locals {
   firecrawl_cnpg_image       = "registry.gitlab.home.shdr.ch/so/aether/aether-k8s-arch-labeler/firecrawl-cnpg:17.10-barman-uid999-20260702@sha256:626fe0232862aab001ef424811764a96abb025a4e2011c6c939fa37d82188d20"
   firecrawl_redis_image      = "docker.io/redis:alpine"
   firecrawl_rabbitmq_image   = "docker.io/rabbitmq:3-management"
-  firecrawl_mcp_image        = "docker.io/node:22-alpine"
+  firecrawl_mcp_image        = "docker.io/node:22.23.2-alpine3.23@sha256:46825fbbd4e996a78b7a2cdc08d75e38a5a505bdab95dcda55605359bf124bc6"
 
   firecrawl_host         = "firecrawl.home.shdr.ch"
   firecrawl_mcp_host     = "firecrawl-mcp.home.shdr.ch"
