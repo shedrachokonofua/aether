@@ -4,7 +4,7 @@
 
 locals {
   mingus_namespace          = module.namespace["mingus"].name
-  mingus_chart_version      = "0.1.0-75a0228"
+  mingus_chart_version      = "0.1.0-c7f8ce0"
   mingus_training_image_tag = "f448dcea"
   mingus_workers_image_tag  = "ef325c7e"
   mingus_labels = {
@@ -185,9 +185,9 @@ resource "helm_release" "mingus" {
       storageClass = "ceph-rbd"
       backup = {
         enabled = true
-        # -v2: cluster was recreated 2026-08-01; old incarnation's WALs occupy
-        # the previous path and CNPG refuses to archive into a non-empty dir.
-        destinationPath = "s3://${local.db_backup_bucket}/cnpg/mingus/mingus-v2"
+        # -v3: the recreated cluster wrote WALs into -v2 before archiving was
+        # healthy; CNPG requires an empty archive prefix for each incarnation.
+        destinationPath = "s3://${local.db_backup_bucket}/cnpg/mingus/mingus-v3"
         endpointURL     = local.db_backup_s3_endpoint
         schedule        = "0 0 3 * * *"
         retentionPolicy = "30d"
