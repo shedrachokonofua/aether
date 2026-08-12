@@ -956,3 +956,87 @@
 
           Then commit secrets.yml and run: task tofu:apply
       run_once: true
+
+# =============================================================================
+# celld RGW user + bucket
+# =============================================================================
+# Creates a dedicated RGW user for celld's S3-backed Durable Objects fleet and
+# ensures the celld bucket exists. The generated access/secret keys live in
+# secrets.yml under ceph.celld_s3_access_key and ceph.celld_s3_secret_key.
+#
+# Run this play once before applying the celld Tofu stack:
+#   task ansible:playbook -- configure_ceph_rgw_accounts.yml --tags celld
+#
+# The user is non-tenanted and lives in the default (admin) account context.
+
+- name: Provision celld RGW user and bucket
+  hosts: trinity
+  become: true
+  gather_facts: false
+  roles:
+    - common
+  tags:
+    - celld
+  vars:
+    rgw_admin_host: "trinity"
+    celld_rgw_uid: "celld"
+    celld_rgw_display: "celld fleet"
+    celld_bucket: "celld"
+
+  tasks:
+    - name: Check if celld RGW user already exists
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid={{ celld_rgw_uid }}
+      register: rgw_celld_user_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create celld RGW user
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --uid={{ celld_rgw_uid }}
+          --display-name="{{ celld_rgw_display }}"
+          --access-key={{ secrets.ceph.celld_s3_access_key }}
+          --secret={{ secrets.ceph.celld_s3_secret_key }}
+      register: rgw_celld_user_create
+      when: rgw_celld_user_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Set celld quota — no global max
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin quota set
+          --quota-scope=user
+          --uid={{ celld_rgw_uid }}
+          --max-size=-1
+          --max-objects=-1
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      when: rgw_celld_user_check.rc != 0
+
+    - name: Create celld bucket (idempotent via AWS CLI)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.celld_s3_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.celld_s3_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            s3 mb s3://{{ celld_bucket }} 2>&1 || true
+      register: celld_bucket_result
+      changed_when: "'make_bucket' in celld_bucket_result.stdout"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          celld RGW user: {{ celld_rgw_uid }}
+          Bucket:          {{ celld_bucket }}
+          Status:          {{ 'already existed' if rgw_celld_user_check.rc == 0 else 'created' }}
+      run_once: true
