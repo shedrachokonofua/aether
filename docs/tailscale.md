@@ -56,6 +56,14 @@ Subnet routing with automatic approval is configured for the admin gateway only:
 | 10.0.0.0/8     | tag:admin-gateway | VyOS network         |
 | 192.168.0.0/16 | tag:admin-gateway | Bell Gigahub network |
 
+Both gateway nodes run as rootful Podman containers in the **host network
+namespace** of the home-gateway-stack VM. Two tailscaled instances in one netns
+fight over the same `ts-input`/`ts-forward`/`ts-postrouting` netfilter chains
+(last writer wins — this once clobbered the admin router's `tsadmin0` SNAT rule
+and silently broke all remote access to `10.0.0.0/8`). The shared node
+therefore runs with `--netfilter-mode=off`; the admin node must remain the sole
+netfilter manager on that VM.
+
 ### OAuth Clients
 
 OAuth clients are provisioned for automated Tailscale authentication:

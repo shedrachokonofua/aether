@@ -103,7 +103,14 @@
           TS_ROUTES: ""
           TS_ACCEPT_DNS: "false"
           TS_HOSTNAME: "aether-home-gateway"
-          TS_EXTRA_ARGS: "--advertise-tags=tag:home-gateway"
+          # --netfilter-mode=off: this VM runs two tailscaled instances in the
+          # host netns (this shared node + tailscale-admin). Both manage the same
+          # ts-* netfilter chains and the last writer wins; when this node wrote
+          # them, the admin subnet router lost its tsadmin0 SNAT rule and remote
+          # clients' 10/8 traffic reached the LAN un-NATed (dead replies). This
+          # node advertises no routes and needs no netfilter management — the
+          # admin node must be the sole ts-* chain owner.
+          TS_EXTRA_ARGS: "--advertise-tags=tag:home-gateway --netfilter-mode=off"
           TS_STATE_DIR: "/var/lib/tailscale"
         volumes:
           - /var/lib/tailscale:/var/lib/tailscale:Z
