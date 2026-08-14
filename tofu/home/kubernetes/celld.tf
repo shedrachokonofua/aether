@@ -1,24 +1,36 @@
 # =============================================================================
-# celld — self-hosted, distributed Durable Objects (denoland/celld v0.1.0)
+# celld — self-hosted, distributed Durable Objects (denoland/celld v0.2.0)
 # =============================================================================
 # Each object is a SQLite DB replicated to the Ceph RGW bucket "celld";
 # bucket CAS (If-None-Match/If-Match) is the fencing mechanism — verified
 # against s3.home.shdr.ch before deployment (RGW conditional-write probe).
 # Nodes are disposable: local PVC is a hibernation cache, the bucket is truth.
 # One bucket = one fleet = one deployed Worker application.
+#
+# v0.2.0 splits the data plane (--listen) from peer/operator traffic
+# (--internal-listen / --advertise). A v0.1.0 command line with a non-loopback
+# --listen refuses to start. Mixed v0.1.0/v0.2.0 fleets are unsupported: stop
+# every v0.1.0 node before starting v0.2.0.
+#
+# Telemetry (CELLD_OTEL) is a v0.2.0 feature. Traces and console logs export
+# OTLP/HTTP protobuf to the in-cluster daemonset collector, which stamps
+# k8s attributes and forwards to Tempo/Loki. The fleet bucket is not used as
+# a Parquet sink — that prefix would share the CAS/lease bucket.
 
 locals {
-  celld_version = "0.1.0" # release tag
-  # v0.1.0's GHCR image is architecture-suffixed; pin the amd64 artifact because
-  # the release has no multi-architecture manifest and the cluster is mixed-arch.
-  celld_image    = "ghcr.io/denoland/celld:553ae73f83c87c3f7c7a5f73c32c2211d9d7341f-amd64"
-  celld_ns       = module.namespace["celld"].name
-  celld_labels   = { app = "celld" }
-  celld_host     = "celld.home.shdr.ch"
-  celld_port     = 8080
-  celld_bucket   = "celld"
-  celld_endpoint = "https://s3.home.shdr.ch"
-  celld_region   = "us-east-1"
+  celld_version = "0.2.0" # release tag
+  # v0.2.0 also publishes multi-arch sha-<commit>; pin the amd64 artifact
+  # because the cluster is mixed-arch and the node selector is amd64.
+  celld_image         = "ghcr.io/denoland/celld:3f22aedd1ea4d413b93e84afb1ce385f04be84f1-amd64"
+  celld_ns            = module.namespace["celld"].name
+  celld_labels        = { app = "celld" }
+  celld_host          = "celld.home.shdr.ch"
+  celld_port          = 8080
+  celld_internal_port = 8081
+  celld_bucket        = "celld"
+  celld_endpoint      = "https://s3.home.shdr.ch"
+  celld_region        = "us-east-1"
+  celld_otlp_endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
 }
 
 resource "kubernetes_secret_v1" "celld_s3" {
@@ -35,7 +47,7 @@ resource "kubernetes_secret_v1" "celld_s3" {
   type = "Opaque"
 }
 
-# Headless: gives each pod stable DNS for --advertise (celld-0.celld-peer...).
+# Headless: stable DNS for --advertise (celld-0.celld-peer...:internal).
 resource "kubernetes_service_v1" "celld_peer" {
   depends_on = [module.namespace["celld"]]
   metadata {
@@ -50,6 +62,11 @@ resource "kubernetes_service_v1" "celld_peer" {
       port        = local.celld_port
       target_port = local.celld_port
       name        = "http"
+    }
+    port {
+      port        = local.celld_internal_port
+      target_port = local.celld_internal_port
+      name        = "internal"
     }
   }
 }
@@ -83,7 +100,8 @@ resource "kubernetes_stateful_set_v1" "celld" {
             "--endpoint", local.celld_endpoint,
             "--region", local.celld_region,
             "--listen", "0.0.0.0:${local.celld_port}",
-            "--advertise", "$(POD_NAME).celld-peer.${local.celld_ns}.svc.cluster.local:${local.celld_port}",
+            "--internal-listen", "0.0.0.0:${local.celld_internal_port}",
+            "--advertise", "$(POD_NAME).celld-peer.${local.celld_ns}.svc.cluster.local:${local.celld_internal_port}",
           ]
           env_from {
             secret_ref { name = kubernetes_secret_v1.celld_s3.metadata[0].name }
@@ -91,6 +109,27 @@ resource "kubernetes_stateful_set_v1" "celld" {
           env {
             name  = "CELLD_WATCH"
             value = "/var/lib/celld/state"
+          }
+          env {
+            name  = "CELLD_OTEL"
+            value = "1"
+          }
+          env {
+            name  = "CELLD_OTEL_SINK"
+            value = "otlp"
+          }
+          env {
+            # OTLP sink: short flush for near-live Tempo/Loki (docs default is 5m).
+            name  = "CELLD_OTEL_FLUSH_MS"
+            value = "10000"
+          }
+          env {
+            name  = "OTEL_SERVICE_NAME"
+            value = "celld"
+          }
+          env {
+            name  = "OTEL_EXPORTER_OTLP_ENDPOINT"
+            value = local.celld_otlp_endpoint
           }
           env {
             name = "POD_NAME"
@@ -104,17 +143,27 @@ resource "kubernetes_stateful_set_v1" "celld" {
             container_port = local.celld_port
             name           = "http"
           }
+          port {
+            container_port = local.celld_internal_port
+            name           = "internal"
+          }
           volume_mount {
             name       = "state"
             mount_path = "/var/lib/celld"
           }
           readiness_probe {
-            tcp_socket { port = local.celld_port }
+            http_get {
+              path = "/__celld/health"
+              port = local.celld_port
+            }
             initial_delay_seconds = 5
             period_seconds        = 10
           }
           liveness_probe {
-            tcp_socket { port = local.celld_port }
+            http_get {
+              path = "/__celld/health"
+              port = local.celld_port
+            }
             initial_delay_seconds = 15
             period_seconds        = 20
           }
@@ -183,9 +232,10 @@ resource "kubernetes_manifest" "celld_route" {
   }
 }
 
-# Assay-pattern CNP: gateway ingress + same-namespace peer HTTP. Egress stays
-# unrestricted (cluster baseline is non-denying; celld needs s3.home.shdr.ch:443
-# and peer DNS, both covered by the baseline).
+# Assay-pattern CNP: gateway ingress on the public listener + same-namespace
+# peer HTTP on the internal listener. Egress stays unrestricted (cluster
+# baseline is non-denying; celld needs s3.home.shdr.ch:443, OTLP :4318, and
+# peer DNS, all covered by the baseline).
 resource "kubernetes_manifest" "celld_netpol" {
   depends_on = [kubernetes_manifest.cilium_cluster_baseline_network, kubernetes_stateful_set_v1.celld]
   field_manager { force_conflicts = true }
@@ -207,7 +257,10 @@ resource "kubernetes_manifest" "celld_netpol" {
           fromEndpoints = [{
             matchLabels = { "io.kubernetes.pod.namespace" = local.celld_ns }
           }]
-          toPorts = [{ ports = [{ port = "${local.celld_port}", protocol = "TCP" }] }]
+          toPorts = [{ ports = [
+            { port = "${local.celld_port}", protocol = "TCP" },
+            { port = "${local.celld_internal_port}", protocol = "TCP" },
+          ] }]
         },
       ]
     }
