@@ -449,6 +449,7 @@ qbittorrent.home.shdr.ch {
 
 prowlarr.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -460,6 +461,7 @@ prowlarr.home.shdr.ch {
 
 sabnzbd.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -517,6 +519,7 @@ sonarr.home.shdr.ch {
 
 radarr.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -572,11 +575,13 @@ tuliprox.home.shdr.ch {
 
 stats.proxy.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy localhost:{{ vm.home_gateway_stack.ports.rotating_proxy_metrics }}
 }
 
 temporal.home.shdr.ch {
   import access_logs
+  import home_acme_dns
   reverse_proxy 10.0.3.19 {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
