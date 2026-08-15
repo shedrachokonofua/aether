@@ -60,6 +60,16 @@ model_list:
       model: "openai/gemma-4-26b-a4b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+  - model_name: "aether/muse-glimmer-30b"
+    litellm_params:
+      model: "openai/muse-glimmer-30b"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
+  - model_name: "aether/muse-glimmer-30b:think"
+    litellm_params:
+      model: "openai/muse-glimmer-30b:think"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
 
   # Clinepass models (https://api.cline.bot — OpenAI-compatible).
   # GLM and Kimi entries intentionally share a model_name below so LiteLLM
