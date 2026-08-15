@@ -8,7 +8,8 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v224-cuda-b9592"
+  # b10423+ for Muse Glimmer (ggml-org/llama.cpp#26841).
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v250-cuda-b10423"
   llama_swap_host    = "llama-swap.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = module.namespace["ai-serving"].name
@@ -258,6 +259,33 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 top_p: 0.95
                 top_k: 64
 
+        "muse-glimmer-30b":
+          # Thinking via reasoning_effort (low/medium/high/xhigh), not
+          # enable_thinking. Params are Meta's defaults.
+          # https://unsloth.ai/docs/models/muse-glimmer
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf unsloth/Muse-Glimmer-30B-GGUF:Q8_0
+            -ngl 99
+            --no-mmap
+            --cache-type-k q8_0
+            --cache-type-v q8_0
+            --ctx-size 131072
+          ttl: 900
+          filters:
+            setParamsByID:
+              "muse-glimmer-30b":
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 64
+              "muse-glimmer-30b:think":
+                chat_template_kwargs:
+                  reasoning_effort: high
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 64
+
         "qwen3-embedding-4b":
           cmd: >
             llama-server
@@ -286,6 +314,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           q36: "qwen3.6-35b-a3b"
           g31: "gemma-4-31b"
           g26: "gemma-4-26b-a4b"
+          mg30: "muse-glimmer-30b"
           q35: "qwen3.5-9b"
           # AFFiNE + LiteLLM route embed calls to 0.6b; must be in-matrix or llama-swap
           # evicts the chat model when embedding starts (exclusive default).
@@ -298,6 +327,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           q36: 25
           g31: 25
           g26: 20
+          mg30: 25
           q35: 10
           emb: 2
           rr: 3
@@ -305,6 +335,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
         sets:
           # One chat model + embedding + a reranker — either reranker may be
           # co-resident so mnemo RAG / AFFiNE calls never evict the chat model.
+          # muse-glimmer-30b stays outside the group (exclusive swap-in).
           llm: "(q3827 | q36 | g31 | g26 | q35) & emb & (rr | qrr)"
     YAML
   }

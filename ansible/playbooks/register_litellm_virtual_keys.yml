@@ -31,6 +31,8 @@
         - aether/qwen3.6-35b-a3b
         - aether/qwen3.6-35b-a3b:code
         - aether/qwen3.6-35b-a3b:think
+        - aether/muse-glimmer-30b
+        - aether/muse-glimmer-30b:think
         - clinepass/qwen3.7-max
         - qwen-cloud/qwen3.8-max
         - qwen3.7-max
