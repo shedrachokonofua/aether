@@ -95,7 +95,7 @@ resource "kubernetes_secret_v1" "kestra_inquest" {
     ENV_INQUEST_GITLAB_URL     = "https://gitlab.home.shdr.ch"
     ENV_INQUEST_GITLAB_PROJECT = "so/aether/incidents"
     ENV_HOLMES_URL             = "http://holmes-holmes.holmesgpt.svc"
-    # Rollback options: aether/qwen3.6-27b:think (local llama-swap) or qwen-cloud/qwen3.8-max.
+    # Rollback options: aether/qwen3.8-27b:think (local llama-swap) or qwen-cloud/qwen3.8-max.
     ENV_HOLMES_MODEL       = "ollama-cloud/deepseek-v4-flash"
     ENV_LITELLM_URL        = "https://litellm.home.shdr.ch"
     ENV_APPRISE_NOTIFY_URL = "https://apprise.home.shdr.ch/notify/aether"

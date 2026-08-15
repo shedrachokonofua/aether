@@ -15,7 +15,7 @@ locals {
   holmes_litellm_base     = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
   holmes_model_primary    = "router/glm-5.2"
   holmes_model_local      = "qwen-local"
-  holmes_model_trial      = "aether/qwen3.6-27b:think"
+  holmes_model_trial      = "aether/qwen3.8-27b:think"
   holmes_model_cloud      = "ollama-cloud/deepseek-v4-flash"
   holmes_prometheus_url   = "https://prometheus.home.shdr.ch"
   holmes_loki_url         = "https://loki.home.shdr.ch"
@@ -107,7 +107,7 @@ resource "helm_release" "holmesgpt" {
       (local.holmes_model_trial) = {
         api_key     = "{{ env.OPENAI_API_KEY }}"
         api_base    = "{{ env.OPENAI_API_BASE }}"
-        model       = "openai/aether/qwen3.6-27b:think"
+        model       = "openai/aether/qwen3.8-27b:think"
         temperature = 1
       }
       (local.holmes_model_cloud) = {

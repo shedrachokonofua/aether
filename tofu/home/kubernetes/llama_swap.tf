@@ -38,19 +38,19 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
       hooks:
         on_startup:
           preload:
-            - "qwen3.6-27b"
+            - "qwen3.8-27b"
             - "qwen3-embedding-0.6b"
 
       models:
-        "qwen3.6-27b":
+        "qwen3.8-27b":
           # MTP (multi-token prediction) speculative decoding: ~1.4-2.2x faster
-          # generation, same accuracy. Requires the -MTP-GGUF variant and
-          # llama.cpp post-2026-05-13.
-          # https://unsloth.ai/docs/models/qwen3.6#mtp-guide
+          # generation, same accuracy. 3.8 ships MTP weights in the main GGUF
+          # (no separate -MTP-GGUF variant as with 3.6).
+          # https://unsloth.ai/docs/models/qwen3.8
           cmd: >
             llama-server
             --port $${PORT}
-            -hf unsloth/Qwen3.6-27B-MTP-GGUF:Q8_0
+            -hf unsloth/Qwen3.8-27B-GGUF:Q8_0
             -ngl 99
             --no-mmap
             --cache-type-k q8_0
@@ -65,7 +65,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           ttl: 0
           filters:
             setParamsByID:
-              "qwen3.6-27b":
+              "qwen3.8-27b":
                 chat_template_kwargs:
                   enable_thinking: false
                 temperature: 0.7
@@ -73,7 +73,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 top_k: 20
                 min_p: 0.0
                 presence_penalty: 1.5
-              "qwen3.6-27b:code":
+              "qwen3.8-27b:code":
                 chat_template_kwargs:
                   enable_thinking: true
                 temperature: 0.6
@@ -81,7 +81,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 top_k: 20
                 min_p: 0.0
                 presence_penalty: 0.0
-              "qwen3.6-27b:think":
+              "qwen3.8-27b:think":
                 chat_template_kwargs:
                   enable_thinking: true
                 temperature: 1.0
@@ -91,7 +91,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 presence_penalty: 1.5
 
         "qwen3.6-35b-a3b":
-          # MTP speculative decoding — see qwen3.6-27b above.
+          # MTP speculative decoding — see qwen3.8-27b above.
           cmd: >
             llama-server
             --port $${PORT}
@@ -282,7 +282,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
 
       matrix:
         vars:
-          q3627: "qwen3.6-27b"
+          q3827: "qwen3.8-27b"
           q36: "qwen3.6-35b-a3b"
           g31: "gemma-4-31b"
           g26: "gemma-4-26b-a4b"
@@ -294,7 +294,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # mnemo's reranker; bge stays for AFFiNE (routed by name via LiteLLM).
           qrr: "qwen3-reranker-4b"
         evict_costs:
-          q3627: 25
+          q3827: 25
           q36: 25
           g31: 25
           g26: 20
@@ -305,7 +305,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
         sets:
           # One chat model + embedding + a reranker — either reranker may be
           # co-resident so mnemo RAG / AFFiNE calls never evict the chat model.
-          llm: "(q3627 | q36 | g31 | g26 | q35) & emb & (rr | qrr)"
+          llm: "(q3827 | q36 | g31 | g26 | q35) & emb & (rr | qrr)"
     YAML
   }
 }
