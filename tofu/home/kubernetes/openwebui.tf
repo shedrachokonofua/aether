@@ -665,36 +665,37 @@ resource "kubernetes_deployment_v1" "openwebui" {
             value = "15"
           }
 
-          # STT — Speaches (faster-whisper)
+          # STT — Qwen3-ASR via llama-swap + audio.cpp
           env {
             name  = "AUDIO_STT_ENGINE"
             value = "openai"
           }
           env {
             name  = "AUDIO_STT_OPENAI_API_BASE_URL"
-            value = "http://speaches.${local.speaches_ns}.svc.cluster.local:${local.speaches_port}/v1"
+            value = "http://llama-swap.${local.llama_swap_ns}.svc.cluster.local:${local.llama_swap_port}/v1"
           }
           env {
             name  = "AUDIO_STT_MODEL"
-            value = "Systran/faster-distil-whisper-large-v3"
+            value = "qwen3-asr-0.6b"
           }
 
-          # TTS — Speaches (Kokoro)
+          # TTS — Qwen3-TTS via llama-swap + audio.cpp; voices are wav+transcript
+          # pairs in /models/audiocpp/voices on the GPU PV.
           env {
             name  = "AUDIO_TTS_ENGINE"
             value = "openai"
           }
           env {
             name  = "AUDIO_TTS_OPENAI_API_BASE_URL"
-            value = "http://speaches.${local.speaches_ns}.svc.cluster.local:${local.speaches_port}/v1"
+            value = "http://llama-swap.${local.llama_swap_ns}.svc.cluster.local:${local.llama_swap_port}/v1"
           }
           env {
             name  = "AUDIO_TTS_MODEL"
-            value = "speaches-ai/Kokoro-82M-v1.0-ONNX"
+            value = "qwen3-tts-0.6b"
           }
           env {
             name  = "AUDIO_TTS_VOICE"
-            value = "af_heart"
+            value = "default"
           }
 
           readiness_probe {
@@ -761,6 +762,36 @@ resource "kubernetes_deployment_v1" "openwebui" {
 
           port {
             container_port = 8001
+          }
+          # mcpo does MCP tool discovery exactly once at startup and never
+          # retries. If LiteLLM's /mcp isn't serving yet (co-rollouts: the
+          # wait-for-litellm init gate checks /health/liveliness, which goes
+          # 200 ~15s before /mcp does), discovery times out and mcpo serves an
+          # empty OpenAPI catalog forever. Assert non-empty paths so kubelet
+          # restarts the container into a fresh discovery instead. The image
+          # has no curl/wget; python3 is what runs mcpo itself.
+          startup_probe {
+            exec {
+              command = [
+                "python3", "-c",
+                "import json,os,sys,urllib.request\nreq=urllib.request.Request('http://127.0.0.1:8001/litellm/openapi.json',headers={'Authorization':'Bearer '+os.environ['MCPO_API_KEY']})\nd=json.load(urllib.request.urlopen(req,timeout=5))\nsys.exit(0 if d.get('paths') else 1)",
+              ]
+            }
+            period_seconds    = 10
+            timeout_seconds   = 10 # interpreter start + HTTP fetch; default 1s is too tight
+            failure_threshold = 30 # LiteLLM roll takes ~90s pod-create to /mcp 200; allow 5 min
+          }
+
+          liveness_probe {
+            exec {
+              command = [
+                "python3", "-c",
+                "import json,os,sys,urllib.request\nreq=urllib.request.Request('http://127.0.0.1:8001/litellm/openapi.json',headers={'Authorization':'Bearer '+os.environ['MCPO_API_KEY']})\nd=json.load(urllib.request.urlopen(req,timeout=5))\nsys.exit(0 if d.get('paths') else 1)",
+              ]
+            }
+            period_seconds    = 60
+            timeout_seconds   = 10
+            failure_threshold = 3
           }
 
           resources {
