@@ -208,7 +208,19 @@ resource "helm_release" "dcgm_exporter" {
 
   values = [yamlencode({
     runtimeClassName = "nvidia"
-    nodeSelector     = local.gpu_node_selector
+
+    affinity = {
+      nodeAffinity = {
+        requiredDuringSchedulingIgnoredDuringExecution = {
+          nodeSelectorTerms = [{
+            matchExpressions = [{
+              key      = "extensions.talos.dev/nvidia-container-toolkit-lts"
+              operator = "Exists"
+            }]
+          }]
+        }
+      }
+    }
 
     serviceMonitor = { enabled = false }
 
