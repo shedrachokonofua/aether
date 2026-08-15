@@ -36,14 +36,13 @@ locals {
       backup                  = "none"
       exposure                = "internal"
       create_s3_backup_secret = false
-      description             = "GPU-backed AI serving: ComfyUI, Docling, llama-swap, and Speaches"
+      description             = "GPU-backed AI serving: ComfyUI, Docling, and llama-swap"
       egress                  = "internet"
       registry_access         = "github"
       hostnames = [
         "comfyui.home.shdr.ch",
         "docling.home.shdr.ch",
         "llama-swap.home.shdr.ch",
-        "speaches.home.shdr.ch",
       ]
       extra_labels = {
         "aether.shdr.ch/arch"                = "amd64"

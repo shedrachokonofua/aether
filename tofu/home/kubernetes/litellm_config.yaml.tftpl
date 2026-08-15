@@ -212,19 +212,15 @@ model_list:
         - location: message
           role: system
 
-  # Speaches STT/TTS (K8s)
-  - model_name: "aether/whisper-large-v3"
+  # Speech via llama-swap + audio.cpp (K8s)
+  - model_name: "aether/qwen3-asr"
     litellm_params:
-      model: "openai/Systran/faster-whisper-large-v3"
-      litellm_credential_name: speaches_credential
-  - model_name: "aether/distil-whisper-large-v3"
+      model: "openai/qwen3-asr-0.6b"
+      litellm_credential_name: llama_swap_credential
+  - model_name: "aether/qwen3-tts"
     litellm_params:
-      model: "openai/Systran/faster-distil-whisper-large-v3"
-      litellm_credential_name: speaches_credential
-  - model_name: "aether/kokoro-tts"
-    litellm_params:
-      model: "openai/speaches-ai/Kokoro-82M-v1.0-ONNX"
-      litellm_credential_name: speaches_credential
+      model: "openai/qwen3-tts-0.6b"
+      litellm_credential_name: llama_swap_credential
 
   # Reranker + Embeddings via llama-swap (K8s)
   - model_name: "aether/bge-reranker-v2-m3"
@@ -306,12 +302,6 @@ credential_list:
       api_key: os.environ/CURSOR_API_KEY
     credential_info:
       description: "Cursor Composer (self-hosted)"
-  - credential_name: speaches_credential
-    credential_values:
-      api_base: http://speaches.infra.svc.cluster.local:8000/v1
-      api_key: none
-    credential_info:
-      description: "Speaches STT/TTS on K8s"
   - credential_name: ollama_cloud_credential
     credential_values:
       api_base: https://ollama.com

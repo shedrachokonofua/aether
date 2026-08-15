@@ -14,6 +14,11 @@ locals {
   llama_swap_port    = 8080
   llama_swap_ns      = module.namespace["ai-serving"].name
   llama_swap_subpath = "llama-swap/models"
+  # audio.cpp provides audiocpp_server for the speech models below; the
+  # install-audiocpp init container copies its /app onto the PV. Digest of
+  # ghcr tag full-cuda12-20260814-04ba437.
+  audiocpp_image_tag = "full-cuda12-20260814-04ba437"
+  audiocpp_image     = "ghcr.io/0xshug0/audio.cpp@sha256:73355831b1a31bc417778c7ff922bd80dd12f5ae07b8e9cbbd800a66a3290ea8"
   llama_swap_labels  = { app = "llama-swap" }
 }
 
@@ -308,6 +313,25 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # cold-swap on AFFiNE/mnemo/Vane embedding calls.
           ttl: 0
 
+        # Speech via audio.cpp (binaries on the PV, see install-audiocpp).
+        # audiocpp_server serves /v1/audio/speech + /v1/audio/transcriptions
+        # and takes --port, so llama-swap manages it like any llama-server.
+        # Must run FROM the bin dir: the server resolves model_specs/ against
+        # CWD (the model_spec_override config key does not take effect).
+        "qwen3-asr-0.6b":
+          cmd: >
+            sh -c "cd /models/audiocpp/bin && exec env LD_LIBRARY_PATH=.
+            ./audiocpp_server --config /config/audiocpp-asr.json
+            --host 127.0.0.1 --port $${PORT}"
+          ttl: 600
+
+        "qwen3-tts-0.6b":
+          cmd: >
+            sh -c "cd /models/audiocpp/bin && exec env LD_LIBRARY_PATH=.
+            ./audiocpp_server --config /config/audiocpp-tts.json
+            --host 127.0.0.1 --port $${PORT}"
+          ttl: 600
+
       matrix:
         vars:
           q3827: "qwen3.8-27b"
@@ -322,6 +346,10 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           rr: "bge-reranker-v2-m3"
           # mnemo's reranker; bge stays for AFFiNE (routed by name via LiteLLM).
           qrr: "qwen3-reranker-4b"
+          # Speech: subset semantics make these optional co-residents; without
+          # set membership their first request would evict the pinned chat model.
+          asr: "qwen3-asr-0.6b"
+          tts: "qwen3-tts-0.6b"
         evict_costs:
           q3827: 25
           q36: 25
@@ -332,12 +360,47 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           emb: 2
           rr: 3
           qrr: 4
+          asr: 2
+          tts: 2
         sets:
           # One chat model + embedding + a reranker — either reranker may be
           # co-resident so mnemo RAG / AFFiNE calls never evict the chat model.
           # muse-glimmer-30b stays outside the group (exclusive swap-in).
-          llm: "(q3827 | q36 | g31 | g26 | q35) & emb & (rr | qrr)"
+          llm: "(q3827 | q36 | g31 | g26 | q35) & emb & (rr | qrr) & asr & tts"
     YAML
+
+    "audiocpp-asr.json" = jsonencode({
+      host      = "127.0.0.1"
+      port      = 9200 # overridden by --port
+      backend   = "cuda"
+      device    = 0
+      lazy_load = false
+      models = [{
+        id     = "qwen3-asr-0.6b"
+        family = "qwen3_asr"
+        path   = "/models/audiocpp/models/Qwen3-ASR-0.6B-GGUF"
+        task   = "asr"
+        mode   = "offline"
+      }]
+    })
+
+    "audiocpp-tts.json" = jsonencode({
+      host      = "127.0.0.1"
+      port      = 9201 # overridden by --port
+      backend   = "cuda"
+      device    = 0
+      lazy_load = false
+      # Drop <name>.wav + a prompt_text mapping into voices/ to add voices;
+      # requests select them via the OpenAI `voice` field.
+      voice_dir = "/models/audiocpp/voices"
+      models = [{
+        id     = "qwen3-tts-0.6b"
+        family = "qwen3_tts"
+        path   = "/models/audiocpp/models/Qwen3-TTS-12Hz-0.6B-Base-GGUF"
+        task   = "tts"
+        mode   = "offline"
+      }]
+    })
   }
 }
 
@@ -372,7 +435,7 @@ resource "kubernetes_deployment_v1" "llama_swap" {
       metadata {
         labels = local.llama_swap_labels
         annotations = {
-          "aether.shdr.ch/config-sha" = sha256(kubernetes_config_map_v1.llama_swap_config.data["config.yaml"])
+          "aether.shdr.ch/config-sha" = sha256(jsonencode(kubernetes_config_map_v1.llama_swap_config.data))
         }
       }
 
@@ -398,6 +461,36 @@ resource "kubernetes_deployment_v1" "llama_swap" {
           resources {
             requests = { cpu = "50m", memory = "32Mi" }
             limits   = { cpu = "200m", memory = "128Mi" }
+          }
+
+          volume_mount {
+            name       = "models"
+            mount_path = "/gpu-storage"
+          }
+        }
+
+        init_container {
+          name  = "install-audiocpp"
+          image = local.audiocpp_image
+          # Copies audiocpp_server + its libs from the official image onto the
+          # PV so llama-swap can spawn it as a child process. Marker-guarded:
+          # re-copies only when audiocpp_image_tag changes.
+          command = ["bash", "-c", <<-EOT
+            set -e
+            D=/gpu-storage/${local.llama_swap_subpath}/audiocpp
+            if [ "$(cat "$D/.image-marker" 2>/dev/null)" != "${local.audiocpp_image_tag}" ]; then
+              rm -rf "$D/bin.tmp" "$D/bin"
+              mkdir -p "$D/bin.tmp" "$D/models" "$D/voices"
+              cp -r /app/. "$D/bin.tmp/"
+              mv "$D/bin.tmp" "$D/bin"
+              echo "${local.audiocpp_image_tag}" > "$D/.image-marker"
+            fi
+          EOT
+          ]
+
+          resources {
+            requests = { cpu = "50m", memory = "64Mi" }
+            limits   = { cpu = "500m", memory = "256Mi" }
           }
 
           volume_mount {
