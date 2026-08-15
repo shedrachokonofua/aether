@@ -165,7 +165,6 @@ resource "kubectl_manifest" "immich_cnpg_cluster" {
 
 resource "kubernetes_secret_v1" "litellm_cnpg_app" {
   depends_on = [module.namespace["litellm"]]
-
   metadata {
     name      = "litellm-cnpg-app"
     namespace = local.litellm_ns
@@ -198,7 +197,9 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:18.4"
       storage = {
-        size         = "20Gi"
+        # 40Gi filled up 2026-08-14 (WAL growth from proxy traffic); ceph-rbd
+        # expands online, postgres recovers once the resize lands.
+        size         = "80Gi"
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["litellm"]
@@ -234,6 +235,32 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
 
   lifecycle {
     prevent_destroy = true
+  }
+}
+
+# Adopted 2026-08-15 to recover from the "Not enough disk space" fence: CNPG
+# 1.29 won't resize a PVC while the instance is down, so the data volume is
+# managed here. Expansion-only: ceph-rbd supports online growth; shrinking or
+# replacing this PVC destroys the database. metadata/spec extras stay with the
+# operator via ignore_changes.
+resource "kubernetes_persistent_volume_claim_v1" "litellm_cnpg_data" {
+  metadata {
+    name      = "litellm-cnpg-1"
+    namespace = local.litellm_ns
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = local.cnpg_storage_class
+
+    resources {
+      requests = { storage = "80Gi" }
+    }
+  }
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [metadata[0].annotations, metadata[0].labels, spec[0].volume_name, spec[0].volume_mode, spec[0].selector]
   }
 }
 
@@ -399,7 +426,7 @@ resource "kubernetes_secret_v1" "nextcloud_cnpg_app" {
 
   data = {
     username = local.nextcloud_cnpg_user
-    password = var.secrets["nextcloud.dbpassword"]
+    password = random_password.nextcloud_postgres_password.result
   }
 }
 
@@ -427,6 +454,14 @@ resource "kubectl_manifest" "nextcloud_cnpg_cluster" {
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["nextcloud"]
+      managed = {
+        roles = [{
+          name           = local.nextcloud_cnpg_user
+          ensure         = "present"
+          login          = true
+          passwordSecret = { name = kubernetes_secret_v1.nextcloud_cnpg_app.metadata[0].name }
+        }]
+      }
       bootstrap = {
         initdb = {
           database = local.nextcloud_db_name

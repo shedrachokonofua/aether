@@ -13,7 +13,7 @@
         - router/glm-5.2
         - zai/glm-5.2
         - aether/qwen3.6-35b-a3b:think
-        - aether/qwen3.6-27b:think
+        - aether/qwen3.8-27b:think
         - qwen-cloud/qwen3.8-max
         - ollama-cloud/deepseek-v4-flash
       omp:
@@ -25,9 +25,9 @@
         - zai/glm-5.2
         - aether/qwen3.5-9b
         - aether/qwen3.5-9b:think
-        - aether/qwen3.6-27b
-        - aether/qwen3.6-27b:code
-        - aether/qwen3.6-27b:think
+        - aether/qwen3.8-27b
+        - aether/qwen3.8-27b:code
+        - aether/qwen3.8-27b:think
         - aether/qwen3.6-35b-a3b
         - aether/qwen3.6-35b-a3b:code
         - aether/qwen3.6-35b-a3b:think
@@ -61,7 +61,7 @@
         - router/glm-5.2
         - kimi/k3
       deskplane_mcp:
-        - aether/qwen3.6-27b
+        - aether/qwen3.8-27b
         - aether/qwen3.6-35b-a3b
         - aether/gemma-4-31b
         - qwen-cloud/qwen3.8-max

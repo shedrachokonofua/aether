@@ -3,7 +3,7 @@
 # =============================================================================
 # Document conversion service (PDF, DOCX, images → structured text). Used by
 # OpenWebUI for content extraction. The VLM step is delegated to the always-on
-# qwen3.6-27b on llama-swap (vision tower loaded) via vlm_pipeline_model_api —
+# qwen3.8-27b on llama-swap (vision tower loaded) via vlm_pipeline_model_api —
 # docling itself holds no GPU. Before 2026-07-11 it ran Qwen2.5-VL-3B inline,
 # holding ~15.5GB VRAM around the clock for ~5 conversions/week.
 

@@ -1,18 +1,18 @@
 model_list:
   # llama-swap (K8s) — AFFiNE Copilot streams via /v1/responses; bridge to chat/completions.
-  - model_name: "aether/qwen3.6-27b"
+  - model_name: "aether/qwen3.8-27b"
     litellm_params:
-      model: "openai/qwen3.6-27b"
+      model: "openai/qwen3.8-27b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-  - model_name: "aether/qwen3.6-27b:code"
+  - model_name: "aether/qwen3.8-27b:code"
     litellm_params:
-      model: "openai/qwen3.6-27b:code"
+      model: "openai/qwen3.8-27b:code"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-  - model_name: "aether/qwen3.6-27b:think"
+  - model_name: "aether/qwen3.8-27b:think"
     litellm_params:
-      model: "openai/qwen3.6-27b:think"
+      model: "openai/qwen3.8-27b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
   - model_name: "aether/qwen3.6-35b-a3b"
@@ -375,8 +375,8 @@ router_settings:
   # Alibaba's token plan periodically exhausts its five-hour quota. Preserve
   # the stable model name for clients while failing over to the local Qwen.
   fallbacks:
-    - qwen-cloud/qwen3.8-max: ["aether/qwen3.6-27b"]
-    - ollama-cloud/deepseek-v4-flash: ["aether/qwen3.6-27b"]
+    - qwen-cloud/qwen3.8-max: ["aether/qwen3.8-27b"]
+    - ollama-cloud/deepseek-v4-flash: ["aether/qwen3.8-27b"]
   # Retry the initial request across the four-provider GLM pool when needed.
   num_retries: 3
   max_fallbacks: 3

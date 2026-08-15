@@ -408,7 +408,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
             name  = "DOCLING_SERVER_URL"
             value = "http://docling.${local.docling_ns}.svc.cluster.local:${local.docling_port}"
           }
-          # VLM pipeline via the always-on qwen3.6-27b on llama-swap (remote
+          # VLM pipeline via the always-on qwen3.8-27b on llama-swap (remote
           # OpenAI-compatible engine) — freed docling's resident 15.5GB VRAM.
           # Prompt/format/scale mirror docling's built-in qwen preset.
           # History: 2026-07 bench across {standard+{RapidOCR,EasyOCR,Tesseract},
@@ -416,7 +416,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           # granite_vision-3.3-2b, nanonets_ocr2-3B, qwen2.5-vl-3B,
           # lightonocr-1B}} on a CamScanner scan: qwen2.5-vl was the only model
           # that captured printed text AND handwritten margin notes; the switch
-          # to remote qwen3.6-27b supersedes it (rollback: vlm_pipeline_preset
+          # to remote qwen3.8-27b supersedes it (rollback: vlm_pipeline_preset
           # = "qwen" — weights still seeded on the docling models PV).
           env {
             name = "DOCLING_PARAMS"
@@ -424,7 +424,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
               pipeline = "vlm"
               vlm_pipeline_model_api = {
                 url             = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.llama_swap_ns}.svc.cluster.local:${local.llama_swap_port}/v1/chat/completions"
-                params          = { model = "qwen3.6-27b" }
+                params          = { model = "qwen3.8-27b" }
                 prompt          = "Convert this page to markdown. Do not miss any text and only output the bare markdown!"
                 response_format = "markdown"
                 scale           = 2.0

@@ -73,7 +73,7 @@ locals {
     SEARXNG_URL     = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
     # Answer engine (orion docs/plans/answer-engine.md): one resident chat
     # model for every pipeline call, and Firecrawl for page extraction.
-    ANSWER_MODEL      = "aether/qwen3.6-27b"
+    ANSWER_MODEL      = "aether/qwen3.8-27b"
     FIRECRAWL_URL     = "http://${kubernetes_service_v1.firecrawl.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.firecrawl_api_port}"
     FIRECRAWL_API_KEY = var.secrets["firecrawl.api_key"]
     # Metrics + service discovery → Prometheus (same instance Grafana uses).
