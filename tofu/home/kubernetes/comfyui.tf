@@ -74,13 +74,10 @@ resource "kubernetes_deployment_v1" "comfyui" {
           name  = "comfyui"
           image = local.comfyui_image
 
-          # The cu129-slim image omits `comfy_kitchen`, which ComfyUI's fp8/fp4
-          # ops path requires for FLUX fp8 checkpoints. Install it (and bump the
-          # frontend package the image ships at 1.27 vs recommended 1.36+)
-          # before handing off to the upstream entrypoint at /runner-scripts/.
+          # cu129-slim omits comfy_kitchen, required by the fp8/fp4 ops path.
           command = ["bash", "-c"]
           args = [
-            "set -e; /usr/bin/python3 -m pip install --no-cache-dir --quiet comfy-kitchen 'comfyui-frontend-package>=1.36.14'; exec bash /runner-scripts/entrypoint.sh"
+            "set -e; /usr/bin/python3 -m pip install --no-cache-dir --quiet comfy-kitchen -r /root/ComfyUI/requirements.txt; exec bash /runner-scripts/entrypoint.sh"
           ]
 
           port {
@@ -90,7 +87,7 @@ resource "kubernetes_deployment_v1" "comfyui" {
 
           env {
             name  = "CLI_ARGS"
-            value = "--use-pytorch-cross-attention --fast fp16_accumulation --normalvram --reserve-vram 1 --fp16-vae --cuda-malloc"
+            value = "--use-pytorch-cross-attention --fast fp16_accumulation --reserve-vram 1 --fp16-vae --cuda-malloc"
           }
 
           env {
