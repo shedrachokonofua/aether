@@ -65,6 +65,12 @@
           - set protocols static route 10.1.0.0/16 interface wg10
           - set protocols static route 10.2.0.0/16 interface wg10
           - set protocols static route 10.3.0.0/16 interface wg10
+          # Keep the OCI anycast leg in the kernel independently of
+          # vyos-failover. During the 2026-08-09 home DNS outage the tracked
+          # wg10 next-hop never carried client traffic, while the resolver and
+          # tunnel were healthy. The primary tracked route below has metric 10;
+          # this interface route is the always-present distance-20 fallback.
+          - set protocols static route 10.53.0.1/32 interface wg10 distance 20
         save: true
       no_log: true
       tags: [site-wireguard]
@@ -112,13 +118,14 @@
     # the VIP; a wildcard bind would answer UDP from the wrong source). ARP
     # for .238 is answered only by a live keepalived MASTER, and keepalived
     # withdraws the VIP when its dig health check fails, so ARP presence ==
-    # "a home node passed a real DNS query". The rama hop keeps tcp:53: it is
-    # routed via the static 10.3.0.0/16 route (no circularity), and rama's
-    # health gate rejects tcp when its own dig check fails. check target is
-    # mandatory per hop. ORDER MATTERS: this task MUST precede the DNS DNAT
-    # cutover below - 2026-07-18 outage: DNAT to 10.53.0.1 committed before
-    # the route existed, blackholing all client DNS (and with it the SOPS/KMS
-    # lookups the rest of this play needed).
+    # "a home node passed a real DNS query". The OCI backup is an ordinary
+    # distance-20 interface route declared with the WireGuard fabric above.
+    # Keeping it outside vyos-failover makes it independent of the daemon that
+    # removes/reinstalls the preferred distance-10 home route.
+    # ORDER MATTERS: this task MUST precede the DNS DNAT cutover below -
+    # 2026-07-18 outage: DNAT to 10.53.0.1 committed before the route existed,
+    # blackholing all client DNS (and with it the SOPS/KMS lookups the rest of
+    # this play needed).
     - name: Configure DNS anycast failover routing
       vyos.vyos.vyos_config:
         lines:
@@ -126,16 +133,7 @@
           - set protocols failover route 10.53.0.1/32 next-hop 192.168.2.238 check type arp
           - set protocols failover route 10.53.0.1/32 next-hop 192.168.2.238 check target 192.168.2.238
           - set protocols failover route 10.53.0.1/32 next-hop 192.168.2.238 interface eth0
-          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 metric 20
-          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 interface wg10
-          # onlink is REQUIRED for the wg10 hop: wg10 is a /32 point-to-point
-          # interface, so 10.3.0.10 is not an on-link gateway - without it the
-          # kernel rejects the add ("Nexthop has invalid gateway") and
-          # vyos-failover fails SILENTLY (it only logs failed adds in debug).
-          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 onlink
-          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 check type tcp
-          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 check port 53
-          - set protocols failover route 10.53.0.1/32 next-hop 10.3.0.10 check target 10.3.0.10
+          - delete protocols failover route 10.53.0.1/32 next-hop 10.3.0.10
         save: true
 
     # Per-VLAN DNS interception: clients keep asking 10.0.x.1 (stable service
@@ -733,6 +731,10 @@
           - set firewall ipv4 name MEDIA-to-CLOUD rule 20 destination address 10.53.0.1/32
           - set firewall ipv4 name MEDIA-to-CLOUD rule 20 destination port 53
           - set firewall ipv4 name MEDIA-to-CLOUD rule 20 description 'DNS to DNS anycast 10.53.0.1 via rama failover'
+          - set firewall ipv4 name CLOUD-to-MEDIA default-action drop
+          - set firewall ipv4 name CLOUD-to-MEDIA rule 10 action accept
+          - set firewall ipv4 name CLOUD-to-MEDIA rule 10 state established
+          - set firewall ipv4 name CLOUD-to-MEDIA rule 10 state related
 
           # Configure services zone policies
           - set firewall ipv4 name SERVICES-to-TRUSTED default-action drop
@@ -933,6 +935,7 @@
           - set firewall zone TRUSTED from CLOUD firewall name CLOUD-to-TRUSTED
           - set firewall zone CLOUD from SERVICES firewall name SERVICES-to-CLOUD
           - set firewall zone CLOUD from MEDIA firewall name MEDIA-to-CLOUD
+          - set firewall zone MEDIA from CLOUD firewall name CLOUD-to-MEDIA
           - set firewall zone CLOUD from UNTRUSTED firewall name UNTRUSTED-to-CLOUD
           - set firewall zone SERVICES from CLOUD firewall name CLOUD-to-SERVICES
           - set firewall zone CLOUD from MGMT firewall name MGMT-to-CLOUD

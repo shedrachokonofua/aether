@@ -108,20 +108,25 @@ health-driven, three layers deep:
    (prio 150); the health check is a real `dig` SOA against localhost, so the
    2026-07-16 "accepting but stalling" mode fails over too. Node dies →
    VIP moves in ~3 s; sick-but-up → withdrawn in ~6 s.
-2. **VyOS failover route** (`protocols failover`): `10.53.0.1/32` via the VIP
-   (metric 10, ARP check — VIP presence == some home node passed its dig) with
-   a standby via rama `10.3.0.10` over wg10 (metric 20, tcp:53 check,
-   `onlink` required on the /32 point-to-point wg interface). Both home nodes
-   dead → route flips to rama in ~15 s, DNS answers from OCI (~40 ms).
+2. **VyOS preferred route + kernel-native backup**: `protocols failover` owns
+   only the preferred `10.53.0.1/32` route via the home VIP (metric 10, ARP
+   check — VIP presence == some home node passed its dig). An ordinary static
+   interface route to the same prefix over `wg10` remains in the RIB at
+   distance 20. When the tracked home route disappears, FRR promotes that
+   always-present route and WireGuard selects rama through its
+   `10.53.0.1/32` AllowedIPs entry. `CLOUD-to-MEDIA` admits only established
+   and related return traffic; without that reverse zone binding, OCI answered
+   on `wg10` but VyOS dropped the replies before VLAN delivery.
 3. **Rama health gate**: a systemd timer digs localhost; 3 consecutive
    failures insert an nft reject on `:53` (loopback exempted so the gate can
-   observe recovery), making the router's dumb tcp check truthful against a
-   stalling node.
+   observe recovery), making a failed resolver explicit.
 
-Drilled 2026-07-18: MASTER kill = 0 lost queries, sick-MASTER = ~6 s,
-both-home-dead = ~13 s to rama, failback automatic (preempt + standby route
-stays installed). VyOS pdns forwarding still listens on the `10.0.x.1`
-addresses as the shadow fallback if the DNAT rules are ever deleted.
+Verified during the 2026-08-09 home-pair outage: the home route was withdrawn,
+the distance-20 `wg10` route became best, OCI returned DNS answers, and VLAN 5
+recorded no unanswered queries after the `CLOUD-to-MEDIA` return policy was
+applied. Failback remains automatic when keepalived advertises the home VIP.
+VyOS pdns forwarding still listens on the `10.0.x.1` addresses as the shadow
+fallback if the DNAT rules are ever deleted.
 
 ### Offsite node (OCI, `rama`)
 
@@ -485,9 +490,20 @@ Legend: `U` = untagged member, `T` = tagged member. Ports 5-8 remain available a
 
 - 2.5Gbps PoE+
 
-| SSID         | VLAN |
-| ------------ | ---- |
-| Ruby Nexus   | 4    |
-| Sienna Helix | 5    |
-| Indigo Tide  | 6    |
-| Moss Cove    | 7    |
+| SSID                 | VLAN | Bands   |
+| -------------------- | ---- | ------- |
+| Ruby Nexus           | 4    | 5 + 6   |
+| Sienna Helix         | 5    | 5       |
+| Indigo Tide          | 6    | 5       |
+| Indigo Tide - 2.4Ghz | 6    | 2.4     |
+| Moss Cove            | 7    | 5       |
+
+Radio tuning (applied live in the controller 2026-08-13; UniFi WLAN/radio
+config is controller-owned — MongoDB on `home-gateway-stack` — not IaC):
+
+- 2.4 GHz: TX power **medium** (radio override, was auto/max 23 dBm),
+  min data rate **6 Mbps** on `Indigo Tide - 2.4Ghz`. Rationale: 2.4 band ran
+  ~75% airtime, mostly neighbor noise; 4 VAPs beaconing at 1 Mbps were cut to 1.
+- 5 GHz / 6 GHz: auto power, 80 / 160 MHz, channels auto (Radio AI nightly).
+- Multicast enhancement enabled on `Sienna Helix` (Chromecast/TV streams).
+- Config snapshot before these changes: `~/.aether-toolbox/unifi-backup/`.
