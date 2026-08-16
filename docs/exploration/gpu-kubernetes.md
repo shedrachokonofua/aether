@@ -251,10 +251,10 @@ its workspace uses Ceph RBD.
 Replace `nvidia_gpu_exporter` (VM-based) with `dcgm-exporter` (K8s-native):
 
 ```
-dcgm-exporter (DaemonSet on talos-neo, port 9400)
+dcgm-exporter (DaemonSet on talos-neo + talos-smith, port 9400)
     │
     ▼
-OTEL Collector (DaemonSet, prometheus receiver)
+OTEL Collector Deployment (prometheus receiver, kubernetes_sd endpoints)
     │
     ▼
 OTEL Gateway (Monitoring Stack VM, Niobe)
@@ -263,7 +263,9 @@ OTEL Gateway (Monitoring Stack VM, Niobe)
 Prometheus → Grafana
 ```
 
-Metrics from **dcgm-exporter** use Prometheus names such as `DCGM_FI_DEV_GPU_TEMP`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_GPU_UTIL`, etc. (scraped via the in-cluster OTEL Collector).
+Metrics from **dcgm-exporter** use Prometheus names such as `DCGM_FI_DEV_GPU_TEMP`, `DCGM_FI_DEV_FB_USED`, `DCGM_FI_DEV_GPU_UTIL`, etc. (scraped via the in-cluster OTEL Collector Deployment in `otel_collector.tf`).
+
+Scrape both DaemonSet pods via `kubernetes_sd_configs` `role: endpoints`. Do **not** target the ClusterIP Service DNS — that load-balances to one endpoint per scrape and leaves the other GPU series gappy.
 
 Grafana alert rules in `ansible/playbooks/monitoring_stack/grafana/provisioning/alerting/rules.yml` use these DCGM metrics instead of the old `nvidia_smi_*` VM exporter series.
 

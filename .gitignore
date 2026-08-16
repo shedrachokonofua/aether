@@ -78,3 +78,9 @@ backups/
 
 # Local artifact cache for router deployments (vyos_exporter role)
 ansible/playbooks/home_router/.cache/
+
+# local xcaddy build artifact for public gateway
+aether-link-caddy
+
+# Python bytecode caches (scripts/)
+__pycache__/
