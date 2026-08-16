@@ -16,7 +16,7 @@ services may have additional passthrough devices, datasets, or mount points.
 | --- | --- | --- | --- | ---: | ---: | ---: | --- |
 | `router` | `vyos-router` | Oracle | VM | 8 | 2 GiB | 128 GB | Ansible router playbooks |
 | `home_gateway_stack` | `home-gateway-stack` | Oracle | VM | 4 | 4 GiB | 128 GB | `tofu/home/gateway_stack.tf` |
-| `monitoring_stack` | `monitoring-stack` | Niobe | VM | 4 | 16 GiB | 256 GB | `tofu/home/monitoring_stack.tf` |
+| `monitoring_stack` | `monitoring-stack` | Niobe | VM | 8 | 16 GiB | 256 GB | `tofu/home/monitoring_stack.tf` |
 | `nfs` | `network-file-server` | Smith | LXC | 2 | 1 GiB | 10 GB | Ansible network-file-server playbooks |
 | `gitlab` | `gitlab` | Trinity | VM | 8 | 8 GiB | 256 GB | `tofu/home/gitlab.tf` |
 | `backup_stack` | `backup-stack` | Smith | LXC | 4 | 8 GiB | 20 GB | `tofu/home/backup_stack.tf` |

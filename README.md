@@ -38,7 +38,7 @@ Details in [Hosts](docs/hosts.md); VM placement in
 | Observability | Grafana, Prometheus, GreptimeDB, Loki, Tempo, ClickHouse, Zeek, Suricata, Fleet, OpenTelemetry |
 | Runtime security | Suricata, Zeek, CrowdSec, Tetragon, Trivy Operator, Policy Reporter, Kyverno, Kepler |
 | AI and GPU | llama-swap, LiteLLM, OpenWebUI, ComfyUI, Docling, Speaches, Jupyter |
-| Applications | GitLab, Matrix, Home Assistant, Z-Wave, Matter, Jellyfin, Sunshine, Nextcloud, Immich |
+| Applications | GitLab, Matrix, Home Assistant, Z-Wave, Matter, Jellyfin, AIOMetadata, Remux (evaluation), Sunshine, Nextcloud, Immich |
 | Cloud | AWS, Google Cloud, Cloudflare — public ingress, SES, identity federation, uptime monitoring, budgets, offsite backup |
 | Automation | OpenTofu, Ansible, NixOS, Talos, go-task, GitLab CI/CD |
 

@@ -296,7 +296,7 @@ whenever you next redeploy the affected app:
    `docker-compose.yml`. Move to `.env`.
 
 6. **OnlyOffice** — old Dokploy stack has
-   `JWT_SECRET=aG0afpTMkjgfXaIXj7q5U3L8itP8s9TB` hardcoded inline. The k8s
+   `JWT_SECRET=<redacted — leaked in git history 2026-04, stack decommissioned>` hardcoded inline. The k8s
    replacement generates a new Tofu-managed JWT secret; delete the old stack
    only after Nextcloud Office is verified.
 
