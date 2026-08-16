@@ -21,12 +21,12 @@ max_records_per_file = 5000
 max_open_duration = "30s"
 emergency_max_bytes = 1073741824
 emergency_max_age = "30d"
-
 [collectors.connectivity]
 wan_interfaces = [{% for interface in vyos_exporter_wan_interfaces %}"{{ interface }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 
 [collectors.services]
 services = [{% for service in vyos_exporter_expected_services %}"{{ service }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+optional_services = [{% for service in vyos_exporter_optional_services %}"{{ service }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 
 [collectors.suricata]
 interface = "{{ vyos_exporter_suricata_interface }}"

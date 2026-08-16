@@ -21,8 +21,11 @@ vyos_exporter_user: vyos-exporter
 vyos_exporter_group: vyos-exporter
 vyos_exporter_local_download_dir: "{{ playbook_dir }}/.cache/vyos-exporter"
 
-# Current router declarations: PPPoE is WAN and Suricata monitors trunk eth1.
+# PPPoE is WAN and Suricata monitors trunk eth1. VyOS launches native
+# Suricata from its own configuration; it does not provide a
+# `vyos-suricata.service` systemd unit. Keep the service collector's expected
+# list empty so a permanent service_up=0 cannot mask the capture metrics.
 vyos_exporter_wan_interfaces: [pppoe0]
 vyos_exporter_suricata_interface: eth1
-vyos_exporter_expected_services:
-  - vyos-suricata.service
+vyos_exporter_expected_services: []
+vyos_exporter_optional_services: []
