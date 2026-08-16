@@ -1019,10 +1019,9 @@ groups:
           description: 'Pod start has been blocked for 15 minutes with reason {{ $labels.reason }}. Admission/PSA FailedCreate needs event metrics; this rule only covers Pods that were created and are stuck before running.'
 
 
-      # Slow-burn crashloops: step-issuer restarted 16x over 35h (2026-07-07)
-      # with zero signal, then turned a routine pod move into a mesh outage.
-      # 24h window catches both fast loops and slow rot; restart counters
-      # survive metric gaps (monotonic), unlike waiting_reason snapshots.
+      # Alert on recent restart churn rather than carrying a recovered restart
+      # burst for a full day. A one-hour window still catches containers that
+      # repeatedly recover between evaluations.
       - uid: k8s-container-restart-loop
         title: Kubernetes Container Restart Loop
         condition: C
@@ -1036,8 +1035,8 @@ groups:
               expr: |
                 (
                   sum by(namespace, pod, container) (
-                    increase(kube_pod_container_status_restarts_total[24h])
-                  ) >= 5
+                    increase(kube_pod_container_status_restarts_total[1h])
+                  ) >= 3
                 )
                 * on(namespace) group_left(tier, owner, criticality)
                   topk by (namespace) (1, aether:namespace_contract:info)
@@ -1067,7 +1066,7 @@ groups:
           channel: digest
         annotations:
           summary: "Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} is restart-looping"
-          description: "{{ $values.B.Value | printf \"%.0f\" }} restarts in 24h. Slow crashloops rot silently until a reschedule turns them into an outage — check logs before that happens."
+          description: "{{ $values.B.Value | printf \"%.0f\" }} restarts in 1h. Repeated restarts can indicate a crash loop even while the container is temporarily ready."
 
       # Talos's userspace OOM controller (>=1.12) SIGKILLs pod cgroups when
       # root memory PSI full avg10 crosses its trigger (12.0 on the 1.12.x
@@ -2422,7 +2421,7 @@ groups:
               expr: |
                 sum by (policy, namespace, pod) (
                   increase(
-                    tetragon_policy_events_total{policy=~"tetragon-(host-runtime-socket|kernel-module-load|unprivileged-userns-create)", binary!="/app/mcp-time"}[15m]
+                    tetragon_policy_events_total{policy=~"tetragon-(host-runtime-socket|kernel-module-load|unprivileged-userns-create)"}[15m]
                   )
                 ) > 0
               refId: A
@@ -2586,7 +2585,27 @@ groups:
               expr: |
                 (
                   count by (namespace, image_repository) (
-                    trivy_vulnerability_id{severity="Critical", fixed_version!=""}
+                    trivy_vulnerability_id{
+                      severity="Critical",
+                      fixed_version!="",
+                      resource_kind!~"ReplicaSet|Job"
+                    }
+                    or
+                    (
+                      trivy_vulnerability_id{
+                        severity="Critical",
+                        fixed_version!="",
+                        resource_kind="ReplicaSet"
+                      }
+                      * on(namespace, resource_name) group_left()
+                        label_replace(
+                          kube_replicaset_spec_replicas > 0,
+                          "resource_name",
+                          "$1",
+                          "replicaset",
+                          "(.*)"
+                        )
+                    )
                   ) > 0
                 )
                 * on(namespace) group_left(backup, exposure)
