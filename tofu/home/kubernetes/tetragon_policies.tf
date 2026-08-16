@@ -45,6 +45,7 @@ resource "kubectl_manifest" "tetragon_kernel_module_load" {
           args      = [{ index = 0, type = "string" }]
           returnArg = { index = 0, type = "int" }
           selectors = [{
+            matchArgs       = [{ index = 0, operator = "NotPrefix", values = ["net-pf-"] }]
             matchNamespaces = [{ namespace = "Pid", operator = "NotIn", values = ["host_ns"] }]
             matchActions    = [{ action = "Post" }]
           }]
@@ -84,6 +85,7 @@ resource "kubectl_manifest" "tetragon_unprivileged_userns" {
         tags    = ["security.container-escape"]
         args    = [{ index = 0, type = "nop" }]
         selectors = [{
+          matchNamespaces = [{ namespace = "Pid", operator = "NotIn", values = ["host_ns"] }]
           matchCapabilities = [{
             type                  = "Effective"
             operator              = "NotIn"
@@ -166,8 +168,6 @@ resource "kubectl_manifest" "tetragon_sensitive_file_access" {
               "/etc/sudoers",
               "/etc/ssh/",
               "/root/.ssh/",
-              "/var/run/secrets/kubernetes.io/serviceaccount",
-              "/run/secrets/kubernetes.io/serviceaccount",
               "/root/.kube/config",
             ]
           }]

@@ -333,11 +333,12 @@ resource "helm_release" "trivy_operator_polr_adapter" {
     adapters = {
       vulnerabilityReports = {
         enabled = true
-        timeout = 2
+        # 357+ VulnerabilityReports; 2m cache-sync timed out and CrashLoop'd the adapter.
+        timeout = 10
       }
       clusterVulnerabilityReports = {
         enabled = true
-        timeout = 2
+        timeout = 10
       }
       configAuditReports = {
         enabled = false
@@ -363,8 +364,8 @@ resource "helm_release" "trivy_operator_polr_adapter" {
     }
 
     resources = {
-      requests = { cpu = "25m", memory = "64Mi" }
-      limits   = { cpu = "250m", memory = "256Mi" }
+      requests = { cpu = "50m", memory = "128Mi" }
+      limits   = { cpu = "500m", memory = "512Mi" }
     }
   })]
 }
