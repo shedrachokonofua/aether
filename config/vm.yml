@@ -366,7 +366,9 @@ talos_neo:
   role: "controlplane"
   node: "neo"
   cores: 32
-  memory: 65536
+  # 96 GiB leaves headroom around llama-swap's 56 GiB pod limit; at 64 GiB the
+  # node reached 88% use and Talos swept control-plane/Cilium cgroups.
+  memory: 98304
   # GPU node still carries heavier image/runtime churn than the other CI nodes.
   # CI build scratch lives on ci_disk_gb, not on this root disk.
   disk_gb: 256
