@@ -79,6 +79,7 @@ resource "helm_release" "frame_gallery" {
       name = kubernetes_secret_v1.frame_gallery_registry.metadata[0].name
     }]
     env = {
+      LITELLM_MODEL = "aether/qwen3.8-27b"
       # Pixoo output deliberately off — art lands only in Immich for the
       # Smart Frame. Flip here (not in the chart) if that changes.
       PIXOO_ENABLED = "false"
