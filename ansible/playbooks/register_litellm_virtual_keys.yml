@@ -63,8 +63,8 @@
         - router/glm-5.2
         - kimi/k3
       frame_gallery:
-        # Cheap local model suffices: two short creative completions per night.
-        - aether/qwen3.5-9b
+        # Larger local model for diverse art direction and concrete composition.
+        - aether/qwen3.8-27b
 
       deskplane_mcp:
         - aether/qwen3.8-27b
