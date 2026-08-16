@@ -14,9 +14,8 @@ locals {
   immichframe_port   = 8080
   immichframe_labels = { app = "immichframe" }
 
-  # Albums owned by the dedicated low-privilege `frame` Immich user.
-  immichframe_album_photos = "621f6648-baea-4141-b4ee-9739ae3c0494" # Frame — Photos
-  immichframe_album_art    = "734cdb38-5f39-4a1e-ad33-e8e73f8a408d" # Frame — Generated Art
+  # Album owned by the dedicated low-privilege `frame` Immich user.
+  immichframe_album_art = "734cdb38-5f39-4a1e-ad33-e8e73f8a408d" # Frame — Generated Art
 }
 
 # Settings.yml is a secret because it embeds the frame user's API key.
@@ -45,7 +44,6 @@ resource "kubernetes_secret_v1" "immichframe_config" {
         ApiKey          = var.secrets["immich.frame_api_key"]
         ShowMemories    = true
         Albums = [
-          local.immichframe_album_photos,
           local.immichframe_album_art,
         ]
       }]
@@ -77,6 +75,11 @@ resource "kubernetes_deployment_v1" "immichframe" {
     template {
       metadata {
         labels = local.immichframe_labels
+        annotations = {
+          # ImmichFrame caches its asset pool. Coupling the selected album to
+          # the pod template forces a fresh pool when the album changes.
+          "aether.shdr.ch/album-selection" = local.immichframe_album_art
+        }
       }
 
       spec {
