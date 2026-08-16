@@ -710,6 +710,19 @@ resource "kubernetes_manifest" "firecrawl_egress_boundary" {
           }]
         },
         {
+          # Playwright's declared rotating SOCKS5 proxy (var.rotating_proxy_addr).
+          # Keep the RFC1918 exclusion intact and allow only that host/port.
+          toCIDRSet = [{
+            cidr = "${split(":", var.rotating_proxy_addr)[0]}/32"
+          }]
+          toPorts = [{
+            ports = [{
+              port     = split(":", var.rotating_proxy_addr)[1]
+              protocol = "TCP"
+            }]
+          }]
+        },
+        {
           # Same-namespace: CNPG postgres, redis, playwright.
           toEndpoints = [{
             matchLabels = {

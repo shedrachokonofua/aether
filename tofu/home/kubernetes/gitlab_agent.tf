@@ -19,6 +19,7 @@ locals {
     "cilium.io",
     "coordination.k8s.io",
     "discovery.k8s.io",
+    "external-secrets.io",
     "events.k8s.io",
     "gateway.networking.k8s.io",
     "networking.k8s.io",
