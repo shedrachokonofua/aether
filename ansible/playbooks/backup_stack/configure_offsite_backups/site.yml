@@ -15,6 +15,10 @@
     backrest_user: root
     backrest_config_dir: "/{{ backrest_user }}/.config/backrest"
     backrest_data_dir: "/var/lib/backrest"
+    # Restic's index cache grows into double-digit GiB for the multi-TiB
+    # repositories; keep it on the dedicated mounted backup dataset rather than
+    # the 20 GiB root LV. /mnt/hdd itself is only a directory on the root disk.
+    backrest_cache_dir: "/mnt/hdd/backups-data/.backrest-cache"
     aws_config_dir: "/{{ backrest_user }}/.aws"
     certs_dir: "/etc/step-ca/certs"
     step_config_dir: "/etc/step-ca/step"
@@ -468,6 +472,13 @@
         owner: "{{ backrest_user }}"
         mode: "0700"
 
+    - name: Ensure Backrest cache directory exists on backup storage
+      ansible.builtin.file:
+        path: "{{ backrest_cache_dir }}"
+        state: directory
+        owner: "{{ backrest_user }}"
+        mode: "0700"
+
     - name: Preserve Backrest-managed restic binary as real binary
       ansible.builtin.shell:
         cmd: |
@@ -565,7 +576,7 @@
           export RESTIC_REPOSITORY="$repo_uri"
           export RESTIC_PASSWORD="$repo_password"
           export HOME=/root
-          export XDG_CACHE_HOME="{{ backrest_data_dir }}/cache"
+          export XDG_CACHE_HOME="{{ backrest_cache_dir }}"
 
           emit_help > "$TMP"
 
@@ -1176,6 +1187,41 @@
       no_log: true
       notify: Restart backrest
 
+    - name: Resolve Backrest cache filesystem
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - --noheadings
+          - --output
+          - TARGET
+          - --target
+          - "{{ backrest_cache_dir }}"
+      register: backrest_cache_mount
+      changed_when: false
+
+    - name: Require Backrest cache to use the dedicated backup dataset
+      ansible.builtin.assert:
+        that:
+          - backrest_cache_mount.stdout | trim == "/mnt/hdd/backups-data"
+        fail_msg: >-
+          Refusing to migrate Restic cache: {{ backrest_cache_dir }} resolves to
+          {{ backrest_cache_mount.stdout | trim }}, not /mnt/hdd/backups-data.
+
+    - name: Check for legacy Backrest cache on root disk
+      ansible.builtin.stat:
+        path: "{{ backrest_data_dir }}/cache"
+      register: legacy_backrest_cache
+
+    - name: Seed Backrest cache on backup storage
+      ansible.builtin.command:
+        argv:
+          - cp
+          - -a
+          - "{{ backrest_data_dir }}/cache/."
+          - "{{ backrest_cache_dir }}/"
+      when: legacy_backrest_cache.stat.exists
+      notify: Restart backrest
+
     # =========================================================================
     # Configure systemd service
     # =========================================================================
@@ -1196,6 +1242,14 @@
         enabled: true
         state: started
         daemon_reload: true
+
+    - name: Apply Backrest service changes before retiring legacy cache
+      ansible.builtin.meta: flush_handlers
+
+    - name: Remove legacy Backrest cache from root disk
+      ansible.builtin.file:
+        path: "{{ backrest_data_dir }}/cache"
+        state: absent
 
     # =========================================================================
     # Certificate Renewal
