@@ -349,6 +349,14 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                        vec)]
         {:hosts hosts :provenance "declared"}))))
 
+(defn declared-addresses
+  "All explicitly declared asset addresses, independent of discovery provenance."
+  [cfg]
+  (let [manifest (json/parse-string (slurp (:declared_targets cfg)) true)]
+    (into (set (map str (or (:declared_asset_addresses cfg) [])))
+          (comp (map :address) (remove str/blank?) (map str))
+          (:targets manifest))))
+
 (defn naabu-port-args
   [{:keys [ports]}]
   (case (name (keyword ports))
@@ -361,35 +369,40 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
   [cfg run-id target-group hosts open-rows & {:keys [provenance] :or {provenance "declared"}}]
   (let [ts (now-ch)
         ver (version-now)
-        declared? (= provenance "declared")
+        source-declared? (= provenance "declared")
+        declared-addresses* (declared-addresses cfg)
         open-hosts (->> open-rows
                         (map #(or (:host %) (:ip %)))
                         (remove str/blank?)
                         distinct
                         vec)
         ;; Declared sweeps record the whole target list; CIDR sweeps only responders.
-        asset-hosts (if declared? hosts open-hosts)
+        asset-hosts (if source-declared? hosts open-hosts)
         assets (mapv (fn [address]
-                       {:asset_id (asset-id-for address)
-                        :stable_identity (stable-identity-for address)
-                        :ipv4 address
-                        :ipv6 nil
-                        :dns_names []
-                        :mac_address nil
-                        :cloud_identity ""
-                        :kubernetes_identity ""
-                        :tailscale_identity ""
-                        :declared (if declared? 1 0)
-                        :provenance provenance
-                        :owning_source_file (if declared? "config/vm.yml" "cidr-sweep")
-                        :first_seen_at ts
-                        :last_seen_at ts
-                        :vantage_points ["estate-scanner"]
-                        :version ver})
+                       (let [declared? (contains? declared-addresses* address)]
+                         {:asset_id (asset-id-for address)
+                          :stable_identity (stable-identity-for address)
+                          :ipv4 address
+                          :ipv6 nil
+                          :dns_names []
+                          :mac_address nil
+                          :cloud_identity ""
+                          :kubernetes_identity ""
+                          :tailscale_identity ""
+                          :declared (if declared? 1 0)
+                          :provenance (if declared? "declared" provenance)
+                          :owning_source_file (if declared?
+                                                "nix/hosts/neo/estate-scanner/default.nix"
+                                                "cidr-sweep")
+                          :first_seen_at ts
+                          :last_seen_at ts
+                          :vantage_points ["estate-scanner"]
+                          :version ver}))
                      asset-hosts)
         services (mapv (fn [{:keys [host ip port protocol] :as row}]
                          (let [address (or host ip)
-                               transport (or protocol "tcp")]
+                               transport (or protocol "tcp")
+                               declared? (contains? declared-addresses* address)]
                            {:service_id (service-id-for address transport port)
                             :asset_id (asset-id-for address)
                             :run_id run-id
@@ -411,7 +424,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
     (when (seq assets)
       (ch-insert! cfg "estate_scan.assets" assets))
     (when (seq services)
-      (ch-insert! cfg "estate_scan.services" services))))
+      (ch-insert! cfg "estate_scan.service_observations" services))))
 
 (defn snapshot-targets!
   [cfg run-id profile]
@@ -1023,8 +1036,8 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         (str "SELECT "
              "replaceOne(a.stable_identity, 'ipv4:', '') AS ip, "
              "s.port AS port, s.transport AS protocol "
-             "FROM estate_scan.services AS s "
-             "INNER JOIN estate_scan.assets AS a ON s.asset_id = a.asset_id "
+             "FROM (SELECT * FROM estate_scan.service_observations FINAL) AS s "
+             "INNER JOIN (SELECT * FROM estate_scan.assets FINAL) AS a ON s.asset_id = a.asset_id "
              "WHERE s.run_id = ("
              "  SELECT run_id FROM estate_scan.scan_runs FINAL "
              "  WHERE status = 'succeeded' AND run_id != toUUID('" run-id "') "
@@ -1110,6 +1123,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
   [cfg run-id httpx-rows]
   (let [ts (now-ch)
         ver (version-now)
+        declared-addresses* (declared-addresses cfg)
         services
         (mapv (fn [row]
                 (let [address (or (first (:a row)) (:host row) (:ip row))
@@ -1123,7 +1137,8 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                                   (some-> (:tech row) first)
                                   (when (:title row) (str "http-title:" (:title row)))
                                   "")
-                      tls (or (some-> (:tls row) str) "")]
+                      tls (or (some-> (:tls row) str) "")
+                      declared? (contains? declared-addresses* address)]
                   {:service_id (service-id-for address transport port)
                    :asset_id (asset-id-for address)
                    :run_id run-id
@@ -1134,8 +1149,8 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                    :product_evidence (json/generate-string row)
                    :http_url (or (:url row) "")
                    :tls_identity (str tls)
-                   :declared 1
-                   :unexpected 0
+                   :declared (if declared? 1 0)
+                   :unexpected (if declared? 0 1)
                    :confidence (if (:failed row) 0.3 0.8)
                    :first_seen_at ts
                    :last_seen_at ts
@@ -1149,7 +1164,7 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                                           0))))
                       httpx-rows))]
     (when (seq services)
-      (ch-insert! cfg "estate_scan.services" services))))
+      (ch-insert! cfg "estate_scan.service_observations" services))))
 
 (defn fingerprint!
   "HTTP/TLS normalize changed listeners with httpx (rate-limited)."
@@ -1249,20 +1264,23 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         h)))
 
 (defn accepted-finding-reason
-  "Return suppression reason if (template,host,port,matcher) is declared accepted."
-  [cfg template host port matcher]
+  "Return suppression reason for an exact declared finding policy match."
+  [cfg template host port matcher matched-at]
   (let [host* (normalize-finding-host host)
         port* (long (or port 0))
-        matcher* (str (or matcher ""))]
+        matcher* (str (or matcher ""))
+        matched-at* (str (or matched-at ""))]
     (some (fn [rule]
             (let [r-template (str (:template_id rule))
                   r-host (normalize-finding-host (or (:host rule) ""))
                   r-port (long (or (:port rule) 0))
-                  r-matcher (str (or (:matcher rule) ""))]
+                  r-matcher (str (or (:matcher rule) ""))
+                  r-matched-at (str (or (:matched_at rule) ""))]
               (when (and (= r-template (str template))
                          (or (str/blank? r-host) (= r-host host*))
                          (or (zero? r-port) (= r-port port*))
-                         (or (str/blank? r-matcher) (= r-matcher matcher*)))
+                         (or (str/blank? r-matcher) (= r-matcher matcher*))
+                         (or (str/blank? r-matched-at) (= r-matched-at matched-at*)))
                 (or (:reason rule) "accepted"))))
           (or (:accepted_findings cfg) []))))
 
@@ -1278,14 +1296,17 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                       port (parse-port (:port row))
                       template (or (:template-id row) (:templateID row) (:template row) "unknown")
                       matcher (or (:matcher-name row) (:matcher_name row) "")
+                      matched-at (or (:matched-at row) (:matched_at row) "")
                       sev (normalize-severity (or (:severity row) (get-in row [:info :severity])))
+                      observed-at (let [v (str (or (:timestamp row) ""))]
+                                    (if (str/blank? v) ts v))
                       sid (if (and host (pos? port))
                             (service-id-for host "tcp" port)
                             (sha256-hex (str "finding|" template "|" host)))
                       aid (if host (asset-id-for host) (sha256-hex "unknown-asset"))
-                      reason (accepted-finding-reason cfg template host port matcher)
+                      reason (accepted-finding-reason cfg template host port matcher matched-at)
                       suppressed? (boolean reason)]
-                  {:finding_key (sha256-hex (str template "|" host "|" port "|" matcher))
+                  {:finding_key (sha256-hex (str template "|" host "|" port "|" matcher "|" matched-at))
                    :run_id run-id
                    :asset_id aid
                    :service_id sid
@@ -1293,10 +1314,10 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
                    :matcher (str matcher)
                    :severity sev
                    :evidence (json/generate-string row)
-                   :first_seen_at ts
-                   :last_seen_at ts
+                   :first_seen_at observed-at
+                   :last_seen_at observed-at
                    :state (if suppressed? "suppressed" "open")
-                   :resolved_at (when suppressed? ts)
+                   :resolved_at (when suppressed? observed-at)
                    :scanner_revision scanner_revision
                    :nuclei_templates_revision nuclei_templates_revision
                    :exposure "internal"
@@ -1392,20 +1413,36 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
         profile-label (run-profile cfg run-id)
         evidence (load-validate-evidence cfg run-id)
         rows (when (fs/exists? result-file) (parse-jsonl (slurp result-file)))
-        url-count (long (or (:url_count evidence) (count rows) 0))]
+        url-count (long (or (:url_count evidence) (count rows) 0))
+        already-succeeded?
+        (= "succeeded"
+           (some-> (first (ch-query!
+                           cfg
+                           (str "SELECT toString(status) AS status "
+                                "FROM estate_scan.scan_runs FINAL WHERE run_id = toUUID('"
+                                run-id "') LIMIT 1")))
+                   :status
+                   str))]
     (when-not (seq rows)
       (die! 4 (str "no findings rows in " result-file)))
-    (write-findings! cfg run-id rows)
-    (write-scan-run!
-     cfg {:run_id run-id
-          :profile profile-label
-          :vantage "estate-scanner"
-          :scanner_revision scanner_revision
-          :nuclei_templates_revision nuclei_templates_revision
-          :status "running"
-          :started_at (now-ch)
-          :probe_count url-count
-          :coverage_ratio 1.0})
+    (let [written (write-findings! cfg run-id rows)
+          seen-keys (set (map :finding_key written))
+          in-scope (into #{}
+                         (mapcat nuclei-template-ids-under
+                                 (or (:template_dirs evidence) [])))]
+      (when (#{"succeeded" "ingested"} (:status evidence))
+        (resolve-absent-findings! cfg run-id seen-keys in-scope)))
+    (when-not already-succeeded?
+      (write-scan-run!
+       cfg {:run_id run-id
+            :profile profile-label
+            :vantage "estate-scanner"
+            :scanner_revision scanner_revision
+            :nuclei_templates_revision nuclei_templates_revision
+            :status "running"
+            :started_at (now-ch)
+            :probe_count url-count
+            :coverage_ratio 1.0}))
     (write-status! cfg {:run-id run-id
                         :stage "validate"
                         :status "succeeded"

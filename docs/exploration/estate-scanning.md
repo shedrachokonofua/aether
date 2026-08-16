@@ -2,7 +2,7 @@
 
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
-**Status (honest, 2026-07-14):** Inventory + L7 validation + Kestra schedules are
+**Status (honest, 2026-07-28):** Inventory + L7 validation + Kestra schedules are
 live. Daily Nuclei = curated estate allowlist (~80 templates, info→critical);
 weekly = `http/exposures` + `misconfiguration` + `exposed-panels` catalogs plus
 selected CVEs (~3k templates, profile excludes dos/fuzz/intrusive). Discovery
@@ -448,9 +448,10 @@ Record:
 - first seen and last seen;
 - observed vantage points.
 
-### Services
+### Service observations
 
-Record:
+Record one immutable observation per successful scan run, keyed by run ID plus
+asset, transport, and port:
 
 - asset, transport, and port;
 - detected protocol/product evidence;
@@ -458,6 +459,9 @@ Record:
 - declared versus unexpected state;
 - first seen, last seen, and resolved time;
 - scan evidence and confidence.
+
+Current-service and run-delta views are derived at query time. Do not collapse
+observations from different runs into one `ReplacingMergeTree` row.
 
 ### Findings
 
@@ -515,7 +519,7 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 
 - **neo headroom (live):** ~123 GiB total RAM, ~48 GiB available (~60.9% used; 7d avg ~58.4%, max ~61.6%). Guests: `talos-neo`, `nix-builder`. Root ~78 GiB free. 4 GiB scanner fits.
 - **Allocated identity:** `estate_scanner` in `config/vm.yml` — VMID `1036`, IP `10.0.2.13`, VLAN 2, node `neo` (do not reuse `10.0.2.7`).
-- **ClickHouse:** `estate_scan` schema in `ansible/playbooks/monitoring_stack/clickhouse/11-estate-scan-schema.sql`; apply with `task configure:estate-scan-schema`. Grafana `grafana_readonly` SELECT includes `estate_scan`.
+- **ClickHouse:** `estate_scan` schema in `ansible/playbooks/monitoring_stack/clickhouse/11-estate-scan-schema.sql`; immutable per-run service history is added by `clickhouse/19-estate-scan-service-observations.sql`. Apply both with `task configure:estate-scan-schema`. Grafana `grafana_readonly` SELECT includes `estate_scan`.
 - **IDS design:** no blanket scanner-IP exclusion; expected failed probes → `estate_scan.probe_aggregates`; meaningful responses stay in Zeek/Suricata. Pointer in `nix/hosts/oracle/ids-stack/zeek.nix`. VyOS mirrors `eth1` → same-L2 VLAN 2 probes may not appear on the mirror.
 - **Not done in Phase 0:** live guest provision, CAP_NET_RAW proof, Kestra DAG, production scans.
 
@@ -537,7 +541,7 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 - Kestra SSH identity + VyOS rule 26 + `aether.estate/estate-scan-home` E2E SUCCESS.
 - Profile modes: `discovery-common` (top-100), `critical-full-tcp` / `known-hosts-full-tcp`
   (all TCP @ 100pps), IoT/Gigahub group caps at 5pps; `cidr-infra` expands `10.0.2.0/24`.
-- Production calendar schedules still deferred to Phase 4 (Kestra remains schedule authority).
+- Daily and weekly production calendars are live; six-hour and monthly cadences remain undeclared (Kestra remains schedule authority).
 
 ### Phase 2 — inventory and storage
 
@@ -549,8 +553,8 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
 
 #### Phase 2 progress (2026-07-13)
 
-- Declared targets + CIDR provenance writes to `estate_scan.{scan_runs,assets,services}`.
-- Grafana dashboard `uid: estate-scan` provisioned (coverage stats, recent runs, inventory, findings).
+- Declared targets + CIDR provenance write to `estate_scan.{scan_runs,assets,service_observations}`.
+- Grafana dashboard `uid: estate-scan` is provisioned with logical current-finding counts, informational hygiene, recent runs, inventory, and latest-versus-previous listener deltas.
 - Alerts `estate-scan-run-stale` (>12h without success) and `estate-scan-run-failed` (any failure in 6h).
 - **Automated hostname inventory (2026-07-13):** baked from tofu
   `synthetic_probe_targets` (`*.shdr.ch` only) into
@@ -566,8 +570,9 @@ Informational and low findings enrich inventory. Medium findings appear in dashb
   Schema: `estate_scan.inventory_names` + `inventory_observations`.
 - `seven30.xyz` / non-`shdr.ch` synthetic probes stay on blackbox, not estate Nuclei.
 - Observed/passive (Zeek) inventory union and cloud target resolution remain later work.
-- Phase 4 calendars still blocked on findings review + SSH host-key pin in Kestra
-  (`config/ssh/estate-scanner.known_hosts`; plugin lacks `knownHosts` today).
+- Daily and weekly Phase 4 calendars are live. The SSH plugin still lacks a
+  `knownHosts` property, so the flow currently declares `strictHostKeyChecking: false`;
+  six-hour and monthly calendars remain pending.
 
 ### Phase 3 — calibration
 
@@ -618,17 +623,18 @@ Phase 4 is calendars. This section is unfinished Phase 1–3 acceptance work.
 5. **Baseline vs incremental L7** — done: `merge-diff` writes
    `services-all.jsonl` + `services-changed.jsonl`; flow input `l7_scope`
    (`full` default / `changed`); validate timeout 90m; Kestra poll max PT100M.
-6. **Meaningful Grafana findings** — done: dashboard `estate-scan` shows 23 open
-   findings; orphan `running`/`accepted` older than 6h = 0 after reap.
+6. **Meaningful Grafana findings** — done: dashboard `estate-scan` groups by
+   `finding_key`, shows non-informational current findings as actionable, and keeps
+   informational results in a separate hygiene panel.
 
 #### Acceptance for “real working system”
 
 - [x] Full-fingerprint `nuclei-daily` completes with stage + CH `succeeded` and
   correct profile label (`nuclei-daily`).
-- [x] Findings rows appear (23 open; fixture + estate medium/critical hits).
+- [x] Logical current findings appear without counting repeated occurrences as separate findings.
 - [x] No orphan `running`/`accepted` scan_runs older than 6h without a live lock.
 - [x] Kestra can dispatch validate→finalize; flow is in IaC.
-- [ ] Only then enable Phase 4 schedules (still blocked on human review of open findings).
+- [x] Daily and weekly Phase 4 schedules are enabled; six-hour and monthly schedules remain pending.
 
 ### Phase 4 — progressive coverage
 
@@ -695,7 +701,7 @@ That future work does not move the scanner back to Oracle and is not a prerequis
 - GCP compute: `tofu/google/uptime-monitor.tf`
 - GCP site configuration: `ansible/playbooks/uptime_monitor_stack/`
 - Kubernetes application exposure: `tofu/home/kubernetes/`
-- ClickHouse and Grafana: `ansible/playbooks/monitoring_stack/` (`clickhouse/11-estate-scan-schema.sql`)
+- ClickHouse and Grafana: `ansible/playbooks/monitoring_stack/` (`clickhouse/11-estate-scan-schema.sql`, `clickhouse/19-estate-scan-service-observations.sql`, and dashboard `grafana/provisioning/dashboards/estate-scan.json`)
 - Kestra platform and namespace contract: `tofu/home/kubernetes/kestra.tf`, `tofu/home/kubernetes/namespace_contracts.tf`
 - Scanner workflow declarations: `tofu/home/kestra-flows/` (`task tofu:kestra-flows:apply`); flow source `kestra/flows/estate-scan-home.yaml`. Not sibling Inquest flow IaC.
 - Existing historical network-security proposal: `docs/exploration/network-security.md`
