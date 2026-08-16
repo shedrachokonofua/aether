@@ -124,6 +124,13 @@ resource "kubernetes_manifest" "main_gateway" {
           allowedRoutes = local.gateway_allowed_routes_internal
         },
         {
+          name          = "siren-api"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "api.siren.home.shdr.ch"
+          allowedRoutes = local.gateway_allowed_routes_internal
+        },
+        {
           name          = "home-root"
           protocol      = "HTTP"
           port          = 80
