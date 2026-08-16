@@ -766,16 +766,29 @@ immichframe.home.shdr.ch {
   }
 }
 
-# IoT-frame-scoped listener: VyOS only permits the Lenovo frame (10.0.6.14)
-# to reach 8444; the rest of the vhosts stay unreachable from VLAN 6.
-immichframe.home.shdr.ch:{{ vm.home_gateway_stack.ports.immich_frame }} {
+# IoT-scoped services listener — the VLAN 6 counterpart of :9443
+# (caddy_public): one alternate port, host-matched handles. VyOS admits IoT
+# devices per-source to this port only (today: Lenovo frame 10.0.6.14 →
+# immichframe); the whole :443 vhost surface stays unreachable from VLAN 6.
+# Unlike :9443 this terminates TLS (LAN-facing, wildcard covers the names);
+# every IoT-reachable service adds its hostname to the site address and a
+# host matcher + handle below.
+immichframe.home.shdr.ch:{{ vm.home_gateway_stack.ports.caddy_iot }} {
   import home_acme_dns
   import access_logs
-  reverse_proxy 10.0.3.19 {
-    header_up Host {http.request.host}
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
+  @immichframe host immichframe.home.shdr.ch
+
+  handle @immichframe {
+    reverse_proxy 10.0.3.19 {
+      header_up Host {http.request.host}
+      header_up X-Real-IP {http.request.remote}
+      header_up X-Forwarded-For {http.request.remote}
+      header_up X-Forwarded-Proto https
+    }
+  }
+
+  handle {
+    respond 404
   }
 }
 
