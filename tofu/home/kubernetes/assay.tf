@@ -344,7 +344,9 @@ resource "kubectl_manifest" "assay_cnpg_cluster" {
         requests = { cpu = "100m", memory = "256Mi" }
         limits   = { cpu = "1000m", memory = "1Gi" }
       }
-      affinity = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
@@ -509,6 +511,9 @@ resource "helm_release" "assay" {
         tag        = local.assay_image_tag
         pullPolicy = "IfNotPresent"
       }
+      # Keep the arch pin: the private registry manifest for
+      # registry.gitlab.home.shdr.ch/so/assay/worker:v0.2.32 exposes no
+      # platform entries, so linux/arm64 support is unverifiable.
       nodeSelector = { "kubernetes.io/arch" = "amd64" }
     }
     assay = {
@@ -599,6 +604,16 @@ resource "kubernetes_manifest" "assay_api_ingress" {
         {
           fromEndpoints = [{
             matchLabels = { "io.kubernetes.pod.namespace" = local.assay_namespace }
+          }]
+          toPorts = [{ ports = [{ port = "3000", protocol = "TCP" }] }]
+        },
+        {
+          # Beryl (hermes) drives the MCP endpoint with the API bearer token.
+          fromEndpoints = [{
+            matchLabels = {
+              "io.kubernetes.pod.namespace" = "hermes"
+              "app"                         = "hermes-beryl"
+            }
           }]
           toPorts = [{ ports = [{ port = "3000", protocol = "TCP" }] }]
         },
