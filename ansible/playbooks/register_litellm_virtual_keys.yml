@@ -62,6 +62,10 @@
         - router/mimo-v2.5-pro
         - router/glm-5.2
         - kimi/k3
+      frame_gallery:
+        # Cheap local model suffices: two short creative completions per night.
+        - aether/qwen3.5-9b
+
       deskplane_mcp:
         - aether/qwen3.8-27b
         - aether/qwen3.6-35b-a3b
@@ -200,6 +204,20 @@
         body:
           key: "{{ secrets.litellm.virtual_keys.colony }}"
           models: "{{ litellm_key_models_by_alias.colony }}"
+        status_code: [200]
+      no_log: true
+
+    - name: Synchronize frame_gallery virtual-key model allowlist
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ secrets.litellm.virtual_keys.frame_gallery }}"
+          models: "{{ litellm_key_models_by_alias.frame_gallery }}"
         status_code: [200]
       no_log: true
 

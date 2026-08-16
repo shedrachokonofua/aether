@@ -104,6 +104,20 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "frame-gallery" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "none"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/frame_gallery.tf"
+      # Restricted egress allowlist covers cluster services and the Pixoo LAN.
+      egress          = "allowlist"
+      registry_access = "gitlab"
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "agent-sandbox-system" = {
       tier                    = "platform",
       owner                   = "aether",
