@@ -1,0 +1,265 @@
+# slskd configuration — rendered by OpenTofu (tofu/home/kubernetes/slskd.tf)
+#
+# IMPORTANT: this file is the authoritative config and is stored in a Kubernetes
+# Secret because it contains the Soulseek and Web UI credentials. slskd's
+# configuration provider chain is:
+#
+#   defaults -> environment variables -> YAML file -> CLI args -> volatile overlay
+#
+# The YAML file therefore OVERRIDES environment variables, and slskd treats the
+# YAML scalars `~`, `null` and `""` as an explicit null (see
+# Common/Configuration/YamlConfigurationSource.cs). Setting a credential to `~`
+# here would null out an env-injected value, so credentials are interpolated
+# directly into this file rather than passed as SLSKD_* env vars.
+#
+# Reference: https://github.com/slskd/slskd/blob/master/config/slskd.example.yml
+
+debug: false
+headless: false
+
+# Config is IaC-owned; runtime edits via the Web UI would be lost on the next
+# apply and cannot be written to the read-only Secret mount anyway.
+remote_configuration: false
+remote_file_management: false
+
+instance_name: default
+
+flags:
+  no_logo: false
+  no_start: false
+  no_config_watch: false
+  no_connect: false
+  no_share_scan: false
+  force_share_scan: false
+  force_migrations: false
+  no_version_check: false
+  log_sql: false
+  log_unobserved_exceptions: false
+  experimental: false
+  volatile: false
+  case_sensitive_reg_ex: false
+
+relay:
+  enabled: false
+  mode: controller
+
+# Both paths live on the media-hdd NFS share under downloads/slskd/, so the
+# incomplete -> complete move is a rename on one filesystem rather than a copy.
+directories:
+  incomplete: /downloads/slskd/incomplete
+  downloads: /downloads/slskd/complete
+
+# /music is the NFS music library, mounted read-only — slskd can never write to
+# it. Nothing else on the share is mounted into this pod, so the other
+# directories (movies, tv, nextcloud, immich, adult, backups, ...) are not
+# reachable even by misconfiguration.
+shares:
+  directories:
+    - /music
+    - /downloads/slskd/complete
+  filters:
+    - \.ini$
+    - Thumbs.db$
+    - \.DS_Store$
+    - \.nfo$
+    - \.part$
+  cache:
+    # Disk-backed cache persists in /app across restarts instead of re-scanning
+    # a large NFS library into RAM on every start. Valid values: memory, disk.
+    storage_mode: disk
+    workers: 16
+
+# speed_limit is deliberately omitted everywhere: it is validated as
+# Range(1, int.MaxValue) and defaults to int.MaxValue (unlimited). A value of 0
+# fails startup validation.
+transfers:
+  upload:
+    slots: 20
+    limits:
+      queued:
+        files: 500
+        megabytes: 5000
+      daily:
+        files: 1000
+        megabytes: 10000
+        failures: 200
+      weekly:
+        files: 5000
+        megabytes: 50000
+        failures: 1000
+  download:
+    slots: 500
+    retry:
+      partial: resume
+      attempts: 3
+      delay: 5000
+      max_delay: 60000
+    destination:
+      subdirectory: $${SOURCE_DIRECTORY}
+      exists: rename
+  groups:
+    default:
+      upload:
+        priority: 500
+        strategy: roundrobin
+        slots: 10
+        limits:
+          queued:
+            files: 150
+            megabytes: 1500
+          daily: ~
+          weekly:
+            files: 1500
+            megabytes: 15000
+            failures: 150
+    # Users sharing almost nothing get one slow slot so they cannot saturate
+    # upload capacity ahead of users who actually contribute.
+    leechers:
+      thresholds:
+        files: 1
+        directories: 1
+      upload:
+        priority: 999
+        strategy: roundrobin
+        slots: 1
+        speed_limit: 100
+        limits:
+          queued:
+            files: 15
+            megabytes: 150
+          daily:
+            files: 30
+            megabytes: 300
+            failures: 10
+          weekly:
+            files: 150
+            megabytes: 1500
+            failures: 30
+
+# No CIDR blacklist file is shipped, so this stays off; enabling it without a
+# file would fail to load.
+blacklist:
+  enabled: false
+
+# Drop 1-2 character search requests — they match everything and waste CPU.
+filters:
+  search:
+    request:
+      - ^.{1,2}$
+
+web:
+  port: 5030
+  ip_address: 0.0.0.0
+  # TLS is terminated at the Cilium Gateway; no in-app cert needed.
+  https:
+    disabled: true
+  url_base: /
+  logging: false
+  authentication:
+    disabled: false
+    username: ${web_username}
+    password: ${web_password}
+    jwt:
+      key: ${jwt_key}
+      ttl: 604800000
+
+retention:
+  search: 10080
+  transfers:
+    upload:
+      succeeded: 1440
+      errored: 30
+      cancelled: 5
+      failed: 180
+    download:
+      succeeded: 1440
+      errored: 20160
+      cancelled: 5
+      failed: 180
+  files:
+    complete: 20160
+    incomplete: 43200
+  logs: 180
+
+throttling:
+  search:
+    incoming:
+      concurrency: 10
+      circuit_breaker: 500
+      response_file_limit: 500
+
+logger:
+  disk: false
+  no_color: true
+
+# Scraped in-cluster by the otel-collector (see otel_collector.tf). Auth is
+# disabled because the collector scrapes the Service directly.
+metrics:
+  enabled: true
+  url: /metrics
+  authentication:
+    disabled: true
+
+feature:
+  swagger: false
+
+soulseek:
+  address: vps.slsknet.org
+  port: 2271
+  username: ${slsk_username}
+  password: ${slsk_password}
+  description: |
+    slskd. https://github.com/slskd/slskd
+  listen_ip_address: 0.0.0.0
+  # Static; unreachable from outside (no VPN port forwarding). Proven irrelevant
+  # to session stability — only transfers with firewalled peers fail.
+  listen_port: 50300
+  diagnostic_level: Info
+  distributed_network:
+    disabled: false
+    disable_children: false
+    child_limit: 25
+    logging: false
+  connection:
+    timeout:
+      connect: 10000
+      # 300s, not the 15s default: distributed parent connections inherit this
+      # timeout and are legitimately quiet between search waves; at 15s slskd
+      # reaped healthy parents and thrashed re-adoption. Dead peers are still
+      # detected via TCP keepalive, which slskd sets on distributed sockets.
+      inactivity: 300000
+      transfer: 30000
+    buffer:
+      read: 16384
+      write: 16384
+      transfer: 262144
+      write_queue: 250
+    # All Soulseek connections (server, peer, distributed, transfer) go through
+    # the rotating residential SOCKS5 proxy on the home gateway stack. This is
+    # the fix for slsknet.org's front-end killing sessions from ProtonVPN exit
+    # IPs (2026-08-03): residential exits are the one class it does not police.
+    # An active probe through this proxy held 7+ minutes with server replies;
+    # every Proton exit (5 regions, P2P and non-P2P pools) died in 60-121s.
+    # The proxy is reached over the LAN leg (FIREWALL_OUTBOUND_SUBNETS in
+    # slskd.tf), so the VPN is not in this path; the provider's residential
+    # exits are what peers and the server see. Home IP is never exposed.
+    proxy:
+      enabled: true
+      address: ${rotating_proxy_host}
+      port: ${rotating_proxy_port}
+
+# enabled: true acts as a safety interlock — slskd waits for Gluetun to report a
+# connected tunnel before it talks to the Soulseek network, so it can never
+# transfer over the pod's bare egress if the VPN drops.
+# port_forwarding: false — ProtonVPN NAT-PMP is off (see slskd.tf: the RST loop
+# was slsknet.org policing shared P2P-pool Proton IPs, not reachability; PF
+# would force gluetun back onto that pool).
+integrations:
+  vpn:
+    enabled: true
+    port_forwarding: false
+    polling_interval: 5000
+    gluetun:
+      url: http://127.0.0.1:8000
+      timeout: 2000
+      auth: none
