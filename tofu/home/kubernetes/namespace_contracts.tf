@@ -446,6 +446,7 @@ locals {
       registry_access         = "dockerhub",
       hostnames = [
         "immich.home.shdr.ch",
+        "immichframe.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"

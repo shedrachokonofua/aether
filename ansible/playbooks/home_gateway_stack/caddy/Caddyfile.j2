@@ -755,6 +755,30 @@ oidc.k8s.home.shdr.ch {
 
 # Routes to Cilium L2 VIP (10.0.3.19) - Gateway API handles routing inside k8s
 
+immichframe.home.shdr.ch {
+  import home_acme_dns
+  import access_logs
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+# IoT-frame-scoped listener: VyOS only permits the Lenovo frame (10.0.6.14)
+# to reach 8444; the rest of the vhosts stay unreachable from VLAN 6.
+immichframe.home.shdr.ch:{{ vm.home_gateway_stack.ports.immich_frame }} {
+  import home_acme_dns
+  import access_logs
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
 # Siren gRPC-Web API: the gateway's Envoy mirrors the downstream protocol to
 # the backend, and tonic only accepts (transcoded) gRPC over HTTP/2 — so this
 # hop must be h2c rather than the wildcard's HTTP/1.1.
