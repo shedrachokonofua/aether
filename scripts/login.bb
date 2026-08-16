@@ -157,14 +157,31 @@
   ([cmd] (run-proc cmd {}))
   ([cmd opts]
    (try
-     (let [p (proc/process cmd (merge {:out :string :err :string} opts))
-           res @p]
+     (let [timeout-ms (:timeout-ms opts)
+           p (proc/process cmd (merge {:out :string :err :string}
+                                      (dissoc opts :timeout-ms)))
+           res (if timeout-ms
+                 (let [fut (future @p)
+                       result (deref fut (long timeout-ms) ::timeout)]
+                   (if (= result ::timeout)
+                     (do
+                       (try (proc/destroy-tree p) (catch Throwable _ nil))
+                       (future-cancel fut)
+                       {:exit 124
+                        :out ""
+                        :err (str "process timed out after " timeout-ms "ms")})
+                     result))
+                 @p)]
        (assoc res :ok? (zero? (long (:exit res)))))
      (catch Throwable t
        {:exit 127
         :out ""
         :err (or (ex-message t) (str t))
         :ok? false}))))
+
+;; External CLIs can otherwise leave status hanging forever when their network
+;; client gets stuck below the CLI's own timeout handling.
+
 
 (defn cmd-output [res]
   (let [out (str/trim (or (:out res) ""))
@@ -683,7 +700,9 @@
                       (write-file! token-file upst)
                       (io/delete-file pub-file true)
                       (let [check (run-proc ["oci" "iam" "region" "list" "--profile" "oci-aether"
-                                             "--auth" "security_token" "--output" "json"])]
+                                             "--auth" "security_token" "--output" "json"
+                                             "--connection-timeout" "10" "--read-timeout" "10"]
+                                            {:timeout-ms 15000})]
                         (if (:ok? check)
                           (do ((:success log) "OCI UPST minted (profile oci-aether, --auth security_token)")
                               {:ok? true :failed? false :name :oci :configured? true})
@@ -699,7 +718,9 @@
   (let [token-file (oci-profile-field "oci-aether" "security_token_file")]
     (if (and token-file (.exists (io/file token-file)))
       (let [res (run-proc ["oci" "iam" "region" "list" "--profile" "oci-aether"
-                           "--auth" "security_token" "--output" "json"])]
+                           "--auth" "security_token" "--output" "json"
+                           "--connection-timeout" "10" "--read-timeout" "10"]
+                          {:timeout-ms 15000})]
         (if (:ok? res)
           [(ansi green "✓") "Authenticated (UPST via Keycloak federation, profile oci-aether)"]
           [(ansi yellow "⚠") "UPST expired or invalid (run: task login)"]))
