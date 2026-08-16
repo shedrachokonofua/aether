@@ -64,6 +64,17 @@ and silently broke all remote access to `10.0.0.0/8`). The shared node
 therefore runs with `--netfilter-mode=off`; the admin node must remain the sole
 netfilter manager on that VM.
 
+The flip side: the admin node's CGNAT anti-spoof rule
+(`DROP !tsadmin0 src 100.64.0.0/10` in `ts-input`) drops all peer traffic
+arriving on the shared node's `tailscale0` — this silently broke every
+cofounder-facing service (dnsmasq, Caddy Tailscale binds, GitLab SSH) on
+2026-08-12 when a `:latest` image pull restarted `tailscale-admin` and
+rewrote the chain. The tailscale playbook installs
+`tailscale-shared-accept.service` + a 1-minute timer that re-asserts
+`iptables -I ts-input 1 -i tailscale0 -j ACCEPT` after every chain rewrite —
+the same rule tailscaled itself would install if it managed `tailscale0`
+(tailnet ACLs are enforced inside tailscaled, before the interface).
+
 ### OAuth Clients
 
 OAuth clients are provisioned for automated Tailscale authentication:

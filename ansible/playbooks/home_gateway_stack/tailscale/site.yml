@@ -160,6 +160,46 @@
           - label=disable
       become: true
 
+    # The admin tailscaled owns the shared ts-* netfilter chains (see
+    # --netfilter-mode=off above) and installs a CGNAT anti-spoof rule
+    # scoped to ITS interface: `DROP !tsadmin0 src 100.64.0.0/10`. That
+    # rule silently drops all peer traffic arriving on the shared node's
+    # tailscale0 (cofounder DNS/HTTPS/SSH — broke s30 login on 2026-08-12
+    # when a :latest pull restarted tailscale-admin and rewrote the chain).
+    # tailscaled would install exactly this ACCEPT itself if it managed
+    # tailscale0; ACL enforcement happens inside tailscaled before packets
+    # reach the interface. A timer re-asserts it after every chain rewrite.
+    - name: Install ts-input accept unit for shared tailscale0
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/tailscale-shared-accept.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Ensure ts-input accepts traffic from shared tailscale0
+          After=tailscale-admin-pod.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/sh -c 'iptables -nL ts-input >/dev/null 2>&1 || exit 0; iptables -C ts-input -i tailscale0 -j ACCEPT 2>/dev/null || iptables -I ts-input 1 -i tailscale0 -j ACCEPT'
+      become: true
+
+    - name: Install ts-input accept timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/tailscale-shared-accept.timer
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Re-assert shared tailscale0 accept after ts-input rewrites
+
+          [Timer]
+          OnBootSec=30s
+          OnUnitActiveSec=1min
+          AccuracySec=15s
+
+          [Install]
+          WantedBy=timers.target
+      become: true
+
     - name: Create GitLab SSH forward container (rootful)
       containers.podman.podman_container:
         name: gitlab-ssh-forward
@@ -204,5 +244,20 @@
       ansible.builtin.systemd:
         name: gitlab-ssh-forward
         state: restarted
+        scope: system
+      become: true
+
+    - name: Enable and start ts-input accept timer
+      ansible.builtin.systemd:
+        name: tailscale-shared-accept.timer
+        enabled: true
+        state: restarted
+        scope: system
+      become: true
+
+    - name: Assert shared tailscale0 accept now
+      ansible.builtin.systemd:
+        name: tailscale-shared-accept.service
+        state: started
         scope: system
       become: true
