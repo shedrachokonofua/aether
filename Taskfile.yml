@@ -545,6 +545,7 @@ tasks:
         done
         echo "nix-builder did not become reachable within 60 seconds" >&2
         exit 1
+      - task: configure:nix-builder-cert
 
   nix:builder:stop:
     desc: Power off the generic Nix builder immediately
@@ -691,6 +692,11 @@ tasks:
     cmds:
       - task: provision:bastion
       - task: configure:bastion
+  configure:nix-builder-cert:
+    desc: Reissue and install the Nix builder step-ca machine certificate
+    cmds:
+      - ansible-playbook ansible/playbooks/nix_builder/reissue_machine_cert.yml {{.CLI_ARGS}}
+
   configure:nix-builder:
     desc: Deploy the generic NixOS remote builder on Neo
     vars:
