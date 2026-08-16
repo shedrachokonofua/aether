@@ -132,14 +132,14 @@
     },
     {
       "type": "stat",
-      "title": "Open findings",
+      "title": "Actionable findings",
       "id": 5,
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "targets": [
         {
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count() AS value FROM estate_scan.findings FINAL WHERE state = 'open'",
+          "rawSql": "SELECT count() AS value FROM (SELECT finding_key, argMax(state, version) AS current_state, argMax(severity, version) AS current_severity FROM estate_scan.findings GROUP BY finding_key) WHERE current_state = 'open' AND current_severity != 'info'",
           "refId": "A",
           "format": 1
         }
@@ -174,7 +174,7 @@
       "targets": [
         {
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count() AS value FROM estate_scan.services WHERE run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1)",
+          "rawSql": "SELECT count() AS value FROM (SELECT * FROM estate_scan.service_observations FINAL) WHERE run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1)",
           "refId": "A",
           "format": 1
         }
@@ -198,14 +198,14 @@
     },
     {
       "type": "stat",
-      "title": "Unexpected services (latest)",
+      "title": "Undeclared asset listeners (latest)",
       "id": 7,
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "targets": [
         {
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT count() AS value FROM estate_scan.services WHERE unexpected = 1 AND run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1)",
+          "rawSql": "SELECT count() AS value FROM (SELECT * FROM estate_scan.service_observations FINAL) WHERE unexpected = 1 AND run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1)",
           "refId": "A",
           "format": 1
         }
@@ -264,7 +264,7 @@
       "targets": [
         {
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT replaceOne(a.stable_identity, 'ipv4:', '') AS ip, s.port, s.transport, s.product, s.unexpected, s.last_seen_at AS time FROM estate_scan.services AS s INNER JOIN estate_scan.assets AS a ON s.asset_id = a.asset_id WHERE s.run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1) ORDER BY ip, s.port LIMIT 200",
+          "rawSql": "SELECT replaceOne(a.stable_identity, 'ipv4:', '') AS ip, s.port, s.transport, s.product, s.unexpected AS undeclared_asset, s.last_seen_at AS time FROM (SELECT * FROM estate_scan.service_observations FINAL) AS s INNER JOIN (SELECT * FROM estate_scan.assets FINAL) AS a ON s.asset_id = a.asset_id WHERE s.run_id = (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1) ORDER BY ip, s.port LIMIT 200",
           "refId": "A",
           "format": 1
         }
@@ -395,14 +395,57 @@
     },
     {
       "type": "table",
-      "title": "Open findings",
+      "title": "Actionable findings",
       "id": 21,
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "targets": [
         {
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
-          "rawSql": "SELECT first_seen_at AS time, severity, template_id, matcher, toString(run_id) AS run_id, finding_key, state FROM estate_scan.findings FINAL WHERE state = 'open' ORDER BY first_seen_at DESC LIMIT 100",
+          "rawSql": "SELECT min(first_seen_at) AS time, max(last_seen_at) AS last_seen_at, argMax(severity, version) AS current_severity, argMax(template_id, version) AS current_template_id, argMax(matcher, version) AS current_matcher, countIf(state = 'open') AS occurrences, finding_key FROM estate_scan.findings GROUP BY finding_key HAVING argMax(state, version) = 'open' AND argMax(severity, version) != 'info' ORDER BY current_severity ASC, last_seen_at DESC LIMIT 100",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    }
+    ,
+    {
+      "type": "table",
+      "title": "Informational hygiene",
+      "id": 22,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "SELECT min(first_seen_at) AS time, max(last_seen_at) AS last_seen_at, argMax(template_id, version) AS template_id, argMax(matcher, version) AS matcher, countIf(state = 'open') AS occurrences, finding_key FROM estate_scan.findings GROUP BY finding_key HAVING argMax(state, version) = 'open' AND argMax(severity, version) = 'info' ORDER BY occurrences DESC, last_seen_at DESC LIMIT 200",
+          "refId": "A",
+          "format": 1
+        }
+      ],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 23,
+      "panels": [],
+      "title": "Listener changes",
+      "type": "row"
+    },
+    {
+      "type": "table",
+      "title": "Latest successful run vs previous",
+      "id": 24,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+          "rawSql": "WITH (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1) AS latest_run, (SELECT run_id FROM estate_scan.scan_runs FINAL WHERE status = 'succeeded' ORDER BY coalesce(finished_at, started_at) DESC LIMIT 1 OFFSET 1) AS previous_run, current_services AS (SELECT replaceOne(a.stable_identity, 'ipv4:', '') AS ip, s.transport, s.port FROM (SELECT * FROM estate_scan.service_observations FINAL) AS s INNER JOIN (SELECT * FROM estate_scan.assets FINAL) AS a ON s.asset_id = a.asset_id WHERE s.run_id = latest_run), previous_services AS (SELECT replaceOne(a.stable_identity, 'ipv4:', '') AS ip, s.transport, s.port FROM (SELECT * FROM estate_scan.service_observations FINAL) AS s INNER JOIN (SELECT * FROM estate_scan.assets FINAL) AS a ON s.asset_id = a.asset_id WHERE s.run_id = previous_run) SELECT * FROM (SELECT c.ip, c.transport, c.port, 'new' AS change FROM current_services AS c LEFT ANTI JOIN previous_services AS p USING (ip, transport, port) UNION ALL SELECT p.ip, p.transport, p.port, 'removed' AS change FROM previous_services AS p LEFT ANTI JOIN current_services AS c USING (ip, transport, port)) ORDER BY change, ip, port",
           "refId": "A",
           "format": 1
         }

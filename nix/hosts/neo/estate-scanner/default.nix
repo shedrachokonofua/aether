@@ -215,6 +215,10 @@ let
     (mkTarget "talos-neo" facts.vm.talos_neo.ip)
     (mkTarget "talos-niobe" facts.vm.talos_niobe.ip)
     (mkTarget "talos-smith" facts.vm.talos_smith.ip)
+    (mkTarget "talos-mouse" facts.vm.talos_mouse.ip)
+    (mkTarget "talos-dozer" facts.vm.talos_dozer.ip)
+    (mkTarget "talos-tank" facts.vm.talos_tank.ip)
+    (mkTarget "talos-sparks" facts.vm.talos_sparks.ip)
     (mkTarget "adguard" facts.vm.adguard.ip)
     (mkTarget "adguard-secondary" facts.vm.adguard_secondary.ip)
     (mkTarget "step-ca" facts.vm.step_ca.ip)
@@ -230,6 +234,28 @@ let
     generated_from = "config/vm.yml";
     targets = declaredTargetList;
   });
+
+  nodeExporterFindingHosts = [
+    facts.vm.talos_trinity.ip
+    facts.vm.talos_neo.ip
+    facts.vm.talos_niobe.ip
+    facts.vm.talos_smith.ip
+    facts.vm.talos_mouse.ip
+    facts.vm.talos_dozer.ip
+    facts.vm.talos_tank.ip
+    facts.vm.talos_sparks.ip
+    "10.0.3.20" # Talos API VIP; declared in tofu/home/talos_cluster.tf.
+    "10.1.0.10" # AWS WireGuard monitoring target.
+    "10.2.0.10" # GCP WireGuard monitoring target.
+  ];
+
+  nodeExporterAcceptedFindings = map (host: {
+    template_id = "node-exporter-metrics";
+    inherit host;
+    port = 9100;
+    matcher = "";
+    reason = "declared node-exporter scrape target (accepted)";
+  }) nodeExporterFindingHosts;
 
   naabuWrapped = pkgs.symlinkJoin {
     name = "naabu-estate";
@@ -299,6 +325,19 @@ let
     nuclei_weekly_templates_dir = "/etc/estate-scanner/nuclei-weekly";
     lock_file = lockFile;
     declared_targets = "/etc/estate-scanner/declared-targets.json";
+    # Router SVI identities and the Talos API VIP are declared in their
+    # authoritative network IaC but are not standalone config/vm.yml guests.
+    declared_asset_addresses = [
+      facts.vm.router.ip.vyos
+      "10.0.2.1"
+      "10.0.3.1"
+      "10.0.4.1"
+      "10.0.5.1"
+      "10.0.6.1"
+      "10.0.7.1"
+      "192.168.2.1"
+      "10.0.3.20"
+    ];
     inventory_declared = "/etc/estate-scanner/inventory-declared.json";
     inventory_dir = inventoryDir;
     inventory_revision = inventoryDeclaredBody.inventory_revision;
@@ -310,10 +349,10 @@ let
     inventory_l7_exposures = [ "internal" ];
     # Declared accepted findings — write-findings! stamps state=suppressed at
     # insert so the next run does not re-open them. Match is on the same
-    # finding_key inputs (template|host|port|matcher). Keep prometheus-metrics
-    # in the daily template pack as a drift tripwire for unexpected hosts —
+    # finding_key inputs (template|host|port|matcher|matched-at).
+    # Keep these probes in the daily pack as drift tripwires for other targets;
     # accept only known scrape targets / declared frontends, not blank host.
-    accepted_findings = [
+    accepted_findings = nodeExporterAcceptedFindings ++ [
       # --- canary ---
       {
         template_id = "aether-estate-scan-fixture";
@@ -477,6 +516,14 @@ let
         port = 443;
         matcher = "";
         reason = "declared Wazuh OpenAPI (accepted)";
+      }
+      {
+        template_id = "shellscripts";
+        host = "coder.home.shdr.ch";
+        port = 443;
+        matcher = "";
+        matched_at = "https://coder.home.shdr.ch/install.sh";
+        reason = "documented Coder CLI installer path (accepted)";
       }
     ];
     naabu = "${naabuWrapped}/bin/naabu";

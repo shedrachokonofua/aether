@@ -135,6 +135,74 @@
       do not replace committed migrations.
   tags: [estate-scan, clickhouse]
 
+- name: Copy estate scan service-observation migration into ClickHouse
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/clickhouse/19-estate-scan-service-observations.sql"
+    dest: /home/aether/clickhouse/init/19-estate-scan-service-observations.sql
+    owner: aether
+    group: aether
+    mode: "0644"
+    setype: container_file_t
+  become: true
+  tags: [estate-scan, clickhouse]
+
+- name: Apply idempotent estate scan service-observation migration
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --multiquery
+      - --queries-file
+      - /docker-entrypoint-initdb.d/19-estate-scan-service-observations.sql
+  no_log: false
+  tags: [estate-scan, clickhouse]
+
+- name: Record the service-observation migration only after DDL succeeds
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --query
+      - >-
+        INSERT INTO estate_scan.schema_migrations (migration_id, checksum, applied_at, milestone)
+        SELECT '003_service_observations', '{{ estate_scan_service_observations_checksum }}', now64(3), 'service-history'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM estate_scan.schema_migrations WHERE migration_id = '003_service_observations'
+        )
+  no_log: true
+  tags: [estate-scan, clickhouse]
+
+- name: Reject a service-observation migration checksum conflict
+  containers.podman.podman_container_exec:
+    name: clickhouse
+    argv:
+      - clickhouse-client
+      - --user
+      - "{{ clickhouse_admin_user }}"
+      - --format
+      - TSVRaw
+      - --query
+      - >-
+        SELECT count() FROM estate_scan.schema_migrations
+        WHERE migration_id = '003_service_observations'
+          AND checksum != '{{ estate_scan_service_observations_checksum }}'
+  register: estate_scan_service_observations_conflict
+  changed_when: false
+  no_log: true
+  tags: [estate-scan, clickhouse]
+
+- name: Assert the service-observation migration ledger matches
+  ansible.builtin.assert:
+    that: estate_scan_service_observations_conflict.stdout | trim == '0'
+    fail_msg: >-
+      estate_scan migration 003_service_observations exists with a different
+      checksum; do not replace committed migrations.
+  tags: [estate-scan, clickhouse]
+
 - name: Assert estate_scan writer credential is present
   ansible.builtin.assert:
     that:
