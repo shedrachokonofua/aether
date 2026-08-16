@@ -230,6 +230,18 @@ Caddy handles TLS termination and reverse proxying for all internal services. Ru
 - Auth integration with Keycloak (forward auth)
 - HAProxy frontend for high-availability upstreams
 
+### IoT Services Listener
+
+Alternate Caddy port `caddy_iot` (**10443**, alongside `caddy_public` 9443)
+exposing a curated vhost set to the IoT VLAN. VyOS admits `10.0.6.0/24` to
+this port only (`UNTRUSTED-to-TRUSTED` rule 20); the `:443` vhost surface
+stays unreachable from VLAN 6. Unlike `:9443` it terminates TLS itself
+(hostnames in the site address; LE certs). Current tenants:
+
+| Hostname | Consumer |
+| --- | --- |
+| `immichframe.home.shdr.ch:10443` | Lenovo Smart Frame (`10.0.6.14`, DHCP static-mapped) — ImmichFrame slideshow, backed by the `frame` Immich user's albums |
+
 ### Public Access
 
 Public traffic flows: Cloudflare → AWS Public Gateway (CrowdSec + Caddy) → routed WireGuard → Home Gateway → Caddy → Service
