@@ -4,15 +4,20 @@ Hermes runs two separate agents with different trust boundaries.
 
 ## Beryl
 
-Beryl is the private offline personal assistant.
+Beryl is the private personal assistant. Inference runs on OpenAI GPT-5.6 Sol
+via ChatGPT OAuth (Hermes `openai-codex` provider; tokens in the persisted
+`/opt/data/auth.json`, connected through the dashboard). Local llama-swap
+inference is shelved until a stronger small model lands.
 
 | Area | Access | Status |
 | --- | --- | --- |
-| Local LLM | llama-swap only | Wired |
+| Main LLM | OpenAI `gpt-5.6-sol` via ChatGPT OAuth (`openai-codex`, no API key) | Wired |
 | Matrix | Beryl bot account via stored access token, private home room for proactive output | Wired |
 | Jellyfin | Beryl-specific API key | Wired |
 | Notes and documents | AFFiNE via community `affine-mcp-server` on LiteLLM MCP | Wired |
 | LiteLLM MCP | Full aggregate (time, firecrawl, finviz, affine, Google Maps when enabled, ...) | Wired |
+| Mnemo | Direct MCP at `mnemo.home.shdr.ch/mcp` + bundled skill | Wired |
+| Instacart | Direct MCP at `instacart-mcp.instacart-mcp.svc:8080/mcp` (browser-backed shopping) | Wired |
 | Images and screenshots | Private read/search workspace with local vision | To wire |
 | Home Assistant | Limited bot token through Hermes native HA tools + gateway platform with narrow event filters | Wired |
 | Web/Firecrawl/cloud APIs | SearXNG + Firecrawl extract + LiteLLM MCP sidecars | Wired |

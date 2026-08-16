@@ -4,7 +4,9 @@
 # Two isolated Hermes gateway instances with separate state, memories, sessions,
 # personalities, and model backends.
 #
-# Beryl: fully local inference through llama-swap; LiteLLM MCP for tools.
+# Beryl: OpenAI GPT-5.6 Sol via ChatGPT OAuth (openai-codex provider; tokens
+#        live in the persisted /opt/data/auth.json, connected + refreshed via the
+#        dashboard — no API key). Local llama-swap shelved; revisit at Qwen 3.8 27B.
 # Tungsten: public GLM-5.2 model through LiteLLM -> Ollama Cloud.
 
 locals {
@@ -13,7 +15,6 @@ locals {
   hermes_port                   = 8642
   hermes_dashboard_port         = 9119
   hermes_litellm                = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
-  hermes_local_llm              = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.llama_swap_ns}.svc.cluster.local:${local.llama_swap_port}/v1"
   hermes_jellyfin_url           = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
   hermes_firecrawl_url          = "http://${kubernetes_service_v1.firecrawl.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.firecrawl_api_port}"
   hermes_searxng_url            = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
@@ -35,7 +36,6 @@ locals {
       host           = "beryl.home.shdr.ch"
       dashboard_host = "beryl-dashboard.home.shdr.ch"
       env = {
-        OPENAI_BASE_URL        = local.hermes_local_llm
         FIRECRAWL_API_URL      = local.hermes_firecrawl_url
         JELLYFIN_URL           = local.hermes_jellyfin_url
         LITELLM_MCP_URL        = var.litellm_mcp_url
@@ -53,10 +53,13 @@ locals {
       secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "LITELLM_MCP_API_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN"]
       config = yamlencode({
         model = {
-          provider       = "custom"
-          default        = "qwen3.6-27b"
-          base_url       = local.hermes_local_llm
-          context_length = 262144
+          # openai-codex = ChatGPT-subscription OAuth. No base_url/api_key here:
+          # the provider ignores model.base_url and resolves tokens from
+          # auth.json at runtime (auto-refresh). config model.provider outranks
+          # auth.json's active_provider, so this line is what keeps Sol as main
+          # across pod restarts (bootstrap re-copies config.yaml every start).
+          provider = "openai-codex"
+          default  = "gpt-5.6-sol"
         }
         terminal = {
           backend          = "local"
@@ -77,6 +80,14 @@ locals {
         memory = {
           memory_enabled       = true
           user_profile_enabled = true
+          # MEMORY.md / USER.md are injected into every prompt — the right
+          # primitive for always-relevant personal facts (preferences, orders,
+          # goals). Defaults (2200/1375 chars) starved it; with Sol's 1M
+          # context + prompt caching a 10x cap is cheap. If MEMORY.md ever
+          # rides its cap, graduate to memory.provider = "mem0" (OSS +
+          # pgvector + local embeddings) rather than raising further.
+          memory_char_limit = 20000
+          user_char_limit   = 12000
         }
         web = {
           search_backend  = "searxng"
@@ -118,6 +129,13 @@ locals {
             timeout         = 60
             connect_timeout = 15
           }
+          instacart = {
+            # Cluster DNS (hairpin conversion); browser-backed shopping tools
+            # can be slow, so keep a generous call timeout.
+            url             = "http://instacart-mcp.instacart-mcp.svc.cluster.local:8080/mcp"
+            timeout         = 180
+            connect_timeout = 15
+          }
         }
         auxiliary = {
           vision = {
@@ -130,9 +148,6 @@ locals {
             provider = "main"
           }
           mcp = {
-            provider = "main"
-          }
-          flush_memories = {
             provider = "main"
           }
         }
