@@ -62,6 +62,10 @@
         - router/mimo-v2.5-pro
         - router/glm-5.2
         - kimi/k3
+        - router/deepseek-v4-flash
+        - router/deepseek-v4-pro
+        - qwen-cloud/qwen3.8-max
+        - aether/qwen3.8-27b
       frame_gallery:
         # Larger local model for diverse art direction and concrete composition.
         - aether/qwen3.8-27b
