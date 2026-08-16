@@ -315,6 +315,27 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
       ],
       [
         {
+          name = "siren"
+          credentials = [{
+            accessKey = random_password.siren_s3_access_key.result
+            secretKey = random_password.siren_s3_secret_key.result
+          }]
+          actions = flatten([
+            for bucket in local.siren_buckets : [
+              "Read:${bucket}",
+              "Write:${bucket}",
+              "List:${bucket}",
+              "Tagging:${bucket}",
+              "Read:${bucket}/*",
+              "Write:${bucket}/*",
+              "List:${bucket}/*",
+              "Tagging:${bucket}/*",
+            ]
+          ])
+        }
+      ],
+      [
+        {
           name = "thanos-metrics"
           credentials = [{
             accessKey = random_password.thanos_s3_access_key.result
@@ -411,6 +432,11 @@ resource "local_sensitive_file" "seaweedfs_iam_config" {
               value = "system:serviceaccount:deskplane:deskplane-mcp"
               role  = "DeskplaneTraceWriter"
             },
+            {
+              claim = "sub"
+              value = "system:serviceaccount:siren:siren-publisher"
+              role  = "SirenWebPublisher"
+            },
           ]
         }
       },
@@ -429,6 +455,23 @@ resource "local_sensitive_file" "seaweedfs_iam_config" {
               Resource = [
                 "arn:aws:s3:::${local.deskplane_traces_bucket}",
                 "arn:aws:s3:::${local.deskplane_traces_bucket}/*",
+              ]
+            },
+          ]
+        }
+      },
+      {
+        name = "SirenWebPublish"
+        document = {
+          Version = "2012-10-17"
+          Statement = [
+            {
+              Effect = "Allow"
+              # DeleteObject: publish syncs with --delete to drop stale assets.
+              Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket", "s3:DeleteObject"]
+              Resource = [
+                "arn:aws:s3:::${local.siren_web_bucket}",
+                "arn:aws:s3:::${local.siren_web_bucket}/*",
               ]
             },
           ]
@@ -464,6 +507,26 @@ resource "local_sensitive_file" "seaweedfs_iam_config" {
               Condition = {
                 StringEquals = {
                   "oidc:sub" = "system:serviceaccount:deskplane:deskplane-mcp"
+                }
+              }
+            },
+          ]
+        }
+      },
+      {
+        roleName         = "SirenWebPublisher"
+        roleArn          = "arn:aws:iam::000000000000:role/SirenWebPublisher"
+        attachedPolicies = ["SirenWebPublish"]
+        trustPolicy = {
+          Version = "2012-10-17"
+          Statement = [
+            {
+              Effect    = "Allow"
+              Principal = { Federated = "k8s" }
+              Action    = ["sts:AssumeRoleWithWebIdentity"]
+              Condition = {
+                StringEquals = {
+                  "oidc:sub" = "system:serviceaccount:siren:siren-publisher"
                 }
               }
             },
