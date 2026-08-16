@@ -140,7 +140,7 @@ locals {
     litellm    = var.secrets["litellm.database_password"]
     matrix     = var.secrets["matrix.database_password"]
     miniflux   = random_password.miniflux_postgres_password.result
-    nextcloud  = var.secrets["nextcloud.dbpassword"]
+    nextcloud  = random_password.nextcloud_postgres_password.result
     openwebui  = random_password.openwebui_postgres_password.result
     temporal   = random_password.temporal_postgres_password.result
   }
@@ -753,7 +753,15 @@ resource "kubernetes_manifest" "db_backup_postgres_cronjob" {
                   args = [<<-EOT
                     ts="$(date -u +%Y%m%dT%H%M%SZ)"
                     out="/backup/$BACKUP_NAME-$ts.dump"
-                    pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+                    attempt=1
+                    until pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"; do
+                      if [ "$attempt" -ge 30 ]; then
+                        echo "database did not become ready within five minutes" >&2
+                        exit 1
+                      fi
+                      attempt=$((attempt + 1))
+                      sleep 10
+                    done
                     pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" --format=custom --no-owner --file "$out"
                     sha256sum "$out" > "$out.sha256"
                   EOT
@@ -785,6 +793,10 @@ resource "kubernetes_manifest" "db_backup_postgres_cronjob" {
                       mountPath = "/backup"
                     }
                   ]
+                  resources = {
+                    requests = { cpu = "100m", memory = "256Mi" }
+                    limits   = { cpu = "2", memory = "1Gi" }
+                  }
                   securityContext = {
                     allowPrivilegeEscalation = false
                     capabilities = {

@@ -65,6 +65,17 @@ locals {
   nextcloud_cnpg_cluster = "nextcloud-cnpg"
   nextcloud_cnpg_user    = "oc_admin"
   nextcloud_db_host      = "${local.nextcloud_cnpg_cluster}-rw.${local.nextcloud_namespace}.svc.cluster.local"
+  nextcloud_install_state_config = templatefile("${path.module}/nextcloud_install_state.config.php.tftpl", {
+    passwordsalt = var.secrets["nextcloud.passwordsalt"]
+    secret       = var.secrets["nextcloud.secret"]
+    instanceid   = var.secrets["nextcloud.instanceid"]
+    dbname       = local.nextcloud_db_name
+    dbhost       = local.nextcloud_db_host
+    dbuser       = local.nextcloud_cnpg_user
+    dbpassword   = random_password.nextcloud_postgres_password.result
+    version      = local.nextcloud_installed_version
+  })
+  nextcloud_install_state_hash = substr(sha256(local.nextcloud_install_state_config), 0, 12)
 
   nextcloud_nfs_share = "/mnt/hdd/data/nextcloud"
 
@@ -198,16 +209,7 @@ resource "kubernetes_secret_v1" "nextcloud_install_state" {
   }
 
   data = {
-    "install-state.config.php" = templatefile("${path.module}/nextcloud_install_state.config.php.tftpl", {
-      passwordsalt = var.secrets["nextcloud.passwordsalt"]
-      secret       = var.secrets["nextcloud.secret"]
-      instanceid   = var.secrets["nextcloud.instanceid"]
-      dbname       = local.nextcloud_db_name
-      dbhost       = local.nextcloud_db_host
-      dbuser       = local.nextcloud_cnpg_user
-      dbpassword   = var.secrets["nextcloud.dbpassword"]
-      version      = local.nextcloud_installed_version
-    })
+    "install-state.config.php" = local.nextcloud_install_state_config
   }
 
   type = "Opaque"
@@ -508,8 +510,9 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
       metadata {
         labels = local.nextcloud_server_labels
         annotations = {
-          "aether.shdr.ch/config-hash"  = local.nextcloud_config_hash
-          "aether.shdr.ch/opcache-hash" = local.nextcloud_opcache_hash
+          "aether.shdr.ch/config-hash"        = local.nextcloud_config_hash
+          "aether.shdr.ch/install-state-hash" = local.nextcloud_install_state_hash
+          "aether.shdr.ch/opcache-hash"       = local.nextcloud_opcache_hash
         }
       }
 
@@ -786,7 +789,8 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
       metadata {
         labels = local.nextcloud_cron_labels
         annotations = {
-          "aether.shdr.ch/config-hash" = local.nextcloud_config_hash
+          "aether.shdr.ch/config-hash"        = local.nextcloud_config_hash
+          "aether.shdr.ch/install-state-hash" = local.nextcloud_install_state_hash
         }
       }
 
@@ -956,7 +960,8 @@ resource "kubernetes_deployment_v1" "nextcloud_task_worker" {
       metadata {
         labels = local.nextcloud_task_worker_labels
         annotations = {
-          "aether.shdr.ch/config-hash" = local.nextcloud_config_hash
+          "aether.shdr.ch/config-hash"        = local.nextcloud_config_hash
+          "aether.shdr.ch/install-state-hash" = local.nextcloud_install_state_hash
         }
       }
 
