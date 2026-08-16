@@ -766,13 +766,12 @@ immichframe.home.shdr.ch {
   }
 }
 
-# IoT-scoped services listener — the VLAN 6 counterpart of :9443
-# (caddy_public): one alternate port, host-matched handles. VyOS admits IoT
-# devices per-source to this port only (today: Lenovo frame 10.0.6.14 →
-# immichframe); the whole :443 vhost surface stays unreachable from VLAN 6.
-# Unlike :9443 this terminates TLS (LAN-facing, wildcard covers the names);
-# every IoT-reachable service adds its hostname to the site address and a
-# host matcher + handle below.
+# IoT services listener — the VLAN 6 counterpart of :9443 (caddy_public):
+# one alternate port, host-matched handles, default 404. VyOS admits the IoT
+# subnet (10.0.6.0/24) to this port only; the whole :443 vhost surface stays
+# unreachable from VLAN 6. Unlike :9443 this terminates TLS (LAN-facing,
+# wildcard covers the names). To expose a service to IoT: add its hostname
+# to the site address plus a host matcher + handle below.
 immichframe.home.shdr.ch:{{ vm.home_gateway_stack.ports.caddy_iot }} {
   import home_acme_dns
   import access_logs
