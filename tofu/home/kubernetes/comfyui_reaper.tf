@@ -1,8 +1,9 @@
 # =============================================================================
 # aether-comfyui-reaper
 # =============================================================================
-# Wasm component that flushes idle GPU-resident model state from ComfyUI.
-# Cron-triggered; queries Prometheus for per-target idle time and, past
+# Wasm component that flushes idle model state from ComfyUI (VRAM + the RAM
+# weight cache). Cron-triggered; asks ComfyUI itself for idleness (/queue
+# empty + newest /history execution older than threshold) and, past
 # threshold, calls ComfyUI's /free. Deployed as a wasmCloud WorkloadDeployment
 # (operator schedules it onto the shared host pods; the selector-less Service
 # gets an operator-managed EndpointSlice).
@@ -15,20 +16,18 @@
 # Rollout: pin the tag, bump + `tofu apply`, rollback = revert. (Keel can't
 # watch this CRD; components are low-churn, so no auto-roller.)
 #
-# PREREQUISITE: the renamed project's registry path is empty until its first
-# main pipeline publishes. Set the tag below to the published short SHA, apply.
-#
 # Component config lives under components[].localResources — NOT a top-level
 # env list (that field is pruned by the CRD). allowedHosts is the capability
-# egress allowlist; without it the outbound Prometheus/ComfyUI calls are denied
-# and the reaper is a no-op.
+# egress allowlist; without it the outbound ComfyUI calls are denied and the
+# reaper is a no-op.
 
 locals {
   comfyui_reaper_name = "aether-comfyui-reaper"
-  # Pinned by digest: bootstrap build carrying the GPU-utilization idle check.
-  # (Same-tag + IfNotPresent won't re-pull; digest forces the operator to fetch
-  # this exact build. Repin to a CI-published :sha once the repo is pushed.)
-  comfyui_reaper_image = "${local.wasmcloud_registry_host}/so/aether/aether-comfyui-reaper@sha256:85f235825415d9df802487ccb8a30e15ab4e8181aacff21f9252f16ceb375444"
+  # Pinned by digest (same-tag + IfNotPresent won't re-pull; digest forces the
+  # operator to fetch this exact build). CI build 3d39840e: idle detection via
+  # ComfyUI /queue + /history — the earlier DCGM GPU-utilization check counted
+  # llama-swap activity on the shared GPU as comfyui activity and never reaped.
+  comfyui_reaper_image = "${local.wasmcloud_registry_host}/so/aether/aether-comfyui-reaper@sha256:a1b923463479e4f6514a665f2dc217d5b02ca40bf2350254aca427c4dad02533"
 
   comfyui_reaper_labels = {
     "app.kubernetes.io/name"       = "aether-comfyui-reaper"
@@ -85,17 +84,14 @@ resource "kubectl_manifest" "comfyui_reaper_workload" {
             imagePullPolicy = "Always"
             imagePullSecret = { name = "gitlab-registry" }
             localResources = {
-              # Egress allowlist for wasi:http outgoing-handler. PROMETHEUS_URL
-              # is a genuine external call (Prometheus is on the monitoring VM,
-              # not in-cluster), not a convertible hairpin.
+              # Egress allowlist for wasi:http outgoing-handler. ComfyUI only —
+              # idle detection and flush both talk to the target itself.
               allowedHosts = [
-                "prometheus.home.shdr.ch",
                 "comfyui.ai-serving.svc.cluster.local",
               ]
               environment = {
                 config = {
                   COMFYUI_URL            = "http://comfyui.ai-serving.svc.cluster.local:8188"
-                  PROMETHEUS_URL         = "https://prometheus.home.shdr.ch"
                   IDLE_THRESHOLD_SECONDS = "1800"
                 }
               }
