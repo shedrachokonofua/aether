@@ -767,12 +767,15 @@ immichframe.home.shdr.ch {
 }
 
 # IoT services listener — the VLAN 6 counterpart of :9443 (caddy_public):
-# hostless alternate port, host-matched handles, default 404. VyOS admits the
-# IoT subnet (10.0.6.0/24) to this port only; the whole :443 vhost surface
-# stays unreachable from VLAN 6. Hostless = no TLS (like :9443) — IoT clients
-# use http://<host>:{{ vm.home_gateway_stack.ports.caddy_iot }}. To expose a
-# service to IoT: add a host matcher + handle below.
-:{{ vm.home_gateway_stack.ports.caddy_iot }} {
+# one alternate port, host-matched handles, default 404. VyOS admits the IoT
+# subnet (10.0.6.0/24) to this port only; the whole :443 vhost surface stays
+# unreachable from VLAN 6. Unlike :9443 (which sits behind the AWS TLS
+# terminator) this faces LAN clients directly, so the hostnames live in the
+# site address — that is what lets Caddy issue the wildcard cert and serve
+# HTTPS. To expose a service to IoT: append its hostname to the site address
+# and add a host matcher + handle below.
+immichframe.home.shdr.ch:{{ vm.home_gateway_stack.ports.caddy_iot }} {
+  import home_acme_dns
   import access_logs
   @immichframe host immichframe.home.shdr.ch
 
@@ -781,7 +784,7 @@ immichframe.home.shdr.ch {
       header_up Host {http.request.host}
       header_up X-Real-IP {http.request.remote}
       header_up X-Forwarded-For {http.request.remote}
-      header_up X-Forwarded-Proto http
+      header_up X-Forwarded-Proto https
     }
   }
 
