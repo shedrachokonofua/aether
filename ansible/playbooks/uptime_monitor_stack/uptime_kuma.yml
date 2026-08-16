@@ -1,6 +1,6 @@
 ---
 - name: Deploy Uptime Kuma
-  hosts: uptime-monitor
+  hosts: vigilant
   gather_facts: true
   become: true
   vars_files:
@@ -280,6 +280,7 @@
 
           # Sync monitors. Push monitors have no URL and use a stable push token.
           monitor_ids = []
+          public_monitor_ids = []
           for m in desired_monitors:
               name = m["name"]
               m_type = m.get("type", "http")
@@ -292,17 +293,20 @@
                   "type": m_type,
                   "interval": interval,
                   "weight": 2000,
-                  "maxretries": 0,
+                  "maxretries": m.get("maxretries", 0),
                   "ignore_tls": 0,
                   "upside_down": 0,
                   "maxredirects": 10,
                   "accepted_statuscodes_json": '["200-299"]',
-                  "retry_interval": 0,
+                  "retry_interval": m.get("retry_interval", 0),
                   "user_id": user_id,
               }
               if is_push:
                   desired["push_token"] = m["push_token"]
-              monitor_ids.append(upsert_monitor(name, desired))
+              monitor_id = upsert_monitor(name, desired)
+              monitor_ids.append(monitor_id)
+              if m.get("public", True):
+                  public_monitor_ids.append(monitor_id)
 
           # Create/update the SES notification provider and link it to every monitor.
           notification_id = upsert_notification(notification_spec, user_id)
@@ -354,15 +358,14 @@
           # Clear old links and link current monitors to the group.
           cursor.execute("DELETE FROM monitor_group WHERE group_id=?", (group_id,))
 
-          cursor.execute("SELECT id FROM monitor WHERE active=1")
-          active_monitors = [row[0] for row in cursor.fetchall()]
-
-          for idx, monitor_id in enumerate(active_monitors):
+          # Only public monitors appear on the public status.shdr.ch page; internal
+          # health probes (public:false) are notified-on but not published.
+          for idx, monitor_id in enumerate(public_monitor_ids):
               cursor.execute("""
                   INSERT INTO monitor_group (monitor_id, group_id, weight)
                   VALUES (?, ?, ?)
               """, (monitor_id, group_id, idx * 10))
-          print(f"Linked {len(active_monitors)} monitors to the status page group")
+          print(f"Linked {len(public_monitor_ids)} public monitors to the status page group")
 
           # Set default entry page to the status page.
           cursor.execute("INSERT OR REPLACE INTO setting (key, value, type) VALUES ('entryPage', '\"statusPage-default\"', 'string')")
