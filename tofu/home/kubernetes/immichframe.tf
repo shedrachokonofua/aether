@@ -31,7 +31,7 @@ resource "kubernetes_secret_v1" "immichframe_config" {
   data = {
     "Settings.yml" = yamlencode({
       General = {
-        Interval           = 60
+        Interval           = 30
         TransitionDuration = 2
         ShowClock          = true
         ImageZoom          = true
@@ -79,6 +79,7 @@ resource "kubernetes_deployment_v1" "immichframe" {
           # ImmichFrame caches its asset pool. Coupling the selected album to
           # the pod template forces a fresh pool when the album changes.
           "aether.shdr.ch/album-selection" = local.immichframe_album_art
+          "aether.shdr.ch/slideshow-interval-seconds" = "30"
         }
       }
 

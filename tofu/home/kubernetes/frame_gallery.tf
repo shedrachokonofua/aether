@@ -8,7 +8,7 @@
 # =============================================================================
 
 locals {
-  frame_gallery_chart_version = "0.1.0-46187129" # Bump after sibling-repo publishes (chart version = 0.1.0-<commit sha>).
+  frame_gallery_chart_version = "0.1.0-5bf8bef4" # Bump after sibling-repo publishes (chart version = 0.1.0-<commit sha>).
   frame_gallery_namespace     = module.namespace["frame-gallery"].name
 }
 
