@@ -64,7 +64,7 @@ locals {
     }
   }
 
-  otel_exporters           = { otlphttp = { endpoint = local.otlp_endpoint } }
+  otel_exporters = { otlphttp = { endpoint = local.otlp_endpoint } }
   # 1Gi: trivy-operator per-CVE metrics (~88k samples/scrape, heavy labels)
   # tripped the 80% memory_limiter at 512Mi and refused every scrape pool.
   otel_resources           = { requests = { cpu = "100m", memory = "512Mi" }, limits = { cpu = "500m", memory = "1Gi" } }
@@ -678,6 +678,27 @@ resource "helm_release" "otel_collector_deployment" {
                     source_labels = ["__meta_kubernetes_service_name"]
                     action        = "keep"
                     regex         = "qbittorrent-exporter"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+                    action        = "keep"
+                    regex         = "metrics"
+                  },
+                ]
+              },
+              {
+                job_name        = "slskd"
+                scrape_interval = "30s"
+                metrics_path    = "/metrics"
+                kubernetes_sd_configs = [{
+                  role       = "endpoints"
+                  namespaces = { names = [local.slskd_ns] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = "slskd-metrics"
                   },
                   {
                     source_labels = ["__meta_kubernetes_endpoint_port_name"]

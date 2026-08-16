@@ -98,11 +98,21 @@
   - [x] Deploy Zeek for network traffic analysis (quadlet-nix)
   - [x] Deploy Suricata on VyOS router directly
 - [ ] Consolidate ProtonVPN infrastructure
-  - [ ] Unify secrets under `secrets.protonvpn.*` (move qbittorrent VPN creds)
+  - [ ] Unify secrets under `secrets.protonvpn.*` (move qbittorrent VPN creds — `slskd.tf` reads the same `qbittorrent.vpn_{provider,wireguard_private_key}` keys, so both consumers move in one change)
   - [ ] Switch qBittorrent from Gluetun to tun2socks → rotating-proxy
   - [ ] Configure SearXNG to use rotating-proxy SOCKS5
   - [ ] Configure Firecrawl to use rotating-proxy SOCKS5
   - [ ] Configure Prowlarr to use rotating-proxy SOCKS5
+  - [x] slskd Soulseek egress → rotating-proxy SOCKS5 (2026-08-03): slsknet.org's
+        front-end (forged RSTs, TTL/TOS mismatch vs real server packets) kills
+        sessions from ProtonVPN exit IPs ~60-120s after login — verified on 5
+        regions and both P2P/non-P2P pools, while identical active sessions from
+        residential IPs stay healthy. Fixed via `soulseek.connection.proxy` →
+        rotating proxy (server registers residential exit; 16 min stable, 0
+        resets, transfers at 4.7 MB/s). Gluetun stays as pod egress/interlock
+        only. Port forwarding permanently moot (no inbound via SOCKS5); cost:
+        transfers with firewalled peers fail. The earlier "NAT-PMP port churn"
+        note blamed the wrong layer — the RST loop existed with PF off too.
 - [ ] Create disaster recovery runbook (ZFS rollback, PBS restore, S3 recovery procedures)
 - [ ] Integrate SSO (reverse proxy / quirky auth)
   - [ ] Home Assistant
