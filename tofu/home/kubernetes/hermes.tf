@@ -50,7 +50,7 @@ locals {
         HASS_URL               = local.hermes_homeassistant
         SEARXNG_URL            = local.hermes_searxng_url
       }
-      secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "LITELLM_MCP_API_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN"]
+      secret_env_keys = ["API_SERVER_KEY", "FIRECRAWL_API_KEY", "LITELLM_MCP_API_KEY", "MATRIX_ACCESS_TOKEN", "JELLYFIN_API_KEY", "HASS_TOKEN", "ASSAY_MCP_TOKEN"]
       config = yamlencode({
         model = {
           # openai-codex = ChatGPT-subscription OAuth. No base_url/api_key here:
@@ -134,6 +134,16 @@ locals {
             # can be slow, so keep a generous call timeout.
             url             = "http://instacart-mcp.instacart-mcp.svc.cluster.local:8080/mcp"
             timeout         = 180
+            connect_timeout = 15
+          }
+          assay = {
+            # Household ledger (cluster DNS; API is gateway-internal). Same
+            # bearer token as the REST API; tools are read-only aggregates.
+            url = "http://assay-api.assay.svc.cluster.local:3000/mcp"
+            headers = {
+              authorization = "Bearer $${ASSAY_MCP_TOKEN}"
+            }
+            timeout         = 60
             connect_timeout = 15
           }
         }
@@ -310,6 +320,7 @@ resource "kubernetes_secret_v1" "hermes_env" {
       JELLYFIN_API_KEY    = var.secrets["jellyfin.beryl_api_key"]
       HASS_TOKEN          = var.secrets["homeassistant.beryl_token"]
       LITELLM_MCP_API_KEY = var.secrets["litellm.virtual_keys.hermes_beryl"]
+      ASSAY_MCP_TOKEN     = random_password.assay_api_token.result
     } : {}
   )
 
@@ -650,10 +661,13 @@ resource "kubernetes_deployment_v1" "hermes" {
             mount_path = "/dev/shm"
           }
 
+          # Sized from 30d Prometheus p95 336Mi + 20% headroom (was 512Mi).
+          # p95 is taken across every replica generation in the window, not the
+          # currently-running pod: beryl peaks at 329Mi, tungsten at 336Mi.
           resources {
             requests = {
               cpu    = "25m"
-              memory = "512Mi"
+              memory = "416Mi"
             }
             limits = {
               cpu    = "2"
@@ -799,10 +813,15 @@ resource "kubernetes_deployment_v1" "hermes" {
             mount_path = "/dev/shm"
           }
 
+          # Sized per instance from 30d Prometheus p95 + 20% headroom, taken
+          # across every replica generation (was a shared 512Mi). The two
+          # dashboards are not comparable: beryl p95 718Mi / max 869Mi, while
+          # tungsten p95 323Mi / max 394Mi. A shared value would either evict
+          # beryl or reserve 864Mi on a 4GB Pi for a 323Mi workload.
           resources {
             requests = {
               cpu    = "25m"
-              memory = "512Mi"
+              memory = each.key == "beryl" ? "864Mi" : "400Mi"
             }
             limits = {
               cpu    = "1"
