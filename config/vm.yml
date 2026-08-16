@@ -39,6 +39,7 @@ home_gateway_stack:
     caddy_https: 443
     caddy_public: 9443
     unifi_admin: 8443
+    immich_frame: 8444
     rotating_proxy: 1080
     rotating_proxy_metrics: 8404
     oauth2_proxy: 4180

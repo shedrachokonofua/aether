@@ -364,6 +364,10 @@
           - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 lease "86400"
           - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 range 0 start "10.0.6.2"
           - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 range 0 stop "10.0.6.254"
+          # Lenovo Smart Frame static mapping intentionally sits inside the
+          # dynamic .2-.254 range; VyOS 1.4+ permits this.
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 static-mapping lenovo-smart-frame mac-address "84:b8:b8:a4:44:d0"
+          - set service dhcp-server shared-network-name IOT subnet 10.0.6.0/24 static-mapping lenovo-smart-frame ip-address "10.0.6.14"
           # Guest
           - set service dhcp-server shared-network-name GUEST authoritative
           - set service dhcp-server shared-network-name GUEST subnet 10.0.7.0/24 subnet-id 7
@@ -836,6 +840,13 @@
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 action accept
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 state established
           - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 10 state related
+          # Lenovo Smart Frame -> ImmichFrame scoped listener
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 20 action accept
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 20 protocol tcp
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 20 source address 10.0.6.14/32
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 20 destination address 10.0.2.2/32
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 20 destination port 8444
+          - set firewall ipv4 name UNTRUSTED-to-TRUSTED rule 20 description 'Lenovo Smart Frame to ImmichFrame scoped listener'
           - set firewall ipv4 name UNTRUSTED-to-MGMT default-action drop
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 action accept
           - set firewall ipv4 name UNTRUSTED-to-MGMT rule 10 state established
