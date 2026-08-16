@@ -460,6 +460,11 @@ mcp_servers:
     url: "http://localhost:8006/mcp"
   deskplane:
     url: "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
+  # Siren: 74 tools generated from its gRPC contract.
+  # Cluster DNS, not mcp.siren.home.shdr.ch -- that hostname is reserved in the
+  # namespace contract but has no Caddy vhost (the wildcard is single-label).
+  siren:
+    url: "http://siren-mcp.siren.svc.cluster.local:8082/mcp"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"
