@@ -18,7 +18,8 @@
 
 # HTTP access logs → stderr → container journal → OTel → Loki.
 # Site-level `log` is required: this Caddy build rejects global `servers.logs`.
-# Skip high-cardinality firehose hosts (otel/s3/gitlab/bao/metrics).
+# Imported by every site except the OTel ingest hosts (otel/otel-grpc/
+# otel-metrics) — logging the log-shipping path would feed back into Loki.
 (access_logs) {
   log {
     output stderr
@@ -45,6 +46,7 @@ home.shdr.ch {
 
 caddy.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   reverse_proxy localhost:2019 {
     header_up Host localhost
   }
@@ -66,6 +68,7 @@ niobe.home.shdr.ch {
     header_up Connection {http.request.header.Connection}
   }
 }
+
 
 rack-switch.home.shdr.ch {
   import home_acme_dns
@@ -129,6 +132,7 @@ seaweed.home.shdr.ch {
 
 s3.seaweed.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.s3 }} {
     header_up Host {http.request.host}
     header_up X-Real-IP {http.request.remote}
@@ -145,6 +149,25 @@ master.seaweed.home.shdr.ch {
     header_up X-Real-IP {http.request.remote}
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto https
+  }
+}
+
+# Siren SPA — static assets served from the SeaweedFS filer bucket path.
+# Unknown paths fall back to index.html (client-side routing).
+siren.home.shdr.ch {
+  import home_acme_dns
+  import access_logs
+  @sirenRoot path /
+  rewrite @sirenRoot /buckets/siren-web/index.html
+  @sirenNotRoot not path /
+  rewrite @sirenNotRoot /buckets/siren-web{uri}
+
+  reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.filer }} {
+    @notFound status 404
+    handle_response @notFound {
+      rewrite * /buckets/siren-web/index.html
+      reverse_proxy {{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.filer }}
+    }
   }
 }
 
@@ -251,16 +274,19 @@ otel-metrics.home.shdr.ch {
 
 prometheus.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.prometheus }}
 }
 
 loki.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}
 }
 
 clickhouse.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.clickhouse }}
 }
 
@@ -296,12 +322,14 @@ kvm.home.shdr.ch {
 # with shared node access can reach them via Tailscale
 gitlab.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}
 }
 
 registry.gitlab.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_registry }}
 }
@@ -309,6 +337,7 @@ registry.gitlab.home.shdr.ch {
 
 pages.gitlab.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.gitlab.ip }}:{{ vm.gitlab.ports.gitlab_pages }}
 }
@@ -631,6 +660,7 @@ auth.shdr.ch {
 
 bao.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   reverse_proxy {{ vm.openbao.ip }}:{{ vm.openbao.ports.https }} {
     transport http {
@@ -653,6 +683,7 @@ backrest.home.shdr.ch {
 
 fleet.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.fleet }}
 }
 
@@ -663,6 +694,7 @@ fleet.home.shdr.ch {
 
 s3.home.shdr.ch {
   import home_acme_dns
+  import access_logs
   # Handle CORS preflight at the edge — RGW rejects OPTIONS on presigned
   # URLs that contain X-Amz-Security-Token query params (STS temp creds).
   @preflight method OPTIONS
@@ -722,6 +754,27 @@ oidc.k8s.home.shdr.ch {
 }
 
 # Routes to Cilium L2 VIP (10.0.3.19) - Gateway API handles routing inside k8s
+
+# Siren gRPC-Web API: the gateway's Envoy mirrors the downstream protocol to
+# the backend, and tonic only accepts (transcoded) gRPC over HTTP/2 — so this
+# hop must be h2c rather than the wildcard's HTTP/1.1.
+api.siren.home.shdr.ch {
+  import access_logs
+  # Internal DNS answers authoritatively for home.shdr.ch, which breaks
+  # certmagic's ACME zone detection for names this deep (it asks Cloudflare
+  # for a home.shdr.ch zone that does not exist). Walk SOA via public DNS.
+  tls {
+    dns cloudflare {{ secrets.cloudflare_dns_api_key }}
+    resolvers 1.1.1.1 8.8.8.8
+  }
+  reverse_proxy h2c://10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote.host}
+    header_up X-Forwarded-For {http.request.remote.host}
+    header_up X-Forwarded-Proto {http.request.scheme}
+    header_down -Server
+  }
+}
 
 
 *.home.shdr.ch {
