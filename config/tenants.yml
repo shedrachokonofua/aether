@@ -2,3 +2,7 @@ tenants:
   - id: 1
     name: seven30
     keycloak_role: seven30-developer
+  - id: 2
+    name: assay
+    keycloak_role: admin
+    grafana_role: Admin

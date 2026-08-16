@@ -86,9 +86,10 @@
         image: docker.io/fleetdm/fleet:v4.75.0
         pull: always
         state: quadlet
-        requires:
-          - fleet_mysql
-          - fleet_redis
+        # Do not use PodmanArgs=--requires: on boot the fleet unit can start
+        # before fleet_mysql/fleet_redis containers exist, and podman then
+        # fails permanently with "is not a valid container, cannot be used as
+        # a dependency". Order with systemd After/Wants instead.
         env:
           FLEET_MYSQL_ADDRESS: 127.0.0.1:3306
           FLEET_MYSQL_DATABASE: fleet
@@ -99,6 +100,14 @@
           FLEET_SERVER_TLS: "false"
           FLEET_LOGGING_JSON: "true"
           FLEET_SERVER_PRIVATE_KEY: "{{ secrets.fleet.server_private_key }}"
+        quadlet_options:
+          - |
+            [Unit]
+            After=fleet_mysql.service fleet_redis.service
+            Wants=fleet_mysql.service fleet_redis.service
+            [Service]
+            Restart=on-failure
+            RestartSec=5
 
     # === Systemd ===
     - name: Reload systemd
@@ -222,6 +231,12 @@
       retries: 15
       delay: 2
       no_log: true
+
+    - name: Ensure Fleet server is running after dependencies are ready
+      systemd:
+        name: fleet
+        state: started
+        scope: user
 
     - name: Initialize Fleet database (idempotent)
       containers.podman.podman_container:

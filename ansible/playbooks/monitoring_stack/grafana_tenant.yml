@@ -81,7 +81,7 @@
 
 - name: "Update tenant Prometheus datasource: {{ tenant.name }}"
   uri:
-    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/{{ prometheus_ds_check.json.id }}"
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/uid/{{ prometheus_ds_check.json.uid }}"
     method: PUT
     user: "{{ secrets.grafana.username | default('shdrch') }}"
     password: "{{ secrets.grafana_password }}"
@@ -132,7 +132,7 @@
 
 - name: "Update tenant Loki datasource: {{ tenant.name }}"
   uri:
-    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/{{ loki_ds_check.json.id }}"
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/uid/{{ loki_ds_check.json.uid }}"
     method: PUT
     user: "{{ secrets.grafana.username | default('shdrch') }}"
     password: "{{ secrets.grafana_password }}"
@@ -182,7 +182,7 @@
 
 - name: "Update tenant Tempo datasource: {{ tenant.name }}"
   uri:
-    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/{{ tempo_ds_check.json.id }}"
+    url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/datasources/uid/{{ tempo_ds_check.json.uid }}"
     method: PUT
     user: "{{ secrets.grafana.username | default('shdrch') }}"
     password: "{{ secrets.grafana_password }}"
