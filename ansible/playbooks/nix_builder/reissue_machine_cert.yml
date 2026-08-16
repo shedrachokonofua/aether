@@ -1,0 +1,134 @@
+---
+- name: Reissue the Nix builder machine certificate
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    builder_host: "{{ vm.nix_builder.ip }}"
+    step_ca_url: "https://{{ vm.step_ca.ip }}:{{ vm.step_ca.ports.https }}"
+    step_ca_provisioner: machine-bootstrap
+    step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password }}"
+    cert_hostname: "{{ vm.nix_builder.name }}.home.shdr.ch"
+    cert_local_dir: /tmp/nix-builder-cert-reissue
+
+  tasks:
+    - name: Reissue and install the Nix builder machine identity
+      block:
+        - name: Prepare local certificate directory
+          ansible.builtin.file:
+            path: "{{ cert_local_dir }}"
+            state: directory
+            mode: "0700"
+
+        - name: Fetch the current step-ca root
+          ansible.builtin.get_url:
+            url: "{{ step_ca_url }}/roots.pem"
+            dest: "{{ cert_local_dir }}/step-ca-root.crt"
+            validate_certs: false
+            mode: "0644"
+            force: true
+
+        - name: Write the provisioner password locally
+          ansible.builtin.copy:
+            content: "{{ step_ca_provisioner_password }}"
+            dest: "{{ cert_local_dir }}/provisioner-password.txt"
+            mode: "0600"
+          no_log: true
+
+        - name: Issue a fresh Nix builder machine certificate
+          ansible.builtin.command:
+            argv:
+              - step
+              - ca
+              - certificate
+              - "{{ cert_hostname }}"
+              - "{{ cert_local_dir }}/machine.crt"
+              - "{{ cert_local_dir }}/machine.key"
+              - "--ca-url={{ step_ca_url }}"
+              - "--root={{ cert_local_dir }}/step-ca-root.crt"
+              - "--san={{ cert_hostname }}"
+              - "--san={{ vm.nix_builder.ip }}"
+              - "--san={{ vm.nix_builder.name }}"
+              - --san=localhost
+              - --san=127.0.0.1
+              - "--provisioner={{ step_ca_provisioner }}"
+              - "--provisioner-password-file={{ cert_local_dir }}/provisioner-password.txt"
+              - --force
+          changed_when: true
+          no_log: true
+
+        - name: Stage the fresh machine identity on the builder
+          ansible.builtin.command:
+            argv:
+              - scp
+              - -o
+              - BatchMode=yes
+              - -o
+              - StrictHostKeyChecking=accept-new
+              - "{{ cert_local_dir }}/{{ item }}"
+              - "root@{{ builder_host }}:/tmp/{{ item }}"
+          loop:
+            - machine.crt
+            - machine.key
+            - step-ca-root.crt
+          changed_when: true
+          no_log: true
+
+        - name: Install the fresh machine identity
+          ansible.builtin.command:
+            argv:
+              - ssh
+              - -o
+              - BatchMode=yes
+              - -o
+              - StrictHostKeyChecking=accept-new
+              - "root@{{ builder_host }}"
+              - >-
+                set -e;
+                systemctl stop step-ca-cert-renew.service;
+                install -o root -g root -m 0644 /tmp/machine.crt /etc/ssl/certs/machine.crt;
+                install -o root -g root -m 0600 /tmp/machine.key /etc/ssl/private/machine.key;
+                install -o root -g root -m 0644 /tmp/step-ca-root.crt /etc/ssl/certs/step-ca-root.crt;
+                rm -f /tmp/machine.crt /tmp/machine.key /tmp/step-ca-root.crt;
+                systemctl restart step-ca-cert-renew.service aether-x509-certificate-exporter.service opentelemetry-collector.service
+          changed_when: true
+          no_log: true
+
+        - name: Verify certificate services are active
+          ansible.builtin.command:
+            argv:
+              - ssh
+              - -o
+              - BatchMode=yes
+              - -o
+              - StrictHostKeyChecking=accept-new
+              - "root@{{ builder_host }}"
+              - >-
+                systemctl is-active step-ca-cert-renew.service
+                aether-x509-certificate-exporter.service
+                opentelemetry-collector.service
+          register: nix_builder_cert_services
+          changed_when: false
+          failed_when: nix_builder_cert_services.stdout_lines | reject('equalto', 'active') | list | length > 0
+
+      always:
+        - name: Remove staged certificate files from the builder
+          ansible.builtin.command:
+            argv:
+              - ssh
+              - -o
+              - BatchMode=yes
+              - -o
+              - StrictHostKeyChecking=accept-new
+              - "root@{{ builder_host }}"
+              - rm -f /tmp/machine.crt /tmp/machine.key /tmp/step-ca-root.crt
+          changed_when: false
+          failed_when: false
+          no_log: true
+
+        - name: Remove the local certificate working directory
+          ansible.builtin.file:
+            path: "{{ cert_local_dir }}"
+            state: absent
