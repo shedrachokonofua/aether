@@ -36,35 +36,40 @@
           # Configure EVE JSON logging (collected by OTEL)
           - set service suricata log eve filename eve.json
           - set service suricata log eve filetype regular
-          # Core event types
+          # Core event types. Keep flow for the pipeline stall check and
+          # alert/anomaly/drop for security evidence. Do not enable netflow:
+          # it duplicates flow records and adds avoidable capture/logging load.
           - set service suricata log eve type alert
           - set service suricata log eve type anomaly
           - set service suricata log eve type drop
           - set service suricata log eve type flow
-          - set service suricata log eve type netflow
-          # Application protocols
-          - set service suricata log eve type dcerpc
-          - set service suricata log eve type dhcp
-          - set service suricata log eve type dnp3
+          # Protocol events retained by the typed ClickHouse tables/dashboards.
           - set service suricata log eve type dns
-          - set service suricata log eve type files
-          - set service suricata log eve type ftp
           - set service suricata log eve type http
-          - set service suricata log eve type http2
-          - set service suricata log eve type ikev2
-          - set service suricata log eve type krb5
-          - set service suricata log eve type mqtt
-          - set service suricata log eve type nfs
-          - set service suricata log eve type rdp
-          - set service suricata log eve type rfb
-          - set service suricata log eve type sip
-          - set service suricata log eve type smb
-          - set service suricata log eve type smtp
-          - set service suricata log eve type snmp
-          - set service suricata log eve type ssh
-          - set service suricata log eve type tftp
           - set service suricata log eve type tls
 
+          # Remove the previous all-protocol EVE configuration. These events
+          # are not consumed by the current typed pipeline and are expensive
+          # on this 2 GiB router (especially files and application decoders).
+          - delete service suricata log eve type netflow
+          - delete service suricata log eve type dcerpc
+          - delete service suricata log eve type dhcp
+          - delete service suricata log eve type dnp3
+          - delete service suricata log eve type files
+          - delete service suricata log eve type ftp
+          - delete service suricata log eve type http2
+          - delete service suricata log eve type ikev2
+          - delete service suricata log eve type krb5
+          - delete service suricata log eve type mqtt
+          - delete service suricata log eve type nfs
+          - delete service suricata log eve type rdp
+          - delete service suricata log eve type rfb
+          - delete service suricata log eve type sip
+          - delete service suricata log eve type smb
+          - delete service suricata log eve type smtp
+          - delete service suricata log eve type snmp
+          - delete service suricata log eve type ssh
+          - delete service suricata log eve type tftp
           # Address group required by VyOS - using lowercase (no underscores allowed)
           - set service suricata address-group homenet address 10.0.0.0/8
           - set service suricata address-group homenet address 172.16.0.0/12
@@ -108,6 +113,18 @@
                 ENIP_CLIENT: "$$HOME_NET"\
                 ENIP_SERVER: "$$HOME_NET"'
             /run/suricata/suricata.yaml
+    - name: Increase AF_PACKET capture ring for mirrored traffic bursts
+      vyos.vyos.vyos_command:
+        commands:
+          - >-
+            if sudo grep -q 'ring-size: 16384' /run/suricata/suricata.yaml;
+            then echo unchanged;
+            else sudo sed -i '/defrag: yes/a\    ring-size: 16384'
+            /run/suricata/suricata.yaml && echo changed;
+            fi
+      register: suricata_capture_tuning
+      changed_when: suricata_capture_tuning.stdout | first == "changed"
+
 
     - name: Add missing standard Suricata port variables
       vyos.vyos.vyos_command:
@@ -145,7 +162,7 @@
       vyos.vyos.vyos_command:
         commands:
           - restart suricata
-      when: suricata_config.changed and not suricata_update.changed | default(false)
+      when: (suricata_config.changed and not suricata_update.changed | default(false)) or suricata_capture_tuning.changed
 
     - name: Verify Suricata is running
       vyos.vyos.vyos_command:

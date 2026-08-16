@@ -140,7 +140,9 @@ in
   # Fields: timestamp, clientIp, protocol, responseType (verdict incl.
   # Blocked), responseCode, question{questionName,questionType}, answers[].
   aether.otel-agent.jsonFilelogs.technitium_querylog = {
-    include = [ "/var/log/technitium/query.ndjson*" ];
+    # Rotated files are archival only. Replaying them can pin the receiver on
+    # sparse/NUL history after rotation and starve the live stream.
+    include = [ "/var/log/technitium/query.ndjson" ];
     timestampField = "timestamp";
     timestampLayoutType = "gotime";
     timestampLayout = "2006-01-02T15:04:05.000Z";
@@ -151,14 +153,20 @@ in
     };
   };
 
-  # The exporter app keeps its file handle open; copytruncate is required so
-  # rotation does not orphan the live fd.
+  # The exporter keeps its file handle open. Rename the file, then restart the
+  # service so it reopens the new path; copytruncate leaves its offset beyond
+  # EOF and creates sparse/NUL-filled files. Stagger the secondary to preserve
+  # DNS availability if both hourly logrotate timers cross the size threshold.
   services.logrotate.settings."technitium-query" = {
     files = "/var/log/technitium/query.ndjson";
     frequency = "daily";
     rotate = 3;
     size = "256M";
-    copytruncate = true;
+    create = "0644 technitium technitium";
+    postrotate = ''
+      ${lib.optionalString (cfg.cluster.mode == "secondary") "${pkgs.coreutils}/bin/sleep 30"}
+      ${pkgs.systemd}/bin/systemctl restart technitium-dns-server.service
+    '';
     missingok = true;
     notifempty = true;
   };
