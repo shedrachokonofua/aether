@@ -80,9 +80,6 @@ resource "helm_release" "frame_gallery" {
     }]
     env = {
       LITELLM_MODEL = "aether/qwen3.8-27b"
-      # Pixoo output deliberately off — art lands only in Immich for the
-      # Smart Frame. Flip here (not in the chart) if that changes.
-      PIXOO_ENABLED = "false"
     }
   })]
 }
