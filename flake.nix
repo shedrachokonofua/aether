@@ -208,6 +208,7 @@
             unzip
             openssh
             git
+            android-tools  # ADB management for the Lenovo Smart Frame
             
             # Code quality
             pre-commit
