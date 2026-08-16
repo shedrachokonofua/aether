@@ -3,6 +3,7 @@ Description=Backrest - Restic backup UI and scheduler
 Documentation=https://github.com/garethgeorge/backrest
 After=network-online.target
 Wants=network-online.target
+RequiresMountsFor={{ backrest_cache_dir }}
 
 [Service]
 Type=simple
@@ -16,7 +17,7 @@ Environment="BACKREST_PORT={{ backrest_port }}"
 Environment="BACKREST_BIND_ADDRESS={{ backrest_bind_address }}"
 Environment="BACKREST_CONFIG={{ backrest_config_dir }}/config.json"
 Environment="BACKREST_DATA={{ backrest_data_dir }}"
-Environment="XDG_CACHE_HOME={{ backrest_data_dir }}/cache"
+Environment="XDG_CACHE_HOME={{ backrest_cache_dir }}"
 Environment="HOME=/{{ backrest_user }}"
 Environment="AWS_REGION={{ aws_region }}"
 
@@ -25,7 +26,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths={{ backrest_data_dir }} {{ backrest_config_dir }} /var/log
+ReadWritePaths={{ backrest_data_dir }} {{ backrest_cache_dir }} {{ backrest_config_dir }} /var/log
 {% for path in backup_paths %}
 ReadOnlyPaths={{ path }}
 {% endfor %}
