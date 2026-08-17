@@ -237,26 +237,27 @@ locals {
         "aether.shdr.ch/data" = "rebuildable"
       }
     }
-    "colony-dev" = {
+    "colony" = {
       tier                    = "guest",
       owner                   = "colony",
-      backup                  = "standard",
+      # critical (daily) not standard (weekly): the colonyd SQLite volume is
+      # the factory's entire memory (scopes, tasks, runs, audit ledger), and
+      # the 2026-08-17 namespace deletion proved in-namespace snapshots die
+      # with the namespace - cadence is the only cheap mitigation until
+      # off-cluster backup exists.
+      backup                  = "critical",
       exposure                = "internal",
       create_s3_backup_secret = false,
       description             = "Colony sibling repo workloads"
       hostnames = [
-        "colony-api-dev.home.shdr.ch",
-        "colony-dev.home.shdr.ch",
-        "colony-tools-dev.home.shdr.ch",
-        "colony-webhook-dev.home.shdr.ch",
+        "colony.home.shdr.ch",
       ]
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "colony"
-        "colony.shdr.ch/environment"   = "dev"
       }
     }
-    "colony-sandboxes-dev" = {
+    "colony-sandboxes" = {
       tier                    = "sandbox",
       owner                   = "colony",
       backup                  = "none",
@@ -268,7 +269,36 @@ locals {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/name"       = "colony-sandboxes"
         "app.kubernetes.io/part-of"    = "colony"
-        "colony.shdr.ch/environment"   = "dev"
+        "colony.shdr.ch/purpose"       = "agent-sandboxes"
+      }
+    }
+    # Leftover names from the previous five-service stack. Keep the Namespace
+    # objects so the next apply does not delete leftover PVCs; strip hostnames
+    # so Gateway probes and routes live on `colony` instead.
+    "colony-dev" = {
+      tier                    = "guest",
+      owner                   = "colony",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Legacy Colony namespace; pending teardown"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "colony"
+      }
+    }
+    "colony-sandboxes-dev" = {
+      tier                    = "sandbox",
+      owner                   = "colony",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Legacy Colony sandboxes namespace; pending teardown"
+      extra_labels = {
+        "app.kubernetes.io/component"  = "agent-sandbox"
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/name"       = "colony-sandboxes"
+        "app.kubernetes.io/part-of"    = "colony"
         "colony.shdr.ch/purpose"       = "agent-sandboxes"
       }
     }
@@ -801,6 +831,23 @@ locals {
         "pod-security.kubernetes.io/enforce" = "privileged"
       }
     }
+    "slskd" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      source_file             = "tofu/home/kubernetes/slskd.tf",
+      egress                  = "internet",
+      registry_access         = "github",
+      hostnames = [
+        "slskd.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "privileged"
+      }
+    }
     "siren" = {
       tier                    = "app"
       owner                   = "siren"
@@ -813,6 +860,7 @@ locals {
       registry_access         = "none"
       hostnames = [
         "api.siren.home.shdr.ch",
+        "mcp.siren.home.shdr.ch",
       ]
       extra_labels = {
         "aether.shdr.ch/arch"                = "amd64"
@@ -1216,23 +1264,25 @@ locals {
   # consumed by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
-    "beryl.home.shdr.ch"              = "/health"
-    "colony-api-dev.home.shdr.ch"     = "/health"
-    "colony-tools-dev.home.shdr.ch"   = "/health"
-    "colony-webhook-dev.home.shdr.ch" = "/health"
-    "composer.home.shdr.ch"           = "/health"
-    "docling.home.shdr.ch"            = "/health"
-    "firecrawl-mcp.home.shdr.ch"      = "/health"
-    "matrix.home.shdr.ch"             = "/_matrix/client/versions"
-    "kestra.home.shdr.ch"             = "/ui/"
-    "searxng.home.shdr.ch"            = "/healthz"
-    "tungsten.home.shdr.ch"           = "/health"
+    "beryl.home.shdr.ch"         = "/health"
+    "colony.home.shdr.ch"        = "/health"
+    "composer.home.shdr.ch"      = "/health"
+    "docling.home.shdr.ch"       = "/health"
+    "firecrawl-mcp.home.shdr.ch" = "/health"
+    "matrix.home.shdr.ch"        = "/_matrix/client/versions"
+    "kestra.home.shdr.ch"        = "/ui/"
+    "searxng.home.shdr.ch"       = "/healthz"
+    "tungsten.home.shdr.ch"      = "/health"
   }
 
   # These endpoints are not meaningful to check with the current GET-based
-  # blackbox HTTP module.
+  # blackbox HTTP module. Mingus has no public workload while api/web are
+  # disabled; the MCP endpoints require protocol requests rather than GET /.
   synthetic_probe_excluded_hostnames = toset([
     "espn-mcp.home.shdr.ch",
+    "instacart-mcp.home.shdr.ch",
+    "mcp.siren.home.shdr.ch",
+    "mingus.home.shdr.ch",
   ])
 
   synthetic_probe_targets = distinct(flatten([
