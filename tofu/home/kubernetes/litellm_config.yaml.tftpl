@@ -126,6 +126,16 @@ model_list:
       model: "zai/glm-5.3"
       litellm_credential_name: zai_credential
 
+  # Command Code models. Contributor prompts are training data — public work only.
+  - model_name: "commandcode/muse-spark-1.2-contributor"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.2-contributor"
+      litellm_credential_name: commandcode_credential
+  - model_name: "commandcode/deepseek-v4-flash"
+    litellm_params:
+      model: "openai/deepseek/deepseek-v4-flash"
+      litellm_credential_name: commandcode_credential
+
   # Ollama Cloud models
   - model_name: "ollama-cloud/kimi-k2.6"
     litellm_params:
@@ -342,6 +352,12 @@ credential_list:
       api_key: os.environ/ZAI_API_KEY
     credential_info:
       description: "Z.AI"
+  - credential_name: commandcode_credential
+    credential_values:
+      api_base: https://api.commandcode.ai/provider/v1
+      api_key: os.environ/COMMANDCODE_API_KEY
+    credential_info:
+      description: "Command Code Provider API (GOAT plan)"
   - credential_name: clinepass_credential
     credential_values:
       api_base: https://api.cline.bot/api/v1

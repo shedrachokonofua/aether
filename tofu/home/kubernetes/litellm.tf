@@ -63,6 +63,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
       QWEN_CLOUD_API_KEY    = var.secrets["litellm.qwen_cloud_api_key"]
       ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
+      COMMANDCODE_API_KEY   = var.secrets["litellm.commandcode_api_key"]
       CURSOR_API_KEY        = var.secrets["composer.cursor_api_key"]
       FINVIZ_API_KEY        = var.secrets["finviz_api_key"]
       COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
@@ -300,6 +301,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "ZAI_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "COMMANDCODE_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "COMMANDCODE_API_KEY"
               }
             }
           }
