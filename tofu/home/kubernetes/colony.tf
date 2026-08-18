@@ -54,9 +54,9 @@ locals {
     COLONYD_PORT           = "4400"
     COLONYD_DB_PATH        = "/var/lib/colonyd/colonyd.db"
     COLONYD_TICK_MS        = "15000"
-    # 3 concurrent implement runs: per-run workspaces are isolated
-    # (tmpdir/colony-pi-runs/<runId>) and reviews/gates serialize per scope.
-    COLONYD_MAX_CONCURRENT = "3"
+    # Six isolated sandbox pods fit the namespace's 8 CPU / 16 GiB request
+    # quota while leaving headroom for teardown overlap.
+    COLONYD_MAX_CONCURRENT = "6"
     COLONYD_MAX_ATTEMPTS   = "3"
 
     COLONY_METRICS_PORT = "9464"
