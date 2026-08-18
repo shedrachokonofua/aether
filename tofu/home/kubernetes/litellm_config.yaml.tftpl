@@ -120,10 +120,10 @@ model_list:
       model: "openai/glm-5.2"
       litellm_credential_name: qwen_cloud_credential
 
-  # Z.AI models (native LiteLLM provider)
-  - model_name: "router/glm-5.2"
+  # Z.AI GLM 5.3 uses a separate router group; never mix it with GLM 5.2.
+  - model_name: "router/glm-5.3"
     litellm_params:
-      model: "zai/glm-5.2"
+      model: "zai/glm-5.3"
       litellm_credential_name: zai_credential
 
   # Ollama Cloud models
@@ -372,7 +372,7 @@ router_settings:
   # cooldown prevents repeated quota/429 traffic against low-limit providers.
   allowed_fails: 1
   cooldown_time: 300
-  # Retry the initial request across the four-provider GLM pool when needed.
+  # Retry initial requests across the configured GLM pools when needed.
   num_retries: 3
   max_fallbacks: 3
   timeout: 120
@@ -383,6 +383,9 @@ router_settings:
   routing_groups:
     - group_name: router/glm-5.2
       models: ["router/glm-5.2"]
+      routing_strategy: simple-shuffle
+    - group_name: router/glm-5.3
+      models: ["router/glm-5.3"]
       routing_strategy: simple-shuffle
     - group_name: router/kimi-k2.7-code
       models: ["router/kimi-k2.7-code"]
@@ -407,7 +410,7 @@ router_settings:
   # routing them into the new shared groups. The aliases do not duplicate
   # deployments or change the provider-specific backend model strings.
   model_group_alias:
-    "glm": "router/glm-5.2"
+    "glm": "router/glm-5.3"
     "kimi": "router/kimi-k2.7-code"
     "deepseek-v4-pro": "router/deepseek-v4-pro"
     "deepseek-v4-flash": "router/deepseek-v4-flash"
@@ -415,7 +418,7 @@ router_settings:
     "minimax-m3": "router/minimax-m3"
     "mimo-v2.5-pro": "router/mimo-v2.5-pro"
     "clinepass/glm-5.2": "router/glm-5.2"
-    "zai/glm-5.2": "router/glm-5.2"
+    "zai/glm-5.3": "router/glm-5.3"
     "ollama-cloud/glm-5.2": "router/glm-5.2"
     "clinepass/kimi-k2.7-code": "router/kimi-k2.7-code"
     "ollama-cloud/kimi-k2.7-code": "router/kimi-k2.7-code"

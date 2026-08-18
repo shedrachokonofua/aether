@@ -50,11 +50,12 @@ Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/glm-5.2` models through Alibaba MaaS. Inquest sends Holmes
 investigations to `qwen-cloud/qwen3.8-max`.
 
-GLM and Kimi deployments are pooled across their configured providers under the
-canonical `router/glm-5.2` and `router/kimi-k2.7-code` model groups. Routing
-uses simple shuffle with same-group weighted failover; the existing
-provider-prefixed model names, plus `glm` and `kimi`, remain compatibility
-aliases. The same routing pattern covers `router/deepseek-v4-pro`,
+GLM 5.2 deployments remain pooled under the canonical
+`router/glm-5.2` group for the Clinepass and Ollama Cloud providers.
+Z.AI GLM 5.3 uses the separate `router/glm-5.3` group, backed only by the
+configured Z.AI key; the `glm` alias and first-party agent defaults use GLM 5.3.
+The provider-prefixed GLM names remain compatibility aliases, while the
+Qwen Cloud GLM 5.2 deployment stays standalone. The same routing pattern covers
 `router/deepseek-v4-flash`, `router/qwen3.7-max`, `router/minimax-m3`, and
 `router/mimo-v2.5-pro` where multiple providers are configured. Ollama Cloud's
 Kimi K2.6 deployment remains separate. Production routing uses a 120-second
