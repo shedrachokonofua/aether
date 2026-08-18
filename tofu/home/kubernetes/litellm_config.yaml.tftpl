@@ -372,11 +372,6 @@ router_settings:
   # cooldown prevents repeated quota/429 traffic against low-limit providers.
   allowed_fails: 1
   cooldown_time: 300
-  # Alibaba's token plan periodically exhausts its five-hour quota. Preserve
-  # the stable model name for clients while failing over to the local Qwen.
-  fallbacks:
-    - qwen-cloud/qwen3.8-max: ["aether/qwen3.8-27b"]
-    - ollama-cloud/deepseek-v4-flash: ["aether/qwen3.8-27b"]
   # Retry the initial request across the four-provider GLM pool when needed.
   num_retries: 3
   max_fallbacks: 3
