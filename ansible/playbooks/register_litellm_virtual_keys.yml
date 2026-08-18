@@ -67,6 +67,7 @@
         - router/mimo-v2.5-pro
         - router/glm-5.2
         - router/glm-5.3
+        - commandcode/muse-spark-1.2-contributor
         - kimi/k3
         # Ollama-Cloud-only flash: the router/deepseek-v4-flash group shuffles
         # in a cline-pass leg whose Vercel upstream fails streaming; colony's
