@@ -215,7 +215,7 @@ locals {
       config = yamlencode({
         model = {
           provider       = "custom"
-          default        = "router/glm-5.2"
+          default        = "router/glm-5.3"
           base_url       = local.hermes_litellm
           api_key        = "$${OPENAI_API_KEY}"
           context_length = 256000

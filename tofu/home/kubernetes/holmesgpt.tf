@@ -90,12 +90,13 @@ resource "helm_release" "holmesgpt" {
 
     # {{ env.* }} below is Holmes-side Jinja, resolved in-pod at load time.
     # Holmes uses openai/ as its local LiteLLM transport prefix; the proxy
-    # receives the canonical router/glm-5.2 model ID.
+    # receives the canonical router/glm-5.3 model ID.
+
     modelList = {
       (local.holmes_model_primary) = {
         api_key     = "{{ env.OPENAI_API_KEY }}"
         api_base    = "{{ env.OPENAI_API_BASE }}"
-        model       = "openai/router/glm-5.2"
+        model       = "openai/router/glm-5.3"
         temperature = 1
       }
       (local.holmes_model_local) = {

@@ -11,7 +11,9 @@
     litellm_key_models_by_alias:
       holmes:
         - router/glm-5.2
-        - zai/glm-5.2
+        - zai/glm-5.3
+        - router/glm-5.3
+
         - aether/qwen3.6-35b-a3b:think
         - aether/qwen3.8-27b:think
         - qwen-cloud/qwen3.8-max
@@ -22,7 +24,8 @@
         - ollama-cloud/glm-5.2
         - qwen-cloud/glm-5.2
         - router/glm-5.2
-        - zai/glm-5.2
+        - router/glm-5.3
+        - zai/glm-5.3
         - aether/qwen3.5-9b
         - aether/qwen3.5-9b:think
         - aether/qwen3.8-27b
@@ -61,6 +64,7 @@
       colony:
         - router/mimo-v2.5-pro
         - router/glm-5.2
+        - router/glm-5.3
         - kimi/k3
         # Ollama-Cloud-only flash: the router/deepseek-v4-flash group shuffles
         # in a cline-pass leg whose Vercel upstream fails streaming; colony's
