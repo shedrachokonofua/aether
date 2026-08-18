@@ -43,6 +43,7 @@ locals {
     # Baked into the image by colony CI (config/colony.deploy.yaml).
     COLONY_CONFIG_PATH               = "/workspace/config/colony.deploy.yaml"
     COLONY_OPENAI_COMPATIBLE_API_KEY = data.vault_kv_secret_v2.colony_litellm.data["COLONY_OPENAI_COMPATIBLE_API_KEY"]
+    COLONY_SEARXNG_URL               = "https://search.home.shdr.ch"
 
     GITLAB_BASE_URL       = lookup(local.colony_gitlab_env, "GITLAB_BASE_URL", "https://gitlab.home.shdr.ch")
     GITLAB_TOKEN          = lookup(local.colony_gitlab_env, "GITLAB_TOKEN", lookup(local.colony_gitlab_env, "GITLAB_BOT_ENGINE_TOKEN", ""))
@@ -51,9 +52,9 @@ locals {
     PUBLIC_HOST = local.colony_host
     HOST        = "0.0.0.0"
 
-    COLONYD_PORT           = "4400"
-    COLONYD_DB_PATH        = "/var/lib/colonyd/colonyd.db"
-    COLONYD_TICK_MS        = "15000"
+    COLONYD_PORT    = "4400"
+    COLONYD_DB_PATH = "/var/lib/colonyd/colonyd.db"
+    COLONYD_TICK_MS = "15000"
     # Six isolated sandbox pods fit the namespace's 8 CPU / 16 GiB request
     # quota while leaving headroom for teardown overlap.
     COLONYD_MAX_CONCURRENT = "6"
