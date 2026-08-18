@@ -26,6 +26,8 @@
         - router/glm-5.2
         - router/glm-5.3
         - zai/glm-5.3
+        - commandcode/muse-spark-1.2-contributor
+        - commandcode/deepseek-v4-flash
         - aether/qwen3.5-9b
         - aether/qwen3.5-9b:think
         - aether/qwen3.8-27b
