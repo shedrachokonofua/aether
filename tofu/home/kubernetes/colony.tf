@@ -38,6 +38,9 @@ locals {
 
   colony_env = {
     NODE_ENV = "production"
+    # Bun's fetch ignores @kubernetes/client-node's undici CA dispatcher; trust
+    # the in-cluster CA process-wide so sandbox provisioning can reach the API.
+    NODE_EXTRA_CA_CERTS = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
     AGENT_RUNTIME = "pi"
     # Baked into the image by colony CI (config/colony.deploy.yaml).
