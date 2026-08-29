@@ -12,7 +12,22 @@ resource "helm_release" "csi_driver_nfs" {
   chart      = "csi-driver-nfs"
   namespace  = module.namespace["system"].name
   wait       = true
-  timeout    = 300
+  # 900s, not chart default 300s: 8-node DaemonSet rollout takes ~50s per node, so 300s can expire mid-rollout and mark Helm failed despite converged pods.
+  timeout = 900
+
+  values = [yamlencode({
+    node = {
+      # 30d: ARM-pool p95 41Mi, fleet max 73Mi, ARM-pool CPU p50 10m.
+      resources = {
+        nfs = {
+          requests = {
+            cpu    = "10m"
+            memory = "48Mi"
+          }
+        }
+      }
+    }
+  })]
 }
 
 # =============================================================================

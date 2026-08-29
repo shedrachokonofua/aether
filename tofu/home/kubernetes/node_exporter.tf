@@ -37,9 +37,11 @@ resource "helm_release" "node_exporter" {
       { key = "node-role.kubernetes.io/master", operator = "Exists", effect = "NoSchedule" },
     ]
 
+    # 30d: ARM-pool p95 25Mi, fleet max 39Mi, ARM-pool CPU p50 17m.
+    # No CPU limit: 100m throttled 64-78% of CFS periods; 500m cut to 0-23% (22-23% on Pi 4-class workers); scrape-driven work cannot run away (CPU p95 25m, 100ms periods).
     resources = {
-      requests = { cpu = "1m", memory = "1Mi" }
-      limits   = { cpu = "100m", memory = "64Mi" }
+      requests = { cpu = "20m", memory = "32Mi" }
+      limits   = { memory = "64Mi" }
     }
   })]
 }

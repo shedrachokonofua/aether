@@ -54,8 +54,9 @@ resource "helm_release" "cnpg_barman_cloud" {
   values = [yamlencode({
     crds = { create = true }
 
+    # 30d p95 44Mi +20% (was 128Mi).
     resources = {
-      requests = { cpu = "50m", memory = "128Mi" }
+      requests = { cpu = "50m", memory = "64Mi" }
       limits   = { cpu = "250m", memory = "256Mi" }
     }
   })]

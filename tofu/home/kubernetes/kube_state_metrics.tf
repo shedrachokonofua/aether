@@ -25,10 +25,7 @@ resource "helm_release" "kube_state_metrics" {
   values = [yamlencode({
     fullnameOverride = local.kube_state_metrics_name
 
-    # Pin to amd64 — KSM is light but the Pi pool is already memory-tight.
-    nodeSelector = {
-      "kubernetes.io/arch" = "amd64"
-    }
+    # Placement is left to the arch-labeler plus Kyverno.
 
     resources = {
       requests = { cpu = "20m", memory = "64Mi" }

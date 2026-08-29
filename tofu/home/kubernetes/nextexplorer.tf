@@ -251,10 +251,11 @@ resource "kubernetes_deployment_v1" "nextexplorer" {
             mount_path = "/mnt/Media"
           }
 
+          # 30d p95 80Mi +20% (was 256Mi).
           resources {
             requests = {
               cpu    = "100m"
-              memory = "256Mi"
+              memory = "112Mi"
             }
             limits = {
               cpu    = "2"

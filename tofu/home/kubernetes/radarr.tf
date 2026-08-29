@@ -103,10 +103,11 @@ resource "kubernetes_deployment_v1" "radarr" {
             mount_path = "/media/hdd"
           }
 
+          # 30d p95 209Mi +20% (was 512Mi).
           resources {
             requests = {
               cpu    = "50m"
-              memory = "512Mi"
+              memory = "256Mi"
             }
             limits = {
               cpu    = "2"

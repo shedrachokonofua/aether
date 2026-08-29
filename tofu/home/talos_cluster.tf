@@ -400,6 +400,7 @@ resource "talos_machine_configuration_apply" "this" {
                   "node-labels" = join(",", compact([
                     try(each.value.pool, null) != null ? "aether.sh/node-pool=${each.value.pool}" : "",
                     try(each.value.hardware, null) != null ? "aether.sh/hardware=${each.value.hardware}" : "",
+                    try(each.value.model, null) != null ? "aether.sh/hardware-model=${each.value.model}" : "",
                   ]))
                 }
               },
@@ -553,6 +554,34 @@ resource "talos_cluster_kubeconfig" "this" {
   client_configuration = talos_machine_secrets.this.client_configuration
   endpoint             = local.vm.talos_trinity.ip
   node                 = local.vm.talos_trinity.ip
+}
+
+# =============================================================================
+# Node labels on already-registered nodes
+# =============================================================================
+# Kubelet applies --node-labels only at first Node registration, so
+# machine-config-only labels never reach existing nodes. An absent label satisfies
+# NotIn, making such a constraint match everything.
+resource "kubernetes_labels" "talos_node_hardware_model" {
+  for_each = {
+    for k, v in local.talos_nodes : k => v
+    if try(v.model, null) != null
+  }
+
+  depends_on = [talos_cluster_kubeconfig.this]
+
+  api_version = "v1"
+  kind        = "Node"
+
+  metadata {
+    name = each.value.name
+  }
+
+  labels = {
+    "aether.sh/hardware-model" = each.value.model
+  }
+
+  field_manager = "opentofu-aether-node-labels"
 }
 
 # =============================================================================

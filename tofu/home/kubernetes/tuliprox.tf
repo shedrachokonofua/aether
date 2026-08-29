@@ -224,10 +224,11 @@ resource "kubernetes_deployment_v1" "tuliprox" {
             mount_path = "/app/data"
           }
 
+          # 30d p95 143Mi +20% (was 128Mi).
           resources {
             requests = {
               cpu    = "100m"
-              memory = "128Mi"
+              memory = "176Mi"
             }
             limits = {
               cpu    = "1000m"

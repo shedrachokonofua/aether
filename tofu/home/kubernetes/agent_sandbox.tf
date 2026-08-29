@@ -10,8 +10,8 @@
 #                      SandboxTemplates + Sandbox CRs for tungsten / beryl,
 #                      egress allow-lists, hermes ssh-backend rewiring.
 #
-# Runtime: kata-containers via Talos system extension (see cloud_images.tf).
-# Sandboxes pin to amd64 (Pi nodes excluded — Cloud Hypervisor needs GICv3).
+# Runtime: kata-containers via Talos system extension.
+# Pi Talos schematics ship no kata extension; Pi 5 kata is unvalidated.
 
 locals {
   agent_sandbox_version                  = "v0.4.5"
@@ -59,13 +59,10 @@ locals {
     id => id == local.agent_sandbox_controller_deployment_id ? yamlencode(merge(
       yamldecode(manifest),
       {
+        # v0.4.5 controller is multi-arch; sandbox placement uses RuntimeClass kata.
         spec = merge(yamldecode(manifest).spec, {
           template = merge(yamldecode(manifest).spec.template, {
             spec = merge(yamldecode(manifest).spec.template.spec, {
-              nodeSelector = merge(
-                try(yamldecode(manifest).spec.template.spec.nodeSelector, {}),
-                { "kubernetes.io/arch" = "amd64" }
-              )
               containers = [
                 for container in yamldecode(manifest).spec.template.spec.containers :
                 merge(container, {

@@ -40,7 +40,9 @@ resource "kubectl_manifest" "affine_cnpg_cluster" {
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
-      affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
@@ -303,7 +305,9 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
         requests = { cpu = "250m", memory = "256Mi" }
         limits   = { cpu = "2000m", memory = "2Gi" }
       }
-      affinity = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
@@ -448,7 +452,9 @@ resource "kubectl_manifest" "nextcloud_cnpg_cluster" {
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
-      affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class

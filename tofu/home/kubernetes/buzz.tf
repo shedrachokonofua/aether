@@ -186,7 +186,9 @@ resource "kubectl_manifest" "buzz_cnpg_cluster" {
         requests = { cpu = "100m", memory = "256Mi" }
         limits   = { cpu = "1000m", memory = "1Gi" }
       }
-      affinity = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class

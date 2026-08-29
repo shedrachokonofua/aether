@@ -67,8 +67,10 @@ locals {
   otel_exporters = { otlphttp = { endpoint = local.otlp_endpoint } }
   # 1Gi: trivy-operator per-CVE metrics (~88k samples/scrape, heavy labels)
   # tripped the 80% memory_limiter at 512Mi and refused every scrape pool.
-  otel_resources           = { requests = { cpu = "100m", memory = "512Mi" }, limits = { cpu = "500m", memory = "1Gi" } }
-  otel_daemonset_resources = { requests = { cpu = "50m", memory = "64Mi" }, limits = { cpu = "500m", memory = "512Mi" } }
+  otel_resources = { requests = { cpu = "100m", memory = "512Mi" }, limits = { cpu = "500m", memory = "1Gi" } }
+  # 30d: ARM-pool p95 152Mi, fleet max 208Mi, ARM-pool CPU p50 416m.
+  # Over 30d, old limit throttled 47-70% of CFS periods (CPU p95 341-429m); raised to 1500m for scrape/export bursts.
+  otel_daemonset_resources = { requests = { cpu = "420m", memory = "160Mi" }, limits = { cpu = "1500m", memory = "512Mi" } }
   otel_processor_chain     = ["memory_limiter", "k8sattributes", "resource", "transform/k8s_labels", "batch"]
 }
 

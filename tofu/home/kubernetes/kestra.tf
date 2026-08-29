@@ -178,9 +178,9 @@ resource "kubectl_manifest" "kestra_cnpg_cluster" {
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
-      affinity = {
-        nodeSelector = { "kubernetes.io/arch" = "amd64" }
-      }
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:17.9 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
@@ -242,7 +242,8 @@ resource "helm_release" "kestra" {
     fullnameOverride = "kestra"
 
     common = {
-      nodeSelector = { "kubernetes.io/arch" = "amd64" }
+      # No arch pin: kestra/kestra:v1.3.9 publishes linux/arm64. Placement is
+      # decided by aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
 
       # Recreate (not RollingUpdate): the standalone pod mounts the RWO ceph-rbd
       # kestra-storage PVC. A surge pod can never mount the volume the old pod

@@ -65,6 +65,9 @@ resource "helm_release" "istio_cni" {
     profile    = "ambient"
     cniBinDir  = "/opt/cni/bin"
     cniConfDir = "/etc/cni/net.d"
+    # 228Mi/node, 912Mi across the four-Pi pool; Kyverno arm-pool-guardrails
+    # blocks ambient-namespace Pods from binding there.
+    affinity = local.off_arm_pool
   })]
 }
 
@@ -82,6 +85,8 @@ resource "helm_release" "ztunnel" {
 
   values = [yamlencode({
     caAddress = local.istio_csr_service
+    # Chart 1.29.0 renders `.Values.affinity` although values.yaml does not document it.
+    affinity = local.off_arm_pool
     resources = {
       requests = { cpu = "50m", memory = "128Mi" }
       limits   = { cpu = "1000m", memory = "512Mi" }

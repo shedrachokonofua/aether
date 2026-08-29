@@ -78,8 +78,9 @@ resource "kubernetes_deployment_v1" "memos" {
             mount_path = "/var/opt/memos"
           }
 
+          # 30d p95 41Mi +20% (was 128Mi).
           resources {
-            requests = { cpu = "50m", memory = "128Mi" }
+            requests = { cpu = "50m", memory = "64Mi" }
             limits   = { cpu = "500m", memory = "512Mi" }
           }
 
