@@ -74,10 +74,11 @@ resource "keycloak_openid_audience_protocol_mapper" "cloud_audit_audience" {
 # Created during the acceptance investigation and imported into state
 # (import block in tofu/main.tf); tofu now owns it.
 resource "keycloak_oidc_identity_provider" "talos_k8s" {
-  realm       = keycloak_realm.aether.id
-  alias       = "talos-k8s-fed"
-  provider_id = "kubernetes"
-  enabled     = true
+  realm              = keycloak_realm.aether.id
+  alias              = "talos-k8s-fed"
+  provider_id        = "kubernetes"
+  enabled            = true
+  hide_on_login_page = true
 
   issuer = "https://oidc.k8s.home.shdr.ch"
 
