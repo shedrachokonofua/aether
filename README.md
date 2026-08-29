@@ -36,7 +36,7 @@ Details in [Hosts](docs/hosts.md); VM placement in
 | Storage and backup | ZFS, Ceph (RBD, CephFS, RGW), NFS, SMB, Proxmox Backup Server, Restic, Backrest, versioned S3, Glacier Deep Archive |
 | Identity and secrets | Keycloak SSO, step-ca, mTLS, SSH certificates, OpenBao, SOPS, AWS KMS, offline Age recovery key |
 | Observability | Grafana, Prometheus, GreptimeDB, Loki, Tempo, ClickHouse, Zeek, Suricata, Fleet, OpenTelemetry |
-| Runtime security | Suricata, Zeek, CrowdSec, Tetragon, Trivy Operator, Policy Reporter, Kyverno, Kepler |
+| Runtime security | Suricata, Zeek, CrowdSec, Tetragon, Trivy Operator, Policy Reporter, Kyverno |
 | AI and GPU | llama-swap, LiteLLM, OpenWebUI, ComfyUI, Docling, Speaches, Jupyter |
 | Applications | GitLab, Matrix, Home Assistant, Z-Wave, Matter, Jellyfin, AIOMetadata, Remux (evaluation), Sunshine, Nextcloud, Immich |
 | Cloud | AWS, Google Cloud, Cloudflare — public ingress, SES, identity federation, uptime monitoring, budgets, offsite backup |

@@ -23,7 +23,6 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Tetragon       | eBPF runtime security observability, observe-only      |
 | Trivy Operator | Vulnerability/config/RBAC/security report generation   |
 | Policy Reporter | UI and metrics for Kyverno and Trivy report results   |
-| Kepler         | Node, pod, and container energy/efficiency metrics     |
 | Headlamp       | Kubernetes dashboard with OIDC auth                   |
 | Hubble UI      | Cilium network observability UI                       |
 | GitLab Agent   | CI/CD deploys via GitLab KAS tunnel                   |
@@ -45,7 +44,7 @@ still running. Keep it out of application architecture claims; its removal is a
 separate IaC decision because applying that change deletes live platform
 resources.
 
-Tetragon, Trivy Operator, Policy Reporter, and Kepler are observability/reporting
+Tetragon, Trivy Operator, and Policy Reporter are observability/reporting
 components only. They do not block admissions, mutate workloads, or enforce
 runtime policy.
 

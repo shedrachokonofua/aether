@@ -8,7 +8,6 @@ locals {
   tetragon_namespace        = "tetragon"
   trivy_operator_namespace  = "trivy-system"
   policy_reporter_namespace = "policy-reporter"
-  kepler_namespace          = module.namespace["observability"].name
   node_agent_priority_class = "aether-node-agent"
 
   policy_reporter_host = "policy-reporter.home.shdr.ch"
@@ -448,56 +447,3 @@ resource "kubernetes_manifest" "policy_reporter_route" {
   }
 }
 
-# Kepler uses eBPF and host counters for node/pod energy metrics.
-
-resource "helm_release" "kepler" {
-  depends_on = [module.namespace["observability"]]
-
-  name       = "kepler"
-  repository = "https://sustainable-computing-io.github.io/kepler-helm-chart"
-  chart      = "kepler"
-  namespace  = local.kepler_namespace
-  version    = "0.6.1"
-  wait       = true
-  timeout    = 600
-
-  values = [yamlencode({
-    image = {
-      pullPolicy = "IfNotPresent"
-    }
-
-    canMount = {
-      usrSrc = false
-    }
-
-    extraEnvVars = {
-      KEPLER_LOG_LEVEL           = "1"
-      ENABLE_GPU                 = "true"
-      ENABLE_QAT                 = "false"
-      ENABLE_EBPF_CGROUPID       = "true"
-      EXPOSE_HW_COUNTER_METRICS  = "true"
-      EXPOSE_IRQ_COUNTER_METRICS = "true"
-      EXPOSE_CGROUP_METRICS      = "true"
-      ENABLE_PROCESS_METRICS     = "false"
-      CGROUP_METRICS             = "*"
-    }
-
-    resources = {
-      requests = { cpu = "25m", memory = "16Mi" }
-      limits   = { cpu = "1", memory = "512Mi" }
-    }
-
-    service = {
-      type = "ClusterIP"
-      port = 9102
-    }
-
-    serviceMonitor = {
-      enabled = false
-    }
-
-    modelServer = {
-      enabled = false
-    }
-  })]
-}
