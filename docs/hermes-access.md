@@ -15,7 +15,7 @@ inference is shelved until a stronger small model lands.
 | Matrix | Beryl bot account via stored access token, private home room for proactive output | Wired |
 | Jellyfin | Beryl-specific API key | Wired |
 | Notes and documents | AFFiNE via community `affine-mcp-server` on LiteLLM MCP | Wired |
-| LiteLLM MCP | Full aggregate (time, firecrawl, finviz, espn, affine, tmdb, deskplane, siren, Google Maps when enabled) | Wired |
+| LiteLLM MCP | Full aggregate (time, firecrawl, finviz, espn, affine, tmdb, jellyfin, deskplane, siren, Google Maps when enabled) | Wired |
 | Mnemo | Direct MCP at `mnemo.home.shdr.ch/mcp` + bundled skill | Wired |
 | Instacart | Direct MCP at `instacart-mcp.instacart-mcp.svc:8080/mcp` (browser-backed shopping) | Wired |
 | Images and screenshots | Private read/search workspace with local vision | To wire |

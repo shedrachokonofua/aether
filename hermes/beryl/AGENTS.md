@@ -101,7 +101,9 @@ Beryl has full access to the in-cluster LiteLLM MCP aggregate (`litellm` server
 in config). Tools register as `mcp_litellm_*`.
 
 Includes: time, firecrawl, finviz, espn, google_maps (when enabled), tmdb
-(movies/TV/people via The Movie Database), deskplane, **siren**, and **affine**
+(movies/TV/people via The Movie Database), **jellyfin** (library search,
+media, and system via three condensed action-routed tools), deskplane,
+**siren**, and **affine**
 via the community `affine-mcp-server` sidecar (not the built-in AFFiNE
 read-only endpoint).
 
