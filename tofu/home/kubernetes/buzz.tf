@@ -139,6 +139,11 @@ resource "kubernetes_deployment_v1" "buzz_redis" {
       }
     }
   }
+
+  lifecycle {
+    # Kyverno owns priorityClassName via namespace-tier defaulting.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+  }
 }
 
 resource "kubernetes_service_v1" "buzz_redis" {

@@ -264,6 +264,15 @@ resource "kubernetes_deployment_v1" "vigil" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      # Kyverno owns priorityClassName via namespace-tier defaulting.
+      spec[0].template[0].spec[0].priority_class_name,
+      # Preserve operator-requested restarts without causing a second rollout.
+      spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
+    ]
+  }
 }
 
 # --- Kyverno pod-spec pin ----------------------------------------------------
@@ -413,8 +422,8 @@ resource "kubernetes_manifest" "cloud_audit_egress_pin" {
         {
           toEndpoints = [{
             matchLabels = {
-              "k8s-app"                      = "kube-dns"
-              "io.kubernetes.pod.namespace"  = "kube-system"
+              "k8s-app"                     = "kube-dns"
+              "io.kubernetes.pod.namespace" = "kube-system"
             }
           }]
           toPorts = [{
@@ -431,8 +440,8 @@ resource "kubernetes_manifest" "cloud_audit_egress_pin" {
         {
           toEndpoints = [{
             matchLabels = {
-              "app.kubernetes.io/name"       = "opentelemetry-collector"
-              "io.kubernetes.pod.namespace"  = "observability"
+              "app.kubernetes.io/name"      = "opentelemetry-collector"
+              "io.kubernetes.pod.namespace" = "observability"
             }
           }]
           toPorts = [{ ports = [{ port = "4318", protocol = "TCP" }] }]

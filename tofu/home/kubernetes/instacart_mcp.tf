@@ -7,9 +7,9 @@ locals {
   instacart_mcp_image         = "registry.gitlab.home.shdr.ch/so/instacart-mcp:latest"
   instacart_mcp_host          = "instacart-mcp.home.shdr.ch"
   instacart_mcp_port          = 8080
-  instacart_mcp_ns             = module.namespace["instacart-mcp"].name
-  instacart_mcp_labels         = { app = "instacart-mcp" }
-  instacart_mcp_registry_host  = "registry.gitlab.home.shdr.ch"
+  instacart_mcp_ns            = module.namespace["instacart-mcp"].name
+  instacart_mcp_labels        = { app = "instacart-mcp" }
+  instacart_mcp_registry_host = "registry.gitlab.home.shdr.ch"
 }
 
 resource "kubernetes_secret_v1" "instacart_mcp_gitlab_registry" {
@@ -238,8 +238,12 @@ resource "kubernetes_deployment_v1" "instacart_mcp" {
   }
 
   lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+    ignore_changes = [
+      # Kyverno owns priorityClassName via namespace-tier defaulting.
+      spec[0].template[0].spec[0].priority_class_name,
+      # Keel records force-update time on the pod template.
+      spec[0].template[0].metadata[0].annotations["keel.sh/update-time"],
+    ]
   }
 }
 

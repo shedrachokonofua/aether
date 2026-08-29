@@ -648,8 +648,14 @@ PY
 
 
   lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+    ignore_changes = [
+      # Kyverno owns priorityClassName via namespace-tier defaulting.
+      spec[0].template[0].spec[0].priority_class_name,
+      # The completed Job predates the stable hostname-only GPU selector.
+      # Preserve that historical version-label key without masking future
+      # changes to the authoritative hostname selector.
+      spec[0].template[0].spec[0].node_selector["extensions.talos.dev/nvidia-container-toolkit-lts"],
+    ]
   }
 }
 

@@ -114,6 +114,12 @@ resource "kubernetes_job_v1" "mingus_temporal_namespace" {
       }
     }
   }
+
+  lifecycle {
+    # Kyverno owns priorityClassName; do not replace this completed,
+    # idempotent namespace-registration Job to remove the injected default.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+  }
 }
 
 resource "helm_release" "mingus" {
