@@ -44,7 +44,11 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 
 ### LiteLLM
 
-Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, cloud providers, Cursor Composer routes, and MCP tools. The Cursor Composer models are exposed as `cursor/composer-2.5` and `cursor/composer-2.5-fast`; LiteLLM bridges `/responses` clients to the self-hosted composer-api chat-completions endpoint, and also exposes first-class Cursor BYOK routes under `/cursor/*`.
+Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, cloud providers, Cursor Composer routes, and MCP tools. The Cursor Composer models are exposed as `cursor/composer-2.5` and `cursor/composer-2.5-fast`; LiteLLM bridges `/responses` clients to the self-hosted composer-api chat-completions endpoint.
+
+**The self-hosted composer-api is the only way to reach Composer from LiteLLM.** No released LiteLLM (verified in the deployed 1.92.0 and the 1.97.0 sdist) has a native Cursor chat provider: there is no `litellm/llms/cursor/` adapter, `LlmProviders.CURSOR` is a pass-through marker only, `get_provider_chat_config(provider=CURSOR)` returns `None`, and `model: cursor/composer-2.5` without an `api_base` fails with `LiteLLMUnknownProvider`. Cursor publishes no OpenAI-compatible chat-completions endpoint either — `api.cursor.com/v1/chat/completions` 404s — so a `crsr_` key only authorizes the Cloud Agents REST API and the official CLI/Agent SDK harness that composer-api wraps.
+
+LiteLLM's `/cursor/*` namespace is two unrelated things, and the split moved between versions. `/cursor/{endpoint:path}` pass-throughs to the Cursor Cloud Agents API (`https://api.cursor.com`, Basic `base64(CURSOR_API_KEY:)`) — agent lifecycle, not inference. `POST /cursor/chat/completions` runs the opposite direction: it serves *Cursor as a BYOK client* off LiteLLM's own models. **Upgrade hazard:** 1.97.0 adds `GET /cursor/models` and `GET /cursor/v1/models` that shadow the pass-through and return LiteLLM's model list instead of Cursor's catalog (`response_api_endpoints/endpoints.py:430-454`). On 1.92.0 those paths still reach Cursor — `GET /cursor/v1/models` returns Cursor's own catalog today. Anything depending on that must switch to the `/cursor/v1/agents`-style paths, which keep passing through.
 
 Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/glm-5.2` models through Alibaba MaaS. Inquest sends Holmes
@@ -54,11 +58,27 @@ GLM 5.2 deployments remain pooled under the canonical
 `router/glm-5.2` group for the Clinepass and Ollama Cloud providers.
 Z.AI GLM 5.3 uses the separate `router/glm-5.3` group, backed only by the
 configured Z.AI key; the `glm` alias and first-party agent defaults use GLM 5.3.
-The provider-prefixed GLM names remain compatibility aliases, while the
+GLM 5.3 Flash is a third group, `router/glm-5.3-flash`, shuffled across
+Clinepass, Z.AI, Command Code, OpenCode Go, and Ollama Cloud. Provider-prefixed
+pins (`clinepass/glm-5.3-flash`, `commandcode/glm-5.3-flash`,
+`ollama-cloud/glm-5.3-flash`, `opencode-go/glm-5.3-flash`,
+`zai/glm-5.3-flash`) stay standalone. Flash is the
+named successor to the ended OpenCode Go Ox Alpha preview; do not mix it with
+`router/glm-5.3`. The provider-prefixed GLM names remain compatibility aliases, while the
 Qwen Cloud GLM 5.2 deployment stays standalone. The same routing pattern covers
-`router/deepseek-v4-flash`, `router/qwen3.7-max`, `router/minimax-m3`, and
-`router/mimo-v2.5-pro` where multiple providers are configured. Ollama Cloud's
-Kimi K2.6 deployment remains separate. Production routing uses a 120-second
+`router/deepseek-v4-flash`, `router/qwen3.7-max`, `router/minimax-m3`,
+`router/mimo-v2.5-pro`, `router/muse-spark-1.2-contributor`, and
+`router/hy4-preview` where multiple providers are configured. Tencent Hy4
+Preview is shuffled across Clinepass, Command Code, and OpenCode Go; Ollama
+Cloud does not serve it. Pins (`clinepass/hy4-preview`,
+`commandcode/hy4-preview`, `opencode-go/hy4-preview`) stay standalone. The
+`hy4` and `hy4-preview` aliases land on the router group. OpenCode Go provides
+`opencode-go/muse-spark-1.2-contributor` and `opencode-go/glm-5.3-flash`
+through `https://opencode.ai/zen/go/v1`.
+The Muse Spark contributor route is also
+pooled with Command Code under `router/muse-spark-1.2-contributor`; both
+contributor deployments may use prompts as training data, so they are for
+public work only. Ollama Cloud's Kimi K2.6 deployment remains separate. Production routing uses a 120-second
 upstream timeout for agentic turns, three retries, and one failed deployment
 before a 300-second cooldown; detailed debug mode is disabled.
 
@@ -82,6 +102,7 @@ flowchart LR
         OR[OpenRouter]
         ZAI[Z.AI]
         QWEN[Qwen Cloud]
+        OCGO[OpenCode Go]
     end
 
     subgraph MCP["MCP Tools"]
@@ -93,7 +114,7 @@ flowchart LR
 
     OWUI & API --> LLM
     LLM --> LS & RR
-    LLM --> OAI & ANT & OR & ZAI & QWEN
+    LLM --> OAI & ANT & OR & ZAI & QWEN & OCGO
     LLM --> TIME & FC & GMAPS & TMDB
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0

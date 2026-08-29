@@ -91,6 +91,14 @@ model_list:
     litellm_params:
       model: "openai/cline-pass/glm-5.2"
       litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/glm-5.3-flash"
+    litellm_params:
+      model: "openai/cline-pass/glm-5.3-flash"
+      litellm_credential_name: clinepass_credential
+  - model_name: "router/glm-5.3-flash"
+    litellm_params:
+      model: "openai/cline-pass/glm-5.3-flash"
+      litellm_credential_name: clinepass_credential
   - model_name: "router/qwen3.7-max"
     litellm_params:
       model: "openai/cline-pass/qwen3.7-max"
@@ -102,6 +110,14 @@ model_list:
   - model_name: "router/mimo-v2.5-pro"
     litellm_params:
       model: "openai/cline-pass/mimo-v2.5-pro"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/hy4-preview"
+    litellm_params:
+      model: "openai/tencent/hy4-preview"
+      litellm_credential_name: clinepass_credential
+  - model_name: "router/hy4-preview"
+    litellm_params:
+      model: "openai/tencent/hy4-preview"
       litellm_credential_name: clinepass_credential
 
   # Kimi Coding models (https://api.kimi.com/coding/v1 — OpenAI-compatible).
@@ -120,14 +136,30 @@ model_list:
       model: "openai/glm-5.2"
       litellm_credential_name: qwen_cloud_credential
 
-  # Z.AI GLM 5.3 uses a separate router group; never mix it with GLM 5.2.
+  # Z.AI GLM 5.3 uses a separate router group; never mix it with GLM 5.2
+  # or with GLM 5.3 Flash.
   - model_name: "router/glm-5.3"
     litellm_params:
       model: "zai/glm-5.3"
       litellm_credential_name: zai_credential
+  - model_name: "zai/glm-5.3-flash"
+    litellm_params:
+      model: "zai/glm-5.3-flash"
+      litellm_credential_name: zai_credential
+  - model_name: "router/glm-5.3-flash"
+    litellm_params:
+      model: "zai/glm-5.3-flash"
+      litellm_credential_name: zai_credential
 
   # Command Code models. Contributor prompts are training data — public work only.
   - model_name: "commandcode/muse-spark-1.2-contributor"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.2-contributor"
+      litellm_credential_name: commandcode_credential
+  # First leg of the shuffled router/muse-spark-1.2-contributor pool.
+  # commandcode/muse-spark-1.2-contributor stays standalone for callers that
+  # want the GOAT route explicitly.
+  - model_name: "router/muse-spark-1.2-contributor"
     litellm_params:
       model: "openai/meta/muse-spark-1.2-contributor"
       litellm_credential_name: commandcode_credential
@@ -142,6 +174,53 @@ model_list:
     litellm_params:
       model: "openai/deepseek/deepseek-v4-flash"
       litellm_credential_name: commandcode_credential
+  - model_name: "commandcode/glm-5.3-flash"
+    litellm_params:
+      model: "openai/z-ai/glm-5.3-flash"
+      litellm_credential_name: commandcode_credential
+  - model_name: "router/glm-5.3-flash"
+    litellm_params:
+      model: "openai/z-ai/glm-5.3-flash"
+      litellm_credential_name: commandcode_credential
+  - model_name: "commandcode/hy4-preview"
+    litellm_params:
+      model: "openai/tencent/hy4-preview"
+      litellm_credential_name: commandcode_credential
+  - model_name: "router/hy4-preview"
+    litellm_params:
+      model: "openai/tencent/hy4-preview"
+      litellm_credential_name: commandcode_credential
+
+  # OpenCode Go (https://opencode.ai/zen/go/v1). Muse Spark Contributor
+  # prompts are training data — public work only. Ox Alpha's free stealth
+  # preview ended; the named successor is GLM 5.3 Flash.
+  - model_name: "opencode-go/muse-spark-1.2-contributor"
+    litellm_params:
+      model: "openai/muse-spark-1.2-contributor"
+      litellm_credential_name: opencode_go_credential
+  - model_name: "opencode-go/glm-5.3-flash"
+    litellm_params:
+      model: "openai/glm-5.3-flash"
+      litellm_credential_name: opencode_go_credential
+  - model_name: "router/glm-5.3-flash"
+    litellm_params:
+      model: "openai/glm-5.3-flash"
+      litellm_credential_name: opencode_go_credential
+  - model_name: "opencode-go/hy4-preview"
+    litellm_params:
+      model: "openai/hy4-preview"
+      litellm_credential_name: opencode_go_credential
+  - model_name: "router/hy4-preview"
+    litellm_params:
+      model: "openai/hy4-preview"
+      litellm_credential_name: opencode_go_credential
+  # Second leg of the shuffled router/muse-spark-1.2-contributor pool.
+  # opencode-go/muse-spark-1.2-contributor stays standalone for callers that
+  # want the Go subscription route explicitly.
+  - model_name: "router/muse-spark-1.2-contributor"
+    litellm_params:
+      model: "openai/muse-spark-1.2-contributor"
+      litellm_credential_name: opencode_go_credential
 
   # Ollama Cloud models
   - model_name: "ollama-cloud/kimi-k2.6"
@@ -151,6 +230,14 @@ model_list:
   - model_name: "router/glm-5.2"
     litellm_params:
       model: "ollama_chat/glm-5.2"
+      litellm_credential_name: ollama_cloud_credential
+  - model_name: "ollama-cloud/glm-5.3-flash"
+    litellm_params:
+      model: "ollama_chat/glm-5.3-flash"
+      litellm_credential_name: ollama_cloud_credential
+  - model_name: "router/glm-5.3-flash"
+    litellm_params:
+      model: "ollama_chat/glm-5.3-flash"
       litellm_credential_name: ollama_cloud_credential
   - model_name: "router/deepseek-v4-pro"
     litellm_params:
@@ -288,9 +375,13 @@ model_list:
       model: "openai/google/gemini-3.1-pro-preview"
       litellm_credential_name: openrouter_credential
 
-  # Cursor Composer model aliases via self-hosted composer-api (personal ns).
-  # LiteLLM 1.86 also exposes first-class Cursor BYOK routes under /cursor/*;
-  # these aliases keep /v1/chat/completions and /v1/responses OpenAI-compatible.
+  # Cursor Composer model aliases via self-hosted composer-api (composer ns).
+  # These are the ONLY way to reach Composer from LiteLLM: no released LiteLLM
+  # (checked through 1.97.0) has a native Cursor chat provider — LlmProviders.CURSOR
+  # is a pass-through marker with no llms/cursor adapter, and LiteLLM's /cursor/*
+  # route proxies the Cursor Cloud Agents API (api.cursor.com, Basic auth), not
+  # chat completions. Do not "simplify" these to model: cursor/... — that fails
+  # with LiteLLMUnknownProvider.
   # The explicit chat-completions flag lets LiteLLM bridge /responses clients to
   # the composer-api /chat/completions endpoint instead of forwarding /responses.
   - model_name: "cursor/composer-2.5"
@@ -313,7 +404,7 @@ credential_list:
       description: "llama-swap on K8s"
   - credential_name: composer_credential
     credential_values:
-      # composer runs in the `personal` ns (outside the infra ambient mesh), so
+      # composer runs in the `composer` ns (outside the litellm ambient mesh), so
       # cross-ns cluster DNS is unreachable from here; use the public ingress.
       api_base: https://composer.home.shdr.ch/v1
       api_key: os.environ/CURSOR_API_KEY
@@ -365,6 +456,12 @@ credential_list:
       api_key: os.environ/COMMANDCODE_API_KEY
     credential_info:
       description: "Command Code Provider API (GOAT plan)"
+  - credential_name: opencode_go_credential
+    credential_values:
+      api_base: https://opencode.ai/zen/go/v1
+      api_key: os.environ/OPENCODE_GO_API_KEY
+    credential_info:
+      description: "OpenCode Go"
   - credential_name: clinepass_credential
     credential_values:
       api_base: https://api.cline.bot/api/v1
@@ -410,6 +507,9 @@ router_settings:
     - group_name: router/glm-5.3
       models: ["router/glm-5.3"]
       routing_strategy: simple-shuffle
+    - group_name: router/glm-5.3-flash
+      models: ["router/glm-5.3-flash"]
+      routing_strategy: simple-shuffle
     - group_name: router/kimi-k2.7-code
       models: ["router/kimi-k2.7-code"]
       routing_strategy: simple-shuffle
@@ -428,6 +528,12 @@ router_settings:
     - group_name: router/mimo-v2.5-pro
       models: ["router/mimo-v2.5-pro"]
       routing_strategy: simple-shuffle
+    - group_name: router/muse-spark-1.2-contributor
+      models: ["router/muse-spark-1.2-contributor"]
+      routing_strategy: simple-shuffle
+    - group_name: router/hy4-preview
+      models: ["router/hy4-preview"]
+      routing_strategy: simple-shuffle
 
   # Keep the old provider-prefixed names working for existing clients while
   # routing them into the new shared groups. The aliases do not duplicate
@@ -442,8 +548,8 @@ router_settings:
     "mimo-v2.5-pro": "router/mimo-v2.5-pro"
     "clinepass/glm-5.2": "router/glm-5.2"
     "zai/glm-5.3": "router/glm-5.3"
+    "ollama-cloud/glm-5.3-flash:cloud": "router/glm-5.3-flash"
     "ollama-cloud/glm-5.2": "router/glm-5.2"
-    "clinepass/kimi-k2.7-code": "router/kimi-k2.7-code"
     "ollama-cloud/kimi-k2.7-code": "router/kimi-k2.7-code"
     "clinepass/deepseek-v4-pro": "router/deepseek-v4-pro"
     "ollama-cloud/deepseek-v4-pro:cloud": "router/deepseek-v4-pro"
@@ -454,6 +560,9 @@ router_settings:
     "ollama-cloud/minimax-m3": "router/minimax-m3"
     "clinepass/mimo-v2.5-pro": "router/mimo-v2.5-pro"
     "xiaomi/mimo-v2.5-pro": "router/mimo-v2.5-pro"
+    "muse-spark-1.2-contributor": "router/muse-spark-1.2-contributor"
+    "hy4-preview": "router/hy4-preview"
+    "hy4": "router/hy4-preview"
 
 general_settings:
   store_prompts_in_spend_logs: true
@@ -479,6 +588,8 @@ mcp_servers:
     url: "http://localhost:8080/mcp"
   tmdb:
     url: "http://localhost:8006/mcp"
+  jellyfin:
+    url: "http://localhost:8007/mcp"
   deskplane:
     url: "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
   # Siren: 74 tools generated from its gRPC contract.
