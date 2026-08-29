@@ -32,7 +32,6 @@ resource "kubernetes_secret_v1" "immichframe_config" {
     "Settings.yml" = yamlencode({
       General = {
         Interval           = 30
-        TransitionDuration = 2
         ShowClock          = true
         ImageZoom          = true
         # Portrait 1080x1920 panel — splitview only helps landscape frames.
