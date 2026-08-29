@@ -126,7 +126,7 @@
   - [x] Dev shell (`nix develop`) - replaced Docker toolbox
   - [x] AdGuard LXC - DNS, OTEL, Prometheus exporter
   - [x] IDS Stack VM - Zeek via quadlet-nix
-  - [x] Blockchain Stack VM - bitcoind, monerod, Fulcrum (quadlet)
+  - [x] Blockchain Stack VM - bitcoind, monerod, Fulcrum (quadlet) — retired 2026-08-16
   - [ ] Migrate Gateway Stack (Caddy, Tailscale, HAProxy)
   - [ ] Migrate Oracle identity stack (Keycloak, step-ca, OpenBao) via nixos-generators LXC
   - [ ] Migrate Monitoring Stack ([exploration](exploration/monitoring-stack-nix.md) Track B; prereqs: journal forwarder, codified dashboards, pinned images; absorbs deferred hardening: dir ownership, port non-publication, Fleet TLS, exporter TLS verify)

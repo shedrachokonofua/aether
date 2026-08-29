@@ -321,26 +321,6 @@ estate_scanner:
   gateway: "10.0.2.1"
   vlan: 2
 
-blockchain_stack:
-  id: 1029
-  name: "blockchain-stack"
-  node: "smith"
-  admin: "aether"
-  cores: 8
-  memory: 16384
-  disk_gb: 256
-  ip: "10.0.3.8"
-  gateway: "10.0.3.1"
-  ports:
-    bitcoin_p2p: 8333
-    bitcoin_rpc: 8332
-    monero_p2p: 18080
-    monero_rpc: 18081
-    electrum_tcp: 50001
-    electrum_ssl: 50002
-    lnd_p2p: 9735
-    lnd_grpc: 10009
-    thunderhub: 3000
 
 # =============================================================================
 # Talos Kubernetes Cluster

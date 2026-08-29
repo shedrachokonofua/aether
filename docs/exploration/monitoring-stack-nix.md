@@ -13,7 +13,7 @@ router config — ships early because it is really just Track B work that can st
 - **Pre-migration work**: survivable subset, ships on the current Fedora VM / adjacent
   systems via existing playbooks.
 - **Track B — NixOS migration**: the existing P3 todo, executed blue-green with the
-  ids-stack/blockchain-stack recipe; absorbs the deferred hardening natively.
+  ids-stack recipe; absorbs the deferred hardening natively.
 
 ## Current state (audited)
 
@@ -156,7 +156,7 @@ collector change is owned by this plan. Amendment note added to the forwarder do
   migration is a platform change, not a version change. ClickHouse/Loki/MySQL data copies
   below assume identical versions on both sides.
 
-### Recipe (established by ids-stack / blockchain-stack)
+### Recipe (established by ids-stack)
 
 ```
 Provision:  tofu nixos_cloud_config module → step-ca machine cert via cloud-init

@@ -210,7 +210,6 @@ let
     (mkTarget "nix-builder" facts.vm.nix_builder.ip)
     (mkTarget "estate-scanner" facts.vm.estate_scanner.ip)
     (mkTarget "iot-management-stack" facts.vm.iot_management_stack.ip)
-    (mkTarget "blockchain-stack" facts.vm.blockchain_stack.ip)
     (mkTarget "talos-trinity" facts.vm.talos_trinity.ip)
     (mkTarget "talos-neo" facts.vm.talos_neo.ip)
     (mkTarget "talos-niobe" facts.vm.talos_niobe.ip)

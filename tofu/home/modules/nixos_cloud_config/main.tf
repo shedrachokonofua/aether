@@ -4,18 +4,18 @@
 # snippet for NixOS VMs with machine identity pre-provisioned.
 #
 # Usage:
-#   module "blockchain_stack_cloud_config" {
+#   module "nix_builder_cloud_config" {
 #     source = "./modules/nixos_cloud_config"
 #
-#     name                 = "blockchain-stack"
-#     ip_addresses         = ["10.0.3.10"]
-#     node_name            = "smith"
+#     name                 = "nix-builder"
+#     ip_addresses         = ["10.0.2.12"]
+#     node_name            = "neo"
 #     provisioner_password = var.secrets["step_ca.provisioner_password"]
 #   }
 #
 #   # Use in VM initialization:
 #   initialization {
-#     user_data_file_id = module.blockchain_stack_cloud_config.file_id
+#     user_data_file_id = module.nix_builder_cloud_config.file_id
 #   }
 
 terraform {
@@ -33,7 +33,7 @@ terraform {
 
 variable "name" {
   type        = string
-  description = "Short hostname for the VM (e.g. 'blockchain-stack')"
+  description = "Short hostname for the VM (e.g. 'nix-builder')"
 }
 
 variable "domain" {

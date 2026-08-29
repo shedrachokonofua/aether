@@ -811,28 +811,6 @@ tasks:
       - task: tofu:apply
         vars: { CLI_ARGS: "-target=proxmox_virtual_environment_vm.ids_stack" }
       - task: configure:ids-stack
-  configure:blockchain-stack:
-    desc: Deploy NixOS configuration to Blockchain Stack VM
-    vars:
-      TARGET_IP:
-        sh: yq '.blockchain_stack.ip' config/vm.yml
-      BUILD_IP:
-        sh: yq '.nix_builder.ip' config/vm.yml
-    cmds:
-      - task: _nixos-deploy
-        vars:
-          TARGET_IP: "{{.TARGET_IP}}"
-          BUILD_IP: "{{.BUILD_IP}}"
-          FLAKE_TARGET: blockchain-stack
-  deploy:blockchain-stack:
-    desc: Full deploy - provision VM + configure NixOS
-    cmds:
-      - task: tofu:apply
-        vars:
-          {
-            CLI_ARGS: "-target=proxmox_virtual_environment_vm.blockchain_stack",
-          }
-      - task: configure:blockchain-stack
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:
