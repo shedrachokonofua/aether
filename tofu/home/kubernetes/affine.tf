@@ -69,9 +69,9 @@ resource "kubernetes_secret_v1" "affine_config" {
       oauth = {
         providers = {
           oidc = {
-            issuer       = var.oidc_issuer_url
-            clientId     = "affine"
-            clientSecret = var.affine_oauth_client_secret
+            issuer              = var.oidc_issuer_url
+            clientId            = "affine"
+            clientSecret        = var.affine_oauth_client_secret
             allowPrivateNetwork = true
             args = {
               scope = "openid profile email"
@@ -347,7 +347,12 @@ resource "kubernetes_job_v1" "affine_migration" {
       }
     }
   }
-  lifecycle { replace_triggered_by = [terraform_data.affine_migration_trigger.id] }
+  lifecycle {
+    replace_triggered_by = [terraform_data.affine_migration_trigger.id]
+    # Kyverno owns priorityClassName; do not replace a completed migration Job
+    # solely to remove the admission-injected default.
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+  }
 }
 
 resource "terraform_data" "affine_migration_trigger" {
@@ -386,10 +391,17 @@ resource "kubernetes_deployment_v1" "affine" {
         # Admin UI edits persist copilot settings to app_configs and override the
         # mounted config.json. Clear those keys on every start so IaC stays authoritative.
         init_container {
-          name  = "sync-copilot-config"
-          image = "docker.io/postgres:16-alpine"
-          command = [
-            "until pg_isready -h ${local.affine_db_host} -U affine; do sleep 2; done; PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h ${local.affine_db_host} -U affine -d affine -v ON_ERROR_STOP=1 -c \"DELETE FROM app_configs WHERE id IN ('copilot.providers.openai', 'copilot.providers.profiles', 'copilot.providers.defaults', 'copilot.scenarios');\" -c \"UPDATE effective_user_quota_states SET flags = jsonb_set(flags, '{unlimitedCopilot}', 'true'::jsonb) WHERE flags->>'unlimitedCopilot' = 'false';\" -c \"UPDATE effective_workspace_quota_states SET flags = jsonb_set(flags, '{unlimitedCopilot}', 'true'::jsonb) WHERE flags->>'unlimitedCopilot' = 'false';\"",
+          name    = "sync-copilot-config"
+          image   = "docker.io/postgres:16-alpine"
+          command = ["sh", "-ec"]
+          args = [<<-EOT
+            until pg_isready -h ${local.affine_db_host} -U affine; do sleep 2; done
+            PGPASSWORD="$POSTGRES_PASSWORD" psql \
+              -h ${local.affine_db_host} -U affine -d affine -v ON_ERROR_STOP=1 \
+              -c "DELETE FROM app_configs WHERE id IN ('copilot.providers.openai', 'copilot.providers.profiles', 'copilot.providers.defaults', 'copilot.scenarios');" \
+              -c "UPDATE effective_user_quota_states SET flags = jsonb_set(flags, '{unlimitedCopilot}', 'true'::jsonb) WHERE flags->>'unlimitedCopilot' = 'false';" \
+              -c "UPDATE effective_workspace_quota_states SET flags = jsonb_set(flags, '{unlimitedCopilot}', 'true'::jsonb) WHERE flags->>'unlimitedCopilot' = 'false';"
+          EOT
           ]
           env_from {
             secret_ref {
@@ -478,8 +490,13 @@ resource "kubernetes_deployment_v1" "affine" {
 
 
   lifecycle {
-    # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
-    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
+    ignore_changes = [
+      # Kyverno owns priorityClassName via namespace-tier defaulting.
+      spec[0].template[0].spec[0].priority_class_name,
+      # Preserve operator-requested restarts without turning their annotation
+      # removal into a second rollout.
+      spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
+    ]
   }
 }
 
