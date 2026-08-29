@@ -238,9 +238,18 @@ Actions, in order:
    memory-starved Pi, its cilium OOM-looped (157 restarts), and the
    gateway L2 lease churned 56 times causing estate-wide 503 flaps.
    Sparks stays cordoned pending capacity review.
+   **Closed 2026-08-15** — see `arm-pool-capacity-2026-08.md`. Sparks was
+   healthy throughout; the cordon was live-only drift declared nowhere in
+   IaC. Root cause of the OOM loop was understated platform requests
+   (DaemonSets requested 689Mi/node against ~1030Mi actual) plus a
+   BestEffort cilium-envoy and a request-less cilium-agent, which put the
+   CNI first in the kernel OOM victim ranking. Requests are now sized from
+   30d Prometheus data and sparks is back in service.
 
 End state: all public/internal services 200, zero OOM controller triggers
-on neo since the upgrade. Remaining fleet followups: upgrade smith/mouse/
-sparks/niobe/trinity to 1.13.2; sparks/tank/dozer capacity; rewire the
-container-memcg-oom-loop alert off the dead container_oom_events_total
-metric onto kube_pod_container_status_last_terminated_reason.
+on neo since the upgrade. Remaining fleet followups: ~~upgrade smith/mouse/
+sparks/niobe/trinity to 1.13.2~~ (done — all 8 nodes verified on Talos
+v1.13.2, 2026-08-15); ~~sparks/tank/dozer capacity~~ (done — see
+`arm-pool-capacity-2026-08.md`); rewire the container-memcg-oom-loop alert
+off the dead container_oom_events_total metric onto
+kube_pod_container_status_last_terminated_reason.

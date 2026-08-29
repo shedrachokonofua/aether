@@ -16,10 +16,11 @@ resource "helm_release" "grafana_operator" {
   timeout    = 600
 
   values = [yamlencode({
-    crds = { immutable = true }
+    crds               = { immutable = true }
     enforceCacheLabels = "safe"
+    # 30d p95 73Mi +20% (was 128Mi).
     resources = {
-      requests = { cpu = "50m", memory = "128Mi" }
+      requests = { cpu = "50m", memory = "96Mi" }
       limits   = { cpu = "500m", memory = "512Mi" }
     }
   })]

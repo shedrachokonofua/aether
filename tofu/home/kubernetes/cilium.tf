@@ -33,8 +33,17 @@ resource "helm_release" "cilium" {
     # OTel collector (see otel_collector.tf), not Prometheus Operator CRDs.
     hubble = {
       enabled = true
-      relay   = { enabled = true }
-      ui      = { enabled = true }
+      relay = {
+        enabled = true
+        # 30d: ARM-pool p95 25Mi, fleet max 27Mi, ARM-pool CPU p50 1m.
+        resources = {
+          requests = {
+            memory = "32Mi"
+            cpu    = "10m"
+          }
+        }
+      }
+      ui = { enabled = true }
       metrics = {
         enableOpenMetrics = true
         enabled = [
@@ -57,9 +66,36 @@ resource "helm_release" "cilium" {
 
     # Allow Istio CNI to chain (required for Istio Ambient)
     cni = { exclusive = false }
+    # 30d: ARM-pool p95 411Mi, fleet max 862Mi, ARM-pool CPU p50 368m.
+    # No memory limit: an OOM-killed CNI is a cluster-wide dataplane outage.
+    resources = {
+      requests = {
+        memory = "416Mi"
+        cpu    = "370m"
+      }
+    }
+
+    envoy = {
+      # 30d: ARM-pool p95 95Mi, fleet max 173Mi, ARM-pool CPU p50 46m.
+      resources = {
+        requests = {
+          memory = "96Mi"
+          cpu    = "50m"
+        }
+      }
+    }
 
     # Operator replicas (single replica for small cluster)
-    operator = { replicas = 1 }
+    operator = {
+      replicas = 1
+      # 30d: ARM-pool p95 201Mi, fleet max 201Mi, ARM-pool CPU p50 16m.
+      resources = {
+        requests = {
+          memory = "208Mi"
+          cpu    = "20m"
+        }
+      }
+    }
 
     # Talos-specific: cgroup settings
     cgroup = {

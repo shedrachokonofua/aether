@@ -661,9 +661,7 @@ resource "kubernetes_deployment_v1" "hermes" {
             mount_path = "/dev/shm"
           }
 
-          # Sized from 30d Prometheus p95 336Mi + 20% headroom (was 512Mi).
-          # p95 is taken across every replica generation in the window, not the
-          # currently-running pod: beryl peaks at 329Mi, tungsten at 336Mi.
+          # 30d p95 336Mi +20% (was 512Mi).
           resources {
             requests = {
               cpu    = "25m"
@@ -813,11 +811,8 @@ resource "kubernetes_deployment_v1" "hermes" {
             mount_path = "/dev/shm"
           }
 
-          # Sized per instance from 30d Prometheus p95 + 20% headroom, taken
-          # across every replica generation (was a shared 512Mi). The two
-          # dashboards are not comparable: beryl p95 718Mi / max 869Mi, while
-          # tungsten p95 323Mi / max 394Mi. A shared value would either evict
-          # beryl or reserve 864Mi on a 4GB Pi for a 323Mi workload.
+          # Dashboard per-instance 30d p95 +20% (was shared 512Mi): beryl 718Mi / max 869Mi;
+          # tungsten 323Mi / max 394Mi.
           resources {
             requests = {
               cpu    = "25m"

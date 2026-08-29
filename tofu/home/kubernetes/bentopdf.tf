@@ -45,8 +45,9 @@ resource "kubernetes_deployment_v1" "bentopdf" {
             name           = "http"
           }
 
+          # 30d p95 6Mi +20% (was 128Mi); 32Mi floor applies.
           resources {
-            requests = { cpu = "50m", memory = "128Mi" }
+            requests = { cpu = "50m", memory = "32Mi" }
             limits   = { cpu = "1", memory = "512Mi" }
           }
 

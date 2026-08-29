@@ -40,6 +40,7 @@ resource "kubernetes_deployment_v1" "globalping_probe" {
             value = var.secrets["globalping_adoption_token"]
           }
 
+          # 30d p95 184Mi +20% (was 64Mi).
           resources {
             limits = {
               cpu    = "200m"
@@ -47,7 +48,7 @@ resource "kubernetes_deployment_v1" "globalping_probe" {
             }
             requests = {
               cpu    = "50m"
-              memory = "64Mi"
+              memory = "224Mi"
             }
           }
         }

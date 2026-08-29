@@ -171,11 +171,14 @@ resource "kubectl_manifest" "firecrawl_cnpg_cluster" {
       namespace = local.firecrawl_ns
     }
     spec = {
-      instances             = 1
-      imageName             = local.firecrawl_cnpg_image
-      imagePullSecrets      = [{ name = kubernetes_secret_v1.firecrawl_gitlab_registry.metadata[0].name }]
-      postgresUID           = 999
-      postgresGID           = 999
+      instances        = 1
+      imageName        = local.firecrawl_cnpg_image
+      imagePullSecrets = [{ name = kubernetes_secret_v1.firecrawl_gitlab_registry.metadata[0].name }]
+      postgresUID      = 999
+      postgresGID      = 999
+      # Keep the arch pin: the private firecrawl-cnpg image manifest publishes
+      # linux/amd64 only (no linux/arm64), so this CNPG cluster cannot run on
+      # ARM nodes.
       affinity              = { nodeSelector = { "kubernetes.io/arch" = "amd64" } }
       primaryUpdateMethod   = "restart"
       nodeMaintenanceWindow = { reusePVC = true }

@@ -59,9 +59,67 @@ resource "helm_release" "ceph_csi_rbd" {
     # scrapes csi_liveness — disable to close the node-IP disclosure surface.
     nodeplugin = {
       httpMetrics = { enabled = false }
+      registrar = {
+        # 30d: ARM-pool p95 12Mi, fleet max 28Mi, ARM-pool CPU p50 3m.
+        resources = {
+          requests = {
+            cpu    = "10m"
+            memory = "16Mi"
+          }
+        }
+      }
+      plugin = {
+        # 30d: ARM-pool p95 78Mi, fleet max 194Mi, ARM-pool CPU p50 8m; chart 3.17.0
+        # routes plugin, liveness and controller through one key, sized to largest (csi-rbdplugin, ARM p95 78Mi).
+        resources = {
+          requests = {
+            cpu    = "10m"
+            memory = "80Mi"
+          }
+        }
+      }
     }
 
-    provisioner  = { replicaCount = 1 }
+    provisioner = {
+      replicaCount = 1
+      provisioner = {
+        # 30d: ARM-pool p95 36Mi, fleet max 80Mi, ARM-pool CPU p50 10m.
+        resources = {
+          requests = {
+            cpu    = "10m"
+            memory = "48Mi"
+          }
+        }
+      }
+      resizer = {
+        # 30d: ARM-pool p95 33Mi, fleet max 81Mi, ARM-pool CPU p50 10m.
+        resources = {
+          requests = {
+            cpu    = "10m"
+            memory = "48Mi"
+          }
+        }
+      }
+      snapshotter = {
+        # 30d: ARM-pool p95 29Mi, fleet max 85Mi, ARM-pool CPU p50 10m.
+        resources = {
+          requests = {
+            cpu    = "10m"
+            memory = "48Mi"
+          }
+        }
+      }
+      attacher = {
+        # 30d: ARM-pool p95 23Mi, fleet max 66Mi, ARM-pool CPU p50 10m.
+        resources = {
+          requests = {
+            cpu    = "10m"
+            memory = "32Mi"
+          }
+        }
+      }
+    }
+
     storageClass = { create = false }
   })]
 }

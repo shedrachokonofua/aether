@@ -504,8 +504,9 @@ resource "kubernetes_deployment_v1" "temporal_ui" {
             value = "https://${local.temporal_host}"
           }
 
+          # 30d p95 26Mi +20% (was 128Mi).
           resources {
-            requests = { cpu = "50m", memory = "128Mi" }
+            requests = { cpu = "50m", memory = "32Mi" }
             limits   = { cpu = "500m", memory = "512Mi" }
           }
         }

@@ -20,7 +20,9 @@ resource "helm_release" "descheduler" {
   values = [yamlencode({
     kind     = "CronJob"
     schedule = "*/15 * * * *"
-    suspend  = true
+    # Installed suspended and never ran (94d); safe to enable now that ARM
+    # requests are measured.
+    suspend = false
 
     successfulJobsHistoryLimit = 3
     failedJobsHistoryLimit     = 3
@@ -43,9 +45,19 @@ resource "helm_release" "descheduler" {
       }
     }
 
-    # Keep the descheduler itself off the constrained ARM pool.
-    nodeSelector = {
-      "kubernetes.io/arch" = "amd64"
+    # The evictor must not compete for the ARM pool it relieves.
+    affinity = {
+      nodeAffinity = {
+        requiredDuringSchedulingIgnoredDuringExecution = {
+          nodeSelectorTerms = [{
+            matchExpressions = [{
+              key      = "aether.sh/node-pool"
+              operator = "NotIn"
+              values   = ["arm"]
+            }]
+          }]
+        }
+      }
     }
 
     deschedulerPolicy = {

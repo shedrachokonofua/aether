@@ -67,8 +67,21 @@ resource "kubernetes_stateful_set_v1" "yourspotify_mongo" {
     template {
       metadata { labels = local.yourspotify_mongo_labels }
       spec {
-        # MongoDB 5+ requires ARMv8.2 on arm64; the Pi worker pool does not provide it.
-        node_selector = { "kubernetes.io/arch" = "amd64" }
+        # MongoDB requires ARMv8.2-A; Pi 4 lacks it, while Pi 5 supports it.
+        # Placement is left to the arch-labeler plus Kyverno.
+        affinity {
+          node_affinity {
+            required_during_scheduling_ignored_during_execution {
+              node_selector_term {
+                match_expressions {
+                  key      = "aether.sh/hardware-model"
+                  operator = "NotIn"
+                  values   = ["raspberry-pi-4"]
+                }
+              }
+            }
+          }
+        }
 
         container {
           name  = "mongo"

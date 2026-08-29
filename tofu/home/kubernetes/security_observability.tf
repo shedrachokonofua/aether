@@ -105,9 +105,9 @@ resource "helm_release" "tetragon" {
       enableProcessCred = true
       enableProcessNs   = true
       exportRateLimit   = 1200
-      exportFilePerm    = "640"
+      # 30d: ARM-pool p95 268Mi, fleet max 563Mi, ARM-pool CPU p50 18m.
       resources = {
-        requests = { cpu = "50m", memory = "128Mi" }
+        requests = { cpu = "20m", memory = "272Mi" }
         limits   = { cpu = "1", memory = "1Gi" }
       }
       prometheus = {
@@ -147,13 +147,13 @@ resource "helm_release" "trivy_operator" {
 
   values = [yamlencode({
     operator = {
-      replicas                                     = 1
-      scanJobTTL                                   = "1h"
-      scanSecretTTL                                = "1h"
-      scanJobTimeout                               = "10m"
-      scanJobsConcurrentLimit                      = 4
-      scanNodeCollectorLimit                       = 1
-      builtInTrivyServer                           = true
+      replicas                = 1
+      scanJobTTL              = "1h"
+      scanSecretTTL           = "1h"
+      scanJobTimeout          = "10m"
+      scanJobsConcurrentLimit = 4
+      scanNodeCollectorLimit  = 1
+      builtInTrivyServer      = true
       # The 2026-07-31 incident showed that 168h retained a full week of report
       # churn in etcd; 24h is enough because Grafana/Prometheus retain findings
       # history and reports regenerate on the scan schedule.
@@ -169,7 +169,7 @@ resource "helm_release" "trivy_operator" {
       # Per-CVE metric (trivy_vulnerability_id) with fixed-version label so the
       # critical-vulns alert can count only actionable (fixable) findings.
       # Cardinality cost is bounded: local Prometheus, ~250 reports.
-      metricsVulnIdEnabled                         = true
+      metricsVulnIdEnabled = true
     }
 
     podAnnotations = {
@@ -295,9 +295,9 @@ resource "helm_release" "policy_reporter" {
           timeoutSeconds      = 10
           failureThreshold    = 6
         }
-
+        # 30d p95 84Mi +20% (was 128Mi).
         resources = {
-          requests = { cpu = "50m", memory = "128Mi" }
+          requests = { cpu = "50m", memory = "112Mi" }
           limits   = { cpu = "500m", memory = "512Mi" }
         }
       }

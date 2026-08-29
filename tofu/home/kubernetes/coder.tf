@@ -108,7 +108,9 @@ resource "kubectl_manifest" "coder_cnpg_cluster" {
     spec = {
       instances = 1
       imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
-      affinity  = { nodeSelector = { "kubernetes.io/arch" = "amd64" }, podAntiAffinityType = "preferred" }
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class
@@ -169,8 +171,9 @@ resource "helm_release" "coder" {
         port = 80
       }
 
+      # 30d p95 468Mi +20% (was 256Mi).
       resources = {
-        requests = { cpu = "50m", memory = "256Mi" }
+        requests = { cpu = "50m", memory = "576Mi" }
         limits   = { cpu = "2000m", memory = "2Gi" }
       }
 

@@ -119,6 +119,36 @@ data "kubectl_file_documents" "external_snapshotter_controller" {
   ])
 }
 
+locals {
+  external_snapshotter_controller_manifests = {
+    for id, manifest in data.kubectl_file_documents.external_snapshotter_controller.manifests :
+    id => try(yamldecode(manifest).kind, "") == "Deployment" ? yamlencode(merge(
+      yamldecode(manifest),
+      {
+        spec = merge(yamldecode(manifest).spec, {
+          template = merge(yamldecode(manifest).spec.template, {
+            spec = merge(yamldecode(manifest).spec.template.spec, {
+              containers = [
+                for container in yamldecode(manifest).spec.template.spec.containers :
+                merge(container, container.name == "snapshot-controller" ? {
+                  # 30d: ARM-pool p95 35Mi, fleet max 46Mi, ARM-pool CPU p50 3m.
+                  # Overlay upstream manifests to add snapshot-controller resources without replacing other fields.
+                  resources = merge(try(container.resources, {}), {
+                    requests = merge(try(container.resources.requests, {}), {
+                      cpu    = "10m"
+                      memory = "48Mi"
+                    })
+                  })
+                } : {})
+              ]
+            })
+          })
+        })
+      }
+    )) : manifest
+  }
+}
+
 resource "kubectl_manifest" "external_snapshotter_crds" {
   for_each = data.kubectl_file_documents.external_snapshotter_crds.manifests
 
@@ -131,7 +161,7 @@ resource "kubectl_manifest" "external_snapshotter_controller" {
 
   depends_on = [kubectl_manifest.external_snapshotter_crds]
 
-  yaml_body         = each.value
+  yaml_body         = local.external_snapshotter_controller_manifests[each.key]
   server_side_apply = true
 }
 

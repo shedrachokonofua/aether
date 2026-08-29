@@ -287,6 +287,23 @@ variable "rotating_proxy_addr" {
 locals {
   # Cilium creates a service for the Gateway
   cilium_gateway_service = "cilium-gateway-main-gateway.default.svc.cluster.local"
+
+  # Shared placement rule for components kept out of the 4GB Pi pool.
+  # This is a capacity/scope decision, not an architecture one; genuine arch
+  # limits belong in the arch-labeler.
+  off_arm_pool = {
+    nodeAffinity = {
+      requiredDuringSchedulingIgnoredDuringExecution = {
+        nodeSelectorTerms = [{
+          matchExpressions = [{
+            key      = "aether.sh/node-pool"
+            operator = "NotIn"
+            values   = ["arm"]
+          }]
+        }]
+      }
+    }
+  }
 }
 
 variable "operator_oidc_subject" {

@@ -286,8 +286,9 @@ resource "kubernetes_deployment_v1" "miniflux" {
             name           = "http"
           }
 
+          # 30d p95 45Mi +20% (was 128Mi).
           resources {
-            requests = { cpu = "50m", memory = "128Mi" }
+            requests = { cpu = "50m", memory = "64Mi" }
             limits   = { cpu = "1", memory = "512Mi" }
           }
 

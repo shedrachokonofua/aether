@@ -103,10 +103,11 @@ resource "kubernetes_deployment_v1" "lidarr" {
             mount_path = "/media/hdd"
           }
 
+          # 30d p95 221Mi +20% (was 384Mi).
           resources {
             requests = {
               cpu    = "100m"
-              memory = "384Mi"
+              memory = "272Mi"
             }
             limits = {
               cpu    = "2"

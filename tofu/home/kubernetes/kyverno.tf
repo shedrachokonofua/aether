@@ -390,6 +390,78 @@ resource "kubectl_manifest" "kyverno_dockerhub_pull_secret_pods" {
   })
 }
 
+resource "kubectl_manifest" "kyverno_ambient_off_arm_pool" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "ambient-off-arm-pool"
+      annotations = {
+        "policies.kyverno.io/title"       = "Keep Ambient Mesh Pods off the ARM Pool"
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "ztunnel does not run on the ARM pool, so ambient namespaces get a nodeAffinity excluding it. The arm-pool-guardrails deny rule is the backstop; this keeps the scheduler from picking an arm node and looping on rejected bindings."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission  = { enabled = true }
+        background = { enabled = false }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [{
+            key      = "istio.io/dataplane-mode"
+            operator = "In"
+            values   = ["ambient"]
+          }]
+        }
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["pods"]
+          scope       = "Namespaced"
+        }]
+      }
+      matchConditions = [{
+        name       = "missing-node-pool-affinity"
+        expression = "!has(object.spec.affinity) || !has(object.spec.affinity.nodeAffinity) || !has(object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution)"
+      }]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          expression = <<-EOT
+            (!has(object.spec.affinity) ? [
+              JSONPatch{op: "add", path: "/spec/affinity", value: {}}
+            ] : []) + [
+              JSONPatch{
+                op: "add",
+                path: "/spec/affinity/nodeAffinity",
+                value: {
+                  "requiredDuringSchedulingIgnoredDuringExecution": {
+                    "nodeSelectorTerms": [{
+                      "matchExpressions": [{
+                        "key": dyn("aether.sh/node-pool"),
+                        "operator": dyn("NotIn"),
+                        "values": dyn(["arm"])
+                      }]
+                    }]
+                  }
+                }
+              }
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
 resource "kubectl_manifest" "kyverno_arm_pool_guardrails" {
   depends_on = [helm_release.kyverno]
 
@@ -577,6 +649,61 @@ resource "kubectl_manifest" "kyverno_arm_pool_guardrails" {
                 }
               }
             }]
+          }
+        },
+        {
+          # ztunnel does not run on the ARM pool, and a missing ztunnel costs an
+          # ambient Pod its mTLS identity and L4 authz without any error. Fail
+          # scheduling instead.
+          name = "deny-ambient-namespace-on-arm-pool"
+          match = {
+            any = [{
+              resources = {
+                kinds = ["Pod/binding"]
+              }
+            }]
+          }
+          exclude = {
+            any = [{
+              resources = {
+                namespaces = ["kube-system", "kube-public", "kube-node-lease", "istio-system", "system", "kyverno"]
+              }
+            }]
+          }
+          context = [
+            {
+              name = "nodePool"
+              apiCall = {
+                urlPath  = "/api/v1/nodes/{{ request.object.target.name }}"
+                jmesPath = "metadata.labels.\"aether.sh/node-pool\" || ''"
+              }
+            },
+            {
+              name = "dataplaneMode"
+              apiCall = {
+                urlPath  = "/api/v1/namespaces/{{ request.object.metadata.namespace }}"
+                jmesPath = "metadata.labels.\"istio.io/dataplane-mode\" || ''"
+              }
+            }
+          ]
+          preconditions = {
+            all = [{
+              key      = "{{ nodePool }}"
+              operator = "Equals"
+              value    = "arm"
+            }]
+          }
+          validate = {
+            message = "Ambient-mesh namespaces cannot bind to the ARM pool: ztunnel does not run there."
+            deny = {
+              conditions = {
+                any = [{
+                  key      = "{{ dataplaneMode }}"
+                  operator = "Equals"
+                  value    = "ambient"
+                }]
+              }
+            }
           }
         }
       ]

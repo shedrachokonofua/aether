@@ -59,6 +59,9 @@ resource "helm_release" "ceph_csi_fs" {
       httpMetrics = { enabled = false }
       registrar   = { resources = { requests = { cpu = "10m", memory = "32Mi" } } }
       plugin      = { resources = { requests = { cpu = "50m", memory = "128Mi" } } }
+      # 160Mi/node, 640Mi across four Pis; zero CephFS volumes on ARM.
+      # Cluster-wide: 3 CephFS PVCs versus 96 ceph-rbd.
+      affinity = local.off_arm_pool
     }
     provisioner = {
       replicaCount = 1
