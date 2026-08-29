@@ -113,11 +113,6 @@ output "policy_reporter_version" {
   value       = helm_release.policy_reporter.version
 }
 
-output "kepler_version" {
-  description = "Installed Kepler chart version"
-  value       = helm_release.kepler.version
-}
-
 output "synthetic_probe_targets" {
   description = "HTTP synthetic probe targets from namespace contract hostnames (internal/public exposure only)"
   value       = local.synthetic_probe_targets

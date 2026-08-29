@@ -283,7 +283,6 @@ resource "helm_release" "otel_collector_deployment" {
     helm_release.tetragon,
     helm_release.trivy_operator,
     helm_release.policy_reporter,
-    helm_release.kepler,
   ]
 
   name       = "otel-cluster"
@@ -626,36 +625,6 @@ resource "helm_release" "otel_collector_deployment" {
                   regex         = "policy_report_result"
                   action        = "drop"
                 }]
-              },
-              {
-                # Kepler is a DaemonSet; scrape each endpoint to preserve
-                # per-node energy metrics instead of sampling one Service VIP.
-                job_name        = "kepler"
-                scrape_interval = "30s"
-                kubernetes_sd_configs = [{
-                  role       = "endpoints"
-                  namespaces = { names = [local.kepler_namespace] }
-                }]
-                relabel_configs = [
-                  {
-                    source_labels = ["__meta_kubernetes_service_name"]
-                    action        = "keep"
-                    regex         = "kepler"
-                  },
-                  {
-                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
-                    action        = "keep"
-                    regex         = "http"
-                  },
-                  {
-                    source_labels = ["__meta_kubernetes_pod_node_name"]
-                    target_label  = "node"
-                  },
-                  {
-                    source_labels = ["__meta_kubernetes_pod_name"]
-                    target_label  = "pod"
-                  },
-                ]
               },
               {
                 job_name        = "nut_exporter"
