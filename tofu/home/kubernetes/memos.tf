@@ -10,7 +10,9 @@
 #   3. kubectl cp into the PVC (via a debug pod)
 
 locals {
-  memos_image  = "neosmemo/memos:stable"
+  # Pinned 2026-08-22: ":stable" + IfNotPresent served node-cached 0.28.1 on
+  # tank against a DB already migrated to 0.30.1 (schema-downgrade crash loop).
+  memos_image  = "neosmemo/memos:0.30.1"
   memos_host   = "memos.home.shdr.ch"
   memos_port   = 5230
   memos_ns     = module.namespace["memos"].name
