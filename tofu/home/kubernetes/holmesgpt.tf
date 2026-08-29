@@ -10,15 +10,15 @@
 # Server: holmes-holmes.<ns>.svc:80 -> pod :5050, endpoints /api/chat etc.
 
 locals {
-  holmes_ns               = module.namespace["holmesgpt"].name
-  holmes_chart_version    = "0.35.0"
-  holmes_litellm_base     = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
-  holmes_model_primary    = "router/glm-5.2"
-  holmes_model_local      = "qwen-local"
-  holmes_model_trial      = "aether/qwen3.8-27b:think"
-  holmes_model_cloud      = "ollama-cloud/deepseek-v4-flash"
-  holmes_prometheus_url   = "https://prometheus.home.shdr.ch"
-  holmes_loki_url         = "https://loki.home.shdr.ch"
+  holmes_ns             = module.namespace["holmesgpt"].name
+  holmes_chart_version  = "0.35.0"
+  holmes_litellm_base   = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
+  holmes_model_primary  = "router/glm-5.3"
+  holmes_model_local    = "qwen-local"
+  holmes_model_trial    = "aether/qwen3.8-27b:think"
+  holmes_model_cloud    = "ollama-cloud/deepseek-v4-flash"
+  holmes_prometheus_url = "https://prometheus.home.shdr.ch"
+  holmes_loki_url       = "https://loki.home.shdr.ch"
 }
 
 # LiteLLM virtual key (minted against /key/generate, stored in SOPS).
@@ -65,8 +65,7 @@ resource "helm_release" "holmesgpt" {
   timeout          = 600
 
   values = [yamlencode({
-    # Mixed-arch cluster; upstream image is amd64.
-    nodeSelector = { "kubernetes.io/arch" = "amd64" }
+    # robustadev/holmes:0.35.0 is multi-arch; placement is left to the aether-k8s-arch-labeler plus Kyverno.
 
     additionalEnvVars = [
       { name = "OPENAI_API_BASE", value = local.holmes_litellm_base },
