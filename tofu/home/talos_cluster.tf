@@ -296,7 +296,14 @@ resource "proxmox_virtual_environment_vm" "talos" {
 # =============================================================================
 
 resource "talos_machine_configuration_apply" "this" {
-  for_each = local.talos_nodes
+  # TEMP: talos-dozer's microSD is dead (waiting on a replacement card).
+  # Applying or destroying this instance dials 10.0.3.24:50000 and hangs
+  # every targeted k8s apply via bootstrap -> kubeconfig. Re-add the key
+  # after the card is reflashed and dozer rejoins Ready. Health reads
+  # already skip it below.
+  for_each = {
+    for k, v in local.talos_nodes : k => v if k != "talos_dozer"
+  }
 
   depends_on = [proxmox_virtual_environment_vm.talos]
 
@@ -550,7 +557,12 @@ data "talos_cluster_health" "this" {
   client_configuration   = talos_machine_secrets.this.client_configuration
   endpoints              = [for node in local.talos_controlplane_nodes : node.ip]
   control_plane_nodes    = [for node in local.talos_controlplane_nodes : node.ip]
-  worker_nodes           = [for node in local.talos_worker_nodes : node.ip]
+  # TEMP 2026-08-21: talos-dozer excluded — its microSD died (mmcblk0 read
+  # errors); kubelet can never start, so the health read blocks every plan.
+  # Remove this filter after the card is reflashed and dozer rejoins Ready.
+  worker_nodes = [
+    for node in local.talos_worker_nodes : node.ip if node.name != "talos-dozer"
+  ]
   skip_kubernetes_checks = true
 
   timeouts = { read = "10m" }
