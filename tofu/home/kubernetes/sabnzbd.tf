@@ -147,7 +147,8 @@ if not config_path.is_file():
 if not all(desired.values()):
     raise SystemExit("SABnzbd native-auth inputs must be non-empty")
 staging_root.mkdir(parents=True, exist_ok=True)
-os.chmod(staging_root, 0o777)
+if not os.access(staging_root, os.W_OK):
+    raise SystemExit(f"{staging_root} is not writable by SABnzbd uid {os.geteuid()}")
 
 original_stat = config_path.stat()
 config = ConfigObj(str(config_path), encoding="utf-8", interpolation=False)
@@ -205,6 +206,7 @@ PY
           volume_mount {
             name       = "downloads"
             mount_path = "/downloads"
+            sub_path   = "downloads"
           }
 
           resources {
@@ -470,12 +472,20 @@ for name, base_url, application_key in applications:
     for field_name, value in desired.items():
         fields[field_name]["value"] = value
 
-    request_json("POST", f"{base_url}/downloadclient/test", application_key, client)
-    request_json(
-        "PUT",
-        f"{base_url}/downloadclient/{client['id']}",
-        application_key,
-        client,
+    wait_for(
+        f"{name} SABnzbd client test",
+        lambda base_url=base_url, application_key=application_key, client=client: request_json(
+            "POST", f"{base_url}/downloadclient/test", application_key, client
+        ),
+    )
+    wait_for(
+        f"{name} SABnzbd client update",
+        lambda base_url=base_url, application_key=application_key, client=client: request_json(
+            "PUT",
+            f"{base_url}/downloadclient/{client['id']}",
+            application_key,
+            client,
+        ),
     )
     print(f"{name} SABnzbd client reconciled")
 PY
