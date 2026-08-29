@@ -142,6 +142,14 @@ resource "proxmox_virtual_environment_vm" "talos" {
   tags        = ["kubernetes", "talos"]
   started     = true
 
+  # PVE "Shutdown timeout": at host shutdown, wait 90s for the guest then
+  # force-stop. Without it, a dead qga channel wedges the whole host shutdown
+  # queue indefinitely — 2026-08-16 host-niobe reboot hung on guest-ping
+  # retries until talos-niobe was stopped by hand. Talos tolerates hard stop.
+  startup {
+    down_delay = 90
+  }
+
   # GPU nodes require q35 + OVMF for PCIe passthrough
   machine = try(each.value.gpu, false) ? "q35" : null
   bios    = try(each.value.gpu, false) ? "ovmf" : "seabios"
