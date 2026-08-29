@@ -1,5 +1,9 @@
 # Blockchain Stack Exploration
 
+> **Status (2026-08-16): retired.** The Blockchain Stack VM and its deployment
+> configuration were removed after the guest had already been decommissioned.
+> The material below is retained as historical exploration, not current state.
+
 Exploration of self-hosted cryptocurrency infrastructure for privacy, sovereignty, and verification.
 
 ## Goal

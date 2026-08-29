@@ -33,7 +33,7 @@ does not imply removing Ansible where it still owns provisioning or integration.
 
 ## Current NixOS Coverage
 
-`flake.nix` currently exposes five deployable configurations:
+`flake.nix` currently exposes the deployable configurations below:
 
 | Flake target | Placement | Taskfile path |
 | --- | --- | --- |
@@ -41,7 +41,6 @@ does not imply removing Ansible where it still owns provisioning or integration.
 | `adguard-secondary` | Trinity LXC | `task configure:adguard-secondary` / `task deploy:adguard-secondary` |
 | `bastion` | Oracle LXC | `task configure:bastion` / `task deploy:bastion` |
 | `ids-stack` | Oracle VM | `task configure:ids-stack` / `task deploy:ids-stack` |
-| `blockchain-stack` | Smith VM | `task configure:blockchain-stack` / `task deploy:blockchain-stack` |
 
 Verify the list rather than relying on this table:
 
