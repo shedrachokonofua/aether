@@ -287,10 +287,13 @@
             mode: '0644'
           when: inventory_hostname in ceph_nodes
 
-        - name: Remove old pve-enterprise.list
+        - name: Remove old enterprise repository definitions
           file:
-            path: /etc/apt/sources.list.d/pve-enterprise.list
+            path: "{{ item }}"
             state: absent
+          loop:
+            - /etc/apt/sources.list.d/pve-enterprise.list
+            - /etc/apt/sources.list.d/pve-enterprise.sources
 
         - name: Remove old ceph.list
           file:
@@ -301,6 +304,30 @@
           file:
             path: /etc/apt/sources.list.d/pve-install-repo.list
             state: absent
+    - name: Ensure upgraded PVE 9 nodes retain community repository
+      tags: [repos]
+      when: already_upgraded
+      block:
+        - name: Ensure PVE no-subscription repository exists
+          copy:
+            dest: /etc/apt/sources.list.d/proxmox.sources
+            content: |
+              Types: deb
+              URIs: http://download.proxmox.com/debian/pve
+              Suites: {{ debian_codename }}
+              Components: pve-no-subscription
+              Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+            mode: '0644'
+
+        - name: Remove enterprise and installer repository definitions
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /etc/apt/sources.list.d/pve-enterprise.list
+            - /etc/apt/sources.list.d/pve-enterprise.sources
+            - /etc/apt/sources.list.d/pve-install-repo.list
+
 
     # =========================================================================
     # PERFORM UPGRADE
