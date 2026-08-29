@@ -161,6 +161,13 @@ resource "oci_core_instance" "a1" {
   metadata = {
     ssh_authorized_keys = tls_private_key.a1.public_key_openssh
   }
+
+  lifecycle {
+    # The data source selects the newest image for fresh instances. Changing an
+    # existing instance's source replaces its boot volume, so OS upgrades must
+    # remain an explicit operation rather than ordinary plan drift.
+    ignore_changes = [source_details[0].source_id]
+  }
 }
 
 # --- Outputs (re-exported at root via outputs.tf, consumed by inventory) -----
