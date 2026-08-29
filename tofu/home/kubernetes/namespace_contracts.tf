@@ -238,8 +238,8 @@ locals {
       }
     }
     "colony" = {
-      tier                    = "guest",
-      owner                   = "colony",
+      tier  = "guest",
+      owner = "colony",
       # critical (daily) not standard (weekly): the colonyd SQLite volume is
       # the factory's entire memory (scopes, tasks, runs, audit ledger), and
       # the 2026-08-17 namespace deletion proved in-namespace snapshots die
@@ -608,6 +608,25 @@ locals {
       extra_labels = {
         "goldilocks.fairwinds.com/enabled"   = "true"
         "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
+    "minos" = {
+      tier  = "guest",
+      owner = "minos",
+      # critical (daily) not standard (weekly): the waitlist SQLite volume is
+      # irreplaceable signup contact data - tiny, but it IS the product's
+      # Stage-1 asset.
+      backup                  = "critical",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Minos sibling repo workloads (pre-send contact QA landing + waitlist)",
+      source_file             = "tofu/home/kubernetes/minos.tf",
+      hostnames = [
+        "minos.home.shdr.ch",
+      ],
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "minos"
       }
     }
     "jupyter" = {
