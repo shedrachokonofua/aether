@@ -70,6 +70,13 @@ locals {
     COLONY_OIDC_REQUIRED_ROLE = "admin"
 
     OTEL_EXPORTER_OTLP_METRICS_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/metrics"
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces"
+    # Full HTTP sampling: control-plane volume is one operator, not a fleet.
+    COLONY_TRACE_HTTP_RATIO = "1"
+    # Grafana Explore deep link into the Tempo datasource (resolved by name,
+    # which works in any org); the console substitutes {trace_id} (hex,
+    # encoding-stable) into the panes JSON.
+    COLONY_TRACE_UI_BASE_URL = "https://grafana.home.shdr.ch/explore?schemaVersion=1&panes=%7B%22t%22%3A%7B%22datasource%22%3A%22Tempo%22%2C%22queries%22%3A%5B%7B%22query%22%3A%22{trace_id}%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%7D%5D%7D%7D&orgId=1"
 
     HOME   = "/tmp"
     TMPDIR = "/tmp"

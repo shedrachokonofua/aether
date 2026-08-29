@@ -1790,3 +1790,86 @@ resource "keycloak_openid_client_default_scopes" "matrix_default_scopes" {
     "roles",
   ]
 }
+
+# =============================================================================
+# Colony OIDC Client
+# =============================================================================
+# Public PKCE client for the Colony operator console (sibling repo so/colony).
+# The SPA runs the authorization-code+PKCE flow; colonyd validates bearer
+# tokens against the realm JWKS and requires the `admin` realm role, so the
+# `roles` default scope must stay on this client. No client secret exists.
+
+resource "keycloak_openid_client" "colony" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "colony"
+  name      = "Colony"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  pkce_code_challenge_method   = "S256"
+
+  root_url = "https://colony.home.shdr.ch"
+  base_url = "https://colony.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://colony.home.shdr.ch/",
+    "http://localhost:4400/",
+  ]
+
+  valid_post_logout_redirect_uris = [
+    "https://colony.home.shdr.ch/",
+    "http://localhost:4400/",
+  ]
+
+  web_origins = [
+    "https://colony.home.shdr.ch",
+    "http://localhost:4400",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "colony_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.colony.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# Machine operator for the Colony control plane (agent:omp-operator and
+# future automation). Client-credentials only — no browser flow. Its access
+# tokens carry aud=colony (audience mapper) so colonyd's verifier accepts
+# them, and the realm admin role colonyd requires.
+
+resource "keycloak_openid_client" "colony_operator" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "colony-operator"
+  name      = "Colony Operator Automation"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "colony_operator_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.colony_operator.id
+  name      = "colony-audience"
+
+  included_client_audience = "colony"
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_client_service_account_realm_role" "colony_operator_admin" {
+  realm_id                = keycloak_realm.aether.id
+  service_account_user_id = keycloak_openid_client.colony_operator.service_account_user_id
+  role                    = "admin"
+}
