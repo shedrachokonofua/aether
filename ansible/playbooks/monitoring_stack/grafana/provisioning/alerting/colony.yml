@@ -7,14 +7,14 @@ groups:
     interval: 1m
     rules:
       - uid: colony-worker-telemetry-absent
-        title: Colony worker telemetry absent
+        title: Colony colonyd telemetry absent
         condition: C
         data:
           - refId: A
             relativeTimeRange: { from: 900, to: 0 }
             datasourceUid: prometheus-local
             model:
-              expr: 'absent(colony_process_uptime_seconds{service_name="colony-worker"})'
+              expr: 'absent(colony_process_uptime_seconds{service_name="colonyd"})'
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -35,8 +35,8 @@ groups:
           channel: page
           service: colony
         annotations:
-          summary: Colony worker stopped exporting telemetry
-          description: No colony-worker process uptime series has reached Prometheus for 10 minutes. Check the worker pod, OTLP endpoint, central collector, and remote-write pipeline.
+          summary: Colony colonyd stopped exporting telemetry
+          description: No colonyd process uptime series has reached Prometheus for 10 minutes. Check the colonyd pod, OTLP endpoint, central collector, and remote-write pipeline.
 
       - uid: colony-agent-failure-ratio
         title: Colony agent failure ratio high

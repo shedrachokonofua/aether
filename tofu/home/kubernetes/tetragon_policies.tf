@@ -22,6 +22,7 @@ locals {
     "coder",
     "gitlab-runner",
     "vc-seven30",
+    "colony-sandboxes",
     "colony-sandboxes-dev",
   ]
 }

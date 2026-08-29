@@ -99,6 +99,19 @@ import {
   id = "cilium-secrets"
 }
 
+# colony + colony-sandboxes were deleted live on 2026-08-17 while still
+# unmanaged (these imports had not been applied). The namespaces are now
+# CREATED by the contracts module instead of imported — do not re-enable.
+# import {
+#   to = module.home.module.kubernetes.module.namespace["colony"].kubernetes_namespace_v1.this
+#   id = "colony"
+# }
+#
+# import {
+#   to = module.home.module.kubernetes.module.namespace["colony-sandboxes"].kubernetes_namespace_v1.this
+#   id = "colony-sandboxes"
+# }
+
 import {
   to = module.home.module.kubernetes.module.namespace["colony-dev"].kubernetes_namespace_v1.this
   id = "colony-dev"
