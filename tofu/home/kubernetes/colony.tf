@@ -58,12 +58,10 @@ locals {
     COLONYD_PORT    = "4400"
     COLONYD_DB_PATH = "/var/lib/colonyd/colonyd.db"
     COLONYD_TICK_MS = "15000"
-    # Sized to the namespace's 8 CPU / 16 GiB request quota at the right-sized
-    # sandbox requests (developer 500m/1536Mi from colony ae4534a): ten
-    # implement sandboxes request 5 CPU / 15 GiB, leaving ~1 GiB for one
-    # reviewer. Reviews are not counted by this cap; quota overflow degrades
-    # to colony's dispatch deferral once its slots scope lands.
-    COLONYD_MAX_CONCURRENT = "10"
+    # Eight developer sandboxes saturate the namespace quota's limits
+    # dimension (16 CPU / 32 GiB at 2/4Gi limits each) and the four kata
+    # nodes' real headroom; dispatching past 8 burns 5-minute CR waits.
+    COLONYD_MAX_CONCURRENT = "8"
     COLONYD_MAX_ATTEMPTS   = "3"
 
     COLONY_METRICS_PORT = "9464"
