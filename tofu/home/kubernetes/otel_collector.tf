@@ -658,27 +658,6 @@ resource "helm_release" "otel_collector_deployment" {
                 ]
               },
               {
-                job_name        = "slskd"
-                scrape_interval = "30s"
-                metrics_path    = "/metrics"
-                kubernetes_sd_configs = [{
-                  role       = "endpoints"
-                  namespaces = { names = [local.slskd_ns] }
-                }]
-                relabel_configs = [
-                  {
-                    source_labels = ["__meta_kubernetes_service_name"]
-                    action        = "keep"
-                    regex         = "slskd-metrics"
-                  },
-                  {
-                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
-                    action        = "keep"
-                    regex         = "metrics"
-                  },
-                ]
-              },
-              {
                 job_name        = "jellyfin-exporter"
                 scrape_interval = "30s"
                 kubernetes_sd_configs = [{
