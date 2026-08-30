@@ -24,7 +24,6 @@
         - glm
         - clinepass/glm-5.2
         - ollama-cloud/glm-5.2
-        - qwen-cloud/glm-5.2
         - router/glm-5.2
         - router/glm-5.3
         - zai/glm-5.3
@@ -95,6 +94,7 @@
         - clinepass/hy4-preview
         - commandcode/hy4-preview
         - opencode-go/hy4-preview
+        - codebuddy/hy4-preview
         - hy4-preview
         - hy4
         - router/hy4-preview
