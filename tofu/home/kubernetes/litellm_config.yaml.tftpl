@@ -485,9 +485,9 @@ litellm_settings:
   request_timeout: 120
 
 router_settings:
-  # `model_name` creates the deployment pool. These explicit routing groups
-  # keep GLM and Kimi on independently named selectors while retaining the
-  # default simple-shuffle behavior inside each pool.
+  # `model_name` creates the deployment pool. Heavy multi-leg pools route by
+  # measured latency; lowest_latency_buffer keeps legs within 50% of the
+  # fastest in rotation so one credential's quota is not burned alone.
   # A single failed request trips a deployment quickly; the five-minute
   # cooldown prevents repeated quota/429 traffic against low-limit providers.
   allowed_fails: 1
@@ -509,16 +509,19 @@ router_settings:
       routing_strategy: simple-shuffle
     - group_name: router/glm-5.3-flash
       models: ["router/glm-5.3-flash"]
-      routing_strategy: simple-shuffle
+      routing_strategy: latency-based-routing
+      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
     - group_name: router/kimi-k2.7-code
       models: ["router/kimi-k2.7-code"]
       routing_strategy: simple-shuffle
     - group_name: router/deepseek-v4-pro
       models: ["router/deepseek-v4-pro"]
-      routing_strategy: simple-shuffle
+      routing_strategy: latency-based-routing
+      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
     - group_name: router/deepseek-v4-flash
       models: ["router/deepseek-v4-flash"]
-      routing_strategy: simple-shuffle
+      routing_strategy: latency-based-routing
+      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
     - group_name: router/qwen3.7-max
       models: ["router/qwen3.7-max"]
       routing_strategy: simple-shuffle
@@ -530,10 +533,12 @@ router_settings:
       routing_strategy: simple-shuffle
     - group_name: router/muse-spark-1.2-contributor
       models: ["router/muse-spark-1.2-contributor"]
-      routing_strategy: simple-shuffle
+      routing_strategy: latency-based-routing
+      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
     - group_name: router/hy4-preview
       models: ["router/hy4-preview"]
-      routing_strategy: simple-shuffle
+      routing_strategy: latency-based-routing
+      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
 
   # Keep the old provider-prefixed names working for existing clients while
   # routing them into the new shared groups. The aliases do not duplicate
