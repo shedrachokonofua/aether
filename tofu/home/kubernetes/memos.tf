@@ -11,8 +11,10 @@
 
 locals {
   # Pinned 2026-08-22: ":stable" + IfNotPresent served node-cached 0.28.1 on
-  # tank against a DB already migrated to 0.30.1 (schema-downgrade crash loop).
-  memos_image  = "neosmemo/memos:0.30.1"
+  # tank against a DB already migrated to internal version 0.30.1 (schema-
+  # downgrade crash loop). NB: upstream publishes no "0.30.1" image tag; the
+  # 0.30.0 image carries app version 0.30.1. Digest = stable/0.30/0.30.0.
+  memos_image  = "neosmemo/memos:0.30.0@sha256:71a5b4738d1bed96e92112004054f0888e92791b64eb78afd79077c96e6f9327"
   memos_host   = "memos.home.shdr.ch"
   memos_port   = 5230
   memos_ns     = module.namespace["memos"].name
