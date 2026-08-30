@@ -54,6 +54,12 @@ Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/glm-5.2` models through Alibaba MaaS. Inquest sends Holmes
 investigations to `qwen-cloud/qwen3.8-max`.
 
+Google Antigravity is exposed through the single-tenant bridge as
+`antigravity/gemini-3.7-flash`. The bridge translates OpenAI chat-completions
+requests to the subscription API; clients retain ownership of tool execution
+and follow-up results. Colony's virtual key may use this model, but no Colony
+agent selects it by default.
+
 GLM 5.2 deployments remain pooled under the canonical
 `router/glm-5.2` group for the Clinepass and Ollama Cloud providers.
 Z.AI GLM 5.3 uses the separate `router/glm-5.3` group, backed only by the
