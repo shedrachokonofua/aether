@@ -120,6 +120,14 @@ model_list:
       model: "openai/tencent/hy4-preview"
       litellm_credential_name: clinepass_credential
 
+  # CodeBuddy's Hy4 preview endpoint is stream-only and requires a leading
+  # system message. Keep it standalone so generic router traffic cannot select it.
+  - model_name: "codebuddy/hy4-preview"
+    litellm_params:
+      model: "openai/hy4-preview"
+      litellm_credential_name: codebuddy_credential
+      use_chat_completions_api: true
+
   # Kimi Coding models (https://api.kimi.com/coding/v1 — OpenAI-compatible).
   - model_name: "kimi/k3"
     litellm_params:
@@ -130,10 +138,6 @@ model_list:
   - model_name: "qwen-cloud/qwen3.8-max"
     litellm_params:
       model: "openai/qwen3.8-max"
-      litellm_credential_name: qwen_cloud_credential
-  - model_name: "qwen-cloud/glm-5.2"
-    litellm_params:
-      model: "openai/glm-5.2"
       litellm_credential_name: qwen_cloud_credential
 
   # Z.AI GLM 5.3 uses a separate router group; never mix it with GLM 5.2
@@ -375,7 +379,9 @@ model_list:
       model: "openai/google/gemini-3.1-pro-preview"
       litellm_credential_name: openrouter_credential
 
-  # Cursor Composer model aliases via self-hosted composer-api (composer ns).
+  # Cursor model aliases via self-hosted cursorpipe (composer ns; replaced the
+  # lab-built composer-api 2026-08-30 — cursorpipe exposes the full Cursor
+  # model catalog, not just Composer).
   # These are the ONLY way to reach Composer from LiteLLM: no released LiteLLM
   # (checked through 1.97.0) has a native Cursor chat provider — LlmProviders.CURSOR
   # is a pass-through marker with no llms/cursor adapter, and LiteLLM's /cursor/*
@@ -394,6 +400,11 @@ model_list:
       model: "openai/composer-2.5-fast"
       litellm_credential_name: composer_credential
       use_chat_completions_api: true
+  - model_name: "cursor/grok-4.6"
+    litellm_params:
+      model: "openai/grok-4.6"
+      litellm_credential_name: composer_credential
+      use_chat_completions_api: true
 
 credential_list:
   - credential_name: llama_swap_credential
@@ -409,7 +420,7 @@ credential_list:
       api_base: https://composer.home.shdr.ch/v1
       api_key: os.environ/CURSOR_API_KEY
     credential_info:
-      description: "Cursor Composer (self-hosted)"
+      description: "Cursor models via self-hosted cursorpipe"
   - credential_name: ollama_cloud_credential
     credential_values:
       api_base: https://ollama.com
@@ -468,6 +479,12 @@ credential_list:
       api_key: os.environ/CLINEPASS_API_KEY
     credential_info:
       description: "Clinepass (Cline API)"
+  - credential_name: codebuddy_credential
+    credential_values:
+      api_base: https://www.codebuddy.ai/v2
+      api_key: os.environ/CODEBUDDY_API_KEY
+    credential_info:
+      description: "Tencent CodeBuddy (international)"
   - credential_name: kimi_credential
     credential_values:
       api_base: https://api.kimi.com/coding/v1
