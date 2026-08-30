@@ -850,23 +850,6 @@ locals {
         "pod-security.kubernetes.io/enforce" = "privileged"
       }
     }
-    "slskd" = {
-      tier                    = "app",
-      owner                   = "aether",
-      backup                  = "standard",
-      exposure                = "internal",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/slskd.tf",
-      egress                  = "internet",
-      registry_access         = "github",
-      hostnames = [
-        "slskd.home.shdr.ch",
-      ],
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled"   = "true"
-        "pod-security.kubernetes.io/enforce" = "privileged"
-      }
-    }
     "siren" = {
       tier                    = "app"
       owner                   = "siren"
