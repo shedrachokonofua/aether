@@ -452,6 +452,18 @@ resource "talos_machine_configuration_apply" "this" {
       }
     })] : [],
 
+    # Kubelet pod-slot ceiling override (data-driven via config/vm.yml).
+    # kubelet extraConfig; Talos applies it with a kubelet restart, no reboot.
+    try(each.value.kubelet_max_pods, null) != null ? [yamlencode({
+      machine = {
+        kubelet = {
+          extraConfig = {
+            maxPods = each.value.kubelet_max_pods
+          }
+        }
+      }
+    })] : [],
+
     # GPU-storage disk: partition and mount at /var/mnt/gpu-storage. virtio2 is
     # /dev/vdc while the legacy virtio1 etcd disk exists, otherwise /dev/vdb.
     try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({

@@ -368,6 +368,10 @@ talos_neo:
   # Local NVMe (local-lvm on neo) for GPU model/state storage. Mounted on the
   # Talos node at /var/mnt/gpu-storage and exposed to k8s via a static local PV.
   gpu_storage_disk_gb: 500
+  # Kubelet pod-slot ceiling (default 110). neo is the deliberate giant; the
+  # 2026-08 incident rebalancing parked ~105 pods here while CPU sat at ~17%,
+  # making pod slots the binding constraint. 96 GiB comfortably covers 150.
+  kubelet_max_pods: 150
   ip: "10.0.3.17"
   gateway: "10.0.3.1"
 
