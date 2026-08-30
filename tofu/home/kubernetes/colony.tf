@@ -136,14 +136,13 @@ resource "kubernetes_deployment_v1" "colonyd" {
     namespace = local.colony_ns
     labels    = local.colonyd_labels
     annotations = {
-      # Keel force-polls :latest like the other in-house services. A deploy
-      # mid-run kills in-flight agent runs, but restart reconciliation is
-      # proven: leases expire once, tasks requeue exactly once, and the k8s
-      # engine reaps orphaned sandboxes before admitting new work — the cost
-      # is only the wasted in-flight run time.
-      "keel.sh/policy"   = "force"
-      "keel.sh/trigger"  = "poll"
-      "keel.sh/matchTag" = "true"
+      # Keel disabled 2026-08-30: every image build was auto-rolling colonyd
+      # and killing in-flight agent runs (three casualties that day alone).
+      # Re-enable (policy=force, trigger=poll, matchTag=true) once colony's
+      # drain + adopt-and-resume scope (col-c8f58a57) makes restarts free.
+      # Until then deploys are manual: kubectl rollout restart deploy/colonyd
+      # -n colony at a quiet moment.
+      "keel.sh/policy" = "never"
     }
   }
 
