@@ -81,6 +81,7 @@
         - router/mimo-v2.5-pro
         - xiaomi/mimo-v2.5-pro
       colony:
+        - antigravity/gemini-3.7-flash
         - router/mimo-v2.5-pro
         - router/glm-5.2
         - router/glm-5.3

@@ -971,6 +971,22 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "antigravity" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/antigravity.tf"
+      egress                  = "allowlist"
+      registry_access         = "gitlab"
+      hostnames = [
+        "antigravity.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "composer" = {
       tier                    = "app"
       owner                   = "aether"
@@ -1266,6 +1282,7 @@ locals {
   # consumed by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
+    "antigravity.home.shdr.ch"   = "/health"
     "beryl.home.shdr.ch"         = "/health"
     "colony.home.shdr.ch"        = "/health"
     "composer.home.shdr.ch"      = "/health"

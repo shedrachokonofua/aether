@@ -406,6 +406,14 @@ model_list:
       litellm_credential_name: composer_credential
       use_chat_completions_api: true
 
+  # Latest Gemini Flash through the single-tenant Antigravity bridge. Clients
+  # own the tool loop and may select low/medium/high via reasoning_effort.
+  - model_name: "antigravity/gemini-3.7-flash"
+    litellm_params:
+      model: "openai/antigravity/gemini-3.7-flash"
+      litellm_credential_name: antigravity_credential
+      use_chat_completions_api: true
+
 credential_list:
   - credential_name: llama_swap_credential
     credential_values:
@@ -421,6 +429,12 @@ credential_list:
       api_key: os.environ/CURSOR_API_KEY
     credential_info:
       description: "Cursor models via self-hosted cursorpipe"
+  - credential_name: antigravity_credential
+    credential_values:
+      api_base: https://antigravity.home.shdr.ch/v1
+      api_key: os.environ/ANTIGRAVITY_API_KEY
+    credential_info:
+      description: "Google Antigravity subscription via single-tenant bridge"
   - credential_name: ollama_cloud_credential
     credential_values:
       api_base: https://ollama.com
