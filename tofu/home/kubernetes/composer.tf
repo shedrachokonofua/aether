@@ -1,46 +1,23 @@
 # =============================================================================
-# Composer API — self-hosted OpenAI-compatible endpoint for Cursor Composer
+# Composer API — cursorpipe: OpenAI-compatible endpoint for Cursor models
 # =============================================================================
-# Lab-built image (so/aether/composer-api) runs bridge + OpenAI server via
-# start.sh in one container. Callers send their Cursor API key as the Bearer
-# token (Authorization: Bearer crsr_...). CURSOR_API_KEY is also set as a
-# server-side fallback for probes and litellm.
+# ghcr.io/abhi5h3k/cursorpipe (Cursor Python SDK bridge + FastAPI server).
+# Replaced the lab-built so/aether/composer-api 2026-08-30: cursorpipe serves
+# the full Cursor model catalog (grok-4.6 etc.), true SSE streaming, and
+# /health reflects bridge state. Auth is server-side CURSOR_API_KEY only
+# (CURSORPIPE_BEARER_TOKEN unset = no inbound auth; internal + gateway route).
+# Image is digest-pinned; bump deliberately.
 #
-# Endpoint: https://composer.home.shdr.ch/v1  (chat/completions, responses, models)
+# Endpoint: https://composer.home.shdr.ch/v1  (chat/completions, models)
 
 locals {
-  composer_image         = "registry.gitlab.home.shdr.ch/so/aether/composer-api:latest"
-  composer_host          = "composer.home.shdr.ch"
-  composer_port          = 8080
-  composer_ns            = module.namespace["composer"].name
-  composer_labels        = { app = "composer" }
-  composer_registry_host = "registry.gitlab.home.shdr.ch"
-  composer_registry_user = var.secrets["gitlab.root_email"]
-  composer_registry_pass = var.secrets["gitlab.root_password"]
+  composer_image  = "ghcr.io/abhi5h3k/cursorpipe:latest@sha256:6522390f3f74d8ac4e7a45b8b170952f891b34a693efc2caa70d602c905b55f7"
+  composer_host   = "composer.home.shdr.ch"
+  composer_port   = 8080
+  composer_ns     = module.namespace["composer"].name
+  composer_labels = { app = "composer" }
 }
 
-resource "kubernetes_secret_v1" "composer_gitlab_registry" {
-  depends_on = [module.namespace["composer"]]
-
-  metadata {
-    name      = "composer-gitlab-registry"
-    namespace = local.composer_ns
-  }
-
-  type = "kubernetes.io/dockerconfigjson"
-
-  data = {
-    ".dockerconfigjson" = jsonencode({
-      auths = {
-        (local.composer_registry_host) = {
-          username = local.composer_registry_user
-          password = local.composer_registry_pass
-          auth     = base64encode("${local.composer_registry_user}:${local.composer_registry_pass}")
-        }
-      }
-    })
-  }
-}
 
 resource "kubernetes_secret_v1" "composer_env" {
   depends_on = [module.namespace["composer"]]
@@ -58,10 +35,7 @@ resource "kubernetes_secret_v1" "composer_env" {
 }
 
 resource "kubernetes_deployment_v1" "composer" {
-  depends_on = [
-    kubernetes_secret_v1.composer_gitlab_registry,
-    kubernetes_secret_v1.composer_env,
-  ]
+  depends_on = [kubernetes_secret_v1.composer_env]
 
   wait_for_rollout = false
 
@@ -69,11 +43,6 @@ resource "kubernetes_deployment_v1" "composer" {
     name      = "composer"
     namespace = local.composer_ns
     labels    = local.composer_labels
-    annotations = {
-      "keel.sh/policy"   = "force"
-      "keel.sh/trigger"  = "poll"
-      "keel.sh/matchTag" = "true"
-    }
   }
 
   spec {
@@ -98,26 +67,18 @@ resource "kubernetes_deployment_v1" "composer" {
       spec {
         enable_service_links = false
 
-        image_pull_secrets {
-          name = kubernetes_secret_v1.composer_gitlab_registry.metadata[0].name
-        }
+        # ghcr cursorpipe publishes amd64 only (no buildx in its workflow);
+        # also keeps the pod clear of the kyverno ARM-pool bind guardrail.
+        node_selector = { "kubernetes.io/arch" = "amd64" }
 
         container {
-          name              = "composer-api"
+          name              = "cursorpipe"
           image             = local.composer_image
-          image_pull_policy = "Always"
+          image_pull_policy = "IfNotPresent"
 
           env {
-            name  = "HOST"
-            value = "0.0.0.0"
-          }
-          env {
-            name  = "PORT"
+            name  = "CURSORPIPE_PORT"
             value = tostring(local.composer_port)
-          }
-          env {
-            name  = "NODE_OPTIONS"
-            value = "--dns-result-order=ipv4first"
           }
           env {
             name = "CURSOR_API_KEY"
@@ -166,9 +127,6 @@ resource "kubernetes_deployment_v1" "composer" {
     ignore_changes = [
       # Kyverno owns priorityClassName via namespace-tier defaulting; ignoring only this field prevents perpetual Terraform rollouts and immutable Job replacements.
       spec[0].template[0].spec[0].priority_class_name,
-      # Keel force-updates rewrite these on a new :latest digest; tofu must not revert them.
-      metadata[0].annotations["kubernetes.io/change-cause"],
-      spec[0].template[0].metadata[0].annotations["keel.sh/update-time"],
     ]
   }
 }
