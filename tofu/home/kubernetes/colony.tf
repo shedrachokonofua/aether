@@ -135,11 +135,14 @@ resource "kubernetes_deployment_v1" "colonyd" {
     namespace = local.colony_ns
     labels    = local.colonyd_labels
     annotations = {
-      # Keel intentionally NOT enabled: sandbox agents survive in separate
-      # pods, but colonyd still owns run leases and completion processing.
-      # Deploy deliberately with `kubectl rollout restart` while the run queue
-      # is idle until restart reconciliation can adopt active sandbox runs.
-      "aether.shdr.ch/deploy" = "manual-rollout"
+      # Keel force-polls :latest like the other in-house services. A deploy
+      # mid-run kills in-flight agent runs, but restart reconciliation is
+      # proven: leases expire once, tasks requeue exactly once, and the k8s
+      # engine reaps orphaned sandboxes before admitting new work — the cost
+      # is only the wasted in-flight run time.
+      "keel.sh/policy"   = "force"
+      "keel.sh/trigger"  = "poll"
+      "keel.sh/matchTag" = "true"
     }
   }
 
