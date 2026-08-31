@@ -67,7 +67,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
       COMMANDCODE_API_KEY   = var.secrets["litellm.commandcode_api_key"]
       OPENCODE_GO_API_KEY   = var.secrets["litellm.opencode_go_api_key"]
-      CURSOR_API_KEY        = var.secrets["composer.cursor_api_key"]
+      CURSOR_BRIDGE_API_KEY = random_password.composer_bridge_api_key.result
       ANTIGRAVITY_API_KEY   = random_password.antigravity_api_key.result
       FINVIZ_API_KEY        = var.secrets["finviz_api_key"]
       COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
@@ -331,11 +331,11 @@ resource "kubernetes_deployment_v1" "litellm" {
           }
 
           env {
-            name = "CURSOR_API_KEY"
+            name = "CURSOR_BRIDGE_API_KEY"
             value_from {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "CURSOR_API_KEY"
+                key  = "CURSOR_BRIDGE_API_KEY"
               }
             }
           }
