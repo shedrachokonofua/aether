@@ -243,6 +243,10 @@ model_list:
     litellm_params:
       model: "ollama_chat/glm-5.3-flash"
       litellm_credential_name: ollama_cloud_credential
+  - model_name: "router/glm-5.3"
+    litellm_params:
+      model: "ollama_chat/glm-5.3:cloud"
+      litellm_credential_name: ollama_cloud_credential
   - model_name: "router/deepseek-v4-pro"
     litellm_params:
       model: "ollama_chat/deepseek-v4-pro:cloud"
