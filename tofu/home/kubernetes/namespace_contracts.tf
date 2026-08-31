@@ -994,6 +994,7 @@ locals {
       exposure                = "internal"
       create_s3_backup_secret = false
       source_file             = "tofu/home/kubernetes/composer.tf"
+      egress                  = "allowlist"
       registry_access         = "gitlab"
       hostnames = [
         "composer.home.shdr.ch",
