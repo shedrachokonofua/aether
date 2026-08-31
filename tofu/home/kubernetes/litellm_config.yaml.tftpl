@@ -394,7 +394,7 @@ model_list:
       litellm_credential_name: composer_credential
       use_chat_completions_api: true
       # Cursor 400s on max_tokens; colony's SDK always sends it.
-      additional_drop_params: ["stream_options", "max_tokens"]
+      additional_drop_params: ["stream_options", "max_tokens", "max_completion_tokens"]
     model_info:
       input_cost_per_token: 0
       output_cost_per_token: 0
