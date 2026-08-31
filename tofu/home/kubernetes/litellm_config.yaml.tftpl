@@ -383,32 +383,20 @@ model_list:
       model: "openai/google/gemini-3.1-pro-preview"
       litellm_credential_name: openrouter_credential
 
-  # Cursor model aliases via self-hosted cursorpipe (composer ns; replaced the
-  # lab-built composer-api 2026-08-30 — cursorpipe exposes the full Cursor
-  # model catalog, not just Composer).
-  # These are the ONLY way to reach Composer from LiteLLM: no released LiteLLM
-  # (checked through 1.97.0) has a native Cursor chat provider — LlmProviders.CURSOR
-  # is a pass-through marker with no llms/cursor adapter, and LiteLLM's /cursor/*
-  # route proxies the Cursor Cloud Agents API (api.cursor.com, Basic auth), not
-  # chat completions. Do not "simplify" these to model: cursor/... — that fails
-  # with LiteLLMUnknownProvider.
-  # The explicit chat-completions flag lets LiteLLM bridge /responses clients to
-  # the composer-api /chat/completions endpoint instead of forwarding /responses.
-  - model_name: "cursor/composer-2.5"
-    litellm_params:
-      model: "openai/composer-2.5"
-      litellm_credential_name: composer_credential
-      use_chat_completions_api: true
-  - model_name: "cursor/composer-2.5-fast"
-    litellm_params:
-      model: "openai/composer-2.5-fast"
-      litellm_credential_name: composer_credential
-      use_chat_completions_api: true
+  # Cursor Grok through the single-tenant OMP bridge. The bridge owns Cursor
+  # credential exchange and native Run transport; callers own OpenAI tool
+  # execution. LiteLLM must use the OpenAI adapter because it has no native
+  # Cursor inference provider. Drop stream_options so LiteLLM never injects
+  # include_usage for a subscription route whose usage split is unknowable.
   - model_name: "cursor/grok-4.6"
     litellm_params:
-      model: "openai/grok-4.6"
+      model: "openai/cursor/grok-4.6"
       litellm_credential_name: composer_credential
       use_chat_completions_api: true
+      additional_drop_params: ["stream_options"]
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
 
   # Latest Gemini Flash through the single-tenant Antigravity bridge. Clients
   # own the tool loop and may select low/medium/high via reasoning_effort.
@@ -427,12 +415,12 @@ credential_list:
       description: "llama-swap on K8s"
   - credential_name: composer_credential
     credential_values:
-      # composer runs in the `composer` ns (outside the litellm ambient mesh), so
-      # cross-ns cluster DNS is unreachable from here; use the public ingress.
+      # composer runs outside the LiteLLM ambient mesh; use internal Gateway
+      # ingress and authenticate with the bridge-only bearer.
       api_base: https://composer.home.shdr.ch/v1
-      api_key: os.environ/CURSOR_API_KEY
+      api_key: os.environ/CURSOR_BRIDGE_API_KEY
     credential_info:
-      description: "Cursor models via self-hosted cursorpipe"
+      description: "Cursor Grok via the single-tenant OMP bridge"
   - credential_name: antigravity_credential
     credential_values:
       api_base: https://antigravity.home.shdr.ch/v1
