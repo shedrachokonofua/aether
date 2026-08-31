@@ -84,3 +84,6 @@ aether-link-caddy
 
 # Python bytecode caches (scripts/)
 __pycache__/
+
+# Agent worktrees
+.worktrees/
