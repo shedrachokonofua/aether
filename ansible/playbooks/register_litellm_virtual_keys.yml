@@ -104,6 +104,7 @@
         - muse-spark-1.2-contributor
         - router/muse-spark-1.2-contributor
         - kimi/k3
+        - cursor/grok-4.6
         # Ollama-Cloud-only flash: the router/deepseek-v4-flash group shuffles
         # in a cline-pass leg whose Vercel upstream fails streaming; colony's
         # developer pins this deterministic alias and keeps the router alias
