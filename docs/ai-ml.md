@@ -44,11 +44,24 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 
 ### LiteLLM
 
-Unified OpenAI-compatible API: local models via **llama-swap**, embeddings + reranker on the same credential, cloud providers, Cursor Composer routes, and MCP tools. The Cursor Composer models are exposed as `cursor/composer-2.5` and `cursor/composer-2.5-fast`; LiteLLM bridges `/responses` clients to the self-hosted composer-api chat-completions endpoint.
+Unified OpenAI-compatible API: local models via **llama-swap**, embeddings +
+reranker on the same credential, cloud providers, Cursor Grok, and MCP tools.
+Cursor is exposed only as `cursor/grok-4.6`.
 
-**The self-hosted composer-api is the only way to reach Composer from LiteLLM.** No released LiteLLM (verified in the deployed 1.92.0 and the 1.97.0 sdist) has a native Cursor chat provider: there is no `litellm/llms/cursor/` adapter, `LlmProviders.CURSOR` is a pass-through marker only, `get_provider_chat_config(provider=CURSOR)` returns `None`, and `model: cursor/composer-2.5` without an `api_base` fails with `LiteLLMUnknownProvider`. Cursor publishes no OpenAI-compatible chat-completions endpoint either — `api.cursor.com/v1/chat/completions` 404s — so a `crsr_` key only authorizes the Cloud Agents REST API and the official CLI/Agent SDK harness that composer-api wraps.
+The self-hosted Composer API is a thin OMP bridge for Cursor's native HTTP/2
+`Run` transport. It exchanges the server-owned Cursor credential, discovers
+Grok 4.6 effort variants, and translates OpenAI chat completions. Client
+function tools remain client-owned: Composer pauses the native Cursor turn,
+returns OpenAI `tool_calls`, and resumes that same in-memory turn when the
+client submits the complete result set. Pending turns are intentionally
+at-most-once and are lost on expiry, restart, or a disconnect after result
+acceptance.
 
-LiteLLM's `/cursor/*` namespace is two unrelated things, and the split moved between versions. `/cursor/{endpoint:path}` pass-throughs to the Cursor Cloud Agents API (`https://api.cursor.com`, Basic `base64(CURSOR_API_KEY:)`) — agent lifecycle, not inference. `POST /cursor/chat/completions` runs the opposite direction: it serves *Cursor as a BYOK client* off LiteLLM's own models. **Upgrade hazard:** 1.97.0 adds `GET /cursor/models` and `GET /cursor/v1/models` that shadow the pass-through and return LiteLLM's model list instead of Cursor's catalog (`response_api_endpoints/endpoints.py:430-454`). On 1.92.0 those paths still reach Cursor — `GET /cursor/v1/models` returns Cursor's own catalog today. Anything depending on that must switch to the `/cursor/v1/agents`-style paths, which keep passing through.
+LiteLLM has no native Cursor inference adapter. Its `/cursor/*` routes concern
+the separate Cursor Cloud Agents API and Cursor-as-BYOK integration, not chat
+inference. The `cursor/grok-4.6` model therefore uses LiteLLM's OpenAI adapter
+against Composer's internal endpoint and authenticates with a bridge-only
+bearer; the Cursor credential never leaves the Composer pod.
 
 Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/glm-5.2` models through Alibaba MaaS. Inquest sends Holmes

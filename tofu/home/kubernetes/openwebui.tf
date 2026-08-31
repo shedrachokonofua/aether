@@ -7,7 +7,7 @@ locals {
   openwebui_namespace = "openwebui"
   openwebui_host      = "openwebui.home.shdr.ch"
   # Pinned for reproducible upgrades (was :latest). Bump intentionally.
-  openwebui_image        = "ghcr.io/open-webui/open-webui:v0.11.0"
+  openwebui_image        = "ghcr.io/open-webui/open-webui:v0.11.1"
   mcpo_image             = "ghcr.io/open-webui/mcpo:main"
   open_terminal_image    = "ghcr.io/open-webui/open-terminal:slim"
   postgres_image         = "pgvector/pgvector:pg16"
@@ -231,6 +231,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
     kubectl_manifest.openwebui_cnpg_cluster,
     kubernetes_secret_v1.openwebui_env,
     kubernetes_secret_v1.openwebui_mcpo_config,
+    kubernetes_deployment_v1.litellm,
     kubernetes_persistent_volume_claim_v1.openwebui_data,
     kubernetes_persistent_volume_claim_v1.openwebui_terminal_data,
   ]
