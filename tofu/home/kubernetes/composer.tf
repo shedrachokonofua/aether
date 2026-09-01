@@ -9,7 +9,7 @@
 # Endpoint: https://composer.home.shdr.ch/v1  (chat/completions, models)
 
 locals {
-  composer_image         = "registry.gitlab.home.shdr.ch/so/aether/composer-api@sha256:af7de36e5fb6f24d48888faa494c62d1dc7d8105bb5f8a656d80b742ef33a403"
+  composer_image         = "registry.gitlab.home.shdr.ch/so/aether/composer-api@sha256:df3abf7e27d514fef42557cbb3e3ed99c7971d14f6fbfd030bed25951d9a8d95"
   composer_host          = "composer.home.shdr.ch"
   composer_port          = 8080
   composer_ns            = module.namespace["composer"].name
