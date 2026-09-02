@@ -119,6 +119,9 @@
         - router/deepseek-v4-flash
         - router/deepseek-v4-pro
         - qwen-cloud/qwen3.8-max
+        - qwen-cloud/qwen3.8-flash
+        - clinepass/qwen3.8-max
+        - clinepass/muse-spark-1.3
         - aether/qwen3.8-27b
       frame_gallery:
         # Larger local model for diverse art direction and concrete composition.
