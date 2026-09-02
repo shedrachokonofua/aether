@@ -64,7 +64,7 @@ against Composer's internal endpoint and authenticates with a bridge-only
 bearer; the Cursor credential never leaves the Composer pod.
 
 Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
-`qwen-cloud/glm-5.2` models through Alibaba MaaS. Inquest sends Holmes
+`qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest sends Holmes
 investigations to `qwen-cloud/qwen3.8-max`.
 
 Google Antigravity is exposed through the single-tenant bridge as
@@ -83,17 +83,19 @@ pins (`clinepass/glm-5.3-flash`, `commandcode/glm-5.3-flash`,
 `ollama-cloud/glm-5.3-flash`, `opencode-go/glm-5.3-flash`,
 `zai/glm-5.3-flash`) stay standalone. Flash is the
 named successor to the ended OpenCode Go Ox Alpha preview; do not mix it with
-`router/glm-5.3`. The provider-prefixed GLM names remain compatibility aliases, while the
-Qwen Cloud GLM 5.2 deployment stays standalone. The same routing pattern covers
+`router/glm-5.3`. The provider-prefixed GLM names remain compatibility aliases.
 `router/deepseek-v4-flash`, `router/qwen3.7-max`, `router/minimax-m3`,
 `router/mimo-v2.5-pro`, `router/muse-spark-1.2-contributor`, and
 `router/hy4-preview` where multiple providers are configured. Tencent Hy4
 Preview is shuffled across Clinepass, Command Code, and OpenCode Go; Ollama
 Cloud does not serve it. Pins (`clinepass/hy4-preview`,
 `commandcode/hy4-preview`, `opencode-go/hy4-preview`) stay standalone. The
-`hy4` and `hy4-preview` aliases land on the router group. OpenCode Go provides
-`opencode-go/muse-spark-1.2-contributor` and `opencode-go/glm-5.3-flash`
-through `https://opencode.ai/zen/go/v1`.
+`hy4` and `hy4-preview` aliases land on the router group.
+The CodeBuddy international route is pinned as `codebuddy/hy4-preview` rather
+than added to the router pool: its endpoint accepts only streaming requests
+whose first message is `system`. Colony's Pi transport satisfies both constraints.
+OpenCode Go provides `opencode-go/muse-spark-1.2-contributor` and
+`opencode-go/glm-5.3-flash` through `https://opencode.ai/zen/go/v1`.
 The Muse Spark contributor route is also
 pooled with Command Code under `router/muse-spark-1.2-contributor`; both
 contributor deployments may use prompts as training data, so they are for

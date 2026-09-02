@@ -139,6 +139,10 @@ model_list:
     litellm_params:
       model: "openai/qwen3.8-max"
       litellm_credential_name: qwen_cloud_credential
+  - model_name: "qwen-cloud/qwen3.8-flash"
+    litellm_params:
+      model: "openai/qwen3.8-flash"
+      litellm_credential_name: qwen_cloud_credential
 
   # Z.AI GLM 5.3 uses a separate router group; never mix it with GLM 5.2
   # or with GLM 5.3 Flash.
