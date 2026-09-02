@@ -71,10 +71,11 @@ Clinepass also exposes `clinepass/qwen3.8-max` and
 `clinepass/muse-spark-1.3` as standalone provider-pinned routes.
 
 Google Antigravity is exposed through the single-tenant bridge as
-`antigravity/gemini-3.7-flash`. The bridge translates OpenAI chat-completions
+`antigravity/gemini-3.8-flash`; `antigravity/gemini-3.7-flash` remains
+available for compatibility. The bridge translates OpenAI chat-completions
 requests to the subscription API; clients retain ownership of tool execution
-and follow-up results. Colony's virtual key may use this model, but no Colony
-agent selects it by default.
+and follow-up results. OMP and Colony virtual keys may use both models, but no
+Colony agent selects either by default.
 
 GLM 5.2 deployments remain pooled under the canonical
 `router/glm-5.2` group for the Clinepass and Ollama Cloud providers.
