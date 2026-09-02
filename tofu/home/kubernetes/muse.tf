@@ -287,8 +287,9 @@ resource "kubernetes_manifest" "muse_route" {
     }
     spec = {
       parentRefs = [{
-        name      = "main-gateway"
-        namespace = "default"
+        name        = "main-gateway"
+        namespace   = "default"
+        sectionName = "http"
       }]
       hostnames = [local.muse_host]
       rules = [{
