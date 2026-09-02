@@ -411,8 +411,13 @@ model_list:
       input_cost_per_token: 0
       output_cost_per_token: 0
 
-  # Latest Gemini Flash through the single-tenant Antigravity bridge. Clients
+  # Gemini Flash models through the single-tenant Antigravity bridge. Clients
   # own the tool loop and may select low/medium/high via reasoning_effort.
+  - model_name: "antigravity/gemini-3.8-flash"
+    litellm_params:
+      model: "openai/antigravity/gemini-3.8-flash"
+      litellm_credential_name: antigravity_credential
+      use_chat_completions_api: true
   - model_name: "antigravity/gemini-3.7-flash"
     litellm_params:
       model: "openai/antigravity/gemini-3.7-flash"

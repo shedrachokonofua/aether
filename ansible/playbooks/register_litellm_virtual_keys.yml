@@ -21,6 +21,8 @@
         - qwen-cloud/qwen3.8-max
         - ollama-cloud/deepseek-v4-flash
       omp:
+        - antigravity/gemini-3.8-flash
+        - antigravity/gemini-3.7-flash
         - glm
         - clinepass/glm-5.2
         - ollama-cloud/glm-5.2
@@ -84,6 +86,7 @@
         - router/mimo-v2.5-pro
         - xiaomi/mimo-v2.5-pro
       colony:
+        - antigravity/gemini-3.8-flash
         - antigravity/gemini-3.7-flash
         - router/mimo-v2.5-pro
         - router/glm-5.2
