@@ -57,6 +57,7 @@
         - aether/muse-glimmer-30b:think
         - clinepass/qwen3.7-max
         - qwen-cloud/qwen3.8-max
+        - qwen-cloud/qwen3.8-flash
         - qwen3.7-max
         - router/qwen3.7-max
         - kimi
