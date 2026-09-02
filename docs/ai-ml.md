@@ -67,6 +67,9 @@ Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest sends Holmes
 investigations to `qwen-cloud/qwen3.8-max`.
 
+Clinepass also exposes `clinepass/qwen3.8-max` and
+`clinepass/muse-spark-1.3` as standalone provider-pinned routes.
+
 Google Antigravity is exposed through the single-tenant bridge as
 `antigravity/gemini-3.7-flash`. The bridge translates OpenAI chat-completions
 requests to the subscription API; clients retain ownership of tool execution
