@@ -67,8 +67,8 @@ Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest sends Holmes
 investigations to `qwen-cloud/qwen3.8-max`.
 
-Clinepass also exposes `clinepass/qwen3.8-max` and
-`clinepass/muse-spark-1.3` as standalone provider-pinned routes.
+Clinepass also exposes `clinepass/qwen3.8-max`, `clinepass/muse-spark-1.3`,
+and `clinepass/muse-spark-1.3-contributor` as standalone provider pins.
 
 Google Antigravity is exposed through the single-tenant bridge as
 `antigravity/gemini-3.8-flash`; `antigravity/gemini-3.7-flash` remains
@@ -76,6 +76,11 @@ available for compatibility. The bridge translates OpenAI chat-completions
 requests to the subscription API; clients retain ownership of tool execution
 and follow-up results. OMP and Colony virtual keys may use both models, but no
 Colony agent selects either by default.
+
+The private Muse bridge exchanges the operator's Muse Code account grant for
+the subscription-backed key and exposes `muse-subscription/muse-spark-1.3`.
+Rotated OAuth and subscription credentials persist in a dedicated OpenBao
+record; the bridge never falls back to a PAYG Meta key.
 
 GLM 5.2 deployments remain pooled under the canonical
 `router/glm-5.2` group for the Clinepass and Ollama Cloud providers.
@@ -88,24 +93,21 @@ pins (`clinepass/glm-5.3-flash`, `commandcode/glm-5.3-flash`,
 `zai/glm-5.3-flash`) stay standalone. Flash is the
 named successor to the ended OpenCode Go Ox Alpha preview; do not mix it with
 `router/glm-5.3`. The provider-prefixed GLM names remain compatibility aliases.
-`router/deepseek-v4-flash`, `router/qwen3.7-max`, `router/minimax-m3`,
-`router/mimo-v2.5-pro`, `router/muse-spark-1.2-contributor`, and
-`router/hy4-preview` where multiple providers are configured. Tencent Hy4
-Preview is shuffled across Clinepass, Command Code, and OpenCode Go; Ollama
-Cloud does not serve it. Pins (`clinepass/hy4-preview`,
-`commandcode/hy4-preview`, `opencode-go/hy4-preview`) stay standalone. The
-`hy4` and `hy4-preview` aliases land on the router group.
+Other shared groups include `router/deepseek-v4-flash`,
+`router/qwen3.7-max`, `router/minimax-m3`, `router/mimo-v2.5-pro`,
+`router/muse-spark-1.3`, `router/muse-spark-1.3-contributor`, and
+`router/hy4-preview`. The normal Muse pool uses the private subscription,
+Command Code, and Clinepass. The contributor pool uses Command Code,
+Clinepass, and OpenCode Go; contributor prompts may be used as training data,
+so that pool is for public work only. Both Muse routers require streaming.
 The CodeBuddy international route is pinned as `codebuddy/hy4-preview` rather
 than added to the router pool: its endpoint accepts only streaming requests
 whose first message is `system`. Colony's Pi transport satisfies both constraints.
-OpenCode Go provides `opencode-go/muse-spark-1.2-contributor` and
+OpenCode Go provides `opencode-go/muse-spark-1.3-contributor` and
 `opencode-go/glm-5.3-flash` through `https://opencode.ai/zen/go/v1`.
-The Muse Spark contributor route is also
-pooled with Command Code under `router/muse-spark-1.2-contributor`; both
-contributor deployments may use prompts as training data, so they are for
-public work only. Ollama Cloud's Kimi K2.6 deployment remains separate. Production routing uses a 120-second
-upstream timeout for agentic turns, three retries, and one failed deployment
-before a 300-second cooldown; detailed debug mode is disabled.
+Ollama Cloud's Kimi K2.6 deployment remains separate. Production routing uses
+a 120-second upstream timeout for agentic turns, three retries, and one failed
+deployment before a 300-second cooldown; detailed debug mode is disabled.
 
 ```mermaid
 flowchart LR

@@ -111,6 +111,18 @@ model_list:
     litellm_params:
       model: "openai/meta/muse-spark-1.3"
       litellm_credential_name: clinepass_credential
+  - model_name: "router/muse-spark-1.3"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.3"
+      litellm_credential_name: clinepass_credential
+  - model_name: "clinepass/muse-spark-1.3-contributor"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.3-contributor"
+      litellm_credential_name: clinepass_credential
+  - model_name: "router/muse-spark-1.3-contributor"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.3-contributor"
+      litellm_credential_name: clinepass_credential
   - model_name: "router/minimax-m3"
     litellm_params:
       model: "openai/cline-pass/minimax-m3"
@@ -167,17 +179,22 @@ model_list:
       model: "zai/glm-5.3-flash"
       litellm_credential_name: zai_credential
 
-  # Command Code models. Contributor prompts are training data — public work only.
-  - model_name: "commandcode/muse-spark-1.2-contributor"
+  # Command Code Muse models. Contributor prompts are training data — public work only.
+  - model_name: "commandcode/muse-spark-1.3"
     litellm_params:
-      model: "openai/meta/muse-spark-1.2-contributor"
+      model: "openai/meta/muse-spark-1.3"
       litellm_credential_name: commandcode_credential
-  # First leg of the shuffled router/muse-spark-1.2-contributor pool.
-  # commandcode/muse-spark-1.2-contributor stays standalone for callers that
-  # want the GOAT route explicitly.
-  - model_name: "router/muse-spark-1.2-contributor"
+  - model_name: "router/muse-spark-1.3"
     litellm_params:
-      model: "openai/meta/muse-spark-1.2-contributor"
+      model: "openai/meta/muse-spark-1.3"
+      litellm_credential_name: commandcode_credential
+  - model_name: "commandcode/muse-spark-1.3-contributor"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.3-contributor"
+      litellm_credential_name: commandcode_credential
+  - model_name: "router/muse-spark-1.3-contributor"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.3-contributor"
       litellm_credential_name: commandcode_credential
   - model_name: "commandcode/deepseek-v4-flash"
     litellm_params:
@@ -208,11 +225,10 @@ model_list:
       litellm_credential_name: commandcode_credential
 
   # OpenCode Go (https://opencode.ai/zen/go/v1). Muse Spark Contributor
-  # prompts are training data — public work only. Ox Alpha's free stealth
-  # preview ended; the named successor is GLM 5.3 Flash.
-  - model_name: "opencode-go/muse-spark-1.2-contributor"
+  # prompts are training data — public work only.
+  - model_name: "opencode-go/muse-spark-1.3-contributor"
     litellm_params:
-      model: "openai/muse-spark-1.2-contributor"
+      model: "openai/muse-spark-1.3-contributor"
       litellm_credential_name: opencode_go_credential
   - model_name: "opencode-go/glm-5.3-flash"
     litellm_params:
@@ -230,12 +246,9 @@ model_list:
     litellm_params:
       model: "openai/hy4-preview"
       litellm_credential_name: opencode_go_credential
-  # Second leg of the shuffled router/muse-spark-1.2-contributor pool.
-  # opencode-go/muse-spark-1.2-contributor stays standalone for callers that
-  # want the Go subscription route explicitly.
-  - model_name: "router/muse-spark-1.2-contributor"
+  - model_name: "router/muse-spark-1.3-contributor"
     litellm_params:
-      model: "openai/muse-spark-1.2-contributor"
+      model: "openai/muse-spark-1.3-contributor"
       litellm_credential_name: opencode_go_credential
 
   # Ollama Cloud models
@@ -424,6 +437,18 @@ model_list:
       litellm_credential_name: antigravity_credential
       use_chat_completions_api: true
 
+  # Private Muse Code subscription bridge. This deployment never falls back to PAYG.
+  - model_name: "muse-subscription/muse-spark-1.3"
+    litellm_params:
+      model: "openai/muse-subscription/muse-spark-1.3"
+      litellm_credential_name: muse_bridge_credential
+      use_chat_completions_api: true
+  - model_name: "router/muse-spark-1.3"
+    litellm_params:
+      model: "openai/muse-subscription/muse-spark-1.3"
+      litellm_credential_name: muse_bridge_credential
+      use_chat_completions_api: true
+
 credential_list:
   - credential_name: llama_swap_credential
     credential_values:
@@ -445,6 +470,12 @@ credential_list:
       api_key: os.environ/ANTIGRAVITY_API_KEY
     credential_info:
       description: "Google Antigravity subscription via single-tenant bridge"
+  - credential_name: muse_bridge_credential
+    credential_values:
+      api_base: https://muse.home.shdr.ch/v1
+      api_key: os.environ/MUSE_BRIDGE_API_KEY
+    credential_info:
+      description: "Muse Code subscription via single-tenant bridge"
   - credential_name: ollama_cloud_credential
     credential_values:
       api_base: https://ollama.com
@@ -569,8 +600,12 @@ router_settings:
     - group_name: router/mimo-v2.5-pro
       models: ["router/mimo-v2.5-pro"]
       routing_strategy: simple-shuffle
-    - group_name: router/muse-spark-1.2-contributor
-      models: ["router/muse-spark-1.2-contributor"]
+    - group_name: router/muse-spark-1.3
+      models: ["router/muse-spark-1.3"]
+      routing_strategy: latency-based-routing
+      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
+    - group_name: router/muse-spark-1.3-contributor
+      models: ["router/muse-spark-1.3-contributor"]
       routing_strategy: latency-based-routing
       routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
     - group_name: router/glm-5.3
@@ -603,7 +638,8 @@ router_settings:
     "ollama-cloud/minimax-m3": "router/minimax-m3"
     "clinepass/mimo-v2.5-pro": "router/mimo-v2.5-pro"
     "xiaomi/mimo-v2.5-pro": "router/mimo-v2.5-pro"
-    "muse-spark-1.2-contributor": "router/muse-spark-1.2-contributor"
+    "muse-spark-1.3": "router/muse-spark-1.3"
+    "muse-spark-1.3-contributor": "router/muse-spark-1.3-contributor"
     "hy4-preview": "router/hy4-preview"
     "hy4": "router/hy4-preview"
 

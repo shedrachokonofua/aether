@@ -265,6 +265,15 @@ tasks:
         [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
         bb ./scripts/gmail-oauth-reauth.bb {{.CLI_ARGS}}
 
+  muse:login:
+    desc: Authorize Muse Code and store subscription credentials in OpenBao
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        bridge_repo="${MUSE_BRIDGE_REPO:-../muse-bridge}"
+        test -f "$bridge_repo/scripts/login.ts"
+        bun "$bridge_repo/scripts/login.ts"
+
   # ===========================================================================
   # Ansible Galaxy (worth automating)
   # ===========================================================================
