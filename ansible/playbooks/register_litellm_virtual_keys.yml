@@ -42,11 +42,16 @@
         - hy4-preview
         - hy4
         - router/hy4-preview
-        - commandcode/muse-spark-1.2-contributor
-        - opencode-go/muse-spark-1.2-contributor
-        - muse-spark-1.2-contributor
-        - router/muse-spark-1.2-contributor
+        - muse-subscription/muse-spark-1.3
+        - commandcode/muse-spark-1.3
         - clinepass/muse-spark-1.3
+        - muse-spark-1.3
+        - router/muse-spark-1.3
+        - commandcode/muse-spark-1.3-contributor
+        - clinepass/muse-spark-1.3-contributor
+        - opencode-go/muse-spark-1.3-contributor
+        - muse-spark-1.3-contributor
+        - router/muse-spark-1.3-contributor
         - commandcode/deepseek-v4-flash
         - aether/qwen3.5-9b
         - aether/qwen3.5-9b:think
@@ -105,10 +110,16 @@
         - hy4-preview
         - hy4
         - router/hy4-preview
-        - commandcode/muse-spark-1.2-contributor
-        - opencode-go/muse-spark-1.2-contributor
-        - muse-spark-1.2-contributor
-        - router/muse-spark-1.2-contributor
+        - muse-subscription/muse-spark-1.3
+        - commandcode/muse-spark-1.3
+        - clinepass/muse-spark-1.3
+        - muse-spark-1.3
+        - router/muse-spark-1.3
+        - commandcode/muse-spark-1.3-contributor
+        - clinepass/muse-spark-1.3-contributor
+        - opencode-go/muse-spark-1.3-contributor
+        - muse-spark-1.3-contributor
+        - router/muse-spark-1.3-contributor
         - kimi/k3
         - cursor/grok-4.6
         # Ollama-Cloud-only flash: the router/deepseek-v4-flash group shuffles
