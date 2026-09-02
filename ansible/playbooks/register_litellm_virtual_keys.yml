@@ -44,6 +44,7 @@
         - opencode-go/muse-spark-1.2-contributor
         - muse-spark-1.2-contributor
         - router/muse-spark-1.2-contributor
+        - clinepass/muse-spark-1.3
         - commandcode/deepseek-v4-flash
         - aether/qwen3.5-9b
         - aether/qwen3.5-9b:think
@@ -56,6 +57,7 @@
         - aether/muse-glimmer-30b
         - aether/muse-glimmer-30b:think
         - clinepass/qwen3.7-max
+        - clinepass/qwen3.8-max
         - qwen-cloud/qwen3.8-max
         - qwen-cloud/qwen3.8-flash
         - qwen3.7-max
