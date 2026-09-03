@@ -559,9 +559,13 @@ litellm_settings:
   request_timeout: 120
 
 router_settings:
-  # `model_name` creates the deployment pool. Heavy multi-leg pools route by
-  # measured latency; lowest_latency_buffer keeps legs within 50% of the
-  # fastest in rotation so one credential's quota is not burned alone.
+  # `model_name` creates the deployment pool. Multi-leg pools use weighted
+  # shuffle: the router's same-group retry that EXCLUDES the failed leg
+  # (`_maybe_run_weighted_failover`) only runs under simple-shuffle, so under
+  # latency routing a request that drew a quota-dead or out-of-credit leg
+  # retried the same leg three times and failed (glm-5.3 via Ollama, spark
+  # via clinepass, 2026-09-03). Latency routing also preferred the dead leg:
+  # its error was the fastest response in the group.
   # A single failed request trips a deployment quickly; the five-minute
   # cooldown prevents repeated quota/429 traffic against low-limit providers.
   allowed_fails: 1
@@ -580,19 +584,16 @@ router_settings:
       routing_strategy: simple-shuffle
     - group_name: router/glm-5.3-flash
       models: ["router/glm-5.3-flash"]
-      routing_strategy: latency-based-routing
-      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
+      routing_strategy: simple-shuffle
     - group_name: router/kimi-k2.7-code
       models: ["router/kimi-k2.7-code"]
       routing_strategy: simple-shuffle
     - group_name: router/deepseek-v4-pro
       models: ["router/deepseek-v4-pro"]
-      routing_strategy: latency-based-routing
-      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
+      routing_strategy: simple-shuffle
     - group_name: router/deepseek-v4-flash
       models: ["router/deepseek-v4-flash"]
-      routing_strategy: latency-based-routing
-      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
+      routing_strategy: simple-shuffle
     - group_name: router/qwen3.7-max
       models: ["router/qwen3.7-max"]
       routing_strategy: simple-shuffle
@@ -604,12 +605,10 @@ router_settings:
       routing_strategy: simple-shuffle
     - group_name: router/muse-spark-1.3
       models: ["router/muse-spark-1.3"]
-      routing_strategy: latency-based-routing
-      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
+      routing_strategy: simple-shuffle
     - group_name: router/muse-spark-1.3-contributor
       models: ["router/muse-spark-1.3-contributor"]
-      routing_strategy: latency-based-routing
-      routing_strategy_args: { ttl: 3600, lowest_latency_buffer: 0.5 }
+      routing_strategy: simple-shuffle
     # Weighted shuffle, not latency: the Ollama leg's quota error was the
     # fastest response in the group, so latency routing kept choosing it.
     - group_name: router/glm-5.3
