@@ -87,7 +87,6 @@ Requires the bridge bearer. Returns an OpenAI-compatible catalog containing the 
 - `supergrok/grok-composer-2.5-fast`
 - `supergrok/grok-build`
 - `supergrok/grok-4.6`
-- `supergrok/grok-4.5`
 - `supergrok/grok-4.3`
 - `supergrok/grok-4.20-0309-reasoning`
 - `supergrok/grok-4.20-0309-non-reasoning`
@@ -112,7 +111,7 @@ The bridge:
 
 Redirects are rejected. Upstream origins are constants. Client disconnects cancel the upstream request.
 
-LiteLLM owns Chat Completions compatibility. Its per-model `use_responses_api` behavior translates `/v1/chat/completions` requests into the Responses API. The bridge does not duplicate that protocol conversion.
+LiteLLM owns Chat Completions compatibility. Its per-model `openai/responses/` provider prefix activates the pinned LiteLLM 1.92 Chat-to-Responses bridge for `/v1/chat/completions` requests. The bridge does not duplicate that protocol conversion.
 
 ### `GET /usage`
 

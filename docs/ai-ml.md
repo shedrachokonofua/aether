@@ -77,6 +77,18 @@ requests to the subscription API; clients retain ownership of tool execution
 and follow-up results. OMP and Colony virtual keys may use both models, but no
 Colony agent selects either by default.
 
+SuperGrok is exposed only as the subscription-backed
+`supergrok/grok-4.6` pin. LiteLLM translates Chat Completions calls into the
+Responses API; the single-tenant bridge forwards native `/v1/responses`
+requests and never falls back to `api.x.ai`, a PAYG key, Cursor, or
+OpenRouter. Readiness fails closed unless live xAI metadata confirms Grok
+Code access, coding-data retention opt-out or ZDR, and the reviewed model.
+Run `task grok:login` to authorize the account and write rotating credentials
+to `kv/aether/grok-bridge/credentials` in OpenBao. Runtime infrastructure is
+owned by [`tofu/home/kubernetes/grok.tf`](../tofu/home/kubernetes/grok.tf);
+bridge source is the private `so/grok-bridge` GitLab project. `/usage` is
+best-effort and is not a readiness gate.
+
 The private Muse bridge exchanges the operator's Muse Code account grant for
 the subscription-backed key and exposes `muse-subscription/muse-spark-1.3`.
 Rotated OAuth and subscription credentials persist in a dedicated OpenBao

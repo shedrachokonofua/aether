@@ -450,6 +450,19 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
 
+  # Private SuperGrok subscription pins. LiteLLM translates Chat Completions
+  # into native Responses requests; the bridge never falls back to PAYG.
+  - model_name: "supergrok/grok-4.6"
+    litellm_params:
+      # LiteLLM 1.92's responses/ prefix activates its Chat-to-Responses bridge.
+      model: "openai/responses/supergrok/grok-4.6"
+      litellm_credential_name: grok_bridge_credential
+      timeout: 660
+      stream_timeout: 660
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+
 credential_list:
   - credential_name: llama_swap_credential
     credential_values:
@@ -477,6 +490,12 @@ credential_list:
       api_key: os.environ/MUSE_BRIDGE_API_KEY
     credential_info:
       description: "Muse Code subscription via single-tenant bridge"
+  - credential_name: grok_bridge_credential
+    credential_values:
+      api_base: https://grok.home.shdr.ch/v1
+      api_key: os.environ/GROK_BRIDGE_API_KEY
+    credential_info:
+      description: "SuperGrok subscription via single-tenant Responses bridge"
   - credential_name: ollama_cloud_credential
     credential_values:
       api_base: https://ollama.com

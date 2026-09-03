@@ -71,6 +71,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       CURSOR_BRIDGE_API_KEY = random_password.composer_bridge_api_key.result
       ANTIGRAVITY_API_KEY   = random_password.antigravity_api_key.result
       MUSE_BRIDGE_API_KEY   = random_password.muse_bridge_api_key.result
+      GROK_BRIDGE_API_KEY   = random_password.grok_bridge_api_key.result
       FINVIZ_API_KEY        = var.secrets["finviz_api_key"]
       COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
       TMDB_API_KEY          = var.secrets["tmdb_read_access_token"]
@@ -368,6 +369,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "MUSE_BRIDGE_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "GROK_BRIDGE_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "GROK_BRIDGE_API_KEY"
               }
             }
           }
