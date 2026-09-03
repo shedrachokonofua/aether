@@ -82,17 +82,13 @@ The response contains only coarse status fields. It must not return identity, ra
 
 ### `GET /v1/models`
 
-Requires the bridge bearer. Returns an OpenAI-compatible catalog containing the intersection of the live subscription catalog and this static allowlist:
+Requires the bridge bearer. Returns an OpenAI-compatible catalog containing
+`supergrok/grok-4.6` only when `grok-4.6` is present in the live subscription
+catalog.
 
-- `supergrok/grok-composer-2.5-fast`
-- `supergrok/grok-build`
-- `supergrok/grok-4.6`
-- `supergrok/grok-4.3`
-- `supergrok/grok-4.20-0309-reasoning`
-- `supergrok/grok-4.20-0309-non-reasoning`
-- `supergrok/grok-4.20-multi-agent-0309`
-
-A model absent from the account catalog is omitted and rejected. Newly discovered model IDs are never exposed until explicitly added to the static allowlist in code and Aether's LiteLLM configuration.
+A missing `grok-4.6` is omitted and rejected. Newly discovered model IDs are
+never exposed until explicitly added to both the static allowlist in code and
+Aether's LiteLLM configuration.
 
 ### `POST /v1/responses`
 

@@ -457,6 +457,9 @@ model_list:
       # LiteLLM 1.92's responses/ prefix activates its Chat-to-Responses bridge.
       model: "openai/responses/supergrok/grok-4.6"
       litellm_credential_name: grok_bridge_credential
+      # A single-leg subscription route cannot fail over. Preserve the actual
+      # upstream error instead of turning one transient failure into 5m of 429s.
+      cooldown_time: 0
       timeout: 660
       stream_timeout: 660
     model_info:
