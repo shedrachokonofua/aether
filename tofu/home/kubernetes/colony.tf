@@ -246,8 +246,14 @@ resource "kubernetes_deployment_v1" "colonyd" {
             }
             initial_delay_seconds = 5
             period_seconds        = 10
+            timeout_seconds       = 5
           }
 
+          # Liveness only guards a wedged process. The default 1s timeout
+          # killed a healthy daemon mid-implementer-run when a synchronous
+          # SQLite call held the event loop past a second (2026-09-03,
+          # exit 143, three probes in a row); a stall that long is not a
+          # hang, and a kill costs every live run its progress.
           liveness_probe {
             http_get {
               path = "/health"
@@ -255,6 +261,8 @@ resource "kubernetes_deployment_v1" "colonyd" {
             }
             initial_delay_seconds = 20
             period_seconds        = 20
+            timeout_seconds       = 10
+            failure_threshold     = 6
           }
 
           resources {
