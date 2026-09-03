@@ -136,7 +136,7 @@ export class GrokProxyClient {
 ```
 
 - [ ] **Step 1: Write failing account/privacy tests.** Verify required Grok identity headers, fixed origin, bearer injection, bounded `/user` response parsing, `codingDataRetentionOptOut` and `isZdr`, missing/false privacy rejection, Grok Code entitlement, and absence of the privacy mutation endpoint.
-- [ ] **Step 2: Write failing model tests.** Use a catalog containing allowed, unknown, media, and malformed entries. Require an exact intersection with the eight model IDs in the spec and `supergrok/` public naming; unknown live models remain hidden.
+- [ ] **Step 2: Write failing model tests.** Use a catalog containing `grok-4.6`, unknown, media, and malformed entries. Require an exact live intersection with only `grok-4.6` and `supergrok/` public naming; every other live model remains hidden.
 - [ ] **Step 3: Write failing usage tests.** Verify printable-ASCII account-ID validation before `x-userid`, `/billing?format=credits`, bounded/depth-limited JSON parsing, normalized numeric output, and defensive errors for schema drift. Confirm usage failure is distinguishable from readiness failure.
 - [ ] **Step 4: Run focused tests and confirm failure.** Run `nix develop /Users/shdrch/projects/aether --command bun test test/proxy-client.test.ts test/models.test.ts test/usage.test.ts`; expect missing implementation exports.
 - [ ] **Step 5: Implement the proxy client and allowlist.** Send the reviewed `grok-shell` identity, version, mode, token-auth, and authenticate-response headers. Make the client version an explicit non-secret environment setting with the reviewed version as default. Do not implement `PUT /privacy/coding-data-retention`.
@@ -235,7 +235,7 @@ export function createHandler(dependencies: ServerDependencies):
 - [ ] **Step 1: Write the failing login test.** Inject OAuth, account, catalog, and store adapters. Prove unsafe privacy prevents persistence; safe privacy writes exactly one complete credential record; stdout contains only verification URI/code and success state, never token/account payloads.
 - [ ] **Step 2: Implement the workstation command.** Require operator OpenBao credentials, perform device login, inspect privacy/catalog, fail closed, and CAS-create/replace the approved path. Do not create a local auth file.
 - [ ] **Step 3: Add container packaging.** Use a multi-stage frozen Bun install; copy only runtime files; run as UID/GID 1000 with a read-only-compatible filesystem. CI runs frozen install and `bun run check`, then publishes `$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA` for amd64.
-- [ ] **Step 4: Document the runtime contract.** `DESIGN.md` records single tenancy, endpoint set, privacy invariant, OpenBao ownership, eight-model maximum allowlist, no PAYG, source revisions, and operational error boundaries.
+- [ ] **Step 4: Document the runtime contract.** `DESIGN.md` records single tenancy, endpoint set, privacy invariant, OpenBao ownership, the `grok-4.6`-only allowlist, no PAYG, source revisions, and operational error boundaries.
 - [ ] **Step 5: Run full bridge verification.** Run `nix develop /Users/shdrch/projects/aether --command bun run check`; expect all tests and type checking to pass. Build and smoke-run the container locally; call `/health` and confirm `200`.
 - [ ] **Step 6: Commit and publish.** Commit as `build: package SuperGrok bridge`, push the private GitLab repository, wait for successful CI, and resolve the immutable registry digest without exposing registry credentials.
 
