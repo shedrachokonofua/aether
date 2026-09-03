@@ -562,12 +562,10 @@ router_settings:
   # `model_name` creates the deployment pool. Heavy multi-leg pools route by
   # measured latency; lowest_latency_buffer keeps legs within 50% of the
   # fastest in rotation so one credential's quota is not burned alone.
-  # A single failed request trips a deployment quickly. Four-hour cooldown:
-  # a leg that is out of weekly quota answers every call with a fast error,
-  # and a five-minute bench put it back in rotation twelve times an hour
-  # while a healthy leg never got the call (glm-5.3, 2026-09-02).
+  # A single failed request trips a deployment quickly; the five-minute
+  # cooldown prevents repeated quota/429 traffic against low-limit providers.
   allowed_fails: 1
-  cooldown_time: 14400
+  cooldown_time: 300
   # Retry initial requests across the configured GLM pools when needed.
   num_retries: 3
   max_fallbacks: 3
