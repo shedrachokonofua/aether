@@ -180,7 +180,7 @@ model_list:
       model: "zai/glm-5.3-flash"
       litellm_credential_name: zai_credential
 
-  # Command Code Muse models. Contributor prompts are training data — public work only.
+  # Command Code Muse models, including the separate Contributor route.
   - model_name: "commandcode/muse-spark-1.3"
     litellm_params:
       model: "openai/meta/muse-spark-1.3"
@@ -225,8 +225,7 @@ model_list:
       model: "openai/tencent/hy4-preview"
       litellm_credential_name: commandcode_credential
 
-  # OpenCode Go (https://opencode.ai/zen/go/v1). Muse Spark Contributor
-  # prompts are training data — public work only.
+  # OpenCode Go (https://opencode.ai/zen/go/v1), including Muse Spark Contributor.
   - model_name: "opencode-go/muse-spark-1.3-contributor"
     litellm_params:
       model: "openai/muse-spark-1.3-contributor"
