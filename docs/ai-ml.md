@@ -98,8 +98,7 @@ Other shared groups include `router/deepseek-v4-flash`,
 `router/muse-spark-1.3`, `router/muse-spark-1.3-contributor`, and
 `router/hy4-preview`. The normal Muse pool uses the private subscription,
 Command Code, and Clinepass. The contributor pool uses Command Code,
-Clinepass, and OpenCode Go; contributor prompts may be used as training data,
-so that pool is for public work only. Both Muse routers require streaming.
+Clinepass, and OpenCode Go. Both Muse routers require streaming.
 The CodeBuddy international route is pinned as `codebuddy/hy4-preview` rather
 than added to the router pool: its endpoint accepts only streaming requests
 whose first message is `system`. Colony's Pi transport satisfies both constraints.
