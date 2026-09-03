@@ -274,6 +274,15 @@ tasks:
         test -f "$bridge_repo/scripts/login.ts"
         bun "$bridge_repo/scripts/login.ts"
 
+  grok:login:
+    desc: Authorize SuperGrok and store subscription credentials in OpenBao
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        bridge_repo="${GROK_BRIDGE_REPO:-../grok-bridge}"
+        test -f "$bridge_repo/scripts/login.ts"
+        bun "$bridge_repo/scripts/login.ts"
+
   # ===========================================================================
   # Ansible Galaxy (worth automating)
   # ===========================================================================

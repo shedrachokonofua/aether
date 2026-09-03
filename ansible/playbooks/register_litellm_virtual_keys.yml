@@ -23,6 +23,7 @@
       omp:
         - antigravity/gemini-3.8-flash
         - antigravity/gemini-3.7-flash
+        - supergrok/grok-4.6
         - glm
         - clinepass/glm-5.2
         - ollama-cloud/glm-5.2
@@ -93,6 +94,7 @@
       colony:
         - antigravity/gemini-3.8-flash
         - antigravity/gemini-3.7-flash
+        - supergrok/grok-4.6
         - router/mimo-v2.5-pro
         - router/glm-5.2
         - router/glm-5.3

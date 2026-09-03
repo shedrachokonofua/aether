@@ -289,7 +289,7 @@ export function createHandler(dependencies: ServerDependencies):
 - Produces: pinned `supergrok/*` LiteLLM deployments, OMP/Colony authorization, and verified Chat Completions compatibility.
 
 - [ ] **Step 1: Add the LiteLLM credential.** Configure `grok_bridge_credential` with the internal API base and bridge bearer.
-- [ ] **Step 2: Add one entry per confirmed model.** Use exact public names from Task 7, OpenAI Responses routing, `use_responses_api: true`, and per-model 660-second stream/request bounds. Do not add `router/grok-*`, aliases, Cursor/OpenRouter fallbacks, or unconfirmed models.
+- [ ] **Step 2: Add one entry per confirmed model.** Use exact public names from Task 7, LiteLLM 1.92's `openai/responses/` provider prefix, and per-model 660-second stream/request bounds. Do not add `router/grok-*`, aliases, Cursor/OpenRouter fallbacks, or unconfirmed models.
 - [ ] **Step 3: Grant client access.** Add confirmed pins to OMP and Colony virtual-key model lists without altering defaults or other aliases.
 - [ ] **Step 4: Update Aether documentation.** Record runtime/IaC ownership, `task grok:login`, privacy fail-closed behavior, credential path, model pins, Responses translation boundary, no-PAYG guarantee, and best-effort usage endpoint.
 - [ ] **Step 5: Validate rendered configuration.** Run Ansible syntax check, YAML/template parsing, duplicate model-name detection, `tofu fmt -check`, `tofu validate`, and a targeted plan. Require no destroys and no changes to existing Cursor/OpenRouter Grok entries.
