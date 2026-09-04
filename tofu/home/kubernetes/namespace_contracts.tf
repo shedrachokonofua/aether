@@ -417,7 +417,7 @@ locals {
         # GeneratingPolicy only re-evaluates on namespace CREATE/UPDATE, not on
         # policy edits or downstream deletes (confirmed 2026-08-01/03), so bump
         # this alongside any quota change to force the sync.
-        "aether.shdr.ch/runner-quota-rev" = "cpu18-22.mem24-40.eph96-264.r2"
+        "aether.shdr.ch/runner-quota-rev" = "cpu18-34.mem24-40.eph96-264.r3"
       }
     }
     "globalping" = {
