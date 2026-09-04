@@ -51,7 +51,7 @@ runners:
       request_concurrency = 1
       builds_dir = "/ci/builds"
       cache_dir = "/ci/cache"
-      environment = ["FF_NETWORK_PER_BUILD=1", "STORAGE_DRIVER=overlay", "TMPDIR=/ci/tmp"]
+      environment = ["FF_NETWORK_PER_BUILD=1", "STORAGE_DRIVER=overlay", "TMPDIR=/ci/tmp", "CACHE_COMPRESSION_FORMAT=tarzstd", "CACHE_COMPRESSION_LEVEL=fastest"]
 
       # TMPDIR=/ci/tmp must stay on the CI disk (virtio3); the previous
       # emptyDir overlay silently routed TMPDIR writes to the node root disk
@@ -73,7 +73,7 @@ runners:
         helper_cpu_request = "100m"
         helper_memory_request = "128Mi"
         helper_ephemeral_storage_request = "512Mi"
-        helper_cpu_limit = "500m"
+        helper_cpu_limit = "2"
         helper_memory_limit = "512Mi"
         helper_ephemeral_storage_limit = "1Gi"
         service_cpu_request = "100m"

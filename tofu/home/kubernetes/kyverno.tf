@@ -1225,15 +1225,16 @@ locals {
   }
 
   namespace_resourcequota_gitlab_runner = {
-    # Sized for 8 counted pods (4 running x 2.1/2.5 CPU + 4 Terminating with
-    # the runner's 5s termination grace) plus 4 managers (0.4 req / 2.0 lim).
+    # Sized for 8 counted job pods (4 running x 2.1/4.0 CPU + 4 Terminating
+    # with the runner's 5s termination grace) plus 4 managers (0.4 req / 2.0
+    # lim). This yields 17.2 CPU requests (rounded to 18) and 34 CPU limits.
     # Backtested 2026-08-01 against 3 weeks of job timelines: cap 8 + 5s grace
     # removes ~87% of quota rejections; bigger bumps buy nothing while the
     # grace period is short.
     "requests.cpu"               = "18"
     "requests.memory"            = "24Gi"
     "requests.ephemeral-storage" = "96Gi"
-    "limits.cpu"                 = "22"
+    "limits.cpu"                 = "34"
     "limits.memory"              = "40Gi"
     "limits.ephemeral-storage"   = "264Gi"
     "pods"                       = "20"
