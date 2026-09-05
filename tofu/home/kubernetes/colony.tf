@@ -21,9 +21,10 @@ data "vault_kv_secret_v2" "colony_litellm" {
 }
 
 locals {
-  colony_ns    = module.namespace["colony"].name
-  colony_image = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:407db18215748c844cc7098217bd66cfc6bc0f22663c6335f5af414b19b0065b"
-  colony_host  = "colony.home.shdr.ch"
+  colony_ns                    = module.namespace["colony"].name
+  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:31609a6730a3ea31019f92dfd31f54502f01e920447d7f7e164565461f8eb99f"
+  colony_drain_timeout_seconds = 600
+  colony_host                  = "colony.home.shdr.ch"
 
   colony_labels = {
     "app.kubernetes.io/part-of"    = "colony"
@@ -61,8 +62,9 @@ locals {
     # Eight developer sandboxes saturate the namespace quota's limits
     # dimension (16 CPU / 32 GiB at 2/4Gi limits each) and the four kata
     # nodes' real headroom; dispatching past 8 burns 5-minute CR waits.
-    COLONYD_MAX_CONCURRENT = "8"
-    COLONYD_MAX_ATTEMPTS   = "3"
+    COLONYD_MAX_CONCURRENT  = "8"
+    COLONYD_MAX_ATTEMPTS    = "3"
+    COLONY_DRAIN_TIMEOUT_MS = tostring(local.colony_drain_timeout_seconds * 1000)
 
     COLONY_METRICS_PORT = "9464"
     COLONY_OIDC_ISSUER  = "https://auth.shdr.ch/realms/aether"
@@ -173,6 +175,8 @@ resource "kubernetes_deployment_v1" "colonyd" {
       spec {
         service_account_name            = kubernetes_service_account_v1.colonyd.metadata[0].name
         automount_service_account_token = true
+        # Let the daemon drain before Kubernetes can force-kill its workers.
+        termination_grace_period_seconds = local.colony_drain_timeout_seconds + 60
 
         security_context {
           run_as_non_root = true
@@ -241,7 +245,7 @@ resource "kubernetes_deployment_v1" "colonyd" {
 
           readiness_probe {
             http_get {
-              path = "/health"
+              path = "/ready"
               port = "http"
             }
             initial_delay_seconds = 5
