@@ -450,13 +450,13 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
 
-  # Private SuperGrok subscription pins. LiteLLM translates Chat Completions
-  # into native Responses requests; the bridge never falls back to PAYG.
+  # Private SuperGrok subscription pins. The bridge owns native Responses
+  # translation; stock LiteLLM uses Chat Completions with no PAYG fallback.
   - model_name: "supergrok/grok-4.6"
     litellm_params:
-      # LiteLLM 1.92's responses/ prefix activates its Chat-to-Responses bridge.
-      model: "openai/responses/supergrok/grok-4.6"
+      model: "openai/supergrok/grok-4.6"
       litellm_credential_name: grok_bridge_credential
+      use_chat_completions_api: true
       # A single-leg subscription route cannot fail over. Preserve the actual
       # upstream error instead of turning one transient failure into 5m of 429s.
       cooldown_time: 0

@@ -22,7 +22,7 @@ data "vault_kv_secret_v2" "colony_litellm" {
 
 locals {
   colony_ns    = module.namespace["colony"].name
-  colony_image = "registry.gitlab.home.shdr.ch/so/colony/colonyd:latest"
+  colony_image = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:407db18215748c844cc7098217bd66cfc6bc0f22663c6335f5af414b19b0065b"
   colony_host  = "colony.home.shdr.ch"
 
   colony_labels = {
@@ -140,8 +140,8 @@ resource "kubernetes_deployment_v1" "colonyd" {
       # and killing in-flight agent runs (three casualties that day alone).
       # Re-enable (policy=force, trigger=poll, matchTag=true) once colony's
       # drain + adopt-and-resume scope (col-c8f58a57) makes restarts free.
-      # Until then deploys are manual: kubectl rollout restart deploy/colonyd
-      # -n colony at a quiet moment.
+      # Until then, pin an immutable image through IaC at a quiet moment
+      # after verifying all scopes are paused and no runs are active.
       "keel.sh/policy" = "never"
     }
   }
