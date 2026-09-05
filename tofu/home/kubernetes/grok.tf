@@ -1,12 +1,12 @@
 # =============================================================================
-# SuperGrok Bridge — Responses-compatible xAI subscription API
+# SuperGrok Bridge — Chat Completions and Responses subscription APIs
 # =============================================================================
 # Source: ssh://git@ssh.gitlab.home.shdr.ch:2222/so/grok-bridge.git
 # Single-tenant bridge: OAuth credentials remain in OpenBao; callers authenticate
 # with an independent random bearer token. There is no API-key or PAYG fallback.
 
 locals {
-  grok_image         = "registry.gitlab.home.shdr.ch/so/grok-bridge@sha256:f8acbeadba822db9e5485c5e8b52c9f51e4decc26351c0f829cf509b40e61e99"
+  grok_image         = "registry.gitlab.home.shdr.ch/so/grok-bridge@sha256:356b5018e4188ca2b9523cbd3055b4ecfd46f7a90f781aae0371f9cc67f3e53b"
   grok_host          = "grok.home.shdr.ch"
   grok_port          = 8080
   grok_ns            = module.namespace["grok"].name
