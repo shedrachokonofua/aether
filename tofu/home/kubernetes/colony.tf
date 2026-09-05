@@ -152,6 +152,9 @@ resource "kubernetes_deployment_v1" "colonyd" {
     # Must stay 1: SQLite plus in-process runs are not multi-writer.
     replicas = 1
 
+    # Cover bounded drain, sandbox cleanup, image pull, and readiness.
+    progress_deadline_seconds = local.colony_drain_timeout_seconds + 300
+
     strategy {
       type = "Recreate"
     }
@@ -283,6 +286,10 @@ resource "kubernetes_deployment_v1" "colonyd" {
         }
       }
     }
+  }
+
+  timeouts {
+    update = "${local.colony_drain_timeout_seconds + 360}s"
   }
 
   lifecycle {
