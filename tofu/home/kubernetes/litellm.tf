@@ -4,7 +4,7 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  litellm_image               = "ghcr.io/berriai/litellm:1.92.0"
+  litellm_image               = "ghcr.io/berriai/litellm:1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
   litellm_espn_mcp_image      = "registry.gitlab.home.shdr.ch/so/espn-mcp:latest"
   litellm_postgres_image      = "docker.io/postgres:18"
   litellm_finviz_image        = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
