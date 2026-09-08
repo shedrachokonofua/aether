@@ -111,6 +111,13 @@
         { "domain": "mars.seven30.xyz", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
         { "domain": "*.mars.seven30.xyz", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
       ]
+    },
+    {
+      "zone": "arpa.attain.ing",
+      "records": [
+        { "domain": "arpa.attain.ing", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
+        { "domain": "*.arpa.attain.ing", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
+      ]
     }
   ],
   "apps": [

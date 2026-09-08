@@ -732,6 +732,23 @@ shdr.ch {
 }
 
 # =============================================================================
+# Attaining studio (attain.ing)
+# =============================================================================
+# Private subtree: arpa.attain.ing and below. LAN-bound only (default_bind);
+# admin devices reach it over Tailscale subnet routes. Resolved by AdGuard/
+# Technitium + admin split DNS; the public :9443 listener 404s it explicitly.
+# Routes land on the Kubernetes Gateway's `*.arpa.attain.ing` internal listener.
+arpa.attain.ing, *.arpa.attain.ing {
+  import access_logs
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote}
+    header_up X-Forwarded-For {http.request.remote}
+    header_up X-Forwarded-Proto https
+  }
+}
+
+# =============================================================================
 # Kubernetes Cluster (Talos + Cilium)
 # =============================================================================
 # Expose Kubernetes OIDC discovery + JWKS (for RGW STS validation)
@@ -838,8 +855,17 @@ api.siren.home.shdr.ch {
   @mars host mars.seven30.xyz
   @seven30 host seven30.xyz
   @seven30_apps host *.seven30.xyz
+  @attaining host attain.ing
+  @attaining_arpa host arpa.attain.ing *.arpa.attain.ing
+  @attaining_apps host *.attain.ing
 
   handle @mars {
+    respond 404
+  }
+
+  # Private subtree must never be reachable from the public listener. This
+  # handle precedes @attaining_apps because handle blocks match in order.
+  handle @attaining_arpa {
     respond 404
   }
 
@@ -906,6 +932,33 @@ api.siren.home.shdr.ch {
   }
 
   handle @seven30_apps {
+    reverse_proxy 10.0.3.19 {
+      header_up Host {http.request.host}
+      header_up X-Real-IP {http.request.header.X-Real-IP}
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+      header_up X-Forwarded-Proto https
+    }
+  }
+
+  # attain.ing root: static site served from the attaining-www RGW bucket
+  # (deployed by so/attaining/www CI). Same shape as @shdrch above.
+  handle @attaining {
+    @publicAttainingRoot path /
+    rewrite @publicAttainingRoot /attaining-www/index.html
+    @publicAttainingNotRoot not path /
+    rewrite @publicAttainingNotRoot /attaining-www{uri}
+
+    reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
+      header_up Host s3.home.shdr.ch
+      header_up X-Real-IP {http.request.header.X-Real-IP}
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+      header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+    }
+  }
+
+  # *.attain.ing products: Kubernetes Gateway public listener. Which hosts
+  # answer is decided in-cluster by HTTPRoutes in owner=attaining namespaces.
+  handle @attaining_apps {
     reverse_proxy 10.0.3.19 {
       header_up Host {http.request.host}
       header_up X-Real-IP {http.request.header.X-Real-IP}

@@ -36,6 +36,11 @@ monitors:
     type: "http"
     interval: 60
 
+  - name: "attain.ing"
+    url: "https://attain.ing"
+    type: "http"
+    interval: 60
+
 
   - name: "aether-monitoring-heartbeat"
     type: "push"

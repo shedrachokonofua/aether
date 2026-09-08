@@ -44,6 +44,7 @@ Admin tailnet split DNS points to the LAN router (`10.0.0.1`) through the admin-
 | home.shdr.ch | `10.0.0.1` | Admin `*.home.shdr.ch` -> LAN DNS records |
 | k8s.seven30.xyz | `10.0.0.1` | Admin vcluster API -> LAN DNS records |
 | mars.seven30.xyz | `10.0.0.1` | Admin Mars routes -> LAN DNS records |
+| arpa.attain.ing | `10.0.0.1` | Admin Attaining private subtree -> LAN DNS records |
 
 Cofounder tailnets use their own split DNS entries pointed at the shared gateway (`100.76.131.97`). The shared dnsmasq listener returns only the shared gateway Tailscale IP, never internal LAN IPs. Caddy binding and the shared catch-all decide what is exposed on `100.76.131.97:443`; internal-only routes do not leak through DNS.
 

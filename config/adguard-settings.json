@@ -95,6 +95,14 @@
       },
       {
         "answer": "10.0.2.2",
+        "domain": "arpa.attain.ing"
+      },
+      {
+        "answer": "10.0.2.2",
+        "domain": "*.arpa.attain.ing"
+      },
+      {
+        "answer": "10.0.2.2",
         "domain": "dns.oci.shdr.ch"
       }
     ],

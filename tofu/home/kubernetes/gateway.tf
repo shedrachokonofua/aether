@@ -103,6 +103,20 @@ resource "kubernetes_manifest" "main_gateway" {
           allowedRoutes = local.gateway_allowed_routes_public
         },
         {
+          name          = "attaining"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "*.attain.ing"
+          allowedRoutes = local.gateway_allowed_routes_public
+        },
+        {
+          name          = "attaining-arpa"
+          protocol      = "HTTP"
+          port          = 80
+          hostname      = "*.arpa.attain.ing"
+          allowedRoutes = local.gateway_allowed_routes_internal
+        },
+        {
           name          = "tv"
           protocol      = "HTTP"
           port          = 80

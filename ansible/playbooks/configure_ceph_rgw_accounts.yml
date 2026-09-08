@@ -866,6 +866,509 @@
       run_once: true
 
 # =============================================================================
+# Attaining RGW IAM account
+# =============================================================================
+# Mirrors the aether account play for the Attaining studio (attain.ing).
+# Attaining runs as guest namespaces on the host cluster (no vcluster), so the
+# OIDC providers are the same three as aether's: GitLab CI, home K8s SA
+# tokens, and Keycloak (operator SSO). Two roles:
+#   attaining-admin        humans (Keycloak sub) running platform tofu locally
+#   attaining-provisioner  so/attaining/* GitLab CI (keyless bucket/IAM tofu)
+#
+# Run with:
+#   task ansible:run -- playbooks/configure_ceph_rgw_accounts.yml --tags attaining
+
+- name: Create Attaining RGW IAM account
+  hosts: trinity
+  become: true
+  gather_facts: false
+  roles:
+    - common
+  tags:
+    - attaining
+  vars:
+    rgw_admin_host: "trinity"
+    attaining_account_name: "attaining"
+    attaining_root_user_uid: "attaining-root"
+    attaining_root_user_display: "AttainingRoot"
+    openbao_addr: "https://bao.home.shdr.ch"
+    openbao_secret_path: "kv/data/attaining/ceph-rgw"
+
+  tasks:
+    # =======================================================================
+    # 1. Create the attaining RGW account
+    # =======================================================================
+
+    - name: Check for existing attaining account
+      ansible.builtin.command:
+        cmd: radosgw-admin account get --account-name={{ attaining_account_name }}
+      register: rgw_attaining_account_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create attaining RGW account
+      ansible.builtin.command:
+        cmd: radosgw-admin account create --account-name={{ attaining_account_name }}
+      register: rgw_attaining_account_create
+      when: rgw_attaining_account_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Set account info from existing account
+      ansible.builtin.set_fact:
+        attaining_account: "{{ rgw_attaining_account_check.stdout | from_json }}"
+      when: rgw_attaining_account_check.rc == 0
+      run_once: true
+
+    - name: Set account info from newly created account
+      ansible.builtin.set_fact:
+        attaining_account: "{{ rgw_attaining_account_create.stdout | from_json }}"
+      when: rgw_attaining_account_check.rc != 0
+      run_once: true
+
+    - name: Display account ID
+      ansible.builtin.debug:
+        msg: "Attaining RGW account ID: {{ attaining_account.id }}"
+      run_once: true
+
+    # =======================================================================
+    # 2. Create account root user
+    # =======================================================================
+
+    - name: Check if attaining root user already exists
+      ansible.builtin.command:
+        cmd: radosgw-admin user info --uid={{ attaining_root_user_uid }}
+      register: rgw_attaining_root_user_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+
+    - name: Create attaining account root user
+      ansible.builtin.command:
+        cmd: >
+          radosgw-admin user create
+          --uid={{ attaining_root_user_uid }}
+          --display-name={{ attaining_root_user_display }}
+          --account-id={{ attaining_account.id }}
+          --account-root
+          --access-key={{ secrets.ceph.attaining_account_access_key }}
+          --secret={{ secrets.ceph.attaining_account_secret_key }}
+      register: rgw_attaining_root_user_create
+      when: rgw_attaining_root_user_check.rc != 0
+      run_once: true
+      delegate_to: "{{ rgw_admin_host }}"
+      no_log: true
+
+    - name: Set user info from existing user
+      ansible.builtin.set_fact:
+        attaining_root_user: "{{ rgw_attaining_root_user_check.stdout | from_json }}"
+      when: rgw_attaining_root_user_check.rc == 0
+      run_once: true
+
+    - name: Set user info from newly created user
+      ansible.builtin.set_fact:
+        attaining_root_user: "{{ rgw_attaining_root_user_create.stdout | from_json }}"
+      when: rgw_attaining_root_user_check.rc != 0
+      run_once: true
+
+    - name: Confirm account root user
+      ansible.builtin.debug:
+        msg: "Account root user: {{ attaining_root_user_uid }} (account {{ attaining_root_user.account_id | default('pending') }})"
+      run_once: true
+
+    # =======================================================================
+    # 3. Register OIDC providers under the attaining account
+    # =======================================================================
+
+    - name: List existing OIDC providers (account-scoped)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam list-open-id-connect-providers
+      register: attaining_oidc_list
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Set OIDC provider ARN list
+      ansible.builtin.set_fact:
+        attaining_oidc_arns: "{{ (attaining_oidc_list.stdout | from_json).OpenIDConnectProviderList | map(attribute='Arn') | list }}"
+      run_once: true
+
+    # --- GitLab OIDC ---
+    - name: Get GitLab OIDC thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          HOST="gitlab.home.shdr.ch"
+          INTERMEDIATE_CERT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{if(/BEGIN/)n++;if(n==2)print}')
+          if [ -n "$INTERMEDIATE_CERT" ]; then
+            echo "$INTERMEDIATE_CERT" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          else
+            echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          fi
+      register: attaining_gitlab_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register GitLab OIDC provider in attaining account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://gitlab.home.shdr.ch" \
+            --client-id-list "https://gitlab.home.shdr.ch" \
+            --thumbprint-list "{{ attaining_gitlab_oidc_thumbprint.stdout }}"
+      when:
+        - attaining_gitlab_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/gitlab.home.shdr.ch' not in attaining_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # --- Home K8s OIDC ---
+    - name: Get Home K8s OIDC thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          HOST="oidc.k8s.home.shdr.ch"
+          INTERMEDIATE_CERT=$(echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/{if(/BEGIN/)n++;if(n==2)print}')
+          if [ -n "$INTERMEDIATE_CERT" ]; then
+            echo "$INTERMEDIATE_CERT" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          else
+            echo | openssl s_client -servername "$HOST" -connect "${HOST}:443" 2>/dev/null \
+              | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+          fi
+      register: attaining_home_k8s_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register Home K8s OIDC provider in attaining account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://oidc.k8s.home.shdr.ch" \
+            --client-id-list "sts.amazonaws.com" \
+            --thumbprint-list "{{ attaining_home_k8s_oidc_thumbprint.stdout }}"
+      when:
+        - attaining_home_k8s_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/oidc.k8s.home.shdr.ch' not in attaining_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # --- Keycloak (Aether SSO) OIDC ---
+    # Thumbprint is the JWT signing cert from the realm JWKS (see the aether
+    # play for why RGW compares against that, not the TLS cert).
+    - name: Get Keycloak JWT signing cert thumbprint
+      ansible.builtin.shell:
+        cmd: |
+          set -euo pipefail
+          CERT=$(curl -sSf https://auth.shdr.ch/realms/aether/protocol/openid-connect/certs \
+            | jq -r '.keys[] | select(.use=="sig") | .x5c[0]')
+          PEM=$(printf '%s\n%s\n%s\n' \
+            "-----BEGIN CERTIFICATE-----" \
+            "$(echo "$CERT" | fold -w 64)" \
+            "-----END CERTIFICATE-----")
+          echo "$PEM" | openssl x509 -fingerprint -sha1 -noout | sed 's/://g' | cut -d= -f2
+      register: attaining_keycloak_oidc_thumbprint
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Register Keycloak OIDC provider in attaining account
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-open-id-connect-provider \
+            --url "https://auth.shdr.ch/realms/aether" \
+            --client-id-list "toolbox" \
+            --thumbprint-list "{{ attaining_keycloak_oidc_thumbprint.stdout }}"
+      when:
+        - attaining_keycloak_oidc_thumbprint.stdout | length > 0
+        - "'oidc-provider/auth.shdr.ch/realms/aether' not in attaining_oidc_arns | join(' ')"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    # =======================================================================
+    # 3b. attaining-admin role (operator via Keycloak SSO)
+    # =======================================================================
+
+    - name: Look up Keycloak user ID for attaining-admin trust policy
+      ansible.builtin.uri:
+        url: "https://auth.shdr.ch/realms/master/protocol/openid-connect/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          client_id: admin-cli
+          username: "{{ secrets.keycloak.bootstrap_admin_user }}"
+          password: "{{ secrets.keycloak.bootstrap_admin_password }}"
+          grant_type: password
+        return_content: true
+        status_code: 200
+      register: attaining_kc_token_resp
+      delegate_to: localhost
+      become: false
+      run_once: true
+      no_log: true
+
+    - name: Get shdrch user from Keycloak
+      ansible.builtin.uri:
+        url: "https://auth.shdr.ch/admin/realms/aether/users?username=shdrch&exact=true"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ (attaining_kc_token_resp.content | from_json).access_token }}"
+        return_content: true
+        status_code: 200
+      register: attaining_kc_user_resp
+      delegate_to: localhost
+      become: false
+      run_once: true
+      no_log: true
+
+    - name: Set attaining admin sub
+      ansible.builtin.set_fact:
+        attaining_admin_sub: "{{ (attaining_kc_user_resp.content | from_json)[0].id }}"
+      run_once: true
+
+    - name: Build attaining-admin trust policy
+      ansible.builtin.set_fact:
+        attaining_admin_trust_policy:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Federated: "arn:aws:iam::{{ attaining_account.id }}:oidc-provider/auth.shdr.ch/realms/aether"
+              Action: "sts:AssumeRoleWithWebIdentity"
+              Condition:
+                "ForAnyValue:StringEquals":
+                  "auth.shdr.ch/realms/aether:aud": "toolbox"
+                StringEquals:
+                  "auth.shdr.ch/realms/aether:sub": "{{ attaining_admin_sub }}"
+      run_once: true
+
+    - name: Check if attaining-admin role exists
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam get-role --role-name attaining-admin >/dev/null 2>&1 && echo EXISTS || echo MISSING
+      register: attaining_admin_role_check
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Create attaining-admin role
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-role \
+            --role-name attaining-admin \
+            --assume-role-policy-document '{{ attaining_admin_trust_policy | to_json }}' \
+            --max-session-duration 43200
+      when: attaining_admin_role_check.stdout == "MISSING"
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Update attaining-admin role trust policy (idempotent)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam update-assume-role-policy \
+            --role-name attaining-admin \
+            --policy-document '{{ attaining_admin_trust_policy | to_json }}'
+      when: attaining_admin_role_check.stdout == "EXISTS"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+    - name: Attach broad IAM/S3 policy to attaining-admin
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam put-role-policy \
+            --role-name attaining-admin \
+            --policy-name attaining-admin-full \
+            --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["iam:*","s3:*","sts:*"],"Resource":"*"}]}'
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+    # =======================================================================
+    # 3c. attaining-provisioner role (keyless so/attaining/* CI)
+    # =======================================================================
+    # Platform/product tofu in GitLab CI assumes this via OIDC web identity to
+    # provision buckets + IAM roles without static credentials.
+
+    - name: Build attaining-provisioner trust policy
+      ansible.builtin.set_fact:
+        attaining_provisioner_trust_policy:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Federated: "arn:aws:iam::{{ attaining_account.id }}:oidc-provider/gitlab.home.shdr.ch"
+              Action: "sts:AssumeRoleWithWebIdentity"
+              Condition:
+                StringEquals:
+                  "gitlab.home.shdr.ch:aud": "https://gitlab.home.shdr.ch"
+                StringLike:
+                  "gitlab.home.shdr.ch:sub": "project_path:so/attaining/*"
+      run_once: true
+
+    - name: Check if attaining-provisioner role exists
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam get-role --role-name attaining-provisioner >/dev/null 2>&1 && echo EXISTS || echo MISSING
+      register: attaining_provisioner_role_check
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Create attaining-provisioner role
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam create-role \
+            --role-name attaining-provisioner \
+            --assume-role-policy-document '{{ attaining_provisioner_trust_policy | to_json }}' \
+            --max-session-duration 43200
+      when: attaining_provisioner_role_check.stdout == "MISSING"
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+    - name: Update attaining-provisioner role trust policy (idempotent)
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam update-assume-role-policy \
+            --role-name attaining-provisioner \
+            --policy-document '{{ attaining_provisioner_trust_policy | to_json }}'
+      when: attaining_provisioner_role_check.stdout == "EXISTS"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+    - name: Attach IAM/S3 policy to attaining-provisioner
+      ansible.builtin.shell:
+        cmd: |
+          AWS_ACCESS_KEY_ID="{{ secrets.ceph.attaining_account_access_key }}" \
+          AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.attaining_account_secret_key }}" \
+          aws --endpoint-url "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480" \
+            iam put-role-policy \
+            --role-name attaining-provisioner \
+            --policy-name provisioner \
+            --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*","iam:*"],"Resource":"*"}]}'
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
+    # =======================================================================
+    # 4. Write account_id + creds to OpenBao
+    # =======================================================================
+
+    - name: Build AWS credentials file
+      ansible.builtin.set_fact:
+        attaining_aws_creds_content: "[default]\naws_access_key_id = {{ secrets.ceph.attaining_account_access_key }}\naws_secret_access_key = {{ secrets.ceph.attaining_account_secret_key }}\n"
+      run_once: true
+      no_log: true
+
+    - name: Write account_id and creds to OpenBao
+      ansible.builtin.uri:
+        url: "{{ openbao_addr }}/v1/{{ openbao_secret_path }}"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ lookup('ansible.builtin.env', 'VAULT_TOKEN') }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          data:
+            account_id: "{{ attaining_account.id }}"
+            creds: "{{ attaining_aws_creds_content }}"
+        status_code: [200, 204]
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: lookup('ansible.builtin.env', 'VAULT_TOKEN') | length > 0
+      no_log: true
+
+    - name: OpenBao update skipped (no VAULT_TOKEN)
+      ansible.builtin.debug:
+        msg: >-
+          VAULT_TOKEN not set — re-run with VAULT_TOKEN or update manually.
+      run_once: true
+      when: lookup('ansible.builtin.env', 'VAULT_TOKEN') | length == 0
+
+    # =======================================================================
+    # 5. Summary
+    # =======================================================================
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: |
+          Account:    {{ attaining_account_name }} ({{ attaining_account.id }})
+          Root user:  {{ attaining_root_user_uid }}
+          OIDC:       gitlab.home.shdr.ch + oidc.k8s.home.shdr.ch + auth.shdr.ch/realms/aether
+          attaining-admin:       arn:aws:iam::{{ attaining_account.id }}:role/attaining-admin
+          attaining-provisioner: arn:aws:iam::{{ attaining_account.id }}:role/attaining-provisioner
+          OpenBao:    {{ openbao_secret_path }}
+      run_once: true
+
+# =============================================================================
 # Nextcloud RGW user + bucket
 # =============================================================================
 # Creates a dedicated RGW user for Nextcloud's S3 primary objectstore and
