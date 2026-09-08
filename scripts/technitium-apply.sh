@@ -274,6 +274,23 @@ if [ "$CLUSTER_MODE" = "primary" ]; then
     check "$RESP" "cluster/init" "already"
     echo "  + cluster initialized (primary)"
   fi
+  # Zones declared with "catalog": true join the cluster catalog so they
+  # replicate to secondaries (as catalog-member Secondary zones). Plain zones
+  # do NOT replicate: secondaries exit before the zone loop above, so a zone
+  # added after the cluster formed exists only on the primary. Opt-in rather
+  # than default because the pre-cluster zones (home.shdr.ch, mars.seven30.xyz,
+  # k8s.seven30.xyz, ...) already exist on every node as independent Primary
+  # copies, and a catalog push would collide with those.
+  CATALOG="cluster-catalog.$(jq -r '.cluster.domain' <<<"$MERGED")"
+  jq -r '.zones[]? | select(.catalog == true) | .zone' <<<"$MERGED" | while read -r ZNAME; do
+    CUR=$(api "/api/zones/options/get?token=$TOKEN&zone=$ZNAME" | jq -r '.response.catalog // empty')
+    if [ "$CUR" != "$CATALOG" ]; then
+      RESP=$(api "/api/zones/options/set" -G --data-urlencode "token=$TOKEN" \
+        --data-urlencode "zone=$ZNAME" --data-urlencode "catalog=$CATALOG")
+      check "$RESP" "zones/options catalog $ZNAME"
+      echo "  + zone $ZNAME joined $CATALOG"
+    fi
+  done
 fi
 
 # --- SSO (native OIDC, Technitium >= 15.0; primary only) ----------------------

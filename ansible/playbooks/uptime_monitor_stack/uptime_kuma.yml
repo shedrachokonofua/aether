@@ -16,6 +16,18 @@
         create_home: no
         home: /opt/uptime-kuma
 
+    # The GCP Debian image ships /etc/apt/sources.list.d/google-cloud.list with
+    # a cloud-sdk-bookworm suite whose Release advertises `all` but whose
+    # binary-all index returns HTTP 400 (Google-side), so every `apt update`
+    # fails - an [arch=amd64] pin does not stop apt requesting binary-all.
+    # Nothing here uses gcloud (the CLI stays installed at its image version);
+    # keep only the guest-agent suite. Image-owned file; we only comment a line.
+    - name: Disable the cloud-sdk apt suite (binary-all index is broken upstream)
+      replace:
+        path: /etc/apt/sources.list.d/google-cloud.list
+        regexp: '^deb (\[[^\]]*\] )?(https://packages\.cloud\.google\.com/apt cloud-sdk-bookworm main)$'
+        replace: '# disabled by aether (broken binary-all index): deb \2'
+
     - name: Download Nodesource setup script
       get_url:
         url: https://deb.nodesource.com/setup_20.x
