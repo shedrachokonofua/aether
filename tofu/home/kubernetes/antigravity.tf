@@ -6,7 +6,7 @@
 # an independent random bearer token. Tool execution remains client-owned.
 
 locals {
-  antigravity_image         = "registry.gitlab.home.shdr.ch/so/antigravity-bridge@sha256:e2b2dbbed1192c21d890f737dc06346791b44779721c2101f5c9579dfa29026d"
+  antigravity_image         = "registry.gitlab.home.shdr.ch/so/antigravity-bridge@sha256:052d117185e89359a39f277c9dba2eb0e5f9abce7c14f596cf8ad053b525e7aa"
   antigravity_host          = "antigravity.home.shdr.ch"
   antigravity_port          = 8080
   antigravity_ns            = module.namespace["antigravity"].name
@@ -278,6 +278,10 @@ resource "kubernetes_manifest" "antigravity_egress" {
             { matchName = "daily-cloudcode-pa.googleapis.com" },
             { matchName = "daily-cloudcode-pa.sandbox.googleapis.com" },
             { matchName = "cloudcode-pa.googleapis.com" },
+            # Client-version discovery: the backend gates models on the
+            # antigravity/hub version (live manifest 2.12.2 vs the fork's
+            # pinned 2.8.0 on 2026-09-08); the bridge polls this every 6h.
+            { matchName = "antigravity-hub-auto-updater-974169037036.us-central1.run.app" },
           ]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         },
