@@ -121,6 +121,68 @@ resource "cloudflare_dns_record" "aether_public_gateway_seven30_wildcard" {
   ttl      = 1
 }
 
+# =============================================================================
+# attain.ing — Attaining studio
+# =============================================================================
+# Zone was created by Cloudflare Registrar at purchase; adopt it rather than
+# recreate. Same account as shdr.ch, so the default provider applies.
+
+import {
+  to = cloudflare_zone.attaining_domain
+  id = "b6b5f3afd3c74d2f06beb423daf7b91f"
+}
+
+resource "cloudflare_zone" "attaining_domain" {
+  account = {
+    id = local.cloudflare.account_id
+  }
+  name = "attain.ing"
+  type = "full"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "cloudflare_zone_setting" "attaining_ssl" {
+  zone_id    = cloudflare_zone.attaining_domain.id
+  setting_id = "ssl"
+  value      = "strict"
+}
+
+# .ing is HSTS-preloaded at the TLD; this is belt-and-braces at the edge.
+resource "cloudflare_zone_setting" "attaining_always_use_https" {
+  zone_id    = cloudflare_zone.attaining_domain.id
+  setting_id = "always_use_https"
+  value      = "on"
+}
+
+resource "cloudflare_dns_record" "aether_public_gateway_attaining_root" {
+  name    = "@"
+  content = module.aws.public_gateway_ip
+  type    = "A"
+  zone_id = cloudflare_zone.attaining_domain.id
+  proxied = true
+  ttl     = 1
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Public wildcard for future *.attain.ing products. The home gateway :9443
+# allowlist decides what actually answers; unmatched hosts 404 there.
+# arpa.attain.ing and below are private: resolved by LAN/Tailscale DNS only
+# and explicitly 404'd on the public listener.
+resource "cloudflare_dns_record" "aether_public_gateway_attaining_wildcard" {
+  name    = "*"
+  content = module.aws.public_gateway_ip
+  type    = "A"
+  zone_id = cloudflare_zone.attaining_domain.id
+  proxied = true
+  ttl     = 1
+}
+
 resource "cloudflare_dns_record" "shdr_ch_dkim_protonmail" {
   name    = "protonmail._domainkey.shdr.ch"
   content = "protonmail.domainkey.doppwpp2flj65ryomxwk7mre2jvwcrl2wvszn5cbvpxo5blaw2yfa.domains.proton.ch"

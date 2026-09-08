@@ -84,6 +84,11 @@ resource "tailscale_dns_split_nameservers" "mars_seven30_xyz" {
   nameservers = [local.vm.router.ip.vyos]
 }
 
+resource "tailscale_dns_split_nameservers" "arpa_attain_ing" {
+  domain      = "arpa.attain.ing"
+  nameservers = [local.vm.router.ip.vyos]
+}
+
 resource "tailscale_oauth_client" "admin_gateway_oauth_client" {
   description = "Admin gateway Tailscale OAuth client"
   scopes      = ["auth_keys"]

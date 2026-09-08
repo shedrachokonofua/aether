@@ -25,6 +25,13 @@ The domain routes public traffic through the AWS-hosted public gateway with Clou
 | A           | tv   | AWS Public Gateway IP | No      | Jellyfin video streaming (unproxied to comply with Cloudflare ToS on video content) |
 | A           | nextcloud | AWS Public Gateway IP | No      | Nextcloud file sync and large uploads through the public gateway                     |
 
+### Additional zones
+
+| Zone | Account | Records | Notes |
+| ---- | ------- | ------- | ----- |
+| `seven30.xyz` | Seven30 (provider alias `cloudflare.seven30`) | `@`, `*` → public gateway, proxied | Studio tenant; see `tofu/home/kubernetes/vcluster.tf` |
+| `attain.ing` | Aether (default provider) | `@`, `*` → public gateway, proxied | Attaining studio. Zone created by Cloudflare Registrar and adopted via an `import` block in `tofu/cloudflare.tf`. `arpa.attain.ing` and below are private: resolved only by LAN/admin split DNS and 404'd on the home gateway's public listener. `.ing` is HSTS-preloaded, so HTTPS is mandatory on every host. |
+
 ### Email (ProtonMail)
 
 The domain is configured for ProtonMail email service, providing end-to-end encrypted email with custom domain support. This includes all necessary DNS records for email authentication (SPF, DKIM, DMARC) and proper mail routing.
