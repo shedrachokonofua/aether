@@ -3,8 +3,8 @@
 # =============================================================================
 # Colony ships only a container image (registry.gitlab.home.shdr.ch/so/colony/
 # colonyd, :latest on main, agent config baked into the image); aether owns
-# every cluster object, following the orion/composer pattern. Keel force-polls
-# :latest so a green colony main branch redeploys itself.
+# every cluster object, following the orion/composer pattern. Keel is disabled;
+# roll out a verified immutable image through IaC after quiescing all scopes.
 #
 # Migrated 2026-08-16 from colony's own tofu module (so/colony tofu/ +
 # GitLab-managed state "colony", both retired). Runtime secrets stay at
@@ -22,7 +22,7 @@ data "vault_kv_secret_v2" "colony_litellm" {
 
 locals {
   colony_ns                    = module.namespace["colony"].name
-  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:e84efa8c46c64fc33b197de47843736b0d8573b7812d1eb3fc1cbbe2e49c97ea"
+  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:749cce717865925b8bf344177450000cc347b0a4c70bbf2935c051340339e158"
   colony_drain_timeout_seconds = 600
   colony_host                  = "colony.home.shdr.ch"
 
