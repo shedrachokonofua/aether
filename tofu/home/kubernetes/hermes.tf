@@ -824,9 +824,11 @@ resource "kubernetes_deployment_v1" "hermes" {
             }
           }
 
+          # 2026-09-14: / redirects to auth/login and generated ProbeWarning events;
+          # /api/health is unauthenticated and returns HTTP 200 for both dashboards.
           startup_probe {
             http_get {
-              path = "/"
+              path = "/api/health"
               port = local.hermes_dashboard_port
             }
             period_seconds    = 10
@@ -835,7 +837,7 @@ resource "kubernetes_deployment_v1" "hermes" {
 
           readiness_probe {
             http_get {
-              path = "/"
+              path = "/api/health"
               port = local.hermes_dashboard_port
             }
             period_seconds = 10
@@ -843,7 +845,7 @@ resource "kubernetes_deployment_v1" "hermes" {
 
           liveness_probe {
             http_get {
-              path = "/"
+              path = "/api/health"
               port = local.hermes_dashboard_port
             }
             period_seconds    = 30

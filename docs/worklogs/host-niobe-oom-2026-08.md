@@ -72,18 +72,22 @@ east-west NAT destroys source identity exactly when logs matter.
   `startup: down=90` (tofu `startup { down_delay = 90 }`,
   `talos_cluster.tf`) — at host shutdown PVE waits 90s then force-stops,
   which Talos tolerates.
-- ~~backup-stack~~ **Root-caused and mostly fixed.** Root disk 99%: Backrest
+- ~~backup-stack~~ **Closed Sep 14.** Root disk 99%: Backrest
   cache (12.6G) on the 20G root because the live unit uses
   `XDG_CACHE_HOME=/var/lib/backrest/cache` while IaC declares
   `/mnt/hdd/backups-data/.backrest-cache` — live drift. Journal/apt/tmp
   cleanup freed ~2G (88% now). Restic "stale" was two things: a 12h
   `backups-vm` run (finished 00:01Z) serializing the queue, and an Aug 9 dead
   lock (PID gone) failing every `forget` — removed with `restic unlock`,
-  live lock preserved. **Remaining:** after the running `data` backup (op691)
-  completes, run
-  `task ansible:playbook -- backup_stack/configure_offsite_backups/site.yml`
-  to converge the cache onto /mnt/hdd (the play refuses to restart Backrest
-  mid-operation, correctly). Alerts clear as the op queue drains.
+  live lock preserved. The follow-up playbook run below never happened: the
+  cache reached 15G, root hit 0% free on Aug 27, and PBS could not write task
+  logs, so every nightly vzdump errored Aug 29 – Sep 14 (`mkstemp
+  /var/log/proxmox-backup/tasks ENOSPC`; snapshot dirs empty, last restorable
+  VM backups 2026-08-28). **Sep 14 09:30Z:** cache seeded onto /mnt/hdd,
+  `configure_offsite_backups/site.yml` applied (root 23%), ct/1004 test
+  backup OK; nightly resumes 2026-09-15T06:00Z. The PBS freshness metric
+  (`pbs_snapshot_vm_last_timestamp`) reported the empty dirs as fresh — it
+  cannot be trusted as the only backup-health signal.
 - ~~PVE aptupdate failures~~ **Fixed fleet-wide.** Cause: enterprise repos
   (401 Unauthorized) active on all 5 hosts; oracle also had stale enterprise
   Ceph Quincy. Live: enterprise lists disabled, no-subscription ensured,

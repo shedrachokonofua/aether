@@ -180,6 +180,13 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
           name  = "gluetun"
           image = local.gluetun_image
 
+          # 2026-09-14: remove stale WireGuard rules before startup; a postStart hook races the entrypoint.
+          command = [
+            "/bin/sh",
+            "-c",
+            "ip rule del table 51820 2>/dev/null; ip -6 rule del table 51820 2>/dev/null; exec /gluetun-entrypoint",
+          ]
+
           security_context {
             capabilities {
               add = ["NET_ADMIN"]
@@ -245,6 +252,15 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
               cpu    = "500m"
               memory = "256Mi"
             }
+          }
+
+          startup_probe {
+            exec {
+              command = ["/gluetun-entrypoint", "healthcheck"]
+            }
+            failure_threshold = 30
+            period_seconds    = 10
+            timeout_seconds   = 10
           }
 
           liveness_probe {

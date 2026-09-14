@@ -51,7 +51,13 @@
         "/var/lib/zeek/logs:/logs:Z"
         "/var/lib/zeek/spool:/var/spool/zeek:Z"
       ];
-      exec = "zeek -i ens19 local LogAscii::use_json=T Log::default_rotation_interval=1day";
+      # 2026-09-14: the mirror copies same-host VM frames before their offloaded
+      # TCP checksums exist — 2,900 of 6,000 sampled TCP packets on the IDS tap
+      # were "cksum incorrect" — and Zeek drops those silently, which showed up
+      # as 41–63% CaptureLoss. -C ignores checksums. Pcap::snaplen=65535 keeps
+      # GSO super-frames whole (48,251 truncated_tcp_payload weirds/day at the
+      # default 9,216).
+      exec = "zeek -C -i ens19 local LogAscii::use_json=T Log::default_rotation_interval=1day Pcap::snaplen=65535";
       podmanArgs = [
         "--network=host"
         "--cap-add=NET_ADMIN"
