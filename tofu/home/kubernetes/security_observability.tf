@@ -191,11 +191,15 @@ resource "helm_release" "trivy_operator" {
 
     # Operator runs 6 scanner types over ~244 reports with 4 concurrent scan
     # jobs; at a 500m CPU limit it throttled hard and its 1s /healthz/ probe
-    # stalled, triggering liveness kills (200+ restarts). Give it real headroom.
-    # 2Gi: per-CVE metrics (metricsVulnIdEnabled) OOMKilled the 1Gi limit.
+    # stalled, triggering liveness kills (200+ restarts).
+    # On 2026-09-14T00:27:45Z it was OOMKilled at the 2Gi limit; cAdvisor's
+    # 48h peak was 2,142,879,744 bytes, so 4Gi provides at least 1.5x headroom.
+    # Report updates also hit the 2MiB gRPC object limit (2,817,615 bytes at
+    # 2026-09-13T23:18:38Z; 2,153,734 bytes at 2026-09-14T00:07:50Z) while
+    # all severities were retained.
     resources = {
-      requests = { cpu = "100m", memory = "512Mi" }
-      limits   = { cpu = "1", memory = "2Gi" }
+      requests = { cpu = "100m", memory = "2Gi" }
+      limits   = { cpu = "1", memory = "4Gi" }
     }
 
     trivy = {
@@ -207,7 +211,7 @@ resource "helm_release" "trivy_operator" {
       slow                   = true
       ignoreUnfixed          = false
       timeout                = "10m0s"
-      severity               = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+      severity               = "CRITICAL,HIGH"
       resources = {
         requests = { cpu = "25m", memory = "1Mi" }
         limits   = { cpu = "1", memory = "1Gi" }

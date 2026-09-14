@@ -71,6 +71,7 @@
       failed_when: false
       changed_when: delete_result.rc == 0
 
+    # Dedicated active guest: stopped at the 2026-08-22 neo reboot and never returned.
     - name: Create estate-scanner LXC (unprivileged)
       ansible.builtin.command: >
         pct create {{ lxc_id }}
@@ -84,6 +85,7 @@
         --nameserver {{ scanner_vm.gateway }}
         --features nesting=1
         --unprivileged 1
+        --onboot 1
       changed_when: true
 
     # Do NOT set `lxc.cap.keep: net_raw` alone — LXC treats keep as an
