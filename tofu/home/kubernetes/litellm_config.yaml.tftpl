@@ -147,6 +147,9 @@ model_list:
       model: "openai/hy4-preview"
       litellm_credential_name: codebuddy_credential
       use_chat_completions_api: true
+      # Preserve the upstream quota/reset error on this single-leg route.
+      # A generic router cooldown cannot make the subscription allowance reset.
+      cooldown_time: 0
 
   # Kimi Coding models (https://api.kimi.com/coding/v1 — OpenAI-compatible).
   - model_name: "kimi/k3"
