@@ -6,7 +6,7 @@
 # Includes rclone sidecar for nzbdav WebDAV mount.
 
 locals {
-  jellyfin_image = "docker.io/jellyfin/jellyfin:12.0"
+  jellyfin_image = "docker.io/jellyfin/jellyfin:12.1"
   # Gateway API matches the Host header from Caddy (header_up Host …); public URL is tv.shdr.ch.
   jellyfin_host           = "jellyfin.home.shdr.ch"
   jellyfin_public_url     = "https://tv.shdr.ch"
