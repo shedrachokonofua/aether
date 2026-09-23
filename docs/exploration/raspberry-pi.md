@@ -23,6 +23,8 @@ The Pis are not control-plane nodes, not Ceph storage nodes, and not a replaceme
 | `mouse`        | Pi 4           | 4GB | ARM worker           | 10.0.3.25 | 2C:CF:67:AC:E1:EF |
 | `sparks`       | CM4 Lite / Mini Base | 4GB | ARM worker | 10.0.3.26 | 2C:CF:67:78:73:CE |
 
+For the physical left-to-right order, see [Pi physical order](../hosts.md#pi-physical-order).
+
 `sparks` is a Raspberry Pi CM4 SKU `CM4104000`: 4GB RAM, Lite/no eMMC, with wireless. It is currently on a Mini Base carrier and boots from microSD. Longer-term, swap to a proper CM4 carrier (Waveshare Mini Base Board B or similar) when the Pi shelf goes into the main rack. CM4 PCIe is Gen2 x1 (~400MB/s ceiling), so storage stays modest: microSD or a small 2242 NVMe. Per the storage policy, this node is Ceph end-to-end and holds no local persistent state.
 
 All ARM workers live on the Services VLAN:

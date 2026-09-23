@@ -18,6 +18,13 @@ Host count: 9 physical systems: 5 x86 Proxmox hosts and 4 ARM Talos boards.
 | `mouse`        | ARM board    | Talos Linux | Kubernetes worker  | 4GB   | microSD                               | Raspberry Pi 4       | VideoCore VI             | 4 / 4           | 1Gbps   | Raspberry Pi 4      | 10.0.3.25     |
 | `sparks`       | ARM board    | Talos Linux | Kubernetes worker  | 4GB   | microSD                               | Raspberry Pi CM4     | VideoCore VI             | 4 / 4           | 1Gbps   | CM4 Lite / Mini Base | 10.0.3.26     |
 
+## Pi physical order
+
+**Left to right: `dozer` → `sparks` → `mouse` → `tank`.**
+
+`sparks` is second from the left. Source: Memos note dated 2026-05-08
+(`4EMoDAsxSsHd4Qt4Hzu2yD`).
+
 ## Notes
 
 - The five x86 hosts are Proxmox VE cluster members.
