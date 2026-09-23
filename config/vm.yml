@@ -338,6 +338,9 @@ talos_trinity:
   disk_gb: 128
   disk_datastore: "local-lvm"
   ci_disk_gb: 128
+  # QEMU io_uring leaks host kernel memory on vectored reads (2026-09-21 host
+  # OOM); native AIO does not. Applies to local-lvm disks only.
+  local_disk_aio: "native"
   ip: "10.0.3.16"
   gateway: "10.0.3.1"
 
