@@ -174,11 +174,21 @@ resource "proxmox_virtual_environment_vm" "talos" {
   # multi-node NotReady). A node-image restore is never the correct recovery
   # path for these nodes anyway; cluster state is protected by the daily
   # talosctl etcd snapshot on backup-stack (02:20).
+  #
+  # aio: QEMU's io_uring backend leaks host kernel memory (unfreed iovec
+  # arrays) on vectored reads through host block devices; verified on
+  # 6.17.4-2-pve and 6.17.13-21-pve, while native AIO does not leak. A read
+  # storm on talos-trinity's root disk leaked ~20 GiB and the host OOM-killed
+  # the VM (2026-09-21). Nodes opt in via local_disk_aio in config/vm.yml so
+  # the VM-restarting change rolls out one control-plane node at a time; flip
+  # the default once every node is migrated. Ceph disks use librbd (krbd 0),
+  # which bypasses host io_uring, so they keep the provider default.
   disk {
     datastore_id = try(each.value.disk_datastore, "ceph-vm-disks")
     size         = each.value.disk_gb
     interface    = "virtio0"
     iothread     = true
+    aio          = try(each.value.disk_datastore, "ceph-vm-disks") == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
     discard      = "on"
     file_format  = "raw"
     backup       = false
@@ -194,6 +204,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
       size         = each.value.etcd_disk_gb
       interface    = "virtio1"
       iothread     = true
+      aio          = try(each.value.etcd_disk_datastore, "local-lvm") == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
       discard      = "on"
       file_format  = "raw"
     }
@@ -209,6 +220,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
       size         = each.value.legacy_etcd_disk_gb
       interface    = "virtio1"
       iothread     = true
+      aio          = try(each.value.legacy_etcd_disk_datastore, try(each.value.etcd_disk_datastore, "local-lvm")) == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
       discard      = "on"
       file_format  = "raw"
     }
@@ -225,6 +237,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
       size         = each.value.gpu_storage_disk_gb
       interface    = "virtio2"
       iothread     = true
+      aio          = try(each.value.local_disk_aio, "io_uring")
       discard      = "on"
       file_format  = "raw"
     }
@@ -244,6 +257,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
       size         = each.value.ci_disk_gb
       interface    = "virtio3"
       iothread     = true
+      aio          = try(each.value.ci_disk_datastore, try(each.value.disk_datastore, "local-lvm")) == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
       discard      = "on"
       file_format  = "raw"
     }
