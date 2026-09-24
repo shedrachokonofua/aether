@@ -847,6 +847,14 @@ resource "kubectl_manifest" "kyverno_trivy_scan_pod_tmp_subpaths" {
 }
 
 
+# Sandbox-tier namespaces are ephemeral by contract (docs/namespace-strategy.md):
+# a workspace PV is created and discarded per sandbox. Forcing Retain on them
+# leaked every discarded RBD image (845 Released colony-sandboxes PVs, ~9 TiB
+# provisioned in three weeks), so they keep the StorageClass default (Delete).
+locals {
+  ceph_pv_retain_exempt_namespaces = sort([for name, spec in local.namespace_contract_specs : name if spec.tier == "sandbox"])
+}
+
 # Force reclaimPolicy=Retain on dynamically-provisioned Ceph PVs. A StorageClass's
 # reclaimPolicy is immutable, so rather than maintain a second SC we mutate the PV
 # at admission. failurePolicy=Ignore so a Kyverno outage can never block storage
@@ -864,7 +872,7 @@ resource "kubectl_manifest" "kyverno_ceph_pv_retain" {
         "policies.kyverno.io/title"                   = "Retain Reclaim on Ceph PVs"
         "policies.kyverno.io/category"                = "Storage"
         "policies.kyverno.io/subject"                 = "PersistentVolume"
-        "policies.kyverno.io/description"             = "Dynamically-provisioned Ceph (ceph-rbd/cephfs) PersistentVolumes inherit reclaimPolicy=Delete from their StorageClass, so an accidental PVC/namespace delete destroys the underlying RBD image or CephFS subvolume. This mutates new Ceph PVs to Retain at admission."
+        "policies.kyverno.io/description"             = "Dynamically-provisioned Ceph (ceph-rbd/cephfs) PersistentVolumes inherit reclaimPolicy=Delete from their StorageClass, so an accidental PVC/namespace delete destroys the underlying RBD image or CephFS subvolume. This mutates new Ceph PVs to Retain at admission. Sandbox-tier namespaces are exempt: their workspaces are ephemeral."
       }
     }
     spec = {
@@ -890,6 +898,11 @@ resource "kubectl_manifest" "kyverno_ceph_pv_retain" {
               key      = "{{ request.object.spec.storageClassName || '' }}"
               operator = "AnyIn"
               value    = ["ceph-rbd", "cephfs"]
+            },
+            {
+              key      = "{{ request.object.spec.claimRef.namespace || '' }}"
+              operator = "AnyNotIn"
+              value    = local.ceph_pv_retain_exempt_namespaces
             }
           ]
         }
@@ -1012,7 +1025,7 @@ resource "kubectl_manifest" "kyverno_ceph_pv_retain_cel" {
         "policies.kyverno.io/title"       = "Retain Reclaim on Ceph PVs CEL"
         "policies.kyverno.io/category"    = "Storage"
         "policies.kyverno.io/subject"     = "PersistentVolume"
-        "policies.kyverno.io/description" = "CEL replacement for mutating dynamically-provisioned Ceph PersistentVolumes to Retain."
+        "policies.kyverno.io/description" = "CEL replacement for mutating dynamically-provisioned Ceph PersistentVolumes to Retain. Sandbox-tier namespaces are exempt: their workspaces are ephemeral."
       }
     }
     spec = {
@@ -1043,6 +1056,10 @@ resource "kubectl_manifest" "kyverno_ceph_pv_retain_cel" {
         {
           name       = "not-already-retain"
           expression = "!has(object.spec.persistentVolumeReclaimPolicy) || object.spec.persistentVolumeReclaimPolicy != \"Retain\""
+        },
+        {
+          name       = "not-ephemeral-namespace"
+          expression = "!has(object.spec.claimRef) || !has(object.spec.claimRef.namespace) || !(object.spec.claimRef.namespace in ${jsonencode(local.ceph_pv_retain_exempt_namespaces)})"
         },
       ]
       mutations = [{
