@@ -654,6 +654,7 @@ temporal.home.shdr.ch {
 }
 
 auth.shdr.ch {
+  import home_acme_dns
   import access_logs
   reverse_proxy {{ vm.keycloak.ip }}:{{ vm.keycloak.ports.http }}
 }
