@@ -358,6 +358,8 @@ talos_neo:
   disk_gb: 256
   disk_datastore: "local-lvm"
   ci_disk_gb: 128
+  # Same host io_uring leak as talos_trinity; covers root, GPU storage, and CI.
+  local_disk_aio: "native"
   gpu: true
   # uinput extension + module + userns sysctl for the Sunshine game-server.
   # Moved here from smith: neo's Ryzen 9 9950X handles PS3 (RPCS3) emulation

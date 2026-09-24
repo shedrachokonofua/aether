@@ -41,6 +41,9 @@ resource "proxmox_virtual_environment_vm" "nix_builder" {
     interface    = "virtio0"
     discard      = "on"
     iothread     = true
+    # Host-local disk: QEMU io_uring leaks host kernel memory on vectored reads
+    # (see the aio note in talos_cluster.tf); native AIO does not.
+    aio = "native"
   }
 
   initialization {
