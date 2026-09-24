@@ -11,7 +11,9 @@
 
 locals {
   hermes_namespace              = module.namespace["hermes"].name
-  hermes_image                  = "nousresearch/hermes-agent:latest"
+  # Pinned for reproducible upgrades (was :latest, which let beryl and tungsten
+  # drift to different builds). Bump intentionally.
+  hermes_image                  = "nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7"
   hermes_port                   = 8642
   hermes_dashboard_port         = 9119
   hermes_litellm                = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
