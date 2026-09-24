@@ -8,3 +8,4 @@
 
 - name: Deploy GitLab
   import_playbook: gitlab.yml
+  tags: [gitlab]

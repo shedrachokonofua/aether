@@ -59,6 +59,15 @@
           - /home/aether/gitlab/config:/etc/gitlab:Z
         env:
           GITLAB_ROOT_EMAIL: "{{ secrets.gitlab.root_email }}"
+        # Every start pulls :latest. On 2026-09-22 a host reboot fetched a new
+        # image (130s), overran the default start timeout, and with no Restart=
+        # GitLab stayed down for 5h. Allow slow pulls and retry failed starts.
+        quadlet_options:
+          - |
+            [Service]
+            TimeoutStartSec=900
+            Restart=on-failure
+            RestartSec=30
 
     - name: Reload systemd
       systemd:
@@ -70,3 +79,4 @@
         name: gitlab-pod
         state: restarted
         scope: user
+      tags: [gitlab-restart]
