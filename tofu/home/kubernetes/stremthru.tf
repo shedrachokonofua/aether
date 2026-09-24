@@ -136,9 +136,12 @@ resource "kubernetes_deployment_v1" "stremthru" {
               cpu    = "150m"
               memory = "512Mi"
             }
+            # 768Mi was the 30-day peak: on 2026-09-21 the pod sat at its limit
+            # for 8h, re-reading its files at ~790 MB/s (page-cache thrash), which
+            # drove the host io_uring kernel-memory leak that OOM-killed talos-trinity.
             limits = {
               cpu    = "1"
-              memory = "768Mi"
+              memory = "1536Mi"
             }
           }
 
