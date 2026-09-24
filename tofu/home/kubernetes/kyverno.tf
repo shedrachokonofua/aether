@@ -13,7 +13,7 @@ resource "helm_release" "kyverno" {
   chart            = "kyverno"
   namespace        = "kyverno"
   create_namespace = false
-  version          = "3.7.2"
+  version          = "3.9.1"
   wait             = true
   timeout          = 600
 
