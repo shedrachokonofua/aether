@@ -181,14 +181,14 @@ resource "proxmox_virtual_environment_vm" "talos" {
   # storm on talos-trinity's root disk leaked ~20 GiB and the host OOM-killed
   # the VM (2026-09-21). Nodes opt in via local_disk_aio in config/vm.yml so
   # the VM-restarting change rolls out one control-plane node at a time; flip
-  # the default once every node is migrated. Ceph disks use librbd (krbd 0),
-  # which bypasses host io_uring, so they keep the provider default.
+  # the default once every node is migrated. Only ceph-vm-disks uses librbd
+  # (krbd 0), which bypasses host io_uring; every other datastore is host-local.
   disk {
     datastore_id = try(each.value.disk_datastore, "ceph-vm-disks")
     size         = each.value.disk_gb
     interface    = "virtio0"
     iothread     = true
-    aio          = try(each.value.disk_datastore, "ceph-vm-disks") == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
+    aio          = try(each.value.disk_datastore, "ceph-vm-disks") != "ceph-vm-disks" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
     discard      = "on"
     file_format  = "raw"
     backup       = false
@@ -204,7 +204,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
       size         = each.value.etcd_disk_gb
       interface    = "virtio1"
       iothread     = true
-      aio          = try(each.value.etcd_disk_datastore, "local-lvm") == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
+      aio          = try(each.value.etcd_disk_datastore, "local-lvm") != "ceph-vm-disks" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
       discard      = "on"
       file_format  = "raw"
     }
@@ -220,7 +220,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
       size         = each.value.legacy_etcd_disk_gb
       interface    = "virtio1"
       iothread     = true
-      aio          = try(each.value.legacy_etcd_disk_datastore, try(each.value.etcd_disk_datastore, "local-lvm")) == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
+      aio          = try(each.value.legacy_etcd_disk_datastore, try(each.value.etcd_disk_datastore, "local-lvm")) != "ceph-vm-disks" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
       discard      = "on"
       file_format  = "raw"
     }
@@ -257,7 +257,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
       size         = each.value.ci_disk_gb
       interface    = "virtio3"
       iothread     = true
-      aio          = try(each.value.ci_disk_datastore, try(each.value.disk_datastore, "local-lvm")) == "local-lvm" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
+      aio          = try(each.value.ci_disk_datastore, try(each.value.disk_datastore, "local-lvm")) != "ceph-vm-disks" ? try(each.value.local_disk_aio, "io_uring") : "io_uring"
       discard      = "on"
       file_format  = "raw"
     }
