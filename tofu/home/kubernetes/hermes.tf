@@ -16,7 +16,10 @@ locals {
   hermes_image                  = "nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7"
   hermes_port                   = 8642
   hermes_dashboard_port         = 9119
-  hermes_litellm                = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
+  # Static service name: referencing kubernetes_service_v1.litellm pulled the
+  # LiteLLM deployment (the service depends_on it) into every targeted Hermes
+  # plan, so Hermes could not roll out without also applying LiteLLM.
+  hermes_litellm                = "http://litellm.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
   hermes_jellyfin_url           = "http://${kubernetes_service_v1.jellyfin.metadata[0].name}.${local.jellyfin_ns}.svc.cluster.local:${local.jellyfin_port}"
   hermes_firecrawl_url          = "http://${kubernetes_service_v1.firecrawl.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.firecrawl_api_port}"
   hermes_searxng_url            = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
