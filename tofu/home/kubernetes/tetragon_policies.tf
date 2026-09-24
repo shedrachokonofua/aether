@@ -25,6 +25,14 @@ locals {
     "colony-sandboxes",
     "colony-sandboxes-dev",
   ]
+
+  # The container runtime itself joins namespaces and changes credentials while
+  # starting or exec'ing into every container. With podSelector scoping those
+  # runc steps are attributed to the target pod, so over 2026-09-17..24 all
+  # ~557k setns/commit_creds events in the untrusted policies were
+  # /usr/bin/runc (CI job starts and exec probes), which kept "Tetragon
+  # Untrusted Activity" firing permanently. Excluded on those two hooks only.
+  tetragon_container_runtime_binaries = ["/usr/bin/runc"]
 }
 
 # F. Kernel module load from any pod (non-host pidns) — near-zero false positives.
@@ -214,6 +222,7 @@ resource "kubectl_manifest" "tetragon_privilege_escalation" {
           tags    = ["security.privilege-escalation"]
           args    = [{ index = 0, type = "cred" }]
           selectors = [{
+            matchBinaries = [{ operator = "NotIn", values = local.tetragon_container_runtime_binaries }]
             matchCapabilityChanges = [{
               type                  = "Effective"
               operator              = "In"
@@ -268,7 +277,10 @@ resource "kubectl_manifest" "tetragon_mount_namespace_ops" {
           message   = "setns() - joining a namespace"
           tags      = ["security.namespace-ops"]
           args      = [{ index = 0, type = "int" }, { index = 1, type = "int" }]
-          selectors = [{ matchActions = [{ action = "Post" }] }]
+          selectors = [{
+            matchBinaries = [{ operator = "NotIn", values = local.tetragon_container_runtime_binaries }]
+            matchActions  = [{ action = "Post" }]
+          }]
         },
       ]
     }
