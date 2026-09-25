@@ -142,6 +142,15 @@ streaming. Hy4 pools Command Code and OpenCode Go.
 `router/deepseek-v4-pro` and `router/minimax-m3` each have one Ollama Cloud
 backend. Their `router/*` names remain canonical.
 
+`router/mimo-v2.6-pro` and `router/mimo-v2.6-flash` are priority pools, not
+shuffles: the Xiaomi MiMo token-plan leg (`order: 1`,
+`https://token-plan-sgp.xiaomimimo.com/v1`, SOPS `litellm.xiaomi_api_key`)
+takes every request while healthy, and the Command Code leg (`order: 2`)
+serves only while Xiaomi is failing or cooling down. The `xiaomi/*` and
+`commandcode/*` MiMo pins stay addressable. Clinepass and OpenCode Go also list
+MiMo 2.6 but are not wired: Clinepass answers `insufficient_credits` and
+OpenCode Go reports no active Go subscription (2026-09-25).
+
 The CodeBuddy international route is pinned as `codebuddy/hy4-preview` rather
 than added to the router pool: its endpoint accepts only streaming requests
 whose first message is `system`. Colony's Pi transport satisfies both constraints.
@@ -151,7 +160,7 @@ Kimi is exposed only as `kimi/k3`. Router defaults use a 120-second upstream
 timeout for agentic turns, three retries, and one failed deployment before a
 300-second cooldown; detailed debug mode is disabled.
 
-The gateway declares 56 model routes and no `model_group_alias` redirects.
+The gateway declares 59 unique model names and no `model_group_alias` redirects.
 Clients must send an exact `model_name`: use `router/*` for a routing group
 or a provider-specific pin to choose that provider deliberately. All 13
 compatibility aliases were removed; the Holmes, OMP, and Colony key allowlists
