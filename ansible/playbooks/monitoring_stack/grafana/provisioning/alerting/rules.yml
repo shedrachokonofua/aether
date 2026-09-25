@@ -2457,8 +2457,11 @@ groups:
         condition: C
         data:
           - refId: A
+            # Short query range on purpose: the 12h window lives in increase()[12h].
+            # A 12h range plus "> 0" and reducer "last" kept the alert firing up to
+            # 24h after the last event (last positive point, not the value now).
             relativeTimeRange:
-              from: 43200
+              from: 900
               to: 0
             datasourceUid: prometheus-local
             model:
