@@ -195,19 +195,24 @@ output budget, not a claimed provider limit), and reviews plans with
 Astra shares the household ChatGPT subscription behind OpenWebUI, so Colony
 caps it at one run and uses it for plan review only, with an operational
 272,000-token context cap because the subscription route's limit is
-unverified. `router/mimo-v2.6-pro` joins the developer fallbacks ahead of
-`router/glm-5.3-flash`. A 2026-09-25 streaming tool-call probe found that
-Qwen 3.8 Max rejects a forced `tool_choice` (HTTP 400) while Astra honours
-it; MiMo V2.6, Muse Spark, DeepSeek V4 Pro, and the Hy4 router answer a named
-forced `tool_choice` with a different tool call, so MiMo's Colony entry sets
-`supportsForcedToolChoice: false` and finalizers steer it instead. The
-configuration is baked into Colony's image, so editing the source YAML alone
-does not update a running daemon.
+unverified. `router/mimo-v2.6-pro` and then `step/step-5-preview` (Step Plan
+subscription, 32,768-token output cap against its verbose prose reasoning)
+join the developer fallbacks ahead of `router/glm-5.3-flash`. A 2026-09-25
+streaming tool-call probe found that Qwen 3.8 Max rejects a forced
+`tool_choice` (HTTP 400) while Astra honours it; MiMo V2.6, Muse Spark,
+DeepSeek V4 Pro, and the Hy4 router answer a named forced `tool_choice` with a
+different tool call, and Step 5 honoured it once in three, so the MiMo and Step
+Colony entries set `supportsForcedToolChoice: false` and finalizers steer them
+instead. Muse Spark's 33-49 s first-token wait on open-ended prose is hidden
+reasoning (4.7k-9.9k unstreamed reasoning tokens) on every leg, including the
+subscription bridge; its agent-shaped tool turns at `xhigh` answer in 1.2-2.8 s.
+The configuration is baked into Colony's image, so editing the source YAML
+alone does not update a running daemon.
 
 A verified `linux/amd64` SuperGrok bridge image is published under
 `source-grok47-20260925` and pinned by digest in
 [`grok.tf`](../tofu/home/kubernetes/grok.tf). Colony runs the CI-built image
-of `so/colony` commit `202f14e`, pinned by digest in
+of `so/colony` commit `7018770`, pinned by digest in
 [`colony.tf`](../tofu/home/kubernetes/colony.tf) and rolled out on
 2026-09-25 while no runs, scopes, or tasks were active.
 
