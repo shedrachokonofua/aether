@@ -597,6 +597,23 @@ resource "kubernetes_deployment_v1" "openwebui" {
             })
           }
 
+          # Default chat model for new chats (family members only have access
+          # to this model; access grants live in OpenWebUI's DB). Chosen
+          # 2026-09-25 after Anthropic was removed from LiteLLM.
+          env {
+            name  = "DEFAULT_MODELS"
+            value = "chatgpt/gpt-6-astra"
+          }
+
+          # Background tasks (titles, tags, follow-ups, search queries) use
+          # non-streaming calls, which LiteLLM's ChatGPT subscription routes
+          # reject. Run them on the always-on local Qwen3.8-27B (pinned in
+          # llama-swap) so no extra model is loaded just for tasks.
+          env {
+            name  = "TASK_MODEL_EXTERNAL"
+            value = "aether/qwen3.8-27b"
+          }
+
           # Performance tuning for small multi-user deployments.
           env {
             name  = "ENABLE_BASE_MODELS_CACHE"
