@@ -57,6 +57,26 @@ locals {
     }
   }])
 
+  # MCPO cannot resolve JSON Schema $refs that point into a tool's own
+  # properties (e.g. "#/properties/docId"); its converter asserts and the whole
+  # LiteLLM server fails to register, so every MCP tool in OpenWebUI returns
+  # "MCP session is not available". affine-mcp-server's mindmap tools (v3.6.0+)
+  # and these block/collection tools emit such refs (seen 2026-09-25 with
+  # affine-mcp-server:latest). MCPO filters disabled tools before conversion.
+  openwebui_mcpo_disabled_tools = [
+    "affine-create_mindmap",
+    "affine-get_mindmap",
+    "affine-add_mindmap_node",
+    "affine-update_mindmap_node",
+    "affine-reparent_mindmap_node",
+    "affine-set_mindmap_style",
+    "affine-set_mindmap_lock",
+    "affine-set_mindmap_layout",
+    "affine-append_block",
+    "affine-create_collection",
+    "affine-update_collection_rules",
+  ]
+
   mcpo_config = jsonencode({
     mcpServers = {
       litellm = {
@@ -65,6 +85,7 @@ locals {
         headers = {
           "x-litellm-api-key" = "Bearer ${var.secrets["litellm.virtual_keys.openwebui"]}"
         }
+        disabledTools = local.openwebui_mcpo_disabled_tools
       }
     }
   })
