@@ -16,7 +16,7 @@ resource "random_password" "affine_db_password" {
 }
 
 locals {
-  affine_version         = "0.27.3"
+  affine_version         = "0.27.4"
   affine_image           = "ghcr.io/toeverything/affine:${local.affine_version}"
   affine_pg_image        = "pgvector/pgvector:pg16"
   affine_redis_image     = "redis:latest"
@@ -54,6 +54,15 @@ resource "kubernetes_secret_v1" "affine_postgres" {
   type = "Opaque"
 }
 
+# Stable signing/encryption key. AFFiNE 0.27.4 refuses to start with persistent
+# BYOK enabled unless this is set ("stable crypto.privateKey is required when
+# persistent BYOK is enabled"). Kept in Tofu state; replacing it would make
+# BYOK keys encrypted with the old key unreadable.
+resource "tls_private_key" "affine_crypto" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
 resource "kubernetes_secret_v1" "affine_config" {
   depends_on = [module.namespace["affine"]]
   metadata {
@@ -65,6 +74,9 @@ resource "kubernetes_secret_v1" "affine_config" {
       "$schema" = "https://github.com/toeverything/affine/releases/latest/download/config.schema.json"
       auth = {
         requireEmailVerification = false
+      }
+      crypto = {
+        privateKey = tls_private_key.affine_crypto.private_key_pem
       }
       oauth = {
         providers = {
