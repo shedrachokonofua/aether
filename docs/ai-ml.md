@@ -135,9 +135,11 @@ including the Clinepass pin; Clinepass is not a pool member.
 Other multi-provider pools are `router/muse-spark-1.3`,
 `router/muse-spark-1.3-contributor`, and `router/hy4-preview`. The normal Muse
 pool uses Command Code and the private subscription. The Contributor pool
-uses Command Code and OpenCode Go and also includes the private standard
-Muse model; it is not a Contributor-only pool. Both Muse routers require
-streaming. Hy4 pools Command Code and OpenCode Go.
+uses Command Code and also includes the private standard Muse model; it is
+not a Contributor-only pool. OpenCode Go is not a Contributor leg: its Muse
+Contributor endpoint answered "Endpoint is unavailable" (region-limited per
+OpenCode's docs, 2026-09-25). Both Muse routers require streaming. Hy4 pools
+Command Code and OpenCode Go.
 
 `router/deepseek-v4-pro` and `router/minimax-m3` each have one Ollama Cloud
 backend. Their `router/*` names remain canonical.
@@ -154,9 +156,8 @@ Clinepass also lists MiMo 2.6 but is not wired: it answers
 The CodeBuddy international route is pinned as `codebuddy/hy4-preview` rather
 than added to the router pool: its endpoint accepts only streaming requests
 whose first message is `system`. Colony's Pi transport satisfies both constraints.
-OpenCode Go provides `opencode-go/muse-spark-1.3-contributor`,
-`opencode-go/glm-5.3-flash`, `opencode-go/hy4-preview`, and the
-`opencode-go/mimo-v2.6-*` pins through `https://opencode.ai/zen/go/v1`. Go
+OpenCode Go provides `opencode-go/glm-5.3-flash`, `opencode-go/hy4-preview`,
+and the `opencode-go/mimo-v2.6-*` pins through `https://opencode.ai/zen/go/v1`. Go
 rejects requests without `x-opencode-session` (`MissingSessionID`), so every
 OpenCode Go deployment sends a static `x-opencode-session: aether-litellm` and
 `User-Agent: aether-litellm/1.0` via `extra_headers`; all gateway traffic shares
@@ -165,7 +166,7 @@ Kimi is exposed only as `kimi/k3`. Router defaults use a 120-second upstream
 timeout for agentic turns, three retries, and one failed deployment before a
 300-second cooldown; detailed debug mode is disabled.
 
-The gateway declares 61 unique model names and no `model_group_alias` redirects.
+The gateway declares 60 unique model names and no `model_group_alias` redirects.
 Clients must send an exact `model_name`: use `router/*` for a routing group
 or a provider-specific pin to choose that provider deliberately. All 13
 compatibility aliases were removed; the Holmes, OMP, and Colony key allowlists
@@ -187,20 +188,28 @@ verified. `gemini-embedding-001` and `text-embedding-3-large` remain local Qwen
 embedding compatibility IDs, not Gemini/OpenAI cloud integrations.
 
 Colony's production and example configs are owned by sibling `so/colony`.
-The production config drops the retired DeepSeek fallback and unused MiMo
-entry, and migrates its reviewer to `supergrok/grok-4.7` with the documented
-500,000-token context. Its existing 65,536-token output budget is unchanged;
-this is a client budget, not a claimed provider output limit. Other role
-primaries are unchanged. The configuration is baked into Colony's image,
-so editing the source YAML alone does not update a running daemon.
+The production config drops the retired DeepSeek fallback, reviews code with
+`supergrok/grok-4.7` (documented 500,000-token context; 65,536-token client
+output budget, not a claimed provider limit), and reviews plans with
+`chatgpt/gpt-6-astra` ahead of the former primary `qwen-cloud/qwen3.8-max`.
+Astra shares the household ChatGPT subscription behind OpenWebUI, so Colony
+caps it at one run and uses it for plan review only, with an operational
+272,000-token context cap because the subscription route's limit is
+unverified. `router/mimo-v2.6-pro` joins the developer fallbacks ahead of
+`router/glm-5.3-flash`. A 2026-09-25 streaming tool-call probe found that
+Qwen 3.8 Max rejects a forced `tool_choice` (HTTP 400) while Astra honours
+it; MiMo V2.6, Muse Spark, DeepSeek V4 Pro, and the Hy4 router answer a named
+forced `tool_choice` with a different tool call, so MiMo's Colony entry sets
+`supportsForcedToolChoice: false` and finalizers steer it instead. The
+configuration is baked into Colony's image, so editing the source YAML alone
+does not update a running daemon.
 
-Verified `linux/amd64` SuperGrok and Colony candidate images are published
-under `source-grok47-20260925` and pinned by digest in
-[`grok.tf`](../tofu/home/kubernetes/grok.tf) and
-[`colony.tf`](../tofu/home/kubernetes/colony.tf). The compiled bridge entry
-point passed a real subscription request, and the baked Colony configuration
-resolved every role against the 56-route catalog. No `latest` tag was moved
-and no rollout was performed.
+A verified `linux/amd64` SuperGrok bridge image is published under
+`source-grok47-20260925` and pinned by digest in
+[`grok.tf`](../tofu/home/kubernetes/grok.tf). Colony runs the CI-built image
+of `so/colony` commit `202f14e`, pinned by digest in
+[`colony.tf`](../tofu/home/kubernetes/colony.tf) and rolled out on
+2026-09-25 while no runs, scopes, or tasks were active.
 
 After maintenance, quiesce Colony scopes and coordinate the updated SuperGrok
 and Colony images, LiteLLM configuration, virtual-key synchronization,
