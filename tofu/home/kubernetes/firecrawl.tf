@@ -472,8 +472,11 @@ resource "kubernetes_deployment_v1" "firecrawl" {
           }
 
           env {
-            name  = "MODEL_NAME"
-            value = "aether/qwen3:8b"
+            name = "MODEL_NAME"
+            # LLM extraction (json/schema formats) calls LiteLLM /responses with
+            # this model. The old Ollama-era name "aether/qwen3:8b" is not a
+            # LiteLLM route, so every extraction failed with "Invalid model name".
+            value = "aether/qwen3.5-9b"
           }
 
           env {
