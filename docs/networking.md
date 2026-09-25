@@ -230,11 +230,14 @@ Caddy handles TLS termination and reverse proxying for all internal services. Ru
 - Auth integration with Keycloak (forward auth)
 - HAProxy frontend for high-availability upstreams
 
-The `auth.shdr.ch` route imports `home_acme_dns`, which uses `1.1.1.1` and
+The `auth.shdr.ch`, `k8s.seven30.xyz`, and `mars.seven30.xyz` /
+`*.mars.seven30.xyz` routes import `home_acme_dns`, which uses `1.1.1.1` and
 `8.8.8.8` for ACME DNS-01 lookups. Keep this override: internal split-horizon
-DNS exposes an `auth.shdr.ch` zone, but the Cloudflare zone is `shdr.ch`.
-Without public zone discovery, Caddy cannot renew the certificate and
-`task login` fails once it expires.
+DNS exposes `auth.shdr.ch`, `k8s.seven30.xyz`, and `mars.seven30.xyz` zones,
+but the Cloudflare zones are `shdr.ch` and `seven30.xyz`. Without public zone
+discovery, Caddy cannot renew these certificates (`expected 1 zone, got 0`);
+`task login` fails once `auth.shdr.ch` expires, and kubectl / `s30 pg` /
+Foundry / Kestra fail once the seven30 names expire.
 
 ### IoT Services Listener
 
