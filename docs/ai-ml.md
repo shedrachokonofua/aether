@@ -61,7 +61,7 @@ clients; this change neither upgrades nor decommissions that service.
 
 Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest is configured
-to send Holmes investigations to `qwen-cloud/qwen3.8-max`.
+to send Holmes investigations to the local `aether/qwen3.8-27b:think`.
 
 Step Plan exposes only `step/step-5-preview` through the OpenAI-compatible
 `https://api.stepfun.ai/step_plan/v1` endpoint. The credential is stored as
