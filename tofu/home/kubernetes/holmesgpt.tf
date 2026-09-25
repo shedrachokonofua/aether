@@ -16,7 +16,7 @@ locals {
   holmes_model_primary  = "router/glm-5.3"
   holmes_model_local    = "qwen-local"
   holmes_model_trial    = "aether/qwen3.8-27b:think"
-  holmes_model_cloud    = "ollama-cloud/deepseek-v4-flash"
+  holmes_model_cloud    = "qwen-cloud/qwen3.8-max"
   holmes_prometheus_url = "https://prometheus.home.shdr.ch"
   holmes_loki_url       = "https://loki.home.shdr.ch"
 }

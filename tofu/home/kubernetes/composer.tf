@@ -2,9 +2,9 @@
 # Composer API — thin OpenAI-compatible Cursor Grok bridge through OMP
 # =============================================================================
 # Source: ssh://git@ssh.gitlab.home.shdr.ch:2222/so/aether/composer-api.git
-# Cursor credentials stay server-side. LiteLLM authenticates with a separate
-# random bearer. Client-provided tools execute on the client and resume the
-# bridge's in-memory Cursor turn.
+# Cursor credentials stay server-side. Direct clients authenticate with a
+# separate random bearer; this bridge is not registered with LiteLLM.
+# Client-provided tools resume the bridge's in-memory Cursor turn.
 #
 # Endpoint: https://composer.home.shdr.ch/v1  (chat/completions, models)
 
