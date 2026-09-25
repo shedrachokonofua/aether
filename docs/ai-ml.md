@@ -204,9 +204,13 @@ No Muse model reviews plans because Muse writes them, and Muse Spark 1.3 is the
 last code-review fallback because Muse writes the code. Qwen 3.8 Max (9-11
 minute sessions, rejects a forced `tool_choice`), Qwen 3.8 Flash (0/2 as
 developer), and Hy4 (no longer free; its launch promotion ended) left Colony.
-Muse Contributor and MiMo 2.6 Pro each run up to four concurrent runs: both
-pools served bursts of six concurrent agent turns without errors, MiMo's all on
-the Xiaomi priority leg. Astra shares the household ChatGPT
+Models with good Artificial Analysis unit economics get four concurrent runs
+once their pool passes a burst of six concurrent agent turns without errors:
+MiMo 2.6 Pro ($0.13 per AA Intelligence Index task, all on the Xiaomi priority
+leg), GLM 5.3 Flash ($0.25), DeepSeek V4 Pro ($0.67), Step 5 ($0.72), and
+Muse Contributor ($0.10/$0.20 per million tokens on Command Code). Grok 4.7
+keeps four on its flat subscription; Kimi K3 and GLM 5.3 stay at two for their
+weekly usage windows, and Gemini 3.8 Flash at two. Astra shares the household ChatGPT
 subscription behind OpenWebUI, so Colony caps it at one run with an
 operational 272,000-token context cap because the subscription route's limit is
 unverified. MiMo and Step do not honour a named forced `tool_choice`, so their
@@ -221,11 +225,12 @@ alone does not update a running daemon.
 A verified `linux/amd64` SuperGrok bridge image is published under
 `source-grok47-20260925` and pinned by digest in
 [`grok.tf`](../tofu/home/kubernetes/grok.tf). Colony runs the CI-built image
-of `so/colony` commit `55b70db`, pinned by digest in
-[`colony.tf`](../tofu/home/kubernetes/colony.tf). Rollouts on 2026-09-25 at
-14:01Z and 14:22Z ran during planning scopes: each new daemon adopted and
-resumed the in-flight architect run (audit `run.adopted`), and an in-flight
-plan review was reaped and requeued within two seconds.
+of `so/colony` commit `b010fca`, pinned by digest in
+[`colony.tf`](../tofu/home/kubernetes/colony.tf). Three rollouts on 2026-09-25
+(14:01Z, 14:22Z, 14:35Z) ran during planning scopes: the new daemon adopted
+and resumed three in-flight architect runs (audit `run.adopted`) but
+crash-reaped a fourth, which restarted from scratch; in-flight plan reviews
+were reaped and requeued within two seconds. Adoption is not guaranteed.
 
 After maintenance, quiesce Colony scopes and coordinate the updated SuperGrok
 and Colony images, LiteLLM configuration, virtual-key synchronization,
