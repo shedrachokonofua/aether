@@ -210,7 +210,6 @@ flowchart LR
 
     subgraph Cloud["Cloud Providers"]
         OAI[ChatGPT OAuth]
-        ANT[Anthropic]
         ZAI[Z.AI]
         QWEN[Qwen Cloud]
         OCGO[OpenCode Go]
@@ -226,7 +225,7 @@ flowchart LR
 
     OWUI & API --> LLM
     LLM --> LS & RR
-    LLM --> OAI & ANT & ZAI & QWEN & OCGO & STEP
+    LLM --> OAI & ZAI & QWEN & OCGO & STEP
     LLM --> TIME & FC & GMAPS & TMDB
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0
