@@ -43,6 +43,12 @@
         - clinepass/muse-spark-1.3-contributor
         - opencode-go/muse-spark-1.3-contributor
         - router/muse-spark-1.3-contributor
+        - router/mimo-v2.6-pro
+        - xiaomi/mimo-v2.6-pro
+        - commandcode/mimo-v2.6-pro
+        - router/mimo-v2.6-flash
+        - xiaomi/mimo-v2.6-flash
+        - commandcode/mimo-v2.6-flash
         - aether/qwen3.5-9b
         - aether/qwen3.5-9b:think
         - aether/qwen3.8-27b
@@ -86,6 +92,12 @@
         - clinepass/muse-spark-1.3-contributor
         - opencode-go/muse-spark-1.3-contributor
         - router/muse-spark-1.3-contributor
+        - router/mimo-v2.6-pro
+        - xiaomi/mimo-v2.6-pro
+        - commandcode/mimo-v2.6-pro
+        - router/mimo-v2.6-flash
+        - xiaomi/mimo-v2.6-flash
+        - commandcode/mimo-v2.6-flash
         - kimi/k3
         - router/deepseek-v4-pro
         - qwen-cloud/qwen3.8-max
