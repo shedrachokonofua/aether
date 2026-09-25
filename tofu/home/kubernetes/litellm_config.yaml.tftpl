@@ -256,29 +256,6 @@ model_list:
       mode: responses
       supports_native_streaming: true
 
-  # Anthropic models — auto-inject cache_control on system messages (min 2048 tokens for 4.x).
-  - model_name: "anthropic/claude-opus-4.8"
-    litellm_params:
-      model: "anthropic/claude-opus-4-8"
-      litellm_credential_name: anthropic_credential
-      cache_control_injection_points:
-        - location: message
-          role: system
-  - model_name: "anthropic/claude-sonnet-4.6"
-    litellm_params:
-      model: "anthropic/claude-sonnet-4-6"
-      litellm_credential_name: anthropic_credential
-      cache_control_injection_points:
-        - location: message
-          role: system
-  - model_name: "anthropic/claude-fable-5"
-    litellm_params:
-      model: "anthropic/claude-fable-5"
-      litellm_credential_name: anthropic_credential
-      cache_control_injection_points:
-        - location: message
-          role: system
-
   # Speech via llama-swap + audio.cpp (K8s)
   - model_name: "aether/qwen3-asr"
     litellm_params:
@@ -398,11 +375,6 @@ credential_list:
       api_key: os.environ/OLLAMA_API_KEY
     credential_info:
       description: "Ollama Cloud"
-  - credential_name: anthropic_credential
-    credential_values:
-      api_key: os.environ/ANTHROPIC_API_KEY
-    credential_info:
-      description: "Anthropic"
   - credential_name: qwen_cloud_credential
     credential_values:
       api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1

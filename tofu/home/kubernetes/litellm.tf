@@ -56,7 +56,6 @@ resource "kubernetes_secret_v1" "litellm_env" {
       POSTGRES_DB           = "litellm"
       POSTGRES_USER         = var.secrets["litellm.database_user"]
       POSTGRES_PASSWORD     = var.secrets["litellm.database_password"]
-      ANTHROPIC_API_KEY     = var.secrets["litellm.anthropic_api_key"]
       OLLAMA_API_KEY        = var.secrets["litellm.ollama_cloud_api_key"]
       CLINEPASS_API_KEY     = var.secrets["litellm.clinepass_api_key"]
       KIMI_API_KEY          = var.secrets["litellm.kimi_api_key"]
@@ -256,16 +255,6 @@ resource "kubernetes_deployment_v1" "litellm" {
           env {
             name  = "CHATGPT_TOKEN_DIR"
             value = "/var/lib/litellm/chatgpt"
-          }
-
-          env {
-            name = "ANTHROPIC_API_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "ANTHROPIC_API_KEY"
-              }
-            }
           }
 
           env {
