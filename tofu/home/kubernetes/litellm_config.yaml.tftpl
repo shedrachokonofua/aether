@@ -72,36 +72,13 @@ model_list:
       use_chat_completions_api: true
 
   # Clinepass models (https://api.cline.bot — OpenAI-compatible).
-  # GLM and Kimi entries intentionally share a model_name below so LiteLLM
-  # treats every provider deployment for that family as one load-balanced
-  # model group.
-  - model_name: "router/deepseek-v4-pro"
-    litellm_params:
-      model: "openai/cline-pass/deepseek-v4-pro"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/deepseek-v4-flash"
-    litellm_params:
-      model: "openai/cline-pass/deepseek-v4-flash"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/kimi-k2.7-code"
-    litellm_params:
-      model: "openai/cline-pass/kimi-k2.7-code"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/glm-5.2"
-    litellm_params:
-      model: "openai/cline-pass/glm-5.2"
-      litellm_credential_name: clinepass_credential
+  # Cline legs are pins only (clinepass/*), not router members: Cline's
+  # balance went negative and answered 402 on every draw (2026-09-03);
+  # LiteLLM does not retry a 402 within the group, so one dead leg failed a
+  # third of first requests. Re-add router/* legs when funded.
   - model_name: "clinepass/glm-5.3-flash"
     litellm_params:
       model: "openai/cline-pass/glm-5.3-flash"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/glm-5.3-flash"
-    litellm_params:
-      model: "openai/cline-pass/glm-5.3-flash"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/qwen3.7-max"
-    litellm_params:
-      model: "openai/cline-pass/qwen3.7-max"
       litellm_credential_name: clinepass_credential
   - model_name: "clinepass/qwen3.8-max"
     litellm_params:
@@ -111,31 +88,11 @@ model_list:
     litellm_params:
       model: "openai/meta/muse-spark-1.3"
       litellm_credential_name: clinepass_credential
-  - model_name: "router/muse-spark-1.3"
-    litellm_params:
-      model: "openai/meta/muse-spark-1.3"
-      litellm_credential_name: clinepass_credential
   - model_name: "clinepass/muse-spark-1.3-contributor"
     litellm_params:
       model: "openai/meta/muse-spark-1.3-contributor"
       litellm_credential_name: clinepass_credential
-  - model_name: "router/muse-spark-1.3-contributor"
-    litellm_params:
-      model: "openai/meta/muse-spark-1.3-contributor"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/minimax-m3"
-    litellm_params:
-      model: "openai/cline-pass/minimax-m3"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/mimo-v2.5-pro"
-    litellm_params:
-      model: "openai/cline-pass/mimo-v2.5-pro"
-      litellm_credential_name: clinepass_credential
   - model_name: "clinepass/hy4-preview"
-    litellm_params:
-      model: "openai/tencent/hy4-preview"
-      litellm_credential_name: clinepass_credential
-  - model_name: "router/hy4-preview"
     litellm_params:
       model: "openai/tencent/hy4-preview"
       litellm_credential_name: clinepass_credential
@@ -167,8 +124,13 @@ model_list:
       model: "openai/qwen3.8-flash"
       litellm_credential_name: qwen_cloud_credential
 
-  # Z.AI GLM 5.3 uses a separate router group; never mix it with GLM 5.2
-  # or with GLM 5.3 Flash.
+  # Step Plan subscription — no PAYG fallback.
+  - model_name: "step/step-5-preview"
+    litellm_params:
+      model: "openai/step-5-preview"
+      litellm_credential_name: step_credential
+
+  # GLM 5.3 and GLM 5.3 Flash stay in separate model pools.
   - model_name: "router/glm-5.3"
     litellm_params:
       model: "zai/glm-5.3"
@@ -199,17 +161,6 @@ model_list:
   - model_name: "router/muse-spark-1.3-contributor"
     litellm_params:
       model: "openai/meta/muse-spark-1.3-contributor"
-      litellm_credential_name: commandcode_credential
-  - model_name: "commandcode/deepseek-v4-flash"
-    litellm_params:
-      model: "openai/deepseek/deepseek-v4-flash"
-      litellm_credential_name: commandcode_credential
-  # Third leg of the shuffled router/deepseek-v4-flash pool. Pool traffic meters
-  # against the GOAT allowance; commandcode/deepseek-v4-flash stays standalone
-  # for callers that want the metered route explicitly.
-  - model_name: "router/deepseek-v4-flash"
-    litellm_params:
-      model: "openai/deepseek/deepseek-v4-flash"
       litellm_credential_name: commandcode_credential
   - model_name: "commandcode/glm-5.3-flash"
     litellm_params:
@@ -255,14 +206,6 @@ model_list:
       litellm_credential_name: opencode_go_credential
 
   # Ollama Cloud models
-  - model_name: "ollama-cloud/kimi-k2.6"
-    litellm_params:
-      model: "ollama_chat/kimi-k2.6"
-      litellm_credential_name: ollama_cloud_credential
-  - model_name: "router/glm-5.2"
-    litellm_params:
-      model: "ollama_chat/glm-5.2"
-      litellm_credential_name: ollama_cloud_credential
   - model_name: "ollama-cloud/glm-5.3-flash"
     litellm_params:
       model: "ollama_chat/glm-5.3-flash"
@@ -280,55 +223,31 @@ model_list:
     litellm_params:
       model: "ollama_chat/deepseek-v4-pro:cloud"
       litellm_credential_name: ollama_cloud_credential
-  - model_name: "router/deepseek-v4-flash"
-    litellm_params:
-      model: "ollama_chat/deepseek-v4-flash:0731"
-      litellm_credential_name: ollama_cloud_credential
-  # Dedicated Ollama-Cloud-only alias (Holmes/Inquest pin this; the
-  # router/deepseek-v4-flash group shuffles cline-pass + Ollama Cloud + Command Code).
-  - model_name: "ollama-cloud/deepseek-v4-flash"
-    litellm_params:
-      model: "ollama_chat/deepseek-v4-flash:0731"
-      litellm_credential_name: ollama_cloud_credential
-  - model_name: "ollama-cloud/gemini-3-flash-preview"
-    litellm_params:
-      model: "ollama_chat/gemini-3-flash-preview"
-      litellm_credential_name: ollama_cloud_credential
   - model_name: "router/minimax-m3"
     litellm_params:
       model: "ollama_chat/minimax-m3"
       litellm_credential_name: ollama_cloud_credential
-  - model_name: "router/kimi-k2.7-code"
-    litellm_params:
-      model: "ollama_chat/kimi-k2.7-code"
-      litellm_credential_name: ollama_cloud_credential
 
-  # OpenAI models — provider caches 1024+ token prefixes automatically;
-  # retention + per-model cache key improve hit rate and TTL (default 5–10m → 24h).
-  - model_name: "openai/gpt-5.5"
+  # ChatGPT subscription OAuth — native Responses API; no PAYG fallback.
+  # GPT-6 is not in LiteLLM's bundled catalog yet; declare native streaming.
+  - model_name: "chatgpt/gpt-6-astra"
     litellm_params:
-      model: "openai/gpt-5.5"
-      litellm_credential_name: openai_credential
-      prompt_cache_retention: "24h"
-      prompt_cache_key: "openai/gpt-5.5"
-  - model_name: "openai/gpt-5.4"
+      model: "chatgpt/gpt-6-astra"
+    model_info:
+      mode: responses
+      supports_native_streaming: true
+  - model_name: "chatgpt/gpt-6-sol"
     litellm_params:
-      model: "openai/gpt-5.4"
-      litellm_credential_name: openai_credential
-      prompt_cache_retention: "24h"
-      prompt_cache_key: "openai/gpt-5.4"
-  - model_name: "openai/gpt-5.4-mini"
+      model: "chatgpt/gpt-6-sol"
+    model_info:
+      mode: responses
+      supports_native_streaming: true
+  - model_name: "chatgpt/gpt-6-luna"
     litellm_params:
-      model: "openai/gpt-5.4-mini"
-      litellm_credential_name: openai_credential
-      prompt_cache_retention: "24h"
-      prompt_cache_key: "openai/gpt-5.4-mini"
-  - model_name: "openai/gpt-5.4-nano"
-    litellm_params:
-      model: "openai/gpt-5.4-nano"
-      litellm_credential_name: openai_credential
-      prompt_cache_retention: "24h"
-      prompt_cache_key: "openai/gpt-5.4-nano"
+      model: "chatgpt/gpt-6-luna"
+    model_info:
+      mode: responses
+      supports_native_streaming: true
 
   # Anthropic models — auto-inject cache_control on system messages (min 2048 tokens for 4.x).
   - model_name: "anthropic/claude-opus-4.8"
@@ -396,37 +315,6 @@ model_list:
       encoding_format: "float"
       additional_drop_params: ["dimensions"]
 
-  # Xiaomi MiMo models
-  - model_name: "router/mimo-v2.5-pro"
-    litellm_params:
-      model: "openai/mimo-v2.5-pro"
-      litellm_credential_name: xiaomi_credential
-
-  # OpenRouter models
-  - model_name: "openrouter/grok-4"
-    litellm_params:
-      model: "openai/x-ai/grok-4"
-      litellm_credential_name: openrouter_credential
-  - model_name: "openrouter/gemini-3.1-pro-preview"
-    litellm_params:
-      model: "openai/google/gemini-3.1-pro-preview"
-      litellm_credential_name: openrouter_credential
-
-  # Cursor Grok through the single-tenant OMP bridge. The bridge owns Cursor
-  # credential exchange and native Run transport; callers own OpenAI tool
-  # execution. LiteLLM must use the OpenAI adapter because it has no native
-  # Cursor inference provider. Drop stream_options so LiteLLM never injects
-  # include_usage for a subscription route whose usage split is unknowable.
-  - model_name: "cursor/grok-4.6"
-    litellm_params:
-      model: "openai/cursor/grok-4.6"
-      litellm_credential_name: composer_credential
-      use_chat_completions_api: true
-      # Cursor 400s on max_tokens; colony's SDK always sends it.
-      additional_drop_params: ["stream_options", "max_tokens", "max_completion_tokens"]
-    model_info:
-      input_cost_per_token: 0
-      output_cost_per_token: 0
 
   # Gemini Flash models through the single-tenant Antigravity bridge. Clients
   # own the tool loop and may select low/medium/high via reasoning_effort.
@@ -435,14 +323,9 @@ model_list:
       model: "openai/antigravity/gemini-3.8-flash"
       litellm_credential_name: antigravity_credential
       use_chat_completions_api: true
-  - model_name: "antigravity/gemini-3.7-flash"
-    litellm_params:
-      model: "openai/antigravity/gemini-3.7-flash"
-      litellm_credential_name: antigravity_credential
-      use_chat_completions_api: true
 
   # Private Muse Code subscription bridge. This deployment never falls back to PAYG.
-  - model_name: "muse-subscription/muse-spark-1.3"
+  - model_name: "meta/muse-spark-1.3"
     litellm_params:
       model: "openai/muse-subscription/muse-spark-1.3"
       litellm_credential_name: muse_bridge_credential
@@ -453,11 +336,19 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
 
+  # The private subscription exposes only the standard model, but also backs
+  # the Contributor router so unavailable public legs cannot stall callers.
+  - model_name: "router/muse-spark-1.3-contributor"
+    litellm_params:
+      model: "openai/muse-subscription/muse-spark-1.3"
+      litellm_credential_name: muse_bridge_credential
+      use_chat_completions_api: true
+
   # Private SuperGrok subscription pins. The bridge owns native Responses
   # translation; stock LiteLLM uses Chat Completions with no PAYG fallback.
-  - model_name: "supergrok/grok-4.6"
+  - model_name: "supergrok/grok-4.7"
     litellm_params:
-      model: "openai/supergrok/grok-4.6"
+      model: "openai/supergrok/grok-4.7"
       litellm_credential_name: grok_bridge_credential
       use_chat_completions_api: true
       # A single-leg subscription route cannot fail over. Preserve the actual
@@ -476,14 +367,6 @@ credential_list:
       api_key: none
     credential_info:
       description: "llama-swap on K8s"
-  - credential_name: composer_credential
-    credential_values:
-      # composer runs outside the LiteLLM ambient mesh; use internal Gateway
-      # ingress and authenticate with the bridge-only bearer.
-      api_base: https://composer.home.shdr.ch/v1
-      api_key: os.environ/CURSOR_BRIDGE_API_KEY
-    credential_info:
-      description: "Cursor Grok via the single-tenant OMP bridge"
   - credential_name: antigravity_credential
     credential_values:
       api_base: https://antigravity.home.shdr.ch/v1
@@ -508,34 +391,23 @@ credential_list:
       api_key: os.environ/OLLAMA_API_KEY
     credential_info:
       description: "Ollama Cloud"
-  - credential_name: openai_credential
-    credential_values:
-      api_key: os.environ/OPENAI_API_KEY
-    credential_info:
-      description: "OpenAI"
   - credential_name: anthropic_credential
     credential_values:
       api_key: os.environ/ANTHROPIC_API_KEY
     credential_info:
       description: "Anthropic"
-  - credential_name: openrouter_credential
-    credential_values:
-      api_base: https://openrouter.ai/api/v1
-      api_key: os.environ/OPENROUTER_API_KEY
-    credential_info:
-      description: "OpenRouter"
-  - credential_name: xiaomi_credential
-    credential_values:
-      api_base: https://token-plan-sgp.xiaomimimo.com/v1
-      api_key: os.environ/XIAOMI_API_KEY
-    credential_info:
-      description: "Xiaomi MiMo"
   - credential_name: qwen_cloud_credential
     credential_values:
       api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
       api_key: os.environ/QWEN_CLOUD_API_KEY
     credential_info:
       description: "Qwen Cloud (Alibaba MaaS)"
+  - credential_name: step_credential
+    credential_values:
+      api_base: https://api.stepfun.ai/step_plan/v1
+      api_key: os.environ/STEP_API_KEY
+    credential_info:
+      description: "Step Plan subscription"
   - credential_name: zai_credential
     credential_values:
       api_base: https://api.z.ai/api/coding/paas/v4
@@ -603,29 +475,14 @@ router_settings:
   routing_strategy: simple-shuffle
   enable_weighted_failover: true
   routing_groups:
-    - group_name: router/glm-5.2
-      models: ["router/glm-5.2"]
-      routing_strategy: simple-shuffle
     - group_name: router/glm-5.3-flash
       models: ["router/glm-5.3-flash"]
-      routing_strategy: simple-shuffle
-    - group_name: router/kimi-k2.7-code
-      models: ["router/kimi-k2.7-code"]
       routing_strategy: simple-shuffle
     - group_name: router/deepseek-v4-pro
       models: ["router/deepseek-v4-pro"]
       routing_strategy: simple-shuffle
-    - group_name: router/deepseek-v4-flash
-      models: ["router/deepseek-v4-flash"]
-      routing_strategy: simple-shuffle
-    - group_name: router/qwen3.7-max
-      models: ["router/qwen3.7-max"]
-      routing_strategy: simple-shuffle
     - group_name: router/minimax-m3
       models: ["router/minimax-m3"]
-      routing_strategy: simple-shuffle
-    - group_name: router/mimo-v2.5-pro
-      models: ["router/mimo-v2.5-pro"]
       routing_strategy: simple-shuffle
     - group_name: router/muse-spark-1.3
       models: ["router/muse-spark-1.3"]
@@ -638,36 +495,6 @@ router_settings:
     - group_name: router/glm-5.3
       models: ["router/glm-5.3"]
       routing_strategy: simple-shuffle
-
-  # Keep the old provider-prefixed names working for existing clients while
-  # routing them into the new shared groups. The aliases do not duplicate
-  # deployments or change the provider-specific backend model strings.
-  model_group_alias:
-    "glm": "router/glm-5.3"
-    "kimi": "router/kimi-k2.7-code"
-    "deepseek-v4-pro": "router/deepseek-v4-pro"
-    "deepseek-v4-flash": "router/deepseek-v4-flash"
-    "qwen3.7-max": "router/qwen3.7-max"
-    "minimax-m3": "router/minimax-m3"
-    "mimo-v2.5-pro": "router/mimo-v2.5-pro"
-    "clinepass/glm-5.2": "router/glm-5.2"
-    "zai/glm-5.3": "router/glm-5.3"
-    "ollama-cloud/glm-5.3-flash:cloud": "router/glm-5.3-flash"
-    "ollama-cloud/glm-5.2": "router/glm-5.2"
-    "ollama-cloud/kimi-k2.7-code": "router/kimi-k2.7-code"
-    "clinepass/deepseek-v4-pro": "router/deepseek-v4-pro"
-    "ollama-cloud/deepseek-v4-pro:cloud": "router/deepseek-v4-pro"
-    "clinepass/deepseek-v4-flash": "router/deepseek-v4-flash"
-    "ollama-cloud/deepseek-v4-flash:cloud": "router/deepseek-v4-flash"
-    "clinepass/qwen3.7-max": "router/qwen3.7-max"
-    "clinepass/minimax-m3": "router/minimax-m3"
-    "ollama-cloud/minimax-m3": "router/minimax-m3"
-    "clinepass/mimo-v2.5-pro": "router/mimo-v2.5-pro"
-    "xiaomi/mimo-v2.5-pro": "router/mimo-v2.5-pro"
-    "muse-spark-1.3": "router/muse-spark-1.3"
-    "muse-spark-1.3-contributor": "router/muse-spark-1.3-contributor"
-    "hy4-preview": "router/hy4-preview"
-    "hy4": "router/hy4-preview"
 
 general_settings:
   store_prompts_in_spend_logs: true

@@ -56,19 +56,16 @@ resource "kubernetes_secret_v1" "litellm_env" {
       POSTGRES_DB           = "litellm"
       POSTGRES_USER         = var.secrets["litellm.database_user"]
       POSTGRES_PASSWORD     = var.secrets["litellm.database_password"]
-      OPENAI_API_KEY        = var.secrets["litellm.openai_api_key"]
       ANTHROPIC_API_KEY     = var.secrets["litellm.anthropic_api_key"]
-      OPENROUTER_API_KEY    = var.secrets["litellm.openrouter_api_key"]
       OLLAMA_API_KEY        = var.secrets["litellm.ollama_cloud_api_key"]
       CLINEPASS_API_KEY     = var.secrets["litellm.clinepass_api_key"]
       KIMI_API_KEY          = var.secrets["litellm.kimi_api_key"]
-      XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
       QWEN_CLOUD_API_KEY    = var.secrets["litellm.qwen_cloud_api_key"]
+      STEP_API_KEY          = var.secrets["litellm.step_api_key"]
       ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
       COMMANDCODE_API_KEY   = var.secrets["litellm.commandcode_api_key"]
       OPENCODE_GO_API_KEY   = var.secrets["litellm.opencode_go_api_key"]
       CODEBUDDY_API_KEY     = var.secrets["litellm.codebuddy_api_key"]
-      CURSOR_BRIDGE_API_KEY = random_password.composer_bridge_api_key.result
       ANTIGRAVITY_API_KEY   = random_password.antigravity_api_key.result
       MUSE_BRIDGE_API_KEY   = random_password.muse_bridge_api_key.result
       GROK_BRIDGE_API_KEY   = random_password.grok_bridge_api_key.result
@@ -143,6 +140,30 @@ resource "kubernetes_persistent_volume_claim_v1" "litellm_postgres_data" {
     resources {
       requests = {
         storage = "20Gi"
+      }
+    }
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "litellm_chatgpt_auth" {
+  depends_on = [module.namespace["litellm"], kubernetes_storage_class_v1.ceph_rbd]
+
+  metadata {
+    name      = "litellm-chatgpt-auth"
+    namespace = local.litellm_ns
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+
+    resources {
+      requests = {
+        storage = "1Gi"
       }
     }
   }
@@ -233,13 +254,8 @@ resource "kubernetes_deployment_v1" "litellm" {
           }
 
           env {
-            name = "OPENAI_API_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "OPENAI_API_KEY"
-              }
-            }
+            name  = "CHATGPT_TOKEN_DIR"
+            value = "/var/lib/litellm/chatgpt"
           }
 
           env {
@@ -248,16 +264,6 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "ANTHROPIC_API_KEY"
-              }
-            }
-          }
-
-          env {
-            name = "OPENROUTER_API_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "OPENROUTER_API_KEY"
               }
             }
           }
@@ -284,21 +290,21 @@ resource "kubernetes_deployment_v1" "litellm" {
 
 
           env {
-            name = "XIAOMI_API_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "XIAOMI_API_KEY"
-              }
-            }
-          }
-
-          env {
             name = "QWEN_CLOUD_API_KEY"
             value_from {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "QWEN_CLOUD_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "STEP_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "STEP_API_KEY"
               }
             }
           }
@@ -343,15 +349,6 @@ resource "kubernetes_deployment_v1" "litellm" {
             }
           }
 
-          env {
-            name = "CURSOR_BRIDGE_API_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "CURSOR_BRIDGE_API_KEY"
-              }
-            }
-          }
 
           env {
             name = "ANTIGRAVITY_API_KEY"
@@ -439,6 +436,11 @@ resource "kubernetes_deployment_v1" "litellm" {
             mount_path = "/app/config.yaml"
             sub_path   = "config.yaml"
             read_only  = true
+          }
+
+          volume_mount {
+            name       = "chatgpt-auth"
+            mount_path = "/var/lib/litellm"
           }
         }
 
@@ -877,6 +879,12 @@ resource "kubernetes_deployment_v1" "litellm" {
           name = "litellm-config"
           secret {
             secret_name = kubernetes_secret_v1.litellm_config.metadata[0].name
+          }
+        }
+        volume {
+          name = "chatgpt-auth"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.litellm_chatgpt_auth.metadata[0].name
           }
         }
       }

@@ -283,6 +283,30 @@ tasks:
         test -f "$bridge_repo/scripts/login.ts"
         bun "$bridge_repo/scripts/login.ts"
 
+  litellm:login:chatgpt:
+    desc: Authorize ChatGPT subscription access and persist OAuth tokens on the LiteLLM PVC
+    cmds:
+      - |
+        test "$(kubectl config current-context)" = admin@aether-k8s || {
+          echo "Expected Kubernetes context admin@aether-k8s" >&2
+          exit 1
+        }
+        kubectl -n litellm exec -i deployment/litellm -c litellm -- python - <<'PY'
+        import os
+
+        token_dir = os.environ["CHATGPT_TOKEN_DIR"]
+        os.umask(0o077)
+        os.makedirs(token_dir, mode=0o700, exist_ok=True)
+        os.chmod(token_dir, 0o700)
+
+        from litellm.llms.chatgpt.authenticator import Authenticator
+
+        auth = Authenticator()
+        auth.get_access_token()
+        os.chmod(auth.auth_file, 0o600)
+        print("ChatGPT OAuth ready; credentials persisted on the LiteLLM PVC.", flush=True)
+        PY
+
   # ===========================================================================
   # Ansible Galaxy (worth automating)
   # ===========================================================================

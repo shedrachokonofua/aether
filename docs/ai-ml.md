@@ -45,40 +45,61 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 ### LiteLLM
 
 Unified OpenAI-compatible API: local models via **llama-swap**, embeddings +
-reranker on the same credential, cloud providers, Cursor Grok, and MCP tools.
-Cursor is exposed only as `cursor/grok-4.6`.
+reranker on the same credential, cloud providers, and MCP tools.
 
-The self-hosted Composer API is a thin OMP bridge for Cursor's native HTTP/2
-`Run` transport. It exchanges the server-owned Cursor credential, discovers
-Grok 4.6 effort variants, and translates OpenAI chat completions. Client
-function tools remain client-owned: Composer pauses the native Cursor turn,
-returns OpenAI `tool_calls`, and resumes that same in-memory turn when the
-client submits the complete result set. Pending turns are intentionally
-at-most-once and are lost on expiry, restart, or a disconnect after result
-acceptance.
+**Maintenance hold (2026-09-24):** The model retirements, alias removal,
+SuperGrok upgrade, and Cursor integration removal are staged changes.
+Their rollout and virtual-key synchronization have not been performed;
+do not apply them during server maintenance.
 
-LiteLLM has no native Cursor inference adapter. Its `/cursor/*` routes concern
-the separate Cursor Cloud Agents API and Cursor-as-BYOK integration, not chat
-inference. The `cursor/grok-4.6` model therefore uses LiteLLM's OpenAI adapter
-against Composer's internal endpoint and authenticates with a bridge-only
-bearer; the Cursor credential never leaves the Composer pod.
+Cursor/Composer is no longer registered with LiteLLM: its model entry,
+`composer_credential`, `CURSOR_BRIDGE_API_KEY` injection, and model permissions
+have been removed. The standalone Composer deployment and its own credentials
+remain declared in [`composer.tf`](../tofu/home/kubernetes/composer.tf).
+It still exposes Grok 4.6 over Cursor's native HTTP/2 transport for direct
+clients; this change neither upgrades nor decommissions that service.
 
 Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
-`qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest sends Holmes
-investigations to `qwen-cloud/qwen3.8-max`.
+`qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest is configured
+to send Holmes investigations to `qwen-cloud/qwen3.8-max`.
+
+Step Plan exposes only `step/step-5-preview` through the OpenAI-compatible
+`https://api.stepfun.ai/step_plan/v1` endpoint. The credential is stored as
+`litellm.step_api_key` in SOPS and injected as `STEP_API_KEY`. OMP and Colony
+virtual keys can select this model; their defaults are unchanged. The route
+has no PAYG or OpenRouter fallback.
+
+ChatGPT subscription OAuth uses LiteLLM's native `chatgpt/` provider. Run
+`nix develop --command task litellm:login:chatgpt` and complete the displayed
+OpenAI device authorization. The dedicated `litellm-chatgpt-auth` Ceph RBD PVC
+stores `/var/lib/litellm/chatgpt/auth.json`; LiteLLM updates it during token
+refresh. The login task restricts the directory to `0700` and the file to
+`0600`. Use a dedicated LiteLLM login rather than sharing a rotating refresh
+token with desktop Codex or OMP. Direct OpenAI API-key access is no longer
+configured in LiteLLM.
+
+The subscription routes are `chatgpt/gpt-6-astra`, `chatgpt/gpt-6-sol`, and
+`chatgpt/gpt-6-luna`, available to OMP and Colony without changing their
+defaults. They declare Responses mode and native streaming explicitly because
+LiteLLM 1.99.1 does not include GPT-6 in its bundled model catalog.
+
+Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
+All three passed streaming Responses inference; streaming Chat Completions
+also passed. Non-streaming Chat Completions failed verification with the
+bundled adapter (`Unknown items in responses API response: []`). No paid
+API-key or OpenRouter fallback is configured.
 
 Clinepass also exposes `clinepass/qwen3.8-max`, `clinepass/muse-spark-1.3`,
 and `clinepass/muse-spark-1.3-contributor` as standalone provider pins.
 
 Google Antigravity is exposed through the single-tenant bridge as
-`antigravity/gemini-3.8-flash`; `antigravity/gemini-3.7-flash` remains
-available for compatibility. The bridge translates OpenAI chat-completions
+`antigravity/gemini-3.8-flash`. The bridge translates OpenAI chat-completions
 requests to the subscription API; clients retain ownership of tool execution
-and follow-up results. OMP and Colony virtual keys may use both models, but no
-Colony agent selects either by default.
+and follow-up results. OMP and Colony virtual keys include this model. Colony
+uses it in the developer and architect fallback chains, not as a primary.
 
 SuperGrok is exposed only as the subscription-backed
-`supergrok/grok-4.6` pin. Stock LiteLLM uses the bridge's
+`supergrok/grok-4.7` pin. Stock LiteLLM uses the bridge's
 `/v1/chat/completions` endpoint; the bridge translates native Responses
 events and preserves tool calls and terminal failures. Native `/v1/responses`
 remains available. Neither path falls back to `api.x.ai`, a PAYG key, Cursor,
@@ -90,36 +111,88 @@ owned by [`tofu/home/kubernetes/grok.tf`](../tofu/home/kubernetes/grok.tf);
 bridge source is the private `so/grok-bridge` GitLab project. `/usage` is
 best-effort and is not a readiness gate.
 
+Only standard Grok 4.7 is approved; retired 4.6, Fast variants, and unknown
+model IDs are rejected. A cached 4.6-only credential catalog cannot mark the
+upgraded bridge ready: fresh account and catalog checks must approve 4.7.
+The subscription selector is `grok-4.7`; native Responses reported
+`grok-4.7-build` during verification, not a separate client-selectable model.
+Bounded streaming Chat, a forced function-call/result round trip, and native
+Responses passed against the real subscription using the upgraded local
+bridge. Credentials were updated only in an isolated in-memory store;
+no deployed bridge or OpenBao credential was changed by those checks.
+
 The private Muse bridge exchanges the operator's Muse Code account grant for
-the subscription-backed key and exposes `muse-subscription/muse-spark-1.3`.
+the subscription-backed key and exposes `meta/muse-spark-1.3`.
 Rotated OAuth and subscription credentials persist in a dedicated OpenBao
 record; the bridge never falls back to a PAYG Meta key.
 
-GLM 5.2 deployments remain pooled under the canonical
-`router/glm-5.2` group for the Clinepass and Ollama Cloud providers.
-Z.AI GLM 5.3 uses the separate `router/glm-5.3` group, backed only by the
-configured Z.AI key; the `glm` alias and first-party agent defaults use GLM 5.3.
-GLM 5.3 Flash is a third group, `router/glm-5.3-flash`, shuffled across
-Clinepass, Z.AI, Command Code, OpenCode Go, and Ollama Cloud. Provider-prefixed
-pins (`clinepass/glm-5.3-flash`, `commandcode/glm-5.3-flash`,
-`ollama-cloud/glm-5.3-flash`, `opencode-go/glm-5.3-flash`,
-`zai/glm-5.3-flash`) stay standalone. Flash is the
-named successor to the ended OpenCode Go Ox Alpha preview; do not mix it with
-`router/glm-5.3`. The provider-prefixed GLM names remain compatibility aliases.
-Other shared groups include `router/deepseek-v4-flash`,
-`router/qwen3.7-max`, `router/minimax-m3`, `router/mimo-v2.5-pro`,
-`router/muse-spark-1.3`, `router/muse-spark-1.3-contributor`, and
-`router/hy4-preview`. The normal Muse pool uses the private subscription,
-Command Code, and Clinepass. The contributor pool uses Command Code,
-Clinepass, and OpenCode Go. Both Muse routers require streaming.
+`router/glm-5.3` uses weighted shuffle across Z.AI and Ollama Cloud with
+weights 4:1. Holmes primary and Hermes Tungsten use this canonical group.
+`router/glm-5.3-flash` is a separate pool across Z.AI, Command Code,
+OpenCode Go, and Ollama Cloud. Provider-prefixed Flash pins remain standalone,
+including the Clinepass pin; Clinepass is not a pool member.
+
+Other multi-provider pools are `router/muse-spark-1.3`,
+`router/muse-spark-1.3-contributor`, and `router/hy4-preview`. The normal Muse
+pool uses Command Code and the private subscription. The Contributor pool
+uses Command Code and OpenCode Go and also includes the private standard
+Muse model; it is not a Contributor-only pool. Both Muse routers require
+streaming. Hy4 pools Command Code and OpenCode Go.
+
+`router/deepseek-v4-pro` and `router/minimax-m3` each have one Ollama Cloud
+backend. Their `router/*` names remain canonical.
+
 The CodeBuddy international route is pinned as `codebuddy/hy4-preview` rather
 than added to the router pool: its endpoint accepts only streaming requests
 whose first message is `system`. Colony's Pi transport satisfies both constraints.
 OpenCode Go provides `opencode-go/muse-spark-1.3-contributor` and
 `opencode-go/glm-5.3-flash` through `https://opencode.ai/zen/go/v1`.
-Ollama Cloud's Kimi K2.6 deployment remains separate. Production routing uses
-a 120-second upstream timeout for agentic turns, three retries, and one failed
-deployment before a 300-second cooldown; detailed debug mode is disabled.
+Kimi is exposed only as `kimi/k3`. Router defaults use a 120-second upstream
+timeout for agentic turns, three retries, and one failed deployment before a
+300-second cooldown; detailed debug mode is disabled.
+
+The gateway declares 56 model routes and no `model_group_alias` redirects.
+Clients must send an exact `model_name`: use `router/*` for a routing group
+or a provider-specific pin to choose that provider deliberately. All 13
+compatibility aliases were removed; the Holmes, OMP, and Colony key allowlists
+use canonical model names.
+Upstream `litellm_params.model` identifiers and Colony's client-local model
+labels are not gateway aliases.
+
+The declared retirement removes Kimi K2.x, pre-5.3 GLM, DeepSeek V4 Flash,
+MiMo V2.5 Pro, pre-3.8 Gemini chat models, direct OpenAI API-key models, and
+all OpenRouter model routes and their retired aliases. DeepSeek V4 Pro
+remains; no V4.1 route is configured. The OpenRouter API key stays encrypted
+in SOPS but is no longer injected into LiteLLM. The OpenAI provider key was
+removed from SOPS and the LiteLLM Secret/environment declarations.
+
+All 19 `aether/*` routes matched llama-swap's advertised catalog in the
+pre-maintenance inventory on 2026-09-24, so none was removed. Unloaded
+on-demand models were retained; their cached weight files were not all
+verified. `gemini-embedding-001` and `text-embedding-3-large` remain local Qwen
+embedding compatibility IDs, not Gemini/OpenAI cloud integrations.
+
+Colony's production and example configs are owned by sibling `so/colony`.
+The production config drops the retired DeepSeek fallback and unused MiMo
+entry, and migrates its reviewer to `supergrok/grok-4.7` with the documented
+500,000-token context. Its existing 65,536-token output budget is unchanged;
+this is a client budget, not a claimed provider output limit. Other role
+primaries are unchanged. The configuration is baked into Colony's image,
+so editing the source YAML alone does not update a running daemon.
+
+Verified `linux/amd64` SuperGrok and Colony candidate images are published
+under `source-grok47-20260925` and pinned by digest in
+[`grok.tf`](../tofu/home/kubernetes/grok.tf) and
+[`colony.tf`](../tofu/home/kubernetes/colony.tf). The compiled bridge entry
+point passed a real subscription request, and the baked Colony configuration
+resolved every role against the 56-route catalog. No `latest` tag was moved
+and no rollout was performed.
+
+After maintenance, quiesce Colony scopes and coordinate the updated SuperGrok
+and Colony images, LiteLLM configuration, virtual-key synchronization,
+Holmes/Kestra model changes, and OpenWebUI catalog refresh before resuming
+traffic. Update saved client selections that still use removed aliases or
+the retired SuperGrok 4.6 name; no compatibility redirects are configured.
 
 ```mermaid
 flowchart LR
@@ -136,12 +209,12 @@ flowchart LR
     end
 
     subgraph Cloud["Cloud Providers"]
-        OAI[OpenAI]
+        OAI[ChatGPT OAuth]
         ANT[Anthropic]
-        OR[OpenRouter]
         ZAI[Z.AI]
         QWEN[Qwen Cloud]
         OCGO[OpenCode Go]
+        STEP[Step Plan]
     end
 
     subgraph MCP["MCP Tools"]
@@ -153,18 +226,23 @@ flowchart LR
 
     OWUI & API --> LLM
     LLM --> LS & RR
-    LLM --> OAI & ANT & OR & ZAI & QWEN & OCGO
+    LLM --> OAI & ANT & ZAI & QWEN & OCGO & STEP
     LLM --> TIME & FC & GMAPS & TMDB
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0
     style Cloud fill:#f0e4d4,stroke:#c4a06a
 ```
 
-See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl) for the live model list and MCP registry. Google Maps MCP is opt-in: when `google.project_id` exists in SOPS, [`tofu/google/main.tf`](../tofu/google/main.tf) provisions the Google Maps API key, keeps it in Terraform state, restricts it to Maps APIs, and passes it to the LiteLLM sidecar as `GOOGLE_MAPS_API_KEY`. Google Cloud admin access is keyless after bootstrap: the first apply uses a human Application Default Credential from `gcloud auth application-default login`, then `task login` writes Workload Identity Federation external-account credentials for future OpenTofu runs instead of using a service-account JSON key.
+See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl) for the declared model list and MCP registry. Google Maps MCP is opt-in: when `google.project_id` exists in SOPS, [`tofu/google/main.tf`](../tofu/google/main.tf) provisions the Google Maps API key, keeps it in Terraform state, restricts it to Maps APIs, and passes it to the LiteLLM sidecar as `GOOGLE_MAPS_API_KEY`. Google Cloud admin access is keyless after bootstrap: the first apply uses a human Application Default Credential from `gcloud auth application-default login`, then `task login` writes Workload Identity Federation external-account credentials for future OpenTofu runs instead of using a service-account JSON key.
 
 ### OpenWebUI
 
 Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (Docling + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
+
+Pinned to `v0.11.4`. Its pod-template annotation hashes LiteLLM's model
+configuration; include the OpenWebUI deployment when applying model-route
+changes so its startup catalog refreshes through IaC rather than an
+imperative restart.
 
 ### Access (via Caddy on gateway)
 

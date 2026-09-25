@@ -7,7 +7,7 @@
 # Beryl: OpenAI GPT-5.6 Sol via ChatGPT OAuth (openai-codex provider; tokens
 #        live in the persisted /opt/data/auth.json, connected + refreshed via the
 #        dashboard — no API key). Local llama-swap shelved; revisit at Qwen 3.8 27B.
-# Tungsten: public GLM-5.2 model through LiteLLM -> Ollama Cloud.
+# Tungsten: GLM 5.3 through the LiteLLM Z.AI/Ollama Cloud pool.
 
 locals {
   hermes_namespace              = module.namespace["hermes"].name

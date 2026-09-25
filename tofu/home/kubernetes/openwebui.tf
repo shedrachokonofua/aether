@@ -7,7 +7,7 @@ locals {
   openwebui_namespace = "openwebui"
   openwebui_host      = "openwebui.home.shdr.ch"
   # Pinned for reproducible upgrades (was :latest). Bump intentionally.
-  openwebui_image        = "ghcr.io/open-webui/open-webui:v0.11.3"
+  openwebui_image        = "ghcr.io/open-webui/open-webui:v0.11.4"
   mcpo_image             = "ghcr.io/open-webui/mcpo:main"
   open_terminal_image    = "ghcr.io/open-webui/open-terminal:slim"
   postgres_image         = "pgvector/pgvector:pg16"
