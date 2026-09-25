@@ -1,5 +1,5 @@
 # =============================================================================
-# OpenWebUI + MCPO
+# OpenWebUI (LiteLLM tools via OpenWebUI's native MCP client)
 # =============================================================================
 # Migrated from the legacy Podman VM to Kubernetes.
 
@@ -8,7 +8,6 @@ locals {
   openwebui_host      = "openwebui.home.shdr.ch"
   # Pinned for reproducible upgrades (was :latest). Bump intentionally.
   openwebui_image        = "ghcr.io/open-webui/open-webui:v0.11.4"
-  mcpo_image             = "ghcr.io/open-webui/mcpo:main"
   open_terminal_image    = "ghcr.io/open-webui/open-terminal:slim"
   postgres_image         = "pgvector/pgvector:pg16"
   postgres_service       = "openwebui-postgres"
@@ -19,20 +18,28 @@ locals {
   postgres_host          = "${local.openwebui_cnpg_cluster}-rw.${local.openwebui_namespace}.svc.cluster.local"
   postgres_url           = "postgresql://${local.postgres_user}:${random_password.openwebui_postgres_password.result}@${local.postgres_host}:${local.postgres_port}/${local.postgres_db}?sslmode=disable"
 
+  # Native MCP (Streamable HTTP) straight to LiteLLM's gateway. Replaced the
+  # MCPO sidecar on 2026-09-25: MCPO converted MCP schemas to OpenAPI, asserted
+  # on valid internal $refs (affine-mcp-server's mindmap/table/collection
+  # tools, "#/properties/docId"), and did one-shot discovery, so one bad schema
+  # silently broke every tool. The native client forwards schemas as-is and
+  # connects per chat. Tool IDs are server:mcp:<info.id>.
   openwebui_tool_server_connections = jsonencode([{
-    type      = "openapi"
-    url       = "http://127.0.0.1:8001/litellm"
+    type      = "mcp"
+    url       = var.litellm_mcp_url
     spec_type = "url"
     spec      = ""
     path      = "openapi.json"
-    auth_type = "bearer"
-    key       = var.secrets["openwebui.mcpo_api_key"]
+    auth_type = "none"
+    key       = ""
+    headers = {
+      "x-litellm-api-key" = "Bearer ${var.secrets["litellm.virtual_keys.openwebui"]}"
+    }
     config = {
       enable = true
-      access_control = {
-        read  = { group_ids = [], user_ids = [] }
-        write = { group_ids = [], user_ids = [] }
-      }
+      # Empty = private, admin-only (OpenWebUI has_connection_access). Same
+      # effective access as the legacy empty access_control block it replaces.
+      access_grants = []
     }
     info = {
       id          = "litellm"
@@ -56,39 +63,6 @@ locals {
       }]
     }
   }])
-
-  # MCPO cannot resolve JSON Schema $refs that point into a tool's own
-  # properties (e.g. "#/properties/docId"); its converter asserts and the whole
-  # LiteLLM server fails to register, so every MCP tool in OpenWebUI returns
-  # "MCP session is not available". affine-mcp-server's mindmap tools (v3.6.0+)
-  # and these block/collection tools emit such refs (seen 2026-09-25 with
-  # affine-mcp-server:latest). MCPO filters disabled tools before conversion.
-  openwebui_mcpo_disabled_tools = [
-    "affine-create_mindmap",
-    "affine-get_mindmap",
-    "affine-add_mindmap_node",
-    "affine-update_mindmap_node",
-    "affine-reparent_mindmap_node",
-    "affine-set_mindmap_style",
-    "affine-set_mindmap_lock",
-    "affine-set_mindmap_layout",
-    "affine-append_block",
-    "affine-create_collection",
-    "affine-update_collection_rules",
-  ]
-
-  mcpo_config = jsonencode({
-    mcpServers = {
-      litellm = {
-        type = "streamable-http"
-        url  = var.litellm_mcp_url
-        headers = {
-          "x-litellm-api-key" = "Bearer ${var.secrets["litellm.virtual_keys.openwebui"]}"
-        }
-        disabledTools = local.openwebui_mcpo_disabled_tools
-      }
-    }
-  })
 }
 
 resource "kubernetes_secret_v1" "openwebui_env" {
@@ -107,25 +81,9 @@ resource "kubernetes_secret_v1" "openwebui_env" {
     DATABASE_URL                = local.postgres_url
     PGVECTOR_DB_URL             = local.postgres_url
     OAUTH_CLIENT_SECRET         = var.openwebui_oauth_client_secret
-    MCPO_API_KEY                = var.secrets["openwebui.mcpo_api_key"]
     TOOL_SERVER_CONNECTIONS     = local.openwebui_tool_server_connections
     OPEN_TERMINAL_API_KEY       = random_password.openwebui_terminal_api_key.result
     TERMINAL_SERVER_CONNECTIONS = local.openwebui_terminal_server_connections
-  }
-
-  type = "Opaque"
-}
-
-resource "kubernetes_secret_v1" "openwebui_mcpo_config" {
-  depends_on = [module.namespace["openwebui"]]
-
-  metadata {
-    name      = "openwebui-mcpo-config"
-    namespace = module.namespace["openwebui"].name
-  }
-
-  data = {
-    "config.json" = local.mcpo_config
   }
 
   type = "Opaque"
@@ -251,7 +209,6 @@ resource "kubernetes_deployment_v1" "openwebui" {
   depends_on = [
     kubectl_manifest.openwebui_cnpg_cluster,
     kubernetes_secret_v1.openwebui_env,
-    kubernetes_secret_v1.openwebui_mcpo_config,
     kubernetes_deployment_v1.litellm,
     kubernetes_persistent_volume_claim_v1.openwebui_data,
     kubernetes_persistent_volume_claim_v1.openwebui_terminal_data,
@@ -300,9 +257,8 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
         }
 
-        # MCPO performs one-shot MCP discovery during startup and does not
-        # restore routes after a failed initial connection. Wait for LiteLLM to
-        # serve traffic before starting either application container.
+        # Wait for LiteLLM to serve traffic so the first chats' native MCP
+        # connections do not race a co-rollout of LiteLLM.
         init_container {
           name  = "wait-for-litellm"
           image = "curlimages/curl:8.21.0"
@@ -632,12 +588,12 @@ resource "kubernetes_deployment_v1" "openwebui" {
             value = "true"
           }
 
-          # Pre-toggle chat features + MCPO tools for new chats (users can still turn them off).
+          # Pre-toggle chat features + LiteLLM MCP tools for new chats (users can still turn them off).
           env {
             name = "DEFAULT_MODEL_METADATA"
             value = jsonencode({
               defaultFeatureIds = ["web_search", "code_interpreter"]
-              toolIds           = ["server:litellm"]
+              toolIds           = ["server:mcp:litellm"]
             })
           }
 
@@ -754,88 +710,6 @@ resource "kubernetes_deployment_v1" "openwebui" {
         }
 
         container {
-          name  = "mcpo"
-          image = local.mcpo_image
-
-          security_context {
-            allow_privilege_escalation = false
-            capabilities {
-              drop = ["ALL"]
-            }
-            run_as_non_root = true
-            run_as_user     = 1000
-            run_as_group    = 1000
-          }
-
-          command = ["/bin/sh", "-c"]
-          args = [
-            "mcpo --config /config/config.json --port 8001 --api-key \"$MCPO_API_KEY\""
-          ]
-
-          env {
-            name = "MCPO_API_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.openwebui_env.metadata[0].name
-                key  = "MCPO_API_KEY"
-              }
-            }
-          }
-
-          port {
-            container_port = 8001
-          }
-          # mcpo does MCP tool discovery exactly once at startup and never
-          # retries. If LiteLLM's /mcp isn't serving yet (co-rollouts: the
-          # wait-for-litellm init gate checks /health/liveliness, which goes
-          # 200 ~15s before /mcp does), discovery times out and mcpo serves an
-          # empty OpenAPI catalog forever. Assert non-empty paths so kubelet
-          # restarts the container into a fresh discovery instead. The image
-          # has no curl/wget; python3 is what runs mcpo itself.
-          startup_probe {
-            exec {
-              command = [
-                "python3", "-c",
-                "import json,os,sys,urllib.request\nreq=urllib.request.Request('http://127.0.0.1:8001/litellm/openapi.json',headers={'Authorization':'Bearer '+os.environ['MCPO_API_KEY']})\nd=json.load(urllib.request.urlopen(req,timeout=5))\nsys.exit(0 if d.get('paths') else 1)",
-              ]
-            }
-            period_seconds    = 10
-            timeout_seconds   = 10 # interpreter start + HTTP fetch; default 1s is too tight
-            failure_threshold = 30 # LiteLLM roll takes ~90s pod-create to /mcp 200; allow 5 min
-          }
-
-          liveness_probe {
-            exec {
-              command = [
-                "python3", "-c",
-                "import json,os,sys,urllib.request\nreq=urllib.request.Request('http://127.0.0.1:8001/litellm/openapi.json',headers={'Authorization':'Bearer '+os.environ['MCPO_API_KEY']})\nd=json.load(urllib.request.urlopen(req,timeout=5))\nsys.exit(0 if d.get('paths') else 1)",
-              ]
-            }
-            period_seconds    = 60
-            timeout_seconds   = 10
-            failure_threshold = 3
-          }
-
-          resources {
-            requests = {
-              cpu    = "50m"
-              memory = "64Mi"
-            }
-            limits = {
-              cpu    = "250m"
-              memory = "256Mi"
-            }
-          }
-
-          volume_mount {
-            name       = "mcpo-config"
-            mount_path = "/config/config.json"
-            sub_path   = "config.json"
-            read_only  = true
-          }
-        }
-
-        container {
           name  = "open-terminal"
           image = local.open_terminal_image
 
@@ -904,13 +778,6 @@ resource "kubernetes_deployment_v1" "openwebui" {
           name = "openwebui-data"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.openwebui_data.metadata[0].name
-          }
-        }
-
-        volume {
-          name = "mcpo-config"
-          secret {
-            secret_name = kubernetes_secret_v1.openwebui_mcpo_config.metadata[0].name
           }
         }
 

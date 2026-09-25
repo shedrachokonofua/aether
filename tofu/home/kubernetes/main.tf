@@ -186,7 +186,7 @@ variable "nextcloud_oauth_client_secret" {
 
 variable "litellm_mcp_url" {
   type        = string
-  description = "LiteLLM MCP endpoint URL used by MCPO"
+  description = "LiteLLM MCP endpoint URL used by OpenWebUI's native MCP client"
 }
 
 variable "litellm_google_maps_api_key" {
