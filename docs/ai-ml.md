@@ -188,33 +188,43 @@ verified. `gemini-embedding-001` and `text-embedding-3-large` remain local Qwen
 embedding compatibility IDs, not Gemini/OpenAI cloud integrations.
 
 Colony's production and example configs are owned by sibling `so/colony`.
-The production config drops the retired DeepSeek fallback, reviews code with
-`supergrok/grok-4.7` (documented 500,000-token context; 65,536-token client
-output budget, not a claimed provider limit), and reviews plans with
-`chatgpt/gpt-6-astra` ahead of the former primary `qwen-cloud/qwen3.8-max`.
-Astra shares the household ChatGPT subscription behind OpenWebUI, so Colony
-caps it at one run and uses it for plan review only, with an operational
-272,000-token context cap because the subscription route's limit is
-unverified. `router/mimo-v2.6-pro` and then `step/step-5-preview` (Step Plan
-subscription, 32,768-token output cap against its verbose prose reasoning)
-join the developer fallbacks ahead of `router/glm-5.3-flash`. A 2026-09-25
-streaming tool-call probe found that Qwen 3.8 Max rejects a forced
-`tool_choice` (HTTP 400) while Astra honours it; MiMo V2.6, Muse Spark,
-DeepSeek V4 Pro, and the Hy4 router answer a named forced `tool_choice` with a
-different tool call, and Step 5 honoured it once in three, so the MiMo and Step
-Colony entries set `supportsForcedToolChoice: false` and finalizers steer them
-instead. Muse Spark's 33-49 s first-token wait on open-ended prose is hidden
-reasoning (4.7k-9.9k unstreamed reasoning tokens) on every leg, including the
-subscription bridge; its agent-shaped tool turns at `xhigh` answer in 1.2-2.8 s.
+Its role chains were re-picked on 2026-09-25 from Colony's run history (45
+days to 2026-09-09), AA Intelligence Index v4.3.2 (plus AA-LCR where exposed),
+and a 98-session role-suitability run through LiteLLM that submitted via
+Colony's real envelope validators with the steer-then-force finalizer:
+
+| Role | Lead | Fallbacks, in order |
+| --- | --- | --- |
+| architect | Muse Spark Contributor | GLM 5.3, Grok 4.7, Kimi K3, MiMo 2.6 Pro, DeepSeek V4 Pro |
+| plan reviewer | GPT-6 Astra | Grok 4.7, Kimi K3, GLM 5.3, MiMo 2.6 Pro, Step 5 Preview |
+| code reviewer | Grok 4.7 | Kimi K3, GLM 5.3, MiMo 2.6 Pro, DeepSeek V4 Pro, Muse Spark 1.3 |
+| developer | Muse Spark Contributor | MiMo 2.6 Pro, Gemini 3.8 Flash, GLM 5.3 Flash, DeepSeek V4 Pro |
+
+No Muse model reviews plans because Muse writes them, and Muse Spark 1.3 is the
+last code-review fallback because Muse writes the code. Qwen 3.8 Max (9-11
+minute sessions, rejects a forced `tool_choice`), Qwen 3.8 Flash (0/2 as
+developer), and Hy4 (no longer free; its launch promotion ended) left Colony.
+Muse Contributor runs up to four concurrent runs after its pool served bursts of
+six concurrent agent turns without errors. Astra shares the household ChatGPT
+subscription behind OpenWebUI, so Colony caps it at one run with an
+operational 272,000-token context cap because the subscription route's limit is
+unverified. MiMo and Step do not honour a named forced `tool_choice`, so their
+Colony entries set `supportsForcedToolChoice: false` and finalizers steer them;
+Step also carries a 32,768-token output cap against its verbose prose reasoning.
+Muse Spark's 33-49 s first-token wait on open-ended prose is hidden reasoning
+(4.7k-9.9k unstreamed reasoning tokens) on every leg, including the subscription
+bridge; its agent-shaped tool turns at `xhigh` answer in 1.2-2.8 s.
 The configuration is baked into Colony's image, so editing the source YAML
 alone does not update a running daemon.
 
 A verified `linux/amd64` SuperGrok bridge image is published under
 `source-grok47-20260925` and pinned by digest in
 [`grok.tf`](../tofu/home/kubernetes/grok.tf). Colony runs the CI-built image
-of `so/colony` commit `7018770`, pinned by digest in
+of `so/colony` commit `907e535`, pinned by digest in
 [`colony.tf`](../tofu/home/kubernetes/colony.tf) and rolled out on
-2026-09-25 while no runs, scopes, or tasks were active.
+2026-09-25 at 14:01Z during two planning scopes: the new daemon adopted and
+resumed the in-flight architect run (audit `run.adopted`), and the one plan
+review in flight was crash-reaped and requeued within two seconds.
 
 After maintenance, quiesce Colony scopes and coordinate the updated SuperGrok
 and Colony images, LiteLLM configuration, virtual-key synchronization,
