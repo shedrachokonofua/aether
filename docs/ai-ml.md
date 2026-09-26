@@ -83,6 +83,12 @@ The subscription routes are `chatgpt/gpt-6-astra`, `chatgpt/gpt-6-sol`, and
 defaults. They declare Responses mode and native streaming explicitly because
 LiteLLM 1.99.1 does not include GPT-6 in its bundled model catalog.
 
+Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
+All three passed streaming Responses inference; streaming Chat Completions
+also passed. Non-streaming Chat Completions failed verification with the
+bundled adapter (`Unknown items in responses API response: []`). No paid
+API-key or OpenRouter fallback is configured.
+
 OpenWebUI's single household model is `router/family` ("Family Assistant"), a
 LiteLLM priority pool: GPT-6 Astra on the ChatGPT subscription (`order: 1`),
 Muse Spark 1.3 on the subscription bridge and Command Code (`order: 2`), then
@@ -103,12 +109,6 @@ with `reasoning.summary: concise`; LiteLLM streams the summary as
 `reasoning_content`, which OpenWebUI shows as a thinking block. Measured on
 2026-09-26, a 250-word explanation showed its summary at 6.8 s and its answer
 at 23.7 s. Colony and the other Muse routes stay on Chat Completions.
-
-Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
-All three passed streaming Responses inference; streaming Chat Completions
-also passed. Non-streaming Chat Completions failed verification with the
-bundled adapter (`Unknown items in responses API response: []`). No paid
-API-key or OpenRouter fallback is configured.
 
 Clinepass also exposes `clinepass/qwen3.8-max`, `clinepass/muse-spark-1.3`,
 and `clinepass/muse-spark-1.3-contributor` as standalone provider pins.
