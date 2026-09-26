@@ -329,6 +329,14 @@ model_list:
   # both its legs, then MiMo V2.6 Pro on the Xiaomi token plan. Picked from
   # the family's own prompts: study/homework, writing, and health questions,
   # 8% needing images and 13% documents, so every leg reads images.
+  #
+  # Muse reasons privately for up to ~50 s before its first token, and Meta
+  # redacts that reasoning on Chat Completions. Its family legs therefore use
+  # the Responses API (openai/responses/) and request a reasoning summary,
+  # which LiteLLM streams as reasoning_content for OpenWebUI's thinking block.
+  # The dict is forwarded verbatim as Responses `reasoning`; it must be
+  # allow-listed or drop_params removes it. Native streaming must be declared
+  # or LiteLLM buffers the whole reply and the summary arrives with the text.
   - model_name: "router/family"
     litellm_params:
       model: "chatgpt/gpt-6-astra"
@@ -338,15 +346,22 @@ model_list:
       supports_native_streaming: true
   - model_name: "router/family"
     litellm_params:
-      model: "openai/muse-subscription/muse-spark-1.3"
+      model: "openai/responses/muse-subscription/muse-spark-1.3"
       litellm_credential_name: muse_bridge_credential
-      use_chat_completions_api: true
+      reasoning_effort: &muse_summary {summary: concise}
+      allowed_openai_params: ["reasoning_effort"]
       order: 2
+    model_info:
+      supports_native_streaming: true
   - model_name: "router/family"
     litellm_params:
-      model: "openai/meta/muse-spark-1.3"
+      model: "openai/responses/meta/muse-spark-1.3"
       litellm_credential_name: commandcode_credential
+      reasoning_effort: *muse_summary
+      allowed_openai_params: ["reasoning_effort"]
       order: 2
+    model_info:
+      supports_native_streaming: true
   - model_name: "router/family"
     litellm_params:
       model: "openai/mimo-v2.6-pro"

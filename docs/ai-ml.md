@@ -96,6 +96,14 @@ reads images. On 2026-09-25 the ChatGPT plan hit its weekly usage limit
 drove about 84% of that day's ChatGPT-route tokens, so the household pool now
 falls through to Muse instead of failing.
 
+Muse reasons privately for up to about 50 seconds before its first token, and
+Meta redacts that reasoning on Chat Completions for external keys. The family
+pool's Muse legs therefore call Meta's Responses API (`openai/responses/…`)
+with `reasoning.summary: concise`; LiteLLM streams the summary as
+`reasoning_content`, which OpenWebUI shows as a thinking block. Measured on
+2026-09-26, a 250-word explanation showed its summary at 6.8 s and its answer
+at 23.7 s. Colony and the other Muse routes stay on Chat Completions.
+
 Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
 All three passed streaming Responses inference; streaming Chat Completions
 also passed. Non-streaming Chat Completions failed verification with the
@@ -135,7 +143,8 @@ bridge. Credentials were updated only in an isolated in-memory store;
 no deployed bridge or OpenBao credential was changed by those checks.
 
 The private Muse bridge exchanges the operator's Muse Code account grant for
-the subscription-backed key and exposes `meta/muse-spark-1.3`.
+the subscription-backed key and exposes `meta/muse-spark-1.3` on both
+`/v1/chat/completions` and `/v1/responses`.
 Rotated OAuth and subscription credentials persist in a dedicated OpenBao
 record; the bridge never falls back to a PAYG Meta key.
 
