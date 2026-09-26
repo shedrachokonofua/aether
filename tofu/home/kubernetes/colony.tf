@@ -22,7 +22,7 @@ data "vault_kv_secret_v2" "colony_litellm" {
 
 locals {
   colony_ns                    = module.namespace["colony"].name
-  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:ec37bb7be19bc9011e3b65c0583a7031cc75bc47be682a6a979768e96f67aa27"
+  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:9e52b60be9fac79f4a3baeea2e398aeed452ef922eca97a022a3189e7a97cca0"
   colony_drain_timeout_seconds = 600
   colony_host                  = "colony.home.shdr.ch"
 
@@ -49,9 +49,17 @@ locals {
     COLONY_OPENAI_COMPATIBLE_API_KEY = data.vault_kv_secret_v2.colony_litellm.data["COLONY_OPENAI_COMPATIBLE_API_KEY"]
     COLONY_SEARXNG_URL               = "https://search.home.shdr.ch"
 
+    # Everything colonyd does on GitLab - merge requests, merges, comments,
+    # minting per-run project tokens - is attributed to GITLAB_TOKEN's owner:
+    # colony-bot.shdr.ch (Maintainer on so and seven30), never a person.
+    # Agent commits carry the same identity so they link to that user.
     GITLAB_BASE_URL       = lookup(local.colony_gitlab_env, "GITLAB_BASE_URL", "https://gitlab.home.shdr.ch")
     GITLAB_TOKEN          = lookup(local.colony_gitlab_env, "GITLAB_TOKEN", lookup(local.colony_gitlab_env, "GITLAB_BOT_ENGINE_TOKEN", ""))
     GITLAB_WEBHOOK_SECRET = lookup(local.colony_gitlab_env, "GITLAB_WEBHOOK_SECRET", "")
+    GIT_AUTHOR_NAME       = "Colony"
+    GIT_AUTHOR_EMAIL      = "colony-bot@shdr.ch"
+    GIT_COMMITTER_NAME    = "Colony"
+    GIT_COMMITTER_EMAIL   = "colony-bot@shdr.ch"
 
     PUBLIC_HOST = local.colony_host
     HOST        = "0.0.0.0"
