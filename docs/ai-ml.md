@@ -162,8 +162,8 @@ Other multi-provider pools are `router/muse-spark-1.3`,
 pool uses Command Code and the private subscription. The Contributor pool uses
 Command Code's Contributor model and the subscription bridge's Contributor
 model. Until 2026-09-26 the bridge leg served standard Muse, so Colony's
-Contributor traffic on that leg (about 94M prompt tokens from 2026-09-25)
-billed the subscription at Standard rates. OpenCode Go is not a Contributor leg: its Muse
+Contributor traffic on that leg (about 94M prompt tokens from 2026-09-25) ran on
+the Standard model. OpenCode Go is not a Contributor leg: its Muse
 Contributor endpoint answered "Endpoint is unavailable" (region-limited per
 OpenCode's docs, 2026-09-25). Both Muse routers require streaming. Hy4 pools
 Command Code and OpenCode Go.
