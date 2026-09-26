@@ -602,7 +602,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           # 2026-09-25 after Anthropic was removed from LiteLLM.
           env {
             name  = "DEFAULT_MODELS"
-            value = "chatgpt/gpt-6-astra"
+            value = "router/family"
           }
 
           # Background tasks (titles, tags, follow-ups, search queries) use
