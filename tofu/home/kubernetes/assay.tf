@@ -544,7 +544,9 @@ resource "helm_release" "assay" {
           messagePattern = "\\bTD\\b[\\s\\S]*\\bsecurity code\\b"
         }
         schedule = {
-          enabled      = true
+          # Off since 2026-09-26: TD blocked the account after the hourly
+          # automated logins. Disabling deletes the Temporal schedule.
+          enabled      = false
           id           = "assay-td-hourly"
           cron         = "0 * * * *"
           timezone     = "America/Toronto"
