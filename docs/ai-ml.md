@@ -83,6 +83,19 @@ The subscription routes are `chatgpt/gpt-6-astra`, `chatgpt/gpt-6-sol`, and
 defaults. They declare Responses mode and native streaming explicitly because
 LiteLLM 1.99.1 does not include GPT-6 in its bundled model catalog.
 
+OpenWebUI's single household model is `router/family` ("Family Assistant"), a
+LiteLLM priority pool: GPT-6 Astra on the ChatGPT subscription (`order: 1`),
+Muse Spark 1.3 on the subscription bridge and Command Code (`order: 2`), then
+MiMo V2.6 Pro on the Xiaomi token plan (`order: 3`). `DEFAULT_MODELS` points
+OpenWebUI at it, and it is the only model entry non-admin users can read. The
+fallbacks were chosen from the family's own prompts (447 unique, March to
+September 2026: study and homework 31%, writing 28%, health 12%; 41% where a
+wrong answer could cause harm; 8% need images and 13% documents), so every leg
+reads images. On 2026-09-25 the ChatGPT plan hit its weekly usage limit
+(`usage_limit_reached`, resetting about 2026-10-02); the `seven30-foundry` key
+drove about 84% of that day's ChatGPT-route tokens, so the household pool now
+falls through to Muse instead of failing.
+
 Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
 All three passed streaming Responses inference; streaming Chat Completions
 also passed. Non-streaming Chat Completions failed verification with the

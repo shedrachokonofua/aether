@@ -323,6 +323,36 @@ model_list:
       mode: responses
       supports_native_streaming: true
 
+  # Household pool: OpenWebUI's single family model. Priority order, not a
+  # shuffle: GPT-6 Astra while the ChatGPT plan has quota (the plan's weekly
+  # limit was exhausted on 2026-09-25 by other keys), then Muse Spark 1.3 on
+  # both its legs, then MiMo V2.6 Pro on the Xiaomi token plan. Picked from
+  # the family's own prompts: study/homework, writing, and health questions,
+  # 8% needing images and 13% documents, so every leg reads images.
+  - model_name: "router/family"
+    litellm_params:
+      model: "chatgpt/gpt-6-astra"
+      order: 1
+    model_info:
+      mode: responses
+      supports_native_streaming: true
+  - model_name: "router/family"
+    litellm_params:
+      model: "openai/muse-subscription/muse-spark-1.3"
+      litellm_credential_name: muse_bridge_credential
+      use_chat_completions_api: true
+      order: 2
+  - model_name: "router/family"
+    litellm_params:
+      model: "openai/meta/muse-spark-1.3"
+      litellm_credential_name: commandcode_credential
+      order: 2
+  - model_name: "router/family"
+    litellm_params:
+      model: "openai/mimo-v2.6-pro"
+      litellm_credential_name: xiaomi_credential
+      order: 3
+
   # Speech via llama-swap + audio.cpp (K8s)
   - model_name: "aether/qwen3-asr"
     litellm_params:
@@ -552,6 +582,9 @@ router_settings:
       routing_strategy: simple-shuffle
     - group_name: router/mimo-v2.6-flash
       models: ["router/mimo-v2.6-flash"]
+      routing_strategy: simple-shuffle
+    - group_name: router/family
+      models: ["router/family"]
       routing_strategy: simple-shuffle
 
 general_settings:
