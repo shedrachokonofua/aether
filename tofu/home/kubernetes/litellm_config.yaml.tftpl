@@ -432,11 +432,11 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
 
-  # The private subscription exposes only the standard model, but also backs
-  # the Contributor router so unavailable public legs cannot stall callers.
+  # The subscription key is also entitled to Meta's Contributor tier, drawing
+  # on the same subscription quota at a fraction of Standard's token price.
   - model_name: "router/muse-spark-1.3-contributor"
     litellm_params:
-      model: "openai/muse-subscription/muse-spark-1.3"
+      model: "openai/muse-subscription/muse-spark-1.3-contributor"
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
 

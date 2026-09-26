@@ -143,8 +143,11 @@ bridge. Credentials were updated only in an isolated in-memory store;
 no deployed bridge or OpenBao credential was changed by those checks.
 
 The private Muse bridge exchanges the operator's Muse Code account grant for
-the subscription-backed key and exposes `meta/muse-spark-1.3` on both
-`/v1/chat/completions` and `/v1/responses`.
+the subscription-backed key and exposes `muse-subscription/muse-spark-1.3` and
+`muse-subscription/muse-spark-1.3-contributor` on both `/v1/chat/completions`
+and `/v1/responses`. The key is entitled to both tiers (Meta's `/v1/models`
+lists them), and both draw on the same subscription quota: on 2026-09-26 each
+returned `Subscription quota exhausted` with the same reset time.
 Rotated OAuth and subscription credentials persist in a dedicated OpenBao
 record; the bridge never falls back to a PAYG Meta key.
 
@@ -156,9 +159,11 @@ including the Clinepass pin; Clinepass is not a pool member.
 
 Other multi-provider pools are `router/muse-spark-1.3`,
 `router/muse-spark-1.3-contributor`, and `router/hy4-preview`. The normal Muse
-pool uses Command Code and the private subscription. The Contributor pool
-uses Command Code and also includes the private standard Muse model; it is
-not a Contributor-only pool. OpenCode Go is not a Contributor leg: its Muse
+pool uses Command Code and the private subscription. The Contributor pool uses
+Command Code's Contributor model and the subscription bridge's Contributor
+model. Until 2026-09-26 the bridge leg served standard Muse, so Colony's
+Contributor traffic on that leg (about 94M prompt tokens from 2026-09-25)
+billed the subscription at Standard rates. OpenCode Go is not a Contributor leg: its Muse
 Contributor endpoint answered "Endpoint is unavailable" (region-limited per
 OpenCode's docs, 2026-09-25). Both Muse routers require streaming. Hy4 pools
 Command Code and OpenCode Go.
