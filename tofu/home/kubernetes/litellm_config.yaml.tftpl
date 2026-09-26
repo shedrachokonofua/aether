@@ -566,6 +566,11 @@ mcp_servers:
     url: "http://localhost:8003/mcp"
   firecrawl:
     url: "http://firecrawl.firecrawl.svc.cluster.local:3007/mcp"
+    # MCP calls default to a 60 s cap (LITELLM_MCP_CLIENT_TIMEOUT). Searches
+    # that scrape several pages overrun it (15 Firecrawl timeouts on
+    # 2026-09-25), and the 504 LiteLLM returns closes the caller's whole MCP
+    # session. 110 s stays under Foundry's 120 s MCP read timeout.
+    timeout: 110
   # coingecko:
   #   url: "http://localhost:8002/"
   finviz:
