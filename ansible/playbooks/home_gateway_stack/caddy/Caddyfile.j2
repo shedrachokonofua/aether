@@ -856,6 +856,7 @@ api.siren.home.shdr.ch {
   @nextcloud host nextcloud.shdr.ch
   @tv host tv.shdr.ch
   @mars host mars.seven30.xyz
+  @seven30_k8s host k8s.seven30.xyz
   @seven30 host seven30.xyz
   @seven30_apps host *.seven30.xyz
   @attaining host attain.ing
@@ -864,6 +865,26 @@ api.siren.home.shdr.ch {
 
   handle @mars {
     respond 404
+  }
+
+  # vcluster service-account issuer: publish ONLY OIDC discovery + JWKS so
+  # Cloudflare Workers (and any off-LAN verifier) can check projected SA
+  # tokens. The API server itself stays LAN/Tailscale-only (k8s.seven30.xyz
+  # vhost above); everything else on this host 404s. Precedes @seven30_apps.
+  handle @seven30_k8s {
+    @oidc path /.well-known/openid-configuration /openid/v1/jwks
+    handle @oidc {
+      reverse_proxy https://10.0.3.21 {
+        header_up Host k8s.seven30.xyz
+        transport http {
+          tls_insecure_skip_verify
+          tls_server_name k8s.seven30.xyz
+        }
+      }
+    }
+    handle {
+      respond "Not Found" 404
+    }
   }
 
   # Private subtree must never be reachable from the public listener. This
