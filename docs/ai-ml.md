@@ -226,7 +226,11 @@ reports 1048576 input tokens although its order-1 Astra leg takes 272000.
 supported parameter, so `drop_params` strips it unless the deployment sets
 `allowed_openai_params: ["reasoning_effort"]`. The allow-list is set on
 the Kimi, Qwen Cloud, Step, OpenCode Go, Xiaomi, CodeBuddy, Clinepass,
-ChatGPT, Muse bridge, SuperGrok, and Antigravity deployments. Command Code
+ChatGPT, Muse bridge, SuperGrok, and Antigravity deployments. These deployments
+and the Ollama legs also declare `supported_openai_params` including
+`reasoning_effort`. LiteLLM derives that list from the provider and ignores
+the allow-list, and OMP sends an effort level only when the list names it.
+Command Code
 legs were left without it: their weekly limit (reset 2026-10-01) prevented
 testing. Ollama legs map it to `think` natively. Z.AI's provider drops it, and
 GLM reasons by default. For `reasoning_effort: "none"`, the Antigravity bridge
