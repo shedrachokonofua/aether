@@ -177,6 +177,15 @@ Current native CNPG flow:
   seaweedfs:s3-identities:deploy` activates the generated config)
 - Kestra PITR restored 2026-07-09 after deploying the missing `kestra-backup` identity
   (ContinuousArchivingSuccess + completed base backup)
+- The Kestra 2.0.3 cutover backup is local to the operator workstation at
+  `~/.aether-toolbox/backups/kestra/pre-2.0.3-20260925/`: `kestra.pgdump`
+  preserves the pre-cancellation database, `kestra-drained.pgdump` was taken
+  after the approved execution discard, and `storage.tar` plus flow exports
+  preserve the local file store and definitions. The pre-cancellation dump
+  and storage were restored into an isolated instance to verify the schema
+  migration. These manual copies are additional recovery points, not a
+  replacement for the scheduled CNPG/offsite backups. Rollback to 1.x
+  requires restoring the database; the 2.0 password rehash is irreversible.
 
 Backrest does **not** mount or snapshot `/mnt/hdd/seaweedfs/current`; that directory is Seaweed's
 live internal storage and is not a stable backup interface.
