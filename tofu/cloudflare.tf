@@ -122,6 +122,46 @@ resource "cloudflare_dns_record" "aether_public_gateway_seven30_wildcard" {
 }
 
 # =============================================================================
+# seven30.dev — Seven30 staging
+# =============================================================================
+# Zone was created by Cloudflare Registrar at purchase; adopt it rather than
+# recreate. Products put staging Workers on <product>.seven30.dev as Worker
+# custom domains from their own tofu; Universal SSL covers *.seven30.dev.
+
+import {
+  to = cloudflare_zone.seven30_staging_domain
+  id = "22f1afd9ef4edfa5a89c100561eb45aa"
+}
+
+resource "cloudflare_zone" "seven30_staging_domain" {
+  provider = cloudflare.seven30
+  account = {
+    id = local.cloudflare_seven30.account_id
+  }
+  name = "seven30.dev"
+  type = "full"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "cloudflare_zone_setting" "seven30_staging_ssl" {
+  provider   = cloudflare.seven30
+  zone_id    = cloudflare_zone.seven30_staging_domain.id
+  setting_id = "ssl"
+  value      = "strict"
+}
+
+# .dev is HSTS-preloaded at the TLD; this is belt-and-braces at the edge.
+resource "cloudflare_zone_setting" "seven30_staging_always_use_https" {
+  provider   = cloudflare.seven30
+  zone_id    = cloudflare_zone.seven30_staging_domain.id
+  setting_id = "always_use_https"
+  value      = "on"
+}
+
+# =============================================================================
 # attain.ing — Attaining studio
 # =============================================================================
 # Zone was created by Cloudflare Registrar at purchase; adopt it rather than
