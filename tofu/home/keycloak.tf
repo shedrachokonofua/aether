@@ -331,12 +331,21 @@ resource "keycloak_user" "shdrch_aether" {
   }
 }
 
+# Realm built-in role; needed for refresh tokens that outlive the SSO session
+# (Colony MCP clients and headless agents request offline_access). This
+# resource is exhaustive, so default-roles-aether does not apply here.
+data "keycloak_role" "aether_offline_access" {
+  realm_id = keycloak_realm.aether.id
+  name     = "offline_access"
+}
+
 resource "keycloak_user_roles" "shdrch_aether_roles" {
   realm_id = keycloak_realm.aether.id
   user_id  = keycloak_user.shdrch_aether.id
   role_ids = [
     keycloak_role.admin.id,
     keycloak_role.dns_admin.id,
+    data.keycloak_role.aether_offline_access.id,
   ]
 }
 
