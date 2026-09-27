@@ -155,8 +155,29 @@ future scope-changing bump.
 - Policy Reporter: `https://policy-reporter.home.shdr.ch`
 - Kestra: `https://kestra.home.shdr.ch`
 
+### Kestra
+
 Kestra's platform resources are owned by
 `tofu/home/kubernetes/kestra.tf`. The automated Grafana alert workflow is owned
 by sibling `../inquest`: its flow IaC creates or updates GitLab incident issues
 and calls Holmes for a human-verified RCA. See `docs/monitoring.md` for the
 interactive and automated investigation boundaries.
+
+Kestra OSS is pinned to application and Helm chart **2.0.3**. It remains a
+standalone deployment with CNPG PostgreSQL, local file storage on the
+`kestra-storage` PVC, and basic API authentication. The deployment uses
+`Recreate` because the storage volume is ReadWriteOnce; upgrades interrupt the
+single pod. The embedded worker/controller use localhost gRPC on port 50051.
+
+Aether flows are managed by `task tofu:kestra-flows:apply`; Inquest has its own
+`task apply` and state. Both flow states use the Kestra 2.x provider. Upgrade
+the platform first, then apply the compatible flow definitions through each
+owner's workflow.
+
+For a 1.x → 2.x cutover, drain or explicitly cancel active/queued executions
+and back up both PostgreSQL and the storage PVC. The 2.0 schema migration
+rebuilds queues and rehashes basic-auth passwords; **an image downgrade alone
+is not a rollback**. Restore the pre-upgrade database and matching storage
+before returning to 1.x. See the
+[upstream migration guide](https://kestra.io/docs/migration-guide/v2.0.0).
+
