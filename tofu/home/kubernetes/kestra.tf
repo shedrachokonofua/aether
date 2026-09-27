@@ -15,7 +15,7 @@
 locals {
   kestra_ns             = module.namespace["kestra"].name
   kestra_host           = "kestra.home.shdr.ch"
-  kestra_chart_version  = "1.0.47"
+  kestra_chart_version  = "2.0.3"
   kestra_cnpg_cluster   = "kestra-cnpg"
   kestra_db             = "kestra"
   kestra_db_user        = "kestra"
@@ -69,7 +69,7 @@ resource "kubernetes_secret_v1" "kestra_config" {
       }
       kestra = {
         server = {
-          basicAuth = {
+          basic-auth = {
             enabled  = true
             username = local.kestra_basic_user
             password = local.kestra_basic_password
@@ -242,7 +242,7 @@ resource "helm_release" "kestra" {
     fullnameOverride = "kestra"
 
     common = {
-      # No arch pin: kestra/kestra:v1.3.9 publishes linux/arm64. Placement is
+      # No arch pin: kestra/kestra:v2.0.3 publishes linux/arm64. Placement is
       # decided by aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
 
       # Recreate (not RollingUpdate): the standalone pod mounts the RWO ceph-rbd

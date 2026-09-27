@@ -14,7 +14,7 @@ terraform {
   required_providers {
     kestra = {
       source  = "kestra-io/kestra"
-      version = "~> 1.0.2"
+      version = "~> 2.0"
     }
     vault = {
       source  = "hashicorp/vault"
