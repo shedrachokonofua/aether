@@ -180,6 +180,14 @@ takes every request while healthy, and the Command Code and OpenCode Go legs
 Clinepass also lists MiMo 2.6 but is not wired: it answers
 `insufficient_credits` (2026-09-25).
 
+Command Code and OpenCode Go deployments set `use_chat_completions_api: true`,
+so LiteLLM serves `/v1/responses` callers through Chat Completions on those
+legs. OpenCode Go answers `ModelProtocolUnsupported` on native `/responses` for
+every model LiteLLM routes to it, and Command Code gave the same answer for MiMo.
+On 2026-09-27 at 14:28 the Xiaomi leg entered its 300-second cooldown. Until
+14:33 every `/v1/responses` request to `router/mimo-v2.6-pro` then failed on
+the unbridged order-2 legs.
+
 The CodeBuddy international route is pinned as `codebuddy/hy4-preview` rather
 than added to the router pool: its endpoint accepts only streaming requests
 whose first message is `system`. Colony's Pi transport satisfies both constraints.
@@ -200,6 +208,37 @@ compatibility aliases were removed; the Holmes, OMP, and Colony key allowlists
 use canonical model names.
 Upstream `litellm_params.model` identifiers and Colony's client-local model
 labels are not gateway aliases.
+
+Clients such as OMP and Pi discover capabilities from `/model_group/info`.
+LiteLLM fills those fields from its bundled model map, which has no entry for
+the custom `openai/<id>` backends, so every chat deployment except the native
+`zai/` legs declares `model_info` in
+[`litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl):
+`mode`, `supports_reasoning`, `supports_function_calling`, `supports_vision`,
+`max_input_tokens`, and `max_output_tokens` where one is published. Speech,
+rerank, and embedding routes declare `audio_transcription`, `audio_speech`,
+`rerank`, or `embedding`. LiteLLM 1.99.1 builds a group's entry from the first
+deployment's `mode`, sets a `supports_*` flag if any deployment sets it, and
+reports the largest token limit among the legs. `router/family` therefore
+reports 1048576 input tokens although its order-1 Astra leg takes 272000.
+
+`openai/` and `chatgpt/` deployments do not list `reasoning_effort` as a
+supported parameter, so `drop_params` strips it unless the deployment sets
+`allowed_openai_params: ["reasoning_effort"]`. The allow-list is set on
+the Kimi, Qwen Cloud, Step, OpenCode Go, Xiaomi, CodeBuddy, Clinepass,
+ChatGPT, Muse bridge, SuperGrok, and Antigravity deployments. Command Code
+legs were left without it: their weekly limit (reset 2026-10-01) prevented
+testing. Ollama legs map it to `think` natively. Z.AI's provider drops it, and
+GLM reasons by default. For `reasoning_effort: "none"`, the Antigravity bridge
+selects Gemini's thinking-off route. The Muse bridge raises it to `minimal`,
+because Meta rejects `none`. ChatGPT returns reasoning text only when a summary
+is requested, for example `reasoning_effort: {effort: high, summary: auto}`.
+
+Local llama-swap variants have a fixed thinking mode:
+`setParamsByID` overrides the client's `chat_template_kwargs`, so base IDs
+never think and `:code`/`:think` IDs always do. On 2026-09-27, neither
+`reasoning_effort` nor a client `enable_thinking` changed that for
+`qwen3.8-27b`. Base variants therefore report `supports_reasoning: false`.
 
 The declared retirement removes Kimi K2.x, pre-5.3 GLM, DeepSeek V4 Flash,
 MiMo V2.5 Pro, pre-3.8 Gemini chat models, direct OpenAI API-key models, and
