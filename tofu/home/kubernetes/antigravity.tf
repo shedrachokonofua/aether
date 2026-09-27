@@ -6,7 +6,7 @@
 # an independent random bearer token. Tool execution remains client-owned.
 
 locals {
-  antigravity_image         = "registry.gitlab.home.shdr.ch/so/antigravity-bridge@sha256:052d117185e89359a39f277c9dba2eb0e5f9abce7c14f596cf8ad053b525e7aa"
+  antigravity_image         = "registry.gitlab.home.shdr.ch/so/antigravity-bridge@sha256:5dd6eb1f43c582cb8c51675159645b7b9f3629fa4f6ea9fd44b2f734990acc57"
   antigravity_host          = "antigravity.home.shdr.ch"
   antigravity_port          = 8080
   antigravity_ns            = module.namespace["antigravity"].name
