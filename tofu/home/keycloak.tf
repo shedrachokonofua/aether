@@ -1873,3 +1873,130 @@ resource "keycloak_openid_client_service_account_realm_role" "colony_operator_ad
   service_account_user_id = keycloak_openid_client.colony_operator.service_account_user_id
   role                    = "admin"
 }
+
+# Colony agent access (MCP at https://colony.home.shdr.ch/mcp and the colony
+# CLI). Keycloak 26.6 ignores the RFC 8707 `resource` parameter, so the `mcp`
+# client scope stamps both audiences colonyd accepts. Clients are pre-registered
+# rather than dynamically registered: DCR clients get full scope disabled by
+# default and would lack the admin realm role colonyd requires.
+locals {
+  colony_mcp_resource = "https://colony.home.shdr.ch/mcp"
+}
+
+resource "keycloak_openid_client_scope" "colony_mcp" {
+  realm_id               = keycloak_realm.aether.id
+  name                   = "mcp"
+  description            = "Access to the Colony MCP server"
+  include_in_token_scope = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "colony_mcp_resource_audience" {
+  realm_id        = keycloak_realm.aether.id
+  client_scope_id = keycloak_openid_client_scope.colony_mcp.id
+  name            = "colony-mcp-resource-audience"
+
+  included_custom_audience = local.colony_mcp_resource
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "colony_mcp_client_audience" {
+  realm_id        = keycloak_realm.aether.id
+  client_scope_id = keycloak_openid_client_scope.colony_mcp.id
+  name            = "colony-mcp-client-audience"
+
+  included_client_audience = keycloak_openid_client.colony.client_id
+  add_to_access_token      = true
+}
+
+# Device login for the colony CLI and headless agents (Hermes). offline_access
+# is requested by the client (it is a realm optional scope) so the refresh
+# token outlives the SSO session.
+resource "keycloak_openid_client" "colony_cli" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "colony-cli"
+  name      = "Colony CLI and agents"
+  enabled   = true
+
+  access_type                               = "PUBLIC"
+  standard_flow_enabled                     = false
+  direct_access_grants_enabled              = false
+  implicit_flow_enabled                     = false
+  consent_required                          = false
+  oauth2_device_authorization_grant_enabled = true
+}
+
+resource "keycloak_openid_client_default_scopes" "colony_cli_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.colony_cli.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+    keycloak_openid_client_scope.colony_mcp.name,
+  ]
+}
+
+# Local MCP clients (Claude Code: --client-id colony-mcp --callback-port 4401).
+resource "keycloak_openid_client" "colony_mcp" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "colony-mcp"
+  name      = "Colony MCP (local apps)"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  consent_required             = false
+  pkce_code_challenge_method   = "S256"
+
+  valid_redirect_uris = [
+    "http://localhost:4401/callback",
+    "http://127.0.0.1:4401/callback",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "colony_mcp_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.colony_mcp.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+    keycloak_openid_client_scope.colony_mcp.name,
+  ]
+}
+
+# OpenWebUI MCP connection "colony" in OAuth 2.1 (Static) mode. OpenWebUI
+# builds its MCP callback as {WEBUI_URL}/oauth/clients/mcp:<connection id>/callback.
+resource "keycloak_openid_client" "colony_openwebui" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "colony-openwebui"
+  name      = "Colony MCP (OpenWebUI)"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  consent_required             = false
+  pkce_code_challenge_method   = "S256"
+
+  valid_redirect_uris = [
+    "https://ai.shdr.ch/oauth/clients/mcp:colony/callback",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "colony_openwebui_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.colony_openwebui.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+    keycloak_openid_client_scope.colony_mcp.name,
+  ]
+}

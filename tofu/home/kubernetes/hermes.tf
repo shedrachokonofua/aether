@@ -134,6 +134,18 @@ locals {
             timeout         = 60
             connect_timeout = 15
           }
+          colony = {
+            # OAuth via Keycloak device login (one-time, persisted under
+            # HERMES_HOME): hermes mcp login colony --flow device
+            url  = "https://colony.home.shdr.ch/mcp"
+            auth = "oauth"
+            oauth = {
+              flow      = "device"
+              client_id = "colony-cli"
+            }
+            timeout         = 120
+            connect_timeout = 15
+          }
           instacart = {
             # Cluster DNS (hairpin conversion); browser-backed shopping tools
             # can be slow, so keep a generous call timeout.
