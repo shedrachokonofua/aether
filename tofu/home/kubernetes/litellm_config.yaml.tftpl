@@ -8,6 +8,12 @@
 #
 # reasoning_effort: `openai/` deployments do not list it as a supported
 # param, so drop_params strips it unless allowed_openai_params names it.
+# Clients read the same gap from /model_group/info: omp sends an effort only
+# when supported_openai_params lists reasoning_effort, and LiteLLM computes
+# that list from the provider, not allowed_openai_params. Every leg that
+# forwards reasoning_effort therefore declares supported_openai_params (the
+# provider's own list plus reasoning_effort). A group reports the list of its
+# LAST deployment, so every leg declares it.
 model_list:
   # llama-swap (K8s) — AFFiNE Copilot streams via /v1/responses; bridge to chat/completions.
   # The qwen3.8-27b routes are one pinned llama-server (4 slots sharing a
@@ -124,31 +130,31 @@ model_list:
       model: "openai/cline-pass/glm-5.3-flash"
       litellm_credential_name: clinepass_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: &openai_reasoning_params [frequency_penalty, logit_bias, logprobs, top_logprobs, max_tokens, max_completion_tokens, modalities, prediction, n, presence_penalty, seed, stop, stream, stream_options, temperature, top_p, tools, tool_choice, function_call, functions, max_retries, extra_headers, parallel_tool_calls, audio, web_search_options, service_tier, safety_identifier, prompt_cache_key, prompt_cache_retention, store, response_format, reasoning_effort]}
   - model_name: "clinepass/qwen3.8-max"
     litellm_params:
       model: "openai/cline-pass/qwen3.8-max"
       litellm_credential_name: clinepass_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "clinepass/muse-spark-1.3"
     litellm_params:
       model: "openai/meta/muse-spark-1.3"
       litellm_credential_name: clinepass_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "clinepass/muse-spark-1.3-contributor"
     litellm_params:
       model: "openai/meta/muse-spark-1.3-contributor"
       litellm_credential_name: clinepass_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "clinepass/hy4-preview"
     litellm_params:
       model: "openai/tencent/hy4-preview"
       litellm_credential_name: clinepass_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
 
   # CodeBuddy's Hy4 preview endpoint is stream-only and requires a leading
   # system message. Keep it standalone so generic router traffic cannot select it.
@@ -162,7 +168,7 @@ model_list:
       # Preserve the upstream quota/reset error on this single-leg route.
       # A generic router cooldown cannot make the subscription allowance reset.
       cooldown_time: 0
-    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
 
   # Kimi Coding models (https://api.kimi.com/coding/v1 — OpenAI-compatible).
   # Context and image input from the endpoint's /models; K3 always thinks
@@ -172,7 +178,7 @@ model_list:
       model: "openai/k3"
       litellm_credential_name: kimi_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Qwen Cloud models (https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1)
   # Limits: models.dev `alibaba-token-plan`.
@@ -181,13 +187,13 @@ model_list:
       model: "openai/qwen3.8-max"
       litellm_credential_name: qwen_cloud_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "qwen-cloud/qwen3.8-flash"
     litellm_params:
       model: "openai/qwen3.8-flash"
       litellm_credential_name: qwen_cloud_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Step Plan subscription — no PAYG fallback.
   # Input limit, vision and reasoning from the endpoint's /models.
@@ -196,7 +202,7 @@ model_list:
       model: "openai/step-5-preview"
       litellm_credential_name: step_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # GLM 5.3 and GLM 5.3 Flash stay in separate model pools.
   # `zai/` is a native LiteLLM provider: its bundled model map already
@@ -319,7 +325,7 @@ model_list:
         x-opencode-session: "aether-litellm"
         User-Agent: "aether-litellm/1.0"
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
       model: "openai/glm-5.3-flash"
@@ -327,7 +333,7 @@ model_list:
       use_chat_completions_api: true
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "opencode-go/hy4-preview"
     litellm_params:
       model: "openai/hy4-preview"
@@ -335,7 +341,7 @@ model_list:
       use_chat_completions_api: true
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/hy4-preview"
     litellm_params:
       model: "openai/hy4-preview"
@@ -343,7 +349,7 @@ model_list:
       use_chat_completions_api: true
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   - model_name: "opencode-go/mimo-v2.6-pro"
     litellm_params:
       model: "openai/mimo-v2.6-pro"
@@ -351,7 +357,7 @@ model_list:
       use_chat_completions_api: true
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
       model: "openai/mimo-v2.6-pro"
@@ -360,7 +366,7 @@ model_list:
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
       order: 2
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "opencode-go/mimo-v2.6-flash"
     litellm_params:
       model: "openai/mimo-v2.6-flash"
@@ -368,7 +374,7 @@ model_list:
       use_chat_completions_api: true
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-flash"
     litellm_params:
       model: "openai/mimo-v2.6-flash"
@@ -377,7 +383,7 @@ model_list:
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
       order: 2
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Xiaomi MiMo token plan (https://token-plan-sgp.xiaomimimo.com/v1).
   # Priority leg of the router/mimo-* pools: order 1 takes every request while
@@ -390,27 +396,27 @@ model_list:
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
       order: 1
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "xiaomi/mimo-v2.6-flash"
     litellm_params:
       model: "openai/mimo-v2.6-flash"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-flash"
     litellm_params:
       model: "openai/mimo-v2.6-flash"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
       order: 1
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Ollama Cloud models. Context and capabilities (tools/thinking/vision)
   # from Ollama's /api/show; output limits from models.dev `ollama-cloud`.
@@ -419,28 +425,28 @@ model_list:
     litellm_params:
       model: "ollama_chat/glm-5.3-flash"
       litellm_credential_name: ollama_cloud_credential
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: &ollama_reasoning_params [max_tokens, max_completion_tokens, stream, top_p, temperature, seed, frequency_penalty, stop, tools, tool_choice, functions, response_format, reasoning_effort]}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
       model: "ollama_chat/glm-5.3-flash"
       litellm_credential_name: ollama_cloud_credential
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *ollama_reasoning_params}
   - model_name: "router/glm-5.3"
     litellm_params:
       model: "ollama_chat/glm-5.3:cloud"
       litellm_credential_name: ollama_cloud_credential
       weight: 1
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *ollama_reasoning_params}
   - model_name: "router/deepseek-v4-pro"
     litellm_params:
       model: "ollama_chat/deepseek-v4-pro:cloud"
       litellm_credential_name: ollama_cloud_credential
-    model_info: {mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
+    model_info: {mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *ollama_reasoning_params}
   - model_name: "router/minimax-m3"
     litellm_params:
       model: "ollama_chat/minimax-m3"
       litellm_credential_name: ollama_cloud_credential
-    model_info: {mode: chat, max_input_tokens: 512000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 512000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *ollama_reasoning_params}
 
   # ChatGPT subscription OAuth — native Responses API; no PAYG fallback.
   # GPT-6 is not in LiteLLM's bundled catalog yet; declare native streaming.
@@ -455,17 +461,17 @@ model_list:
     litellm_params:
       model: "chatgpt/gpt-6-astra"
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: &chatgpt_reasoning_params [frequency_penalty, logit_bias, logprobs, top_logprobs, max_tokens, max_completion_tokens, modalities, prediction, n, presence_penalty, seed, stop, stream, stream_options, temperature, top_p, tools, tool_choice, function_call, functions, max_retries, extra_headers, parallel_tool_calls, audio, web_search_options, service_tier, safety_identifier, prompt_cache_key, prompt_cache_retention, store, response_format, reasoning_effort, user]}
   - model_name: "chatgpt/gpt-6-sol"
     litellm_params:
       model: "chatgpt/gpt-6-sol"
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
   - model_name: "chatgpt/gpt-6-luna"
     litellm_params:
       model: "chatgpt/gpt-6-luna"
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
 
   # Household pool: OpenWebUI's single family model. Priority order, not a
   # shuffle: GPT-6 Astra while the ChatGPT plan has quota (the plan's weekly
@@ -489,7 +495,7 @@ model_list:
       model: "chatgpt/gpt-6-astra"
       allowed_openai_params: ["reasoning_effort"]
       order: 1
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
   - model_name: "router/family"
     litellm_params:
       model: "openai/responses/muse-subscription/muse-spark-1.3"
@@ -497,7 +503,7 @@ model_list:
       reasoning_effort: &muse_summary {summary: concise}
       allowed_openai_params: ["reasoning_effort"]
       order: 2
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/family"
     litellm_params:
       model: "openai/responses/meta/muse-spark-1.3"
@@ -505,14 +511,14 @@ model_list:
       reasoning_effort: *muse_summary
       allowed_openai_params: ["reasoning_effort"]
       order: 2
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/family"
     litellm_params:
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
       order: 3
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Speech via llama-swap + audio.cpp (K8s)
   - model_name: "aether/qwen3-asr"
@@ -575,7 +581,7 @@ model_list:
       litellm_credential_name: antigravity_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Private Muse Code subscription bridge. This deployment never falls back to PAYG.
   # The bridge relays reasoning_effort to Meta (minimal..max) and raises
@@ -587,14 +593,14 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/muse-spark-1.3"
     litellm_params:
       model: "openai/muse-subscription/muse-spark-1.3"
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # The subscription key is also entitled to Meta's Contributor tier, drawing
   # on the same subscription quota at a fraction of Standard's token price.
@@ -604,7 +610,7 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Private SuperGrok subscription pins. The bridge owns native Responses
   # translation; stock LiteLLM uses Chat Completions with no PAYG fallback.
@@ -630,6 +636,7 @@ model_list:
       supports_function_calling: true
       supports_reasoning: true
       supports_vision: true
+      supported_openai_params: *openai_reasoning_params
 
 credential_list:
   - credential_name: llama_swap_credential
@@ -802,6 +809,15 @@ mcp_servers:
     url: "http://localhost:8005/mcp"
     auth_type: bearer_token
     auth_value: "${affine_mcp_http_token}"
+  colony:
+    # Colony control plane. LiteLLM fetches and refreshes Keycloak
+    # client-credentials tokens itself (client colony-litellm, keycloak.tf).
+    url: "https://colony.home.shdr.ch/mcp"
+    auth_type: oauth2
+    oauth2_flow: client_credentials
+    client_id: "colony-litellm"
+    client_secret: "${colony_mcp_client_secret}"
+    token_url: "https://auth.shdr.ch/realms/aether/protocol/openid-connect/token"
   espn:
     url: "http://localhost:8080/mcp"
   tmdb:

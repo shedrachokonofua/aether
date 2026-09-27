@@ -1969,29 +1969,26 @@ resource "keycloak_openid_client_default_scopes" "colony_mcp_default_scopes" {
   ]
 }
 
-# OpenWebUI MCP connection "colony" in OAuth 2.1 (Static) mode. OpenWebUI
-# builds its MCP callback as {WEBUI_URL}/oauth/clients/mcp:<connection id>/callback.
-resource "keycloak_openid_client" "colony_openwebui" {
+# LiteLLM's MCP gateway (which OpenWebUI reads tools from) reaches Colony as
+# a machine client: LiteLLM mints, caches, and refreshes client-credentials
+# tokens itself (auth_type oauth2, oauth2_flow client_credentials). Colony
+# ledgers these calls as svc:colony-litellm.
+resource "keycloak_openid_client" "colony_litellm" {
   realm_id  = keycloak_realm.aether.id
-  client_id = "colony-openwebui"
-  name      = "Colony MCP (OpenWebUI)"
+  client_id = "colony-litellm"
+  name      = "Colony MCP (LiteLLM gateway)"
   enabled   = true
 
   access_type                  = "CONFIDENTIAL"
-  standard_flow_enabled        = true
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
   direct_access_grants_enabled = false
   implicit_flow_enabled        = false
-  consent_required             = false
-  pkce_code_challenge_method   = "S256"
-
-  valid_redirect_uris = [
-    "https://ai.shdr.ch/oauth/clients/mcp:colony/callback",
-  ]
 }
 
-resource "keycloak_openid_client_default_scopes" "colony_openwebui_default_scopes" {
+resource "keycloak_openid_client_default_scopes" "colony_litellm_default_scopes" {
   realm_id  = keycloak_realm.aether.id
-  client_id = keycloak_openid_client.colony_openwebui.id
+  client_id = keycloak_openid_client.colony_litellm.id
 
   default_scopes = [
     "profile",
@@ -1999,4 +1996,10 @@ resource "keycloak_openid_client_default_scopes" "colony_openwebui_default_scope
     "roles",
     keycloak_openid_client_scope.colony_mcp.name,
   ]
+}
+
+resource "keycloak_openid_client_service_account_realm_role" "colony_litellm_admin" {
+  realm_id                = keycloak_realm.aether.id
+  service_account_user_id = keycloak_openid_client.colony_litellm.service_account_user_id
+  role                    = "admin"
 }

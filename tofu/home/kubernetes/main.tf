@@ -166,6 +166,12 @@ variable "assay_allowed_email" {
   description = "Email address allowed to access the Assay Cockpit"
 }
 
+variable "colony_litellm_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Keycloak client secret LiteLLM uses to reach the Colony MCP server"
+}
+
 variable "openwebui_oauth_client_secret" {
   type        = string
   sensitive   = true
