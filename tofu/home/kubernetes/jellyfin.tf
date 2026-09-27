@@ -2,7 +2,7 @@
 # Jellyfin — Media Server
 # =============================================================================
 # Migrated from media_stack podman quadlet to Kubernetes.
-# GPU transcoding via talos-neo (RTX Pro 6000).
+# GPU transcoding on whichever node has a free nvidia.com/gpu slice (talos-neo or talos-smith).
 # Includes rclone sidecar for nzbdav WebDAV mount.
 
 locals {
@@ -238,6 +238,33 @@ locals {
   })
 
   jellyfin_logging_sha = sha256(local.jellyfin_logging_config)
+
+  # Reconciled into the config PVC on every start; Jellyfin's UI would otherwise
+  # own these files.
+  #  - EnableSubtitleExtraction=false: extracting embedded subtitles makes ffmpeg
+  #    read the whole source. For Gelato's remote debrid streams that is a full
+  #    download per track, which saturated the pod's ~1Gbps link while the
+  #    client got 1-9Mbps (2026-09-26 buffering).
+  #  - Only the newest Gelato_* plugin dir is kept: auto-update left a superseded
+  #    copy (0.26.19.2 beside 0.26.20.0), both marked Active.
+  jellyfin_reconcile_script = <<-SH
+    set -eu
+    enc=/config/config/encoding.xml
+    if [ -f "$enc" ]; then
+      if grep -q '<EnableSubtitleExtraction>' "$enc"; then
+        sed -i 's#<EnableSubtitleExtraction>[^<]*</EnableSubtitleExtraction>#<EnableSubtitleExtraction>false</EnableSubtitleExtraction>#' "$enc"
+      else
+        sed -i 's#</EncodingOptions>#  <EnableSubtitleExtraction>false</EnableSubtitleExtraction>\n</EncodingOptions>#' "$enc"
+      fi
+      echo "encoding.xml: $(grep -o '<EnableSubtitleExtraction>[^<]*' "$enc")"
+    fi
+    newest=$(ls -d /config/plugins/Gelato_* 2>/dev/null | sort -V | tail -n 1 || true)
+    for d in /config/plugins/Gelato_*; do
+      [ -d "$d" ] && [ "$d" != "$newest" ] || continue
+      echo "removing superseded plugin $d"
+      rm -rf -- "$d"
+    done
+  SH
 }
 
 resource "kubernetes_config_map_v1" "jellyfin_logging" {
@@ -289,6 +316,7 @@ resource "kubernetes_deployment_v1" "jellyfin" {
         labels = local.jellyfin_labels
         annotations = {
           "checksum/logging-config" = local.jellyfin_logging_sha
+          "checksum/reconcile"      = sha256(local.jellyfin_reconcile_script)
         }
       }
 
@@ -296,6 +324,22 @@ resource "kubernetes_deployment_v1" "jellyfin" {
         runtime_class_name = "nvidia"
 
         node_selector = local.gpu_node_selector
+
+        init_container {
+          name    = "reconcile-config"
+          image   = local.jellyfin_image
+          command = ["sh", "-c", local.jellyfin_reconcile_script]
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/config"
+          }
+
+          resources {
+            requests = { cpu = "10m", memory = "16Mi" }
+            limits   = { memory = "64Mi" }
+          }
+        }
 
         # Jellyfin container
         container {
