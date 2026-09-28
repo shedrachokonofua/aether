@@ -232,7 +232,10 @@ resource "keycloak_openid_client_default_scopes" "seven30_cli_default_scopes" {
   realm_id  = keycloak_realm.seven30.id
   client_id = keycloak_openid_client.seven30_cli.id
 
+  # `basic` carries the sub claim (Keycloak 25+ moved sub out of the token
+  # defaults). Without it, s30 tokens have no sub and Palisade rejects them.
   default_scopes = [
+    "basic",
     "profile",
     "email",
     "roles",
