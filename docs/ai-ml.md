@@ -165,8 +165,10 @@ model. Until 2026-09-26 the bridge leg served standard Muse, so Colony's
 Contributor traffic on that leg (about 94M prompt tokens from 2026-09-25) ran on
 the Standard model. OpenCode Go is not a Contributor leg: its Muse
 Contributor endpoint answered "Endpoint is unavailable" (region-limited per
-OpenCode's docs, 2026-09-25). Both Muse routers require streaming. Hy4 pools
-Command Code and OpenCode Go.
+OpenCode's docs, 2026-09-25). Both Muse routers require streaming. Both are
+priority pools: the subscription bridge leg (`order: 1`) takes every request
+while healthy, and Command Code (`order: 2`) serves only while the
+subscription is failing or cooling down. Hy4 pools Command Code and OpenCode Go.
 
 `router/deepseek-v4-pro` and `router/minimax-m3` each have one Ollama Cloud
 backend. Their `router/*` names remain canonical.
