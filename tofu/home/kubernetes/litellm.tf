@@ -99,7 +99,8 @@ resource "kubernetes_secret_v1" "litellm_config" {
   }
 
   data = {
-    "config.yaml" = local.litellm_config_yaml
+    "config.yaml"     = local.litellm_config_yaml
+    "aether_hooks.py" = file("${path.module}/litellm_hooks.py")
   }
 
   type = "Opaque"
@@ -212,6 +213,7 @@ resource "kubernetes_deployment_v1" "litellm" {
         labels = local.litellm_labels
         annotations = {
           "aether.shdr.ch/config-sha"       = sha256(local.litellm_config_yaml)
+          "aether.shdr.ch/hooks-sha"        = filesha256("${path.module}/litellm_hooks.py")
           "aether.shdr.ch/database-url-sha" = sha256(local.litellm_database_url)
           "aether.shdr.ch/env-sha"          = nonsensitive(sha256(jsonencode(kubernetes_secret_v1.litellm_env.data)))
         }
@@ -436,6 +438,13 @@ resource "kubernetes_deployment_v1" "litellm" {
             name       = "litellm-config"
             mount_path = "/app/config.yaml"
             sub_path   = "config.yaml"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "litellm-config"
+            mount_path = "/app/aether_hooks.py"
+            sub_path   = "aether_hooks.py"
             read_only  = true
           }
 

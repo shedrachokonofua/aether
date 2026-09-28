@@ -726,6 +726,10 @@ credential_list:
 
 litellm_settings:
   drop_params: true
+  # litellm_hooks.py (mounted as /app/aether_hooks.py): flattens the Responses
+  # `reasoning` object that LiteLLM copies into reasoning_effort when it
+  # bridges /v1/responses onto Chat Completions backends.
+  callbacks: aether_hooks.chat_reasoning_effort
   turn_off_message_logging: false
   set_verbose: false
   json_logs: true
