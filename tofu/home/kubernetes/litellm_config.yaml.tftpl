@@ -595,6 +595,11 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+      # Muse reasons silently on large agent contexts: the global 120 s cut
+      # aborted in-progress turns (0 bytes relayed) and the timeout then
+      # cooled the subscription (col-a06fd636, 2026-09-28). Match Grok.
+      timeout: 900
+      stream_timeout: 900
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/muse-spark-1.3"
     litellm_params:
@@ -602,6 +607,8 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+      timeout: 900
+      stream_timeout: 900
       # Priority leg: takes every request while healthy; Command Code (order 2)
       # serves only while the subscription is failing or cooling down.
       order: 1
@@ -615,6 +622,8 @@ model_list:
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+      timeout: 900
+      stream_timeout: 900
       order: 1
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
@@ -632,8 +641,8 @@ model_list:
       # A single-leg subscription route cannot fail over. Preserve the actual
       # upstream error instead of turning one transient failure into 5m of 429s.
       cooldown_time: 0
-      timeout: 660
-      stream_timeout: 660
+      timeout: 900
+      stream_timeout: 900
     model_info:
       input_cost_per_token: 0
       output_cost_per_token: 0
