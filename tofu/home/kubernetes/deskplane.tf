@@ -10,8 +10,8 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-c0796ff2"
-  deskplane_image_tag     = "c0796ff2"
+  deskplane_chart_version = "0.1.0-83ba3ea0"
+  deskplane_image_tag     = "83ba3ea0"
   # CI rebuilds a session image only when images/<name>/** changes and tags
   # it with that pipeline's commit (the push head, not necessarily the commit
   # that touched the image) -- check the registry before bumping.
