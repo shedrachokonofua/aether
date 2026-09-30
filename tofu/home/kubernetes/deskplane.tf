@@ -7,20 +7,38 @@
 # Public URL: https://desk.home.shdr.ch
 
 locals {
-  deskplane_namespace      = "deskplane"
-  deskplane_host           = "desktop.home.shdr.ch"
-  deskplane_public_url     = "https://${local.deskplane_host}"
-  deskplane_chart_version  = "0.1.0-3282fece"
-  deskplane_image_tag      = "9143feba"
-  deskplane_registry_host  = "registry.gitlab.home.shdr.ch"
-  deskplane_registry_user  = var.secrets["gitlab.root_email"]
-  deskplane_registry_pass  = var.secrets["gitlab.root_password"]
-  deskplane_registry_image = "${local.deskplane_registry_host}/so/deskplane"
+  deskplane_namespace     = "deskplane"
+  deskplane_host          = "desktop.home.shdr.ch"
+  deskplane_public_url    = "https://${local.deskplane_host}"
+  deskplane_chart_version = "0.1.0-c0796ff2"
+  deskplane_image_tag     = "c0796ff2"
+  # CI rebuilds a session image only when images/<name>/** changes and tags
+  # it with that pipeline's commit (the push head, not necessarily the commit
+  # that touched the image) -- check the registry before bumping.
+  deskplane_headless_chromium_tag = "2d2c9e13"
+  deskplane_chrome_cdp_tag        = "c0796ff2"
+  deskplane_registry_host         = "registry.gitlab.home.shdr.ch"
+  deskplane_registry_user         = var.secrets["gitlab.root_email"]
+  deskplane_registry_pass         = var.secrets["gitlab.root_password"]
+  deskplane_registry_image        = "${local.deskplane_registry_host}/so/deskplane"
   deskplane_node_selector = {
     "kubernetes.io/hostname" = "talos-smith"
   }
   deskplane_mcp_token   = var.secrets["deskplane.mcp_api_token"]
   deskplane_mcp_llm_key = var.secrets["litellm.virtual_keys.deskplane_mcp"]
+
+  # The rotating SOCKS5 proxy runs on the home gateway VM, which is also the
+  # Caddy that fronts s3.seaweed.home.shdr.ch (SeaweedFS S3 + STS).
+  deskplane_gateway_vm_ip       = split(":", var.rotating_proxy_addr)[0]
+  deskplane_rotating_proxy_port = tonumber(split(":", var.rotating_proxy_addr)[1])
+  # Web-engine proxy tier, applied per browser context inside the session
+  # pods; proxy=auto retries a blocked page once through the first entry.
+  deskplane_web_proxies = [
+    {
+      name = "aether-rotating"
+      url  = "socks5://${var.rotating_proxy_addr}"
+    },
+  ]
 }
 
 
@@ -86,6 +104,33 @@ resource "kubernetes_secret_v1" "deskplane_mcp_llm_key" {
   type = "Opaque"
 }
 
+# Fernet key for saved browser profiles (encrypted storage state in the
+# object store). Losing it makes existing profiles unreadable, nothing more.
+resource "random_bytes" "deskplane_web_profile_key" {
+  length = 32
+}
+
+# HMAC secret signing monitor/job webhook deliveries.
+resource "random_password" "deskplane_web_webhook_secret" {
+  length  = 48
+  special = false
+}
+
+resource "kubernetes_secret_v1" "deskplane_web" {
+  depends_on = [module.namespace["deskplane"]]
+  metadata {
+    name      = "deskplane-web"
+    namespace = local.deskplane_namespace
+  }
+  data = {
+    proxies = jsonencode(local.deskplane_web_proxies)
+    # Fernet wants URL-safe base64; random_bytes emits the standard alphabet.
+    profile-key    = replace(replace(random_bytes.deskplane_web_profile_key.base64, "+", "-"), "/", "_")
+    webhook-secret = random_password.deskplane_web_webhook_secret.result
+  }
+  type = "Opaque"
+}
+
 resource "helm_release" "deskplane" {
   depends_on = [
     module.namespace["deskplane"],
@@ -93,6 +138,7 @@ resource "helm_release" "deskplane" {
     kubernetes_secret_v1.deskplane_oidc,
     kubernetes_secret_v1.deskplane_mcp_token,
     kubernetes_secret_v1.deskplane_mcp_llm_key,
+    kubernetes_secret_v1.deskplane_web,
     kubernetes_storage_class_v1.ceph_rbd,
     kubernetes_manifest.main_gateway,
   ]
@@ -139,6 +185,28 @@ resource "helm_release" "deskplane" {
 
     persistence = {
       storageClassName = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+    }
+
+    # The quota counts the MCP's own sessions too: the web engine keeps a
+    # headless browser resident (plus a headful one once that tier is back on),
+    # and every agent run adds its own. The MCP reaps its oldest session on a
+    # 409, so a tight quota kills in-flight work.
+    sessions = {
+      maxPerUser = 6
+    }
+
+    # v2 egress fences: restricted session pods (headless-chromium, chrome-cdp)
+    # get public internet only, and the MCP gets serve, its session control
+    # ports, public egress, and the in-cluster peers in mcp.extraEgress.
+    networkPolicy = {
+      enabled = true
+      # The browsers themselves dial the web engine's proxy. The rotating
+      # proxy lives on the gateway VM, inside the private ranges the policy
+      # otherwise excludes.
+      sessionExtraEgress = [{
+        to    = [{ ipBlock = { cidr = "${local.deskplane_gateway_vm_ip}/32" } }]
+        ports = [{ protocol = "TCP", port = local.deskplane_rotating_proxy_port }]
+      }]
     }
 
     profiles = [
@@ -239,17 +307,30 @@ resource "helm_release" "deskplane" {
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
         {
-          # Headless Chromium for browser-only agent tasks: text perception over
-          # CDP, no desktop, boots in seconds. The controller TCP-probes the
-          # controlPort, and CDP on 9222 is the control endpoint itself.
-          name        = "headless-chromium", displayName = "Headless Browser"
-          image       = "${local.deskplane_registry_image}/headless-chromium:efcbbb04"
+          # Headless Chromium: the web engine's browser pool and browser-only
+          # agent tasks. Text perception over CDP, no desktop, boots in
+          # seconds. The controller TCP-probes the controlPort, and CDP on 9222
+          # is the control endpoint itself.
+          name  = "headless-chromium", displayName = "Headless Browser"
+          image = "${local.deskplane_registry_image}/headless-chromium:${local.deskplane_headless_chromium_tag}"
           runtime = {
             type        = "cdp"
             port        = 9222
             scheme      = "http"
             controlPort = 9222
           }
+          network = { egress = "restricted" }
+        },
+        {
+          # Headful Chrome: KasmVNC for a human, CDP for automation. The web
+          # engine's headful escalation tier and human-unblock handoff, and
+          # the Browser Sandbox for logged-in profiles.
+          name        = "chrome-cdp", displayName = "Chrome (agent-controllable)"
+          image       = "${local.deskplane_registry_image}/chrome-cdp:${local.deskplane_chrome_cdp_tag}"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 9222, cdp = true }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          network     = { egress = "restricted" }
+          environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
         },
       ]
     }
@@ -277,19 +358,25 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "e7a530bc"
+        tag        = "786c95f4"
+      }
+      # The web secret reaches the MCP as env vars, which only load at pod
+      # start; this label rolls the pod when the proxy list changes.
+      podLabels = {
+        "aether.shdr.ch/web-proxies" = substr(sha256(jsonencode(local.deskplane_web_proxies)), 0, 16)
       }
       nodeSelector = {
         "kubernetes.io/arch" = "amd64"
       }
       env = {
-        DESKPLANE_API_URL       = "http://deskplane.deskplane.svc.cluster.local"
-        DESKPLANE_PUBLIC_URL    = local.deskplane_public_url
-        DESKPLANE_MCP_IMAGE_REF = "cua-ubuntu"
+        DESKPLANE_API_URL               = "http://deskplane.deskplane.svc.cluster.local"
+        DESKPLANE_PUBLIC_URL            = local.deskplane_public_url
+        DESKPLANE_MCP_IMAGE_REF         = "cua-ubuntu"
         DESKPLANE_MCP_BROWSER_IMAGE_REF = "headless-chromium"
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
-        DESKPLANE_MCP_MODEL           = "aether/qwen3.8-27b"
+        # The web engine's LLM calls (json/summary/extract) use it too.
+        DESKPLANE_MCP_MODEL           = "chatgpt/gpt-6.1-sol"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
         # 40 was tuned when every long run was doomed by the stale-screenshot
@@ -320,9 +407,116 @@ resource "helm_release" "deskplane" {
         name = kubernetes_secret_v1.deskplane_mcp_llm_key.metadata[0].name
         key  = "api-key"
       }
-      controlPort = 8000
+      # 8000 = computer-server (cua-ubuntu), 9222 = CDP (headless-chromium,
+      # chrome-cdp); the chart's policies admit the MCP to exactly these.
+      controlPorts = [8000, 9222]
+
+      # Web data engine: scrape/crawl/map/search/extract/interact/monitors.
+      # Jobs, monitors and profiles persist in the trace bucket (prefix
+      # tasks-web) through the same STS identity as the flight recorder.
+      web = {
+        enabled         = true
+        searxngURL      = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
+        headfulImageRef = "chrome-cdp"
+        headfulPoolSize = 1
+        defaultTimezone = "America/Toronto"
+        proxiesSecretRef = {
+          name = kubernetes_secret_v1.deskplane_web.metadata[0].name
+          key  = "proxies"
+        }
+        profileKeySecretRef = {
+          name = kubernetes_secret_v1.deskplane_web.metadata[0].name
+          key  = "profile-key"
+        }
+        webhookSecretRef = {
+          name = kubernetes_secret_v1.deskplane_web.metadata[0].name
+          key  = "webhook-secret"
+        }
+      }
+
+      # OTLP/HTTP traces (web.scrape, web.browser_attempt, llm.*, cdp.call)
+      # into the node-local collector's traces pipeline -> Tempo.
+      otel = {
+        endpoint = "http://otel-daemonset-opentelemetry-collector.${module.namespace["observability"].name}.svc.cluster.local:4318"
+      }
+
+      # MCP :8100 callers besides deskplane-serve: LiteLLM's MCP gateway and
+      # the cluster collector's /metrics scrape (otel_collector.tf).
+      ingressFrom = [
+        {
+          namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = local.litellm_ns } }
+        },
+        {
+          namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = module.namespace["observability"].name } }
+          podSelector       = { matchLabels = { "app.kubernetes.io/instance" = "otel-cluster" } }
+        },
+      ]
+
+      # In-cluster and gateway-VM peers the public-egress policy's private-CIDR
+      # exclusion would otherwise cut: the LLM gateway, SearXNG, the OTLP
+      # collector, and SeaweedFS S3/STS behind Caddy on the gateway VM.
+      extraEgress = [
+        {
+          to    = [{ namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = local.litellm_ns } } }]
+          ports = [{ protocol = "TCP", port = local.litellm_port }]
+        },
+        {
+          to    = [{ namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = local.searxng_ns } } }]
+          ports = [{ protocol = "TCP", port = local.searxng_port }]
+        },
+        {
+          to = [{
+            namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = module.namespace["observability"].name } }
+            podSelector       = { matchLabels = { "app.kubernetes.io/instance" = "otel-daemonset" } }
+          }]
+          ports = [{ protocol = "TCP", port = 4318 }]
+        },
+        {
+          to    = [{ ipBlock = { cidr = "${local.deskplane_gateway_vm_ip}/32" } }]
+          ports = [{ protocol = "TCP", port = 443 }]
+        },
+      ]
     }
   })]
+}
+
+# The chart's session-isolation policy admits deskplane-serve to session pods
+# only on the desktop ports (6901/3001), but serve also dials the control port:
+# the Browser Sandbox CDP proxy (/api/sessions/{n}/cdp) and the /s/* watch
+# proxy for runtime.type=cdp images both go to 9222. NetworkPolicies are
+# additive, so this restores exactly that path. Created after the release so
+# session pods never sit behind this rule alone.
+resource "kubernetes_manifest" "deskplane_serve_session_control" {
+  depends_on = [helm_release.deskplane]
+
+  manifest = {
+    apiVersion = "networking.k8s.io/v1"
+    kind       = "NetworkPolicy"
+    metadata = {
+      name      = "deskplane-serve-session-control"
+      namespace = local.deskplane_namespace
+    }
+    spec = {
+      podSelector = {
+        matchLabels = {
+          "app.kubernetes.io/name"      = "deskplane"
+          "app.kubernetes.io/component" = "session"
+        }
+      }
+      policyTypes = ["Ingress"]
+      ingress = [{
+        from = [{
+          podSelector = {
+            matchLabels = {
+              "app.kubernetes.io/name"      = "deskplane"
+              "app.kubernetes.io/component" = "serve"
+            }
+          }
+        }]
+        ports = [{ protocol = "TCP", port = 9222 }]
+      }]
+    }
+  }
 }
 
 # Keel opt-in for the chart-produced Deployments (controller + serve both run

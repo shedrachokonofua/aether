@@ -394,6 +394,7 @@ graph LR
 | SearXNG     | Search query privacy          |
 | Firecrawl   | Web scraping IP rotation      |
 | Prowlarr    | Indexer access                |
+| Deskplane   | Web-engine browser proxy `aether-rotating` (the only entry, so `proxy=auto` uses it) |
 
 ## Physical Infrastructure
 

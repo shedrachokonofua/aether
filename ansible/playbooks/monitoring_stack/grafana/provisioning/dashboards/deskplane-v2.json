@@ -1,0 +1,371 @@
+{
+  "title": "Deskplane v2 — Web Data Platform",
+  "uid": "deskplane-v2",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request rate by op + engine",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(deskplane_mcp_web_requests_total[5m])) by (op, engine)",
+          "legendFormat": "{{op}} {{engine}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Latency p50/p95 by op",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(deskplane_mcp_web_seconds_bucket[5m])) by (le, op))",
+          "legendFormat": "p50 {{op}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(deskplane_mcp_web_seconds_bucket[5m])) by (le, op))",
+          "legendFormat": "p95 {{op}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Stage breakdown (stacked p50)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(deskplane_mcp_web_stage_seconds_bucket[5m])) by (le, stage))",
+          "legendFormat": "{{stage}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Cache hit ratio",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(deskplane_mcp_web_cache_total{result=\"hit\"}[5m])) / sum(rate(deskplane_mcp_web_cache_total[5m]))",
+          "legendFormat": "hit ratio",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Escalations by vendor",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(deskplane_mcp_web_escalations_total[5m])) by (from, to, vendor)",
+          "legendFormat": "{{from}}→{{to}} {{vendor}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Pool utilization",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "deskplane_mcp_pool_browsers",
+          "legendFormat": "browsers {{engine}} {{state}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "deskplane_mcp_pool_contexts_in_use",
+          "legendFormat": "contexts {{engine}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Event-loop lag",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(deskplane_mcp_event_loop_lag_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Process-pool queue depth",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "deskplane_mcp_procpool_queue_depth",
+          "legendFormat": "queued",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "LLM tokens by purpose",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(deskplane_mcp_llm_tokens_total[5m])) by (purpose, kind)",
+          "legendFormat": "{{purpose}} {{kind}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Agent context chars per turn",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(deskplane_mcp_agent_context_chars_bucket[5m])) by (le, loop))",
+          "legendFormat": "p50 {{loop}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Jobs active / pages",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "deskplane_mcp_jobs_active",
+          "legendFormat": "active {{kind}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        },
+        {
+          "expr": "sum(rate(deskplane_mcp_job_pages_total[5m])) by (kind, outcome)",
+          "legendFormat": "pages {{kind}} {{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Sessions by state",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "deskplane_mcp_sessions",
+          "legendFormat": "{{image}} {{state}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Webhook deliveries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(deskplane_mcp_webhook_deliveries_total[5m])) by (outcome)",
+          "legendFormat": "{{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      }
+    }
+  ],
+  "id": null
+}
