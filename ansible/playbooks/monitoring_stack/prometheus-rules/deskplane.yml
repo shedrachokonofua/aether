@@ -1,0 +1,83 @@
+# Deskplane (web engine) alerts, ported from
+# ../deskplane/deploy/helm/deskplane/templates/prometheusrule.yaml (chart
+# PrometheusRule; aether has no prometheus-operator, so rules live here).
+#
+# Metric names match what the OTel collector remote-writes into this
+# Prometheus: counter `_total` and histogram `_bucket/_sum/_count` suffixes
+# survive the OTel path (verified against stored deskplane_mcp_* series),
+# so upstream names are kept. The OTel path adds job/instance/exported_job/
+# service_name/otel_scope_* labels; aggregate-by clauses already collapse
+# them, and DeskplanePoolEmpty pins its `and` to on() for the same reason.
+groups:
+  - name: deskplane
+    interval: 30s
+    rules:
+      # Event-loop lag is the single best signal that the async core is
+      # starving — P12's crawl budget depends on it staying low.
+      - alert: DeskplaneEventLoopLagHigh
+        expr: histogram_quantile(0.99, sum(rate(deskplane_mcp_event_loop_lag_seconds_bucket[5m])) by (le)) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: MCP event loop p99 lag above 100ms
+          description: The deskplane MCP event loop p99 lag has been above 100ms for 10m; async work is starving.
+      - alert: DeskplaneScrapeErrorRatioHigh
+        expr: |
+          sum(rate(deskplane_mcp_web_requests_total{outcome!~"2..|404"}[5m])) by (op)
+            / sum(rate(deskplane_mcp_web_requests_total[5m])) by (op) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Scrape error ratio above 20% (excluding blocked_by_site)
+          description: More than 20% of deskplane web requests by op are failing (non-2xx, non-404) over 15m.
+      - alert: DeskplanePoolEmpty
+        # `and on()`: the pool gauge carries scrape labels (job, instance,
+        # service_name, ...) while the request-rate side is an unlabelled
+        # sum() — bare `and` would never match.
+        expr: |
+          deskplane_mcp_pool_browsers{state="ready"} == 0
+            and on () (sum(rate(deskplane_mcp_web_requests_total[5m])) > 0)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: No ready browsers while requests keep arriving
+          description: The deskplane browser pool has had zero ready browsers for 5m while web requests keep arriving.
+      - alert: DeskplaneJobFailureRatioHigh
+        expr: |
+          sum(rate(deskplane_mcp_jobs_total{status="failed"}[15m])) by (kind)
+            / sum(rate(deskplane_mcp_jobs_total[15m])) by (kind) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Web job failure ratio above 10%
+          description: More than 10% of deskplane web jobs of one kind have failed over 15m.
+      - alert: DeskplaneLLMRetriesSpike
+        expr: rate(deskplane_mcp_llm_retries_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: LLM retry rate spike
+          description: The deskplane MCP LLM retry rate has exceeded 0.5/s for 5m.
+      - alert: DeskplaneWebhooksDropped
+        expr: increase(deskplane_mcp_webhook_deliveries_total{outcome="dropped"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Webhook deliveries exhausted retries and were dropped
+          description: At least one deskplane webhook delivery exhausted its retries and was dropped in the last 10m.
+      - alert: DeskplaneProcPoolBacklog
+        # 4x the default worker count (EXTRACT_WORKERS default 4); no
+        # worker-count metric exists, so the absolute bound stands in.
+        expr: deskplane_mcp_procpool_queue_depth > 16
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Process-pool queue more than 4x the worker count
+          description: The deskplane process-pool queue depth has been above 16 for 10m.

@@ -22,7 +22,7 @@
         - supergrok/grok-4.7
         - step/step-5-preview
         - chatgpt/gpt-6-astra
-        - chatgpt/gpt-6-sol
+        - chatgpt/gpt-6.1-sol
         - chatgpt/gpt-6-luna
         - router/glm-5.3
         - commandcode/glm-5.3-flash
@@ -71,7 +71,7 @@
         - supergrok/grok-4.7
         - step/step-5-preview
         - chatgpt/gpt-6-astra
-        - chatgpt/gpt-6-sol
+        - chatgpt/gpt-6.1-sol
         - chatgpt/gpt-6-luna
         - router/glm-5.3
         - commandcode/glm-5.3-flash
@@ -112,6 +112,8 @@
         - aether/qwen3.8-27b
 
       deskplane_mcp:
+        - chatgpt/gpt-6.1-sol
+        - antigravity/gemini-3.8-flash
         - aether/qwen3.8-27b
         - aether/qwen3.6-35b-a3b
         - aether/gemma-4-31b

@@ -241,9 +241,10 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 
 ## Dashboards
 
-The repository currently provisions eight dashboard JSON files: Home,
+The repository currently provisions thirteen dashboard JSON files: Home,
 Certificates, Virtual Machines, Ceph, Kubernetes, Security Triage, IDS
-Monitoring, and Site Fabric. The live
+Monitoring, Site Fabric, Colony, Estate Scan, Network, Network Address
+History, and Deskplane v2 (`grafana/provisioning/dashboards/`). The live
 Grafana API also retains the other dashboards listed below, but they are not all
 represented in `grafana/provisioning/dashboards/`; they are useful live surfaces,
 not fully reproducible IaC. Conversely, the declared Virtual Machines dashboard
@@ -271,6 +272,7 @@ describing the complete dashboard set as code-owned.
 | Security Triage | **Single actionable security surface** — firing security-alert queue (`domain=security`) + per-head signal stats & recent-event tables (Suricata, Zeek, Hubble, Tetragon, Trivy, Wazuh, Keycloak) + drill-down links (uid `security-triage`) |
 | Home            | Cross-cutting triage: firing alerts, certificate issues, namespace-contract risk map, saturation/headroom, signal-path health (uid `home`) |
 | Site Fabric   | Aether site-fabric target health, WireGuard peer age and traffic, and CrowdSec decisions (uid `site-fabric`) |
+| Deskplane v2  | Deskplane web data platform: scrape ops, cache, escalations, browser pool, event-loop lag, jobs, sessions, webhooks (uid `deskplane-v2`, alerts in `prometheus-rules/deskplane.yml`) |
 
 ## Agent Investigations
 
