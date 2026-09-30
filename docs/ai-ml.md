@@ -63,6 +63,15 @@ Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest is configured
 to send Holmes investigations to the local `aether/qwen3.8-27b:think`.
 
+Holmes is paused (`replicas = 0` in `tofu/home/kubernetes/holmesgpt.tf`) since
+2026-09-29. From 05:30Z that day, Inquest investigations sent 20–45
+`qwen3.8-27b:think` requests per 30 minutes. That load held the llama-swap GPU
+at its 300 W cap and 84–87 °C, and `GPU High Temperature` fired 81 times in
+4 hours. While Holmes is paused, Inquest still creates and deduplicates
+incident issues. Its `holmes` task soft-fails (`allowFailure: true` in
+`../inquest/flows/process-alert.yaml.tftpl`), so incidents get no RCA note.
+Restore `replicas` once that alert no longer routes to local-model RCA.
+
 Step Plan exposes only `step/step-5-preview` through the OpenAI-compatible
 `https://api.stepfun.ai/step_plan/v1` endpoint. The credential is stored as
 `litellm.step_api_key` in SOPS and injected as `STEP_API_KEY`. OMP and Colony
@@ -78,10 +87,12 @@ refresh. The login task restricts the directory to `0700` and the file to
 token with desktop Codex or OMP. Direct OpenAI API-key access is no longer
 configured in LiteLLM.
 
-The subscription routes are `chatgpt/gpt-6-astra`, `chatgpt/gpt-6-sol`, and
+The subscription routes are `chatgpt/gpt-6-astra`, `chatgpt/gpt-6.1-sol`, and
 `chatgpt/gpt-6-luna`, available to OMP and Colony without changing their
-defaults. They declare Responses mode and native streaming explicitly because
-LiteLLM 1.99.1 does not include GPT-6 in its bundled model catalog.
+defaults; Deskplane's MCP uses `chatgpt/gpt-6.1-sol`. They declare Responses
+mode and native streaming explicitly because LiteLLM 1.99.1 does not include
+GPT-6 in its bundled model catalog. GPT-6.1 Sol replaced GPT-6 Sol on
+2026-09-29 and rejects `reasoning_effort` `none`/`minimal`.
 
 Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
 All three passed streaming Responses inference; streaming Chat Completions
@@ -268,7 +279,7 @@ Colony's real envelope validators with the steer-then-force finalizer:
 | Role | Lead | Fallbacks, in order |
 | --- | --- | --- |
 | architect | Muse Spark Contributor | GLM 5.3, Grok 4.7, Kimi K3, MiMo 2.6 Pro, DeepSeek V4 Pro |
-| plan reviewer | GPT-6 Astra | Grok 4.7, Kimi K3, GLM 5.3, MiMo 2.6 Pro, Step 5 Preview |
+| plan reviewer | GPT-6.1 Sol | Kimi K3, GLM 5.3, MiMo 2.6 Pro, Step 5 Preview |
 | code reviewer | Grok 4.7 | Kimi K3, GLM 5.3, MiMo 2.6 Pro, DeepSeek V4 Pro, Muse Spark 1.3 |
 | developer | Muse Spark Contributor | MiMo 2.6 Pro, Gemini 3.8 Flash, GLM 5.3 Flash, DeepSeek V4 Pro |
 
@@ -282,7 +293,7 @@ MiMo 2.6 Pro ($0.13 per AA Intelligence Index task, all on the Xiaomi priority
 leg), GLM 5.3 Flash ($0.25), DeepSeek V4 Pro ($0.67), Step 5 ($0.72), and
 Muse Contributor ($0.10/$0.20 per million tokens on Command Code). Grok 4.7
 keeps four on its flat subscription; Kimi K3 and GLM 5.3 stay at two for their
-weekly usage windows, and Gemini 3.8 Flash at two. Astra shares the household ChatGPT
+weekly usage windows, and Gemini 3.8 Flash at two. Sol shares the household ChatGPT
 subscription behind OpenWebUI, so Colony caps it at one run with an
 operational 272,000-token context cap because the subscription route's limit is
 unverified. MiMo and Step do not honour a named forced `tool_choice`, so their
