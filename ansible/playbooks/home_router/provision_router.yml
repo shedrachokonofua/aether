@@ -66,6 +66,7 @@
         cpu: host
         ostype: "l26"
         scsihw: "virtio-scsi-single"
+        onboot: true
         net:
           net0: "virtio,bridge=vmbr0,firewall=1"
           net1: "virtio,bridge=vmbr0,firewall=1"

@@ -15,6 +15,14 @@ Environment=STEPPATH={{ step_ca_home }}
 # Load password via systemd credentials (more secure than --password-file)
 LoadCredential=password:{{ step_ca_home }}/secrets/password.txt
 
+# OIDC provisioners (keycloak, toolbox, gitlab-ci) fetch their discovery
+# documents once at startup and stay disabled until restart if the issuer is
+# unreachable. After the 2026-10-03 power outage step-ca came up before
+# Keycloak/GitLab, disabling SSH-cert login. Wait up to 10 minutes for both
+# issuers, then start regardless so X.509 issuance is never blocked.
+ExecStartPre=-/usr/bin/timeout 600 /bin/sh -c 'until /usr/bin/curl -fsS -o /dev/null --max-time 5 https://auth.shdr.ch/realms/aether/.well-known/openid-configuration && /usr/bin/curl -fsS -o /dev/null --max-time 5 https://gitlab.home.shdr.ch/.well-known/openid-configuration; do sleep 10; done'
+TimeoutStartSec=660
+
 ExecStart=/usr/bin/step-ca {{ step_ca_home }}/config/ca.json --password-file=%d/password
 
 Restart=on-failure
