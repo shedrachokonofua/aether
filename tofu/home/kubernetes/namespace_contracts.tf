@@ -1019,6 +1019,22 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "claude" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/claude.tf"
+      egress                  = "allowlist"
+      registry_access         = "gitlab"
+      hostnames = [
+        "claude.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "composer" = {
       tier                    = "app"
       owner                   = "aether"
@@ -1323,6 +1339,7 @@ locals {
     "firecrawl-mcp.home.shdr.ch" = "/health"
     "muse.home.shdr.ch"          = "/health"
     "grok.home.shdr.ch"          = "/health"
+    "claude.home.shdr.ch"        = "/health"
     "matrix.home.shdr.ch"        = "/_matrix/client/versions"
     "kestra.home.shdr.ch"        = "/ui/"
     "searxng.home.shdr.ch"       = "/healthz"

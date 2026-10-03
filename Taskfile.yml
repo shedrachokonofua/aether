@@ -283,6 +283,15 @@ tasks:
         test -f "$bridge_repo/scripts/login.ts"
         bun "$bridge_repo/scripts/login.ts"
 
+  claude:login:
+    desc: Authorize Claude subscription and store credentials in OpenBao
+    cmds:
+      - |
+        [ -f "{{.CACHE_DIR}}/bao/token" ] && export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat {{.CACHE_DIR}}/bao/token)
+        bridge_repo="${CLAUDE_BRIDGE_REPO:-../claude-bridge}"
+        test -f "$bridge_repo/scripts/login.ts"
+        bun "$bridge_repo/scripts/login.ts"
+
   litellm:login:chatgpt:
     desc: Authorize ChatGPT subscription access and persist OAuth tokens on the LiteLLM PVC
     cmds:
