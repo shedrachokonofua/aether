@@ -1,0 +1,106 @@
+# Highest reasoning_effort each upstream accepts. Verified 2026-10-01 via
+# LiteLLM: MiMo V2.6 Pro/Flash return 400 for xhigh and max, 200 for high.
+effort_caps:
+  mimo-v2.6-pro: high
+  mimo-v2.6-flash: high
+
+# Moira tiers / providers / plans / groups.
+#
+# PLAN VALUES NEED THE OPERATOR'S TIER + RENEWAL DATE: the local-count plans
+# (xiaomi, step, qwen-cloud, codebuddy) ship with total_credits: null and
+# cycle.anchor: null. The operator must fill in each plan's purchased tier
+# (total_credits) and renewal date (cycle.anchor) before local credit
+# counting produces meaningful windows.
+
+tiers:                      # inclusive AA score bands (data/aa_scores.yaml)
+  frontier: { min: 48 }
+  strong:   { min: 43, max: 47 }
+  flash:     { min: 36, max: 42 }
+
+exclude:
+  upstream_ids: [gpt-6-astra, muse-spark-1.3]          # never in tiers
+  providers: [supergrok, aether]       # never in tiers (aether = local llama-swap; may be enabled later)
+
+providers:                  # model-name prefix -> provider id + quota source
+  # chat_requires_stream: LiteLLM 1.99.x returns 500 "Unknown items in
+  # responses API response: []" for non-streaming /chat/completions on
+  # chatgpt/* (its bridge keeps only response.completed, whose output the
+  # Codex backend leaves empty). Streaming chat and /v1/responses work.
+  - { prefix: "chatgpt/",      id: chatgpt,      quota: { kind: sidecar }, chat_requires_stream: true }
+  - { prefix: "meta/",         id: muse,         quota: { kind: bridge, bridge: muse } }
+  - { prefix: "clinepass/",    id: clinepass,    quota: { kind: endpoint } }
+  - { prefix: "kimi/",         id: kimi,         quota: { kind: endpoint } }
+  - { prefix: "zai/",          id: zai,          quota: { kind: endpoint } }
+  - { prefix: "commandcode/",  id: commandcode,  quota: { kind: endpoint } }
+  - { prefix: "opencode-go/",  id: opencode-go,  quota: { kind: endpoint } }
+  - { prefix: "ollama-cloud/", id: ollama-cloud, quota: { kind: endpoint } }
+  - { prefix: "antigravity/",  id: antigravity,  quota: { kind: bridge, bridge: antigravity } }
+  - { prefix: "supergrok/",    id: supergrok,    quota: { kind: bridge, bridge: grok } }
+  - { prefix: "xiaomi/",       id: xiaomi,       quota: { kind: local, plan: xiaomi } }
+  - { prefix: "step/",         id: step,         quota: { kind: local, plan: step } }
+  - { prefix: "qwen-cloud/",   id: qwen-cloud,   quota: { kind: local, plan: qwen-cloud } }
+  - { prefix: "codebuddy/",    id: codebuddy,    quota: { kind: local, plan: codebuddy } }
+  - { prefix: "aether/",       id: aether,       quota: { kind: none } }
+
+# Router pools Moira ranks. Included only when every leg of the LiteLLM
+# router pool has a standalone pin in litellm_config.yaml.tftpl, so each
+# member is individually addressable. Excluded pools (legs without a
+# standalone pin): router/family, router/muse-spark-1.3,
+# router/minimax-m3. Any router/<model> not listed here passes through to
+# LiteLLM untouched.
+groups:
+  router/glm-5.3: [zai/glm-5.3, ollama-cloud/glm-5.3]
+  router/glm-5.3-flash: [zai/glm-5.3-flash, commandcode/glm-5.3-flash, opencode-go/glm-5.3-flash, ollama-cloud/glm-5.3-flash]
+  router/mimo-v2.6-pro: [xiaomi/mimo-v2.6-pro, commandcode/mimo-v2.6-pro, opencode-go/mimo-v2.6-pro]
+  router/mimo-v2.6-flash: [xiaomi/mimo-v2.6-flash, commandcode/mimo-v2.6-flash, opencode-go/mimo-v2.6-flash]
+  router/hy4-preview: [codebuddy/hy4-preview, commandcode/hy4-preview, opencode-go/hy4-preview]
+  router/muse-spark-1.3-contributor: [meta/muse-spark-1.3-contributor, commandcode/muse-spark-1.3-contributor, clinepass/muse-spark-1.3-contributor]
+  router/deepseek-v4-pro: [ollama-cloud/deepseek-v4-pro]
+
+plans:                      # local-count providers
+  xiaomi:
+    # Lite annual: one 49.2B pool (12 x 4.1B) valid until 2027-05-04 23:59:59 UTC.
+    cycle: { anchor: "2026-05-05T00:00:00Z", period: year }
+    total_credits: 49200000000
+    offpeak: { utc_from: 16, utc_to: 24, factor: 0.8 }
+    rates:   # credits per token
+      mimo-v2.6-pro:   { cached: 2.5, input: 300, output: 600 }
+      mimo-v2.6-flash: { cached: 2,   input: 100, output: 200 }
+    calibration: { used: 30565790642, at: "2026-10-03T17:23:07Z" }   # console reading
+  step:
+    # Flash Mini: 400M credits/month, valid until 2026-10-09 (end of day taken
+    # as UTC). Credits = PAYG USD x 7M (platform.stepfun.ai step-plan overview);
+    # step-5-preview PAYG $1.00 / $0.05 cached / $2.70 out per 1M tokens.
+    cycle: { anchor: "2026-09-10T00:00:00Z", period: month }
+    total_credits: 400000000
+    rates:
+      step-5-preview: { cached: 0.35, input: 7, output: 18.9 }
+    calibration: null
+  qwen-cloud:
+    # Pro individual: 180,000 credits per 30-day cycle; reset 2026-10-30
+    # 12:00 EDT = 16:00Z (usage API per1MonthResetTime). Rates measured
+    # 2026-10-03 with controlled batches against the usage API at Beijing
+    # night (0.482 / 0.0597 / 1.44 per 1k): credits = PAYG USD x ~241 at night,
+    # exact $2 / $0.25 / $6 ratios. Daytime rates below assume Alibaba's
+    # documented 0.4x night factor (22:00-08:00 Beijing = 14:00-24:00 UTC);
+    # one daytime batch would confirm it.
+    cycle: { anchor: "2026-09-30T16:00:00Z", period: 30d }
+    total_credits: 180000
+    offpeak: { utc_from: 14, utc_to: 24, factor: 0.4 }
+    rates:
+      qwen3.8-max: { cached: 0.0001493, input: 0.0012055, output: 0.0036156 }
+    calibration: { used: 448.68, at: "2026-10-03T19:59:05Z" }   # usage API per1MonthPercentage 0.00249267
+  codebuddy:
+    cycle: { anchor: null, period: month }
+    total_credits: null
+    unit: credit            # counted from usage.credit, not rates
+    calibration: null
+
+bridges:
+  grok:        { url: "http://grok-bridge.grok.svc.cluster.local:8080",               key_env: GROK_BRIDGE_API_KEY }
+  antigravity: { url: "http://antigravity-bridge.antigravity.svc.cluster.local:8080", key_env: ANTIGRAVITY_API_KEY }
+  muse:        { url: "http://muse-bridge.muse.svc.cluster.local:8080",               key_env: MUSE_BRIDGE_API_KEY }
+
+sidecar: { url: "http://litellm.litellm.svc.cluster.local:9090", token_env: MOIRA_SIDECAR_TOKEN }
+session: { idle_minutes: 30 }
+staleness: { fresh_minutes: 15, stale_minutes: 60 }

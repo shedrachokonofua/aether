@@ -677,6 +677,36 @@ resource "helm_release" "otel_collector_deployment" {
                   },
                 ]
               },
+              {
+                # Moira router: per-replica route/refusal/upstream counters (endpoints
+                # SD so each of the 2 replicas is scraped, not one via the Service).
+                job_name        = "moira"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role       = "endpoints"
+                  namespaces = { names = [local.litellm_ns] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_service_name"]
+                    action        = "keep"
+                    regex         = "moira"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_endpoint_port_name"]
+                    action        = "keep"
+                    regex         = "http"
+                  },
+                ]
+              },
+              {
+                # Moira quota poller: poll failures and per-provider window usage.
+                job_name        = "moira-poller"
+                scrape_interval = "60s"
+                static_configs = [{
+                  targets = ["moira-poller-metrics.${local.litellm_ns}.svc.cluster.local:${local.moira_poller_metrics_port}"]
+                }]
+              },
             ]
           }
         }

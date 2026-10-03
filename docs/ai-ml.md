@@ -96,8 +96,13 @@ GPT-6 in its bundled model catalog. GPT-6.1 Sol replaced GPT-6 Sol on
 
 Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
 All three passed streaming Responses inference; streaming Chat Completions
-also passed. Non-streaming Chat Completions failed verification with the
-bundled adapter (`Unknown items in responses API response: []`). No paid
+also passed. Non-streaming Chat Completions fail with
+`Unknown items in responses API response: []` (verified on LiteLLM 1.99.1;
+1.99.4 has the same code): the Responses bridge reads the upstream stream and
+keeps only the `response.completed` payload, whose `output` the Codex backend
+leaves empty; the message only arrives in `response.output_item.done`.
+Moira's `tiers.yaml` marks the `chatgpt/` provider `chat_requires_stream`, so
+non-streaming Chat requests to a Moira tier never route to ChatGPT. No paid
 API-key or OpenRouter fallback is configured.
 
 OpenWebUI's single household model is `router/family` ("Family Assistant"), a
@@ -362,6 +367,85 @@ flowchart LR
 See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl) for the declared model list and MCP registry. Google Maps MCP is opt-in: when `google.project_id` exists in SOPS, [`tofu/google/main.tf`](../tofu/google/main.tf) provisions the Google Maps API key, keeps it in Terraform state, restricts it to Maps APIs, and passes it to the LiteLLM sidecar as `GOOGLE_MAPS_API_KEY`. Google Cloud admin access is keyless after bootstrap: the first apply uses a human Application Default Credential from `gcloud auth application-default login`, then `task login` writes Workload Identity Federation external-account credentials for future OpenTofu runs instead of using a service-account JSON key.
 
 MCP tool calls get LiteLLM's default 60 s cap (`LITELLM_MCP_CLIENT_TIMEOUT`). An overrun returns HTTP 504, which closes the caller's whole MCP session, so a registry entry can raise its own cap with `timeout`; Firecrawl has 110 s. The Seven30 Foundry virtual key (`seven30-foundry`) was created through the LiteLLM API and is not managed in this repo. Since 2026-09-26 its `object_permission.mcp_servers` limits it to Firecrawl and Finviz.
+
+### Moira
+
+Moira ([`tofu/home/kubernetes/moira.tf`](../tofu/home/kubernetes/moira.tf),
+source `so/moira`) is a quota-aware decision service behind LiteLLM. It is not
+in the request path and never proxies: clients call LiteLLM as always, and the
+`moira_router` pre-call hook
+([`tofu/home/kubernetes/litellm_hooks.py`](../tofu/home/kubernetes/litellm_hooks.py),
+mounted as `aether_hooks.py`) asks Moira's `POST /decide` (bearer
+`MOIRA_DECIDE_TOKEN`, 0.3 s timeout) which concrete model a `moira/<tier>` or
+`router/*` request should use. Moira answers from an in-memory quota cache
+refreshed from Postgres every 30 s: the chosen model rewrites the request,
+anything else passes through unchanged. Its tiers are Artificial Analysis
+Intelligence Index bands (score table in the Moira repo's `data/aa_scores.yaml`,
+refreshed from [artificialanalysis.ai](https://www.artificialanalysis.ai/leaderboards/models)):
+
+| Tier           | AA score band |
+| -------------- | ------------- |
+| `moira/frontier` | 48 and up   |
+| `moira/strong`   | 43–47       |
+| `moira/flash`   | 36–42       |
+
+`gpt-6-astra` and the `supergrok`/`aether` providers never enter a tier;
+unlisted (unscored) models never do either.
+
+Effort semantics: a model with a single `default` score qualifies at any
+effort and the request's effort passes through. A model with per-effort scores
+qualifies only at efforts whose score is in the band; when the request carries
+no effort, Moira picks the lowest qualifying effort and the hook sets it on
+the rewritten request. Ranking orders candidates by quota freshness (fresh >
+stale > unknown), then urgency (remaining quota per hour until reset), then
+score. Sessions stick: `x-session-id`, `metadata.session_id`, or `user` pins
+the chosen model (30 min idle). A route decision returns the chosen model, its
+effort, and up to two same-effort fallbacks, which the hook hands to LiteLLM
+as request fallbacks. With no candidate left Moira refuses with
+`429 {"error":{"type":"tier_exhausted",...}}` including `earliest_reset` —
+the hook raises it to the caller with `Retry-After`; unknown tiers return
+`400 {"error":{"type":"unknown_tier",...}}`.
+
+The hook fails open: Moira unreachable, timing out, or answering anything
+unexpected leaves the request unchanged and logs one warning line, so the
+`moira/<tier>` aliases in LiteLLM's model list — real deployments copying
+`meta/muse-spark-1.3`, `kimi/k3` and `zai/glm-5.3-flash` — serve their static
+default models (`moira/frontier`, `moira/strong`, `moira/flash` respectively).
+Because routing happens inside LiteLLM, every caller gets it regardless of
+entry point (gateway or in-cluster Service DNS).
+
+Keys that call `moira/*` need `moira/frontier`, `moira/strong` and
+`moira/flash` in their model allowlist (the `colony` and `omp` keys have them),
+and Moira only chooses among the key's allowed models: the hook passes the
+allowlist to `/decide`, because LiteLLM does not re-check the rewritten model
+against the key allowlist after the hook replaces `data["model"]`.
+
+ChatGPT is excluded from non-streaming Chat: the `chatgpt/` provider is
+`chat_requires_stream` in tiers.yaml, so Moira never routes a non-streaming
+Chat request to it (the LiteLLM Responses bridge fails those with
+`Unknown items in responses API response: []`, see above). Streaming chat and
+`/v1/responses` stay routable.
+
+Quota sources per provider: Z.AI, Kimi, Command Code, OpenCode Go, Clinepass
+and Ollama Cloud are polled at their quota endpoints by `moira-poller`; Muse,
+Antigravity and SuperGrok windows come from the in-cluster bridges' `/usage`;
+Xiaomi, Step, Qwen Cloud and CodeBuddy are counted locally from LiteLLM spend
+logs; ChatGPT windows come from the `moira-chatgpt-usage` sidecar in the
+LiteLLM pod, which reads the subscription OAuth `auth.json` from the
+`litellm-chatgpt-auth` PVC and serves `/usage` to the poller on `:9090`.
+Passive signals (response headers, 429 bodies, Muse usage events, CodeBuddy
+credits) refine the same windows.
+
+Quota plans in [`tofu/home/kubernetes/moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
+Xiaomi's Lite annual credit pool (anniversary-anchored cycle, calibrated from
+the console reading), Step's Flash Mini monthly credits, and Qwen Cloud's
+180k credits per 30-day cycle (usage unknown — Alibaba publishes no per-model
+rates) are counted from LiteLLM spend logs against each plan's `total_credits`
+and `cycle`; Ollama Cloud has no plan and is polled at its quota endpoint.
+CodeBuddy's plan still needs the operator's tier (`total_credits`) and renewal
+date (`cycle.anchor`) before local credit counting is meaningful. Moira's state
+lives in the `moira` database on `litellm-cnpg` (managed role `moira`, which
+also reads the `litellm` database read-only for the ledger).
 
 ### OpenWebUI
 
