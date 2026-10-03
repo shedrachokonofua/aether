@@ -111,22 +111,28 @@ locals {
   talos_nvidia_schematic = "88dfed3cc7c944b6c235188339abc08fc0d507b127a45d3c3130f54315b557a4"
 }
 
-# Talos ISO for Proxmox boot (nocloud platform)
-resource "proxmox_virtual_environment_download_file" "talos_iso" {
-  content_type        = "iso"
-  datastore_id        = "cephfs"
-  node_name           = "smith"
-  url                 = "https://factory.talos.dev/image/${local.talos_schematic}/${local.talos_version}/nocloud-amd64.iso"
-  file_name           = "talos-${local.talos_version}-nocloud.iso"
-  overwrite_unmanaged = true
+# Talos ISOs (nocloud platform) on each Talos host's own `local` storage, one
+# per node and flavour. Not CephFS: after the 2026-10-03 power outage CephFS had
+# no MDS when pve-guests ran, every Talos VM with a CephFS cdrom failed to start,
+# and that failure stopped autostart for the remaining guests on the host.
+# Talos boots from virtio0; the cdrom only serves first install / reinstall.
+locals {
+  talos_iso_targets = {
+    for k, v in local.talos_vm_nodes :
+    "${v.node}/${try(v.gpu, false) ? "nvidia" : "base"}" => {
+      node   = v.node
+      nvidia = try(v.gpu, false)
+    }...
+  }
 }
 
-# Talos ISO with NVIDIA extensions for GPU node (talos-neo)
-resource "proxmox_virtual_environment_download_file" "talos_nvidia_iso" {
+resource "proxmox_virtual_environment_download_file" "talos_iso" {
+  for_each = { for k, v in local.talos_iso_targets : k => v[0] }
+
   content_type        = "iso"
-  datastore_id        = "cephfs"
-  node_name           = "smith"
-  url                 = "https://factory.talos.dev/image/${local.talos_nvidia_schematic}/${local.talos_version}/nocloud-amd64.iso"
-  file_name           = "talos-${local.talos_version}-nvidia-nocloud.iso"
+  datastore_id        = "local"
+  node_name           = each.value.node
+  url                 = "https://factory.talos.dev/image/${each.value.nvidia ? local.talos_nvidia_schematic : local.talos_schematic}/${local.talos_version}/nocloud-amd64.iso"
+  file_name           = "talos-${local.talos_version}${each.value.nvidia ? "-nvidia" : ""}-nocloud.iso"
   overwrite_unmanaged = true
 }

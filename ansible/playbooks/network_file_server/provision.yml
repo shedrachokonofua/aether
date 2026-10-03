@@ -86,6 +86,7 @@
           - mount=nfs
           - keyctl=1
         unprivileged: false
+        onboot: true
 
     - name: Set AppArmor to unconfined for NFS server support
       ansible.builtin.lineinfile:

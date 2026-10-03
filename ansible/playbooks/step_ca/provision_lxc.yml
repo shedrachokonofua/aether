@@ -70,6 +70,7 @@
         features:
           - nesting=1
         unprivileged: true
+        onboot: true
 
     - name: Start step-ca LXC
       community.general.proxmox:

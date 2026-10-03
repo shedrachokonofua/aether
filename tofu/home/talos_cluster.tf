@@ -285,7 +285,7 @@ resource "proxmox_virtual_environment_vm" "talos" {
   }
 
   cdrom {
-    file_id   = try(each.value.gpu, false) ? proxmox_virtual_environment_download_file.talos_nvidia_iso.id : proxmox_virtual_environment_download_file.talos_iso.id
+    file_id   = proxmox_virtual_environment_download_file.talos_iso["${each.value.node}/${try(each.value.gpu, false) ? "nvidia" : "base"}"].id
     interface = "ide2"
   }
 

@@ -112,6 +112,7 @@
         --mp0 {{ seaweedfs_mountpoint }},mp={{ seaweedfs_mountpoint }}
         --features nesting=1
         --unprivileged 0
+        --onboot 1
       changed_when: true
 
     - name: Start SeaweedFS LXC

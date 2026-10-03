@@ -52,6 +52,7 @@
     --nameserver {{ vm.router.ip.gigahub }}
     --features nesting=1
     --unprivileged 1
+    --onboot 1
   changed_when: true
 
 - name: Start {{ adguard_label }} LXC
