@@ -24,7 +24,9 @@ locals {
   aether_wasm_hello_name = "aether-wasm-hello"
   # Digest pin: welcome-page build (repo commit 5afdfd8b). Digest forces the
   # cache-holding host to fetch this exact build; repin on each release.
-  aether_wasm_hello_image = "${local.wasmcloud_registry_host}/so/aether-wasm-hello@sha256:2efcd8ac24912ed639e199f4599d96c3df1d61158e3aeaf6132bf725407d6e0b"
+  # Repinned 2026-10-03: the 5afdfd8b tag was re-pushed and the old digest
+  # (2efcd8ac…) was removed from the registry, which the post-outage refetch exposed.
+  aether_wasm_hello_image = "${local.wasmcloud_registry_host}/so/aether-wasm-hello@sha256:244d8dd7fb19587ee75515d2db274b9c785e8bdb59b8cd0ecca715ba20b8bc85"
 
   aether_wasm_hello_labels = {
     "app.kubernetes.io/name"       = "aether-wasm-hello"

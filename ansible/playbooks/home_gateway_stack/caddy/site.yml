@@ -5,6 +5,18 @@
   roles:
     - common
   tasks:
+    # Shared routes bind the Tailscale IP. On a cold boot this rootless pod can
+    # start before the rootful tailscaled assigns that address; every bind then
+    # fails with EADDRNOTAVAIL and Caddy serves nothing, LAN included (the
+    # 2026-10-03 power outage). Non-local bind lets Caddy listen on the
+    # Tailscale IP before tailscale0 holds it; traffic flows once it does.
+    - name: Allow binding the Tailscale IP before tailscale0 has it
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_nonlocal_bind
+        value: "1"
+        state: present
+      become: true
+
     - name: Create required directories
       file:
         path: "{{ item }}"
