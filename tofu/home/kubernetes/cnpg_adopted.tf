@@ -185,6 +185,7 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
     helm_release.cnpg,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.litellm_cnpg_app,
+    kubernetes_secret_v1.moira_db_credentials,
     kubernetes_service_v1.db_backup_sidecar_postgres["litellm"],
   ]
 
@@ -205,6 +206,17 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["litellm"]
+      # The moira role owns the moira database (Database manifest below) and
+      # reads the litellm database read-only for the spend-log ledger.
+      managed = {
+        roles = [{
+          name           = "moira"
+          ensure         = "present"
+          login          = true
+          inRoles        = ["pg_read_all_data"]
+          passwordSecret = { name = kubernetes_secret_v1.moira_db_credentials.metadata[0].name }
+        }]
+      }
       bootstrap = {
         initdb = {
           database      = "litellm"
@@ -232,6 +244,33 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
           key  = "POSTGRES_PASSWORD"
         }
       }]
+    }
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Moira's own database in the litellm-cnpg cluster; owner is the managed
+# moira role declared above.
+resource "kubectl_manifest" "moira_db" {
+  depends_on = [
+    kubectl_manifest.litellm_cnpg_cluster,
+    kubernetes_secret_v1.moira_db_credentials,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Database"
+    metadata = {
+      name      = "moira-db"
+      namespace = local.litellm_ns
+    }
+    spec = {
+      name    = "moira"
+      owner   = "moira"
+      cluster = { name = local.litellm_cnpg_cluster }
     }
   })
 

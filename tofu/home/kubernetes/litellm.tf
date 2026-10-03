@@ -403,6 +403,30 @@ resource "kubernetes_deployment_v1" "litellm" {
             }
           }
 
+          # Moira decide service, called by the moira_router pre-call hook
+          # (litellm_hooks.py) before deployment selection.
+          env {
+            name  = "MOIRA_DECIDE_URL"
+            value = "http://moira.${local.litellm_ns}.svc.cluster.local:${local.moira_port}/decide"
+          }
+
+          env {
+            name = "MOIRA_DECIDE_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.moira_env.metadata[0].name
+                key  = "MOIRA_DECIDE_TOKEN"
+              }
+            }
+          }
+
+          # tiers.yaml `groups` names the hook sends to Moira; derived from the
+          # same file the moira-config ConfigMap projects so it cannot drift.
+          env {
+            name  = "MOIRA_GROUPS"
+            value = join(",", keys(local.moira_tiers.groups))
+          }
+
           readiness_probe {
             http_get {
               path = "/health/liveliness"
@@ -885,6 +909,79 @@ resource "kubernetes_deployment_v1" "litellm" {
             }
           }
         }
+        container {
+          name  = "moira-chatgpt-usage"
+          image = local.moira_image
+          args  = ["chatgpt-usage"]
+
+          # auth.json is root:root 0600 (LiteLLM runs as root), so the reader
+          # must be uid 0; the image's non-numeric USER also fails
+          # runAsNonRoot verification. No capabilities, read-only rootfs and
+          # a read-only mount keep it a pure reader.
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            run_as_user                = 0
+            run_as_group               = 0
+            run_as_non_root            = false
+            capabilities { drop = ["ALL"] }
+          }
+
+          env {
+            name  = "CHATGPT_TOKEN_DIR"
+            value = "/var/lib/litellm/chatgpt"
+          }
+
+          env {
+            name  = "SIDECAR_PORT"
+            value = tostring(local.moira_sidecar_port)
+          }
+
+          env {
+            name = "MOIRA_SIDECAR_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.moira_env.metadata[0].name
+                key  = "MOIRA_SIDECAR_TOKEN"
+              }
+            }
+          }
+
+          port {
+            container_port = local.moira_sidecar_port
+            name           = "moira-usage"
+          }
+
+          # No readiness probe: pod readiness gates the shared litellm
+          # Service endpoints (see the affine sidecar note above). The
+          # liveness probe below still restarts the sidecar if it hangs.
+
+          liveness_probe {
+            http_get {
+              path = "/health"
+              port = local.moira_sidecar_port
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 30
+          }
+
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "32Mi"
+            }
+            limits = {
+              cpu    = "100m"
+              memory = "96Mi"
+            }
+          }
+
+          volume_mount {
+            name       = "chatgpt-auth"
+            mount_path = "/var/lib/litellm"
+            read_only  = true
+          }
+        }
         volume {
           name = "litellm-config"
           secret {
@@ -931,6 +1028,14 @@ resource "kubernetes_service_v1" "litellm" {
       port        = local.litellm_port
       target_port = local.litellm_port
       name        = "http"
+    }
+
+    # Moira's chatgpt-usage sidecar (moira.tf) reached by the moira-poller
+    # through this Service for ChatGPT quota windows.
+    port {
+      port        = local.moira_sidecar_port
+      target_port = local.moira_sidecar_port
+      name        = "moira-usage"
     }
   }
 }
