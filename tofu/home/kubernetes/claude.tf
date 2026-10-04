@@ -5,14 +5,8 @@
 # Single-tenant bridge: OAuth credentials remain in OpenBao; callers authenticate
 # with an independent random bearer token. There is no API-key or PAYG fallback.
 # In-cluster egress is limited to OpenBao, platform.claude.com (token refresh),
-# and api.anthropic.com (inference and model catalog); claude.ai is
-# workstation-login-only.
-
 locals {
-  # Pinned to the immutable per-commit tag the bridge CI publishes. After the
-  # first pipeline completes, swap to the @sha256:<digest> form like the other
-  # bridges (one-line change).
-  claude_image         = "registry.gitlab.home.shdr.ch/so/claude-bridge:243054805f91f7721c1cef3563489f77416f68fe"
+  claude_image         = "registry.gitlab.home.shdr.ch/so/claude-bridge@sha256:e755c604e0f69dc462a16e26198db0f9e4cdd32d4761fe5a1169b84aeff7d922"
   claude_host          = "claude.home.shdr.ch"
   claude_port          = 8080
   claude_ns            = module.namespace["claude"].name
