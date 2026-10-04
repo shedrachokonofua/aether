@@ -32,7 +32,7 @@
 **Interfaces:**
 - Produces: a typechecking Bun project with scripts `start`, `login`, `typecheck`, `test`, `check`; dependency `@earendil-works/pi-ai` installed at a pinned exact version.
 
-- [ ] **Step 1: Create package.json** (mirror grok-bridge's, add pi-ai):
+- [x] **Step 1: Create package.json** (mirror grok-bridge's, add pi-ai):
 
 ```json
 {
@@ -59,10 +59,10 @@
 
 (If `bun outdated` at execution time shows a newer pi-ai that still exports the same surface, pin that exact version instead; floor 0.84.2.)
 
-- [ ] **Step 2: Copy `tsconfig.json`, `.gitignore`, `.dockerignore` verbatim from `../grok-bridge/`** (identical settings).
-- [ ] **Step 3: Write THIRD_PARTY_NOTICES** crediting `@earendil-works/pi-ai` (MIT, earendil-works/pi) and its bundled `@anthropic-ai/sdk`.
-- [ ] **Step 4: `bun install`** in `../claude-bridge`; verify `bunx tsc --noEmit` passes (empty project).
-- [ ] **Step 5: `git init`, commit** `chore: scaffold claude-bridge`.
+- [x] **Step 2: Copy `tsconfig.json`, `.gitignore`, `.dockerignore` verbatim from `../grok-bridge/`** (identical settings).
+- [x] **Step 3: Write THIRD_PARTY_NOTICES** crediting `@earendil-works/pi-ai` (MIT, earendil-works/pi) and its bundled `@anthropic-ai/sdk`.
+- [x] **Step 4: `bun install`** in `../claude-bridge`; verify `bunx tsc --noEmit` passes (empty project).
+- [x] **Step 5: `git init`, commit** `chore: scaffold claude-bridge`.
 
 ### Task 2: Provider-neutral utilities (clone from grok-bridge)
 
@@ -73,7 +73,7 @@
 **Interfaces:**
 - Produces: `FetchLike`, `fetchNoRedirect`, `readBoundedText`, `readBoundedJson`, `parseBoundedJson` — identical signatures to grok-bridge.
 
-- [ ] **Step 1:** Copy `src/safe-fetch.ts`, `src/bounded-json.ts`, `test/safe-fetch.test.ts` from `../grok-bridge/` byte-for-byte. Commit `feat: port bounded fetch utilities`.
+- [x] **Step 1:** Copy `src/safe-fetch.ts`, `src/bounded-json.ts`, `test/safe-fetch.test.ts` from `../grok-bridge/` byte-for-byte. Commit `feat: port bounded fetch utilities`.
 
 ### Task 3: Types, model allowlist, and metadata
 
@@ -84,7 +84,7 @@
 **Interfaces:**
 - Produces: `ClaudeCredentials`, `VersionedCredentials`, `STATIC_MODEL_ALLOWLIST`, `bridgeModel(modelId): Model<"anthropic-messages">`, `intersectAllowedModels(liveIds: Set<string>): string[]`.
 
-- [ ] **Step 1: `src/types.ts`:**
+- [x] **Step 1: `src/types.ts`:**
 
 ```ts
 export interface ClaudeCredentials {
@@ -103,7 +103,7 @@ export interface VersionedCredentials {
 }
 ```
 
-- [ ] **Step 2: `src/models.ts`** — static allowlist + pi-ai Model construction (metadata from the omp catalog: 1M context, 128K output, thinking low→max, vision):
+- [x] **Step 2: `src/models.ts`** — static allowlist + pi-ai Model construction (metadata from the omp catalog: 1M context, 128K output, thinking low→max, vision):
 
 ```ts
 import type { Model } from "@earendil-works/pi-ai";
@@ -151,7 +151,7 @@ export function intersectAllowedModels(liveIds: ReadonlySet<string>): Allowliste
 
 (At implementation, verify the `thinkingLevelMap` value type and `Model` compat requirements against the installed `.d.ts` and adjust to compile.)
 
-- [ ] **Step 3: tests** — allowlist intersection, unknown-ID rejection, bridgeModel field sanity. Run `bun test`; commit `feat: model allowlist and metadata`.
+- [x] **Step 3: tests** — allowlist intersection, unknown-ID rejection, bridgeModel field sanity. Run `bun test`; commit `feat: model allowlist and metadata`.
 
 ### Task 4: OpenBao store
 
@@ -162,8 +162,8 @@ export function intersectAllowedModels(liveIds: ReadonlySet<string>): Allowliste
 **Interfaces:**
 - Produces: `TokenProvider`, `StaticTokenProvider`, `KubernetesTokenProvider`, `BaoCredentialStore` (read/write with CAS), `BaoError`, `BaoCasConflictError` — identical to grok-bridge except `parseCredentials` validates `ClaudeCredentials` (schemaVersion 1; `access`, `refresh` non-empty strings; `expires` finite; `email` string|null; `models` array of allowlisted IDs; `billingVerifiedAt` finite positive).
 
-- [ ] **Step 1:** Copy `../grok-bridge/src/bao.ts` and replace only the import of types and `parseCredentials` body to validate `ClaudeCredentials`. Copy `test/bao.test.ts` and adapt the credential fixtures to the Claude shape.
-- [ ] **Step 2:** `bun test test/bao.test.ts`; commit `feat: OpenBao credential store`.
+- [x] **Step 1:** Copy `../grok-bridge/src/bao.ts` and replace only the import of types and `parseCredentials` body to validate `ClaudeCredentials`. Copy `test/bao.test.ts` and adapt the credential fixtures to the Claude shape.
+- [x] **Step 2:** `bun test test/bao.test.ts`; commit `feat: OpenBao credential store`.
 
 ### Task 5: pi-ai seam (OAuth client, inference, billing classification)
 
@@ -182,9 +182,9 @@ export function intersectAllowedModels(liveIds: ReadonlySet<string>): Allowliste
   - `class UpstreamAnthropicError extends Error { constructor(readonly status: number, readonly body: unknown) }`
   - `classifyBilling(body: unknown): "extra-usage" | "forbidden" | "unauthorized" | undefined` — matches Anthropic error payloads: `error.type === "invalid_request_error"` with message containing `extra usage`/`Third-party apps` → `"extra-usage"`; `authentication_error` → `"unauthorized"`; `permission_error`/`forbidden` → `"forbidden"`.
 
-- [ ] **Step 1: Write failing tests** for `classifyBilling` (all four branches + undefined), `streamClaude` forcing `maxRetries: 0` (assert via a spy fetch capturing the SDK call or via options identity through a fake stream), and `runOAuthLogin` refusing a non-localhost auth URL.
-- [ ] **Step 2: Implement `src/pi.ts`.** Verify against the installed `.d.ts`: `OAuthAuth.login` interaction is `{ prompt, notify, signal }`; `notify` receives `{ type: "auth_url", url }` events; the credential returned is `{ type: "oauth", access, refresh, expires, ...extras }`. Map `AnthropicError` statuses from the stream's error events (an `AssistantMessage` with `stopReason: "error"` carries `errorMessage`; upstream HTTP status arrives through `onResponse` — attach `onResponse` in `streamClaude` to capture `response.status` into the stream's abort/error path). Adjust exactly as the real types require; keep the exported surface above stable.
-- [ ] **Step 3:** `bun test test/pi.test.ts`; commit `feat: pi-ai OAuth and stream seam`.
+- [x] **Step 1: Write failing tests** for `classifyBilling` (all four branches + undefined), `streamClaude` forcing `maxRetries: 0` (assert via a spy fetch capturing the SDK call or via options identity through a fake stream), and `runOAuthLogin` refusing a non-localhost auth URL.
+- [x] **Step 2: Implement `src/pi.ts`.** Verify against the installed `.d.ts`: `OAuthAuth.login` interaction is `{ prompt, notify, signal }`; `notify` receives `{ type: "auth_url", url }` events; the credential returned is `{ type: "oauth", access, refresh, expires, ...extras }`. Map `AnthropicError` statuses from the stream's error events (an `AssistantMessage` with `stopReason: "error"` carries `errorMessage`; upstream HTTP status arrives through `onResponse` — attach `onResponse` in `streamClaude` to capture `response.status` into the stream's abort/error path). Adjust exactly as the real types require; keep the exported surface above stable.
+- [x] **Step 3:** `bun test test/pi.test.ts`; commit `feat: pi-ai OAuth and stream seam`.
 
 ### Task 6: Anthropic Messages ↔ pi adapters
 
@@ -207,8 +207,8 @@ export function intersectAllowedModels(liveIds: ReadonlySet<string>): Allowliste
   - `thinking: {type:"enabled", budget_tokens}` → `thinkingEnabled: true, thinkingBudgetTokens`; `stream` → boolean.
   - Unknown top-level fields → 400 (never silently dropped).
 - Event mapping: `text_*`→`content_block_*` with `text_delta`; `thinking_*`→`content_block_*` with `thinking_delta`; `toolcall_*`→`content_block_*` with `input_json_delta` (serialize argument deltas); `done`→`message_delta` (stop_reason: toolUse→`tool_use`, length→`max_tokens`, stop→`end_turn`) + `message_stop`; usage from the final message (`message_delta.usage` with input/output tokens). An `error` event mid-stream emits an Anthropic `error` SSE event and stops — never a synthetic successful finish.
-- [ ] **Step 1:** Write failing tests for each mapping rule above (round-trip: sample Anthropic request → captured pi context/options; sample event sequence → expected SSE bytes; aggregation for non-streaming; every rejection case). Use fixture JSON drawn from Anthropic Messages docs shapes.
-- [ ] **Step 2:** Implement both adapters. Run both test files. Commit `feat: Anthropic Messages adapters`.
+- [x] **Step 1:** Write failing tests for each mapping rule above (round-trip: sample Anthropic request → captured pi context/options; sample event sequence → expected SSE bytes; aggregation for non-streaming; every rejection case). Use fixture JSON drawn from Anthropic Messages docs shapes.
+- [x] **Step 2:** Implement both adapters. Run both test files. Commit `feat: Anthropic Messages adapters`.
 
 ### Task 7: Credential manager
 
@@ -219,7 +219,7 @@ export function intersectAllowedModels(liveIds: ReadonlySet<string>): Allowliste
 **Interfaces:**
 - Consumes: `CredentialStore` (as in grok-bridge), `refreshOAuth`/`OAuthLoginView` from `./pi`.
 - Produces: `ClaudeCredentialManager` with the exact grok-bridge lifecycle minus metadata/privacy: `initialize`, `ready()` (credential loaded + `models` non-empty + `billingVerifiedAt` set), `markInvalid()`, `accessToken(signal)`, `refreshAfterUnauthorized(failedToken, signal)`, `markBillingFailure()` (sets invalid; remedy is re-login or pi-ai update), `credentials()`. Single-flight refresh; CAS-conflict adoption identical to grok-bridge.
-- [ ] **Step 1:** Copy grok's `credentials.ts` structure; strip `MetadataLoader`/privacy; add `billingVerifiedAt` gate and `markBillingFailure`. Adapt tests (copy `credentials.test.ts`, replace metadata scenarios with billing scenarios). Run. Commit `feat: credential manager`.
+- [x] **Step 1:** Copy grok's `credentials.ts` structure; strip `MetadataLoader`/privacy; add `billingVerifiedAt` gate and `markBillingFailure`. Adapt tests (copy `credentials.test.ts`, replace metadata scenarios with billing scenarios). Run. Commit `feat: credential manager`.
 
 ### Task 8: Server and entrypoint
 
@@ -233,8 +233,8 @@ export function intersectAllowedModels(liveIds: ReadonlySet<string>): Allowliste
 
 Routes: `GET /health`, `GET /ready` (same semantics as grok; ready = manager.ready()), `GET /v1/models` (Anthropic-format `{data:[{id, display_name, created_at, type:"model"}]}`, allowlist ∩ persisted live catalog), `POST /v1/messages` (the only inference route; everything else 404).
 Behavior deltas from grok's server: auth accepts `Authorization: Bearer` or `x-api-key`; body → `toPiRequest` (400 on `AnthropicRequestError`); execute via `streamClaude` with `signal` = client ∪ idle-timeout; SSE via `toAnthropicSse`, non-stream via `toAnthropicResponse`; upstream 401 → one `refreshAfterUnauthorized` + retry; 403 → `revalidate` (manager invalid; fail closed); response body matching `classifyBilling === "extra-usage"` → `markBillingFailure` + 503 with sanitized message; 429 preserves status + `retry-after`; other 4xx pass through; network/5xx → 502 upstream-unavailable. 16 MiB body bound; SSE idle timeout 900 s (connection + per-read), `idleTimeout: 0` on `Bun.serve`; structured request logs (request_id, model, bytes, upstream_status, total_ms, aborted) with no prompt/response content.
-- [ ] **Step 1:** Write failing server tests (port grok's `server.test.ts` structure): route auth matrix, both header forms, models endpoint shape, messages 400 mapping, 401-refresh-retry-once, extra-usage fail-closed, 429 passthrough, SSE relay end-to-end with fake pi stream, client cancellation.
-- [ ] **Step 2:** Implement server + index. Run full `bun run check`. Commit `feat: bridge server`.
+- [x] **Step 1:** Write failing server tests (port grok's `server.test.ts` structure): route auth matrix, both header forms, models endpoint shape, messages 400 mapping, 401-refresh-retry-once, extra-usage fail-closed, 429 passthrough, SSE relay end-to-end with fake pi stream, client cancellation.
+- [x] **Step 2:** Implement server + index. Run full `bun run check`. Commit `feat: bridge server`.
 
 ### Task 9: Login script
 
@@ -247,16 +247,16 @@ Behavior deltas from grok's server: auth accepts `Authorization: Bearer` or `x-a
 - Produces: `runLogin(deps)` as in grok's login (injectable deps; `import.meta.main` wiring with `VAULT_ADDR`, `VAULT_TOKEN`, `CLAUDE_BAO_MOUNT=kv`, `CLAUDE_BAO_PATH=aether/claude-bridge/credentials`).
 
 Flow: read existing version (404 → 0) → `runOAuthLogin` (print URL; prompt fallback reads stdin) → live model catalog: GET `https://api.anthropic.com/v1/models` with the OAuth token via a pi-ai stream-consistent client — use pi-ai's exported provider plumbing where possible; otherwise a plain Bearer GET is acceptable for the read-only catalog because it carries no identity claims (document this exception in README; inference still pi-ai-only) → intersect allowlist, require ≥1 → billing marker: one-token `streamClaude("claude-fable-5-1" or first available, {messages:[{role:"user",content:"ok"}], maxTokens 16})`; if the response error classifies as extra-usage → abort without persisting → write record with CAS → log success only.
-- [ ] **Step 1:** Failing tests: abort-on-extra-usage, no-model abort, happy path writes CAS record with `billingVerifiedAt`.
-- [ ] **Step 2:** Implement. `bun run check`. Commit `feat: workstation login`.
+- [x] **Step 1:** Failing tests: abort-on-extra-usage, no-model abort, happy path writes CAS record with `billingVerifiedAt`.
+- [x] **Step 2:** Implement. `bun run check`. Commit `feat: workstation login`.
 
 ### Task 10: Image, CI, README
 
 **Files:**
 - Create: `../claude-bridge/Dockerfile`, `../claude-bridge/.gitlab-ci.yml`, `../claude-bridge/README.md`
 
-- [ ] **Step 1:** Copy `Dockerfile` and `.gitlab-ci.yml` from grok-bridge verbatim (same digest-pinned Bun and Buildah images; `bun.lock` is included by the build). Write README mirroring grok's: routes, env, no-PAYG/no-usage stance, pi-ai identity policy, billing invariant, catalog-fetch exception note, local dev.
-- [ ] **Step 2:** `bun run check` once more; commit `chore: image, ci, docs`. Tag `v1.0.0` and attempt `git push` to `ssh://git@ssh.gitlab.home.shdr.ch:2222/so/claude-bridge.git` (create project via push-to-create if enabled; otherwise record as an operator step).
+- [x] **Step 1:** Copy `Dockerfile` and `.gitlab-ci.yml` from grok-bridge verbatim (same digest-pinned Bun and Buildah images; `bun.lock` is included by the build). Write README mirroring grok's: routes, env, no-PAYG/no-usage stance, pi-ai identity policy, billing invariant, catalog-fetch exception note, local dev.
+- [x] **Step 2:** `bun run check` once more; commit `chore: image, ci, docs`. Tag `v1.0.0` and attempt `git push` to `ssh://git@ssh.gitlab.home.shdr.ch:2222/so/claude-bridge.git` (create project via push-to-create if enabled; otherwise record as an operator step).
 
 ### Task 11: Aether deployment declarations
 
@@ -268,8 +268,8 @@ Flow: read existing version (404 → 0) → `runOAuthLogin` (print URL; prompt f
 - Consumes: grok.tf as the exact template (same resources: locals+`random_password.claude_bridge_api_key`, SA, Bao policy path `aether/claude-bridge/credentials`, k8s auth role `aether-k8s-claude-bridge`, GitLab pull secret, caller-key Secret, hardened 1-replica Recreate Deployment with projected Bao token, Service, HTTPRoute, CiliumNetworkPolicy).
 - Produces: deployment keyed on `claude-bridge` image digest.
 
-- [ ] **Step 1:** Write `claude.tf` as a find-replace adaptation of `grok.tf` (grok→claude names, host, bao path, role, egress FQDNs `bao.home.shdr.ch`/`platform.claude.com`/`api.anthropic.com`, health path `/health`). The image digest is `<gitlab-registry>/so/claude-bridge@sha256:<digest>` — fill from CI after Task 10's push; until then leave `claude.tf` uncommitted and track the digest as the gating value.
-- [ ] **Step 2:** Add the namespace contract stanza + probe path. `tofu fmt`, `tofu validate` (needs the digest only at apply time). Commit `feat: claude bridge workload` once the digest is real.
+- [x] **Step 1:** Write `claude.tf` as a find-replace adaptation of `grok.tf` (grok→claude names, host, bao path, role, egress FQDNs `bao.home.shdr.ch`/`platform.claude.com`/`api.anthropic.com`, health path `/health`). The image digest is `<gitlab-registry>/so/claude-bridge@sha256:<digest>` — fill from CI after Task 10's push; until then leave `claude.tf` uncommitted and track the digest as the gating value.
+- [x] **Step 2:** Add the namespace contract stanza + probe path. `tofu fmt`, `tofu validate` (needs the digest only at apply time). Commit `feat: claude bridge workload` once the digest is real.
 
 ### Task 12: LiteLLM integration
 
@@ -307,24 +307,24 @@ and per model (sonnet-5-5 shown; opus-5-5/fable-5-1 identical apart from names/i
 
 (`model_info` metadata: mode chat, 1 000 000 context, 128 000 output, vision + tools + reasoning true — mirror the SuperGrok entry's fields.)
 
-- [ ] **Step 1:** Apply the four file modifications. Run: `nix develop --command bash -c 'tofu fmt -check && tofu validate'` in `tofu/home`, `task --list` parse, `ansible-playbook --syntax-check`, and a YAML parse of the rendered litellm template (render via the same templatevars path `task tofu:plan` uses, or verify by eyeball + `yq` on a manual render).
-- [ ] **Step 2:** Targeted `task tofu:plan`; require zero destroys and only additive changes. Commit `feat: expose pinned Claude models`.
+- [x] **Step 1:** Apply the four file modifications. Run: `nix develop --command bash -c 'tofu fmt -check && tofu validate'` in `tofu/home`, `task --list` parse, `ansible-playbook --syntax-check`, and a YAML parse of the rendered litellm template (render via the same templatevars path `task tofu:plan` uses, or verify by eyeball + `yq` on a manual render).
+- [x] **Step 2:** Targeted `task tofu:plan`; require zero destroys and only additive changes. Commit `feat: expose pinned Claude models`.
 
 ### Task 13: Documentation
 
 **Files:**
 - Modify: `docs/ai-ml.md` (new Claude section beside SuperGrok's, and provider inventory table row)
 
-- [ ] **Step 1:** Document: bridge ownership split, pi-ai dependency policy, credential path + `task claude:login`, billing invariant + fail-closed behavior, pins, egress, no-PAYG/no-usage, LiteLLM translation boundary, troubleshooting (extra-usage error → update pi-ai; 401 loop → re-login). Commit `docs: document Claude bridge`.
+- [x] **Step 1:** Document: bridge ownership split, pi-ai dependency policy, credential path + `task claude:login`, billing invariant + fail-closed behavior, pins, egress, no-PAYG/no-usage, LiteLLM translation boundary, troubleshooting (extra-usage error → update pi-ai; 401 loop → re-login). Commit `docs: document Claude bridge`.
 
 ### Task 14: Operator-gated rollout (requires the user)
 
 Not executable autonomously; run when the operator returns:
 
-- [ ] Push `claude-bridge` if Task 10 couldn't; confirm GitLab CI green; capture the `sha256:` digest into `claude.tf`; commit.
+- [x] Push `claude-bridge` if Task 10 couldn't; confirm GitLab CI green; capture the `sha256:` digest into `claude.tf`; commit.
 - [ ] `task tofu:apply` (claude namespace/workload + litellm secret/env/config).
 - [ ] `task claude:login` — browser OAuth at claude.ai; confirm billing marker passes; verify Bao record exists (`bao kv get kv/aether/claude-bridge/credentials` metadata only).
 - [ ] Rollout ready; `curl https://claude.home.shdr.ch/ready` green.
 - [ ] Direct bridge streaming marker: `POST /v1/messages` with `claude-sonnet-5-5` (thinking + one tool) through LiteLLM's `claude/sonnet-5-5` Chat Completions; assert marker, tool calls, thinking, usage.
-- [ ] `task configure:litellm-keys`; confirm OMP + Colony can select the three pins; defaults unchanged.
+- [ ] `task configure:litellm-keys`; confirm OMP can select the three pins; defaults unchanged.
 - [ ] Verify egress (Cilium) blocks anything beyond the four destinations; no `x-api-key` auth upstream (Bearer only).
