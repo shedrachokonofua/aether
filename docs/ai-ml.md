@@ -151,7 +151,9 @@ best-effort and is not a readiness gate.
 Claude is exposed through the pi-ai-backed single-tenant bridge as
 `claude/sonnet-5-5`, `claude/opus-5-5`, and `claude/fable-5-1`. The bridge
 speaks native Anthropic `/v1/messages`; LiteLLM's `anthropic/` provider owns
-Chat Completions translation at its boundary. All Anthropic connectivity —
+Chat Completions translation at its boundary. Its credential base URL is
+`https://claude.home.shdr.ch` without `/v1`: LiteLLM appends `/v1/messages`.
+All Anthropic connectivity —
 OAuth login, refresh, and the Claude Code client identity on every request —
 comes from the pinned `@earendil-works/pi-ai` dependency, so identity churn
 is absorbed by dependency updates, never bridge edits. Since Anthropic's
@@ -168,8 +170,15 @@ bridge source is the private `so/claude-bridge` GitLab project. Only the OMP
 virtual key may select these pins. In-cluster egress is limited to
 `bao.home.shdr.ch`, `platform.claude.com` (refresh), and
 `api.anthropic.com` (inference and catalog); `claude.ai` is used only by the
-workstation login. `top_p`, `top_k`, and `stop_sequences` are rejected with
-400 because pi-ai's request path does not express them.
+workstation login. The bridge preserves native custom-tool controls, cache
+markers, tool-result ordering, image/document inputs, thinking, sampling, and
+stop sequences through pi-ai's payload hook. Native response events retain
+distinct parallel-tool IDs, redacted thinking, refusal/stop metadata, and usage
+breakdowns. Unsupported fields/tool types fail explicitly with 400; model-specific
+restrictions remain Anthropic's responsibility. Image publication is gated on
+the shipped bundle and tool cycles through the pinned LiteLLM image. See the
+bridge's `docs/protocol-audit.md` for supported boundaries; this is not a claim
+of compatibility with all current or future Anthropic features.
 
 Only standard Grok 4.7 is approved; retired 4.6, Fast variants, and unknown
 model IDs are rejected. A cached 4.6-only credential catalog cannot mark the
