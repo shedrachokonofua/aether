@@ -59,7 +59,7 @@ Aether owns:
 - Bridge bearer generation and Kubernetes Secret.
 - Immutable image digest pin.
 - LiteLLM credential and pinned `claude/*` model entries.
-- OMP and Colony virtual-key allowlists.
+- The OMP virtual-key allowlist.
 - The workstation login task.
 
 ## Bridge interface
@@ -208,7 +208,7 @@ Add one pinned entry per bootstrap-confirmed model:
 
 Each entry carries the `claude_bridge_credential`, accurate metadata (1M context, 128K output, vision, thinking levels low→max), `timeout`/`stream_timeout` 900, and `cooldown_time: 0` so upstream errors surface unchanged. LiteLLM translates Chat Completions and Responses callers to Anthropic Messages at its boundary; the bridge does not duplicate that conversion.
 
-No `router/*` group is added and no existing provider entry changes. OMP and Colony virtual-key allowlists receive the confirmed `claude/*` names; no default agent model changes as part of this work.
+No `router/*` group is added and no existing provider entry changes. The OMP virtual-key allowlist receives the confirmed `claude/*` names; Colony does not. No default agent model changes as part of this work.
 
 ## Testing
 
@@ -251,7 +251,7 @@ Implementation is complete only when:
 6. A Chat Completions request to the `claude/sonnet-5-5` LiteLLM model returns the marker, proving LiteLLM's Anthropic translation end to end.
 7. Usage accounting and stop reasons survive the LiteLLM path.
 8. The deployed image is pinned by digest and the rollout is ready.
-9. OMP and Colony can select the new pins after `task configure:litellm-keys`; all other defaults are unchanged.
+9. OMP can select the new pins after `task configure:litellm-keys`; all other defaults are unchanged.
 
 ## Documentation
 
