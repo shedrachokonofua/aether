@@ -148,6 +148,29 @@ owned by [`tofu/home/kubernetes/grok.tf`](../tofu/home/kubernetes/grok.tf);
 bridge source is the private `so/grok-bridge` GitLab project. `/usage` is
 best-effort and is not a readiness gate.
 
+Claude is exposed through the pi-ai-backed single-tenant bridge as
+`claude/sonnet-5-5`, `claude/opus-5-5`, and `claude/fable-5-1`. The bridge
+speaks native Anthropic `/v1/messages`; LiteLLM's `anthropic/` provider owns
+Chat Completions translation at its boundary. All Anthropic connectivity —
+OAuth login, refresh, and the Claude Code client identity on every request —
+comes from the pinned `@earendil-works/pi-ai` dependency, so identity churn
+is absorbed by dependency updates, never bridge edits. Since Anthropic's
+2026-04 billing split, detected third-party clients draw per-token "extra
+usage" instead of plan limits; `task claude:login` verifies plan-limit
+classification with a marker request before persisting anything, and the
+running bridge fails closed (503, readiness false) on that classification.
+This is the same CLI-identity bridging posture as grok/muse and is not
+sanctioned by Anthropic. There is no PAYG/Console fallback and no `/usage`
+endpoint. Credentials persist at `kv/aether/claude-bridge/credentials`;
+runtime infrastructure is owned by
+[`tofu/home/kubernetes/claude.tf`](../tofu/home/kubernetes/claude.tf);
+bridge source is the private `so/claude-bridge` GitLab project. Only the OMP
+virtual key may select these pins. In-cluster egress is limited to
+`bao.home.shdr.ch`, `platform.claude.com` (refresh), and
+`api.anthropic.com` (inference and catalog); `claude.ai` is used only by the
+workstation login. `top_p`, `top_k`, and `stop_sequences` are rejected with
+400 because pi-ai's request path does not express them.
+
 Only standard Grok 4.7 is approved; retired 4.6, Fast variants, and unknown
 model IDs are rejected. A cached 4.6-only credential catalog cannot mark the
 upgraded bridge ready: fresh account and catalog checks must approve 4.7.
