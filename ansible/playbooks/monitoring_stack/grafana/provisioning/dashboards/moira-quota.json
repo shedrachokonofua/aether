@@ -1,0 +1,98 @@
+{
+  "uid": "moira-quota",
+  "title": "Moira — Subscription Utilization",
+  "description": "How much of each LLM subscription is used before it resets. Source: moira-poller (moira_quota_used_pct, used % per provider window, polled every 5 min). Used % only rises within a window, so the reading right before a drop is that window's final utilization; 100 minus it expired unused.",
+  "tags": ["moira", "llm"],
+  "schemaVersion": 39,
+  "time": { "from": "now-30d", "to": "now" },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "window",
+        "label": "Window",
+        "type": "custom",
+        "query": "weekly,monthly,30d,yearly,5h,session,mcp-monthly",
+        "current": { "selected": true, "text": ["weekly", "monthly", "30d", "yearly"], "value": ["weekly", "monthly", "30d", "yearly"] },
+        "multi": true,
+        "includeAll": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "bargauge",
+      "title": "Used now",
+      "description": "Current used % of each window.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"})",
+          "instant": true,
+          "legendFormat": "{{provider}} {{window}}"
+        }
+      ],
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 70 } ] }
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Expired unused at last reset",
+      "description": "100 minus the reading just before each window's most recent reset in the range. Windows that have not reset in the range are absent.",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "100 - last_over_time(((max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"} offset 5m)) and on (provider, window) ((max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"})) < (max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"} offset 5m)) - 5))[$__range:5m])",
+          "instant": true,
+          "legendFormat": "{{provider}} {{window}}"
+        }
+      ],
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 30 }, { "color": "red", "value": 70 } ] }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Used % over time",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"})",
+          "legendFormat": "{{provider}} {{window}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "lineWidth": 1, "fillOpacity": 0, "spanNulls": true } } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Expired unused per reset",
+      "description": "One point per window reset: % of that window left unused.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "100 - ((max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"} offset 5m)) and on (provider, window) ((max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"})) < (max by (provider, window) (moira_quota_used_pct{window=~\"${window:regex}\"} offset 5m)) - 5))",
+          "legendFormat": "{{provider}} {{window}}",
+          "interval": "5m"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "points", "pointSize": 8 } } }
+    }
+  ]
+}
