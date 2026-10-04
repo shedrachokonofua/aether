@@ -74,6 +74,9 @@
         - router/minimax-m3
         - moira/frontier
         - moira/strong
+        - claude/sonnet-5-5
+        - claude/opus-5-5
+        - claude/fable-5-1
         - moira/flash
       colony:
         - antigravity/gemini-3.8-flash

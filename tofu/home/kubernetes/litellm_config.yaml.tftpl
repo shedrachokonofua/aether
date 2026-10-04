@@ -685,6 +685,65 @@ model_list:
       supports_vision: true
       supported_openai_params: *openai_reasoning_params
 
+  # Private Claude subscription pins. The bridge speaks native Anthropic
+  # Messages through its pi-ai core; LiteLLM's anthropic provider owns
+  # caller-side Chat Completions translation. No PAYG fallback; the bridge
+  # fails closed if Anthropic classifies traffic as third-party extra usage.
+  - model_name: "claude/sonnet-5-5"
+    litellm_params:
+      model: "anthropic/claude-sonnet-5-5"
+      litellm_credential_name: claude_bridge_credential
+      allowed_openai_params: ["reasoning_effort"]
+      cooldown_time: 0
+      timeout: 900
+      stream_timeout: 900
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      mode: chat
+      max_input_tokens: 1000000
+      max_output_tokens: 128000
+      supports_function_calling: true
+      supports_reasoning: true
+      supports_vision: true
+      supported_openai_params: *openai_reasoning_params
+  - model_name: "claude/opus-5-5"
+    litellm_params:
+      model: "anthropic/claude-opus-5-5"
+      litellm_credential_name: claude_bridge_credential
+      allowed_openai_params: ["reasoning_effort"]
+      cooldown_time: 0
+      timeout: 900
+      stream_timeout: 900
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      mode: chat
+      max_input_tokens: 1000000
+      max_output_tokens: 128000
+      supports_function_calling: true
+      supports_reasoning: true
+      supports_vision: true
+      supported_openai_params: *openai_reasoning_params
+  - model_name: "claude/fable-5-1"
+    litellm_params:
+      model: "anthropic/claude-fable-5-1"
+      litellm_credential_name: claude_bridge_credential
+      allowed_openai_params: ["reasoning_effort"]
+      cooldown_time: 0
+      timeout: 900
+      stream_timeout: 900
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      mode: chat
+      max_input_tokens: 1000000
+      max_output_tokens: 128000
+      supports_function_calling: true
+      supports_reasoning: true
+      supports_vision: true
+      supported_openai_params: *openai_reasoning_params
+
   # Moira tier aliases. Each copies the exact litellm_params + model_info of
   # its tier's default model (muse-spark-1.3-contributor / k3 / glm-5.3-flash)
   # and is a real deployment: it serves the static default when the
@@ -738,6 +797,12 @@ credential_list:
       api_key: os.environ/GROK_BRIDGE_API_KEY
     credential_info:
       description: "SuperGrok subscription via single-tenant Responses bridge"
+  - credential_name: claude_bridge_credential
+    credential_values:
+      api_base: https://claude.home.shdr.ch/v1
+      api_key: os.environ/CLAUDE_BRIDGE_API_KEY
+    credential_info:
+      description: "Claude subscription via pi-ai backed single-tenant bridge"
   - credential_name: ollama_cloud_credential
     credential_values:
       api_base: https://ollama.com
