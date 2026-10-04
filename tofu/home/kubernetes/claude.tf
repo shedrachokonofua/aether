@@ -218,9 +218,11 @@ resource "kubernetes_deployment_v1" "claude" {
             period_seconds        = 30
           }
 
+          # Agentic callers send multi-MB bodies (1M context, base64 screenshots) and run several
+          # streams at once; 256Mi was OOMKilled 8× during one OpenDesign/ivy run (2026-10-04).
           resources {
-            requests = { cpu = "25m", memory = "64Mi" }
-            limits   = { cpu = "500m", memory = "256Mi" }
+            requests = { cpu = "25m", memory = "256Mi" }
+            limits   = { cpu = "500m", memory = "1Gi" }
           }
 
           volume_mount {
