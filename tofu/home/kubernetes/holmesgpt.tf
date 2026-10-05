@@ -15,7 +15,7 @@ locals {
   holmes_litellm_base   = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
   holmes_model_primary  = "router/glm-5.3"
   holmes_model_local    = "qwen-local"
-  holmes_model_trial    = "aether/qwen3.8-27b:think"
+  holmes_model_trial    = "aether/qwen3.8-flash-next:think"
   holmes_model_cloud    = "qwen-cloud/qwen3.8-max"
   holmes_prometheus_url = "https://prometheus.home.shdr.ch"
   holmes_loki_url       = "https://loki.home.shdr.ch"
@@ -67,6 +67,13 @@ resource "helm_release" "holmesgpt" {
   values = [yamlencode({
     # robustadev/holmes:0.35.0 is multi-arch; placement is left to the aether-k8s-arch-labeler plus Kyverno.
 
+    # Paused 2026-09-29: from 05:30Z Inquest-driven investigations ran
+    # ~20-45 requests/30min against aether/qwen3.8-27b:think, pinning the GPU
+    # at its 300 W cap / 84-87 C and re-firing "GPU High Temperature" 81x in 4h
+    # (likely a self-sustaining alert -> investigation -> heat loop). Restore
+    # to 1 once Inquest stops routing that alert to local-model RCA.
+    replicas = 0
+
     additionalEnvVars = [
       { name = "OPENAI_API_BASE", value = local.holmes_litellm_base },
       {
@@ -107,7 +114,7 @@ resource "helm_release" "holmesgpt" {
       (local.holmes_model_trial) = {
         api_key     = "{{ env.OPENAI_API_KEY }}"
         api_base    = "{{ env.OPENAI_API_BASE }}"
-        model       = "openai/aether/qwen3.8-27b:think"
+        model       = "openai/aether/qwen3.8-flash-next:think"
         temperature = 1
       }
       (local.holmes_model_cloud) = {

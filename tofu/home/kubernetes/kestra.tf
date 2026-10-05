@@ -96,7 +96,7 @@ resource "kubernetes_secret_v1" "kestra_inquest" {
     ENV_INQUEST_GITLAB_PROJECT = "so/aether/incidents"
     ENV_HOLMES_URL             = "http://holmes-holmes.holmesgpt.svc"
     # Cloud alternative: qwen-cloud/qwen3.8-max.
-    ENV_HOLMES_MODEL       = "aether/qwen3.8-27b:think"
+    ENV_HOLMES_MODEL       = "aether/qwen3.8-flash-next:think"
     ENV_LITELLM_URL        = "https://litellm.home.shdr.ch"
     ENV_APPRISE_NOTIFY_URL = "https://apprise.home.shdr.ch/notify/aether"
     ENV_APPRISE_TAG        = "standard"

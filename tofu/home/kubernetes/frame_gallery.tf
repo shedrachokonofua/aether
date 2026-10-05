@@ -79,7 +79,7 @@ resource "helm_release" "frame_gallery" {
       name = kubernetes_secret_v1.frame_gallery_registry.metadata[0].name
     }]
     env = {
-      LITELLM_MODEL = "aether/qwen3.8-27b"
+      LITELLM_MODEL = "aether/qwen3.8-flash-next"
     }
   })]
 }
