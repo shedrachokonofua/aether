@@ -460,8 +460,17 @@ refreshed from [artificialanalysis.ai](https://www.artificialanalysis.ai/leaderb
 | `moira/frontier` | 48 and up   |
 | `moira/strong`   | 43–47       |
 | `moira/flash`   | 36–42       |
+| `moira/cyber`   | Cyber Index 40 and up, 0% refusals |
 
-`gpt-6-astra` and the `supergrok`/`aether` providers never enter a tier;
+`moira/cyber` ranks by the AA [Cyber Index](https://artificialanalysis.ai/evaluations/artificial-analysis-cyber-index)
+(defensive vulnerability finding and patching) instead of the Intelligence
+Index, using the `cyber:` table in `data/aa_scores.yaml`. Each entry carries the
+model's highest refusal rate across the index's three evals, and the tier's
+`max_refusal: 0` drops any model that declined a task on safety grounds (GPT-6
+Sol and Astra, Gemini 3.8 Flash, Qwen3.8). Qualifying models as of 2026-10-05:
+Grok 4.7, MiMo V2.6 Pro, GPT-6 Luna, GLM-5.3 Flash, Muse Spark 1.3 and Kimi K3.
+
+`gpt-6-astra` and the `ollama-cloud`/`aether` providers never enter a tier;
 unlisted (unscored) models never do either.
 
 Effort semantics: a model with a single `default` score qualifies at any
@@ -481,8 +490,9 @@ the hook raises it to the caller with `Retry-After`; unknown tiers return
 The hook fails open: Moira unreachable, timing out, or answering anything
 unexpected leaves the request unchanged and logs one warning line, so the
 `moira/<tier>` aliases in LiteLLM's model list — real deployments copying
-`meta/muse-spark-1.3`, `kimi/k3` and `zai/glm-5.3-flash` — serve their static
-default models (`moira/frontier`, `moira/strong`, `moira/flash` respectively).
+`meta/muse-spark-1.3-contributor`, `kimi/k3` and `zai/glm-5.3-flash` — serve their static
+default models (`moira/frontier`, `moira/strong`, `moira/flash` respectively;
+`moira/cyber` also defaults to `zai/glm-5.3-flash`).
 Because routing happens inside LiteLLM, every caller gets it regardless of
 entry point (gateway or in-cluster Service DNS).
 
@@ -495,8 +505,8 @@ and `max_output_tokens` to the deployment's cap. Each change logs one INFO
 line; a fallback attempt still sees the client's original request. Proved by
 `tofu/home/kubernetes/litellm_hooks_contract/run.sh` against the pinned image.
 
-Keys that call `moira/*` need `moira/frontier`, `moira/strong` and
-`moira/flash` in their model allowlist (the `colony` and `omp` keys have them),
+Keys that call `moira/*` need the `moira/<tier>` aliases in their model
+allowlist (the `colony` and `omp` keys have all four),
 and Moira only chooses among the key's allowed models: the hook passes the
 allowlist to `/decide`, because LiteLLM does not re-check the rewritten model
 against the key allowlist after the hook replaces `data["model"]`.
