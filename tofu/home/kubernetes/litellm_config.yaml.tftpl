@@ -6,6 +6,11 @@
 # mode, ANY deployment's supports_* flag, and the MAX of the token limits, so
 # every leg of a router/* pool carries its own leg-accurate values.
 #
+# supports_forced_tool_choice: false is read by deployment_adapter
+# (litellm_hooks.py), which softens a forced tool_choice to "auto" per
+# attempt: MiMo V2.6 Pro answers a named forced tool_choice with a different
+# tool call (2026-09-25 probe), and Step 5 Preview honoured one 1/3.
+#
 # reasoning_effort: `openai/` deployments do not list it as a supported
 # param, so drop_params strips it unless allowed_openai_params names it.
 # Clients read the same gap from /model_group/info: omp sends an effort only
@@ -16,10 +21,12 @@
 # LAST deployment, so every leg declares it.
 model_list:
   # llama-swap (K8s) — AFFiNE Copilot streams via /v1/responses; bridge to chat/completions.
-  # The qwen3.8-27b routes are one pinned llama-server (4 slots sharing a
-  # 262144-token KV cache) with no second deployment to fail over to. A router
-  # cooldown cannot add capacity: on 2026-09-25 one context overflow from two
-  # concurrent tool-heavy chats became 5m of "No deployments available".
+  # Each local model is one llama-server (4 slots sharing a 262144-token KV
+  # cache) with no second deployment to fail over to, so these routes set
+  # cooldown_time 0. A router cooldown cannot add capacity: on 2026-09-25 one
+  # context overflow from two concurrent tool-heavy chats became 5m of
+  # "No deployments available". qwen3.8-flash-next is the pinned default;
+  # qwen3.8-27b loads on demand and evicts it.
   #
   # Limits are each llama-server's --ctx-size (llama_swap.tf); every chat
   # model loads its repo's mmproj, so all read images. Output is bounded only
@@ -28,6 +35,36 @@ model_list:
   # base IDs never think, :code and :think always do. Measured on qwen3.8-27b
   # neither reasoning_effort (any level, including "none") nor a client
   # enable_thinking changes that, so these legs do not forward reasoning_effort.
+  # Flash-Next pins reasoning_effort per ID in llama-swap (base: thinking off;
+  # :code/:think: medium; :xhigh: opt-in, 57-84k tokens on small tasks).
+  - model_name: "aether/qwen3.8-flash-next"
+    litellm_params:
+      model: "openai/qwen3.8-flash-next"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
+      cooldown_time: 0
+    model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
+  - model_name: "aether/qwen3.8-flash-next:code"
+    litellm_params:
+      model: "openai/qwen3.8-flash-next:code"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
+      cooldown_time: 0
+    model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+  - model_name: "aether/qwen3.8-flash-next:think"
+    litellm_params:
+      model: "openai/qwen3.8-flash-next:think"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
+      cooldown_time: 0
+    model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+  - model_name: "aether/qwen3.8-flash-next:xhigh"
+    litellm_params:
+      model: "openai/qwen3.8-flash-next:xhigh"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
+      cooldown_time: 0
+    model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-27b"
     litellm_params:
       model: "openai/qwen3.8-27b"
@@ -202,7 +239,7 @@ model_list:
       model: "openai/step-5-preview"
       litellm_credential_name: step_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 65536, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # GLM 5.3 and GLM 5.3 Flash stay in separate model pools.
   # `zai/` is a native LiteLLM provider: its bundled model map already
@@ -292,14 +329,14 @@ model_list:
       model: "openai/xiaomi/mimo-v2.6-pro"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
       model: "openai/xiaomi/mimo-v2.6-pro"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
       order: 2
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "commandcode/mimo-v2.6-flash"
     litellm_params:
       model: "openai/xiaomi/mimo-v2.6-flash"
@@ -366,7 +403,7 @@ model_list:
       use_chat_completions_api: true
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
       model: "openai/mimo-v2.6-pro"
@@ -375,7 +412,7 @@ model_list:
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
       order: 2
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "opencode-go/mimo-v2.6-flash"
     litellm_params:
       model: "openai/mimo-v2.6-flash"
@@ -405,14 +442,14 @@ model_list:
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
       order: 1
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "xiaomi/mimo-v2.6-flash"
     litellm_params:
       model: "openai/mimo-v2.6-flash"
@@ -542,7 +579,7 @@ model_list:
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
       order: 3
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Speech via llama-swap + audio.cpp (K8s)
   - model_name: "aether/qwen3-asr"
@@ -799,7 +836,7 @@ credential_list:
       description: "SuperGrok subscription via single-tenant Responses bridge"
   - credential_name: claude_bridge_credential
     credential_values:
-      api_base: https://claude.home.shdr.ch/v1
+      api_base: https://claude.home.shdr.ch
       api_key: os.environ/CLAUDE_BRIDGE_API_KEY
     credential_info:
       description: "Claude subscription via pi-ai backed single-tenant bridge"
@@ -875,9 +912,15 @@ litellm_settings:
   #   refusing with the tier's 429/400) before deployment selection. Fail-open:
   #   any Moira error leaves the request unchanged and the moira/<tier> alias
   #   deployments below serve their static default model.
+  # - deployment_adapter adapts each deployment attempt from the selected
+  #   deployment's model_info (see the supports_forced_tool_choice note above).
+  # - tool_description_sanitizer drops `description: null` from function tools
+  #   (LiteLLM's MCP conversion emits it; llama.cpp b11223+ rejects it).
   callbacks:
     - aether_hooks.chat_reasoning_effort
     - aether_hooks.moira_router
+    - aether_hooks.deployment_adapter
+    - aether_hooks.tool_description_sanitizer
   turn_off_message_logging: false
   set_verbose: false
   json_logs: true

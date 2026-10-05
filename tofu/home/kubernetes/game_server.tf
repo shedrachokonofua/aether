@@ -369,7 +369,10 @@ resource "kubernetes_deployment_v1" "game_server" {
   }
 
   spec {
-    replicas = 1
+    # 0 since 2026-09-30: this pod's Xorg makes the RTX PRO 6000 "Display
+    # Active", which arms the NVIDIA kernel-runtime watchdog; qwen3.8-27b on
+    # llama-swap then dies with Xid 8 / "launch timed out" on long kernels.
+    replicas = 0
     strategy { type = "Recreate" } # single GPU, single writer (RWO home/games)
 
     selector {

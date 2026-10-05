@@ -12,6 +12,10 @@ from fastapi import HTTPException
 from litellm.integrations.custom_logger import CustomLogger
 
 logger = logging.getLogger("litellm.hooks.aether")
+# LiteLLM's JSON logging attaches its handler to the root logger, whose level
+# stays at the WARNING default, which gates INFO records before handlers see
+# them. Pin ours: the deployment adaptations must be visible at INFO.
+logger.setLevel(logging.INFO)
 
 # One client reused for every decide call; Moira must answer in <50 ms, so a
 # 300 ms cap bounds the hook's added latency tightly.
@@ -216,3 +220,108 @@ class MoiraRouter(CustomLogger):
 
 
 moira_router = MoiraRouter()
+
+
+class DeploymentAdapter(CustomLogger):
+    """Per-deployment request adaptation after LiteLLM picks a deployment.
+
+    Runs once per attempt (primary, same-group retry, fallback), after the
+    router has selected a deployment, so each attempt sees its own
+    `model_info` and adapts independently. Two adaptations, both declared in
+    the deployment's model_info:
+
+    - `supports_forced_tool_choice: false` softens a forced tool_choice
+      (a dict, or the string "required") to "auto". Evidence: MiMo V2.6 Pro
+      returns a different tool call than the forced one (2026-09-25 probe),
+      and Step 5 Preview honoured a named forced tool_choice 1/3.
+    - `max_output_tokens` clamps max_tokens / max_completion_tokens /
+      max_output_tokens to the deployment's output cap.
+
+    Nothing else: unsupported parameters stay with LiteLLM's native
+    drop_params. Unknown or missing model_info is a no-op. The router reuses
+    the request kwargs across attempts, so every change is written into a NEW
+    dict over shallow-copied containers; nested objects are never mutated.
+    """
+
+    async def async_pre_call_deployment_hook(self, kwargs: dict[str, Any], call_type: Any) -> dict | None:
+        info = None
+        deployment = None
+        for key in ("metadata", "litellm_metadata"):
+            bucket = kwargs.get(key)
+            if isinstance(bucket, dict) and isinstance(bucket.get("model_info"), dict):
+                info = bucket["model_info"]
+                deployment = bucket.get("deployment_model_name")
+                break
+        if info is None:
+            return None
+        deployment = (
+            deployment
+            or info.get("litellm_model_name")
+            or info.get("model_name")
+            or "?"
+        )
+
+        out = dict(kwargs)
+        changed = False
+
+        tool_choice = out.get("tool_choice")
+        forced = tool_choice == "required" or isinstance(tool_choice, dict)
+        if forced and info.get("supports_forced_tool_choice") is False:
+            out["tool_choice"] = "auto"
+            changed = True
+            logger.info(
+                "deployment_adapter: %s softened forced tool_choice to 'auto' "
+                "(supports_forced_tool_choice: false)",
+                deployment,
+            )
+
+        cap = info.get("max_output_tokens")
+        if isinstance(cap, int) and cap > 0:
+            for key in ("max_tokens", "max_completion_tokens", "max_output_tokens"):
+                value = out.get(key)
+                if isinstance(value, int) and not isinstance(value, bool) and value > cap:
+                    out[key] = cap
+                    changed = True
+                    logger.info(
+                        "deployment_adapter: %s clamped %s %d -> %d (max_output_tokens)",
+                        deployment, key, value, cap,
+                    )
+
+        return out if changed else None
+
+
+deployment_adapter = DeploymentAdapter()
+
+
+class ToolDescriptionSanitizer(CustomLogger):
+    """Drop `"description": null` from function tools.
+
+    LiteLLM's MCP-to-OpenAI tool conversion emits `description: null` for MCP
+    tools that omit a description (MCP allows that; siren's 74 generated tools
+    do). llama.cpp b11223+ rejects the null in its tool parser ("type must be
+    string, but is null"), failing every local-model request that carries
+    such a tool. Omitting the key is valid OpenAI tool schema.
+
+    The router reuses request kwargs across attempts, so the tools list and
+    the touched tool/function dicts are copied, never mutated.
+    """
+
+    async def async_pre_call_deployment_hook(self, kwargs: dict[str, Any], call_type: Any) -> dict | None:
+        tools = kwargs.get("tools")
+        if not isinstance(tools, list):
+            return None
+        cleaned: list[Any] = []
+        changed = False
+        for tool in tools:
+            function = tool.get("function") if isinstance(tool, dict) else None
+            if isinstance(function, dict) and "description" in function and function["description"] is None:
+                function = {k: v for k, v in function.items() if k != "description"}
+                tool = {**tool, "function": function}
+                changed = True
+            cleaned.append(tool)
+        if not changed:
+            return None
+        return {**kwargs, "tools": cleaned}
+
+
+tool_description_sanitizer = ToolDescriptionSanitizer()

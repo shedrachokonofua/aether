@@ -19,6 +19,16 @@ Model weights and ComfyUI state live on the **local NVMe** PV mounted on `talos-
 with `local.gpu_neo_node_selector`; they still require the NVIDIA Talos
 extension selector in addition to the hostname.
 
+Do not run a display server on the `talos-neo` GPU. Any running X server,
+such as the game server's `steam-headless` Xorg, sets the card to
+`Display Active`. The NVIDIA driver then enforces a kernel-runtime watchdog on
+compute work. Long `qwen3.8-27b` kernels trip it with `NVRM: Xid 8` and
+`CUDA error: the launch timed out and was terminated`, which kills the
+llama-server. From 2026-09-25, when Inquest sent its long Holmes prompts to
+the 27B, this caused about 40–110 crashes a day. With `game-server`
+`replicas = 0` (`game_server.tf`), the card reports `Display Active: Disabled`,
+and the same 46k-token workload ran 35 minutes on 2026-09-30 with no Xid.
+
 Speech (STT/TTS) is served by `audiocpp_server` spawned as llama-swap child
 processes: an init container copies the official audio.cpp image's binaries
 onto the GPU PV, GGUF packages live under `llama-swap/models/audiocpp/models/`,
@@ -61,7 +71,7 @@ clients; this change neither upgrades nor decommissions that service.
 
 Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest is configured
-to send Holmes investigations to the local `aether/qwen3.8-27b:think`.
+to send Holmes investigations to the local `aether/qwen3.8-flash-next:think`.
 
 Holmes is paused (`replicas = 0` in `tofu/home/kubernetes/holmesgpt.tf`) since
 2026-09-29. From 05:30Z that day, Inquest investigations sent 20–45
@@ -294,6 +304,17 @@ never think and `:code`/`:think` IDs always do. On 2026-09-27, neither
 `reasoning_effort` nor a client `enable_thinking` changed that for
 `qwen3.8-27b`. Base variants therefore report `supports_reasoning: false`.
 
+Since 2026-09-30, `qwen3.8-flash-next` (Qwen3.8-Flash-Next UD-Q3_K_XL) is the
+pinned local default (`ttl: 0`, preloaded). orion, frame-gallery, assay,
+openwebui task generation, docling VLM, Inquest/Holmes, and the shdrch image
+generator use it. `qwen3.8-27b` loads on demand (`ttl: 900`) and evicts it,
+because both cannot stay resident in 96 GB. Flash-Next pins `reasoning_effort`
+per ID: the base ID has thinking off, `:code` and `:think` use `medium`, and
+`:xhigh` is opt-in. The model's own default is `xhigh`, which spent 57–84k
+tokens (13–21 minutes) on small coding tasks on 2026-09-30, while `medium`
+passed the same tasks in 2–5k tokens. Thinking variants use Unsloth's
+thinking sampling (temperature 1.0, top_p 0.95, top_k 20, presence_penalty 0).
+
 The declared retirement removes Kimi K2.x, pre-5.3 GLM, DeepSeek V4 Flash,
 MiMo V2.5 Pro, pre-3.8 Gemini chat models, direct OpenAI API-key models, and
 all OpenRouter model routes and their retired aliases. DeepSeek V4 Pro
@@ -400,6 +421,25 @@ See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/l
 
 MCP tool calls get LiteLLM's default 60 s cap (`LITELLM_MCP_CLIENT_TIMEOUT`). An overrun returns HTTP 504, which closes the caller's whole MCP session, so a registry entry can raise its own cap with `timeout`; Firecrawl has 110 s. The Seven30 Foundry virtual key (`seven30-foundry`) was created through the LiteLLM API and is not managed in this repo. Since 2026-09-26 its `object_permission.mcp_servers` limits it to Firecrawl and Finviz.
 
+The `openwebui` virtual key has MCP tool search on
+(`object_permission.mcp_tool_search_enabled`, set by
+`ansible/playbooks/register_litellm_virtual_keys.yml`). OpenWebUI's native MCP
+client sees only `mcp_tool_search` and `mcp_tool_call`, not every gateway tool.
+On 2026-10-04 that cut the schema payload per chat from 328 tools (~73.6k
+tokens) to ~210 tokens. The model searches by keyword, then calls the tool by
+name. Ranking is token overlap on tool name plus description, with no
+embeddings. Siren's generated tools have no descriptions, so they match on
+name only, and long natural-language queries can rank them below other
+servers. Search covers only the servers listed in
+`litellm_openwebui_mcp_servers`, so update that list when a server is added to
+`mcp_servers`. In LiteLLM 1.99.1, search returns results over `/mcp/` but `[]`
+over `/mcp-rest`.
+
+LiteLLM converts MCP tools without a description into OpenAI tools with
+`description: null`, and llama.cpp b11223+ rejects that. The
+`tool_description_sanitizer` hook in `litellm_hooks.py` removes the null
+before deployment selection.
+
 ### Moira
 
 Moira ([`tofu/home/kubernetes/moira.tf`](../tofu/home/kubernetes/moira.tf),
@@ -445,6 +485,15 @@ unexpected leaves the request unchanged and logs one warning line, so the
 default models (`moira/frontier`, `moira/strong`, `moira/flash` respectively).
 Because routing happens inside LiteLLM, every caller gets it regardless of
 entry point (gateway or in-cluster Service DNS).
+
+A second hook in the same file, `deployment_adapter`, adapts every deployment
+attempt from the selected deployment's `model_info`: `supports_forced_tool_choice:
+false` (MiMo V2.6 Pro and Step 5 Preview, both unreliable with a named forced
+`tool_choice` in the 2026-09-25 probes) softens a forced `tool_choice` to
+`"auto"`, and `max_output_tokens` clamps `max_tokens`, `max_completion_tokens`
+and `max_output_tokens` to the deployment's cap. Each change logs one INFO
+line; a fallback attempt still sees the client's original request. Proved by
+`tofu/home/kubernetes/litellm_hooks_contract/run.sh` against the pinned image.
 
 Keys that call `moira/*` need `moira/frontier`, `moira/strong` and
 `moira/flash` in their model allowlist (the `colony` and `omp` keys have them),

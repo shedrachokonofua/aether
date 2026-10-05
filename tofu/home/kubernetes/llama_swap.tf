@@ -8,8 +8,9 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  # b10423+ for Muse Glimmer (ggml-org/llama.cpp#26841).
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v250-cuda-b10423"
+  # b10423+ for Muse Glimmer (ggml-org/llama.cpp#26841). b11223 removed
+  # --no-mmap: use --load-mode none.
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v260-cuda-b11223"
   llama_swap_host    = "llama-swap.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = module.namespace["ai-serving"].name
@@ -44,7 +45,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
       hooks:
         on_startup:
           preload:
-            - "qwen3.8-27b"
+            - "qwen3.8-flash-next"
             - "qwen3-embedding-0.6b"
 
       models:
@@ -58,17 +59,16 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --port $${PORT}
             -hf unsloth/Qwen3.8-27B-GGUF:Q8_0
             -ngl 99
-            --no-mmap
+            --load-mode none
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 262144
             --spec-type draft-mtp
             --spec-draft-n-max 2
-          # Pinned (ttl 0 = never unload): the hourly briefing agent was
-          # cycling this model 24x/day (load -> 15min TTL -> unload), so every
-          # interactive call (Beryl, AFFiNE, Orion) paid the ~11s cold load.
-          # 96GB Blackwell, 3-day peak usage 63GB - pinning fits comfortably.
-          ttl: 0
+          # On demand since 2026-09-30: qwen3.8-flash-next replaced it as the
+          # pinned local default. Kept as a fallback for callers still on its
+          # IDs (both cannot stay resident: ~41 GB + ~61 GB VRAM).
+          ttl: 900
           filters:
             setParamsByID:
               "qwen3.8-27b":
@@ -96,6 +96,63 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 min_p: 0.0
                 presence_penalty: 1.5
 
+        "qwen3.8-flash-next":
+          # Local default since 2026-09-30. 125B MoE (6B active) + a 51B N-gram
+          # table (per_layer_token_embd, 28.8 GB) read on demand via mmap +
+          # --lazy-mode. A/B vs qwen3.8-27b on 2026-09-30: coding 4/4 vs 3/4,
+          # RCA complete in 5.7k vs 17k tokens, better table OCR.
+          # Effort is pinned per ID: the model defaults to reasoning_effort
+          # xhigh, which spent 57-84k tokens (13-21 min) per small coding task.
+          # Thinking sampling per unsloth.ai/docs/models/qwen3.8-next.
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf unsloth/Qwen3.8-Flash-Next-GGUF:UD-Q3_K_XL
+            -ngl 99
+            --load-mode mmap
+            --lazy-mode on
+            --cache-type-k q8_0
+            --cache-type-v q8_0
+            --ctx-size 262144
+          ttl: 0
+          filters:
+            setParamsByID:
+              "qwen3.8-flash-next":
+                chat_template_kwargs:
+                  enable_thinking: false
+                temperature: 0.7
+                top_p: 0.8
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 1.5
+              "qwen3.8-flash-next:code":
+                chat_template_kwargs:
+                  enable_thinking: true
+                  reasoning_effort: medium
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 0.0
+              "qwen3.8-flash-next:think":
+                chat_template_kwargs:
+                  enable_thinking: true
+                  reasoning_effort: medium
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 0.0
+              "qwen3.8-flash-next:xhigh":
+                chat_template_kwargs:
+                  enable_thinking: true
+                  reasoning_effort: xhigh
+                temperature: 1.0
+                top_p: 0.95
+                top_k: 20
+                min_p: 0.0
+                presence_penalty: 0.0
+
         "qwen3.6-35b-a3b":
           # MTP speculative decoding — see qwen3.8-27b above.
           cmd: >
@@ -103,7 +160,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --port $${PORT}
             -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:Q8_0
             -ngl 99
-            --no-mmap
+            --load-mode none
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 262144
@@ -143,7 +200,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --port $${PORT}
             -hf unsloth/Qwen3.5-9B-GGUF:Q8_0
             -ngl 99
-            --no-mmap
+            --load-mode none
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 131072
@@ -273,7 +330,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --port $${PORT}
             -hf unsloth/Muse-Glimmer-30B-GGUF:Q8_0
             -ngl 99
-            --no-mmap
+            --load-mode none
             --cache-type-k q8_0
             --cache-type-v q8_0
             --ctx-size 131072
@@ -335,6 +392,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
       matrix:
         vars:
           q3827: "qwen3.8-27b"
+          qfn: "qwen3.8-flash-next"
           q36: "qwen3.6-35b-a3b"
           g31: "gemma-4-31b"
           g26: "gemma-4-26b-a4b"
@@ -352,6 +410,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           tts: "qwen3-tts-0.6b"
         evict_costs:
           q3827: 25
+          qfn: 25
           q36: 25
           g31: 25
           g26: 20
@@ -366,7 +425,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # One chat model + embedding + a reranker — either reranker may be
           # co-resident so mnemo RAG / AFFiNE calls never evict the chat model.
           # muse-glimmer-30b stays outside the group (exclusive swap-in).
-          llm: "(q3827 | q36 | g31 | g26 | q35) & emb & (rr | qrr) & asr & tts"
+          llm: "(q3827 | qfn | q36 | g31 | g26 | q35) & emb & (rr | qrr) & asr & tts"
     YAML
 
     "audiocpp-asr.json" = jsonencode({
