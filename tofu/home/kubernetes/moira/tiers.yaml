@@ -22,7 +22,7 @@ exclude:
   # ollama-cloud: LiteLLM's ollama_chat adapter merges parallel tool calls into
   # one call with concatenated JSON arguments ("Extra data"), breaking agent
   # turns (seen 2026-10-03 on moira/strong -> ollama-cloud/glm-5.3).
-  providers: [supergrok, aether, ollama-cloud]   # never in tiers (aether = local llama-swap; may be enabled later)
+  providers: [aether, ollama-cloud]   # never in tiers (aether = local llama-swap; may be enabled later)
 
 providers:                  # model-name prefix -> provider id + quota source
   # chat_requires_stream: LiteLLM 1.99.x returns 500 "Unknown items in
