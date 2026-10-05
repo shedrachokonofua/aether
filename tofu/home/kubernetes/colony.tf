@@ -22,7 +22,7 @@ data "vault_kv_secret_v2" "colony_litellm" {
 
 locals {
   colony_ns                    = module.namespace["colony"].name
-  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:5a334ee70ab911a062bc1687b9e70e89442f84dcb9b9e0090f43f7831475823e"
+  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:0b3bd4364c8e14c96232898781b01d3cf34bfffabc8fe2371b08cf24dd2b12ab"
   colony_drain_timeout_seconds = 600
   colony_host                  = "colony.home.shdr.ch"
 
