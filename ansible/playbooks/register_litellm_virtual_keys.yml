@@ -83,6 +83,7 @@
         - claude/opus-5-5
         - claude/fable-5-1
         - moira/flash
+        - moira/cyber
       colony:
         - antigravity/gemini-3.8-flash
         - supergrok/grok-4.7
@@ -132,6 +133,7 @@
         - moira/frontier
         - moira/strong
         - moira/flash
+        - moira/cyber
       frame_gallery:
         # Local default model for diverse art direction and concrete composition.
         - aether/qwen3.8-flash-next

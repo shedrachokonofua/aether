@@ -16,6 +16,9 @@ tiers:                      # inclusive AA score bands (data/aa_scores.yaml)
   frontier: { min: 48 }
   strong:   { min: 43, max: 47 }
   flash:     { min: 36, max: 42 }
+  # AA Cyber Index (defensive vuln finding/patching); refusal = max refusal
+  # rate across its three evals. Only models that never refused qualify.
+  cyber:     { index: cyber, min: 40, max_refusal: 0 }
 
 exclude:
   upstream_ids: [gpt-6-astra, muse-spark-1.3]          # never in tiers

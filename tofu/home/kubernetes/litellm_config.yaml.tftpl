@@ -808,6 +808,12 @@ model_list:
     litellm_params:
       model: "zai/glm-5.3-flash"
       litellm_credential_name: zai_credential
+  # Defensive security work, ranked by the AA Cyber Index with zero refusals
+  # (moira/tiers.yaml `cyber`). Fail-open default: GLM-5.3 Flash (49.9, 0%).
+  - model_name: "moira/cyber"
+    litellm_params:
+      model: "zai/glm-5.3-flash"
+      litellm_credential_name: zai_credential
 
 credential_list:
   - credential_name: llama_swap_credential
