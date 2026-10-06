@@ -211,10 +211,10 @@
             openbao
             
             # Kubernetes / Talos
-            talosctl        # Talos cluster management
-            kubectl         # Kubernetes CLI
-            cilium-cli      # Cilium CNI management
-            istioctl        # Istio service mesh CLI
+            pkgsUnstable.talosctl    # Talos cluster management (talosctl >= 1.13 for upgrade-k8s 1.36)
+            pkgsUnstable.kubectl     # Kubernetes CLI (within one minor of the API server)
+            pkgsUnstable.cilium-cli  # Cilium CNI management
+            pkgsUnstable.istioctl    # Istio service mesh CLI (match the installed Istio minor)
             kubernetes-helm # Helm charts
             
             # GitLab
