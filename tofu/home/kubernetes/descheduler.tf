@@ -12,7 +12,7 @@ resource "helm_release" "descheduler" {
   name       = "descheduler"
   repository = "https://kubernetes-sigs.github.io/descheduler"
   chart      = "descheduler"
-  version    = "0.35.1"
+  version    = "0.36.0"
   namespace  = module.namespace["descheduler"].name
   wait       = true
   timeout    = 300
