@@ -766,11 +766,13 @@ model_list:
   # Messages through its pi-ai core; LiteLLM's anthropic provider owns
   # caller-side Chat Completions translation. No PAYG fallback; the bridge
   # fails closed if Anthropic classifies traffic as third-party extra usage.
+  # No allowed_openai_params: passing reasoning_effort through verbatim reached
+  # the bridge as an unknown Messages field (400 "unsupported request field:
+  # reasoning_effort"); LiteLLM's anthropic adapter maps effort to thinking.
   - model_name: "claude/sonnet-5-5"
     litellm_params:
       model: "anthropic/claude-sonnet-5-5"
       litellm_credential_name: claude_bridge_credential
-      allowed_openai_params: ["reasoning_effort"]
       cooldown_time: 0
       timeout: 900
       stream_timeout: 900
@@ -788,7 +790,6 @@ model_list:
     litellm_params:
       model: "anthropic/claude-opus-5-5"
       litellm_credential_name: claude_bridge_credential
-      allowed_openai_params: ["reasoning_effort"]
       cooldown_time: 0
       timeout: 900
       stream_timeout: 900
@@ -806,7 +807,6 @@ model_list:
     litellm_params:
       model: "anthropic/claude-fable-5-1"
       litellm_credential_name: claude_bridge_credential
-      allowed_openai_params: ["reasoning_effort"]
       cooldown_time: 0
       timeout: 900
       stream_timeout: 900
