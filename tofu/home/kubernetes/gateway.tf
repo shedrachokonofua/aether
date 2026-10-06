@@ -14,7 +14,9 @@ resource "null_resource" "gateway_api_crds" {
   provisioner "local-exec" {
     command = <<-EOT
       echo '${var.kubeconfig_raw}' > /tmp/talos-kubeconfig
-      KUBECONFIG=/tmp/talos-kubeconfig kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${var.gateway_api_version}/experimental-install.yaml
+      # Server-side apply: the v1.5+ HTTPRoute CRD exceeds the 256KiB
+      # last-applied-configuration annotation limit of client-side apply.
+      KUBECONFIG=/tmp/talos-kubeconfig kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/${var.gateway_api_version}/experimental-install.yaml
       rm /tmp/talos-kubeconfig
     EOT
   }

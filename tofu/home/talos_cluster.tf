@@ -54,8 +54,10 @@ locals {
   # Kubernetes service account issuer (for workload identity / IRSA-style STS)
   k8s_serviceaccount_issuer = "https://oidc.k8s.home.shdr.ch"
 
-  # Gateway API version
-  gateway_api_version = "v1.2.1"
+  # Gateway API version (experimental channel; Cilium 1.20 requires >= v1.6.1).
+  # The v1.6.1 bundle installs the safe-upgrades ValidatingAdmissionPolicy,
+  # which rejects Gateway API CRDs older than v1.5.
+  gateway_api_version = "v1.6.1"
 
   # The lldpd extension declares `configuration: true`; without this sibling
   # document Talos waits for ext-lldpd until boot times out and reboots.
