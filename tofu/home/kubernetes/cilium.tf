@@ -9,11 +9,16 @@ resource "helm_release" "cilium" {
   chart            = "cilium"
   namespace        = "kube-system"
   create_namespace = false
-  version          = "1.19.2"
+  version          = "1.20.2"
   wait             = true
   timeout          = 600
 
   values = [yamlencode({
+    # Keep defaults of the first-installed minor (1.17) where later charts
+    # changed them; upstream's documented upgrade knob. On 1.20.2 its only
+    # effect is keeping envoy-xds-mode on the pre-1.20 protocol.
+    upgradeCompatibility = "1.17"
+
     # Talos-specific: kube-proxy replacement
     kubeProxyReplacement = true
     k8sServiceHost       = var.api_vip
