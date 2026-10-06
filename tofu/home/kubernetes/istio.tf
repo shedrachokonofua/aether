@@ -6,7 +6,7 @@
 # Enrolled namespaces: vc-seven30 (labeled with istio.io/dataplane-mode=ambient)
 
 locals {
-  istio_version = "1.29.0"
+  istio_version = "1.30.5"
 }
 
 # Namespace with privileged PodSecurity - required for istio-cni (hostPath, NET_ADMIN) and ztunnel
@@ -85,7 +85,7 @@ resource "helm_release" "ztunnel" {
 
   values = [yamlencode({
     caAddress = local.istio_csr_service
-    # Chart 1.29.0 renders `.Values.affinity` although values.yaml does not document it.
+    # Charts 1.29-1.30 render `.Values.affinity` although values.yaml does not document it.
     affinity = local.off_arm_pool
     resources = {
       requests = { cpu = "50m", memory = "128Mi" }
