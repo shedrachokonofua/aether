@@ -11,7 +11,7 @@
 # pipeline fails the job loudly instead of silently piling on load.
 
 locals {
-  external_snapshotter_version     = "v8.2.0"
+  external_snapshotter_version     = "v8.6.0"
   volume_snapshot_scheduler_script = <<-EOT
     #!/bin/sh
     set -eu
