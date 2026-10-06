@@ -65,6 +65,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
       COMMANDCODE_API_KEY   = var.secrets["litellm.commandcode_api_key"]
       OPENCODE_GO_API_KEY   = var.secrets["litellm.opencode_go_api_key"]
+      OPENROUTER_API_KEY    = var.secrets["litellm.openrouter_api_key"]
       XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
       CODEBUDDY_API_KEY     = var.secrets["litellm.codebuddy_api_key"]
       ANTIGRAVITY_API_KEY   = random_password.antigravity_api_key.result
@@ -329,6 +330,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "OPENCODE_GO_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "OPENROUTER_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "OPENROUTER_API_KEY"
               }
             }
           }

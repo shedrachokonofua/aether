@@ -351,6 +351,46 @@ model_list:
       order: 2
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
 
+  # Ling 3.1 Flash (inclusionAI; AA Intelligence 41 -> moira/flash), free on
+  # two routes. Command Code's `:free` variant does not draw on the GOAT plan's
+  # weekly window but its upstream 429s intermittently (3/5 on 2026-10-06), so
+  # it backs the OpenRouter leg. The `commandcode-free/` prefix keeps it out of
+  # Moira's `commandcode` quota (tiers.yaml).
+  - model_name: "commandcode-free/ling-3.1-flash"
+    litellm_params:
+      model: "openai/inclusionai/ling-3.1-flash:free"
+      litellm_credential_name: commandcode_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 262144, max_output_tokens: 32768, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+  - model_name: "router/ling-3.1-flash"
+    litellm_params:
+      model: "openai/inclusionai/ling-3.1-flash:free"
+      litellm_credential_name: commandcode_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+      order: 2
+    model_info: {mode: chat, max_input_tokens: 262144, max_output_tokens: 32768, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+  # OpenRouter: the ONLY OpenRouter route, and $0-only. provider.max_price 0
+  # makes OpenRouter refuse the request rather than bill if the free price
+  # ends; allow_fallbacks false keeps it off any paid alternate provider.
+  - model_name: "openrouter/ling-3.1-flash"
+    litellm_params:
+      model: "openrouter/inclusionai/ling-3.1-flash"
+      litellm_credential_name: openrouter_credential
+      allowed_openai_params: ["reasoning_effort"]
+      extra_body: &openrouter_free_only
+        provider: {max_price: {prompt: 0, completion: 0}, allow_fallbacks: false}
+    model_info: {mode: chat, max_input_tokens: 262144, max_output_tokens: 32768, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+  - model_name: "router/ling-3.1-flash"
+    litellm_params:
+      model: "openrouter/inclusionai/ling-3.1-flash"
+      litellm_credential_name: openrouter_credential
+      allowed_openai_params: ["reasoning_effort"]
+      extra_body: *openrouter_free_only
+      order: 1
+    model_info: {mode: chat, max_input_tokens: 262144, max_output_tokens: 32768, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+
   # OpenCode Go (https://opencode.ai/zen/go/v1).
   # Go rejects requests without x-opencode-session (MissingSessionID) and asks
   # clients to identify with their own User-Agent. LiteLLM sends one static
@@ -882,6 +922,11 @@ credential_list:
       api_key: os.environ/OPENCODE_GO_API_KEY
     credential_info:
       description: "OpenCode Go"
+  - credential_name: openrouter_credential
+    credential_values:
+      api_key: os.environ/OPENROUTER_API_KEY
+    credential_info:
+      description: "OpenRouter ($0 models only; see openrouter/ling-3.1-flash)"
   - credential_name: clinepass_credential
     credential_values:
       api_base: https://api.cline.bot/api/v1

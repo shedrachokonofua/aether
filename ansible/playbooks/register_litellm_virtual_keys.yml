@@ -84,6 +84,9 @@
         - claude/fable-5-1
         - moira/flash
         - moira/cyber
+        - router/ling-3.1-flash
+        - openrouter/ling-3.1-flash
+        - commandcode-free/ling-3.1-flash
       colony:
         - antigravity/gemini-3.8-flash
         - supergrok/grok-4.7
@@ -134,6 +137,9 @@
         - moira/strong
         - moira/flash
         - moira/cyber
+        - router/ling-3.1-flash
+        - openrouter/ling-3.1-flash
+        - commandcode-free/ling-3.1-flash
       frame_gallery:
         # Local default model for diverse art direction and concrete composition.
         - aether/qwen3.8-flash-next
