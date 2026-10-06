@@ -6,7 +6,7 @@
 
 locals {
   external_secrets_namespace                   = module.namespace["external-secrets"].name
-  external_secrets_chart_version               = "2.7.0"
+  external_secrets_chart_version               = "2.11.0"
   external_secrets_reader_service_account_name = "external-secrets-reader"
   openbao_token_reviewer_service_account_name  = "openbao-token-reviewer"
   openbao_external_secrets_audience            = "https://bao.home.shdr.ch"
