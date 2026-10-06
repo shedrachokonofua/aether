@@ -30,6 +30,15 @@ resource "helm_release" "cnpg" {
   values = [yamlencode({
     crds = { create = true }
 
+    # Swap the instance-manager binary in place on operator upgrades instead of
+    # rolling every Cluster. All app Clusters are single-instance, so a rolling
+    # update would restart each database.
+    config = {
+      data = {
+        ENABLE_INSTANCE_MANAGER_INPLACE_UPDATES = "true"
+      }
+    }
+
     resources = {
       requests = { cpu = "100m", memory = "128Mi" }
       limits   = { cpu = "500m", memory = "512Mi" }
