@@ -37,7 +37,7 @@ resource "helm_release" "ceph_csi_fs" {
   name       = "ceph-csi-cephfs"
   repository = "https://ceph.github.io/csi-charts"
   chart      = "ceph-csi-cephfs"
-  version    = "3.17.0"
+  version    = "3.18.1"
   namespace  = module.namespace["ceph-csi-cephfs"].name
   wait       = true
   timeout    = 1200
@@ -92,7 +92,10 @@ resource "kubernetes_storage_class_v1" "cephfs" {
 
     # Talos kernels don't ship the `ceph` kmod, so kernel mount.ceph fails with
     # "Module ceph not found". Use ceph-fuse instead — userspace, no kmod
-    # required, lives inside the cephcsi container image.
+    # required, lives inside the cephcsi container image. Consequence: the
+    # ceph-fuse daemons die with the nodeplugin pod, so any nodeplugin restart
+    # (chart upgrade) leaves consumer pods with dead mounts until they are
+    # recreated (observed 2026-10-06 on the 3.17.0 -> 3.18.1 upgrade).
     mounter = "fuse"
 
     "csi.storage.k8s.io/provisioner-secret-name"            = kubernetes_secret_v1.ceph_csi_fs.metadata[0].name
