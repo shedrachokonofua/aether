@@ -7,8 +7,8 @@
 
 locals {
   cnpg_namespace                  = "cnpg-system"
-  cnpg_chart_version              = "0.28.3"
-  cnpg_barman_cloud_chart_version = "0.7.0"
+  cnpg_chart_version              = "0.29.1"
+  cnpg_barman_cloud_chart_version = "0.8.1"
   cnpg_storage_class              = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
 }
 
@@ -32,7 +32,9 @@ resource "helm_release" "cnpg" {
 
     # Swap the instance-manager binary in place on operator upgrades instead of
     # rolling every Cluster. All app Clusters are single-instance, so a rolling
-    # update would restart each database.
+    # update restarts each database. This does not cover pod-spec changes:
+    # bumping plugin-barman-cloud changes its injected init-container image and
+    # still restarts every Cluster's primary (observed on 0.7.0 -> 0.8.1).
     config = {
       data = {
         ENABLE_INSTANCE_MANAGER_INPLACE_UPDATES = "true"
