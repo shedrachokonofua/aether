@@ -318,9 +318,20 @@ thinking sampling (temperature 1.0, top_p 0.95, top_k 20, presence_penalty 0).
 The declared retirement removes Kimi K2.x, pre-5.3 GLM, DeepSeek V4 Flash,
 MiMo V2.5 Pro, pre-3.8 Gemini chat models, direct OpenAI API-key models, and
 all OpenRouter model routes and their retired aliases. DeepSeek V4 Pro
-remains; no V4.1 route is configured. The OpenRouter API key stays encrypted
-in SOPS but is no longer injected into LiteLLM. The OpenAI provider key was
+remains; no V4.1 route is configured. The OpenAI provider key was
 removed from SOPS and the LiteLLM Secret/environment declarations.
+
+Since 2026-10-06 one OpenRouter route exists, for a $0 model only:
+`router/ling-3.1-flash` (Ling 3.1 Flash, AA Intelligence 41, in `moira/flash`)
+pools `openrouter/ling-3.1-flash` (`order: 1`) and Command Code's free variant
+`commandcode-free/ling-3.1-flash` (`order: 2`; its upstream 429s
+intermittently). The OpenRouter leg sends `provider.max_price` 0 with
+`allow_fallbacks: false`, so OpenRouter rejects the request instead of billing
+if the model stops being free. The SOPS OpenRouter key is injected into
+LiteLLM for this route only. OpenCode Zen also lists the model free, but its
+free tier rejects non-OpenCode clients (`FreeTierError`), so it is not wired.
+Moira tracks no quota for either leg (`quota: none`), so they rank after
+providers with known quota.
 
 All 19 `aether/*` routes matched llama-swap's advertised catalog in the
 pre-maintenance inventory on 2026-09-24, so none was removed. Unloaded

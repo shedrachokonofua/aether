@@ -38,6 +38,11 @@ providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "kimi/",         id: kimi,         quota: { kind: endpoint } }
   - { prefix: "zai/",          id: zai,          quota: { kind: endpoint } }
   - { prefix: "commandcode/",  id: commandcode,  quota: { kind: endpoint } }
+  # Free (`:free` / $0) legs: no plan quota to track, so `none`. They rank
+  # after providers with known quota (no windows -> freshness "unknown"), i.e.
+  # free models backstop once expiring subscription quota is spent.
+  - { prefix: "commandcode-free/", id: commandcode-free, quota: { kind: none } }
+  - { prefix: "openrouter/",   id: openrouter,   quota: { kind: none } }
   - { prefix: "opencode-go/",  id: opencode-go,  quota: { kind: endpoint } }
   - { prefix: "ollama-cloud/", id: ollama-cloud, quota: { kind: endpoint } }
   - { prefix: "antigravity/",  id: antigravity,  quota: { kind: bridge, bridge: antigravity } }
@@ -62,6 +67,7 @@ groups:
   router/hy4-preview: [codebuddy/hy4-preview, commandcode/hy4-preview, opencode-go/hy4-preview]
   router/muse-spark-1.3-contributor: [meta/muse-spark-1.3-contributor, commandcode/muse-spark-1.3-contributor, clinepass/muse-spark-1.3-contributor]
   router/deepseek-v4-pro: [ollama-cloud/deepseek-v4-pro]
+  router/ling-3.1-flash: [openrouter/ling-3.1-flash, commandcode-free/ling-3.1-flash]
 
 plans:                      # local-count providers
   xiaomi:
