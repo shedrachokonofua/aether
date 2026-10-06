@@ -42,7 +42,10 @@ locals {
   talos_workload_vip    = "10.0.3.19" # Cilium L2 VIP for workload traffic (Gateway)
   talos_vcluster_vip    = "10.0.3.21" # Cilium L2 VIP for Seven30 vcluster API
   talos_config_contract = "v1.12"
-  kubernetes_version    = "v1.35.0"
+  # Upgrades go through `talosctl upgrade-k8s --to <version>` first (staged
+  # control-plane/kubelet rollout); then this pin follows so applies don't
+  # revert component images.
+  kubernetes_version = "v1.36.5"
 
   # Cluster endpoint uses the API VIP for HA kubectl access
   talos_cluster_endpoint = "https://${local.talos_api_vip}:6443"
@@ -578,7 +581,7 @@ data "talos_cluster_health" "this" {
   client_configuration   = talos_machine_secrets.this.client_configuration
   endpoints              = [for node in local.talos_controlplane_nodes : node.ip]
   control_plane_nodes    = [for node in local.talos_controlplane_nodes : node.ip]
-  worker_nodes = [for node in local.talos_worker_nodes : node.ip]
+  worker_nodes           = [for node in local.talos_worker_nodes : node.ip]
   skip_kubernetes_checks = true
 
   timeouts = { read = "10m" }
