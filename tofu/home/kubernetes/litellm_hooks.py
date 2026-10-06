@@ -111,6 +111,31 @@ def extract_session_id(data: dict[str, Any]) -> str | None:
     return _nonempty_str(data.get("user"))
 
 
+def _effective_allowed_models(user_api_key_dict: Any) -> list[str] | None:
+    """Concrete models the caller may use, as LiteLLM's key auth resolves them.
+
+    None means unrestricted (Moira applies no filter). A key's model list can
+    hold LiteLLM placeholders instead of names: an empty list or
+    `all-proxy-models` allows every model, and `all-team-models` (team keys,
+    e.g. seven30-foundry) defers to the team's own list, which may itself be
+    empty or `all-proxy-models`. Sending the placeholders verbatim made Moira
+    refuse every candidate as "not allowed for this key" (2026-10-06).
+    """
+    key_models = [str(m) for m in (getattr(user_api_key_dict, "models", None) or [])]
+    if "all-proxy-models" in key_models:
+        return None
+    team_scoped = "all-team-models" in key_models or (
+        not key_models and getattr(user_api_key_dict, "team_id", None)
+    )
+    if team_scoped:
+        team_models = [str(m) for m in (getattr(user_api_key_dict, "team_models", None) or [])]
+        if not team_models or "all-proxy-models" in team_models:
+            return None
+        explicit = [m for m in key_models if m != "all-team-models"]
+        return explicit + [m for m in team_models if m not in explicit]
+    return key_models or None
+
+
 class MoiraRouter(CustomLogger):
     """Ask Moira which concrete model a quota-tier request should use.
 
@@ -163,7 +188,7 @@ class MoiraRouter(CustomLogger):
             "api": api,
             "stream": bool(data.get("stream")),
             "session_id": session_id,
-            "allowed_models": list(getattr(user_api_key_dict, "models", None) or []),
+            "allowed_models": _effective_allowed_models(user_api_key_dict),
         }
 
         try:

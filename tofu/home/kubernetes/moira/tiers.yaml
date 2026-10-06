@@ -34,7 +34,14 @@ providers:                  # model-name prefix -> provider id + quota source
   # Codex backend leaves empty). Streaming chat and /v1/responses work.
   - { prefix: "chatgpt/",      id: chatgpt,      quota: { kind: sidecar }, chat_requires_stream: true }
   - { prefix: "meta/",         id: muse,         quota: { kind: bridge, bridge: muse } }
-  - { prefix: "clinepass/",    id: clinepass,    quota: { kind: endpoint } }
+  # Claude subscription via claude-bridge; shares the operator's interactive
+  # Claude allowance. Only Opus is scored (frontier efforts only).
+  - { prefix: "claude/",       id: claude,       quota: { kind: bridge, bridge: claude } }
+  # One Cline account, two meters: `cline-pass/*` upstreams draw on the Pass
+  # plan (usage-limits windows); every other upstream bills Cline credits
+  # (balance; 402 insufficient_credits once spent), so it gets its own quota.
+  - { prefix: "clinepass/", upstream_prefix: "openai/cline-pass/", id: clinepass, quota: { kind: endpoint } }
+  - { prefix: "clinepass/",    id: clinepass-credits, quota: { kind: endpoint } }
   - { prefix: "kimi/",         id: kimi,         quota: { kind: endpoint } }
   - { prefix: "zai/",          id: zai,          quota: { kind: endpoint } }
   - { prefix: "commandcode/",  id: commandcode,  quota: { kind: endpoint } }
@@ -112,6 +119,7 @@ bridges:
   grok:        { url: "http://grok-bridge.grok.svc.cluster.local:8080",               key_env: GROK_BRIDGE_API_KEY }
   antigravity: { url: "http://antigravity-bridge.antigravity.svc.cluster.local:8080", key_env: ANTIGRAVITY_API_KEY }
   muse:        { url: "http://muse-bridge.muse.svc.cluster.local:8080",               key_env: MUSE_BRIDGE_API_KEY }
+  claude:      { url: "http://claude-bridge.claude.svc.cluster.local:8080",           key_env: CLAUDE_BRIDGE_API_KEY }
 
 sidecar: { url: "http://litellm.litellm.svc.cluster.local:9090", token_env: MOIRA_SIDECAR_TOKEN }
 session: { idle_minutes: 30 }
