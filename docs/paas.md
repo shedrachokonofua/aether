@@ -51,6 +51,33 @@ runtime policy.
 Trivy's node collector is configured with Talos-safe host paths and small scan
 job requests so per-node scans can run on the ARM pool without hard arch pins.
 
+### Kubernetes upgrades
+
+The cluster runs Kubernetes v1.36.5 on Talos v1.13.2 (upgraded from v1.35.0 on
+2026-10-06). `kubernetes_version` in `tofu/home/talos_cluster.tf` pins the
+machine-config component images, but upgrades are not done by bumping that pin:
+
+1. Bring addons to releases that support the target minor first. CNI, mesh,
+   and Gateway API CRDs come first: Cilium 1.20 requires Gateway API >= v1.6.1,
+   and Istio 1.30 requires >= v1.5. Hop one minor at a time wherever upstream
+   asks (Cilium, cert-manager, external-secrets).
+2. `talosctl --nodes <cp-ip> upgrade-k8s --to <version> --dry-run`, then the
+   same command without `--dry-run`. It rolls the control plane one node at a
+   time, then kubelets, then re-syncs bootstrap manifests (CoreDNS).
+3. Set `kubernetes_version` to the new version and plan
+   `module.home.talos_machine_configuration_apply.this`. The regenerated configs
+   should equal each node's live `MachineConfig`, making the apply a no-op on the nodes.
+
+Upgrade side effects observed:
+
+- Bumping `plugin-barman-cloud` changes the init-container image injected into
+  every CNPG pod, which restarts every single-instance primary even with
+  in-place instance-manager updates enabled.
+- CephFS uses the ceph-fuse mounter, so a `ceph-csi-cephfs` nodeplugin rollout
+  kills existing mounts; recreate consumer pods (dawarich) afterwards.
+- The Gateway API v1.6.1 bundle installs the `safe-upgrades` admission policy,
+  which rejects Gateway API CRDs older than v1.5.
+
 ### Image auto-updates (Keel)
 
 Keel (`tofu/home/kubernetes/keel.tf`, namespace `keel`) force-updates a curated
