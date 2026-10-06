@@ -48,7 +48,7 @@ resource "helm_release" "cert_manager" {
   chart            = "cert-manager"
   namespace        = "cert-manager"
   create_namespace = false
-  version          = "v1.17.1"
+  version          = "v1.21.2"
   wait             = true
   timeout          = 300
 
