@@ -7,7 +7,7 @@
 
 locals {
   kube_state_metrics_name          = "kube-state-metrics"
-  kube_state_metrics_chart_version = "5.27.0"
+  kube_state_metrics_chart_version = "8.6.0"
   kube_state_metrics_port          = 8080
 }
 
