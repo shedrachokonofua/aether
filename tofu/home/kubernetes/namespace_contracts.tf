@@ -172,6 +172,7 @@ locals {
       extra_labels = {
         "app.kubernetes.io/managed-by" = "Helm"
         "app.kubernetes.io/part-of"    = "cilium"
+        "helm.sh/chart"                = "cilium-${local.cilium_version}"
       }
       extra_annotations = {
         "meta.helm.sh/release-name"      = "cilium"

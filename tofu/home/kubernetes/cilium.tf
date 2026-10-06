@@ -3,13 +3,19 @@
 # =============================================================================
 # CNI with kube-proxy replacement, L2 announcements, and Gateway API support
 
+locals {
+  # Also stamped by the chart on the cilium-secrets namespace (helm.sh/chart),
+  # which namespace_contracts.tf mirrors.
+  cilium_version = "1.20.2"
+}
+
 resource "helm_release" "cilium" {
   name             = "cilium"
   repository       = "https://helm.cilium.io/"
   chart            = "cilium"
   namespace        = "kube-system"
   create_namespace = false
-  version          = "1.20.2"
+  version          = local.cilium_version
   wait             = true
   timeout          = 600
 
