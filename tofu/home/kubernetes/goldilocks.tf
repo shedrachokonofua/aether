@@ -71,7 +71,7 @@ resource "helm_release" "goldilocks" {
   repository = "https://charts.fairwinds.com/stable"
   chart      = "goldilocks"
   namespace  = module.namespace["goldilocks"].name
-  version    = "10.4.0"
+  version    = "11.2.0"
   wait       = true
   timeout    = 300
 
