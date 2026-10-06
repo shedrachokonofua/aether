@@ -44,7 +44,7 @@ resource "helm_release" "ceph_csi_rbd" {
   name       = "ceph-csi-rbd"
   repository = "https://ceph.github.io/csi-charts"
   chart      = "ceph-csi-rbd"
-  version    = "3.17.0"
+  version    = "3.18.1"
   namespace  = module.namespace["system"].name
   wait       = true
   timeout    = 1200
