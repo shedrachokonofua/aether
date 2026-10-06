@@ -331,7 +331,7 @@ resource "kubernetes_cron_job_v1" "volume_snapshot_scheduler" {
 
             container {
               name    = "snapshot"
-              image   = "docker.io/alpine/k8s:1.33.2"
+              image   = "docker.io/alpine/k8s:1.36.5"
               command = ["/bin/sh", "/scripts/snapshot.sh"]
 
               env {
