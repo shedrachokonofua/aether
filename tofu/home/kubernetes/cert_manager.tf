@@ -162,7 +162,7 @@ resource "helm_release" "istio_csr" {
   chart            = "cert-manager-istio-csr"
   namespace        = "cert-manager"
   create_namespace = false
-  version          = "v0.13.0"
+  version          = "v0.17.0"
   wait             = true
   timeout          = 300
 
