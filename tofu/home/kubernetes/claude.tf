@@ -6,7 +6,7 @@
 # with an independent random bearer token. There is no API-key or PAYG fallback.
 # In-cluster egress is limited to OpenBao, platform.claude.com (token refresh),
 locals {
-  claude_image         = "registry.gitlab.home.shdr.ch/so/claude-bridge@sha256:6565f7a7c7966064bc6188eee4e4aef1bdfa8e4340ca55543972ac7b16699238"
+  claude_image         = "registry.gitlab.home.shdr.ch/so/claude-bridge@sha256:945f0f3eb7913bd4b4aec748bd7b9ca05f571db963461605e9587769d9fe774c"
   claude_host          = "claude.home.shdr.ch"
   claude_port          = 8080
   claude_ns            = module.namespace["claude"].name

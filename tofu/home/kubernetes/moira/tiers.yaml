@@ -36,7 +36,7 @@ providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "chatgpt/",      id: chatgpt,      quota: { kind: sidecar }, chat_requires_stream: true }
   - { prefix: "meta/",         id: muse,         quota: { kind: bridge, bridge: muse } }
   # Claude subscription via claude-bridge; shares the operator's interactive
-  # Claude allowance. Only Opus is scored (frontier efforts only).
+  # Claude allowance. Scored: Opus (frontier efforts), Haiku 5.5 (flash efforts).
   - { prefix: "claude/",       id: claude,       quota: { kind: bridge, bridge: claude } }
   # One Cline account, two meters: `cline-pass/*` upstreams draw on the Pass
   # plan (usage-limits windows); every other upstream bills Cline credits

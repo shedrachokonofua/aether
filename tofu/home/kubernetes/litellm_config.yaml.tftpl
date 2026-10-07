@@ -824,6 +824,24 @@ model_list:
       supports_reasoning: true
       supports_vision: true
       supported_openai_params: *openai_reasoning_params
+  # Haiku 5.5 (2026-10-07): moira/flash at high/xhigh (AA 37.8 / 41.2).
+  - model_name: "claude/haiku-5-5"
+    litellm_params:
+      model: "anthropic/claude-haiku-5-5"
+      litellm_credential_name: claude_bridge_credential
+      cooldown_time: 0
+      timeout: 900
+      stream_timeout: 900
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      mode: chat
+      max_input_tokens: 1000000
+      max_output_tokens: 128000
+      supports_function_calling: true
+      supports_reasoning: true
+      supports_vision: true
+      supported_openai_params: *openai_reasoning_params
   - model_name: "claude/fable-5-1"
     litellm_params:
       model: "anthropic/claude-fable-5-1"
