@@ -13,7 +13,7 @@
 locals {
   # PENDING_CI_DIGEST: the GitLab CI image build publishes the real digest;
   # this sentinel is replaced with it before the first Moira apply.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:97f8e1734e45eb6cc99163aa07809402ce014c1cc319d6b39897ec213673662c"
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:f884d8e9461a3f48505e60e82e6b93be78d21226259183aab23e7b491eedc115"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }
@@ -692,6 +692,15 @@ resource "kubernetes_manifest" "moira_poller_egress" {
             }
           }]
           toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
+        },
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "app"                         = "claude-bridge"
+              "io.kubernetes.pod.namespace" = local.claude_ns
+            }
+          }]
+          toPorts = [{ ports = [{ port = tostring(local.claude_port), protocol = "TCP" }] }]
         },
         {
           toEndpoints = [{
