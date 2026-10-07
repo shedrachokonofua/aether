@@ -51,11 +51,14 @@ runtime policy.
 Trivy's node collector is configured with Talos-safe host paths and small scan
 job requests so per-node scans can run on the ARM pool without hard arch pins.
 
-### Kubernetes upgrades
+### Kubernetes and Talos upgrades
 
-The cluster runs Kubernetes v1.36.5 on Talos v1.13.2 (upgraded from v1.35.0 on
-2026-10-06). `kubernetes_version` in `tofu/home/talos_cluster.tf` pins the
-machine-config component images, but upgrades are not done by bumping that pin:
+The cluster runs Kubernetes v1.36.5 on Talos v1.14.2 (Kubernetes upgraded from
+v1.35.0 on 2026-10-06, Talos from v1.13.2 on 2026-10-07). Talos must support
+the target Kubernetes minor (1.14 supports 1.33-1.37), so a Talos upgrade can
+precede a Kubernetes one. `kubernetes_version` in `tofu/home/talos_cluster.tf`
+pins the machine-config component images, but upgrades are not done by bumping
+that pin:
 
 1. Bring addons to releases that support the target minor first. CNI, mesh,
    and Gateway API CRDs come first: Cilium 1.20 requires Gateway API >= v1.6.1,
@@ -68,6 +71,26 @@ machine-config component images, but upgrades are not done by bumping that pin:
    `module.home.talos_machine_configuration_apply.this`. The regenerated configs
    should equal each node's live `MachineConfig`, making the apply a no-op on the nodes.
 
+Talos OS upgrades reboot every node, one at a time:
+
+1. Set `cnpg_node_maintenance = true` in `tofu/home/kubernetes/cnpg.tf` and
+   apply the CNPG Clusters. Every app Cluster is single-instance, and its
+   primary PDB allows 0 disruptions, which makes `talosctl upgrade`'s drain time
+   out and abort without rebooting. With the PDBs dropped, a drained primary
+   restarts on another node (ceph-rbd PVCs reattach). `smartShutdownTimeout`
+   is 15s, so each move takes well under a minute, not the 2-6 min seen at the
+   180s default.
+2. Per node: `talosctl -n <ip> upgrade --image
+   factory.talos.dev/metal-installer/<schematic>:<version> --drain-timeout 10m`.
+   Talos 1.14 stopped publishing `ghcr.io/siderolabs/installer`. Wait for
+   the node Ready, Cilium and envoy OK, and etcd 3/3 before the next node.
+   Upgrade talos-neo last: it hosts most primaries, all GPU pods, and the most
+   evictable memory.
+3. Bump `talos_version` in `tofu/home/cloud_images.tf` and apply the machine
+   configs. Talos already set the new install image, so this is a no-op on the
+   nodes. `talos_iso_version` (VM boot media) moves separately.
+4. Set `cnpg_node_maintenance = false` and apply.
+
 Upgrade side effects observed:
 
 - Bumping `plugin-barman-cloud` changes the init-container image injected into
@@ -77,6 +100,25 @@ Upgrade side effects observed:
   kills existing mounts; recreate consumer pods (dawarich) afterwards.
 - The Gateway API v1.6.1 bundle installs the `safe-upgrades` admission policy,
   which rejects Gateway API CRDs older than v1.5.
+- After `upgrade-k8s` (2026-10-06), pods that were already running stopped
+  receiving Secret and projected-token updates: ztunnel's 12h `istio-ca` tokens
+  were last written at the kubelet restart, and istiod kept serving its
+  serving cert after cert-manager renewed it (expired 13:33Z). New ambient-mesh
+  pods could not get config until istiod and each ztunnel were recreated on
+  2026-10-07; node reboots cleared the rest. After the next `upgrade-k8s`, check
+  `istioctl proxy-status` and recreate istiod/ztunnel if any ztunnel is missing.
+  The cause (the in-place kubelet restart) is inferred from timestamps.
+- Rescheduled pods queue behind each kubelet's one-at-a-time image pulls. On
+  2026-10-07 most per-service downtime (5-17 min for immich, qbittorrent,
+  firecrawl, sabnzbd, your-spotify, beryl, GPU apps) was image pulls on
+  talos-smith and the Pis, not pod moves.
+- Eviction exposed placement that only worked by accident: the arch-labeler's
+  ARM preference placed the CNPG barman plugin on a Pi 4 (pull delay, then
+  lost leader election, so the operator could not recreate litellm's primary:
+  down 17:49-17:59Z) and dawarich-sidekiq on a Pi with no CephFS driver. Both
+  now require the amd64 pool. karakeep's `gcr.io/zenika-hub/alpine-chrome`
+  image had been deleted upstream and only ran from node cache (moved to
+  Docker Hub).
 
 ### Image auto-updates (Keel)
 
