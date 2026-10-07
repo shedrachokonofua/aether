@@ -338,8 +338,10 @@ resource "kubectl_manifest" "assay_cnpg_cluster" {
       labels    = merge(local.assay_labels, { "aether.sh/arm-ok" = "true" })
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:16.14"
       resources = {
         requests = { cpu = "100m", memory = "256Mi" }
         limits   = { cpu = "1000m", memory = "1Gi" }

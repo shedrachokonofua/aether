@@ -133,8 +133,10 @@ resource "kubectl_manifest" "miniflux_cnpg_cluster" {
       namespace = local.miniflux_ns
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:17.9"
       storage = {
         size         = "5Gi"
         storageClass = local.cnpg_storage_class

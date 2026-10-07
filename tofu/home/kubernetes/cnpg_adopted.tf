@@ -38,8 +38,10 @@ resource "kubectl_manifest" "affine_cnpg_cluster" {
       namespace = local.affine_ns
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:16.14"
       # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
       # sidecars publish linux/arm64. Placement is decided by
       # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
@@ -117,8 +119,10 @@ resource "kubectl_manifest" "immich_cnpg_cluster" {
       namespace = local.immich_namespace
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/tensorchord/cloudnative-vectorchord:14-1.1.1"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/tensorchord/cloudnative-vectorchord:14-1.1.1"
       storage = {
         size         = "30Gi"
         storageClass = local.cnpg_storage_class
@@ -197,8 +201,10 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
       namespace = local.litellm_ns
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:18.4"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:18.4"
       storage = {
         # 40Gi filled up 2026-08-14 (WAL growth from proxy traffic); ceph-rbd
         # expands online, postgres recovers once the resize lands.
@@ -337,8 +343,10 @@ resource "kubectl_manifest" "openwebui_cnpg_cluster" {
       labels    = { "aether.sh/arm-ok" = "true" }
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:16.14"
       resources = {
         claims   = []
         requests = { cpu = "250m", memory = "256Mi" }
@@ -420,8 +428,10 @@ resource "kubectl_manifest" "matrix_cnpg_cluster" {
       namespace = local.matrix_ns
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:17.10"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:17.10"
       storage = {
         size         = "10Gi"
         storageClass = local.cnpg_storage_class
@@ -489,8 +499,10 @@ resource "kubectl_manifest" "nextcloud_cnpg_cluster" {
       namespace = local.nextcloud_namespace
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:16.14"
       # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
       # sidecars publish linux/arm64. Placement is decided by
       # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
