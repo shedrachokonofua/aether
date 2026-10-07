@@ -22,7 +22,7 @@ locals {
   # disruptions, which makes `talosctl upgrade`'s drain time out and abort.
   # Set true for the upgrade window, then back to false. On ceph-rbd a drained
   # primary restarts on another node with the same PVC.
-  cnpg_node_maintenance = false
+  cnpg_node_maintenance = true
 }
 
 
