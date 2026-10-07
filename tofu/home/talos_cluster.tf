@@ -631,7 +631,6 @@ module "kubernetes" {
   source = "./kubernetes"
 
   cluster_name              = local.talos_cluster_name
-  api_vip                   = local.talos_api_vip
   workload_vip              = local.talos_workload_vip
   vcluster_vip              = local.talos_vcluster_vip
   oidc_issuer_url           = local.oidc_issuer_url
