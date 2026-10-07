@@ -28,7 +28,7 @@ resource "random_password" "karakeep_meili_master_key" {
 
 locals {
   karakeep_image        = "ghcr.io/karakeep-app/karakeep:release"
-  karakeep_chrome_image = "gcr.io/zenika-hub/alpine-chrome:123"
+  karakeep_chrome_image = "zenika/alpine-chrome:123" # gcr.io/zenika-hub copy now 401s
   karakeep_meili_image  = "getmeili/meilisearch:v1.13.3"
 
   karakeep_host = "karakeep.home.shdr.ch"
