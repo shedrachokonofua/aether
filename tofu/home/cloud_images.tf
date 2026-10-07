@@ -74,9 +74,15 @@ locals {
 # Schematic ID includes: siderolabs/qemu-guest-agent
 
 locals {
-  talos_version      = "v1.13.2"
-  talos_rpi_version  = "v1.13.2"
-  talos_rpi5_version = "v1.13.2"
+  # Talos 1.14 stopped publishing ghcr.io/siderolabs/installer; installers
+  # come from the Image Factory as metal-installer (talos_cluster.tf).
+  talos_version      = "v1.14.2"
+  talos_rpi_version  = "v1.14.2"
+  talos_rpi5_version = "v1.14.2"
+  # Boot media for first install / reinstall only (VMs boot from virtio0).
+  # Kept separate so bumping the installed version doesn't swap the cdrom of
+  # running VMs; nodes upgrade in place via `talosctl upgrade`.
+  talos_iso_version = "v1.13.2"
 
   # Standard schematic: qemu-guest-agent + kata-containers + gVisor +
   # binfmt-misc + lldpd + stargz-snapshotter. Sandbox runtimes are for amd64
@@ -132,7 +138,7 @@ resource "proxmox_virtual_environment_download_file" "talos_iso" {
   content_type        = "iso"
   datastore_id        = "local"
   node_name           = each.value.node
-  url                 = "https://factory.talos.dev/image/${each.value.nvidia ? local.talos_nvidia_schematic : local.talos_schematic}/${local.talos_version}/nocloud-amd64.iso"
-  file_name           = "talos-${local.talos_version}${each.value.nvidia ? "-nvidia" : ""}-nocloud.iso"
+  url                 = "https://factory.talos.dev/image/${each.value.nvidia ? local.talos_nvidia_schematic : local.talos_schematic}/${local.talos_iso_version}/nocloud-amd64.iso"
+  file_name           = "talos-${local.talos_iso_version}${each.value.nvidia ? "-nvidia" : ""}-nocloud.iso"
   overwrite_unmanaged = true
 }
