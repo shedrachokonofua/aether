@@ -138,8 +138,10 @@ resource "kubectl_manifest" "temporal_cnpg_cluster" {
       namespace = module.namespace["temporal"].name
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:17.9"
       storage = {
         size         = "20Gi"
         storageClass = local.cnpg_storage_class

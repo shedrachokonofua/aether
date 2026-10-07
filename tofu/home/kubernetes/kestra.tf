@@ -176,8 +176,10 @@ resource "kubectl_manifest" "kestra_cnpg_cluster" {
       labels    = local.kestra_labels
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:17.9"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:17.9"
       # No arch pin: ghcr.io/cloudnative-pg/postgresql:17.9 and the CNPG
       # sidecars publish linux/arm64. Placement is decided by
       # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.

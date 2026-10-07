@@ -10,6 +10,19 @@ locals {
   cnpg_chart_version              = "0.29.1"
   cnpg_barman_cloud_chart_version = "0.8.1"
   cnpg_storage_class              = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+
+  # Shared Cluster spec knobs, referenced by every app Cluster.
+  # Pooled clients keep connections open, so the 180s smart-shutdown default
+  # stretched each primary restart to 2-6 min (2026-10-06); after 15s Postgres
+  # falls back to fast shutdown. Not rendered into the pod spec, so changing it
+  # restarts nothing (unlike stopDelay, which becomes the pod's
+  # terminationGracePeriodSeconds).
+  cnpg_smart_shutdown_timeout = 15
+  # Rolling node upgrades: each single-instance primary has a PDB allowing 0
+  # disruptions, which makes `talosctl upgrade`'s drain time out and abort.
+  # Set true for the upgrade window, then back to false. On ceph-rbd a drained
+  # primary restarts on another node with the same PVC.
+  cnpg_node_maintenance = false
 }
 
 

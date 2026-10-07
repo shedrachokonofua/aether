@@ -162,8 +162,10 @@ resource "kubectl_manifest" "hoppscotch_cnpg_cluster" {
       namespace = local.hoppscotch_ns
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:15.17"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:15.17"
       storage = {
         size         = "5Gi"
         storageClass = local.cnpg_storage_class

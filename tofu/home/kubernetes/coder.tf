@@ -106,8 +106,10 @@ resource "kubectl_manifest" "coder_cnpg_cluster" {
       namespace = local.coder_namespace
     }
     spec = {
-      instances = 1
-      imageName = "ghcr.io/cloudnative-pg/postgresql:16.14"
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:16.14"
       # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
       # sidecars publish linux/arm64. Placement is decided by
       # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
