@@ -85,8 +85,10 @@ resource "helm_release" "step_issuer" {
     # that self-terminate on lease loss; memory limit retained.
     resources = {
       requests = { cpu = "50m", memory = "64Mi" }
-      # cpu = null strips the chart-default 100m limit (helm merge semantics)
-      limits = { cpu = null, memory = "192Mi" }
+      # cpu = null strips the chart-default 100m limit (helm merge semantics).
+      # 24h peak 164Mi; OOM-killed at 192Mi on control-plane disruptions
+      # (2026-09-23, 09-30, 10-03, 10-06).
+      limits = { cpu = null, memory = "256Mi" }
     }
   })]
 }
