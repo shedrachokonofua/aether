@@ -25,13 +25,24 @@ resource "helm_release" "cilium" {
     # effect is keeping envoy-xds-mode on the pre-1.20 protocol.
     upgradeCompatibility = "1.17"
 
-    # Talos-specific: kube-proxy replacement
+    # Talos-specific: kube-proxy replacement. The agents reach the API through
+    # KubePrism, Talos's per-node load balancer over every control-plane
+    # apiserver, not the API VIP: on 2026-10-06 a restart of the VIP holder's
+    # apiserver cut every agent off the API, the L2 leases lapsed, and the
+    # gateway VIP went unannounced for ~40s.
     kubeProxyReplacement = true
-    k8sServiceHost       = var.api_vip
-    k8sServicePort       = 6443
+    k8sServiceHost       = "127.0.0.1"
+    k8sServicePort       = 7445
 
-    # L2 announcements for LoadBalancer services
-    l2announcements = { enabled = true }
+    # L2 announcements for LoadBalancer services. Shorter leases (defaults
+    # 15s/5s/2s) cut VIP failover when the holder node reboots to ~5s, at ~3x
+    # the lease API traffic (3 VIPs x 8 nodes, 1 request/s per contender).
+    l2announcements = {
+      enabled            = true
+      leaseDuration      = "5s"
+      leaseRenewDeadline = "3s"
+      leaseRetryPeriod   = "1s"
+    }
     externalIPs     = { enabled = true }
 
     # Hubble observability — Prom-scrapeable L4 + L7 metrics with

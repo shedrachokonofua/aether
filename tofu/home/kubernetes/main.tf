@@ -56,11 +56,6 @@ variable "cluster_name" {
   description = "Kubernetes cluster name"
 }
 
-variable "api_vip" {
-  type        = string
-  description = "Talos API VIP for k8s service host"
-}
-
 variable "workload_vip" {
   type        = string
   description = "Cilium L2 VIP for LoadBalancer services"
