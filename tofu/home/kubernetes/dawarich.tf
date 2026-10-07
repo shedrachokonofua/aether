@@ -414,6 +414,21 @@ resource "kubernetes_deployment_v1" "dawarich" {
     template {
       metadata { labels = local.dawarich_labels }
       spec {
+        # Mounts CephFS, whose nodeplugin runs only off the ARM pool; on a Pi
+        # the volume can never attach (CSINode lacks cephfs.csi.ceph.com).
+        affinity {
+          node_affinity {
+            required_during_scheduling_ignored_during_execution {
+              node_selector_term {
+                match_expressions {
+                  key      = "aether.sh/node-pool"
+                  operator = "NotIn"
+                  values   = ["arm"]
+                }
+              }
+            }
+          }
+        }
         enable_service_links = false
         container {
           name    = "dawarich"
@@ -507,6 +522,20 @@ resource "kubernetes_deployment_v1" "dawarich_sidekiq" {
       metadata { labels = local.dawarich_sidekiq_labels }
       spec {
         enable_service_links = false
+        # Mounts CephFS; see the dawarich deployment above.
+        affinity {
+          node_affinity {
+            required_during_scheduling_ignored_during_execution {
+              node_selector_term {
+                match_expressions {
+                  key      = "aether.sh/node-pool"
+                  operator = "NotIn"
+                  values   = ["arm"]
+                }
+              }
+            }
+          }
+        }
         container {
           name    = "sidekiq"
           image   = local.dawarich_image
