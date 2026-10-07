@@ -43,8 +43,11 @@ locals {
     fi
 
     # ---- Create --------------------------------------------------------------
+    # Bound PVCs only: a snapshot of an unprovisioned PVC never becomes ready,
+    # and the preflight above then blocks every later run (2026-10-04..07, a
+    # tenant RWX claim on ceph-rbd that can never bind).
     for ns in $(kubectl get ns -l "aether.shdr.ch/backup=$${tier}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
-      kubectl get pvc -n "$${ns}" -l '!cnpg.io/cluster' -o go-template='{{range .items}}{{if eq .spec.storageClassName "ceph-rbd"}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' |
+      kubectl get pvc -n "$${ns}" -l '!cnpg.io/cluster' -o go-template='{{range .items}}{{if and (eq .spec.storageClassName "ceph-rbd") (eq .status.phase "Bound")}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' |
       while IFS= read -r pvc; do
         [ -n "$${pvc}" ] || continue
         short="$(printf '%s' "$${pvc}" | cut -c1-26)"
