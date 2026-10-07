@@ -142,7 +142,8 @@ class MoiraRouter(CustomLogger):
     Moira is a decision service, not a proxy: clients call LiteLLM as always
     and this pre-call hook POSTs the request envelope to Moira's /decide,
     which answers from its in-memory quota cache. `route` rewrites
-    data["model"] (plus effort and up to two same-effort fallbacks), `refuse`
+    data["model"] (plus effort, up to two fallbacks and each one's own effort
+    in metadata.moira_efforts, applied per attempt by deployment_adapter), `refuse`
     raises the tier's 429/400 back to the caller, and passthrough, timeout or
     any Moira error leaves the request unchanged (fail-open) so the
     moira/<tier> alias deployments serve their static default model.
@@ -241,6 +242,12 @@ class MoiraRouter(CustomLogger):
         fallbacks = decision.get("fallbacks")
         if isinstance(fallbacks, list) and fallbacks:
             data["fallbacks"] = fallbacks
+        # Fallbacks may need another effort than the primary (e.g. Muse at max,
+        # Opus at medium); deployment_adapter applies each attempt's own value.
+        efforts = decision.get("efforts")
+        if isinstance(efforts, dict) and efforts:
+            metadata = data.get("metadata")
+            data["metadata"] = {**(metadata if isinstance(metadata, dict) else {}), "moira_efforts": efforts}
         return None
 
 
@@ -252,8 +259,7 @@ class DeploymentAdapter(CustomLogger):
 
     Runs once per attempt (primary, same-group retry, fallback), after the
     router has selected a deployment, so each attempt sees its own
-    `model_info` and adapts independently. Two adaptations, both declared in
-    the deployment's model_info:
+    `model_info` and adapts independently. Three adaptations:
 
     - `supports_forced_tool_choice: false` softens a forced tool_choice
       (a dict, or the string "required") to "auto". Evidence: MiMo V2.6 Pro
@@ -261,6 +267,9 @@ class DeploymentAdapter(CustomLogger):
       and Step 5 Preview honoured a named forced tool_choice 1/3.
     - `max_output_tokens` clamps max_tokens / max_completion_tokens /
       max_output_tokens to the deployment's output cap.
+    - `metadata.moira_efforts` (set by moira_router) sets the reasoning effort
+      Moira chose for this attempt's model group, so a fallback runs at its
+      own in-band effort rather than the primary's.
 
     Nothing else: unsupported parameters stay with LiteLLM's native
     drop_params. Unknown or missing model_info is a no-op. The router reuses
@@ -299,6 +308,30 @@ class DeploymentAdapter(CustomLogger):
                 "(supports_forced_tool_choice: false)",
                 deployment,
             )
+
+        efforts = None
+        model_group = None
+        for key in ("metadata", "litellm_metadata"):
+            bucket = kwargs.get(key)
+            if isinstance(bucket, dict):
+                efforts = efforts or bucket.get("moira_efforts")
+                model_group = model_group or bucket.get("model_group")
+        if isinstance(efforts, dict) and isinstance(model_group, str) and model_group in efforts:
+            wanted = efforts[model_group]
+            if isinstance(wanted, str) and wanted:
+                # chat_reasoning_effort may have produced reasoning_effort from a
+                # `reasoning` object, so both forms can be present: set each.
+                effort_changed = False
+                reasoning = out.get("reasoning")
+                if isinstance(reasoning, dict) and reasoning.get("effort") != wanted:
+                    out["reasoning"] = {**reasoning, "effort": wanted}
+                    effort_changed = True
+                if (not isinstance(reasoning, dict) or "reasoning_effort" in out) and out.get("reasoning_effort") != wanted:
+                    out["reasoning_effort"] = wanted
+                    effort_changed = True
+                if effort_changed:
+                    changed = True
+                    logger.info("deployment_adapter: %s reasoning effort -> %s (moira)", model_group, wanted)
 
         cap = info.get("max_output_tokens")
         if isinstance(cap, int) and cap > 0:
