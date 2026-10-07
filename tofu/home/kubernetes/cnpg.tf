@@ -54,6 +54,13 @@ resource "helm_release" "cnpg" {
       }
     }
 
+    # Every Cluster reconcile and instance-pod creation calls the operator and
+    # the barman plugin. On 2026-10-07 the plugin was rescheduled onto a
+    # loaded Pi 4, took minutes to pull, then crash-looped on lost leader
+    # election; with it unreachable the operator could not recreate the
+    # drained litellm primary. Keep both on the amd64 pool.
+    affinity = local.off_arm_pool
+
     resources = {
       requests = { cpu = "100m", memory = "128Mi" }
       limits   = { cpu = "500m", memory = "512Mi" }
@@ -77,6 +84,9 @@ resource "helm_release" "cnpg_barman_cloud" {
 
   values = [yamlencode({
     crds = { create = true }
+
+    # See the operator release above: keep off the Pi pool.
+    affinity = local.off_arm_pool
 
     # 30d p95 44Mi +20% (was 128Mi).
     resources = {
