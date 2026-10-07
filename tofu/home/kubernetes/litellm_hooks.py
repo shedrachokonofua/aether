@@ -250,6 +250,35 @@ class MoiraRouter(CustomLogger):
             data["metadata"] = {**(metadata if isinstance(metadata, dict) else {}), "moira_efforts": efforts}
         return None
 
+    async def async_log_failure_event(self, kwargs: dict[str, Any], response_obj: Any, start_time: Any, end_time: Any) -> None:
+        """Report a 402/403/429 from a Moira-routed attempt to Moira's /report.
+
+        LiteLLM calls this once per failed attempt (primary and fallbacks), so
+        Moira cools the refusing provider right away instead of routing into
+        it until the next quota poll. Only attempts Moira routed (their
+        metadata carries moira_efforts) are reported; any error is swallowed.
+        """
+        status = getattr(kwargs.get("exception"), "status_code", None)
+        if status not in (402, 403, 429):
+            return
+        params = kwargs.get("litellm_params")
+        metadata = params.get("metadata") if isinstance(params, dict) else None
+        if not isinstance(metadata, dict) or not isinstance(metadata.get("moira_efforts"), dict):
+            return
+        model = metadata.get("model_group")
+        if not isinstance(model, str) or model not in metadata["moira_efforts"]:
+            return
+        url = (os.environ.get("MOIRA_DECIDE_URL") or "").removesuffix("/decide") + "/report"
+        token = os.environ.get("MOIRA_DECIDE_TOKEN")
+        try:
+            await _moira_client.post(
+                url,
+                json={"model": model, "status": status},
+                headers={"Authorization": f"Bearer {token}"} if token else {},
+            )
+        except Exception as exc:  # reporting is best effort
+            logger.warning("Moira report failed (%s: %s)", type(exc).__name__, exc)
+
 
 moira_router = MoiraRouter()
 

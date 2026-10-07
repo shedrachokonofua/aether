@@ -22,10 +22,11 @@ tiers:                      # inclusive AA score bands (data/aa_scores.yaml)
 
 exclude:
   upstream_ids: [gpt-6-astra, muse-spark-1.3]          # never in tiers
-  # ollama-cloud: LiteLLM's ollama_chat adapter merges parallel tool calls into
-  # one call with concatenated JSON arguments ("Extra data"), breaking agent
-  # turns (seen 2026-10-03 on moira/strong -> ollama-cloud/glm-5.3).
-  providers: [aether, ollama-cloud]   # never in tiers (aether = local llama-swap; may be enabled later)
+  # ollama-cloud is back in tiers since 2026-10-07: its GLM/DeepSeek legs now
+  # use Ollama's OpenAI-compatible /v1 instead of LiteLLM's ollama_chat
+  # adapter, which had merged parallel tool calls ("Extra data"). Verified
+  # with a 7-case matrix per model (litellm_config.yaml.tftpl Ollama block).
+  providers: [aether]   # never in tiers (aether = local llama-swap; may be enabled later)
 
 providers:                  # model-name prefix -> provider id + quota source
   # chat_requires_stream: LiteLLM 1.99.x returns 500 "Unknown items in
