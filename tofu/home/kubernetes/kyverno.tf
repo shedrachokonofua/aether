@@ -462,6 +462,101 @@ resource "kubectl_manifest" "kyverno_ambient_off_arm_pool" {
   })
 }
 
+# arm-pool-guardrails denies binding any Pod without aether.sh/arm-ok=true to
+# the ARM pool, but a deny alone cannot redirect the scheduler: when a Pi
+# scores highest it keeps choosing it and the Pod stays Pending (foundry-web,
+# 2026-10-07, after it moved to a digest-pinned amd64-only image). This adds the
+# matching NotIn [arm] affinity at CREATE so the scheduler skips the pool.
+# Scope mirrors the guardrail's namespace exclusions; ambient namespaces are
+# handled by ambient-off-arm-pool. aether-k8s-arch-labeler's webhook
+# configuration sorts before Kyverno's, so arm-ok is already set when this runs.
+resource "kubectl_manifest" "kyverno_unlabeled_off_arm_pool" {
+  depends_on = [helm_release.kyverno]
+
+  yaml_body = yamlencode({
+    apiVersion = "policies.kyverno.io/v1"
+    kind       = "MutatingPolicy"
+    metadata = {
+      name = "unlabeled-off-arm-pool"
+      annotations = {
+        "policies.kyverno.io/title"       = "Keep Pods without arm-ok off the ARM Pool"
+        "policies.kyverno.io/category"    = "Scheduling"
+        "policies.kyverno.io/subject"     = "Pod"
+        "policies.kyverno.io/description" = "Pods without aether.sh/arm-ok=true cannot bind to the ARM pool (arm-pool-guardrails). This adds the matching nodeAffinity so the scheduler does not pick an arm node and loop on rejected bindings."
+      }
+    }
+    spec = {
+      failurePolicy      = "Ignore"
+      reinvocationPolicy = "IfNeeded"
+      evaluation = {
+        admission  = { enabled = true }
+        background = { enabled = false }
+      }
+      matchConstraints = {
+        namespaceSelector = {
+          matchExpressions = [
+            {
+              key      = "kubernetes.io/metadata.name"
+              operator = "NotIn"
+              values   = ["kube-system", "kube-public", "kube-node-lease", "istio-system", "system", "kyverno"]
+            },
+            {
+              key      = "istio.io/dataplane-mode"
+              operator = "NotIn"
+              values   = ["ambient"]
+            },
+          ]
+        }
+        resourceRules = [{
+          apiGroups   = [""]
+          apiVersions = ["v1"]
+          operations  = ["CREATE"]
+          resources   = ["pods"]
+          scope       = "Namespaced"
+        }]
+      }
+      matchConditions = [
+        {
+          name       = "not-arm-ok"
+          expression = "!has(object.metadata.labels) || !('aether.sh/arm-ok' in object.metadata.labels) || object.metadata.labels['aether.sh/arm-ok'] != 'true'"
+        },
+        {
+          name       = "missing-node-pool-affinity"
+          expression = "!has(object.spec.affinity) || !has(object.spec.affinity.nodeAffinity) || !has(object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution)"
+        },
+      ]
+      mutations = [{
+        patchType = "JSONPatch"
+        jsonPatch = {
+          # Adds only the required term, so preferred nodeAffinity terms the
+          # Pod already carries are kept.
+          expression = <<-EOT
+            (!has(object.spec.affinity) ? [
+              JSONPatch{op: "add", path: "/spec/affinity", value: {}}
+            ] : []) + (!has(object.spec.affinity) || !has(object.spec.affinity.nodeAffinity) ? [
+              JSONPatch{op: "add", path: "/spec/affinity/nodeAffinity", value: {}}
+            ] : []) + [
+              JSONPatch{
+                op: "add",
+                path: "/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution",
+                value: {
+                  "nodeSelectorTerms": [{
+                    "matchExpressions": [{
+                      "key": dyn("aether.sh/node-pool"),
+                      "operator": dyn("NotIn"),
+                      "values": dyn(["arm"])
+                    }]
+                  }]
+                }
+              }
+            ]
+          EOT
+        }
+      }]
+    }
+  })
+}
+
 resource "kubectl_manifest" "kyverno_arm_pool_guardrails" {
   depends_on = [helm_release.kyverno]
 
