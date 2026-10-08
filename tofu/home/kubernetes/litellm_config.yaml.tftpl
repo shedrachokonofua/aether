@@ -877,22 +877,35 @@ model_list:
       timeout: 900
       stream_timeout: 900
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Fail-open default when Moira is unreachable: Muse Contributor, the largest
+  # strong pool (~1.5B tokens/week). Kimi (the old default) has the smallest
+  # pool and was serving these while exhausted (2026-10-08).
   - model_name: "moira/strong"
     litellm_params:
-      model: "openai/k3"
-      litellm_credential_name: kimi_credential
+      model: "openai/muse-subscription/muse-spark-1.3-contributor"
+      litellm_credential_name: muse_bridge_credential
+      use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+      timeout: 900
+      stream_timeout: 900
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Fail-open defaults for flash and cyber: GLM-5.3 Flash on Ollama Cloud
+  # (/v1). Z.AI's Lite plan has the smaller 5h window, so the default that
+  # runs unmetered (Moira unreachable) stays off it.
   - model_name: "moira/flash"
     litellm_params:
-      model: "zai/glm-5.3-flash"
-      litellm_credential_name: zai_credential
+      model: "openai/glm-5.3-flash"
+      litellm_credential_name: ollama_cloud_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
   # Defensive security work, ranked by the AA Cyber Index with zero refusals
   # (moira/tiers.yaml `cyber`). Fail-open default: GLM-5.3 Flash (49.9, 0%).
   - model_name: "moira/cyber"
     litellm_params:
-      model: "zai/glm-5.3-flash"
-      litellm_credential_name: zai_credential
+      model: "openai/glm-5.3-flash"
+      litellm_credential_name: ollama_cloud_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
 
 credential_list:
   - credential_name: llama_swap_credential
