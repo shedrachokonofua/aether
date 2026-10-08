@@ -1019,11 +1019,15 @@ litellm_settings:
   #   deployment's model_info (see the supports_forced_tool_choice note above).
   # - tool_description_sanitizer drops `description: null` from function tools
   #   (LiteLLM's MCP conversion emits it; llama.cpp b11223+ rejects it).
+  # - tool_call_content_normalizer sends `content: null` for tool-call-only
+  #   assistant turns; LiteLLM otherwise turns their "" into a "[System: Empty
+  #   message content sanitised…]" text block that Anthropic models imitate.
   callbacks:
     - aether_hooks.chat_reasoning_effort
     - aether_hooks.moira_router
     - aether_hooks.deployment_adapter
     - aether_hooks.tool_description_sanitizer
+    - aether_hooks.tool_call_content_normalizer
   turn_off_message_logging: false
   set_verbose: false
   json_logs: true
