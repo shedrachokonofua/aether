@@ -367,7 +367,7 @@ Meaning:
 - Pods with `aether.sh/arm-ok=true` may run on the ARM pool if requests are small.
 - Normal application pods get this label from `aether-k8s-arch-labeler` when all images support `linux/arm64` and requests are small.
 - DaemonSet-owned pods get this label from Kyverno so platform node agents can schedule on ARM automatically; the binding guardrails still enforce CPU/memory requests and the 512Mi memory ceiling.
-- Pods without it are prevented from landing on `aether.sh/node-pool=arm`.
+- Pods without it are prevented from landing on `aether.sh/node-pool=arm`. Kyverno `unlabeled-off-arm-pool` also gives them a required `aether.sh/node-pool NotIn [arm]` node affinity at creation (same namespace exclusions as the guardrail; ambient namespaces use `ambient-off-arm-pool`). Without it, the scheduler can keep choosing a Pi that Kyverno then refuses to bind, and the pod stays Pending (foundry-web, 2026-10-07).
 
 For normal application pods, this avoids explicit node selection while still preventing random amd64-only images from getting scheduled to Pi nodes. DaemonSets are handled as platform node agents and still have to pass the ARM resource guardrails.
 
