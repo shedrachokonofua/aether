@@ -420,3 +420,56 @@ class ToolDescriptionSanitizer(CustomLogger):
 
 
 tool_description_sanitizer = ToolDescriptionSanitizer()
+
+
+class ToolCallContentNormalizer(CustomLogger):
+    """Send `content: null` for assistant turns that only carry tool calls.
+
+    Clients (omp) replay tool-call turns with `content: ""`. On Anthropic
+    routes LiteLLM rewrites every empty text to the literal block "[System:
+    Empty message content sanitised to satisfy protocol]" (factory.py
+    `_sanitize_empty_text_content`, not gated by modify_params), so the model
+    sees that line before each of its own tool calls and starts writing it.
+    `null` beside `tool_calls` is the OpenAI-specified form; LiteLLM then emits
+    only the tool_use blocks. Turns without tool calls are left alone: there
+    the placeholder is what keeps Anthropic from rejecting an empty turn.
+
+    Copies the touched messages; the router reuses kwargs across attempts.
+    """
+
+    async def async_pre_call_deployment_hook(self, kwargs: dict[str, Any], call_type: Any) -> dict | None:
+        messages = kwargs.get("messages")
+        if not isinstance(messages, list):
+            return None
+        cleaned: list[Any] = []
+        changed = False
+        for message in messages:
+            if (
+                isinstance(message, dict)
+                and message.get("role") == "assistant"
+                and message.get("tool_calls")
+                and _blank_content(message.get("content"))
+                and message.get("content") is not None
+            ):
+                message = {**message, "content": None}
+                changed = True
+            cleaned.append(message)
+        if not changed:
+            return None
+        return {**kwargs, "messages": cleaned}
+
+
+def _blank_content(content: Any) -> bool:
+    """True for "", whitespace, [] or a list of only blank text blocks."""
+    if isinstance(content, str):
+        return not content.strip()
+    if isinstance(content, list):
+        return all(
+            isinstance(block, dict) and block.get("type") == "text"
+            and not (isinstance(block.get("text"), str) and block["text"].strip())
+            for block in content
+        )
+    return content is None
+
+
+tool_call_content_normalizer = ToolCallContentNormalizer()
