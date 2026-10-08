@@ -105,6 +105,11 @@ resource "helm_release" "cilium" {
           cpu    = "50m"
         }
       }
+      # Chart default 300s cut LLM streams that stay silent while the model
+      # reasons: Muse sends nothing through LiteLLM until content, and 12
+      # marrow calls died at exactly 300s (2026-10-07/08). 1800s matches the
+      # longest client call budget (marrow call_timeout_s).
+      streamIdleTimeoutDurationSeconds = 1800
     }
 
     # Operator replicas (single replica for small cluster)
