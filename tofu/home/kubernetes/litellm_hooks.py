@@ -17,9 +17,10 @@ logger = logging.getLogger("litellm.hooks.aether")
 # them. Pin ours: the deployment adaptations must be visible at INFO.
 logger.setLevel(logging.INFO)
 
-# One client reused for every decide call; Moira must answer in <50 ms, so a
-# 300 ms cap bounds the hook's added latency tightly.
-_moira_client = httpx.AsyncClient(timeout=0.3)
+# One client reused for every decide call. 1.5 s cap: /decide answers in ~12 ms, but under heavy streaming load
+# LiteLLM's own event loop delayed the hook's call past the old 300 ms cap and
+# requests fell back to the static alias (17 timeouts, 2026-10-08 01:03-03:47).
+_moira_client = httpx.AsyncClient(timeout=1.5)
 
 
 class ChatReasoningEffort(CustomLogger):
@@ -189,6 +190,13 @@ class MoiraRouter(CustomLogger):
             "api": api,
             "stream": bool(data.get("stream")),
             "session_id": session_id,
+            # Moira skips models whose output cap is below this (they would be
+            # clamped and truncate), unless nothing larger is left.
+            "max_output_tokens": next(
+                (v for k in ("max_completion_tokens", "max_tokens", "max_output_tokens")
+                 if isinstance(v := data.get(k), int) and not isinstance(v, bool) and v > 0),
+                None,
+            ),
             "allowed_models": _effective_allowed_models(user_api_key_dict),
         }
 
