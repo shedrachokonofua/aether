@@ -6,7 +6,7 @@
 # with an independent random bearer token. There is no PAYG fallback.
 
 locals {
-  muse_image         = "registry.gitlab.home.shdr.ch/so/muse-bridge@sha256:df4d8adc41ce7f3c355602f75d40453181b80dd53c9c137f08e82a9890d6f709"
+  muse_image         = "registry.gitlab.home.shdr.ch/so/muse-bridge@sha256:44e1c064036348788e81c50c279addefa4984c7b0521c63b4cc5abc9a3a729b9"
   muse_host          = "muse.home.shdr.ch"
   muse_port          = 8080
   muse_ns            = module.namespace["muse"].name
