@@ -193,8 +193,9 @@ model_list:
       allowed_openai_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
 
-  # CodeBuddy's Hy4 preview endpoint is stream-only and requires a leading
-  # system message. Keep it standalone so generic router traffic cannot select it.
+  # CodeBuddy's Hy4 preview endpoint is stream-only (Moira's codebuddy rule
+  # sets chat_requires_stream) and requires a leading system message
+  # (deployment_adapter prepends an empty one via the model_info flag).
   # Limits are Tencent's published Hy4 limits; CodeBuddy publishes none.
   - model_name: "codebuddy/hy4-preview"
     litellm_params:
@@ -205,7 +206,7 @@ model_list:
       # Preserve the upstream quota/reset error on this single-leg route.
       # A generic router cooldown cannot make the subscription allowance reset.
       cooldown_time: 0
-    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, requires_leading_system_message: true, supported_openai_params: *openai_reasoning_params}
 
   # Kimi Coding models (https://api.kimi.com/coding/v1 — OpenAI-compatible).
   # Context and image input from the endpoint's /models; K3 always thinks
