@@ -2,16 +2,19 @@
 
 ## Status
 
-Draft for review. Single-operator, LAN-first infrastructure. Not a CDN, not a multi-tenant platform.
+Draft for review. Single-operator, LAN-first infrastructure. Not a CDN, not a multi-tenant platform. Everything in this document ships as one release; the build order at the end only reflects dependencies.
 
 ## Goal
 
-`pop deploy` publishes a directory of static files (plus optional Rust/TypeScript server-side functions) from a laptop or GitLab CI to an origin on the home cluster:
+`pop deploy` publishes a directory of static files, plus optional Rust/TypeScript server-side functions, from a laptop or GitLab CI to an origin on the home cluster:
 
 - Every deploy is immutable and gets its own URL: `<deploy>--<project>.pop.home.shdr.ch`.
-- Each project has a production pointer: `<project>.pop.home.shdr.ch`. Promote and rollback move the pointer; nothing is re-uploaded.
-- Authentication is Keycloak SSO (device flow from the CLI, GitLab CI ID tokens from pipelines). No static deploy tokens or S3 keys exist anywhere.
-- Static content lives in Ceph RGW. Functions run as wasmCloud components.
+- Named aliases (`production`, `staging`, a branch name…) point at deploys. Promote and rollback move an alias; nothing is re-uploaded.
+- Authentication is Keycloak SSO for deployers (device flow from the CLI, GitLab CI ID tokens from pipelines) and, per project, for visitors. No static deploy tokens or S3 keys exist anywhere.
+- Static content lives in Ceph RGW. Functions run as wasmCloud components, on request or on a schedule.
+- HTML forms (with file uploads) work without backend code.
+- Lifecycle events go to signed webhooks.
+- `pop dev` reproduces the origin's behaviour locally.
 - Selected projects become public through a custom domain the operator already owns (e.g. `attain.ing`), mapped at the edge onto the project's production hostname.
 
 This replaces the hand-written per-site RGW rewrites in the home Caddyfile (`@shdrch`, `@attaining` in `ansible/playbooks/home_gateway_stack/caddy/Caddyfile.j2`), which only resolve `/` to `index.html` and cannot serve subdirectory indexes, custom 404s, SPA fallbacks, or per-site headers.
@@ -20,22 +23,25 @@ This replaces the hand-written per-site RGW rewrites in the home Caddyfile (`@sh
 
 - No CDN behaviour: no edge caching, no geo, no purge API. Public custom domains sit behind Cloudflare, which caches according to pop's response headers.
 - No hosted build service. The CLI runs the project's own build command locally or in CI.
-- No public pop hostnames. `*.pop.home.shdr.ch` is LAN-only; public reach is only via explicitly declared custom domains, and only for production.
-- No visitor authentication in v1 (LAN is the perimeter). Deferred to a later phase; see Phasing.
-- No forms, split testing, identity product, image transforms, or edge middleware.
+- No public pop hostnames. `*.pop.home.shdr.ch` is LAN-only; public reach is only via explicitly declared custom domains, and only for the `production` alias.
+- No merge-request comments, email notifications, or Slack integration; webhooks cover notifications.
+- No split testing, image transforms, edge functions, key-value blob store, or end-user identity product (Keycloak is the identity provider).
 - No multi-tenancy. One operator; projects are an organisational unit, not a security boundary between users.
 
 ## Naming and hostnames
 
 | Hostname | Meaning |
 |---|---|
-| `pop.home.shdr.ch` | Control-plane API |
-| `<project>.pop.home.shdr.ch` | Production pointer for `<project>` |
+| `pop.home.shdr.ch` | Control-plane API and visitor-login callback |
+| `<project>.pop.home.shdr.ch` | The `production` alias of `<project>` |
+| `<alias>--<project>.pop.home.shdr.ch` | Any other alias (e.g. `staging--blog`) |
 | `<deploy>--<project>.pop.home.shdr.ch` | One immutable deploy |
 
-- The flat `--` form keeps every site one label under `pop.home.shdr.ch`, so a single wildcard certificate covers everything. Per-project nested wildcards would need one certificate per project and would publish every project slug to Certificate Transparency logs.
+- The flat `--` form keeps every site one label under `pop.home.shdr.ch`, so one wildcard certificate covers everything. Per-project nested wildcards would need one certificate per project and would publish every project slug to Certificate Transparency logs.
 - Project slug: `^[a-z0-9]+(-[a-z0-9]+)*$`, ≤ 40 chars, so no `--` can appear in a slug.
-- Deploy ID: 8 lowercase base32 chars, generated server-side. The combined label stays ≤ 63 chars.
+- Deploy ID: exactly 8 chars from `[a-z2-7]` (base32), generated server-side.
+- Alias name: same grammar as a slug, ≤ 20 chars, and must not match the deploy-ID pattern `^[a-z2-7]{8}$`. `production` is reserved for the bare project hostname. The origin therefore resolves the left side of `--` unambiguously: deploy-ID syntax → deploy, otherwise → alias.
+- The longest label (`20 + 2 + 40`) stays under the 63-char DNS limit.
 
 ## Architecture
 
@@ -44,23 +50,26 @@ flowchart LR
   cli[pop CLI / GitLab CI] -->|OIDC bearer| api[pop-api]
   cli -->|presigned PUT, missing blobs only| rgw[(Ceph RGW<br/>bucket: pop)]
   api --> pg[(CNPG Postgres)]
-  api -->|STS: write role| rgw
-  api -->|WorkloadDeployment CRs| wc[wasmCloud host group<br/>namespace pop]
+  api -->|STS: read/write| rgw
+  api -->|WorkloadDeployment, CronJob,<br/>ExternalSecret| k8s[namespace pop<br/>wasmCloud host group]
+  api -->|INSTREAM| clamd[clamd]
+  api -->|signed POST| hooks[webhook targets]
   lan[LAN / tailnet] --> caddy[home Caddy<br/>*.pop.home.shdr.ch]
-  pub[custom domain] --> cf[Cloudflare] --> link[public Caddy] --> c9443[home Caddy :9443<br/>Host rewrite to production name]
+  pub[custom domain] --> cf[Cloudflare] --> link[public Caddy] --> c9443[home Caddy :9443<br/>Host → production name<br/>X-Pop-Edge: public]
   caddy --> gw[k8s Gateway]
   c9443 --> gw
   gw --> origin[pop-origin]
-  origin -->|STS: read role| rgw
+  origin -->|STS: read-only| rgw
   origin --> pg
-  origin -->|/api/fn/*| wc
+  origin -->|/api/fn/*| k8s
+  origin -->|form POSTs| api
 ```
 
-Two binaries plus a CLI:
+Two services plus a CLI:
 
-- **pop-api** — control plane: projects, deploys, pointers, presigned uploads, function lifecycle, retention.
-- **pop-origin** — data plane: hostname → deploy → manifest → blob, redirects, headers, function proxying. Stateless; scales horizontally.
-- **pop** CLI — login, build, upload, promote, rollback, list.
+- **pop-api** — control plane: projects, deploys, aliases, presigned uploads, function and schedule lifecycle, form submissions and uploads, malware scanning, webhooks, visitor-login callback, retention.
+- **pop-origin** — data plane: hostname → deploy → manifest → blob, visitor sessions, redirects, headers, function proxying. Read-only on storage; form POSTs are forwarded to pop-api. Stateless; scales horizontally.
+- **pop** CLI — `login`, `init`, `dev`, `deploy`, `promote`, `rollback`, `alias`, `ls`, `forms`, `hooks`.
 
 ## Repository ownership
 
@@ -68,72 +77,110 @@ Follow the daimyo pattern (`tofu/home/kubernetes/daimyo.tf`): a sibling repo shi
 
 The `pop` repository (sibling of aether, GitLab `shdrch/pop`) owns:
 
-- Rust source for `pop-api`, `pop-origin`, and the `pop` CLI (one Cargo workspace; daimyo is the Rust precedent).
-- `_redirects` / `_headers` parser and the origin resolution logic, with behaviour tests.
-- Helm chart, Dockerfile, GitLab CI (images pinned by digest; CLI released as a static binary).
+- Rust source for `pop-api`, `pop-origin` and the `pop` CLI in one Cargo workspace (daimyo is the Rust precedent). Resolution, `_redirects`/`_headers` parsing and form extraction live in one shared crate used by pop-origin, pop-api finalize and `pop dev`, so all three behave identically.
+- Behaviour tests, Helm chart, Dockerfile, GitLab CI (images pinned by digest; CLI released as a static binary).
 - Function build adapters (cargo / jco) and component templates for Rust and TypeScript.
 
 Aether owns:
 
-- Namespace `pop` via `namespace_contracts.tf`, the Helm release, the image digest pins, and the CNPG cluster.
-- Keycloak client(s) and roles (`tofu/home/keycloak.tf`).
+- Namespace `pop` via `namespace_contracts.tf`, the Helm release, image digest pins, and the CNPG cluster.
+- Keycloak clients and roles (`tofu/home/keycloak.tf`).
 - RGW bucket, RGW roles and their trust policies.
-- OpenBao policy and the per-namespace SecretStore for function secrets.
+- OpenBao policy, the per-namespace SecretStore for function secrets, and the session-signing key.
 - GitLab registry deploy tokens for function components.
-- Home Caddy `*.pop.home.shdr.ch` block, Technitium/AdGuard records, and every `:9443` custom-domain mapping.
+- The Cloudflare Turnstile widget for public forms.
+- Home Caddy `pop.home.shdr.ch, *.pop.home.shdr.ch` block, Technitium/AdGuard records, every `:9443` custom-domain mapping, and the matching Keycloak redirect URIs.
+- CiliumNetworkPolicies for the namespace, including egress for webhooks, Turnstile verification, ClamAV signature updates and function `allowed_hosts`.
 - The Grafana dashboard (monitoring_stack provisioning).
+
+## Project config (`pop.toml`)
+
+```toml
+project = "blog"
+
+[build]
+command = "npm run build"
+publish = "dist"
+dev_command = "npm run dev -- --port 5173"   # optional, proxied by `pop dev`
+
+[access]
+production = "open"            # "open" | "sso"
+aliases    = "open"            # applies to non-production aliases and raw deploy URLs
+roles      = []                # when "sso": empty = any realm user, else any of these realm roles
+
+[functions.contact-sync]
+env           = { LOG_LEVEL = "info" }
+secrets       = ["CRM_TOKEN"]          # keys under kv/pop/<project>/<fn>
+allowed_hosts = ["api.example.com"]
+schedule      = "*/15 * * * *"         # optional; production only
+```
 
 ## Data model
 
 ### RGW bucket `pop`
 
 ```
-blobs/<sha256>                       file bytes, content-addressed, shared across deploys
-manifests/<deploy-id>.json           immutable, written once at finalize
+blobs/<sha256>                                   site files, content-addressed, shared across deploys
+manifests/<deploy-id>.json                       immutable, written once at finalize
+uploads/<project>/<form>/<submission>/<file>     form uploads; never readable by pop-origin or any public route
 ```
 
-A manifest maps every published path to `{sha256, size, content_type}`, and carries the parsed `_redirects` and `_headers` rules plus the deploy's function table. Content type is fixed at deploy time from the extension; `.wasm` is `application/wasm`.
+A manifest maps every published path to `{sha256, size, content_type}` and carries the parsed `_redirects` and `_headers` rules, the form table, the function table and the deploy's access policy. Content type is fixed at deploy time from the extension; `.wasm` is `application/wasm`.
 
-Content addressing makes repeat deploys cheap (only changed files upload) and makes manifests and blobs immutable, so the origin can cache them forever.
+Content addressing makes repeat deploys cheap (only changed files upload) and makes manifests and blobs immutable, so the origin caches them forever.
 
 ### Postgres (CNPG)
 
 - `projects(slug, created_at, created_by)`
-- `deploys(id, project, state, manifest_sha, git_ref, created_by, created_at, functions jsonb)` with `state ∈ {uploading, ready, failed, expired}`
-- `pointers(project, deploy_id, updated_at, updated_by)` — the production pointer
-- `events(id, project, deploy_id, kind, actor, at)` — deploy / promote / rollback / expire audit trail
+- `deploys(id, project, state, manifest_sha, git_ref, created_by, created_at)`, `state ∈ {uploading, ready, failed, expired}`
+- `aliases(project, name, deploy_id, updated_at, updated_by)` and `alias_history(project, name, deploy_id, at, actor)`
+- `events(id, project, deploy_id, kind, actor, at, payload jsonb)` — the audit trail and webhook source
+- `webhooks(id, project, url, events text[], secret, created_at)` and `webhook_deliveries(id, webhook_id, event_id, attempt, status, response_code, at)`
+- `form_submissions(id, project, deploy_id, form, fields jsonb, edge, spam_verdict, created_at)`
+- `form_files(submission_id, name, key, size, content_type, scan_status)`, `scan_status ∈ {pending, clean, infected, error}`
 
-Postgres is the control plane only. The origin reads pointers and deploy states, caches them in memory, refreshes on `LISTEN pop_pointer` notifications with a 30-second poll fallback, and keeps serving last-known pointers if Postgres is unreachable.
+Postgres is the control plane only. pop-origin reads aliases and deploy states, caches them in memory, refreshes on `LISTEN pop_alias` with a 30-second poll fallback, and keeps serving last-known aliases if Postgres is unreachable.
 
 ## Deploy flow
 
-1. CLI reads `pop.toml` (project slug, build command, publish dir, functions), runs the build, and hashes every file in the publish dir.
-2. `POST /deploys` with the file list `{path, sha256, size}`. The API creates the deploy (`uploading`) and returns presigned PUT URLs for blobs not already in RGW.
+1. CLI reads `pop.toml`, runs `build.command`, and hashes every file in the publish dir.
+2. `POST /deploys` with `{path, sha256, size}` for each file. pop-api creates the deploy (`uploading`) and returns presigned PUT URLs for blobs not already in RGW.
 3. CLI uploads missing blobs directly to RGW (`s3.home.shdr.ch`).
 4. CLI builds functions (see Functions) and pushes components to the registry by digest.
-5. `POST /deploys/<id>/finalize`. The API verifies every blob exists (HEAD), parses `_redirects`/`_headers` (rejecting invalid rules with line numbers), writes the manifest, creates function workloads, and marks the deploy `ready`.
-6. With `--prod`, the API moves the production pointer after `ready`.
-7. CLI prints the deploy URL, the production URL if promoted, and a Grafana Explore link filtered to the deploy.
+5. `POST /deploys/<id>/finalize`. pop-api verifies every blob exists, parses `_redirects`/`_headers` and extracts forms from HTML (rejecting invalid rules or form declarations with file and line), writes the manifest, creates function workloads and ExternalSecrets, and marks the deploy `ready`.
+6. With `--alias <name>` (or `--prod`, which means `--alias production`), pop-api moves that alias after `ready`. Moving `production` also re-points scheduled functions.
+7. CLI prints the deploy URL, any alias URL that moved, and a Grafana Explore link filtered to the deploy.
 
-Promote and rollback are compare-and-set updates on `pointers` (`UPDATE … WHERE deploy_id = $expected`). The pointer can only target `ready` deploys of the same project. Deploys that never finalize expire after 1 hour.
+Alias moves are compare-and-set updates (`UPDATE aliases … WHERE deploy_id = $expected`) and append to `alias_history`. An alias can only target `ready` deploys of the same project. `pop rollback [--alias X]` moves the alias to its previous `alias_history` entry. Deploys that never finalize expire after 1 hour.
 
 ## Serving rules (pop-origin)
 
 Per request:
 
-1. Resolve the Host header: `<project>.pop.home.shdr.ch` → production pointer; `<deploy>--<project>.pop.home.shdr.ch` → that deploy if it belongs to the project and is `ready`. Anything else → 404.
-2. Load the manifest (in-memory LRU, keyed by deploy ID, never invalidated).
-3. Apply forced redirect/rewrite rules (`!`), first match wins.
-4. If the deploy has functions and the path is `/api/<fn>` or `/api/<fn>/…`, proxy to the function (see Functions).
-5. File lookup: exact path; a directory path with trailing slash → `index.html`; a directory without trailing slash → 301 to the slash form; `/foo` → `/foo.html` if present.
-6. Apply non-forced redirect/rewrite rules (Netlify semantics: rules only fire when no file matched). SPA fallback is a rule (`/* /index.html 200`), not a flag.
-7. No match → `/404.html` with status 404 if present, else a plain 404.
+1. Resolve the Host header: `<project>.pop.home.shdr.ch` → `production`; `<x>--<project>.pop.home.shdr.ch` → deploy if `x` has deploy-ID syntax, else alias `x`. The deploy must belong to the project and be `ready`. Anything else → 404; expired deploys → 410.
+2. Load the manifest (in-memory LRU keyed by deploy ID, never invalidated); it carries the deploy's access policy.
+3. Reserved paths `/_pop/callback` (visitor login) and `/_pop/logout` are handled here, before access enforcement, so login can complete.
+4. Enforce the access policy (see Visitor access).
+5. A `POST` whose path matches a declared form's `action` is forwarded to pop-api (see Forms).
+6. Apply forced redirect/rewrite rules (`!`); first match wins.
+7. If the deploy has functions and the path is `/api/<fn>` or `/api/<fn>/…`, proxy to the function.
+8. File lookup: exact path; a directory with trailing slash → `index.html`; a directory without trailing slash → 301 to the slash form; `/foo` → `/foo.html` if present.
+9. Apply non-forced rules (Netlify semantics: they only fire when no file matched). SPA fallback is a rule (`/* /index.html 200`), not a flag.
+10. No match → `/404.html` with status 404 if present, else a plain 404.
 
-Response headers: `Content-Type` from the manifest, `ETag` = blob sha256, then `_headers` rules. Default `Cache-Control`: `public, max-age=0, must-revalidate` for HTML and anything without a content hash in its filename; `_headers` overrides per path (e.g. `/assets/* Cache-Control: public, max-age=31536000, immutable`). Conditional requests (`If-None-Match`) and `Range` are honoured.
+Response headers: `Content-Type` from the manifest, `ETag` = blob sha256, then `_headers` rules. Default `Cache-Control`: `public, max-age=0, must-revalidate` for HTML and anything without a content hash in its filename; `_headers` overrides per path (e.g. `/assets/* Cache-Control: public, max-age=31536000, immutable`). SSO-protected responses are always `private, no-store`. Conditional requests (`If-None-Match`) and `Range` are honoured.
 
 Supported `_redirects`/`_headers` subset: splats, `:placeholders`, status `200`/`301`/`302`/`404`, force `!`. Not supported: country/language/role conditions, proxying to external URLs.
 
-Browser-side wasm needs nothing special beyond the content type; cross-origin isolation (COOP/COEP) for wasm threads is configured per project through `_headers`.
+Browser-side wasm needs nothing beyond the content type; cross-origin isolation (COOP/COEP) for wasm threads is configured through `_headers`.
+
+The `:9443` handler for every custom domain overwrites `X-Pop-Edge: public` on the way in. Every request arriving through the public path therefore carries it, and a LAN client setting it only makes its own request stricter (Turnstile becomes mandatory), so it cannot be abused to relax anything.
+
+## Aliases
+
+- `pop deploy --alias staging`, `pop promote <deploy> [--alias X]`, `pop rollback [--alias X]`, `pop alias ls|rm`.
+- CI convention: deploy each branch with `--alias <branch-slug>` for a stable per-branch URL, and with `--prod` on the default branch.
+- Custom domains only ever map to `production`.
 
 ## Functions (wasmCloud)
 
@@ -141,20 +188,58 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 
 - **Contract:** each function is a component exporting `wasi:http/incoming-handler` (WASI 0.2).
 - **Source layout:** `functions/<name>/` with `Cargo.toml` (built with `cargo build --target wasm32-wasip2`) or `package.json` (built with `jco componentize`). The CLI picks the toolchain from the manifest file present.
-- **Config in `pop.toml`, per function:** env vars, OpenBao secret keys, `allowed_hosts`.
 - **Shipping:** components are pushed by digest to the GitLab registry under `shdrch/pop-functions/<project>/<fn>` with a pop-scoped deploy token. The existing `gitlab-registry` pull secret in `wasmcloud-system` is built from GitLab root credentials and is not reused.
-- **Running:** one `WorkloadDeployment` + selector-less `Service` per (deploy, function), named `<project>-<fn>-<deploy>` and pinned by digest. They live in namespace `pop` on a pop-owned host group, not in `wasmcloud-system`, because pop creates them at runtime (it is the declared controller for that namespace, the same way Keel is for its targets).
-- **Routing:** pop-origin proxies `/api/<fn>/*` to the function Service, rewriting Host to the component's registered name (the URLRewrite requirement in `docs/paas.md`), forwarding `traceparent`, and stripping inbound `X-Pop-*` headers. No HTTPRoute per function.
-- **Secrets:** pop-api creates an `ExternalSecret` per function from `kv/pop/<project>/<fn>` in OpenBao; the namespace's SecretStore policy is limited to `kv/pop/*`. The workload consumes it via `localResources.environment.secretFrom`.
-- **Lifecycle:** production and previews younger than 7 days keep live workloads. Older preview workloads are deleted; their `/api/*` returns 410 while static files keep serving.
+- **Running:** one `WorkloadDeployment` + selector-less `Service` per (deploy, function), named `<project>-<fn>-<deploy>` and pinned by digest, in namespace `pop` on a pop-owned host group. pop creates them at runtime, so it is the declared controller for that namespace (as Keel is for its targets) rather than writing into `wasmcloud-system`.
+- **Routing:** pop-origin proxies `/api/<fn>/*` to the function Service, rewriting Host to the component's registered name (the URLRewrite requirement in `docs/paas.md`), forwarding `traceparent`, stripping inbound `X-Pop-*` headers, and adding verified visitor headers when the request is authenticated (see Visitor access). No HTTPRoute per function.
+- **Secrets:** pop-api creates an `ExternalSecret` per function from `kv/pop/<project>/<fn>` in OpenBao; the namespace SecretStore policy is limited to `kv/pop/*`. The workload consumes it via `localResources.environment.secretFrom`.
+- **Schedules:** a function with `schedule` gets one CronJob per (project, function), active only for the `production` deploy. Each run sends `POST /` to that deploy's function Service with `X-Pop-Trigger: schedule`. Moving `production` re-points the CronJob; non-production deploys never run schedules. Same mechanism as `tofu/home/kubernetes/comfyui_reaper.tf`.
+- **Lifecycle:** workloads stay live for every deploy an alias points at, and for other deploys younger than 7 days. Older ones are deleted; their `/api/*` returns 410 while static files keep serving.
 
-## Authentication and authorization
+## Forms
+
+- **Declaration:** `<form data-pop-form="contact" action="/contact" method="post">`. Finalize extracts every declared form (name, action path, field names, file inputs and their `accept`) into the manifest. Optional `data-pop-success="/thanks"`, `data-pop-max-files` (default 0 = no uploads), `data-pop-max-size` (per file, default 10 MB, capped at 50 MB).
+- **Submission path:** pop-origin forwards a matching `POST` (with project, deploy, form definition and the edge flag) to pop-api's internal endpoint. pop-origin itself never writes storage.
+- **Spam:** every form gets a honeypot field check. Requests carrying `X-Pop-Edge: public` must also carry a valid Cloudflare Turnstile token, verified server-side by pop-api. Site authors include the Turnstile widget with the shared site key that `pop forms snippet` prints. Spam is stored with `spam_verdict = spam`, never webhooked, and dropped by retention.
+- **Uploads:** multipart files stream to `uploads/…`. Count, per-file size and type (`accept` on the input) are enforced while streaming, so an oversized request is rejected before it is fully stored. Total request size is also bounded by Cloudflare (100 MB on the free plan) for public domains.
+- **Scanning:** a `clamd` Deployment (with `freshclam` signature updates) runs in namespace `pop`. pop-api streams every upload to clamd. `infected` files are deleted immediately, the submission is flagged, and an `upload.infected` event fires. Only `clean` files are downloadable.
+- **Response:** 303 to `data-pop-success`, else back to the submitting page with `?submitted=<form>`.
+- **Reading:** `pop forms ls <project> [form]`, `pop forms export <project> <form> --csv`, `pop forms download <submission>` (short-lived presigned GET; requires `pop:deploy`). No route — public, LAN, or origin — ever serves upload bytes.
+- **Events:** `form.submitted` fires after the spam check and, when files are attached, after scanning finishes.
+
+## Webhooks
+
+- Managed per project: `pop hooks add <url> [--events …]`, `pop hooks ls|rm`, `pop hooks deliveries <id>`. The signing secret is generated server-side and shown once.
+- Events: `deploy.ready`, `deploy.failed`, `deploy.expired`, `alias.updated` (covers promote and rollback), `form.submitted`, `upload.infected`.
+- Payload: JSON `{id, type, at, project, deploy_id, alias, url, actor, data}`; the deploy and alias URLs are included so a receiver like ntfy can link straight to them.
+- Signature: `X-Pop-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>`; receivers reject timestamps older than 5 minutes.
+- Delivery: at-least-once from the `events` table, 5 s timeout, up to 6 attempts with exponential backoff over about an hour, recorded in `webhook_deliveries`. Delivery never blocks a deploy or a form submission.
+- Egress: targets must be reachable through the namespace's egress policy; see Open questions.
+
+## Visitor access
+
+- Per project, in `pop.toml`: `production` and `aliases` (which also covers raw deploy URLs) are each `open` or `sso`; `roles` restricts `sso` to any of the listed Keycloak realm roles.
+- **Keycloak:** a confidential client `pop-visitor` with the standard authorization-code flow and PKCE.
+- **LAN hostnames:** pop-origin redirects to Keycloak with redirect URI `https://pop.home.shdr.ch/auth/callback`. pop-api completes the code exchange, then sends the browser back to `https://<site-host>/_pop/callback?code=<one-time handoff code>`. pop-origin redeems that code with pop-api and sets the session cookie. One fixed redirect URI covers every `*.pop.home.shdr.ch` host. [INFERENCE: Keycloak only allows a trailing `*` in redirect URIs, not wildcard hostnames, so per-host callbacks for unbounded preview hosts are not possible.]
+- **Custom domains:** the central callback host is LAN-only, so each custom domain uses `https://<domain>/_pop/callback` directly. That URI is registered on `pop-visitor` in aether next to the domain's `:9443` mapping.
+- **Session:** a host-only `__Host-pop_session` cookie, HMAC-signed with a key from OpenBao, 12-hour lifetime, holding `sub`, `email`, `roles` and `exp`. Stateless; no session table.
+- **Function identity:** authenticated requests to functions carry `X-Pop-User`, `X-Pop-Email` and `X-Pop-Roles` set by pop-origin after stripping any inbound copies.
+- Accepted risk: open sites share the `.home.shdr.ch` cookie scope with other LAN apps; acceptable while the operator is the only author.
+
+## Deployer authentication and authorization
 
 - **CLI:** new public Keycloak client `pop-cli` with the device authorization grant, a realm-roles mapper and audience `pop`, mirroring the `toolbox` client (`tofu/home/keycloak.tf:928-992`). Token cached at `~/.config/pop/`.
 - **CI:** GitLab CI `id_tokens` with `aud: pop`. pop-api trusts the GitLab issuer and maps `project_path` to allowed pop projects (configured in aether).
-- **Roles:** `pop:deploy` (create deploys and promote), `pop:admin` (create/delete projects, force retention). Enforced in pop-api.
-- **Storage:** pop-api and pop-origin hold no S3 keys. Each assumes an RGW role via `AssumeRoleWithWebIdentity` with its Kubernetes service-account token (RGW already trusts the cluster OIDC issuer). pop-api gets read/write on bucket `pop`; pop-origin gets read-only.
-- **Visitors:** none in v1. Accepted risk: sites share the `.home.shdr.ch` cookie scope with other LAN apps; acceptable while the operator is the only author.
+- **Roles:** `pop:deploy` (deploy, move aliases, read forms, manage hooks) and `pop:admin` (create/delete projects, force retention). Enforced in pop-api.
+- **Storage:** no S3 keys. Each service assumes an RGW role via `AssumeRoleWithWebIdentity` with its Kubernetes service-account token (RGW already trusts the cluster OIDC issuer). pop-api gets read/write on bucket `pop`; pop-origin gets read-only on `blobs/` and `manifests/` and nothing on `uploads/`.
+
+## Local development (`pop dev`)
+
+- Serves the publish dir on `127.0.0.1:8888` with the same resolution crate as pop-origin, so `_redirects`, `_headers`, index, 404 and form-declaration errors match finalize exactly. It watches the publish dir and reloads rules on change.
+- If `build.dev_command` is set, pop dev runs it and proxies paths that are not pop-owned (not functions, forms or `/_pop/*`) to it, giving framework hot reload with pop routing on top.
+- Functions are built and run locally with `wasmtime serve`, one port per function, proxied at `/api/<fn>/*`. Env comes from `pop.toml` plus a git-ignored `.pop/dev.env` for secrets.
+- `pop dev trigger <fn>` fires a scheduled function once.
+- Forms are stored in `.pop/dev-submissions.jsonl` and uploads in `.pop/uploads/`; no Turnstile and no scanning.
+- Visitor access is simulated: `pop dev --as user@example --roles a,b` injects the `X-Pop-*` identity headers.
 
 ## Edge, DNS and TLS
 
@@ -162,50 +247,67 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 - **DNS:** Technitium and AdGuard wildcard records for `*.pop.home.shdr.ch` → `10.0.2.2` (same shape as `*.arpa.attain.ing`).
 - **Gateway:** an HTTPRoute for `pop.home.shdr.ch` and `*.pop.home.shdr.ch` on the internal listener, declared in the `pop` namespace contract's `hostnames`.
 - **Tailnet:** the Tailscale-facing Caddy listener only serves shared routes; `*.pop.home.shdr.ch` is added there only if off-LAN access is wanted.
-- **Custom domains:** one `:9443` host matcher + handle per public project, rewriting Host to `<project>.pop.home.shdr.ch` (same pattern as `@ai`). Mappings only ever target production hostnames. Root-apex domains need their Cloudflare record; `*.shdr.ch` names are already covered by the proxied wildcard record in `tofu/cloudflare.tf`.
+- **Custom domains:** one `:9443` host matcher + handle per public project, rewriting Host to `<project>.pop.home.shdr.ch` (same pattern as `@ai`) and overwriting `X-Pop-Edge: public`. Mappings only ever target `production`. Root-apex domains need their own Cloudflare record; `*.shdr.ch` names are already covered by the proxied wildcard record in `tofu/cloudflare.tf`.
+- **Migration:** `shdr.ch` and `attain.ing` move off their direct RGW rewrites onto pop custom-domain mappings, and their CI pipelines switch to `pop deploy --prod`.
 
 ## Observability
 
 - **Export:** OTLP to `otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318`, the in-cluster convention used by `colony.tf` and `celld.tf`.
-- **Metrics:** request count, latency histogram and bytes sent, labelled `project`, `env` (`production` | `preview`), `status_class`. `deploy_id` is never a metric label or Loki label — it goes in trace attributes and Loki structured metadata.
-- **Traces:** one server span per origin request, child spans for manifest load, RGW GET and the function call; `traceparent` propagated to functions.
-- **Events:** deploy, promote, rollback and expire are emitted as structured log lines; the dashboard renders them as Loki annotations. No Grafana write token is needed.
-- **Dashboard:** `pop.json` provisioned through `monitoring_stack`: requests and 404 rate per project, latency, RGW error rate, function errors, recent deploy events.
+- **Metrics:** request count, latency histogram and bytes sent, labelled `project`, `alias_kind` (`production` | `alias` | `deploy`) and `status_class`. Plus form submissions by verdict, upload scan results, webhook delivery outcomes, and scheduled-run outcomes. `deploy_id` and alias names are never metric or Loki labels; they go in trace attributes and Loki structured metadata.
+- **Traces:** one server span per origin request, with child spans for manifest load, RGW GET, function call and form forwarding; `traceparent` propagated to functions.
+- **Events:** every `events` row is also a structured log line; the dashboard renders deploy and alias events as Loki annotations. No Grafana write token is needed.
+- **Dashboard:** `pop.json` provisioned through `monitoring_stack`: requests and 404 rate per project, latency, RGW errors, function errors, schedule failures, form spam rate, infected uploads, webhook failures, recent deploy events.
 - **CLI:** prints a Grafana Explore link filtered to the deploy.
 
 ## Failure handling
 
 | Failure | Behaviour |
 |---|---|
-| RGW unavailable | Cached manifests still resolve; uncached blobs return 502. Deploy finalize fails; deploy stays `uploading` and expires. |
-| Postgres unavailable | Origin serves last-known pointers; API returns 503. |
-| Function workload not ready | `/api/<fn>/*` returns 503; static paths are unaffected. |
-| Invalid `_redirects`/`_headers` | Finalize rejects the deploy with file and line; no pointer change. |
-| Concurrent promotes | Compare-and-set loses cleanly with 409; CLI reports the current production deploy. |
+| RGW unavailable | Cached manifests still resolve; uncached blobs return 502. Finalize and form submissions fail; deploys expire. |
+| Postgres unavailable | Origin serves last-known aliases; API, form submissions and visitor login return 503. |
+| Function workload not ready | `/api/<fn>/*` returns 503; static paths unaffected. |
+| Scheduled run fails | CronJob records failure; metric and log line; no retry beyond the next schedule. |
+| Invalid `_redirects`/`_headers`/form declaration | Finalize rejects the deploy with file and line; no alias change. |
+| Concurrent alias moves | Compare-and-set loses cleanly with 409; CLI reports the current target. |
+| clamd unavailable | Uploads stay `pending` and undownloadable; `form.submitted` waits; scan retries until clamd returns. |
+| Webhook target down | Retries with backoff, then marked failed; visible in `pop hooks deliveries`. |
+| Keycloak unavailable | Open sites unaffected; existing sessions valid until expiry; new SSO logins fail. |
 
 ## Retention
 
-- Kept: the current production deploy, the previous 10 production deploys (rollback targets), and previews younger than 14 days.
-- Expired deploys move to `expired`; their URLs return 410.
-- A daily GC deletes blobs no retained manifest references, after a 24-hour grace period so uploads in flight are never collected.
-- Function workloads follow the Functions lifecycle; registry tags for expired deploys are deleted by the same job.
+- Deploys: kept while any alias points at them, plus the last 10 entries of each alias's history (rollback targets), plus any deploy younger than 14 days. Expired deploys return 410.
+- Blobs: a daily GC deletes blobs no retained manifest references, after a 24-hour grace period so in-flight uploads are never collected. Registry tags for expired deploys are deleted by the same job.
+- Function workloads: see Functions → Lifecycle.
+- Form submissions and their files: 90 days; spam: 7 days.
+- Webhook deliveries: 30 days.
 
-## Phasing
+## Build order
 
-1. **Static core.** pop-api, pop-origin, CLI (`login`, `init`, `deploy`, `promote`, `rollback`, `ls`), Postgres, bucket, LAN DNS/TLS, OIDC (CLI + CI), metrics/traces/dashboard, retention.
-2. **Custom domains.** `:9443` mappings; migrate `shdr.ch` and `attain.ing` off their direct RGW rewrites and switch their CI pipelines to `pop deploy`.
-3. **Functions.** Rust first, TypeScript second; pop host group, registry tokens, ExternalSecrets, function lifecycle.
-4. **Visitor auth (only if needed).** Central callback host, host-only session cookies, verified identity headers forwarded to functions.
+Dependency order only; nothing ships until all of it is done.
+
+1. Shared resolution crate (rules, forms extraction) with its behaviour tests, then `pop dev` on top of it.
+2. Aether plumbing: namespace, CNPG, bucket and RGW roles, Keycloak clients, DNS/TLS, Gateway route.
+3. pop-api deploy/alias flow and pop-origin serving; CLI `login`, `init`, `deploy`, `promote`, `rollback`, `alias`, `ls`.
+4. Events, webhooks, observability and dashboard.
+5. Functions: host group, registry tokens, ExternalSecrets, routing, schedules; `pop dev` function support.
+6. Forms, Turnstile, uploads, clamd.
+7. Visitor access.
+8. Custom domains and the `shdr.ch` / `attain.ing` migration.
 
 ## Verification
 
-- **pop repo:** table-driven behaviour tests for origin resolution (index, trailing slash, `.html` fallback, forced vs non-forced rules, splats/placeholders, 404 page, `_headers` precedence, conditional and range requests), slug/deploy-ID parsing, and pointer compare-and-set.
-- **End-to-end smoke (per phase, against the live cluster):** deploy a fixture site; curl the deploy URL and production URL from the LAN; promote, roll back, and observe the pointer flip; confirm `.wasm` content type; confirm a preview `--` host is 404 through `:9443`; for phase 3, call a Rust and a TS function and see their spans in Tempo.
+- **Shared crate:** table-driven behaviour tests for host parsing (slug, alias vs deploy-ID disambiguation, reserved names), resolution (index, trailing slash, `.html` fallback, forced vs non-forced rules, splats/placeholders, 404 page, `_headers` precedence) and form extraction errors.
+- **pop-api:** alias compare-and-set and rollback history; webhook signature and retry schedule; upload limits rejected mid-stream; Turnstile required only with `X-Pop-Edge: public`; download refused for non-`clean` files; schedule re-pointing on `production` move.
+- **pop-origin:** conditional and range requests; `private, no-store` on SSO responses; inbound `X-Pop-*` stripped before functions.
+- **End-to-end smoke against the live cluster:** deploy a fixture site; curl deploy, alias and production URLs from the LAN; promote, roll back and observe the flip and the `alias.updated` webhook; confirm `.wasm` content type; call a Rust and a TypeScript function and find their spans in Tempo; fire a schedule; submit a form with an upload and an EICAR test file (expect `infected`); log in to an `sso` site; confirm a preview `--` host is 404 through `:9443` and a custom domain serves production.
+- **`pop dev` parity:** the same fixture produces identical status codes and headers under `pop dev` and the live origin.
 
 ## Open questions and risks
 
-1. **Second wasmCloud host group.** `Host` became namespaced in 2.5.2, but it is unverified whether a pop-namespace host group can run under the existing operator release or needs a second release. Spike before phase 3.
+1. **Second wasmCloud host group.** `Host` became namespaced in 2.5.2, but it is unverified whether a pop-namespace host group can run under the existing operator release or needs a second release. Spike first in build step 5.
 2. **Function egress.** wasmCloud enforces `allowed_hosts` inside the host, but the `pop` namespace's default-deny CiliumNetworkPolicy must also allow host-pod egress. Decide between FQDN policies generated from `pop.toml` and a broad egress allowance with wasmCloud as the only gate.
-3. **wasmCloud host telemetry.** No OTel settings are configured for wasmCloud hosts today (`wasmcloud.tf:35-75`). Function spans need the chart's host telemetry enabled, if the chart supports it.
-4. **TypeScript component weight.** jco bundles a JavaScript engine into every component. Measure size and per-instance memory with a hello-world function before sizing the host group.
-5. **CLI name.** `pop` collides with `charmbracelet/pop` if that is ever installed; irrelevant inside the Nix dev shell.
+3. **pop-api egress.** Webhook targets, `challenges.cloudflare.com` (Turnstile) and ClamAV signature mirrors all need egress. Decide whether webhook targets are an aether-declared allowlist or open egress from pop-api only.
+4. **wasmCloud host telemetry.** No OTel settings are configured for wasmCloud hosts today (`wasmcloud.tf:35-75`). Function spans need the chart's host telemetry enabled, if the chart supports it.
+5. **TypeScript component weight.** jco bundles a JavaScript engine into every component. Measure size and per-instance memory with a hello-world function before sizing the host group.
+6. **Turnstile hostnames.** One shared widget must list every public custom domain; check the free-plan hostname limit when domains are added.
+7. **CLI name.** `pop` collides with `charmbracelet/pop` if that is ever installed; irrelevant inside the Nix dev shell.
