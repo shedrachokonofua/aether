@@ -6,6 +6,7 @@ Mounted beside config.yaml and registered in litellm_settings.callbacks.
 import json
 import logging
 import os
+from collections import OrderedDict
 from typing import Any
 
 import httpx
@@ -22,6 +23,24 @@ logger.setLevel(logging.INFO)
 # LiteLLM's own event loop delayed the hook's call past the old 300 ms cap and
 # requests fell back to the static alias (17 timeouts, 2026-10-08 01:03-03:47).
 _moira_client = httpx.AsyncClient(timeout=1.5)
+
+# Last request size (chars) per session, for input estimates when a provider
+# reports none: an agent resends its whole history each turn and providers bill
+# the cached repeat at a fraction (Muse: ~4.2B raw input tokens on 2026-10-09
+# moved its weekly meter ~30%, ~0.45B), so only the growth is new input.
+_SESSION_CHARS: "OrderedDict[str, int]" = OrderedDict()
+_SESSION_CHARS_MAX = 5000
+
+
+def _new_input_chars(session_key: str | None, chars: int) -> int:
+    if session_key is None:
+        return chars
+    prev = _SESSION_CHARS.pop(session_key, None)
+    _SESSION_CHARS[session_key] = chars
+    if len(_SESSION_CHARS) > _SESSION_CHARS_MAX:
+        _SESSION_CHARS.popitem(last=False)
+    # A shrink (compaction, new conversation under the same key) is all new.
+    return chars - prev if prev is not None and chars >= prev else chars
 
 
 class ChatReasoningEffort(CustomLogger):
@@ -315,9 +334,14 @@ class MoiraRouter(CustomLogger):
             body = kwargs.get("messages") or kwargs.get("input")
             if body:
                 try:
-                    prompt = len(json.dumps(body, default=str)) // 4
+                    chars = len(json.dumps(body, default=str))
                 except (TypeError, ValueError):
-                    prompt = 0
+                    chars = 0
+                params = kwargs.get("litellm_params")
+                psr = params.get("proxy_server_request") if isinstance(params, dict) else None
+                request = psr.get("body") if isinstance(psr, dict) and isinstance(psr.get("body"), dict) else {}
+                session = extract_session_id({**request, "proxy_server_request": psr})
+                prompt = _new_input_chars(f"{model}|{session}" if session else None, chars) // 4
         output = completion + reasoning if reasoning > completion else completion
         tokens = prompt + output
         if tokens <= 0:
