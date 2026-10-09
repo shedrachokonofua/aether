@@ -258,6 +258,75 @@ locals {
         "app.kubernetes.io/part-of"    = "colony"
       }
     }
+    "daimyo-system" = {
+      tier                    = "platform",
+      owner                   = "daimyo",
+      backup                  = "critical",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Daimyo agent control plane (spec §18.1)"
+      source_file             = "tofu/home/kubernetes/daimyo.tf"
+      registry_access         = "gitlab"
+      hostnames = [
+        "daimyo.home.shdr.ch",
+      ]
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
+    "org-personal" = {
+      tier                    = "guest",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Daimyo org-personal CRDs (spec §6.1)"
+      source_file             = "tofu/home/kubernetes/daimyo.tf"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
+    "org-seven30" = {
+      tier                    = "guest",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Daimyo org-seven30 CRDs (spec §6.1)"
+      source_file             = "tofu/home/kubernetes/daimyo.tf"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
+    "personal-runs" = {
+      tier                    = "sandbox",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Daimyo personal run pods (Kata, spec §18.1)"
+      source_file             = "tofu/home/kubernetes/daimyo.tf"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
+    "seven30-runs" = {
+      tier                    = "sandbox",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Daimyo seven30 run pods (Kata, spec §18.1)"
+      source_file             = "tofu/home/kubernetes/daimyo.tf"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
     "colony-sandboxes" = {
       tier                    = "sandbox",
       owner                   = "colony",
