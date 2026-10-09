@@ -22,11 +22,10 @@
 model_list:
   # llama-swap (K8s) — AFFiNE Copilot streams via /v1/responses; bridge to chat/completions.
   # Each local model is one llama-server (4 slots sharing a 262144-token KV
-  # cache) with no second deployment to fail over to, so these routes set
-  # cooldown_time 0. A router cooldown cannot add capacity: on 2026-09-25 one
-  # context overflow from two concurrent tool-heavy chats became 5m of
-  # "No deployments available". qwen3.8-flash-next is the pinned default;
-  # qwen3.8-27b loads on demand and evicts it.
+  # cache) with no second deployment to fail over to, so like every
+  # single-deployment route it gets only the 5 s router cooldown (router_settings).
+  # qwen3.8-flash-next is the pinned default; qwen3.8-27b loads on demand and
+  # evicts it.
   #
   # Limits are each llama-server's --ctx-size (llama_swap.tf); every chat
   # model loads its repo's mmproj, so all read images. Output is bounded only
@@ -42,49 +41,42 @@ model_list:
       model: "openai/qwen3.8-flash-next"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/qwen3.8-flash-next:code"
     litellm_params:
       model: "openai/qwen3.8-flash-next:code"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-flash-next:think"
     litellm_params:
       model: "openai/qwen3.8-flash-next:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-flash-next:xhigh"
     litellm_params:
       model: "openai/qwen3.8-flash-next:xhigh"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-27b"
     litellm_params:
       model: "openai/qwen3.8-27b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/qwen3.8-27b:code"
     litellm_params:
       model: "openai/qwen3.8-27b:code"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-27b:think"
     litellm_params:
       model: "openai/qwen3.8-27b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.6-35b-a3b"
     litellm_params:
@@ -203,9 +195,6 @@ model_list:
       litellm_credential_name: codebuddy_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-      # Preserve the upstream quota/reset error on this single-leg route.
-      # A generic router cooldown cannot make the subscription allowance reset.
-      cooldown_time: 0
     model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, requires_leading_system_message: true, supported_openai_params: *openai_reasoning_params}
 
   # Kimi Coding models (https://api.kimi.com/coding/v1 — OpenAI-compatible).
@@ -247,6 +236,7 @@ model_list:
   # supplies accurate capabilities and limits, so these legs set no model_info.
   - model_name: "router/glm-5.3"
     litellm_params:
+      cooldown_time: 300
       model: "zai/glm-5.3"
       litellm_credential_name: zai_credential
       weight: 4
@@ -263,6 +253,7 @@ model_list:
       litellm_credential_name: zai_credential
   - model_name: "router/glm-5.3-flash"
     litellm_params:
+      cooldown_time: 300
       model: "zai/glm-5.3-flash"
       litellm_credential_name: zai_credential
 
@@ -283,6 +274,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/muse-spark-1.3"
     litellm_params:
+      cooldown_time: 300
       model: "openai/meta/muse-spark-1.3"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
@@ -296,6 +288,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/muse-spark-1.3-contributor"
     litellm_params:
+      cooldown_time: 300
       model: "openai/meta/muse-spark-1.3-contributor"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
@@ -309,6 +302,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openai/z-ai/glm-5.3-flash"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
@@ -321,6 +315,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
   - model_name: "router/hy4-preview"
     litellm_params:
+      cooldown_time: 300
       model: "openai/tencent/hy4-preview"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
@@ -333,6 +328,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
+      cooldown_time: 300
       model: "openai/xiaomi/mimo-v2.6-pro"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
@@ -346,6 +342,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/mimo-v2.6-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openai/xiaomi/mimo-v2.6-flash"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
@@ -366,6 +363,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 262144, max_output_tokens: 32768, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/ling-3.1-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openai/inclusionai/ling-3.1-flash:free"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
@@ -385,6 +383,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 262144, max_output_tokens: 32768, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/ling-3.1-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openrouter/inclusionai/ling-3.1-flash"
       litellm_credential_name: openrouter_credential
       allowed_openai_params: ["reasoning_effort"]
@@ -415,6 +414,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openai/glm-5.3-flash"
       litellm_credential_name: opencode_go_credential
       use_chat_completions_api: true
@@ -431,6 +431,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/hy4-preview"
     litellm_params:
+      cooldown_time: 300
       model: "openai/hy4-preview"
       litellm_credential_name: opencode_go_credential
       use_chat_completions_api: true
@@ -447,6 +448,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
+      cooldown_time: 300
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: opencode_go_credential
       use_chat_completions_api: true
@@ -464,6 +466,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openai/mimo-v2.6-flash"
       litellm_credential_name: opencode_go_credential
       use_chat_completions_api: true
@@ -486,6 +489,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
+      cooldown_time: 300
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
@@ -499,6 +503,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openai/mimo-v2.6-flash"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
@@ -521,6 +526,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
+      cooldown_time: 300
       model: "openai/glm-5.3-flash"
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
@@ -528,6 +534,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/glm-5.3"
     litellm_params:
+      cooldown_time: 300
       model: "openai/glm-5.3"
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
@@ -615,12 +622,14 @@ model_list:
   # although the order-1 Astra leg accepts 272000.
   - model_name: "router/family"
     litellm_params:
+      cooldown_time: 300
       model: "chatgpt/gpt-6-astra"
       allowed_openai_params: ["reasoning_effort"]
       order: 1
     model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
   - model_name: "router/family"
     litellm_params:
+      cooldown_time: 300
       model: "openai/responses/muse-subscription/muse-spark-1.3"
       litellm_credential_name: muse_bridge_credential
       reasoning_effort: &muse_summary {summary: concise}
@@ -629,6 +638,7 @@ model_list:
     model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/family"
     litellm_params:
+      cooldown_time: 300
       model: "openai/responses/meta/muse-spark-1.3"
       litellm_credential_name: commandcode_credential
       reasoning_effort: *muse_summary
@@ -637,6 +647,7 @@ model_list:
     model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/family"
     litellm_params:
+      cooldown_time: 300
       model: "openai/mimo-v2.6-pro"
       litellm_credential_name: xiaomi_credential
       allowed_openai_params: ["reasoning_effort"]
@@ -724,6 +735,7 @@ model_list:
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/muse-spark-1.3"
     litellm_params:
+      cooldown_time: 300
       model: "openai/muse-subscription/muse-spark-1.3"
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
@@ -739,6 +751,7 @@ model_list:
   # on the same subscription quota at a fraction of Standard's token price.
   - model_name: "router/muse-spark-1.3-contributor"
     litellm_params:
+      cooldown_time: 300
       model: "openai/muse-subscription/muse-spark-1.3-contributor"
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
@@ -769,9 +782,6 @@ model_list:
       litellm_credential_name: grok_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-      # A single-leg subscription route cannot fail over. Preserve the actual
-      # upstream error instead of turning one transient failure into 5m of 429s.
-      cooldown_time: 0
       timeout: 900
       stream_timeout: 900
     model_info:
@@ -795,7 +805,6 @@ model_list:
     litellm_params:
       model: "anthropic/claude-sonnet-5-5"
       litellm_credential_name: claude_bridge_credential
-      cooldown_time: 0
       timeout: 900
       stream_timeout: 900
     model_info:
@@ -812,7 +821,6 @@ model_list:
     litellm_params:
       model: "anthropic/claude-opus-5-5"
       litellm_credential_name: claude_bridge_credential
-      cooldown_time: 0
       timeout: 900
       stream_timeout: 900
     model_info:
@@ -830,7 +838,6 @@ model_list:
     litellm_params:
       model: "anthropic/claude-haiku-5-5"
       litellm_credential_name: claude_bridge_credential
-      cooldown_time: 0
       timeout: 900
       stream_timeout: 900
     model_info:
@@ -847,7 +854,6 @@ model_list:
     litellm_params:
       model: "anthropic/claude-fable-5-1"
       litellm_credential_name: claude_bridge_credential
-      cooldown_time: 0
       timeout: 900
       stream_timeout: 900
     model_info:
@@ -1044,10 +1050,18 @@ router_settings:
   # retried the same leg three times and failed (glm-5.3 via Ollama, spark
   # via clinepass, 2026-09-03). Latency routing also preferred the dead leg:
   # its error was the fastest response in the group.
-  # A single failed request trips a deployment quickly; the five-minute
-  # cooldown prevents repeated quota/429 traffic against low-limit providers.
+  # A single failed request trips a deployment (allowed_fails 1, which also
+  # disables LiteLLM's own single-deployment exemption). Only the legs of the
+  # multi-leg router/* pools set cooldown_time 300, so a quota-dead leg is
+  # skipped while it recovers. Every other route has one deployment: a long
+  # cooldown there adds no capacity and turns a blip into 5m of "No
+  # deployments available" 429s (llama-swap context overflow 2026-09-25; the
+  # Muse bridge rollout gap 2026-10-09), so the router default is 5 s, which
+  # only stops a broken route being hammered. LiteLLM reads 0 as its 5 s
+  # default, so 5 is written out. Moira's quota meters and refusal cooldown
+  # steer around exhausted providers.
   allowed_fails: 1
-  cooldown_time: 300
+  cooldown_time: 5
   # Retry initial requests across the configured GLM pools when needed.
   num_retries: 3
   max_fallbacks: 3
