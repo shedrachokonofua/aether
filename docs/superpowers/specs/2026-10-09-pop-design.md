@@ -314,11 +314,15 @@ Dependency order only; nothing ships until all of it is done.
 - **End-to-end smoke against the live cluster:** deploy a fixture site; curl deploy, alias and production URLs from the LAN; promote, roll back and observe the flip and the `alias.updated` webhook; confirm `.wasm` content type; call a Rust and a TypeScript function and find their spans in Tempo as children of the origin span; fire a schedule; send browser spans through the relay and find them under `<project>.browser`; submit a form with an upload and an EICAR test file (expect `infected`); log in to an `sso` site; confirm a preview `--` host is 404 through `:9443` and a custom domain serves production.
 - **`pop dev` parity:** the same fixture produces identical status codes and headers under `pop dev` and the live origin.
 
-## Open questions and risks
+## Decisions on former open questions
 
-1. **Function egress.** wasmCloud enforces `allowed_hosts` inside the host, but the `pop` namespace's default-deny CiliumNetworkPolicy must also allow host-pod egress. Decide between FQDN policies generated from `pop.toml` and a broad egress allowance with wasmCloud as the only gate.
-2. **pop-api egress.** Webhook targets and ClamAV signature mirrors need egress. Decide whether webhook targets are an aether-declared allowlist or open egress from pop-api only.
-3. **wasmCloud OTLP exporter configuration.** `--wasi-otel` and `--enable-meters` exist on wash 2.5.2. It is unverified that the host's exporter reads the standard `OTEL_EXPORTER_OTLP_*` variables; confirm on the first pop host-group pod before writing the function templates.
-4. **`allowSharedHosts = false`.** This changes scheduling for the existing `wasmcloud-system` workloads too. They already run on hosts in their own namespace, so they should be unaffected, but check `aether-wasm-hello` and `comfyui-reaper` after the apply.
-5. **TypeScript component weight.** jco bundles a JavaScript engine into every component. Measure size and per-instance memory with a hello-world function before sizing the pop host group.
-6. **CLI name.** `pop` collides with `charmbracelet/pop` if that is ever installed; irrelevant inside the Nix dev shell.
+1. **Function egress.** Cilium policies select pods, and every function shares the same host pods, so per-function FQDN policies cannot tell functions apart. The pop host-group pods therefore get one CiliumNetworkPolicy: kube-dns, wasmCloud NATS, the OTel collector, and the `world` entity on TCP 80/443. Cluster and LAN destinations are denied unless aether adds them explicitly. Per-function restriction is wasmCloud's `allowed_hosts`. Cilium blocks lateral movement; wasmCloud scopes each function.
+2. **pop-api egress.** Same shape: `world` on 80/443 plus explicitly declared internal targets (initially `ntfy.home.shdr.ch` through the home gateway). pop-api also refuses webhook URLs that resolve to loopback, link-local, pod, service or LAN ranges unless the host is on an aether-provided allowlist (`POP_WEBHOOK_INTERNAL_ALLOW`), which guards against SSRF. The clamd pod gets egress only to `database.clamav.net` (FQDN policy) for `freshclam`.
+3. **CLI name.** `pop` stays. A collision with `charmbracelet/pop` only matters if someone installs that tool, and the Nix dev shell controls `PATH`.
+
+## Verification items carried into the plans
+
+1. **wasmCloud OTLP exporter configuration.** `--wasi-otel` and `--enable-meters` exist on wash 2.5.2. Confirm on the first pop host-group pod that the host exports to `OTEL_EXPORTER_OTLP_ENDPOINT`. If it does not, stop and report before writing function templates.
+2. **`allowSharedHosts = false`.** Confirm `aether-wasm-hello` and `comfyui-reaper` stay `Ready` right after the apply; revert the flag if either loses its host.
+3. **TypeScript component weight.** Measure a hello-world jco component (size, cold start, per-instance RSS). The pop host group starts at 2 replicas, requests `250m` / `256Mi`, limit `2Gi`, and is resized from the measurement.
+4. **Cross-namespace NATS.** The chart ships a NetworkPolicy for NATS (`networkPolicy.enabled: true`). Confirm pop host pods can reach `nats.wasmcloud-system:4222`; if not, add an explicit ingress allow in aether.
