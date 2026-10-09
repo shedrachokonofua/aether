@@ -6,11 +6,9 @@ effort_caps:
 
 # Moira tiers / providers / plans / groups.
 #
-# PLAN VALUES NEED THE OPERATOR'S TIER + RENEWAL DATE: the local-count plans
-# (xiaomi, step, qwen-cloud, codebuddy) ship with total_credits: null and
-# cycle.anchor: null. The operator must fill in each plan's purchased tier
-# (total_credits) and renewal date (cycle.anchor) before local credit
-# counting produces meaningful windows.
+# Local-count plans (xiaomi, step, qwen-cloud, codebuddy) need the operator's
+# purchased tier (total_credits) and renewal date (cycle.anchor); a plan with
+# either null produces no window.
 
 tiers:                      # inclusive AA score bands (data/aa_scores.yaml)
   frontier: { min: 48 }
@@ -112,10 +110,18 @@ plans:                      # local-count providers
       qwen3.8-max: { cached: 0.0001493, input: 0.0012055, output: 0.0036156 }
     calibration: { used: 448.68, at: "2026-10-03T19:59:05Z" }   # usage API per1MonthPercentage 0.00249267
   codebuddy:
-    cycle: { anchor: null, period: month }
-    total_credits: null
-    unit: credit            # counted from usage.credit, not rates
-    calibration: null
+    # Pro (CodeBuddy Intl console 2026-10-09): 1,000 base credits per cycle;
+    # next cycle 2026-10-31 10:02:09 UTC+8. The 1,000 bonus (赠送) credits are
+    # left out until a renewal shows whether they recur.
+    cycle: { anchor: "2026-10-31T02:02:09Z", period: month }
+    total_credits: 1000
+    # Hy4 reports reasoning in completion_tokens_details only and bills it.
+    reasoning_outside_completion: true
+    rates:
+      # Solved from console charges at 2-decimal rounding (2026-10-09):
+      # 41,209 in + 56 out = 2.92; 34 in + 4,006 out (4,000 reasoning) = 0.58.
+      hy4-preview: { cached: 0.000070662, input: 0.000070662, output: 0.00014418 }
+    calibration: { used: 6.49, at: "2026-10-09T00:07:00Z" }   # console 基础用量 after the batch
 
 bridges:
   grok:        { url: "http://grok-bridge.grok.svc.cluster.local:8080",               key_env: GROK_BRIDGE_API_KEY }
