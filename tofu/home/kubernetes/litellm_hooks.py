@@ -3,6 +3,7 @@
 Mounted beside config.yaml and registered in litellm_settings.callbacks.
 """
 
+import json
 import logging
 import os
 from typing import Any
@@ -287,6 +288,51 @@ class MoiraRouter(CustomLogger):
         except Exception as exc:  # reporting is best effort
             logger.warning("Moira report failed (%s: %s)", type(exc).__name__, exc)
 
+    async def async_log_success_event(self, kwargs: dict[str, Any], response_obj: Any, start_time: Any, end_time: Any) -> None:
+        """Report each successful call's tokens to Moira's /usage.
+
+        Moira learns how many tokens one percent of each quota window holds
+        from these (moira capacity.ts), so it ranks providers by absolute
+        capacity left. Provider usage reports are unreliable: Meta's stream
+        omits usage on large prompts (logged as 0 input) and LiteLLM's
+        Responses bridge drops reasoning from completion_tokens. So input
+        falls back to request size (~4 chars/token) and output is
+        completion + reasoning when reasoning exceeds completion. Best effort.
+        """
+        slo = kwargs.get("standard_logging_object")
+        if not isinstance(slo, dict):
+            return
+        model = slo.get("model_group")
+        if not isinstance(model, str) or not model:
+            return
+        prompt = slo.get("prompt_tokens") if isinstance(slo.get("prompt_tokens"), int) else 0
+        completion = slo.get("completion_tokens") if isinstance(slo.get("completion_tokens"), int) else 0
+        usage = (slo.get("metadata") or {}).get("usage_object") if isinstance(slo.get("metadata"), dict) else None
+        details = usage.get("completion_tokens_details") if isinstance(usage, dict) else None
+        reasoning = details.get("reasoning_tokens") if isinstance(details, dict) else None
+        reasoning = reasoning if isinstance(reasoning, int) else 0
+        if prompt <= 0:
+            body = kwargs.get("messages") or kwargs.get("input")
+            if body:
+                try:
+                    prompt = len(json.dumps(body, default=str)) // 4
+                except (TypeError, ValueError):
+                    prompt = 0
+        output = completion + reasoning if reasoning > completion else completion
+        tokens = prompt + output
+        if tokens <= 0:
+            return
+        url = (os.environ.get("MOIRA_DECIDE_URL") or "").removesuffix("/decide") + "/usage"
+        token = os.environ.get("MOIRA_DECIDE_TOKEN")
+        try:
+            await _moira_client.post(
+                url,
+                json={"model": model, "tokens": tokens},
+                headers={"Authorization": f"Bearer {token}"} if token else {},
+            )
+        except Exception as exc:  # reporting is best effort
+            logger.warning("Moira usage report failed (%s: %s)", type(exc).__name__, exc)
+
 
 moira_router = MoiraRouter()
 
@@ -484,3 +530,53 @@ def _blank_content(content: Any) -> bool:
 
 
 tool_call_content_normalizer = ToolCallContentNormalizer()
+
+
+class SpendLogResponseId(CustomLogger):
+    """Unique spend-log ids for deployments whose response ids repeat.
+
+    LiteLLM keys LiteLLM_SpendLogs.request_id on the provider's response id
+    and inserts with skip_duplicates. Ollama Cloud's /v1 returns ids like
+    `chatcmpl-167` (three digits), so after the first ~1000 calls almost every
+    Ollama row collided with an older one and was silently dropped (2026-10-09:
+    ~200 Ollama calls in 10 minutes, 8 rows). Deployments flagged
+    `unique_response_ids: false` in model_info get `<provider id>-<litellm_call_id>`
+    in the logged result; the response the client received is unchanged.
+    async_logging_hook runs on every CustomLogger before any success logger.
+    """
+
+    async def async_logging_hook(self, kwargs: dict, result: Any, call_type: str) -> tuple[dict, Any]:
+        params = kwargs.get("litellm_params")
+        info = None
+        for bucket_name in ("metadata", "litellm_metadata"):
+            bucket = params.get(bucket_name) if isinstance(params, dict) else None
+            if isinstance(bucket, dict) and isinstance(bucket.get("model_info"), dict):
+                info = bucket["model_info"]
+                break
+        if info is None or info.get("unique_response_ids") is not False:
+            return kwargs, result
+        call_id = kwargs.get("litellm_call_id")
+        if not isinstance(call_id, str) or not call_id:
+            return kwargs, result
+
+        def unique(obj: Any) -> None:
+            current = obj.get("id") if isinstance(obj, dict) else getattr(obj, "id", None)
+            if not isinstance(current, str) or not current or current.endswith(call_id):
+                return
+            new = f"{current}-{call_id}"
+            if isinstance(obj, dict):
+                obj["id"] = new
+            else:
+                try:
+                    obj.id = new
+                except (AttributeError, TypeError, ValueError):
+                    pass
+
+        unique(result)
+        unique(kwargs.get("async_complete_streaming_response"))
+        unique(kwargs.get("complete_streaming_response"))
+        unique(kwargs.get("standard_logging_object"))
+        return kwargs, result
+
+
+spend_log_response_id = SpendLogResponseId()
