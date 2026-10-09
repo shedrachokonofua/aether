@@ -26,12 +26,14 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # d7e6ec1 (pipeline 6422, so/daimyo): agent execution "run" -> "task",
-  # "human task" -> "approval" (migration 0008, `<org>-tasks` namespaces).
-  daimyo_server_tag  = "sha256:341c857504c317f381521380ae6843937718e51a266d28e6cce4315b8803006d"
+  # f3875ac server (pipeline 6423: engine adoption/cancel fixes) on the
+  # d7e6ec1 rename (pipeline 6422: agent execution "run" -> "task", "human
+  # task" -> "approval", migration 0008, `<org>-tasks` namespaces). The
+  # sidecar digest is identical in both pipelines.
+  daimyo_server_tag  = "sha256:cb93d3266975e222436a0f903f4ec3856cfdbf0625a0677a46e25976e7b5bfbb"
   daimyo_sidecar_tag = "sha256:7d2a04514c87c3de4884183f80b24e1d0af812a069d57248b02f8dc1fda8aba0"
   # These are the newest main images at deploy time; bump intentionally.
-  daimyo_server_image  = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-server@sha256:341c857504c317f381521380ae6843937718e51a266d28e6cce4315b8803006d"
+  daimyo_server_image  = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-server@sha256:cb93d3266975e222436a0f903f4ec3856cfdbf0625a0677a46e25976e7b5bfbb"
   daimyo_sidecar_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-sidecar@sha256:7d2a04514c87c3de4884183f80b24e1d0af812a069d57248b02f8dc1fda8aba0"
   # d7e6ec1 echo (pipeline 6422).
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
