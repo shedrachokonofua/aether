@@ -85,7 +85,7 @@ plans:                      # local-count providers
     rates:   # credits per token
       mimo-v2.6-pro:   { cached: 2.5, input: 300, output: 600 }
       mimo-v2.6-flash: { cached: 2,   input: 100, output: 200 }
-    calibration: { used: 30565790642, at: "2026-10-03T17:23:07Z" }   # console reading
+    calibration: { used: 40242395003, at: "2026-10-09T18:54:39Z" }   # console reading
   step:
     # Flash Mini: 400M credits/month, valid until 2026-10-09 (end of day taken
     # as UTC). Credits = PAYG USD x 7M (platform.stepfun.ai step-plan overview);

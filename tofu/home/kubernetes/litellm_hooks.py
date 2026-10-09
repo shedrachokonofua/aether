@@ -289,12 +289,15 @@ class MoiraRouter(CustomLogger):
         status = getattr(kwargs.get("exception"), "status_code", None)
         if status not in (402, 403, 429):
             return
+        # /v1/responses calls carry request metadata under litellm_metadata.
         params = kwargs.get("litellm_params")
-        metadata = params.get("metadata") if isinstance(params, dict) else None
-        if not isinstance(metadata, dict) or not isinstance(metadata.get("moira_efforts"), dict):
-            return
-        model = metadata.get("model_group")
-        if not isinstance(model, str) or model not in metadata["moira_efforts"]:
+        efforts = model = None
+        for bucket_name in ("metadata", "litellm_metadata"):
+            bucket = params.get(bucket_name) if isinstance(params, dict) else None
+            if isinstance(bucket, dict):
+                efforts = efforts or (bucket.get("moira_efforts") if isinstance(bucket.get("moira_efforts"), dict) else None)
+                model = model or bucket.get("model_group")
+        if efforts is None or not isinstance(model, str) or model not in efforts:
             return
         url = (os.environ.get("MOIRA_DECIDE_URL") or "").removesuffix("/decide") + "/report"
         token = os.environ.get("MOIRA_DECIDE_TOKEN")
