@@ -103,6 +103,14 @@
       },
       {
         "answer": "10.0.2.2",
+        "domain": "*.pop.home.shdr.ch"
+      },
+      {
+        "answer": "10.0.2.2",
+        "domain": "pop.home.shdr.ch"
+      },
+      {
+        "answer": "10.0.2.2",
         "domain": "dns.oci.shdr.ch"
       }
     ],

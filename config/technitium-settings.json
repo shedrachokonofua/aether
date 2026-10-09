@@ -113,6 +113,14 @@
       ]
     },
     {
+      "zone": "pop.home.shdr.ch",
+      "catalog": true,
+      "records": [
+        { "domain": "pop.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" },
+        { "domain": "*.pop.home.shdr.ch", "type": "A", "ttl": 60, "ipAddress": "10.0.2.2" }
+      ]
+    },
+    {
       "zone": "arpa.attain.ing",
       "catalog": true,
       "records": [

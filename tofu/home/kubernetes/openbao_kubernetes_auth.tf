@@ -61,6 +61,19 @@ resource "vault_policy" "assay_grafana_reader" {
     }
   EOT
 }
+resource "vault_policy" "pop_function_secrets" {
+  name   = "aether-k8s-pop-function-secrets"
+  policy = <<-EOT
+    path "${var.openbao_kv_mount_path}/data/pop/*" {
+      capabilities = ["read"]
+    }
+
+    path "${var.openbao_kv_mount_path}/metadata/pop/*" {
+      capabilities = ["read", "list"]
+    }
+  EOT
+}
+
 
 resource "vault_kubernetes_auth_backend_role" "namespace_external_secrets" {
   for_each = local.namespace_contract_specs
@@ -75,6 +88,7 @@ resource "vault_kubernetes_auth_backend_role" "namespace_external_secrets" {
   token_policies = concat(
     [vault_policy.kubernetes_namespace_external_secrets[each.key].name],
     each.key == "assay" ? [vault_policy.assay_grafana_reader.name] : [],
+    each.key == "pop" ? [vault_policy.pop_function_secrets.name] : [],
   )
   token_ttl     = 3600
   token_max_ttl = 14400
