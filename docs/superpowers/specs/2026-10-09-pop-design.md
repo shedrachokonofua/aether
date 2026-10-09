@@ -15,6 +15,7 @@ Draft for review. Single-operator, LAN-first infrastructure. Not a CDN, not a mu
 - HTML forms (with file uploads) work without backend code.
 - Lifecycle events go to signed webhooks.
 - `pop dev` reproduces the origin's behaviour locally.
+- Agents drive everything the CLI can do through an MCP server, authenticated with the same Keycloak OIDC.
 - Selected projects become public through a custom domain the operator already owns (e.g. `attain.ing`), mapped at the edge onto the project's production hostname.
 
 This replaces the hand-written per-site RGW rewrites in the home Caddyfile (`@shdrch`, `@attaining` in `ansible/playbooks/home_gateway_stack/caddy/Caddyfile.j2`), which only resolve `/` to `index.html` and cannot serve subdirectory indexes, custom 404s, SPA fallbacks, or per-site headers.
@@ -26,7 +27,7 @@ This replaces the hand-written per-site RGW rewrites in the home Caddyfile (`@sh
 - No public pop hostnames. `*.pop.home.shdr.ch` is LAN-only; public reach is only via explicitly declared custom domains, and only for the `production` alias.
 - No merge-request comments, email notifications, or Slack integration; webhooks cover notifications.
 - No split testing, image transforms, edge functions, key-value blob store, or end-user identity product (Keycloak is the identity provider).
-- No multi-tenancy. One operator; projects are an organisational unit, not a security boundary between users.
+- No hostile multi-tenancy. Orgs (see Orgs and identity providers) are an authorization boundary between trusted collaborators. Every org shares pop's storage, function host group and egress, all run by the operator.
 
 ## Naming and hostnames
 
@@ -67,9 +68,9 @@ flowchart LR
 
 Two services plus a CLI:
 
-- **pop-api** — control plane: projects, deploys, aliases, presigned uploads, function and schedule lifecycle, form submissions and uploads, malware scanning, webhooks, visitor-login callback, retention.
+- **pop-api** — control plane: projects, deploys, aliases, presigned uploads, function and schedule lifecycle, form submissions and uploads, malware scanning, webhooks, visitor-login callback, retention, and the MCP server at `/mcp`.
 - **pop-origin** — data plane: hostname → deploy → manifest → blob, visitor sessions, redirects, headers, function proxying. Read-only on storage; form POSTs are forwarded to pop-api. Stateless; scales horizontally.
-- **pop** CLI — `login`, `init`, `dev`, `deploy`, `promote`, `rollback`, `alias`, `ls`, `forms`, `hooks`.
+- **pop** CLI — `login`, `init`, `dev`, `deploy`, `promote`, `rollback`, `alias`, `ls`, `forms`, `hooks`, `mcp` (stdio bridge).
 
 ## Repository ownership
 
@@ -84,7 +85,7 @@ The `pop` repository (sibling of aether, GitLab `shdrch/pop`) owns:
 Aether owns:
 
 - Namespace `pop` via `namespace_contracts.tf`, the Helm release, image digest pins, and the CNPG cluster.
-- Keycloak clients and roles (`tofu/home/keycloak.tf`).
+- Per-org identity configuration (see Orgs and identity providers): in each org's Keycloak realm, the clients `pop-cli`, `pop-visitor`, `pop-mcp` and `pop-agent` plus the realm roles `pop:deploy` and `pop:admin`, and the `pop-orgs` ConfigMap and its OpenBao secrets.
 - RGW bucket, RGW roles and their trust policies.
 - OpenBao policy, the per-namespace SecretStore for function secrets, and the session-signing key.
 - GitLab registry deploy tokens for function components.
@@ -111,7 +112,7 @@ roles      = []                # when "sso": empty = any realm user, else any of
 
 [functions.contact-sync]
 env           = { LOG_LEVEL = "info" }
-secrets       = ["CRM_TOKEN"]          # keys under kv/pop/<project>/<fn>
+secrets       = ["CRM_TOKEN"]          # keys under kv/pop/<org>/<project>/<fn>
 allowed_hosts = ["api.example.com"]
 schedule      = "*/15 * * * *"         # optional; production only
 
@@ -193,11 +194,11 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 
 - **Contract:** each function is a component exporting `wasi:http/incoming-handler` (WASI 0.2).
 - **Source layout:** `functions/<name>/` with `Cargo.toml` (built with `cargo build --target wasm32-wasip2`) or `package.json` (built with `jco componentize`). The CLI picks the toolchain from the manifest file present.
-- **Shipping:** components are pushed by digest to the GitLab registry under `shdrch/pop-functions/<project>/<fn>` with a pop-scoped deploy token. The existing `gitlab-registry` pull secret in `wasmcloud-system` is built from GitLab root credentials and is not reused.
+- **Shipping:** components are pushed by digest to `registry.gitlab.home.shdr.ch/so/pop/functions/<org>/<project>/<fn>` with a pop-scoped deploy token. The existing `gitlab-registry` pull secret in `wasmcloud-system` is built from GitLab root credentials and is not reused.
 - **Running:** one `WorkloadDeployment` + selector-less `Service` per (deploy, function), named `<project>-<fn>-<deploy>` and pinned by digest, in namespace `pop`. pop creates them at runtime, so it is the declared controller for that namespace (as Keel is for its targets) rather than writing into `wasmcloud-system`.
 - **Host group:** a second entry in the existing `helm_release.wasmcloud` `runtime.hostGroups` with `namespace = "pop"`, plus `pop` in `operator.hostNamespaces` (both chart 2.5.2 values). `operator.allowSharedHosts = false` locks every workload to hosts in its own namespace, so pop functions never land on `wasmcloud-system` hosts and vice versa. Its own `resources` are sized for TypeScript components (see Open questions).
 - **Routing:** pop-origin proxies `/api/<fn>/*` to the function Service, rewriting Host to the component's registered name (the URLRewrite requirement in `docs/paas.md`), forwarding `traceparent`, stripping inbound `X-Pop-*` headers, and adding verified visitor headers when the request is authenticated (see Visitor access). No HTTPRoute per function.
-- **Secrets:** pop-api creates an `ExternalSecret` per function from `kv/pop/<project>/<fn>` in OpenBao; the namespace SecretStore policy is limited to `kv/pop/*`. The workload consumes it via `localResources.environment.secretFrom`.
+- **Secrets:** pop-api creates an `ExternalSecret` per function from `kv/pop/<org>/<project>/<fn>` in OpenBao; the namespace SecretStore policy is limited to `kv/pop/*`. The workload consumes it via `localResources.environment.secretFrom`.
 - **Schedules:** a function with `schedule` gets one CronJob per (project, function), active only for the `production` deploy. Each run sends `POST /` to that deploy's function Service with `X-Pop-Trigger: schedule`. Moving `production` re-points the CronJob; non-production deploys never run schedules. Same mechanism as `tofu/home/kubernetes/comfyui_reaper.tf`.
 - **Lifecycle:** workloads stay live for every deploy an alias points at, and for other deploys younger than 7 days. Older ones are deleted; their `/api/*` returns 410 while static files keep serving.
 
@@ -224,8 +225,8 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 ## Visitor access
 
 - Per project, in `pop.toml`: `production` and `aliases` (which also covers raw deploy URLs) are each `open` or `sso`; `roles` restricts `sso` to any of the listed Keycloak realm roles.
-- **Keycloak:** a confidential client `pop-visitor` with the standard authorization-code flow and PKCE.
-- **LAN hostnames:** pop-origin redirects to Keycloak with redirect URI `https://pop.home.shdr.ch/auth/callback`. pop-api completes the code exchange, then sends the browser back to `https://<site-host>/_pop/callback?code=<one-time handoff code>`. pop-origin redeems that code with pop-api and sets the session cookie. One fixed redirect URI covers every `*.pop.home.shdr.ch` host. [INFERENCE: Keycloak only allows a trailing `*` in redirect URIs, not wildcard hostnames, so per-host callbacks for unbounded preview hosts are not possible.]
+- **Keycloak:** a confidential client `pop-visitor` in the project's org realm, with the standard authorization-code flow and PKCE.
+- **LAN hostnames:** pop-origin redirects to the org's issuer with redirect URI `https://pop.home.shdr.ch/auth/<org>/callback`. pop-api completes the code exchange, then sends the browser back to `https://<site-host>/_pop/callback?code=<one-time handoff code>`. pop-origin redeems that code with pop-api and sets the session cookie. One fixed redirect URI per org covers every `*.pop.home.shdr.ch` host. [INFERENCE: Keycloak only allows a trailing `*` in redirect URIs, not wildcard hostnames, so per-host callbacks for unbounded preview hosts are not possible.]
 - **Custom domains:** the central callback host is LAN-only, so each custom domain uses `https://<domain>/_pop/callback` directly. That URI is registered on `pop-visitor` in aether next to the domain's `:9443` mapping.
 - **Session:** a host-only `__Host-pop_session` cookie, HMAC-signed with a key from OpenBao, 12-hour lifetime, holding `sub`, `email`, `roles` and `exp`. Stateless; no session table.
 - **Function identity:** authenticated requests to functions carry `X-Pop-User`, `X-Pop-Email` and `X-Pop-Roles` set by pop-origin after stripping any inbound copies.
@@ -237,6 +238,43 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 - **CI:** GitLab CI `id_tokens` with `aud: pop`. pop-api trusts the GitLab issuer and maps `project_path` to allowed pop projects (configured in aether).
 - **Roles:** `pop:deploy` (deploy, move aliases, read forms, manage hooks) and `pop:admin` (create/delete projects, force retention). Enforced in pop-api.
 - **Storage:** no S3 keys. Each service assumes an RGW role via `AssumeRoleWithWebIdentity` with its Kubernetes service-account token (RGW already trusts the cluster OIDC issuer). pop-api gets read/write on bucket `pop`; pop-origin gets read-only on `blobs/` and `manifests/` and nothing on `uploads/`.
+
+## Orgs and identity providers
+
+Every project belongs to exactly one org, and each org brings its own OIDC issuer. Precedent: aether already runs separate Keycloak realms `aether` (`tofu/home/keycloak.tf`) and `seven30` (`tofu/home/keycloak_seven30.tf`), and daimyo models Orgs.
+
+- **Seed orgs:** `aether` (issuer `https://auth.shdr.ch/realms/aether`) and `seven30` (issuer `https://auth.shdr.ch/realms/seven30`).
+- **Org config is IaC, not API.** Changing who can authenticate is an aether change. pop-api loads org definitions at startup, and on change, from the `pop-orgs` ConfigMap, with secrets from OpenBao:
+  - `slug`, `display_name`, `issuer`, `audience` (`pop`);
+  - `roles_claim` (default `roles`) and a role map from the org's claim values to `pop:deploy` / `pop:admin`;
+  - client IDs for `pop-cli`, `pop-mcp`, `pop-visitor` and `pop-agent`, plus a reference to the visitor client's secret;
+  - `ci_project_paths`: GitLab `project_path` prefixes allowed to deploy into this org with `id_tokens` (e.g. `so/seven30/*`).
+- **Data model:** `orgs(slug, display_name)`. `projects` gains `org`. Project slugs stay globally unique, so hostnames keep the one-label `<project>.pop.home.shdr.ch` scheme with no org in the name. Events, webhooks, forms and aliases are scoped through their project.
+- **Token → org:** pop-api picks the org from the token's `iss` (GitLab CI tokens: from `project_path` via `ci_project_paths`) and verifies signature, audience and expiry against that issuer's JWKS. A token from org A's issuer can never act on org B's projects. `pop:admin` in the `aether` org is the platform operator: it may create orgs' projects and act across orgs. Every other role is org-local.
+- **CLI:** `pop.toml` gains `org = "seven30"` (default `aether`). `pop login [--org X]` runs the device flow against that org's issuer, and tokens are cached per org.
+- **MCP:** one endpoint per org, `https://pop.home.shdr.ch/mcp/<org>`, with path-suffixed protected-resource metadata (RFC 9728) at `/.well-known/oauth-protected-resource/mcp/<org>` naming only that org's issuer. MCP clients discover the right authorization server unambiguously. `pop mcp --org X` bridges to it.
+- **Visitor SSO:** a project's `sso` access uses its org's issuer and `pop-visitor` client. The central LAN callback becomes `https://pop.home.shdr.ch/auth/<org>/callback`. `roles` in `[access]` refer to the org's realm roles.
+- **Isolation limits, stated:** orgs share the bucket, the function host group and egress, and their sites share the `.pop.home.shdr.ch` cookie parent. Visitor sessions are `__Host-` cookies, which a sibling host cannot set or overwrite. Org members can still write arbitrary site JavaScript, so an org is for trusted collaborators only. A hostile tenant would need its own domain and host group, which is out of scope.
+
+## MCP server
+
+pop-api serves MCP over streamable HTTP at `https://pop.home.shdr.ch/mcp/<org>` (Rust `rmcp`, the version pinned in daimyo). It reuses the REST handlers, so MCP and CLI behaviour cannot drift.
+
+- **Authorization (MCP authorization spec, OAuth 2.1):** pop-api is the resource server. Unauthenticated requests get `401` with `WWW-Authenticate: Bearer resource_metadata=…`, pointing at `/.well-known/oauth-protected-resource/mcp/<org>`. That document names the org's issuer as the authorization server and `pop` as the resource. Tokens must carry audience `pop`. Roles are enforced exactly as on the REST API.
+- **Clients:**
+  - `pop-mcp`: a public Keycloak client with authorization code + PKCE, loopback redirect URIs (`http://127.0.0.1/*`, `http://localhost/*`), and the realm-roles and audience mappers. Interactive agents (Claude Code, Codex, omp) log in as the operator.
+  - `pop-agent`: a confidential client with the client-credentials grant and a service account holding `pop:deploy`. Headless agents (Colony, daimyo, CI-like jobs) use it, with the secret delivered through OpenBao.
+  - Any token accepted on the REST API (`pop-cli` device flow, GitLab CI `id_tokens`) is also accepted on `/mcp`.
+- **Stdio bridge:** `pop mcp` runs a local stdio MCP server that forwards to `/mcp` using the CLI's cached `pop-cli` token, for MCP clients that only speak stdio.
+- **Tools** (the destructive ones annotated `destructiveHint`):
+  - Read: `projects_list`, `deploys_list`, `deploy_get`, `aliases_list`, `events_list`, `forms_list`, `hooks_list`, `telemetry_link` (Grafana Explore URL for a project or deploy).
+  - Deploy: `deploy_files` (inline file contents; up to 20 MB total; runs create, upload and finalize in one call), plus `deploy_begin` and `deploy_finalize` for larger sites through presigned URLs.
+  - Alias: `alias_set` (promote), `alias_rollback`, `alias_delete`.
+  - Forms: `forms_export` (CSV text), `form_file_link` (short-lived presigned download, `clean` files only).
+  - Hooks: `hook_add` (returns the secret once), `hook_remove`.
+  - Admin: `project_create`, `project_delete` (require `pop:admin`).
+- **Resources:** `pop://projects/{project}/deploys/{deploy}/manifest` (manifest JSON) and `pop://projects/{project}/aliases`.
+- **Audit:** every MCP call records `actor` (token `sub`), `client_id` and `via = "mcp"` in `events`, and emits an OTel span named after the tool.
 
 ## Local development (`pop dev`)
 
@@ -300,7 +338,7 @@ Dependency order only; nothing ships until all of it is done.
 1. Shared resolution crate (rules, forms extraction) with its behaviour tests, then `pop dev` on top of it.
 2. Aether plumbing: namespace, CNPG, bucket and RGW roles, Keycloak clients, DNS/TLS, Gateway route.
 3. pop-api deploy/alias flow and pop-origin serving; CLI `login`, `init`, `deploy`, `promote`, `rollback`, `alias`, `ls`.
-4. Events, webhooks, observability and dashboard.
+4. Events, webhooks, observability, dashboard, and the MCP server plus `pop mcp` bridge.
 5. Functions: host group, registry tokens, ExternalSecrets, routing, schedules; `pop dev` function support.
 6. Forms, challenge, uploads, clamd.
 7. Visitor access.
@@ -313,6 +351,7 @@ Dependency order only; nothing ships until all of it is done.
 - **pop-origin:** conditional and range requests; `private, no-store` on SSO responses; inbound `X-Pop-*` stripped before functions; the browser relay overwrites `service.name` and `pop.*` attributes and rejects oversized bodies.
 - **End-to-end smoke against the live cluster:** deploy a fixture site; curl deploy, alias and production URLs from the LAN; promote, roll back and observe the flip and the `alias.updated` webhook; confirm `.wasm` content type; call a Rust and a TypeScript function and find their spans in Tempo as children of the origin span; fire a schedule; send browser spans through the relay and find them under `<project>.browser`; submit a form with an upload and an EICAR test file (expect `infected`); log in to an `sso` site; confirm a preview `--` host is 404 through `:9443` and a custom domain serves production.
 - **`pop dev` parity:** the same fixture produces identical status codes and headers under `pop dev` and the live origin.
+- **MCP and orgs:** an unauthenticated `/mcp/aether` call returns 401 with protected-resource metadata naming only the aether issuer. With a `pop-mcp` token, an MCP client deploys a fixture through `deploy_files` and promotes it with `alias_set`. A `pop-agent` token without `pop:admin` is refused by `project_delete`. A `seven30` token is refused on every `aether` project, on both REST and MCP. `pop mcp` works from a stdio-only client. Every call appears in `events` with `via = "mcp"`.
 
 ## Decisions on former open questions
 
