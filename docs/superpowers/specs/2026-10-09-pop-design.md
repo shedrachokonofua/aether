@@ -21,7 +21,7 @@ This replaces the hand-written per-site RGW rewrites in the home Caddyfile (`@sh
 
 ## Non-goals
 
-- No CDN behaviour: no edge caching, no geo, no purge API. Public custom domains sit behind Cloudflare, which caches according to pop's response headers.
+- No CDN behaviour: no edge caching, no geo, no purge API. pop emits standard HTTP cache headers and knows nothing about whatever edge aether puts in front of a custom domain.
 - No hosted build service. The CLI runs the project's own build command locally or in CI.
 - No public pop hostnames. `*.pop.home.shdr.ch` is LAN-only; public reach is only via explicitly declared custom domains, and only for the `production` alias.
 - No merge-request comments, email notifications, or Slack integration; webhooks cover notifications.
@@ -55,7 +55,7 @@ flowchart LR
   api -->|INSTREAM| clamd[clamd]
   api -->|signed POST| hooks[webhook targets]
   lan[LAN / tailnet] --> caddy[home Caddy<br/>*.pop.home.shdr.ch]
-  pub[custom domain] --> cf[Cloudflare] --> link[public Caddy] --> c9443[home Caddy :9443<br/>Host → production name<br/>X-Pop-Edge: public]
+  pub[custom domain] --> edge[public edge<br/>aether-owned] --> c9443[home Caddy :9443<br/>Host → production name<br/>X-Pop-Edge: public]
   caddy --> gw[k8s Gateway]
   c9443 --> gw
   gw --> origin[pop-origin]
@@ -88,9 +88,10 @@ Aether owns:
 - RGW bucket, RGW roles and their trust policies.
 - OpenBao policy, the per-namespace SecretStore for function secrets, and the session-signing key.
 - GitLab registry deploy tokens for function components.
-- The Cloudflare Turnstile widget for public forms.
+- The pop host group, `operator.hostNamespaces` and `operator.allowSharedHosts` in `tofu/home/kubernetes/wasmcloud.tf`.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_RESOURCE_ATTRIBUTES` for every pop workload, including the host group.
 - Home Caddy `pop.home.shdr.ch, *.pop.home.shdr.ch` block, Technitium/AdGuard records, every `:9443` custom-domain mapping, and the matching Keycloak redirect URIs.
-- CiliumNetworkPolicies for the namespace, including egress for webhooks, Turnstile verification, ClamAV signature updates and function `allowed_hosts`.
+- CiliumNetworkPolicies for the namespace, including egress for webhooks, ClamAV signature updates and function `allowed_hosts`.
 - The Grafana dashboard (monitoring_stack provisioning).
 
 ## Project config (`pop.toml`)
@@ -113,6 +114,9 @@ env           = { LOG_LEVEL = "info" }
 secrets       = ["CRM_TOKEN"]          # keys under kv/pop/<project>/<fn>
 allowed_hosts = ["api.example.com"]
 schedule      = "*/15 * * * *"         # optional; production only
+
+[telemetry]
+browser = true                         # enable the same-origin OTLP relay at /_pop/otel/v1/*
 ```
 
 ## Data model
@@ -161,12 +165,13 @@ Per request:
 2. Load the manifest (in-memory LRU keyed by deploy ID, never invalidated); it carries the deploy's access policy.
 3. Reserved paths `/_pop/callback` (visitor login) and `/_pop/logout` are handled here, before access enforcement, so login can complete.
 4. Enforce the access policy (see Visitor access).
-5. A `POST` whose path matches a declared form's `action` is forwarded to pop-api (see Forms).
-6. Apply forced redirect/rewrite rules (`!`); first match wins.
-7. If the deploy has functions and the path is `/api/<fn>` or `/api/<fn>/…`, proxy to the function.
-8. File lookup: exact path; a directory with trailing slash → `index.html`; a directory without trailing slash → 301 to the slash form; `/foo` → `/foo.html` if present.
-9. Apply non-forced rules (Netlify semantics: they only fire when no file matched). SPA fallback is a rule (`/* /index.html 200`), not a flag.
-10. No match → `/404.html` with status 404 if present, else a plain 404.
+5. pop-owned paths behind access: `/_pop/challenge`, `/_pop/challenge.js` (form challenge, see Forms) and `/_pop/otel/v1/{traces,metrics,logs}` (browser telemetry relay, see Observability).
+6. A `POST` whose path matches a declared form's `action` is forwarded to pop-api (see Forms).
+7. Apply forced redirect/rewrite rules (`!`); first match wins.
+8. If the deploy has functions and the path is `/api/<fn>` or `/api/<fn>/…`, proxy to the function.
+9. File lookup: exact path; a directory with trailing slash → `index.html`; a directory without trailing slash → 301 to the slash form; `/foo` → `/foo.html` if present.
+10. Apply non-forced rules (Netlify semantics: they only fire when no file matched). SPA fallback is a rule (`/* /index.html 200`), not a flag.
+11. No match → `/404.html` with status 404 if present, else a plain 404.
 
 Response headers: `Content-Type` from the manifest, `ETag` = blob sha256, then `_headers` rules. Default `Cache-Control`: `public, max-age=0, must-revalidate` for HTML and anything without a content hash in its filename; `_headers` overrides per path (e.g. `/assets/* Cache-Control: public, max-age=31536000, immutable`). SSO-protected responses are always `private, no-store`. Conditional requests (`If-None-Match`) and `Range` are honoured.
 
@@ -174,7 +179,7 @@ Supported `_redirects`/`_headers` subset: splats, `:placeholders`, status `200`/
 
 Browser-side wasm needs nothing beyond the content type; cross-origin isolation (COOP/COEP) for wasm threads is configured through `_headers`.
 
-The `:9443` handler for every custom domain overwrites `X-Pop-Edge: public` on the way in. Every request arriving through the public path therefore carries it, and a LAN client setting it only makes its own request stricter (Turnstile becomes mandatory), so it cannot be abused to relax anything.
+The `:9443` handler for every custom domain overwrites `X-Pop-Edge: public` on the way in. Every request arriving through the public path therefore carries it, and a LAN client setting it only makes its own request stricter (the form challenge becomes mandatory), so it cannot be abused to relax anything. This header is pop's only notion of "public"; pop has no knowledge of the edge itself.
 
 ## Aliases
 
@@ -189,7 +194,8 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 - **Contract:** each function is a component exporting `wasi:http/incoming-handler` (WASI 0.2).
 - **Source layout:** `functions/<name>/` with `Cargo.toml` (built with `cargo build --target wasm32-wasip2`) or `package.json` (built with `jco componentize`). The CLI picks the toolchain from the manifest file present.
 - **Shipping:** components are pushed by digest to the GitLab registry under `shdrch/pop-functions/<project>/<fn>` with a pop-scoped deploy token. The existing `gitlab-registry` pull secret in `wasmcloud-system` is built from GitLab root credentials and is not reused.
-- **Running:** one `WorkloadDeployment` + selector-less `Service` per (deploy, function), named `<project>-<fn>-<deploy>` and pinned by digest, in namespace `pop` on a pop-owned host group. pop creates them at runtime, so it is the declared controller for that namespace (as Keel is for its targets) rather than writing into `wasmcloud-system`.
+- **Running:** one `WorkloadDeployment` + selector-less `Service` per (deploy, function), named `<project>-<fn>-<deploy>` and pinned by digest, in namespace `pop`. pop creates them at runtime, so it is the declared controller for that namespace (as Keel is for its targets) rather than writing into `wasmcloud-system`.
+- **Host group:** a second entry in the existing `helm_release.wasmcloud` `runtime.hostGroups` with `namespace = "pop"`, plus `pop` in `operator.hostNamespaces` (both chart 2.5.2 values). `operator.allowSharedHosts = false` locks every workload to hosts in its own namespace, so pop functions never land on `wasmcloud-system` hosts and vice versa. Its own `resources` are sized for TypeScript components (see Open questions).
 - **Routing:** pop-origin proxies `/api/<fn>/*` to the function Service, rewriting Host to the component's registered name (the URLRewrite requirement in `docs/paas.md`), forwarding `traceparent`, stripping inbound `X-Pop-*` headers, and adding verified visitor headers when the request is authenticated (see Visitor access). No HTTPRoute per function.
 - **Secrets:** pop-api creates an `ExternalSecret` per function from `kv/pop/<project>/<fn>` in OpenBao; the namespace SecretStore policy is limited to `kv/pop/*`. The workload consumes it via `localResources.environment.secretFrom`.
 - **Schedules:** a function with `schedule` gets one CronJob per (project, function), active only for the `production` deploy. Each run sends `POST /` to that deploy's function Service with `X-Pop-Trigger: schedule`. Moving `production` re-points the CronJob; non-production deploys never run schedules. Same mechanism as `tofu/home/kubernetes/comfyui_reaper.tf`.
@@ -199,8 +205,8 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 
 - **Declaration:** `<form data-pop-form="contact" action="/contact" method="post">`. Finalize extracts every declared form (name, action path, field names, file inputs and their `accept`) into the manifest. Optional `data-pop-success="/thanks"`, `data-pop-max-files` (default 0 = no uploads), `data-pop-max-size` (per file, default 10 MB, capped at 50 MB).
 - **Submission path:** pop-origin forwards a matching `POST` (with project, deploy, form definition and the edge flag) to pop-api's internal endpoint. pop-origin itself never writes storage.
-- **Spam:** every form gets a honeypot field check. Requests carrying `X-Pop-Edge: public` must also carry a valid Cloudflare Turnstile token, verified server-side by pop-api. Site authors include the Turnstile widget with the shared site key that `pop forms snippet` prints. Spam is stored with `spam_verdict = spam`, never webhooked, and dropped by retention.
-- **Uploads:** multipart files stream to `uploads/…`. Count, per-file size and type (`accept` on the input) are enforced while streaming, so an oversized request is rejected before it is fully stored. Total request size is also bounded by Cloudflare (100 MB on the free plan) for public domains.
+- **Spam:** every form gets a honeypot field check and a per-client, per-form rate limit (default 10 submissions per 10 minutes, keyed on a hash of the client IP header). Forms also support a self-hosted proof-of-work challenge: pop-api issues HMAC-signed, single-use, 5-minute challenges at `/_pop/challenge`, and `/_pop/challenge.js` (served by pop, no third party) solves one in the browser and adds the solution to the submission. The challenge is mandatory on requests carrying `X-Pop-Edge: public` and optional on the LAN. `pop forms snippet` prints the one-line script tag. Spam is stored with `spam_verdict = spam`, never webhooked, and dropped by retention.
+- **Uploads:** multipart files stream to `uploads/…`. Count, per-file size and type (`accept` on the input) are enforced while streaming, so an oversized request is rejected before it is fully stored. pop's own request cap is `max_files × max_size + 1 MB`; larger requests get 413 from the `Content-Length` header or as soon as the stream exceeds it.
 - **Scanning:** a `clamd` Deployment (with `freshclam` signature updates) runs in namespace `pop`. pop-api streams every upload to clamd. `infected` files are deleted immediately, the submission is flagged, and an `upload.infected` event fires. Only `clean` files are downloadable.
 - **Response:** 303 to `data-pop-success`, else back to the submitting page with `?submitted=<form>`.
 - **Reading:** `pop forms ls <project> [form]`, `pop forms export <project> <form> --csv`, `pop forms download <submission>` (short-lived presigned GET; requires `pop:deploy`). No route — public, LAN, or origin — ever serves upload bytes.
@@ -238,8 +244,9 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 - If `build.dev_command` is set, pop dev runs it and proxies paths that are not pop-owned (not functions, forms or `/_pop/*`) to it, giving framework hot reload with pop routing on top.
 - Functions are built and run locally with `wasmtime serve`, one port per function, proxied at `/api/<fn>/*`. Env comes from `pop.toml` plus a git-ignored `.pop/dev.env` for secrets.
 - `pop dev trigger <fn>` fires a scheduled function once.
-- Forms are stored in `.pop/dev-submissions.jsonl` and uploads in `.pop/uploads/`; no Turnstile and no scanning.
+- Forms are stored in `.pop/dev-submissions.jsonl` and uploads in `.pop/uploads/`; the challenge is served but optional, and there is no scanning.
 - Visitor access is simulated: `pop dev --as user@example --roles a,b` injects the `X-Pop-*` identity headers.
+- Telemetry: the browser relay and pop dev's own spans export to `OTEL_EXPORTER_OTLP_ENDPOINT` when set (e.g. a local collector, or the cluster's `otel-metrics.home.shdr.ch` ingest), else they print one-line span summaries to the terminal.
 
 ## Edge, DNS and TLS
 
@@ -247,16 +254,21 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 - **DNS:** Technitium and AdGuard wildcard records for `*.pop.home.shdr.ch` → `10.0.2.2` (same shape as `*.arpa.attain.ing`).
 - **Gateway:** an HTTPRoute for `pop.home.shdr.ch` and `*.pop.home.shdr.ch` on the internal listener, declared in the `pop` namespace contract's `hostnames`.
 - **Tailnet:** the Tailscale-facing Caddy listener only serves shared routes; `*.pop.home.shdr.ch` is added there only if off-LAN access is wanted.
-- **Custom domains:** one `:9443` host matcher + handle per public project, rewriting Host to `<project>.pop.home.shdr.ch` (same pattern as `@ai`) and overwriting `X-Pop-Edge: public`. Mappings only ever target `production`. Root-apex domains need their own Cloudflare record; `*.shdr.ch` names are already covered by the proxied wildcard record in `tofu/cloudflare.tf`.
+- **Custom domains:** one `:9443` host matcher + handle per public project, rewriting Host to `<project>.pop.home.shdr.ch` (same pattern as `@ai`) and overwriting `X-Pop-Edge: public`. Mappings only ever target `production`. Public DNS and the public edge for each domain stay entirely in aether; pop only ever sees the rewritten Host and `X-Pop-Edge`.
 - **Migration:** `shdr.ch` and `attain.ing` move off their direct RGW rewrites onto pop custom-domain mappings, and their CI pipelines switch to `pop deploy --prod`.
 
-## Observability
+## Observability (OpenTelemetry)
 
-- **Export:** OTLP to `otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318`, the in-cluster convention used by `colony.tf` and `celld.tf`.
-- **Metrics:** request count, latency histogram and bytes sent, labelled `project`, `alias_kind` (`production` | `alias` | `deploy`) and `status_class`. Plus form submissions by verdict, upload scan results, webhook delivery outcomes, and scheduled-run outcomes. `deploy_id` and alias names are never metric or Loki labels; they go in trace attributes and Loki structured metadata.
-- **Traces:** one server span per origin request, with child spans for manifest load, RGW GET, function call and form forwarding; `traceparent` propagated to functions.
-- **Events:** every `events` row is also a structured log line; the dashboard renders deploy and alias events as Loki annotations. No Grafana write token is needed.
-- **Dashboard:** `pop.json` provisioned through `monitoring_stack`: requests and 404 rate per project, latency, RGW errors, function errors, schedule failures, form spam rate, infected uploads, webhook failures, recent deploy events.
+Everything pop runs, and everything it runs for projects, speaks OTLP. pop never hard-codes a collector: every component reads the standard `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_RESOURCE_ATTRIBUTES` environment variables, and aether sets them to `http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318`, the in-cluster convention used by `colony.tf`, `celld.tf` and `mnemo.tf`.
+
+- **Resource attributes:** `service.namespace=pop` and `deployment.environment=home` everywhere (same shape as `mnemo.tf`). `service.name` is `pop-api`, `pop-origin`, `<project>.<fn>` for functions, or `<project>.browser` for browser telemetry. Project-scoped telemetry also carries `pop.project`, `pop.deploy_id` and `pop.alias`.
+- **pop-api and pop-origin:** traces, metrics and logs over OTLP via the OpenTelemetry Rust SDK, with trace and span IDs on every log record so Loki lines link to Tempo traces.
+- **Metrics:** request count, latency histogram and bytes sent, labelled `project`, `alias_kind` (`production` | `alias` | `deploy`) and `status_class`. Plus form submissions by verdict, upload scan results, webhook delivery outcomes, scheduled-run outcomes and browser-relay accept/reject counts. `deploy_id` and alias names are never metric or Loki labels; they go in trace attributes and Loki structured metadata.
+- **Traces:** one server span per origin request, with child spans for manifest load, RGW GET, function call and form forwarding. `traceparent` is honoured on the way in and forwarded to functions and pop-api.
+- **Functions:** the pop host group runs `wash host` with `--wasi-otel` (the WASI OpenTelemetry plugin) and `--enable-meters`, both present in `wash host --help` on the live `ghcr.io/wasmcloud/wash:2.5.2` image. They are passed through the chart's `hostGroups[].extraArgs`, and the OTLP endpoint through `hostGroups[].env`. The Rust and TypeScript function templates are instrumented through `wasi:otel`, so function spans become children of the origin request span and function logs and metrics carry the same resource attributes. Scheduled runs start a root span tagged `pop.trigger=schedule`.
+- **Browser:** with `[telemetry] browser = true`, pop-origin accepts OTLP/HTTP (protobuf and JSON) at the same-origin path `/_pop/otel/v1/{traces,metrics,logs}`, so no CORS and no collector exposure. Before forwarding, it overwrites `service.name`, `service.namespace` and the `pop.*` attributes from the request's resolved project and deploy, so a page cannot report as another service. Bodies are capped at 256 KB, and requests are rate-limited per client. The relay sits behind the access policy. A site that configures its browser SDK to propagate `traceparent` on same-origin requests gets one trace from browser through pop-origin to the function.
+- **Events:** every `events` row is also a structured OTLP log record; the dashboard renders deploy and alias events as Loki annotations. No Grafana write token is needed.
+- **Dashboard:** `pop.json` provisioned through `monitoring_stack`: requests and 404 rate per project, latency, RGW errors, function errors and latency, schedule failures, form spam rate, infected uploads, webhook failures, browser errors, recent deploy events.
 - **CLI:** prints a Grafana Explore link filtered to the deploy.
 
 ## Failure handling
@@ -290,24 +302,23 @@ Dependency order only; nothing ships until all of it is done.
 3. pop-api deploy/alias flow and pop-origin serving; CLI `login`, `init`, `deploy`, `promote`, `rollback`, `alias`, `ls`.
 4. Events, webhooks, observability and dashboard.
 5. Functions: host group, registry tokens, ExternalSecrets, routing, schedules; `pop dev` function support.
-6. Forms, Turnstile, uploads, clamd.
+6. Forms, challenge, uploads, clamd.
 7. Visitor access.
 8. Custom domains and the `shdr.ch` / `attain.ing` migration.
 
 ## Verification
 
 - **Shared crate:** table-driven behaviour tests for host parsing (slug, alias vs deploy-ID disambiguation, reserved names), resolution (index, trailing slash, `.html` fallback, forced vs non-forced rules, splats/placeholders, 404 page, `_headers` precedence) and form extraction errors.
-- **pop-api:** alias compare-and-set and rollback history; webhook signature and retry schedule; upload limits rejected mid-stream; Turnstile required only with `X-Pop-Edge: public`; download refused for non-`clean` files; schedule re-pointing on `production` move.
-- **pop-origin:** conditional and range requests; `private, no-store` on SSO responses; inbound `X-Pop-*` stripped before functions.
-- **End-to-end smoke against the live cluster:** deploy a fixture site; curl deploy, alias and production URLs from the LAN; promote, roll back and observe the flip and the `alias.updated` webhook; confirm `.wasm` content type; call a Rust and a TypeScript function and find their spans in Tempo; fire a schedule; submit a form with an upload and an EICAR test file (expect `infected`); log in to an `sso` site; confirm a preview `--` host is 404 through `:9443` and a custom domain serves production.
+- **pop-api:** alias compare-and-set and rollback history; webhook signature and retry schedule; upload limits rejected mid-stream; challenge mandatory only with `X-Pop-Edge: public`, single-use and expiring; form rate limit; download refused for non-`clean` files; schedule re-pointing on `production` move.
+- **pop-origin:** conditional and range requests; `private, no-store` on SSO responses; inbound `X-Pop-*` stripped before functions; the browser relay overwrites `service.name` and `pop.*` attributes and rejects oversized bodies.
+- **End-to-end smoke against the live cluster:** deploy a fixture site; curl deploy, alias and production URLs from the LAN; promote, roll back and observe the flip and the `alias.updated` webhook; confirm `.wasm` content type; call a Rust and a TypeScript function and find their spans in Tempo as children of the origin span; fire a schedule; send browser spans through the relay and find them under `<project>.browser`; submit a form with an upload and an EICAR test file (expect `infected`); log in to an `sso` site; confirm a preview `--` host is 404 through `:9443` and a custom domain serves production.
 - **`pop dev` parity:** the same fixture produces identical status codes and headers under `pop dev` and the live origin.
 
 ## Open questions and risks
 
-1. **Second wasmCloud host group.** `Host` became namespaced in 2.5.2, but it is unverified whether a pop-namespace host group can run under the existing operator release or needs a second release. Spike first in build step 5.
-2. **Function egress.** wasmCloud enforces `allowed_hosts` inside the host, but the `pop` namespace's default-deny CiliumNetworkPolicy must also allow host-pod egress. Decide between FQDN policies generated from `pop.toml` and a broad egress allowance with wasmCloud as the only gate.
-3. **pop-api egress.** Webhook targets, `challenges.cloudflare.com` (Turnstile) and ClamAV signature mirrors all need egress. Decide whether webhook targets are an aether-declared allowlist or open egress from pop-api only.
-4. **wasmCloud host telemetry.** No OTel settings are configured for wasmCloud hosts today (`wasmcloud.tf:35-75`). Function spans need the chart's host telemetry enabled, if the chart supports it.
-5. **TypeScript component weight.** jco bundles a JavaScript engine into every component. Measure size and per-instance memory with a hello-world function before sizing the host group.
-6. **Turnstile hostnames.** One shared widget must list every public custom domain; check the free-plan hostname limit when domains are added.
-7. **CLI name.** `pop` collides with `charmbracelet/pop` if that is ever installed; irrelevant inside the Nix dev shell.
+1. **Function egress.** wasmCloud enforces `allowed_hosts` inside the host, but the `pop` namespace's default-deny CiliumNetworkPolicy must also allow host-pod egress. Decide between FQDN policies generated from `pop.toml` and a broad egress allowance with wasmCloud as the only gate.
+2. **pop-api egress.** Webhook targets and ClamAV signature mirrors need egress. Decide whether webhook targets are an aether-declared allowlist or open egress from pop-api only.
+3. **wasmCloud OTLP exporter configuration.** `--wasi-otel` and `--enable-meters` exist on wash 2.5.2. It is unverified that the host's exporter reads the standard `OTEL_EXPORTER_OTLP_*` variables; confirm on the first pop host-group pod before writing the function templates.
+4. **`allowSharedHosts = false`.** This changes scheduling for the existing `wasmcloud-system` workloads too. They already run on hosts in their own namespace, so they should be unaffected, but check `aether-wasm-hello` and `comfyui-reaper` after the apply.
+5. **TypeScript component weight.** jco bundles a JavaScript engine into every component. Measure size and per-instance memory with a hello-world function before sizing the pop host group.
+6. **CLI name.** `pop` collides with `charmbracelet/pop` if that is ever installed; irrelevant inside the Nix dev shell.
