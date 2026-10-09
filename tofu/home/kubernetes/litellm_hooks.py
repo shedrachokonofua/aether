@@ -296,7 +296,7 @@ class DeploymentAdapter(CustomLogger):
 
     Runs once per attempt (primary, same-group retry, fallback), after the
     router has selected a deployment, so each attempt sees its own
-    `model_info` and adapts independently. Three adaptations:
+    `model_info` and adapts independently. Four adaptations:
 
     - `supports_forced_tool_choice: false` softens a forced tool_choice
       (a dict, or the string "required") to "auto". Evidence: MiMo V2.6 Pro
@@ -304,10 +304,13 @@ class DeploymentAdapter(CustomLogger):
       and Step 5 Preview honoured a named forced tool_choice 1/3.
     - `max_output_tokens` clamps max_tokens / max_completion_tokens /
       max_output_tokens to the deployment's output cap.
+    - `requires_leading_system_message: true` prepends an empty system
+      message when the first message is not system/developer. CodeBuddy's
+      Hy4 returns 400 (11128 "first message is not system prompt") without
+      one and accepts an empty one (2026-10-08).
     - `metadata.moira_efforts` (set by moira_router) sets the reasoning effort
       Moira chose for this attempt's model group, so a fallback runs at its
       own in-band effort rather than the primary's.
-
     Nothing else: unsupported parameters stay with LiteLLM's native
     drop_params. Unknown or missing model_info is a no-op. The router reuses
     the request kwargs across attempts, so every change is written into a NEW
@@ -345,6 +348,14 @@ class DeploymentAdapter(CustomLogger):
                 "(supports_forced_tool_choice: false)",
                 deployment,
             )
+
+        messages = out.get("messages")
+        if info.get("requires_leading_system_message") is True and isinstance(messages, list):
+            first = messages[0] if messages else None
+            if not (isinstance(first, dict) and first.get("role") in ("system", "developer")):
+                out["messages"] = [{"role": "system", "content": ""}, *messages]
+                changed = True
+                logger.info("deployment_adapter: %s prepended empty system message", deployment)
 
         efforts = None
         model_group = None

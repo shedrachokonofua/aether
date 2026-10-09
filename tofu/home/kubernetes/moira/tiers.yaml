@@ -58,7 +58,8 @@ providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "xiaomi/",       id: xiaomi,       quota: { kind: local, plan: xiaomi } }
   - { prefix: "step/",         id: step,         quota: { kind: local, plan: step } }
   - { prefix: "qwen-cloud/",   id: qwen-cloud,   quota: { kind: local, plan: qwen-cloud } }
-  - { prefix: "codebuddy/",    id: codebuddy,    quota: { kind: local, plan: codebuddy } }
+  # CodeBuddy 400s non-streaming chat (11101); verified 2026-10-08.
+  - { prefix: "codebuddy/",    id: codebuddy,    quota: { kind: local, plan: codebuddy }, chat_requires_stream: true }
   - { prefix: "aether/",       id: aether,       quota: { kind: none } }
 
 # Router pools Moira ranks. Included only when every leg of the LiteLLM
