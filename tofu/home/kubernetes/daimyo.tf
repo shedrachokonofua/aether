@@ -1,13 +1,13 @@
 # =============================================================================
 # Daimyo — self-hosted agent control plane (sibling repo ../daimyo)
 # =============================================================================
-# Daimyo ships the container images (registry.gitlab.home.shdr.ch/shdrch/
+# Daimyo ships the container images (registry.gitlab.home.shdr.ch/so/
 # daimyo/*, pinned by digest from CI) plus its Helm chart
 # (../daimyo/deploy/helm/daimyo); aether owns every cluster object. The chart
 # carries its NATS subchart, CNPG Cluster and RBAC; this file owns the
 # namespaces (via namespace_contracts.tf), the registry pull secret, the
 # credential Secrets, the Helm release, the Org/Project/Agent bootstrap CRs,
-# the run-namespace CiliumNetworkPolicies, and the HTTPRoute.
+# the task-namespace CiliumNetworkPolicies, and the HTTPRoute.
 #
 # Requires the daimyo checkout as a sibling of aether
 # (../daimyo/deploy/helm/daimyo/Chart.yaml) — copy the hermes.tf
@@ -26,15 +26,15 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # 757c670 (pipeline 6416, success): attestation recheck writes endpoint rows
-  # + transit padding (df8e8e4) + RS256 (4051627). Sidecar/echo unchanged.
-  daimyo_server_tag  = "sha256:a499b4ce81e078466521456e5768c0ca7b1baca43eaac3ab7dd9c782233484a7"
-  daimyo_sidecar_tag = "sha256:91ccfd1490994e4d03fbd0e88586283f271ececac53d5b6d1dedcb35af6ffbf9"
+  # d7e6ec1 (pipeline 6422, so/daimyo): agent execution "run" -> "task",
+  # "human task" -> "approval" (migration 0008, `<org>-tasks` namespaces).
+  daimyo_server_tag  = "sha256:341c857504c317f381521380ae6843937718e51a266d28e6cce4315b8803006d"
+  daimyo_sidecar_tag = "sha256:7d2a04514c87c3de4884183f80b24e1d0af812a069d57248b02f8dc1fda8aba0"
   # These are the newest main images at deploy time; bump intentionally.
-  daimyo_server_image  = "registry.gitlab.home.shdr.ch/shdrch/daimyo/daimyo-server@sha256:a499b4ce81e078466521456e5768c0ca7b1baca43eaac3ab7dd9c782233484a7"
-  daimyo_sidecar_image = "registry.gitlab.home.shdr.ch/shdrch/daimyo/daimyo-sidecar@sha256:91ccfd1490994e4d03fbd0e88586283f271ececac53d5b6d1dedcb35af6ffbf9"
-  # e6566f6 echo (venv fix included).
-  daimyo_echo_image = "registry.gitlab.home.shdr.ch/shdrch/daimyo/echo-agent@sha256:f547a2da33ad14ce400557e2aa46a3c71edf232af5d8847151a6ffe3f53bc325"
+  daimyo_server_image  = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-server@sha256:341c857504c317f381521380ae6843937718e51a266d28e6cce4315b8803006d"
+  daimyo_sidecar_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-sidecar@sha256:7d2a04514c87c3de4884183f80b24e1d0af812a069d57248b02f8dc1fda8aba0"
+  # d7e6ec1 echo (pipeline 6422).
+  daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   daimyo_ns            = module.namespace["daimyo-system"].name
   daimyo_host          = "daimyo.home.shdr.ch"
   daimyo_registry_host = "registry.gitlab.home.shdr.ch"
@@ -65,7 +65,7 @@ resource "terraform_data" "daimyo_chart_present" {
   }
 }
 
-# --- Registry pull secret (server/migrate pods + run pods) ------------------------
+# --- Registry pull secret (server/migrate pods + task pods) -----------------------
 
 resource "kubernetes_secret_v1" "daimyo_registry" {
   depends_on = [module.namespace["daimyo-system"]]
@@ -91,15 +91,15 @@ resource "kubernetes_secret_v1" "daimyo_registry" {
   }
 }
 
-# Each runs namespace needs its own copy: run pods reference it by name and
+# Each tasks namespace needs its own copy: task pods reference it by name and
 # cross-namespace secret references do not exist.
-resource "kubernetes_secret_v1" "daimyo_runs_registry" {
+resource "kubernetes_secret_v1" "daimyo_tasks_registry" {
   for_each   = local.daimyo_orgs
-  depends_on = [module.namespace["personal-runs"], module.namespace["seven30-runs"]]
+  depends_on = [module.namespace["personal-tasks"], module.namespace["seven30-tasks"]]
 
   metadata {
     name      = "daimyo-gitlab-registry"
-    namespace = "${each.key}-runs"
+    namespace = "${each.key}-tasks"
     labels    = local.daimyo_labels
   }
 
@@ -288,10 +288,10 @@ resource "helm_release" "daimyo" {
     module.namespace["daimyo-system"],
     module.namespace["org-personal"],
     module.namespace["org-seven30"],
-    module.namespace["personal-runs"],
-    module.namespace["seven30-runs"],
+    module.namespace["personal-tasks"],
+    module.namespace["seven30-tasks"],
     kubernetes_secret_v1.daimyo_registry,
-    kubernetes_secret_v1.daimyo_runs_registry,
+    kubernetes_secret_v1.daimyo_tasks_registry,
     kubernetes_secret_v1.daimyo_postgres,
     kubernetes_secret_v1.daimyo_postgres_api,
     kubernetes_secret_v1.daimyo_postgres_engine,
@@ -315,12 +315,12 @@ resource "helm_release" "daimyo" {
     replicaCount     = 2
     imagePullSecrets = [{ name = kubernetes_secret_v1.daimyo_registry.metadata[0].name }]
     image = {
-      repository = "registry.gitlab.home.shdr.ch/shdrch/daimyo/daimyo-server"
+      repository = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-server"
       tag        = local.daimyo_server_tag
       pullPolicy = "IfNotPresent"
     }
     sidecarImage = {
-      repository = "registry.gitlab.home.shdr.ch/shdrch/daimyo/daimyo-sidecar"
+      repository = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-sidecar"
       tag        = local.daimyo_sidecar_tag
     }
     secrets = {
@@ -386,16 +386,17 @@ resource "helm_release" "daimyo" {
         kind             = "kata"
         runtimeClass     = "kata"
         sidecarImage     = ""
-        imagePullSecrets = [kubernetes_secret_v1.daimyo_runs_registry["personal"].metadata[0].name]
+        imagePullSecrets = [kubernetes_secret_v1.daimyo_tasks_registry["personal"].metadata[0].name]
       }
     }
     orgs = [
       { name = "personal" },
       { name = "seven30" },
     ]
-    # The chart's migrate hook fires before the CNPG Cluster's Service
-    # exists (DNS NXDOMAIN on daimyo-pg). Run migrations as a post-install
-    # Job below instead, after the Cluster is ready.
+    # The chart's migrate hook can't run here: it fires before the CNPG
+    # Cluster's Service exists on install, and it disables the SA token that
+    # `--roles none` still needs for the kata launcher. See the note at the
+    # end of this file for how migrations run.
     migrate = { enabled = false }
     serviceAccount = {
       create = true
@@ -404,7 +405,7 @@ resource "helm_release" "daimyo" {
     rbac    = { create = true }
     service = { type = "ClusterIP", port = 80, targetPort = 8080, metricsPort = 9090 }
     pdb     = { create = true, minAvailable = 1 }
-    # Ingress to run pods comes from the CiliumNetworkPolicies below (the
+    # Ingress to task pods comes from the CiliumNetworkPolicies below (the
     # chart's NetworkPolicy selects by the wrong label); keep it off.
     networkPolicy = { create = false }
     cnpg = {
@@ -445,7 +446,7 @@ resource "helm_release" "daimyo" {
 # policy: vault resources must share one module scope. The server
 # ServiceAccount itself comes from the chart's rbac.)
 
-resource "kubernetes_manifest" "daimyo_runs_egress" {
+resource "kubernetes_manifest" "daimyo_tasks_egress" {
   for_each   = local.daimyo_orgs
   depends_on = [helm_release.cilium, helm_release.daimyo]
 
@@ -457,8 +458,8 @@ resource "kubernetes_manifest" "daimyo_runs_egress" {
     apiVersion = "cilium.io/v2"
     kind       = "CiliumNetworkPolicy"
     metadata = {
-      name      = "daimyo-runs-egress"
-      namespace = "${each.key}-runs"
+      name      = "daimyo-tasks-egress"
+      namespace = "${each.key}-tasks"
       labels    = local.daimyo_labels
     }
     spec = {
@@ -607,8 +608,8 @@ resource "kubectl_manifest" "daimyo_org" {
             groups    = { claim = "groups" }
           },
         ] : []
-        namespaces = { config = "org-${each.key}", runs = "${each.key}-runs" }
-        quotas     = { concurrentRuns = 10 }
+        namespaces = { config = "org-${each.key}", tasks = "${each.key}-tasks" }
+        quotas     = { concurrentTasks = 10 }
         budget     = { monthlyUsd = 500 }
         storage    = { bucket = "daimyo-${each.key}" }
         secrets    = { openbaoPath = "orgs/${each.key}" }
@@ -707,6 +708,10 @@ resource "kubectl_manifest" "daimyo_echo_agent" {
   })
 }
 
-
-# (Migrations already applied directly during bootstrap; the server image runs them no-op on boot.
-# No separate Job: `--roles none` still builds the kata launcher, which needs in-cluster config.)
+# Migrations: the server does NOT migrate on boot (the Deployment runs
+# `serve` without `--migrate`). Before a helm_release bump that ships a new
+# migration, run a one-off Job built from the live Deployment's pod template
+# (same SA, render-config initContainer and volumes) with the new server
+# image and args `--config /etc/daimyo/daimyo.toml serve --roles none
+# --migrate`; it logs "migrations applied" and exits 0. 0008 (task/approval
+# renames) ran this way as Job daimyo-migrate-0008.

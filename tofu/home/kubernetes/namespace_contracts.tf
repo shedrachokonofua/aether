@@ -301,26 +301,26 @@ locals {
         "app.kubernetes.io/part-of"    = "daimyo"
       }
     }
-    "personal-runs" = {
+    "personal-tasks" = {
       tier                    = "sandbox",
       owner                   = "daimyo",
       backup                  = "none",
       exposure                = "none",
       create_s3_backup_secret = false,
-      description             = "Daimyo personal run pods (Kata, spec §18.1)"
+      description             = "Daimyo personal task pods (Kata, spec §18.1)"
       source_file             = "tofu/home/kubernetes/daimyo.tf"
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "daimyo"
       }
     }
-    "seven30-runs" = {
+    "seven30-tasks" = {
       tier                    = "sandbox",
       owner                   = "daimyo",
       backup                  = "none",
       exposure                = "none",
       create_s3_backup_secret = false,
-      description             = "Daimyo seven30 run pods (Kata, spec §18.1)"
+      description             = "Daimyo seven30 task pods (Kata, spec §18.1)"
       source_file             = "tofu/home/kubernetes/daimyo.tf"
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
