@@ -355,6 +355,27 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
       ],
       [
         {
+          name = "daimyo"
+          credentials = [{
+            accessKey = random_password.daimyo_s3_access_key.result
+            secretKey = random_password.daimyo_s3_secret_key.result
+          }]
+          actions = flatten([
+            for bucket in ["daimyo-personal", "daimyo-seven30", "daimyo-backups"] : [
+              "Read:${bucket}",
+              "Write:${bucket}",
+              "List:${bucket}",
+              "Tagging:${bucket}",
+              "Read:${bucket}/*",
+              "Write:${bucket}/*",
+              "List:${bucket}/*",
+              "Tagging:${bucket}/*",
+            ]
+          ])
+        }
+      ],
+      [
+        {
           name = "greptime-telemetry"
           credentials = [{
             accessKey = random_password.greptime_s3_access_key.result

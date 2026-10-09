@@ -322,6 +322,56 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_kubernetes_r
   add_to_userinfo     = true
 }
 
+# Daimyo CLI for the seven30 org (spec §18.3): public device-flow client with
+# the daimyo audience so org-seven30 principals authenticate.
+resource "keycloak_openid_client" "seven30_daimyo" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = "daimyo"
+  name      = "Daimyo"
+  enabled   = true
+
+  access_type                               = "PUBLIC"
+  standard_flow_enabled                     = false
+  direct_access_grants_enabled              = false
+  implicit_flow_enabled                     = false
+  consent_required                          = false
+  oauth2_device_authorization_grant_enabled = true
+}
+
+resource "keycloak_openid_client_default_scopes" "seven30_daimyo_default_scopes" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_daimyo.id
+
+  default_scopes = [
+    "basic",
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "seven30_daimyo_roles" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_daimyo.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "seven30_daimyo_audience" {
+  realm_id  = keycloak_realm.seven30.id
+  client_id = keycloak_openid_client.seven30_daimyo.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.seven30_daimyo.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
 # =============================================================================
 # Crossplane Service Account — master realm for provider init compatibility
 # =============================================================================

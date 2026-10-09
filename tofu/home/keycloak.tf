@@ -1933,7 +1933,6 @@ resource "keycloak_openid_client" "colony_cli" {
   consent_required                          = false
   oauth2_device_authorization_grant_enabled = true
 }
-
 resource "keycloak_openid_client_default_scopes" "colony_cli_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.colony_cli.id
@@ -1944,6 +1943,80 @@ resource "keycloak_openid_client_default_scopes" "colony_cli_default_scopes" {
     "roles",
     keycloak_openid_client_scope.colony_mcp.name,
   ]
+}
+
+# Daimyo CLI + humans (spec §18.3): public device-flow client. Tokens carry
+# aud=daimyo (audience mapper) so daimyo-server accepts them; realm roles
+# flow through the mapper for future Cedar group checks.
+resource "keycloak_openid_client" "daimyo" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "daimyo"
+  name      = "Daimyo"
+  enabled   = true
+
+  access_type                               = "PUBLIC"
+  standard_flow_enabled                     = false
+  direct_access_grants_enabled              = false
+  implicit_flow_enabled                     = false
+  consent_required                          = false
+  oauth2_device_authorization_grant_enabled = true
+}
+
+resource "keycloak_openid_client_default_scopes" "daimyo_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.daimyo.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "daimyo_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.daimyo.id
+  name      = "realm-roles"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "daimyo_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.daimyo.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+# Non-interactive smoke-test principal (spec §7.1 Service): client-credentials
+# only, aud=daimyo. Lets the deploy verify end-to-end without a browser step.
+resource "keycloak_openid_client" "daimyo_smoke" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "daimyo-smoke"
+  name      = "Daimyo smoke test"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "daimyo_smoke_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.daimyo_smoke.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
+  add_to_access_token      = true
 }
 
 # Local MCP clients (Claude Code: --client-id colony-mcp --callback-port 4401).
