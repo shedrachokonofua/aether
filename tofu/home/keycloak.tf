@@ -2098,3 +2098,176 @@ resource "keycloak_openid_client_service_account_realm_role" "colony_litellm_adm
   service_account_user_id = keycloak_openid_client.colony_litellm.service_account_user_id
   role                    = "admin"
 }
+locals {
+  pop_keycloak_realms = {
+    aether  = keycloak_realm.aether.id
+    seven30 = keycloak_realm.seven30.id
+  }
+}
+
+resource "keycloak_role" "pop_deploy" {
+  for_each = local.pop_keycloak_realms
+  realm_id = each.value
+  name     = "pop:deploy"
+}
+
+resource "keycloak_role" "pop_admin" {
+  for_each = local.pop_keycloak_realms
+  realm_id = each.value
+  name     = "pop:admin"
+}
+
+resource "keycloak_openid_client" "pop_cli" {
+  for_each                                  = local.pop_keycloak_realms
+  realm_id                                  = each.value
+  client_id                                 = "pop-cli"
+  name                                      = "Pop CLI (${each.key})"
+  enabled                                   = true
+  access_type                               = "PUBLIC"
+  standard_flow_enabled                     = false
+  direct_access_grants_enabled              = false
+  implicit_flow_enabled                     = false
+  oauth2_device_authorization_grant_enabled = true
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "pop_cli_roles" {
+  for_each            = local.pop_keycloak_realms
+  realm_id            = each.value
+  client_id           = keycloak_openid_client.pop_cli[each.key].id
+  name                = "realm-roles"
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_client" "pop_visitor" {
+  for_each                     = local.pop_keycloak_realms
+  realm_id                     = each.value
+  client_id                    = "pop-visitor"
+  name                         = "Pop Visitor (${each.key})"
+  enabled                      = true
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  pkce_code_challenge_method   = "S256"
+  valid_redirect_uris          = each.key == "aether" ? ["https://pop.home.shdr.ch/auth/aether/callback"] : ["https://pop.home.shdr.ch/auth/seven30/callback"]
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "pop_visitor_roles" {
+  for_each            = local.pop_keycloak_realms
+  realm_id            = each.value
+  client_id           = keycloak_openid_client.pop_visitor[each.key].id
+  name                = "realm-roles"
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_client" "pop_mcp" {
+  for_each                     = local.pop_keycloak_realms
+  realm_id                     = each.value
+  client_id                    = "pop-mcp"
+  name                         = "Pop MCP (${each.key})"
+  enabled                      = true
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  pkce_code_challenge_method   = "S256"
+  valid_redirect_uris          = ["http://127.0.0.1/*", "http://localhost/*"]
+}
+
+resource "keycloak_openid_client" "pop_agent" {
+  for_each                     = local.pop_keycloak_realms
+  realm_id                     = each.value
+  client_id                    = "pop-agent"
+  name                         = "Pop Agent (${each.key})"
+  enabled                      = true
+  access_type                  = "CONFIDENTIAL"
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "pop_agent_roles" {
+  for_each            = local.pop_keycloak_realms
+  realm_id            = each.value
+  client_id           = keycloak_openid_client.pop_agent[each.key].id
+  name                = "realm-roles"
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_client_service_account_realm_role" "pop_agent_deploy" {
+  for_each                = local.pop_keycloak_realms
+  realm_id                = each.value
+  service_account_user_id = keycloak_openid_client.pop_agent[each.key].service_account_user_id
+  role                    = keycloak_role.pop_deploy[each.key].name
+}
+
+resource "vault_kv_secret_v2" "pop_aether_visitor" {
+  mount = vault_mount.kv.path
+  name  = "pop/aether/visitor"
+  data_json = jsonencode({
+    client_secret = keycloak_openid_client.pop_visitor["aether"].client_secret
+  })
+}
+
+resource "vault_kv_secret_v2" "pop_seven30_visitor" {
+  mount = vault_mount.kv.path
+  name  = "pop/seven30/visitor"
+  data_json = jsonencode({
+    client_secret = keycloak_openid_client.pop_visitor["seven30"].client_secret
+  })
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "pop_cli_audience" {
+  for_each                 = local.pop_keycloak_realms
+  realm_id                 = each.value
+  client_id                = keycloak_openid_client.pop_cli[each.key].id
+  name                     = "pop-cli-audience"
+  included_custom_audience = "pop"
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "pop_mcp_audience" {
+  for_each                 = local.pop_keycloak_realms
+  realm_id                 = each.value
+  client_id                = keycloak_openid_client.pop_mcp[each.key].id
+  name                     = "pop-mcp-audience"
+  included_custom_audience = "pop"
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "pop_agent_audience" {
+  for_each                 = local.pop_keycloak_realms
+  realm_id                 = each.value
+  client_id                = keycloak_openid_client.pop_agent[each.key].id
+  name                     = "pop-agent-audience"
+  included_custom_audience = "pop"
+  add_to_id_token          = true
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "pop_mcp_roles" {
+  for_each            = local.pop_keycloak_realms
+  realm_id            = each.value
+  client_id           = keycloak_openid_client.pop_mcp[each.key].id
+  name                = "realm-roles"
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}

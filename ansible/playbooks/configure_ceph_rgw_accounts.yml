@@ -847,6 +847,111 @@
     # 5. Summary
     # =======================================================================
 
+    - name: Check for the Pop bucket in the Aether account
+      ansible.builtin.command:
+        argv:
+          - aws
+          - --endpoint-url
+          - "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480"
+          - s3api
+          - head-bucket
+          - --bucket
+          - pop
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ secrets.ceph.aether_account_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ secrets.ceph.aether_account_secret_key }}"
+      register: pop_bucket_check
+      failed_when: false
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Create the Pop bucket in the Aether account
+      ansible.builtin.command:
+        argv:
+          - aws
+          - --endpoint-url
+          - "http://{{ hostvars[rgw_admin_host].ansible_host }}:7480"
+          - s3api
+          - create-bucket
+          - --bucket
+          - pop
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ secrets.ceph.aether_account_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ secrets.ceph.aether_account_secret_key }}"
+      when: pop_bucket_check.rc != 0
+      run_once: true
+      delegate_to: localhost
+      become: false
+      no_log: true
+
+    - name: Ensure Pop workload IAM roles and scoped policies
+      vars:
+        pop_roles:
+          - name: pop-api
+            service_account: pop-api
+            trust:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Federated: "arn:aws:iam::{{ aether_account.id }}:oidc-provider/oidc.k8s.home.shdr.ch"
+                  Action: "sts:AssumeRoleWithWebIdentity"
+                  Condition:
+                    StringEquals:
+                      "oidc.k8s.home.shdr.ch:sub": "system:serviceaccount:pop:pop-api"
+                      "oidc.k8s.home.shdr.ch:aud": "sts.amazonaws.com"
+            policy:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: ["s3:ListBucket"]
+                  Resource: "arn:aws:s3:::pop"
+                - Effect: Allow
+                  Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+                  Resource: "arn:aws:s3:::pop/*"
+          - name: pop-origin
+            service_account: pop-origin
+            trust:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Principal:
+                    Federated: "arn:aws:iam::{{ aether_account.id }}:oidc-provider/oidc.k8s.home.shdr.ch"
+                  Action: "sts:AssumeRoleWithWebIdentity"
+                  Condition:
+                    StringEquals:
+                      "oidc.k8s.home.shdr.ch:sub": "system:serviceaccount:pop:pop-origin"
+                      "oidc.k8s.home.shdr.ch:aud": "sts.amazonaws.com"
+            policy:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action: ["s3:GetObject"]
+                  Resource: ["arn:aws:s3:::pop/blobs/*", "arn:aws:s3:::pop/manifests/*"]
+                - Effect: Deny
+                  Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+                  Resource: "arn:aws:s3:::pop/uploads/*"
+      ansible.builtin.shell:
+        cmd: |
+          export AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}"
+          export AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}"
+          endpoint="http://{{ hostvars[rgw_admin_host].ansible_host }}:7480"
+          if ! aws --endpoint-url "$endpoint" iam get-role --role-name "{{ item.name }}" >/dev/null 2>&1; then
+            aws --endpoint-url "$endpoint" iam create-role --role-name "{{ item.name }}" --assume-role-policy-document '{{ item.trust | to_json }}'
+          else
+            aws --endpoint-url "$endpoint" iam update-assume-role-policy --role-name "{{ item.name }}" --policy-document '{{ item.trust | to_json }}'
+          fi
+          aws --endpoint-url "$endpoint" iam put-role-policy --role-name "{{ item.name }}" --policy-name "{{ item.name }}-bucket" --policy-document '{{ item.policy | to_json }}'
+      loop: "{{ pop_roles }}"
+      run_once: true
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      no_log: true
+
     - name: Summary
       ansible.builtin.debug:
         msg: |

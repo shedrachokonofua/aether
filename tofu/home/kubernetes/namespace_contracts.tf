@@ -6,6 +6,18 @@
 
 locals {
   namespace_contract_specs = {
+    "pop" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "critical"
+      exposure                = "public"
+      create_s3_backup_secret = false
+      description             = "Pop static-site hosting platform"
+      source_file             = "tofu/home/kubernetes/pop.tf"
+      registry_access         = "gitlab"
+      hostnames               = ["pop.home.shdr.ch", "*.pop.home.shdr.ch"]
+    }
+
     "aether-k8s-arch-labeler" = {
       tier                    = "platform",
       owner                   = "aether",

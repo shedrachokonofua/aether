@@ -53,26 +53,71 @@ resource "helm_release" "wasmcloud" {
     # comes from the existing aether-k8s-arch-labeler + arm-pool-guardrails
     # chain (multi-arch host images qualify automatically).
     runtime = {
-      hostGroups = [{
-        name     = "default"
-        replicas = 2
-        service = {
-          type = "ClusterIP"
-        }
-        http = {
-          enabled = true
-          port    = 9191
-          tls     = { enabled = false }
-        }
-        webgpu = { enabled = false }
-        wasip3 = { enabled = false }
-        resources = {
-          requests = { cpu = "250m", memory = "64Mi" }
-          limits   = { cpu = "500m", memory = "512Mi" }
-        }
-      }]
+      hostGroups = [
+        {
+          name      = "default"
+          namespace = "wasmcloud-system"
+          replicas  = 2
+          service   = { type = "ClusterIP" }
+          http      = { enabled = true, port = 9191, tls = { enabled = false } }
+          webgpu    = { enabled = false }
+          wasip3    = { enabled = false }
+          resources = {
+            requests = { cpu = "250m", memory = "64Mi" }
+            limits   = { cpu = "500m", memory = "512Mi" }
+          }
+        },
+        {
+          name      = "pop"
+          namespace = "pop"
+          replicas  = 2
+          service   = { type = "ClusterIP" }
+          http      = { enabled = true, port = 9191, tls = { enabled = false } }
+          webgpu    = { enabled = false }
+          wasip3    = { enabled = false }
+          resources = {
+            requests = { cpu = "250m", memory = "256Mi" }
+            limits   = { cpu = "500m", memory = "2Gi" }
+          }
+          extraArgs = ["--wasi-otel", "--enable-meters"]
+          env = {
+            OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
+          }
+        },
+      ]
+    }
+
+    operator = {
+      hostNamespaces   = ["wasmcloud-system", "pop"]
+      allowSharedHosts = false
     }
   })]
+}
+
+locals {
+  pop_registry_host     = "registry.gitlab.home.shdr.ch"
+  pop_registry_user     = var.secrets["gitlab.pop_deploy_user"]
+  pop_registry_password = var.secrets["gitlab.pop_deploy_token"]
+}
+
+resource "kubernetes_secret_v1" "pop_gitlab_registry" {
+  depends_on = [module.namespace["pop"]]
+  metadata {
+    name      = "gitlab-registry"
+    namespace = module.namespace["pop"].name
+  }
+  type = "kubernetes.io/dockerconfigjson"
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        (local.pop_registry_host) = {
+          username = local.pop_registry_user
+          password = local.pop_registry_password
+          auth     = base64encode("${local.pop_registry_user}:${local.pop_registry_password}")
+        }
+      }
+    })
+  }
 }
 
 # =============================================================================

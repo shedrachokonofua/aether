@@ -751,6 +751,19 @@ arpa.attain.ing, *.arpa.attain.ing {
   }
 }
 
+# Pop edge. Preserve the client address without its source port for per-client
+# rate limits; the Kubernetes Gateway handles path routing.
+pop.home.shdr.ch, *.pop.home.shdr.ch {
+  import home_acme_dns
+  import access_logs
+  reverse_proxy 10.0.3.19 {
+    header_up Host {http.request.host}
+    header_up X-Real-IP {http.request.remote.host}
+    header_up X-Forwarded-For {http.request.remote.host}
+    header_up X-Forwarded-Proto https
+  }
+}
+
 # =============================================================================
 # Kubernetes Cluster (Talos + Cilium)
 # =============================================================================
@@ -860,6 +873,8 @@ api.siren.home.shdr.ch {
   @seven30 host seven30.xyz
   @seven30_apps host *.seven30.xyz
   @attaining host attain.ing
+  @pop_custom host shdr.ch
+
   @attaining_arpa host arpa.attain.ing *.arpa.attain.ing
   @attaining_apps host *.attain.ing
 
@@ -891,6 +906,17 @@ api.siren.home.shdr.ch {
   # handle precedes @attaining_apps because handle blocks match in order.
   handle @attaining_arpa {
     respond 404
+  }
+
+  handle @pop_custom {
+    reverse_proxy 10.0.3.19 {
+      header_up Host www.pop.home.shdr.ch
+      header_up X-Real-IP {http.request.remote.host}
+      header_up X-Forwarded-For {http.request.remote.host}
+      header_up X-Pop-Edge public
+      header_up X-Pop-Public-Host {http.request.host}
+      header_up X-Forwarded-Proto https
+    }
   }
 
   handle @shdrch {
