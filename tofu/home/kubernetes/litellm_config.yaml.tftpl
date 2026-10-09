@@ -523,7 +523,7 @@ model_list:
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
       cooldown_time: 300
@@ -531,7 +531,7 @@ model_list:
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/glm-5.3"
     litellm_params:
       cooldown_time: 300
@@ -540,7 +540,7 @@ model_list:
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
       weight: 1
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   # Standalone pin for Moira (see the zai/glm-5.3 note above).
   - model_name: "ollama-cloud/glm-5.3"
     litellm_params:
@@ -549,14 +549,14 @@ model_list:
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
       weight: 1
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/deepseek-v4-pro"
     litellm_params:
       model: "openai/deepseek-v4-pro:0813"
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   # Standalone pin for Moira (see the zai/glm-5.3 note above).
   - model_name: "ollama-cloud/deepseek-v4-pro"
     litellm_params:
@@ -564,7 +564,7 @@ model_list:
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
   # MiniMax M3 stays on LiteLLM's native ollama_chat adapter: Ollama's /v1
   # streams its parallel tool calls all at `index: 0` (distinct ids), which
   # OpenAI clients merge into one call (probe 2026-10-07, 3/3). ollama_chat
@@ -574,7 +574,7 @@ model_list:
       model: "ollama_chat/minimax-m3"
       litellm_credential_name: ollama_cloud_credential
       api_base: https://ollama.com
-    model_info: {mode: chat, max_input_tokens: 512000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: [max_tokens, max_completion_tokens, stream, top_p, temperature, seed, frequency_penalty, stop, tools, tool_choice, functions, response_format, reasoning_effort]}
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 512000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: [max_tokens, max_completion_tokens, stream, top_p, temperature, seed, frequency_penalty, stop, tools, tool_choice, functions, response_format, reasoning_effort]}
 
   # ChatGPT subscription OAuth — native Responses API; no PAYG fallback.
   # GPT-6 is not in LiteLLM's bundled catalog yet; declare native streaming.
@@ -905,6 +905,7 @@ model_list:
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+    model_info: {unique_response_ids: false}
   # Defensive security work, ranked by the AA Cyber Index with zero refusals
   # (moira/tiers.yaml `cyber`). Fail-open default: GLM-5.3 Flash (49.9, 0%).
   - model_name: "moira/cyber"
@@ -913,6 +914,7 @@ model_list:
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+    model_info: {unique_response_ids: false}
 
 credential_list:
   - credential_name: llama_swap_credential
@@ -1029,12 +1031,16 @@ litellm_settings:
   # - tool_call_content_normalizer sends `content: null` for tool-call-only
   #   assistant turns; LiteLLM otherwise turns their "" into a "[System: Empty
   #   message content sanitised…]" text block that Anthropic models imitate.
+  # - spend_log_response_id makes logged response ids unique for deployments
+  #   with model_info `unique_response_ids: false` (Ollama Cloud's 3-digit
+  #   `chatcmpl-NNN` ids collided and their spend rows were dropped).
   callbacks:
     - aether_hooks.chat_reasoning_effort
     - aether_hooks.moira_router
     - aether_hooks.deployment_adapter
     - aether_hooks.tool_description_sanitizer
     - aether_hooks.tool_call_content_normalizer
+    - aether_hooks.spend_log_response_id
   turn_off_message_logging: false
   set_verbose: false
   json_logs: true
