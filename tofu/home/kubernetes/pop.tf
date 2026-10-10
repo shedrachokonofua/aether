@@ -263,8 +263,17 @@ resource "kubernetes_manifest" "pop_egress" {
     kind       = "CiliumNetworkPolicy"
     metadata   = { name = "pop-egress", namespace = local.pop_namespace }
     spec = {
-      endpointSelector = { matchLabels = {} }
+      endpointSelector = {
+        matchExpressions = [
+          { key = "k8s:app.kubernetes.io/component", operator = "NotIn", values = ["clamd"] }
+        ]
+      }
       egress = [
+        {
+          toEndpoints = [{
+            matchLabels = { "k8s:io.kubernetes.pod.namespace" = local.pop_namespace }
+          }]
+        },
         {
           toCIDRSet = [{
             cidr   = "0.0.0.0/0"
@@ -281,16 +290,36 @@ resource "kubernetes_manifest" "pop_egress" {
           toPorts     = [{ ports = [{ port = "53", protocol = "UDP" }, { port = "53", protocol = "TCP" }] }]
         },
         {
-          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "wasmcloud-system", "k8s:app.kubernetes.io/name" = "nats" } }]
+          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "wasmcloud-system", "k8s:wasmcloud.com/name" = "nats" } }]
           toPorts     = [{ ports = [{ port = "4222", protocol = "TCP" }] }]
-        },
-        {
-          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = local.pop_namespace, "k8s:cnpg.io/cluster" = "pop" } }]
-          toPorts     = [{ ports = [{ port = "5432", protocol = "TCP" }] }]
         },
         {
           toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "observability", "k8s:app.kubernetes.io/name" = "opentelemetry-collector" } }]
           toPorts     = [{ ports = [{ port = "4318", protocol = "TCP" }] }]
+        },
+      ]
+    }
+  }
+}
+
+resource "kubernetes_manifest" "pop_clamd_egress" {
+  depends_on = [helm_release.pop]
+  field_manager { force_conflicts = true }
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata   = { name = "pop-clamd-egress", namespace = local.pop_namespace }
+    spec = {
+      endpointSelector = {
+        matchLabels = { "k8s:app.kubernetes.io/component" = "clamd" }
+      }
+      egress = [
+        {
+          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "kube-system", "k8s:k8s-app" = "kube-dns" } }]
+          toPorts = [{
+            ports = [{ port = "53", protocol = "UDP" }, { port = "53", protocol = "TCP" }]
+            rules = { dns = [{ matchPattern = "*" }] }
+          }]
         },
         {
           toFQDNs = [{ matchName = "database.clamav.net" }]
