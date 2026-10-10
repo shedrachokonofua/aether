@@ -26,17 +26,17 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # 53ef50e server (pipeline 6458: no total timeout on agent event streams,
-  # controller dependency retry a01f419, plus 59c653c instance scoping,
-  # 75b97d4 outbox retry + migration 0009). Sidecar unchanged since 59c653c.
-  daimyo_server_tag  = "sha256:bf21140b83ba4f74fe6fe6f55448dbdd4f9bd3ac2779b19199e85f1b87d13cf0"
-  daimyo_sidecar_tag = "sha256:98730294cceeb5fc1cfcc73d954f8eedbe165a31d89d8ba39932717ef88b50be"
-  # Built-in claude-code harness image (Helm config.harness.images); c3f9df1
-  # (pipeline 6453): event-stream keepalive + no Bun idle timeout.
-  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:8eb0960f0ec57280eb4371968e871c13fff1a2fb397c64c06f3038ebd3e45d88"
-  # codex (c3f9df1) and omp (0a2dc97: global bin already on PATH) harnesses.
-  daimyo_harness_codex_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:969003658ffed85d0901767c2644eaa2e57dc539e607ce50f5ff8418c301574c"
-  daimyo_harness_omp_image   = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:c5bcab4752a801e6b47a3c4e182862ca79e5ad62c658d1b0ddd0277926c1692e"
+  # e7be2e6 server + sidecar (pipeline 6488): the E2E campaign fixes — NATS
+  # accounts per org, audited authz, panic hardening, CR delete handling,
+  # sessions cold/resume, sidecar TLS + multi-grant, migrations 0010-0016.
+  daimyo_server_tag  = "sha256:d989b37cb5006da3b48da3c2774b8981deab6bd2eec28dc0eb08b8e526a8242c"
+  daimyo_sidecar_tag = "sha256:25f4569fb9b95632dea0ea8f8f6976a9afbe67545ed7a3f96e3700e1f84b61f4"
+  # Built-in harness images (Helm config.harness.images); 625e47d: codex
+  # tools-off, maxTurns enforcement, model-error and budget surfacing, SDK
+  # cancel (a8eb9a6). Unchanged through e7be2e6.
+  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:982e559311553fbdd30633f7b41ac491cc7d2f3d88e11ff4c119267776521d35"
+  daimyo_harness_codex_image       = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:ace8ebbe73400393e1dc05f28440a3654830894057b068ee86ef27fc716b50ec"
+  daimyo_harness_omp_image         = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:90be0261afea3dc0144df58bf040b86c9e57f21ac611df3571f3a4242423b951"
   # d7e6ec1 echo (pipeline 6422).
   daimyo_echo_image    = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   daimyo_ns            = module.namespace["daimyo-system"].name
@@ -212,11 +212,14 @@ resource "kubernetes_secret_v1" "daimyo_litellm" {
   }
 }
 
-# OpenBao token for the Transit signer + KV secrets reader. The token is a
-# periodic token minted from the deploy credential with the daimyo-server
-# policy (openbao_daimyo.tf); it is stored here, never in values. Rotation:
-# re-run the mint command below and `tofu apply` (the server reads the token
-# file on every request, so no restart is needed for the signer path).
+# OpenBao token for the Transit signer + KV secrets reader: a periodic token
+# with the daimyo-server policy (openbao_daimyo.tf), stored here, never in
+# values. Mint it as an ORPHAN (`auth/token/create-orphan`, period 768h): a
+# child of the deploy credential is revoked when that 12h credential expires
+# (2026-10-10 outage). The chart's render-config init container copies the
+# token at pod start, so after `kubectl patch secret daimyo-openbao` run
+# `kubectl rollout restart deploy/daimyo-server`. To be replaced by the
+# Kubernetes auth role below once the server supports it.
 resource "kubernetes_secret_v1" "daimyo_openbao" {
   depends_on = [module.namespace["daimyo-system"]]
 
@@ -343,6 +346,8 @@ resource "helm_release" "daimyo" {
       postgres       = kubernetes_secret_v1.daimyo_postgres.metadata[0].name
       postgresApi    = kubernetes_secret_v1.daimyo_postgres_api.metadata[0].name
       postgresEngine = kubernetes_secret_v1.daimyo_postgres_engine.metadata[0].name
+      # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY as env; never in the ConfigMap.
+      s3 = kubernetes_secret_v1.daimyo_s3.metadata[0].name
     }
     secretFiles = {
       litellmAdminKey = {
@@ -403,10 +408,8 @@ resource "helm_release" "daimyo" {
       }
       metricsListen = "0.0.0.0:9090"
       storage = {
-        endpoint        = local.daimyo_s3_endpoint
-        accessKeyId     = random_password.daimyo_s3_access_key.result
-        secretAccessKey = random_password.daimyo_s3_secret_key.result
-        region          = local.daimyo_s3_region
+        endpoint = local.daimyo_s3_endpoint
+        region   = local.daimyo_s3_region
       }
       # OTLP/HTTP traces to the in-cluster collector (-> Tempo), spec §15.4.
       otel = { endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces" }
@@ -462,6 +465,12 @@ resource "helm_release" "daimyo" {
         cluster   = { enabled = true, replicas = 3 }
         jetstream = { enabled = true, fileStore = { pvc = { enabled = true, size = "10Gi" } } }
       }
+      # A JetStream config change (e.g. the per-org accounts) must reach all
+      # three pods at once: a one-pod-at-a-time roll splits the cluster and
+      # the new pods never pass their JetStream health check. For such a
+      # change, first `kubectl patch sts daimyo-nats` to updateStrategy
+      # OnDelete (the chart leaves updateStrategy alone), apply, delete all
+      # NATS pods together, then patch back to RollingUpdate.
       natsBox = { enabled = false }
     }
     resources = {
@@ -558,6 +567,17 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
             }
           }]
           toPorts = [{ ports = [{ port = "4000", protocol = "TCP" }] }]
+        },
+        {
+          # Sidecar OTLP/HTTP spans to the node collector (spec §15.4).
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/instance"  = "otel-daemonset"
+              "app.kubernetes.io/name"      = "opentelemetry-collector"
+              "io.kubernetes.pod.namespace" = "observability"
+            }
+          }]
+          toPorts = [{ ports = [{ port = "4318", protocol = "TCP" }] }]
         },
         {
           # GitLab HTTPS (git grants + registry pulls), npm/pypi (spec §18.1),
