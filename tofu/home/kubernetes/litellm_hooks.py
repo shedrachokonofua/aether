@@ -274,8 +274,13 @@ class MoiraRouter(CustomLogger):
         # Opus at medium); deployment_adapter applies each attempt's own value.
         efforts = decision.get("efforts")
         if isinstance(efforts, dict) and efforts:
-            metadata = data.get("metadata")
-            data["metadata"] = {**(metadata if isinstance(metadata, dict) else {}), "moira_efforts": efforts}
+            # /v1/responses and /v1/messages keep LiteLLM's metadata in
+            # `litellm_metadata`; their `metadata` is the provider-facing field.
+            # Writing there hid moira_efforts from the failure reporter, so 429s
+            # on those routes never cooled the provider (2026-10-09).
+            bucket = "litellm_metadata" if isinstance(data.get("litellm_metadata"), dict) else "metadata"
+            metadata = data.get(bucket)
+            data[bucket] = {**(metadata if isinstance(metadata, dict) else {}), "moira_efforts": efforts}
         return None
 
     async def async_log_failure_event(self, kwargs: dict[str, Any], response_obj: Any, start_time: Any, end_time: Any) -> None:
@@ -369,7 +374,7 @@ class DeploymentAdapter(CustomLogger):
 
     Runs once per attempt (primary, same-group retry, fallback), after the
     router has selected a deployment, so each attempt sees its own
-    `model_info` and adapts independently. Four adaptations:
+    `model_info` and adapts independently. Five adaptations:
 
     - `supports_forced_tool_choice: false` softens a forced tool_choice
       (a dict, or the string "required") to "auto". Evidence: MiMo V2.6 Pro
@@ -381,6 +386,10 @@ class DeploymentAdapter(CustomLogger):
       message when the first message is not system/developer. CodeBuddy's
       Hy4 returns 400 (11128 "first message is not system prompt") without
       one and accepts an empty one (2026-10-08).
+    - `system_as_string: true` joins an Anthropic `system` given as text
+      blocks (and system messages with list content) into one string. The
+      ChatGPT backend rejects the block form on /v1/messages ("System
+      messages are not allowed", 400) and accepts the string (2026-10-09).
     - `metadata.moira_efforts` (set by moira_router) sets the reasoning effort
       Moira chose for this attempt's model group, so a fallback runs at its
       own in-band effort rather than the primary's.
@@ -430,6 +439,22 @@ class DeploymentAdapter(CustomLogger):
                 changed = True
                 logger.info("deployment_adapter: %s prepended empty system message", deployment)
 
+        if info.get("system_as_string") is True:
+            system = out.get("system")
+            joined = _join_text_blocks(system)
+            if joined is not None:
+                out["system"] = joined
+                changed = True
+                logger.info("deployment_adapter: %s joined system blocks into a string", deployment)
+            messages = out.get("messages")
+            if isinstance(messages, list):
+                fixed = []
+                for m in messages:
+                    text = _join_text_blocks(m.get("content")) if isinstance(m, dict) and m.get("role") == "system" else None
+                    fixed.append({**m, "content": text} if text is not None else m)
+                    changed = changed or text is not None
+                out["messages"] = fixed
+
         efforts = None
         model_group = None
         for key in ("metadata", "litellm_metadata"):
@@ -470,6 +495,18 @@ class DeploymentAdapter(CustomLogger):
 
 
 deployment_adapter = DeploymentAdapter()
+
+
+def _join_text_blocks(value: Any) -> str | None:
+    """A list of only text blocks as one string ("\\n\\n"-joined); else None."""
+    if not isinstance(value, list) or not value:
+        return None
+    texts = []
+    for block in value:
+        if not (isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)):
+            return None
+        texts.append(block["text"])
+    return "\n\n".join(texts)
 
 
 class ToolDescriptionSanitizer(CustomLogger):

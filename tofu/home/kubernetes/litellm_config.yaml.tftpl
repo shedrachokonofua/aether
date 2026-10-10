@@ -589,19 +589,19 @@ model_list:
     litellm_params:
       model: "chatgpt/gpt-6-astra"
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: &chatgpt_reasoning_params [frequency_penalty, logit_bias, logprobs, top_logprobs, max_tokens, max_completion_tokens, modalities, prediction, n, presence_penalty, seed, stop, stream, stream_options, temperature, top_p, tools, tool_choice, function_call, functions, max_retries, extra_headers, parallel_tool_calls, audio, web_search_options, service_tier, safety_identifier, prompt_cache_key, prompt_cache_retention, store, response_format, reasoning_effort, user]}
+    model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: &chatgpt_reasoning_params [frequency_penalty, logit_bias, logprobs, top_logprobs, max_tokens, max_completion_tokens, modalities, prediction, n, presence_penalty, seed, stop, stream, stream_options, temperature, top_p, tools, tool_choice, function_call, functions, max_retries, extra_headers, parallel_tool_calls, audio, web_search_options, service_tier, safety_identifier, prompt_cache_key, prompt_cache_retention, store, response_format, reasoning_effort, user]}
   # GPT-6.1 Sol replaced GPT-6 Sol (2026-09-29). It rejects reasoning_effort
   # none/minimal, unlike the GPT-6 slugs.
   - model_name: "chatgpt/gpt-6.1-sol"
     litellm_params:
       model: "chatgpt/gpt-6.1-sol"
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
+    model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
   - model_name: "chatgpt/gpt-6-luna"
     litellm_params:
       model: "chatgpt/gpt-6-luna"
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
+    model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
 
   # Household pool: OpenWebUI's single family model. Priority order, not a
   # shuffle: GPT-6 Astra while the ChatGPT plan has quota (the plan's weekly
