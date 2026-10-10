@@ -897,7 +897,7 @@ api.siren.home.shdr.ch {
   handle @shdrch {
     reverse_proxy 10.0.3.19 {
       header_up Host shdrch.pop.home.shdr.ch
-      header_up X-Real-IP {http.request.remote.host}
+      header_up X-Real-IP {http.request.header.X-Real-IP}
       header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
       header_up X-Pop-Edge public
       header_up X-Pop-Public-Host {http.request.host}
@@ -967,7 +967,7 @@ api.siren.home.shdr.ch {
   handle @attaining {
     reverse_proxy 10.0.3.19 {
       header_up Host attaining-www.pop.home.shdr.ch
-      header_up X-Real-IP {http.request.remote.host}
+      header_up X-Real-IP {http.request.header.X-Real-IP}
       header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
       header_up X-Pop-Edge public
       header_up X-Pop-Public-Host {http.request.host}
