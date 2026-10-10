@@ -214,6 +214,12 @@ model_list:
       model: "openai/qwen3.8-max"
       litellm_credential_name: qwen_cloud_credential
       allowed_openai_params: ["reasoning_effort"]
+      # Agent contexts of ~450k tokens can go longer than the global 120 s
+      # without a byte: 33 timeouts in 24 h (2026-10-10) while successes ran up
+      # to 273 s, and each timeout cooled the only deployment for 5 s. Match
+      # Muse/Grok.
+      timeout: 900
+      stream_timeout: 900
     model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "qwen-cloud/qwen3.8-flash"
     litellm_params:
