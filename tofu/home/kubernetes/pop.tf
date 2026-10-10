@@ -5,8 +5,11 @@ locals {
   pop_database_cluster = "pop"
   pop_database_host    = "${local.pop_database_cluster}-rw.${local.pop_namespace}.svc.cluster.local"
   pop_otel_endpoint    = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
-  pop_api_image_tag    = "sha256:d54101e855a8cf74da81d5952fdfa3ce7bcf4d5d36eec89e925925f48348d374"
-  pop_origin_image_tag = "sha256:b65b1d4285d820b3cb17e88d400192e42b26093557e4975e532a24aa7a224a18"
+  # Immutable digests emitted by the pop CI images job (image-digests.env).
+  # Null until the first published build is pinned; the precondition on
+  # helm_release.pop refuses to apply with a null digest.
+  pop_api_image_tag    = null
+  pop_origin_image_tag = null
 
   pop_orgs_file     = "/etc/pop/pop-orgs.json"
   pop_webhook_cidrs = { pods = ["10.244.0.0/16"], services = ["10.96.0.0/12"], lan = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"] }
@@ -137,6 +140,12 @@ resource "helm_release" "pop" {
   chart      = "${path.module}/../../../../pop/deploy/helm/pop"
   namespace  = local.pop_namespace
   wait       = true
+  lifecycle {
+    precondition {
+      condition     = local.pop_api_image_tag != null && local.pop_origin_image_tag != null
+      error_message = "Pin pop_api_image_tag and pop_origin_image_tag to the digests in pop CI image-digests.env before applying."
+    }
+  }
   timeout    = 600
   values = [yamlencode({
     api = {
