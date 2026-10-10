@@ -21,7 +21,7 @@
 #     `hostgroup-*` in `wasmcloud-system`. Until then, hosts schedule freely.
 
 resource "helm_release" "wasmcloud" {
-  depends_on = [helm_release.cilium]
+  depends_on = [helm_release.cilium, module.namespace["pop"], kubernetes_secret_v1.pop_gitlab_registry]
 
   name             = "wasmcloud"
   repository       = "oci://ghcr.io/wasmcloud/charts"
@@ -80,9 +80,10 @@ resource "helm_release" "wasmcloud" {
             limits   = { cpu = "500m", memory = "2Gi" }
           }
           extraArgs = ["--wasi-otel", "--enable-meters"]
-          env = {
-            OTEL_EXPORTER_OTLP_ENDPOINT = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
-          }
+          env = [
+            { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_endpoint },
+            { name = "OTEL_RESOURCE_ATTRIBUTES", value = "service.namespace=pop,deployment.environment=home" },
+          ]
         },
       ]
     }
