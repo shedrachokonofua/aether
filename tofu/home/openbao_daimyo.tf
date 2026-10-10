@@ -13,7 +13,7 @@
 # `v1/transit/keys/daimyo-<org>` (crates/daimyo-identity/src/signer.rs).
 
 locals {
-  daimyo_transit_orgs = toset(["personal", "seven30"])
+  daimyo_transit_orgs = toset(["personal", "seven30", "qa"])
   # KV v2 mount the broker reads (tofu/home/talos_cluster.tf wires
   # `openbao_kv_mount_path = vault_mount.kv.path`, i.e. "kv").
   daimyo_kv_mount = "kv"
