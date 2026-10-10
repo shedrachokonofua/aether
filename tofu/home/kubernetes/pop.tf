@@ -15,11 +15,16 @@ locals {
   # ConfigMap mounts on update but NEVER subPath mounts.
   pop_orgs_file     = "/etc/pop/orgs/pop-orgs.json"
   pop_webhook_cidrs = { pods = ["10.244.0.0/16"], services = ["10.96.0.0/12"], lan = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"] }
+  # Org `issuer` is the literal token `iss` pop-api matches per org (spec seed
+  # orgs). var.oidc_issuer_url is already the full aether realm URL
+  # (https://auth.shdr.ch/realms/aether — talos_cluster.tf), so the realm URLs
+  # are spelled out here; suffixing the var would double the /realms path and
+  # no Keycloak token would ever match an org.
   pop_orgs = {
     aether = {
       slug               = "aether"
       display_name       = "Aether"
-      issuer             = "${var.oidc_issuer_url}/realms/aether"
+      issuer             = "https://auth.shdr.ch/realms/aether"
       audience           = "pop"
       roles_claim        = "roles"
       role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
@@ -30,7 +35,7 @@ locals {
     seven30 = {
       slug               = "seven30"
       display_name       = "Seven30"
-      issuer             = "${var.oidc_issuer_url}/realms/seven30"
+      issuer             = "https://auth.shdr.ch/realms/seven30"
       audience           = "pop"
       roles_claim        = "roles"
       role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
