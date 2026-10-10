@@ -935,7 +935,11 @@
                   Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
                   Resource: "arn:aws:s3:::pop/uploads/*"
       ansible.builtin.shell:
+        # set -euo pipefail under bash: a failed create-role or
+        # update-assume-role-policy must not be masked by the succeeding
+        # put-role-policy that follows it (no_log hides the stderr).
         cmd: |
+          set -euo pipefail
           export AWS_ACCESS_KEY_ID="{{ secrets.ceph.aether_account_access_key }}"
           export AWS_SECRET_ACCESS_KEY="{{ secrets.ceph.aether_account_secret_key }}"
           endpoint="http://{{ hostvars[rgw_admin_host].ansible_host }}:7480"
@@ -945,6 +949,7 @@
             aws --endpoint-url "$endpoint" iam update-assume-role-policy --role-name "{{ item.name }}" --policy-document '{{ item.trust | to_json }}'
           fi
           aws --endpoint-url "$endpoint" iam put-role-policy --role-name "{{ item.name }}" --policy-name "{{ item.name }}-bucket" --policy-document '{{ item.policy | to_json }}'
+        executable: /bin/bash
       loop: "{{ pop_roles }}"
       run_once: true
       delegate_to: localhost
