@@ -26,19 +26,18 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # ecb75b8 server + sidecar (pipeline 6514): session cold/resume (exec exit
-  # code, restore root mode), retired revisions + eval by run (migrations
-  # 0018-0019), conformance kube runtime, opaque cursors + 404 problems + MCP
-  # org resolution, Org change recompiles agents, singleton loops stop on lock
-  # loss, readyz never waits on NATS. On top of 9e161ce (OpenBao k8s auth).
-  daimyo_server_tag  = "sha256:fc194176731e07051fbbd9c5d2a2f77f279a2f08fb0947a8d7864823f07857e9"
+  # 280b110 server (pipeline 6518): ecb75b8 plus orphan task Secret/ConfigMap
+  # reaping (30fa883), MCP session tail without waitSeconds, `--roles none
+  # --migrate` exits without NATS. Sidecar unchanged since ecb75b8. No new
+  # migrations (0019).
+  daimyo_server_tag  = "sha256:ad56e4ae39114056fb20bf2ea61c2b3efd49d9256fe1cbca82ea35bf0ab20c63"
   daimyo_sidecar_tag = "sha256:2573c67f21dcb54d901d9027561e7547b0478e629b5b99a7ae160a97ceb5434d"
-  # Built-in harness images (Helm config.harness.images); 625e47d: codex
-  # tools-off, maxTurns enforcement, model-error and budget surfacing, SDK
-  # cancel (a8eb9a6). Unchanged through e7be2e6.
-  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:982e559311553fbdd30633f7b41ac491cc7d2f3d88e11ff4c119267776521d35"
-  daimyo_harness_codex_image       = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:ace8ebbe73400393e1dc05f28440a3654830894057b068ee86ef27fc716b50ec"
-  daimyo_harness_omp_image         = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:90be0261afea3dc0144df58bf040b86c9e57f21ac611df3571f3a4242423b951"
+  # Built-in harness images (Helm config.harness.images); 280b110: the
+  # interrupted turn keeps its context (native session id stored at init,
+  # one CLI per session), on top of 625e47d's tools-off/maxTurns/budget fixes.
+  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:594a483ece5394856f9ff8d689b8d7a4128a55b180a49dbab862e0a0e17da366"
+  daimyo_harness_codex_image       = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:ac9f76e65e791f6335bf06cc25f13b73c25cd67267a0c95f32551488246e811b"
+  daimyo_harness_omp_image         = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:995082c4ce2d303cfd12d79597eded099c5d14fbc5973a4425dd42c8c2344b04"
   # d7e6ec1 echo (pipeline 6422).
   daimyo_echo_image    = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   daimyo_ns            = module.namespace["daimyo-system"].name
