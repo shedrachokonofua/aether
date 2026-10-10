@@ -644,3 +644,54 @@ class SpendLogResponseId(CustomLogger):
 
 
 spend_log_response_id = SpendLogResponseId()
+
+
+def _empty_function_call(value: Any) -> bool:
+    """A legacy function_call delta with neither a name nor arguments."""
+    if value is None:
+        return False
+    get = value.get if isinstance(value, dict) else lambda key: getattr(value, key, None)
+    return not get("name") and not get("arguments")
+
+
+def _drop_empty_function_calls(chunk: Any) -> None:
+    for choice in getattr(chunk, "choices", None) or []:
+        delta = getattr(choice, "delta", None)
+        if delta is not None and _empty_function_call(getattr(delta, "function_call", None)):
+            delta.function_call = None
+
+
+def _install_empty_function_call_filter() -> None:
+    """Clear empty legacy `function_call` deltas as every stream yields them.
+
+    CodeBuddy (Hy4) closes a tool-call turn with a delta carrying
+    `"function_call": {"name": "", "arguments": ""}` beside `tool_calls`.
+    LiteLLM 1.99.1's stream_chunk_builder treats any non-null function_call as
+    a legacy function call and reads `.name` off the dumped dict, raising
+    "Error building chunks for logging/streaming usage calculation". On
+    /v1/responses that build runs at the done event, so every Hy4 tool call
+    ended in an error for the client (2026-10-10: 46 in an hour). An empty
+    function_call carries nothing on any provider.
+
+    No callback sees each chunk before LiteLLM collects it: the streaming
+    deployment hook gets only the final chunk, and the post-success deployment
+    hook is skipped for streams. So this wraps CustomStreamWrapper.chunk_creator,
+    the one place every provider chunk becomes a ModelResponseStream. Re-check
+    this patch point when bumping the LiteLLM image.
+    """
+    from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
+
+    create = CustomStreamWrapper.chunk_creator
+    if getattr(create, "_aether_drops_empty_function_calls", False):
+        return
+
+    def chunk_creator(self: Any, *args: Any, **kwargs: Any) -> Any:
+        chunk = create(self, *args, **kwargs)
+        _drop_empty_function_calls(chunk)
+        return chunk
+
+    chunk_creator._aether_drops_empty_function_calls = True  # type: ignore[attr-defined]
+    CustomStreamWrapper.chunk_creator = chunk_creator  # type: ignore[method-assign]
+
+
+_install_empty_function_call_filter()

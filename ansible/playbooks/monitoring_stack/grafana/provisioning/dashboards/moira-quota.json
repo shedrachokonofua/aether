@@ -12,7 +12,7 @@
         "name": "window",
         "label": "Window",
         "type": "custom",
-        "query": "weekly,monthly,30d,yearly,5h,session,mcp-monthly",
+        "query": "weekly,monthly,30d,yearly,5h,session",
         "current": { "selected": true, "text": ["weekly", "monthly", "30d", "yearly"], "value": ["weekly", "monthly", "30d", "yearly"] },
         "multi": true,
         "includeAll": false
