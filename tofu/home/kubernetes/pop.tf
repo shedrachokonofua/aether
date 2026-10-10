@@ -288,6 +288,10 @@ resource "kubectl_manifest" "pop_session_key" {
       secretStoreRef  = { kind = "SecretStore", name = "openbao" }
       target          = { name = "pop-session-key", creationPolicy = "Owner" }
       data = [
+        # No decodingStrategy here on purpose: OpenBao stores the base64 text
+        # and BOTH pop-api and pop-origin read SESSION_KEY_FILE raw
+        # (std::fs::read) and use it as an arbitrary-length HMAC key, so every
+        # consumer derives identical MACs from the same 44 mounted bytes.
         { secretKey = "key", remoteRef = { key = "pop/session-key", property = "key" } }
       ]
     }
@@ -305,7 +309,10 @@ resource "kubectl_manifest" "pop_webhook_key" {
       secretStoreRef  = { kind = "SecretStore", name = "openbao" }
       target          = { name = "pop-webhook-key", creationPolicy = "Owner" }
       data = [
-        { secretKey = "key", remoteRef = { key = "pop/webhook-key", property = "key" } }
+        # OpenBao stores random_bytes(...).base64 (44 chars); pop-api reads
+        # WEBHOOK_KEY_FILE raw and AeadKey::from_bytes requires exactly 32
+        # bytes, so ESO must base64-decode into the Secret.
+        { secretKey = "key", remoteRef = { key = "pop/webhook-key", property = "key", decodingStrategy = "Base64" } }
       ]
     }
   })
