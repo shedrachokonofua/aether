@@ -346,6 +346,8 @@ resource "keycloak_user_roles" "shdrch_aether_roles" {
     keycloak_role.admin.id,
     keycloak_role.dns_admin.id,
     data.keycloak_role.aether_offline_access.id,
+    keycloak_role.pop_admin["aether"].id,
+    keycloak_role.pop_deploy["aether"].id,
   ]
 }
 
