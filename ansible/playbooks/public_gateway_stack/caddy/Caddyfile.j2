@@ -31,9 +31,15 @@
     appsec_url http://localhost:7422
   }
 
-  # Trust Cloudflare proxy IPs (auto-fetched)
+  # Trust Cloudflare proxy IPs (auto-fetched). trusted_proxies_strict (Caddy
+  # >= 2.8; the bundled aether-link-caddy build carries it) parses
+  # X-Forwarded-For right-to-left, so the first untrusted hop from the right —
+  # the real peer Cloudflare appended — becomes {client_ip}; the default
+  # left-to-right parsing lets a client smuggle its own leftmost value past
+  # the X-Real-IP we forward (pop form rate limits) and past CrowdSec.
   servers {
     trusted_proxies cloudflare
+    trusted_proxies_strict
   }
 }
 
