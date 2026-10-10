@@ -26,11 +26,12 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # e7be2e6 server + sidecar (pipeline 6488): the E2E campaign fixes — NATS
-  # accounts per org, audited authz, panic hardening, CR delete handling,
-  # sessions cold/resume, sidecar TLS + multi-grant, migrations 0010-0016.
-  daimyo_server_tag  = "sha256:d989b37cb5006da3b48da3c2774b8981deab6bd2eec28dc0eb08b8e526a8242c"
-  daimyo_sidecar_tag = "sha256:25f4569fb9b95632dea0ea8f8f6976a9afbe67545ed7a3f96e3700e1f84b61f4"
+  # 9e161ce server + sidecar (pipeline 6506): OpenBao Kubernetes auth with
+  # renewal (3d027bb), MCP SSE headers kept (d40437f), session grants minted
+  # once per pod + lease heartbeat + non-blocking close (9e161ce), call-cancel
+  # cascade (61b7613, migration 0017). Harness images unchanged.
+  daimyo_server_tag  = "sha256:ebea5b6dd1f99fd1daf5a99c143d79923684b7eec23a4ed131dc65f8a09f96b4"
+  daimyo_sidecar_tag = "sha256:2de9bb108670409d4dc47f1bd689bd1c50365606af2b66eb83e4b7412900f556"
   # Built-in harness images (Helm config.harness.images); 625e47d: codex
   # tools-off, maxTurns enforcement, model-error and budget surfacing, SDK
   # cancel (a8eb9a6). Unchanged through e7be2e6.
@@ -355,10 +356,15 @@ resource "helm_release" "daimyo" {
         key        = "admin-key"
         mountPath  = "/etc/daimyo/secrets/litellm-admin-key"
       }
-      openbaoToken = {
-        secretName = kubernetes_secret_v1.daimyo_openbao.metadata[0].name
-        key        = "token"
-        mountPath  = "/etc/daimyo/secrets/openbao-token"
+    }
+    # OpenBao via the server ServiceAccount (role in openbao_daimyo.tf): a
+    # projected token, logged in and renewed by the server; no standing token.
+    openbao = {
+      auth = "kubernetes"
+      kubernetesAuth = {
+        mount    = "kubernetes-aether"
+        role     = "aether-k8s-daimyo-server" # vault_kubernetes_auth_backend_role.daimyo_server (tofu/home)
+        audience = "https://bao.home.shdr.ch"
       }
     }
     config = {
@@ -390,7 +396,7 @@ resource "helm_release" "daimyo" {
         pemDir    = null
         orgs      = []
         address   = "https://bao.home.shdr.ch"
-        tokenFile = "/etc/daimyo/secrets/openbao-token"
+        # Auth comes from openbao.auth (Kubernetes) above.
       }
       litellm = {
         upstream     = local.daimyo_litellm_upstream
@@ -400,7 +406,7 @@ resource "helm_release" "daimyo" {
         kind      = "openbao"
         address   = "https://bao.home.shdr.ch"
         mount     = "kv"
-        tokenFile = "/etc/daimyo/secrets/openbao-token"
+        # Auth comes from openbao.auth (Kubernetes) above.
         values    = {}
       }
       git = {
