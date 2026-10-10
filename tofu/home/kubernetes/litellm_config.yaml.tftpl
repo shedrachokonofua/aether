@@ -1034,6 +1034,9 @@ litellm_settings:
   # - spend_log_response_id makes logged response ids unique for deployments
   #   with model_info `unique_response_ids: false` (Ollama Cloud's 3-digit
   #   `chatcmpl-NNN` ids collided and their spend rows were dropped).
+  # - importing the module also clears empty legacy `function_call` deltas
+  #   from every stream (CodeBuddy sends one per tool call; LiteLLM's chunk
+  #   builder then fails and /v1/responses clients get an error at the end).
   callbacks:
     - aether_hooks.chat_reasoning_effort
     - aether_hooks.moira_router
