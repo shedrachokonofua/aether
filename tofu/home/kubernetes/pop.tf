@@ -30,7 +30,13 @@ locals {
       role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
       clients            = { cli = "pop-cli", mcp = "pop-mcp", visitor = "pop-visitor", agent = "pop-agent" }
       visitor_secret_ref = { file = "/var/run/pop/visitor/aether" }
-      ci_project_paths   = []
+      # shdr.ch belongs to this org: keycloak.tf registers
+      # https://shdr.ch/_pop/callback on the aether realm's pop-visitor, so
+      # the site's CI id_tokens must be trusted here, not under seven30.
+      # TODO(operator): add the shdr.ch site repo's GitLab project_path once
+      # the repo exists; until then shdr.ch keeps serving from RGW (the
+      # Caddyfile cutover is a separate change).
+      ci_project_paths = []
     }
     seven30 = {
       slug               = "seven30"
@@ -41,7 +47,8 @@ locals {
       role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
       clients            = { cli = "pop-cli", mcp = "pop-mcp", visitor = "pop-visitor", agent = "pop-agent" }
       visitor_secret_ref = { file = "/var/run/pop/visitor/seven30" }
-      # TODO(operator): add the shdr.ch site repo's GitLab project_path.
+      # attain.ing static site, published by that repo's CI
+      # (https://attain.ing/_pop/callback is on the seven30 realm).
       ci_project_paths = ["so/attaining/www"]
     }
   }
