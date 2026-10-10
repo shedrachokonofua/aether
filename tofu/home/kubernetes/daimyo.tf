@@ -26,21 +26,24 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # f3875ac server (pipeline 6423: engine adoption/cancel fixes) on the
-  # d7e6ec1 rename (pipeline 6422: agent execution "run" -> "task", "human
-  # task" -> "approval", migration 0008, `<org>-tasks` namespaces). The
-  # sidecar digest is identical in both pipelines.
-  daimyo_server_tag  = "sha256:cb93d3266975e222436a0f903f4ec3856cfdbf0625a0677a46e25976e7b5bfbb"
-  daimyo_sidecar_tag = "sha256:7d2a04514c87c3de4884183f80b24e1d0af812a069d57248b02f8dc1fda8aba0"
-  # These are the newest main images at deploy time; bump intentionally.
-  daimyo_server_image  = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-server@sha256:cb93d3266975e222436a0f903f4ec3856cfdbf0625a0677a46e25976e7b5bfbb"
-  daimyo_sidecar_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-sidecar@sha256:7d2a04514c87c3de4884183f80b24e1d0af812a069d57248b02f8dc1fda8aba0"
+  # 59c653c server + sidecar (pipeline 6448: controller instance scoping,
+  # status hot-loop fix, mirrored-generation guard; carries 75b97d4's outbox
+  # retry + migration 0009 and 2e392d5's optional MCP auth).
+  daimyo_server_tag  = "sha256:cb1a1cb42ae20d9783815780aa56ac377a107beff669d4f578474e083dcf065e"
+  daimyo_sidecar_tag = "sha256:98730294cceeb5fc1cfcc73d954f8eedbe165a31d89d8ba39932717ef88b50be"
+  # Built-in claude-code harness image (Helm config.harness.images); 2e392d5
+  # build, unchanged in content since 411e8d8 (pipeline 6430).
+  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:73b82ef5bf0ec2a65c63342a1d3fc83eaf2cfb9fd2d70b7d47edf5fd103ba535"
   # d7e6ec1 echo (pipeline 6422).
-  daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
+  daimyo_echo_image    = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   daimyo_ns            = module.namespace["daimyo-system"].name
   daimyo_host          = "daimyo.home.shdr.ch"
   daimyo_registry_host = "registry.gitlab.home.shdr.ch"
   daimyo_labels        = { app = "daimyo" }
+  # The controller reconciles only CRs carrying its instance label
+  # (config.controller.instance below); unlabelled CRs are ignored.
+  daimyo_instance  = "daimyo"
+  daimyo_cr_labels = merge(local.daimyo_labels, { "daimyo.shdr.ch/instance" = local.daimyo_instance })
   # Model alias the bootstrap echo agent's grant names. Must exist in
   # aether's LiteLLM config (litellm_config.yaml.tftpl): a cheap real alias
   # so key minting succeeds even though echo never calls the model.
@@ -346,6 +349,13 @@ resource "helm_release" "daimyo" {
       publicBaseUrl = "https://daimyo.home.shdr.ch"
       listen        = "0.0.0.0:8080"
       apiUpstream   = "http://daimyo-api.daimyo-system.svc:80"
+      # The controller reconciles only CRs labelled with this instance
+      # (local.daimyo_cr_labels); set explicitly rather than inheriting the
+      # release fullname.
+      controller = { instance = local.daimyo_instance }
+      harness = {
+        images = { "claude-code" = local.daimyo_harness_claude_code_image }
+      }
       database = {
         ownerUrl  = "postgres://daimyo:__DB_PASSWORD_owner__@daimyo-pg-rw:5432/daimyo"
         apiUrl    = "postgres://daimyo_api:__DB_PASSWORD_api__@daimyo-pg-rw:5432/daimyo"
@@ -483,7 +493,7 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
         },
       ]
-      egress = [
+      egress = concat([
         {
           toEndpoints = [{
             matchLabels = {
@@ -536,7 +546,21 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           ]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         },
-      ]
+        ], [
+        # Deskplane's MCP server (the researcher agent's `web` MCP grant;
+        # no client auth, so this rule and deskplane_mcp_daimyo_ingress are
+        # the whole access boundary). personal only.
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "deskplane"
+              "app.kubernetes.io/component" = "mcp"
+              "io.kubernetes.pod.namespace" = "deskplane"
+            }
+          }]
+          toPorts = [{ ports = [{ port = "8100", protocol = "TCP" }] }]
+        } if org == "personal"
+      ])
     }
   }
 }
@@ -598,7 +622,7 @@ resource "kubectl_manifest" "daimyo_org" {
     kind       = "Org"
     metadata = {
       name   = each.key
-      labels = local.daimyo_labels
+      labels = local.daimyo_cr_labels
     }
     spec = merge(
       {
@@ -646,7 +670,7 @@ resource "kubectl_manifest" "daimyo_project" {
     metadata = {
       name      = each.key
       namespace = "org-${each.key}"
-      labels    = local.daimyo_labels
+      labels    = local.daimyo_cr_labels
     }
     spec = {
       description = each.key == "personal" ? "Personal agents." : "Seven30 agents."
@@ -663,7 +687,7 @@ resource "kubectl_manifest" "daimyo_echo_bundle" {
     metadata = {
       name      = "echo"
       namespace = "org-personal"
-      labels    = local.daimyo_labels
+      labels    = local.daimyo_cr_labels
     }
     spec = {
       versions = [
@@ -682,7 +706,7 @@ resource "kubectl_manifest" "daimyo_echo_agent" {
     metadata = {
       name      = "echo"
       namespace = "org-personal"
-      labels    = local.daimyo_labels
+      labels    = local.daimyo_cr_labels
     }
     spec = {
       project     = "personal"
@@ -710,10 +734,97 @@ resource "kubectl_manifest" "daimyo_echo_agent" {
   })
 }
 
+# `researcher`: a declarative claude-code harness agent (no image of its own;
+# compiles onto config.harness.images["claude-code"], and harness revisions
+# skip attestation). Models through the sidecar's LiteLLM grant on
+# moira/strong; web research through Deskplane's MCP server (the `web` grant,
+# no client auth: reachable only via daimyo_tasks_egress and
+# deskplane_mcp_daimyo_ingress). Claude Code's own WebSearch is an Anthropic
+# server tool a LiteLLM alias cannot serve, so the `web` built-ins stay off.
+resource "kubectl_manifest" "daimyo_researcher_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "researcher"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "personal"
+      description = "Researches topics on the web and writes cited reports."
+      harness = {
+        kind         = "claude-code"
+        model        = "moira/strong"
+        systemPrompt = <<-EOT
+          You research topics and write cited reports. Find sources with the
+          search_web tool, then read the most relevant ones in full with
+          scrape (web pages) or parse_document (PDFs and other documents).
+          Prefer primary sources. Cite every claim with the URL you read it
+          at, and finish with the report as your answer, followed by the list
+          of URLs you used.
+        EOT
+        tools        = { bash = true, files = true, web = false }
+        maxTurns     = 200
+      }
+      resources  = { cpu = "1", memory = "2Gi", workspace = "2Gi" }
+      operations = [{ name = "ask", deadline = "2h" }]
+      grants = [
+        { name = "models", model = { models = ["moira/strong"], budgetUsd = 5 } },
+        {
+          name = "web"
+          mcp = {
+            url   = "http://deskplane-mcp.deskplane.svc:8100/mcp"
+            tools = ["search_web", "scrape", "parse_document"]
+          }
+        },
+      ]
+      sessions  = { enabled = true }
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+# Deskplane's chart policy (deskplane-mcp-ingress, from helm_release.deskplane
+# mcp.ingressFrom) admits only serve, LiteLLM and the collector to MCP :8100.
+# NetworkPolicies are additive: this admits Daimyo's personal task pods (the
+# researcher's `web` grant) without rolling the Deskplane release. No
+# depends_on: the release already exists, and referencing it would pull its
+# dependency chain into every targeted plan of this policy.
+resource "kubernetes_manifest" "deskplane_mcp_daimyo_ingress" {
+  manifest = {
+    apiVersion = "networking.k8s.io/v1"
+    kind       = "NetworkPolicy"
+    metadata = {
+      name      = "deskplane-mcp-daimyo-ingress"
+      namespace = local.deskplane_namespace
+      labels    = local.daimyo_labels
+    }
+    spec = {
+      podSelector = {
+        matchLabels = {
+          "app.kubernetes.io/name"      = "deskplane"
+          "app.kubernetes.io/component" = "mcp"
+        }
+      }
+      policyTypes = ["Ingress"]
+      ingress = [{
+        from = [{
+          namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = "personal-tasks" } }
+        }]
+        ports = [{ protocol = "TCP", port = 8100 }]
+      }]
+    }
+  }
+}
+
 # Migrations: the server does NOT migrate on boot (the Deployment runs
 # `serve` without `--migrate`). Before a helm_release bump that ships a new
 # migration, run a one-off Job built from the live Deployment's pod template
 # (same SA, render-config initContainer and volumes) with the new server
 # image and args `--config /etc/daimyo/daimyo.toml serve --roles none
 # --migrate`; it logs "migrations applied" and exits 0. 0008 (task/approval
-# renames) ran this way as Job daimyo-migrate-0008.
+# renames) ran this way as Job daimyo-migrate-0008; 0009 (outbox retry) as
+# Job daimyo-migrate-0009.
