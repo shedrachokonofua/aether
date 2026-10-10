@@ -26,12 +26,13 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # 9e161ce server + sidecar (pipeline 6506): OpenBao Kubernetes auth with
-  # renewal (3d027bb), MCP SSE headers kept (d40437f), session grants minted
-  # once per pod + lease heartbeat + non-blocking close (9e161ce), call-cancel
-  # cascade (61b7613, migration 0017). Harness images unchanged.
-  daimyo_server_tag  = "sha256:ebea5b6dd1f99fd1daf5a99c143d79923684b7eec23a4ed131dc65f8a09f96b4"
-  daimyo_sidecar_tag = "sha256:2de9bb108670409d4dc47f1bd689bd1c50365606af2b66eb83e4b7412900f556"
+  # ecb75b8 server + sidecar (pipeline 6514): session cold/resume (exec exit
+  # code, restore root mode), retired revisions + eval by run (migrations
+  # 0018-0019), conformance kube runtime, opaque cursors + 404 problems + MCP
+  # org resolution, Org change recompiles agents, singleton loops stop on lock
+  # loss, readyz never waits on NATS. On top of 9e161ce (OpenBao k8s auth).
+  daimyo_server_tag  = "sha256:fc194176731e07051fbbd9c5d2a2f77f279a2f08fb0947a8d7864823f07857e9"
+  daimyo_sidecar_tag = "sha256:2573c67f21dcb54d901d9027561e7547b0478e629b5b99a7ae160a97ceb5434d"
   # Built-in harness images (Helm config.harness.images); 625e47d: codex
   # tools-off, maxTurns enforcement, model-error and budget surfacing, SDK
   # cancel (a8eb9a6). Unchanged through e7be2e6.
