@@ -112,6 +112,7 @@ resource "kubectl_manifest" "pop_cnpg_cluster" {
         ]
       } }
       managed = { roles = [{ name = "pop_origin", login = true, passwordSecret = { name = kubernetes_secret_v1.pop_cnpg_origin.metadata[0].name } }] }
+      plugins = local.cnpg_plugin_specs["pop"]
     }
   })
   lifecycle { prevent_destroy = true }

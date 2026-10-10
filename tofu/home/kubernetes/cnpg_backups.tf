@@ -90,6 +90,12 @@ locals {
       retention = "14d"
       schedule  = "0 55 2 * * *"
     }
+    pop = {
+      namespace = local.pop_namespace
+      cluster   = local.pop_database_cluster
+      retention = "14d"
+      schedule  = "0 57 2 * * *"
+    }
   }
 
   cnpg_scheduled_backup_targets = {
