@@ -11,7 +11,9 @@ locals {
   pop_api_image_tag    = null
   pop_origin_image_tag = null
 
-  pop_orgs_file     = "/etc/pop/pop-orgs.json"
+  # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
+  # ConfigMap mounts on update but NEVER subPath mounts.
+  pop_orgs_file     = "/etc/pop/orgs/pop-orgs.json"
   pop_webhook_cidrs = { pods = ["10.244.0.0/16"], services = ["10.96.0.0/12"], lan = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"] }
   pop_orgs = {
     aether = {
@@ -155,11 +157,13 @@ resource "helm_release" "pop" {
       port     = 8080
     }
     origin = {
-      image         = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-origin", tag = local.pop_origin_image_tag }
-      replicas      = 2
-      port          = 8080
-      customDomains = ["shdr.ch", "attain.ing"]
+      image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-origin", tag = local.pop_origin_image_tag }
+      replicas = 2
+      port     = 8080
     }
+    # Review CF-VisitorE F2: one shared allowlist rendered as POP_CUSTOM_DOMAINS
+    # for BOTH Deployments (api exchange allowlist + origin public-host set).
+    customDomains = ["shdr.ch", "attain.ing"]
     clamd = {
       image     = { repository = "clamav/clamav", tag = "1.4" }
       freshclam = { image = { repository = "clamav/clamav", tag = "1.4" } }
@@ -181,7 +185,7 @@ resource "helm_release" "pop" {
     awsStsEndpoint = "https://s3.home.shdr.ch"
     webhookCIDRs   = local.pop_webhook_cidrs
     config         = { webhookInternalAllow = "ntfy.home.shdr.ch" }
-    orgs           = { configMap = "pop-orgs", mountPath = local.pop_orgs_file }
+    orgs           = { configMap = "pop-orgs", mountPath = "/etc/pop/orgs", fileName = "pop-orgs.json" }
     sessionKey     = { secretName = "pop-session-key", mountPath = "/var/run/pop/session.key" }
     webhookKey     = { secretName = "pop-webhook-key", mountPath = "/var/run/pop/webhook.key" }
     visitorSecrets = { externalSecret = "pop-visitor-secrets", mountPath = "/var/run/pop/visitor" }
@@ -367,6 +371,10 @@ resource "kubernetes_manifest" "pop_egress" {
         ]
       }
       egress = [
+        # Review CF-VisitorE F3: origin → pop-api-internal:8081 (session
+        # redeem/exchange, forms, challenge) rides this rule. The api pods live
+        # in-namespace (10.244/16, inside the excluded 10/8 below), so only an
+        # identity-based toEndpoints rule can reach them.
         {
           toEndpoints = [{
             matchLabels = { "k8s:io.kubernetes.pod.namespace" = local.pop_namespace }
@@ -394,6 +402,36 @@ resource "kubernetes_manifest" "pop_egress" {
         {
           toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "observability", "k8s:app.kubernetes.io/name" = "opentelemetry-collector" } }]
           toPorts     = [{ ports = [{ port = "4318", protocol = "TCP" }] }]
+        },
+      ]
+    }
+  }
+}
+
+resource "kubernetes_manifest" "pop_api_ingress" {
+  depends_on = [helm_release.pop]
+  field_manager { force_conflicts = true }
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata   = { name = "pop-api-ingress", namespace = local.pop_namespace }
+    spec = {
+      endpointSelector = {
+        matchLabels = { "k8s:app.kubernetes.io/component" = "api" }
+      }
+      # Review CF-VisitorE F3: the internal listener (8081) is reachable ONLY
+      # from the origin (session redeem/exchange, forms, challenge, manifests).
+      # Without this rule the pop-egress default-deny drops every such call and
+      # every SSO login ends in 503 'pop-api unreachable'.
+      ingress = [
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "k8s:io.kubernetes.pod.namespace" = local.pop_namespace
+              "k8s:app.kubernetes.io/component" = "origin"
+            }
+          }]
+          toPorts = [{ ports = [{ port = "8081", protocol = "TCP" }] }]
         },
       ]
     }
