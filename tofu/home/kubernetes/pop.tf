@@ -15,7 +15,7 @@ locals {
       issuer             = "${var.oidc_issuer_url}/realms/aether"
       audience           = "pop"
       roles_claim        = "roles"
-      role_map           = { "pop:deploy" = "deploy", "pop:admin" = "admin" }
+      role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
       clients            = { cli = "pop-cli", mcp = "pop-mcp", visitor = "pop-visitor", agent = "pop-agent" }
       visitor_secret_ref = { file = "/var/run/pop/visitor/aether" }
       ci_project_paths   = []
@@ -26,7 +26,7 @@ locals {
       issuer             = "${var.oidc_issuer_url}/realms/seven30"
       audience           = "pop"
       roles_claim        = "roles"
-      role_map           = { "pop:deploy" = "deploy", "pop:admin" = "admin" }
+      role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
       clients            = { cli = "pop-cli", mcp = "pop-mcp", visitor = "pop-visitor", agent = "pop-agent" }
       visitor_secret_ref = { file = "/var/run/pop/visitor/seven30" }
       # TODO(operator): add the shdr.ch site repo's GitLab project_path.
@@ -125,7 +125,7 @@ resource "kubernetes_config_map_v1" "pop_orgs" {
     name      = "pop-orgs"
     namespace = local.pop_namespace
   }
-  data = { "pop-orgs.json" = jsonencode(local.pop_orgs) }
+  data = { "pop-orgs.json" = jsonencode({ orgs = values(local.pop_orgs) }) }
 }
 
 resource "helm_release" "pop" {
