@@ -175,6 +175,16 @@
       - deskplane
       - siren
       - google_maps
+    # The seven30-foundry key was created through the LiteLLM API (its value is
+    # not in SOPS), so it is found by alias and updated by its hashed token.
+    # Foundry's agents send the same list in x-mcp-servers; the key permission is
+    # the boundary (2026-09-26: firecrawl + finviz; 2026-10-10: + deskplane, the
+    # browser-backed search/scrape/parse server, for research).
+    litellm_seven30_foundry_alias: seven30-foundry
+    litellm_seven30_foundry_mcp_servers:
+      - firecrawl
+      - finviz
+      - deskplane
 
   tasks:
     - name: Load secrets
@@ -347,6 +357,38 @@
           object_permission:
             mcp_tool_search_enabled: true
             mcp_servers: "{{ litellm_openwebui_mcp_servers }}"
+        status_code: [200]
+      no_log: true
+
+    - name: Look up the seven30-foundry virtual key by alias
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/list?key_alias={{ litellm_seven30_foundry_alias }}&return_full_object=true"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+        status_code: [200]
+        return_content: true
+      register: litellm_seven30_foundry_key
+      no_log: true
+
+    - name: Check the seven30-foundry key is unique
+      ansible.builtin.assert:
+        that:
+          - litellm_seven30_foundry_key.json.keys | length == 1
+        fail_msg: "expected exactly one LiteLLM key with alias {{ litellm_seven30_foundry_alias }}"
+
+    - name: Scope the seven30-foundry virtual key to its MCP servers
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ litellm_seven30_foundry_key.json.keys[0].token }}"
+          object_permission:
+            mcp_servers: "{{ litellm_seven30_foundry_mcp_servers }}"
         status_code: [200]
       no_log: true
 
