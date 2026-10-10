@@ -557,6 +557,36 @@ resource "helm_release" "otel_collector_deployment" {
                 ]
               },
               {
+                # Daimyo control plane §15.4 metrics on the private :9090
+                # port. Per pod, not the Service: counters are per replica.
+                job_name        = "daimyo"
+                scrape_interval = "30s"
+                kubernetes_sd_configs = [{
+                  role       = "pod"
+                  namespaces = { names = ["daimyo-system"] }
+                }]
+                relabel_configs = [
+                  {
+                    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+                    action        = "keep"
+                    regex         = "daimyo;server"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+                    action        = "keep"
+                    regex         = "metrics"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    target_label  = "namespace"
+                  },
+                  {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "pod"
+                  },
+                ]
+              },
+              {
                 # Tetragon agent is a DaemonSet behind a Service. Scrape
                 # endpoints directly so every node agent is represented rather
                 # than one load-balanced service target.
