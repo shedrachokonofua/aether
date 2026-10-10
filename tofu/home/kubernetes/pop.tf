@@ -100,6 +100,7 @@ resource "kubectl_manifest" "pop_cnpg_cluster" {
         owner    = local.pop_database_user
         secret   = { name = kubernetes_secret_v1.pop_cnpg_app.metadata[0].name }
         postInitApplicationSQL = [
+          "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pop_origin') THEN CREATE ROLE pop_origin LOGIN; END IF; END $$",
           "GRANT SELECT ON ALL TABLES IN SCHEMA public TO pop_origin",
           "ALTER DEFAULT PRIVILEGES FOR ROLE pop IN SCHEMA public GRANT SELECT ON TABLES TO pop_origin",
           "DO $$ BEGIN IF to_regclass('public.aliases') IS NOT NULL AND to_regclass('public.deploys') IS NOT NULL THEN EXECUTE 'GRANT SELECT ON aliases, deploys TO pop_origin'; END IF; END $$",
