@@ -5,11 +5,11 @@ locals {
   pop_database_cluster = "pop"
   pop_database_host    = "${local.pop_database_cluster}-rw.${local.pop_namespace}.svc.cluster.local"
   pop_otel_endpoint    = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
-  # Immutable digests emitted by the pop CI images job (image-digests.env).
-  # Null until the first published build is pinned; the precondition on
-  # helm_release.pop refuses to apply with a null digest.
-  pop_api_image_tag    = null
-  pop_origin_image_tag = null
+  # Immutable digests emitted by the pop CI images job (image-digests.env),
+  # pinned to so/pop main bcd659c. The precondition on helm_release.pop keeps
+  # refusing to apply if either tag is ever reset to null.
+  pop_api_image_tag    = "sha256:080cd06bb5c03f81aab617eefb9ee558445a69a46d258ed97078f8f145d3c8e6"
+  pop_origin_image_tag = "sha256:8ca1e6959428879116cdede37dd8fec8f49d9951d038c7c98afbc38672f95e7d"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
   # ConfigMap mounts on update but NEVER subPath mounts.
