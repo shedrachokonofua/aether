@@ -5,6 +5,8 @@ locals {
   pop_database_cluster = "pop"
   pop_database_host    = "${local.pop_database_cluster}-rw.${local.pop_namespace}.svc.cluster.local"
   pop_otel_endpoint    = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
+  pop_api_image_tag    = "sha256:d54101e855a8cf74da81d5952fdfa3ce7bcf4d5d36eec89e925925f48348d374"
+  pop_origin_image_tag = "sha256:b65b1d4285d820b3cb17e88d400192e42b26093557e4975e532a24aa7a224a18"
 
   pop_orgs_file     = "/etc/pop/pop-orgs.json"
   pop_webhook_cidrs = { pods = ["10.244.0.0/16"], services = ["10.96.0.0/12"], lan = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"] }
@@ -138,12 +140,12 @@ resource "helm_release" "pop" {
   timeout    = 600
   values = [yamlencode({
     api = {
-      image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = var.pop_api_image_tag }
+      image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = local.pop_api_image_tag }
       replicas = 2
       port     = 8080
     }
     origin = {
-      image         = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-origin", tag = var.pop_origin_image_tag }
+      image         = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-origin", tag = local.pop_origin_image_tag }
       replicas      = 2
       port          = 8080
       customDomains = ["shdr.ch", "attain.ing"]
@@ -153,7 +155,7 @@ resource "helm_release" "pop" {
       freshclam = { image = { repository = "clamav/clamav", tag = "1.4" } }
       port      = 3310
     }
-    migration = { image = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = var.pop_api_image_tag } }
+    migration = { image = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = local.pop_api_image_tag } }
     serviceAccount = {
       api    = { create = true, name = "pop-api" }
       origin = { create = true, name = "pop-origin" }
