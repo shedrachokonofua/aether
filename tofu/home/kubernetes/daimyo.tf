@@ -34,6 +34,9 @@ locals {
   # Built-in claude-code harness image (Helm config.harness.images); c3f9df1
   # (pipeline 6453): event-stream keepalive + no Bun idle timeout.
   daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:8eb0960f0ec57280eb4371968e871c13fff1a2fb397c64c06f3038ebd3e45d88"
+  # codex (c3f9df1) and omp (0a2dc97: global bin already on PATH) harnesses.
+  daimyo_harness_codex_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:969003658ffed85d0901767c2644eaa2e57dc539e607ce50f5ff8418c301574c"
+  daimyo_harness_omp_image   = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:c5bcab4752a801e6b47a3c4e182862ca79e5ad62c658d1b0ddd0277926c1692e"
   # d7e6ec1 echo (pipeline 6422).
   daimyo_echo_image    = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   daimyo_ns            = module.namespace["daimyo-system"].name
@@ -362,7 +365,11 @@ resource "helm_release" "daimyo" {
       # release fullname.
       controller = { instance = local.daimyo_instance }
       harness = {
-        images = { "claude-code" = local.daimyo_harness_claude_code_image }
+        images = {
+          "claude-code" = local.daimyo_harness_claude_code_image
+          "codex"       = local.daimyo_harness_codex_image
+          "omp"         = local.daimyo_harness_omp_image
+        }
       }
       database = {
         ownerUrl  = "postgres://daimyo:__DB_PASSWORD_owner__@daimyo-pg-rw:5432/daimyo"
