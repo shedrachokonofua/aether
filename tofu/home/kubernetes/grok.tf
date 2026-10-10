@@ -6,7 +6,7 @@
 # with an independent random bearer token. There is no API-key or PAYG fallback.
 
 locals {
-  grok_image         = "registry.gitlab.home.shdr.ch/so/grok-bridge@sha256:0106e97dbca2482743c3ce92bc9f9095ede14ad1774d04df72069fd24f7e763e"
+  grok_image         = "registry.gitlab.home.shdr.ch/so/grok-bridge@sha256:01210bbd5d937988d83d74ba2bc4cc06ceba1aeedc446b786b84480d01de329e"
   grok_host          = "grok.home.shdr.ch"
   grok_port          = 8080
   grok_ns            = module.namespace["grok"].name
