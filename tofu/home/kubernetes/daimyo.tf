@@ -581,7 +581,9 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
         },
         {
           # GitLab HTTPS (git grants + registry pulls), npm/pypi (spec §18.1),
-          # and the GitLab container registry: FQDN egress, no broad CIDR.
+          # the GitLab container registry, and SeaweedFS S3 (the sidecar's
+          # session workspace snapshot/restore via presigned URLs, §11a.2):
+          # FQDN egress, no broad CIDR.
           toFQDNs = [
             { matchName = "gitlab.home.shdr.ch" },
             { matchName = "registry.gitlab.home.shdr.ch" },
@@ -589,6 +591,7 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
             { matchName = "registry.yarnpkg.com" },
             { matchName = "pypi.org" },
             { matchName = "files.pythonhosted.org" },
+            { matchName = "s3.seaweed.home.shdr.ch" },
           ]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         },
