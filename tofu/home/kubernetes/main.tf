@@ -167,6 +167,12 @@ variable "colony_litellm_client_secret" {
   description = "Keycloak client secret LiteLLM uses to reach the Colony MCP server"
 }
 
+variable "deskplane_mcp_auth_token" {
+  type        = string
+  sensitive   = true
+  description = "Bearer token Deskplane's MCP server requires on /mcp (openbao_daimyo.tf)"
+}
+
 variable "openwebui_oauth_client_secret" {
   type        = string
   sensitive   = true
