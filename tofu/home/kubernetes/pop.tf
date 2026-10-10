@@ -388,7 +388,11 @@ resource "kubernetes_manifest" "pop_egress" {
     spec = {
       endpointSelector = {
         matchExpressions = [
-          { key = "k8s:app.kubernetes.io/component", operator = "NotIn", values = ["clamd"] }
+          { key = "k8s:app.kubernetes.io/component", operator = "NotIn", values = ["clamd"] },
+          # The wasmCloud hostgroup pods run untrusted user functions; they get
+          # the narrow pop-hostgroup policy below instead of these
+          # namespace-wide allowances (spec decision 1).
+          { key = "k8s:wasmcloud.com/name", operator = "NotIn", values = ["hostgroup"] },
         ]
       }
       egress = [
@@ -423,6 +427,95 @@ resource "kubernetes_manifest" "pop_egress" {
         {
           toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "observability", "k8s:app.kubernetes.io/name" = "opentelemetry-collector" } }]
           toPorts     = [{ ports = [{ port = "4318", protocol = "TCP" }] }]
+        },
+      ]
+    }
+  }
+}
+
+# The wasmCloud pop hostgroup runs untrusted user functions, so it gets its
+# own narrow policy instead of pop-egress: kube-dns, the wasmCloud NATS
+# lattice, the OTel collector, world 80/443 and — SNI-pinned — the home
+# GitLab registry through the Caddy front (10.0.2.2, serverNames pattern from
+# vcluster_network_policy.tf). Every other cluster and LAN destination stays
+# denied unless aether adds it here explicitly.
+resource "kubernetes_manifest" "pop_hostgroup" {
+  depends_on = [helm_release.wasmcloud]
+  field_manager { force_conflicts = true }
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata   = { name = "pop-hostgroup", namespace = local.pop_namespace }
+    spec = {
+      # Pod labels the runtime-operator chart puts on hostgroup Deployments
+      # (verified via helm template oci://ghcr.io/wasmcloud/charts/runtime-operator
+      # --version 2.5.2: templates/runtime/deployment.yaml).
+      endpointSelector = {
+        matchLabels = {
+          "k8s:wasmcloud.com/name"      = "hostgroup"
+          "k8s:wasmcloud.com/hostgroup" = "pop"
+        }
+      }
+      ingress = [
+        # wasi:http invocations on the host HTTP port (hostGroups[].http.port):
+        # pop-origin reaches functions through the selector-less function
+        # Services (operator-managed EndpointSlices → host pods :9191).
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "k8s:io.kubernetes.pod.namespace" = local.pop_namespace
+              "k8s:app.kubernetes.io/component" = "origin"
+            }
+          }]
+          toPorts = [{ ports = [{ port = "9191", protocol = "TCP" }] }]
+        },
+        # Schedule CronJob pods (pop-api schedules.rs) curl the same Service
+        # with X-Pop-Trigger: schedule. Their pod template carries no pop
+        # labels, so the Job-controller-stamped job-name label is the only
+        # selector they have; the pop-cron-* Jobs are the only long-lived Job
+        # pods in this namespace.
+        {
+          fromEndpoints = [{
+            matchExpressions = [{ key = "k8s:job-name", operator = "Exists" }]
+          }]
+          toPorts = [{ ports = [{ port = "9191", protocol = "TCP" }] }]
+        },
+      ]
+      egress = [
+        {
+          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "kube-system", "k8s:k8s-app" = "kube-dns" } }]
+          toPorts = [{
+            ports = [{ port = "53", protocol = "UDP" }, { port = "53", protocol = "TCP" }]
+            rules = { dns = [{ matchPattern = "*" }] }
+          }]
+        },
+        # wasmCloud NATS lattice (scheduler + data plane).
+        {
+          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "wasmcloud-system", "k8s:wasmcloud.com/name" = "nats" } }]
+          toPorts     = [{ ports = [{ port = "4222", protocol = "TCP" }] }]
+        },
+        # OTel collector for --wasi-otel function telemetry (gRPC + HTTP).
+        {
+          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "observability", "k8s:app.kubernetes.io/name" = "opentelemetry-collector" } }]
+          toPorts     = [{ ports = [{ port = "4317", protocol = "TCP" }, { port = "4318", protocol = "TCP" }] }]
+        },
+        # Public internet only; private/cluster ranges stay excluded.
+        {
+          toCIDRSet = [{
+            cidr   = "0.0.0.0/0"
+            except = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"]
+          }]
+          toPorts = [{ ports = [{ port = "80", protocol = "TCP" }, { port = "443", protocol = "TCP" }] }]
+        },
+        # The home Caddy front (10.0.2.2) restricted by SNI to the GitLab
+        # registry — the function-component OCI pull path. Every other LAN
+        # service behind the same IP stays denied.
+        {
+          toCIDR = ["10.0.2.2/32"]
+          toPorts = [{
+            serverNames = [local.pop_registry_host]
+            ports       = [{ port = "443", protocol = "TCP" }]
+          }]
         },
       ]
     }
