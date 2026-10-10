@@ -204,16 +204,16 @@ resource "kubectl_manifest" "pop_visitor_secrets" {
   })
 }
 
-resource "kubernetes_manifest" "pop_route" {
+resource "kubernetes_manifest" "pop_control_route" {
   depends_on = [helm_release.pop]
   field_manager { force_conflicts = true }
   manifest = {
     apiVersion = "gateway.networking.k8s.io/v1"
     kind       = "HTTPRoute"
-    metadata   = { name = "pop", namespace = local.pop_namespace }
+    metadata   = { name = "pop-control", namespace = local.pop_namespace }
     spec = {
       parentRefs = [{ name = "main-gateway", namespace = "default", sectionName = "http" }]
-      hostnames  = ["pop.home.shdr.ch", "*.pop.home.shdr.ch"]
+      hostnames  = ["pop.home.shdr.ch"]
       rules = [
         {
           matches = [
@@ -224,11 +224,31 @@ resource "kubernetes_manifest" "pop_route" {
             { path = { type = "PathPrefix", value = "/mcp" } },
             { path = { type = "PathPrefix", value = "/.well-known/oauth-protected-resource" } },
           ]
-          backendRefs = [{ name = "pop-api", port = 80 }]
+          backendRefs = [{ name = "pop-api", port = 8080 }]
         },
         {
           matches     = [{ path = { type = "PathPrefix", value = "/" } }]
-          backendRefs = [{ name = "pop-origin", port = 80 }]
+          backendRefs = [{ name = "pop-origin", port = 8080 }]
+        }
+      ]
+    }
+  }
+}
+
+resource "kubernetes_manifest" "pop_sites_route" {
+  depends_on = [helm_release.pop]
+  field_manager { force_conflicts = true }
+  manifest = {
+    apiVersion = "gateway.networking.k8s.io/v1"
+    kind       = "HTTPRoute"
+    metadata   = { name = "pop-sites", namespace = local.pop_namespace }
+    spec = {
+      parentRefs = [{ name = "main-gateway", namespace = "default", sectionName = "http" }]
+      hostnames  = ["*.pop.home.shdr.ch"]
+      rules = [
+        {
+          matches     = [{ path = { type = "PathPrefix", value = "/" } }]
+          backendRefs = [{ name = "pop-origin", port = 8080 }]
         }
       ]
     }
