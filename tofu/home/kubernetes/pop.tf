@@ -129,7 +129,7 @@ resource "kubernetes_config_map_v1" "pop_orgs" {
 }
 
 resource "helm_release" "pop" {
-  depends_on = [terraform_data.pop_chart, kubectl_manifest.pop_cnpg_cluster, kubernetes_config_map_v1.pop_orgs, kubectl_manifest.pop_visitor_secrets, kubernetes_secret_v1.pop_gitlab_registry]
+  depends_on = [terraform_data.pop_chart, kubectl_manifest.pop_cnpg_cluster, kubernetes_config_map_v1.pop_orgs, kubectl_manifest.pop_visitor_secrets, kubectl_manifest.pop_session_key, kubectl_manifest.pop_webhook_key, kubernetes_secret_v1.pop_gitlab_registry]
   name       = "pop"
   chart      = "${path.module}/../../../../pop/deploy/helm/pop"
   namespace  = local.pop_namespace
@@ -199,6 +199,64 @@ resource "kubectl_manifest" "pop_visitor_secrets" {
       data = [
         { secretKey = "aether", remoteRef = { key = "pop/aether/visitor", property = "client_secret" } },
         { secretKey = "seven30", remoteRef = { key = "pop/seven30/visitor", property = "client_secret" } },
+      ]
+    }
+  })
+}
+
+resource "random_bytes" "pop_session_key" {
+  length = 32
+}
+
+resource "random_bytes" "pop_webhook_key" {
+  length = 32
+}
+
+resource "vault_kv_secret_v2" "pop_session_key" {
+  mount = var.openbao_kv_mount_path
+  name  = "pop/session-key"
+  data_json = jsonencode({
+    key = random_bytes.pop_session_key.base64
+  })
+}
+
+resource "vault_kv_secret_v2" "pop_webhook_key" {
+  mount = var.openbao_kv_mount_path
+  name  = "pop/webhook-key"
+  data_json = jsonencode({
+    key = random_bytes.pop_webhook_key.base64
+  })
+}
+
+resource "kubectl_manifest" "pop_session_key" {
+  depends_on = [kubectl_manifest.namespace_secret_store["pop"], vault_kv_secret_v2.pop_session_key]
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1"
+    kind       = "ExternalSecret"
+    metadata   = { name = "pop-session-key", namespace = local.pop_namespace }
+    spec = {
+      refreshInterval = "15m"
+      secretStoreRef  = { kind = "SecretStore", name = "openbao" }
+      target          = { name = "pop-session-key", creationPolicy = "Owner" }
+      data = [
+        { secretKey = "key", remoteRef = { key = "pop/session-key", property = "key" } }
+      ]
+    }
+  })
+}
+
+resource "kubectl_manifest" "pop_webhook_key" {
+  depends_on = [kubectl_manifest.namespace_secret_store["pop"], vault_kv_secret_v2.pop_webhook_key]
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1"
+    kind       = "ExternalSecret"
+    metadata   = { name = "pop-webhook-key", namespace = local.pop_namespace }
+    spec = {
+      refreshInterval = "15m"
+      secretStoreRef  = { kind = "SecretStore", name = "openbao" }
+      target          = { name = "pop-webhook-key", creationPolicy = "Owner" }
+      data = [
+        { secretKey = "key", remoteRef = { key = "pop/webhook-key", property = "key" } }
       ]
     }
   })
