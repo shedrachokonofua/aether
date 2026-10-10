@@ -20,7 +20,7 @@
         - aether/qwen3.8-flash-next:think
         - aether/qwen3.8-27b:think
         - qwen-cloud/qwen3.8-max
-      omp:
+      omp: &omp_models
         - antigravity/gemini-3.8-flash
         - supergrok/grok-4.7
         - step/step-5-preview
@@ -88,6 +88,9 @@
         - router/ling-3.1-flash
         - openrouter/ling-3.1-flash
         - commandcode-free/ling-3.1-flash
+      # omp on the Coder workspace: same allowlist as the workstation omp, its
+      # own key so its traffic is attributable (it ran on the master key).
+      omp_coder: *omp_models
       colony:
         - antigravity/gemini-3.8-flash
         - supergrok/grok-4.7
@@ -272,6 +275,20 @@
         body:
           key: "{{ secrets.litellm.virtual_keys.omp }}"
           models: "{{ litellm_key_models_by_alias.omp }}"
+        status_code: [200]
+      no_log: true
+
+    - name: Synchronize omp_coder virtual-key model allowlist
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ secrets.litellm.virtual_keys.omp_coder }}"
+          models: "{{ litellm_key_models_by_alias.omp_coder }}"
         status_code: [200]
       no_log: true
 
