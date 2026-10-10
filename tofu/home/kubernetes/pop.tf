@@ -154,7 +154,11 @@ resource "helm_release" "pop" {
       error_message = "Pin pop_api_image_tag and pop_origin_image_tag to the digests in pop CI image-digests.env before applying."
     }
   }
-  timeout = 600
+  # The chart sizes pop-clamd's readiness probe for a first-run freshclam
+  # signature download+load: 30s initialDelay + 15s period × 40 failures
+  # ≈ 630s, on top of the pre-install migration Job (CNPG bootstrap +
+  # retries). 600s could mark a slow-but-healthy first install failed.
+  timeout = 1200
   values = [yamlencode({
     api = {
       image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = local.pop_api_image_tag }
