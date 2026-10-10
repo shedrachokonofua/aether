@@ -408,7 +408,8 @@ resource "helm_release" "daimyo" {
         secretAccessKey = random_password.daimyo_s3_secret_key.result
         region          = local.daimyo_s3_region
       }
-      otel = { endpoint = null }
+      # OTLP/HTTP traces to the in-cluster collector (-> Tempo), spec §15.4.
+      otel = { endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces" }
       launcher = {
         kind             = "kata"
         runtimeClass     = "kata"
@@ -492,10 +493,19 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
     }
     spec = {
       endpointSelector = {}
+      # Default-deny both ways: the only ingress is the engine on 8080, and
+      # egress is the allowlist below. Sandboxes share this namespace and are
+      # driven through pod exec, not the pod network.
       enableDefaultDeny = {
         egress  = true
-        ingress = false
+        ingress = true
       }
+      # Cilium deny rules beat allows from any policy, including the cluster
+      # baseline CCNP that lets every pod reach kube-apiserver. Task and
+      # sandbox pods have no ServiceAccount token and no business there.
+      egressDeny = [
+        { toEntities = ["kube-apiserver"] },
+      ]
       ingress = [
         {
           # The engine reaches agent pods by pod IP on 8080 (chart P5).
@@ -642,13 +652,18 @@ resource "kubectl_manifest" "daimyo_org" {
     }
     spec = merge(
       {
+        # personal: only shdrch. qa: any aether-realm principal (the
+        # daimyo-smoke client drives the e2e campaign there).
         issuers = contains(["personal", "qa"], each.key) ? [
-          {
-            issuer    = "https://auth.shdr.ch/realms/aether"
-            audiences = ["daimyo"]
-            principal = { claim = "preferred_username", prefix = "user:" }
-            groups    = { claim = "groups" }
-          },
+          merge(
+            {
+              issuer    = "https://auth.shdr.ch/realms/aether"
+              audiences = ["daimyo"]
+              principal = { claim = "preferred_username", prefix = "user:" }
+              groups    = { claim = "groups" }
+            },
+            each.key == "personal" ? { requiredClaims = { preferred_username = "shdrch" } } : {},
+          ),
         ] : []
         namespaces = { config = "org-${each.key}", tasks = "${each.key}-tasks" }
         quotas     = { concurrentTasks = 10 }
