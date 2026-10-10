@@ -96,12 +96,24 @@ resource "helm_release" "wasmcloud" {
 }
 
 locals {
-  pop_registry_host     = "registry.gitlab.home.shdr.ch"
-  pop_registry_user     = var.secrets["gitlab.pop_deploy_user"]
-  pop_registry_password = var.secrets["gitlab.pop_deploy_token"]
+  pop_registry_host = "registry.gitlab.home.shdr.ch"
+  # GitLab deploy token for so/pop (read_registry for image/OCI pulls, plus
+  # registry delete for pop-api's retention GC). The keys are NOT in
+  # secrets/secrets.yml yet and direct indexing fails the ENTIRE home plan
+  # with "Invalid index", so read them through try() and gate every consumer
+  # (this pull secret, pop.tf's registry token vault key + ExternalSecret) on
+  # both being present. To enable function image pulls/GC, provision the
+  # deploy token on so/pop and add with sops to secrets/secrets.yml:
+  #   gitlab:
+  #     pop_deploy_user: <deploy token username>
+  #     pop_deploy_token: <deploy token value>
+  pop_registry_user      = try(var.secrets["gitlab.pop_deploy_user"], null)
+  pop_registry_password  = try(var.secrets["gitlab.pop_deploy_token"], null)
+  pop_deploy_token_ready = local.pop_registry_user != null && local.pop_registry_password != null
 }
 
 resource "kubernetes_secret_v1" "pop_gitlab_registry" {
+  count      = local.pop_deploy_token_ready ? 1 : 0
   depends_on = [module.namespace["pop"]]
   metadata {
     name      = "gitlab-registry"

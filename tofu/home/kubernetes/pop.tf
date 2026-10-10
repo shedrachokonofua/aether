@@ -203,7 +203,9 @@ resource "helm_release" "pop" {
       { name = "AWS_ENDPOINT_URL_STS", value = "https://s3.home.shdr.ch" },
       { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_endpoint },
     ]
-    imagePullSecrets    = [{ name = kubernetes_secret_v1.pop_gitlab_registry.metadata[0].name }]
+    # The GitLab pull secret exists only once SOPS carries the deploy token
+    # (wasmcloud.tf); the chart skips imagePullSecrets when the list is empty.
+    imagePullSecrets    = local.pop_deploy_token_ready ? [{ name = kubernetes_secret_v1.pop_gitlab_registry[0].metadata[0].name }] : []
     podDisruptionBudget = { minAvailable = 1 }
   })]
 }
@@ -251,16 +253,23 @@ resource "vault_kv_secret_v2" "pop_webhook_key" {
 }
 
 resource "vault_kv_secret_v2" "pop_registry_token" {
+  # Skipped until gitlab.pop_deploy_user / gitlab.pop_deploy_token land in
+  # SOPS (see wasmcloud.tf). pop-api needs the materialised token as
+  # POP_REGISTRY_TOKEN_FILE (popEnv=prod refuses to start without it), so
+  # function image pulls and retention GC stay disabled until the keys exist.
+  count = local.pop_deploy_token_ready ? 1 : 0
+
   mount = var.openbao_kv_mount_path
   name  = "pop/registry-token"
   # Same GitLab deploy token the wasmCloud pull secret uses (read+delete on
   # so/pop), stored `<user>:<token>` as pop-api's POP_REGISTRY_TOKEN_FILE.
   data_json = jsonencode({
-    token = "${var.secrets["gitlab.pop_deploy_user"]}:${var.secrets["gitlab.pop_deploy_token"]}"
+    token = "${local.pop_registry_user}:${local.pop_registry_password}"
   })
 }
 
 resource "kubectl_manifest" "pop_registry_token" {
+  count      = local.pop_deploy_token_ready ? 1 : 0
   depends_on = [kubectl_manifest.namespace_secret_store["pop"], vault_kv_secret_v2.pop_registry_token]
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1"
