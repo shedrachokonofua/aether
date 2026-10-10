@@ -212,6 +212,18 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["litellm"]
+      # Spend-log rows carry ~105 KB of prompt each (store_prompts_in_spend_logs)
+      # on ceph-rbd. With 5 min checkpoints and a 1 GB WAL cap every checkpoint
+      # rewrote whole pages into WAL and a burst forced an early one (531 MB of
+      # WAL at 18:44 UTC 2026-10-10) while commits on the same volume waited.
+      # Reload-only parameters: no restart.
+      postgresql = {
+        parameters = {
+          wal_compression    = "on"
+          max_wal_size       = "4GB"
+          checkpoint_timeout = "15min"
+        }
+      }
       # The moira role owns the moira database (Database manifest below) and
       # reads the litellm database read-only for the spend-log ledger.
       managed = {
