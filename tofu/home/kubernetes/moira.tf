@@ -13,7 +13,7 @@
 locals {
   # PENDING_CI_DIGEST: the GitLab CI image build publishes the real digest;
   # this sentinel is replaced with it before the first Moira apply.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:90c8b9c3891f192c25e49d4cf4d1a1801780d6613bb3d5f69ded71e600c98e43"
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:a04466a8737bf975e5e761a9f3602d334390fc5ab555534648f73db708225bf7"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }
