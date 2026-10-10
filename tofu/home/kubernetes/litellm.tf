@@ -34,6 +34,7 @@ locals {
   litellm_affine_workspace_id = "5e3fe4c1-8c87-489b-95a5-77daa164a836"
   litellm_config_yaml = templatefile("${path.module}/litellm_config.yaml.tftpl", {
     affine_mcp_http_token    = random_password.litellm_affine_mcp_http.result
+    deskplane_mcp_auth_token = var.deskplane_mcp_auth_token
     colony_mcp_client_secret = var.colony_litellm_client_secret
     google_maps_enabled      = var.litellm_google_maps_enabled
   })

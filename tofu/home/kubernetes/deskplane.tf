@@ -92,6 +92,22 @@ resource "kubernetes_secret_v1" "deskplane_mcp_token" {
   type = "Opaque"
 }
 
+# Bearer token /mcp requires (mcp.authTokenSecretRef below), so a caller's
+# tool allowlist is enforced: an agent that skips its Daimyo sidecar and
+# dials :8100 directly is refused. LiteLLM's gateway and Daimyo's mcp grants
+# (OpenBao orgs/<org>/deskplane) send it.
+resource "kubernetes_secret_v1" "deskplane_mcp_auth" {
+  depends_on = [module.namespace["deskplane"]]
+  metadata {
+    name      = "deskplane-mcp-auth"
+    namespace = local.deskplane_namespace
+  }
+  data = {
+    token = var.deskplane_mcp_auth_token
+  }
+  type = "Opaque"
+}
+
 resource "kubernetes_secret_v1" "deskplane_mcp_llm_key" {
   depends_on = [module.namespace["deskplane"]]
   metadata {
@@ -137,6 +153,7 @@ resource "helm_release" "deskplane" {
     kubernetes_secret_v1.deskplane_gitlab_registry,
     kubernetes_secret_v1.deskplane_oidc,
     kubernetes_secret_v1.deskplane_mcp_token,
+    kubernetes_secret_v1.deskplane_mcp_auth,
     kubernetes_secret_v1.deskplane_mcp_llm_key,
     kubernetes_secret_v1.deskplane_web,
     kubernetes_storage_class_v1.ceph_rbd,
@@ -405,6 +422,10 @@ resource "helm_release" "deskplane" {
       }
       apiTokenSecretRef = {
         name = kubernetes_secret_v1.deskplane_mcp_token.metadata[0].name
+        key  = "token"
+      }
+      authTokenSecretRef = {
+        name = kubernetes_secret_v1.deskplane_mcp_auth.metadata[0].name
         key  = "token"
       }
       openaiApiKeySecretRef = {

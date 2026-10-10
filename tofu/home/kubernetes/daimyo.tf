@@ -392,10 +392,10 @@ resource "helm_release" "daimyo" {
         orgs    = {}
       }
       signer = {
-        kind      = "transit"
-        pemDir    = null
-        orgs      = []
-        address   = "https://bao.home.shdr.ch"
+        kind    = "transit"
+        pemDir  = null
+        orgs    = []
+        address = "https://bao.home.shdr.ch"
         # Auth comes from openbao.auth (Kubernetes) above.
       }
       litellm = {
@@ -403,11 +403,11 @@ resource "helm_release" "daimyo" {
         adminKeyFile = "/etc/daimyo/secrets/litellm-admin-key"
       }
       secrets = {
-        kind      = "openbao"
-        address   = "https://bao.home.shdr.ch"
-        mount     = "kv"
+        kind    = "openbao"
+        address = "https://bao.home.shdr.ch"
+        mount   = "kv"
         # Auth comes from openbao.auth (Kubernetes) above.
-        values    = {}
+        values = {}
       }
       git = {
         defaultBaseUrl = "https://gitlab.home.shdr.ch"
@@ -887,9 +887,10 @@ resource "kubectl_manifest" "daimyo_qa_policy" {
 # compiles onto config.harness.images["claude-code"], and harness revisions
 # skip attestation). Models through the sidecar's LiteLLM grant on
 # moira/strong; web research through Deskplane's MCP server (the `web` grant,
-# no client auth: reachable only via daimyo_tasks_egress and
-# deskplane_mcp_daimyo_ingress). Claude Code's own WebSearch is an Anthropic
-# server tool a LiteLLM alias cannot serve, so the `web` built-ins stay off.
+# bearer token from OpenBao orgs/personal/deskplane, openbao_daimyo.tf; the
+# network path is daimyo_tasks_egress and deskplane_mcp_daimyo_ingress).
+# Claude Code's own WebSearch is an Anthropic server tool a LiteLLM alias
+# cannot serve, so the `web` built-ins stay off.
 resource "kubectl_manifest" "daimyo_researcher_agent" {
   depends_on = [kubectl_manifest.daimyo_project]
 
@@ -925,13 +926,62 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
         {
           name = "web"
           mcp = {
-            url   = "http://deskplane-mcp.deskplane.svc:8100/mcp"
+            url = "http://deskplane-mcp.deskplane.svc:8100/mcp"
+            auth = {
+              secret = {
+                secret = { path = "orgs/personal/deskplane", key = "token" }
+                header = { name = "Authorization" }
+                prefix = "Bearer"
+              }
+            }
             tools = ["search_web", "scrape", "parse_document"]
           }
         },
       ]
       sessions  = { enabled = true }
       endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+# `notes`: the M6 sessions agent Open WebUI reaches through the Daimyo MCP
+# connection (openwebui.tf). Image agents need a passing attestation for the
+# digest in the org before the revision goes Ready (POST
+# /v1/orgs/personal/attestations as an org user; `daimyoctl conformance
+# <image> --agent <cr> --attest --org personal` runs the kit and posts it).
+resource "kubectl_manifest" "daimyo_notes_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "notes"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "personal"
+      description = "Keeps a running notes file across a session and recalls earlier turns."
+      contract    = "v1"
+      image       = "registry.gitlab.home.shdr.ch/so/daimyo/notes-agent@sha256:ae8fe5e7e080711f5a0251d518ed87b900939b34386e03d79ec5a1bfe837c5f9"
+      resources   = { cpu = "250m", memory = "256Mi", workspace = "512Mi" }
+      operations = [{
+        name        = "note"
+        inputSchema = { type = "object" }
+        outputSchema = {
+          type     = "object"
+          required = ["notes", "count"]
+          properties = {
+            notes    = { type = "array", items = { type = "string" } }
+            count    = { type = "integer" }
+            answer   = { type = "string" }
+            recorded = { type = "string" }
+          }
+        }
+      }]
+      endpoints = { stable = { revision = "latest" } }
+      sessions  = { enabled = true, idleTtl = "10m", maxLifetime = "7d" }
     }
   })
 }

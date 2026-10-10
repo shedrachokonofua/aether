@@ -1158,6 +1158,8 @@ mcp_servers:
     url: "http://localhost:8007/mcp"
   deskplane:
     url: "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
+    auth_type: bearer_token
+    auth_value: "${deskplane_mcp_auth_token}"
   # Siren: 74 tools generated from its gRPC contract.
   # Cluster DNS, not mcp.siren.home.shdr.ch -- that hostname is reserved in the
   # namespace contract but has no Caddy vhost (the wildcard is single-label).

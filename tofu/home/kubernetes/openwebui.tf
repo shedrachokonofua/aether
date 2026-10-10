@@ -46,6 +46,28 @@ locals {
       name        = "LiteLLM"
       description = "LiteLLM"
     }
+    }, {
+    # Daimyo sessions (docs/ops/open-webui.md in so/daimyo). system_oauth
+    # forwards the signed-in user's Keycloak access token, which carries
+    # audience `daimyo` (keycloak.tf openwebui_daimyo_audience); Daimyo's org
+    # `personal` then authenticates the user as themselves. Empty
+    # access_grants = admin-only.
+    type      = "mcp"
+    url       = "https://daimyo.home.shdr.ch/mcp?org=personal"
+    spec_type = "url"
+    spec      = ""
+    path      = "openapi.json"
+    auth_type = "system_oauth"
+    key       = ""
+    config = {
+      enable        = true
+      access_grants = []
+    }
+    info = {
+      id          = "daimyo"
+      name        = "Daimyo"
+      description = "Daimyo agents and sessions"
+    }
   }])
 
   openwebui_terminal_server_connections = jsonencode([{
@@ -243,8 +265,11 @@ resource "kubernetes_deployment_v1" "openwebui" {
         # Model routes are discovered at startup. Keep the UI's pod template
         # coupled to the declarative LiteLLM model configuration so a model
         # change is served without an imperative rollout restart.
+        # The tool-connections hash rolls the pod when only a connection
+        # changes (the Secret env is read at startup; persistent config is off).
         annotations = {
-          "aether.shdr.ch/litellm-config-sha" = sha256(local.litellm_config_yaml)
+          "aether.shdr.ch/litellm-config-sha"   = sha256(local.litellm_config_yaml)
+          "aether.shdr.ch/tool-connections-sha" = nonsensitive(sha256(local.openwebui_tool_server_connections))
         }
       }
 

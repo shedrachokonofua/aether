@@ -72,6 +72,27 @@ resource "vault_kv_secret_v2" "daimyo_org_placeholders" {
   })
 }
 
+# Bearer token Deskplane's MCP server requires on /mcp (kubernetes/deskplane.tf
+# mcp.authTokenSecretRef). LiteLLM's MCP gateway sends it, and each org that
+# reaches Deskplane gets a copy at orgs/<org>/deskplane for its mcp grants'
+# `auth.secret`. Keep the org list in step with daimyo_deskplane_orgs
+# (kubernetes/daimyo.tf), which opens the network path for the same orgs.
+resource "random_password" "deskplane_mcp_auth" {
+  length  = 48
+  special = false
+}
+
+resource "vault_kv_secret_v2" "daimyo_deskplane_mcp_auth" {
+  for_each = toset(["personal", "qa"])
+
+  mount = local.daimyo_kv_mount
+  name  = "orgs/${each.key}/deskplane"
+
+  data_json = jsonencode({
+    token = random_password.deskplane_mcp_auth.result
+  })
+}
+
 # The server presents its ServiceAccount token (created by the chart's rbac)
 # to the shared `kubernetes-aether` backend — the claude_bridge pattern.
 resource "vault_kubernetes_auth_backend_role" "daimyo_server" {

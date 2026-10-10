@@ -2019,6 +2019,19 @@ resource "keycloak_openid_audience_protocol_mapper" "daimyo_smoke_audience" {
   add_to_access_token      = true
 }
 
+# Open WebUI forwards the signed-in user's access token to Daimyo's MCP
+# endpoint (system_oauth connection, kubernetes/openwebui.tf); Daimyo's org
+# `personal` requires audience `daimyo`. Users pick it up on their next token
+# refresh.
+resource "keycloak_openid_audience_protocol_mapper" "openwebui_daimyo_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openwebui.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
+  add_to_access_token      = true
+}
+
 # Local MCP clients (Claude Code: --client-id colony-mcp --callback-port 4401).
 resource "keycloak_openid_client" "colony_mcp" {
   realm_id  = keycloak_realm.aether.id
