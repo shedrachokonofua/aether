@@ -26,14 +26,14 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # 59c653c server + sidecar (pipeline 6448: controller instance scoping,
-  # status hot-loop fix, mirrored-generation guard; carries 75b97d4's outbox
-  # retry + migration 0009 and 2e392d5's optional MCP auth).
-  daimyo_server_tag  = "sha256:cb1a1cb42ae20d9783815780aa56ac377a107beff669d4f578474e083dcf065e"
+  # 53ef50e server (pipeline 6458: no total timeout on agent event streams,
+  # controller dependency retry a01f419, plus 59c653c instance scoping,
+  # 75b97d4 outbox retry + migration 0009). Sidecar unchanged since 59c653c.
+  daimyo_server_tag  = "sha256:bf21140b83ba4f74fe6fe6f55448dbdd4f9bd3ac2779b19199e85f1b87d13cf0"
   daimyo_sidecar_tag = "sha256:98730294cceeb5fc1cfcc73d954f8eedbe165a31d89d8ba39932717ef88b50be"
-  # Built-in claude-code harness image (Helm config.harness.images); 2e392d5
-  # build, unchanged in content since 411e8d8 (pipeline 6430).
-  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:73b82ef5bf0ec2a65c63342a1d3fc83eaf2cfb9fd2d70b7d47edf5fd103ba535"
+  # Built-in claude-code harness image (Helm config.harness.images); c3f9df1
+  # (pipeline 6453): event-stream keepalive + no Bun idle timeout.
+  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:8eb0960f0ec57280eb4371968e871c13fff1a2fb397c64c06f3038ebd3e45d88"
   # d7e6ec1 echo (pipeline 6422).
   daimyo_echo_image    = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   daimyo_ns            = module.namespace["daimyo-system"].name
