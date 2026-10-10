@@ -10,8 +10,8 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-83ba3ea0"
-  deskplane_image_tag     = "83ba3ea0"
+  deskplane_chart_version = "0.1.0-6c69ac72"
+  deskplane_image_tag     = "6c69ac72"
   # CI rebuilds a session image only when images/<name>/** changes and tags
   # it with that pipeline's commit (the push head, not necessarily the commit
   # that touched the image) -- check the registry before bumping.
@@ -358,8 +358,12 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "786c95f4"
+        tag        = "6c69ac72"
       }
+      # Sessions the MCP opens (computer use, browsing) need no smith-only
+      # device: let them schedule on any amd64 node. talos-smith's memory is
+      # fully requested, which left MCP sessions Pending (E2E 2026-10-10).
+      sessionNodeSelector = "kubernetes.io/arch=amd64"
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
       podLabels = {
