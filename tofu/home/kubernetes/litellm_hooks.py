@@ -6,6 +6,7 @@ Mounted beside config.yaml and registered in litellm_settings.callbacks.
 import json
 import logging
 import os
+import time
 from collections import OrderedDict
 from typing import Any
 
@@ -41,6 +42,34 @@ def _new_input_chars(session_key: str | None, chars: int) -> int:
         _SESSION_CHARS.popitem(last=False)
     # A shrink (compaction, new conversation under the same key) is all new.
     return chars - prev if prev is not None and chars >= prev else chars
+
+
+# Moira's newest `route` answer per request shape, reused when /decide fails.
+# Moira answers hundreds of times an hour, so a recent answer for the same
+# tier, API, stream mode, effort and key allowlist is a quota-aware route,
+# unlike the static moira/<tier> alias, whose fixed default can be the very
+# provider that ran out: Muse hit its weekly limit (2026-10-10 14:25 EDT), its
+# 30 h Retry-After cooled the moira/strong alias, and every decide timeout
+# after that became a 429 for the caller.
+_LAST_ROUTE: "OrderedDict[tuple[Any, ...], tuple[float, dict[str, Any]]]" = OrderedDict()
+_LAST_ROUTE_MAX = 512
+_LAST_ROUTE_MAX_AGE_S = 600.0
+
+
+def _remember_route(key: tuple[Any, ...], decision: dict[str, Any]) -> None:
+    _LAST_ROUTE.pop(key, None)
+    _LAST_ROUTE[key] = (time.monotonic(), decision)
+    if len(_LAST_ROUTE) > _LAST_ROUTE_MAX:
+        _LAST_ROUTE.popitem(last=False)
+
+
+def _recent_route(key: tuple[Any, ...]) -> tuple[float, dict[str, Any]] | None:
+    """(age in seconds, decision) of the newest route for this shape, if recent."""
+    entry = _LAST_ROUTE.get(key)
+    if entry is None:
+        return None
+    age = time.monotonic() - entry[0]
+    return (age, entry[1]) if age <= _LAST_ROUTE_MAX_AGE_S else None
 
 
 class ChatReasoningEffort(CustomLogger):
@@ -165,9 +194,11 @@ class MoiraRouter(CustomLogger):
     which answers from its in-memory quota cache. `route` rewrites
     data["model"] (plus effort, up to two fallbacks and each one's own effort
     in metadata.moira_efforts, applied per attempt by deployment_adapter), `refuse`
-    raises the tier's 429/400 back to the caller, and passthrough, timeout or
-    any Moira error leaves the request unchanged (fail-open) so the
-    moira/<tier> alias deployments serve their static default model.
+    raises the tier's 429/400 back to the caller, and passthrough leaves the
+    request unchanged. On a timeout or any Moira error the newest route Moira
+    gave for the same request shape (up to 10 min old) is reused; without one
+    the request stays unchanged (fail-open) and the moira/<tier> alias
+    deployments serve their static default model.
 
     Env: MOIRA_DECIDE_URL (POST target), MOIRA_DECIDE_TOKEN (bearer),
     MOIRA_GROUPS (comma list of tiers.yaml `groups` names to route).
@@ -219,7 +250,10 @@ class MoiraRouter(CustomLogger):
             ),
             "allowed_models": _effective_allowed_models(user_api_key_dict),
         }
+        allowed = payload["allowed_models"]
+        route_key = (model, api, payload["stream"], effort, None if allowed is None else tuple(sorted(allowed)))
 
+        reused = False
         try:
             token = os.environ.get("MOIRA_DECIDE_TOKEN")
             response = await _moira_client.post(
@@ -232,11 +266,19 @@ class MoiraRouter(CustomLogger):
             decision = response.json()
             if not isinstance(decision, dict):
                 raise RuntimeError("decide answered a non-object")
-        except Exception as exc:  # fail open on any Moira error or timeout
+        except Exception as exc:  # reuse Moira's last route, else fail open
+            recent = _recent_route(route_key)
+            if recent is None:
+                logger.warning(
+                    "Moira decide unavailable (%s: %s); failing open", type(exc).__name__, exc
+                )
+                return None
+            age, decision = recent
+            reused = True
             logger.warning(
-                "Moira decide unavailable (%s: %s); failing open", type(exc).__name__, exc
+                "Moira decide unavailable (%s: %s); reusing its %.0fs-old route to %s",
+                type(exc).__name__, exc, age, decision.get("model"),
             )
-            return None
 
         action = decision.get("action")
         if action == "passthrough":
@@ -256,6 +298,8 @@ class MoiraRouter(CustomLogger):
             logger.warning("Moira decide returned an unusable %r answer; failing open", action)
             return None
 
+        if not reused:  # a reused answer must not refresh its own age
+            _remember_route(route_key, decision)
         data["model"] = chosen
         route_effort = decision.get("effort")
         if isinstance(route_effort, str) and route_effort:
