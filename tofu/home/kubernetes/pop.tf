@@ -136,7 +136,7 @@ resource "kubernetes_config_map_v1" "pop_orgs" {
 }
 
 resource "helm_release" "pop" {
-  depends_on = [terraform_data.pop_chart, kubectl_manifest.pop_cnpg_cluster, kubernetes_config_map_v1.pop_orgs, kubectl_manifest.pop_visitor_secrets, kubectl_manifest.pop_session_key, kubectl_manifest.pop_webhook_key, kubernetes_secret_v1.pop_gitlab_registry]
+  depends_on = [terraform_data.pop_chart, kubectl_manifest.pop_cnpg_cluster, kubernetes_config_map_v1.pop_orgs, kubectl_manifest.pop_visitor_secrets, kubectl_manifest.pop_session_key, kubectl_manifest.pop_webhook_key, kubectl_manifest.pop_registry_token, kubernetes_secret_v1.pop_gitlab_registry]
   name       = "pop"
   chart      = "${path.module}/../../../../pop/deploy/helm/pop"
   namespace  = local.pop_namespace
@@ -147,7 +147,7 @@ resource "helm_release" "pop" {
       error_message = "Pin pop_api_image_tag and pop_origin_image_tag to the digests in pop CI image-digests.env before applying."
     }
   }
-  timeout    = 600
+  timeout = 600
   values = [yamlencode({
     api = {
       image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = local.pop_api_image_tag }
@@ -238,6 +238,33 @@ resource "vault_kv_secret_v2" "pop_webhook_key" {
   name  = "pop/webhook-key"
   data_json = jsonencode({
     key = random_bytes.pop_webhook_key.base64
+  })
+}
+
+resource "vault_kv_secret_v2" "pop_registry_token" {
+  mount = var.openbao_kv_mount_path
+  name  = "pop/registry-token"
+  # Same GitLab deploy token the wasmCloud pull secret uses (read+delete on
+  # so/pop), stored `<user>:<token>` as pop-api's POP_REGISTRY_TOKEN_FILE.
+  data_json = jsonencode({
+    token = "${var.secrets["gitlab.pop_deploy_user"]}:${var.secrets["gitlab.pop_deploy_token"]}"
+  })
+}
+
+resource "kubectl_manifest" "pop_registry_token" {
+  depends_on = [kubectl_manifest.namespace_secret_store["pop"], vault_kv_secret_v2.pop_registry_token]
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1"
+    kind       = "ExternalSecret"
+    metadata   = { name = "pop-registry-token", namespace = local.pop_namespace }
+    spec = {
+      refreshInterval = "15m"
+      secretStoreRef  = { kind = "SecretStore", name = "openbao" }
+      target          = { name = "pop-registry-token", creationPolicy = "Owner" }
+      data = [
+        { secretKey = "token", remoteRef = { key = "pop/registry-token", property = "token" } }
+      ]
+    }
   })
 }
 
