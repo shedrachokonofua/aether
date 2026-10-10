@@ -126,6 +126,24 @@ variable "secrets" {
   description = "SOPS secrets map (for Ceph credentials)"
 }
 
+variable "pop_api_image_tag" {
+  type        = string
+  description = "Immutable CI digest tag for registry.gitlab.home.shdr.ch/so/pop/pop-api"
+  validation {
+    condition     = can(regex("^sha256:[0-9a-f]{64}$", var.pop_api_image_tag))
+    error_message = "Pop API image tag must be a sha256 digest emitted by pop CI."
+  }
+}
+
+variable "pop_origin_image_tag" {
+  type        = string
+  description = "Immutable CI digest tag for registry.gitlab.home.shdr.ch/so/pop/pop-origin"
+  validation {
+    condition     = can(regex("^sha256:[0-9a-f]{64}$", var.pop_origin_image_tag))
+    error_message = "Pop origin image tag must be a sha256 digest emitted by pop CI."
+  }
+}
+
 # =============================================================================
 # Crossplane Keycloak Provider
 # =============================================================================

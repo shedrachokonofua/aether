@@ -719,20 +719,6 @@ s3.home.shdr.ch {
   }
 }
 
-shdr.ch {
-  import access_logs
-  @shdrchRoot path /
-  rewrite @shdrchRoot /shdrch/index.html
-  @shdrchNotRoot not path /
-  rewrite @shdrchNotRoot /shdrch{uri}
-
-  reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
-    header_up Host s3.home.shdr.ch
-    header_up X-Real-IP {http.request.remote}
-    header_up X-Forwarded-For {http.request.remote}
-    header_up X-Forwarded-Proto https
-  }
-}
 
 # =============================================================================
 # Attaining studio (attain.ing)
@@ -864,6 +850,8 @@ api.siren.home.shdr.ch {
 :9443 {
   import access_logs
   @shdrch host shdr.ch
+  @attaining host attain.ing
+
   @auth host auth.shdr.ch
   @ai host ai.shdr.ch
   @nextcloud host nextcloud.shdr.ch
@@ -872,8 +860,6 @@ api.siren.home.shdr.ch {
   @seven30_k8s host k8s.seven30.xyz
   @seven30 host seven30.xyz
   @seven30_apps host *.seven30.xyz
-  @attaining host attain.ing
-  @pop_custom host shdr.ch
 
   @attaining_arpa host arpa.attain.ing *.arpa.attain.ing
   @attaining_apps host *.attain.ing
@@ -908,30 +894,17 @@ api.siren.home.shdr.ch {
     respond 404
   }
 
-  handle @pop_custom {
+  handle @shdrch {
     reverse_proxy 10.0.3.19 {
-      header_up Host www.pop.home.shdr.ch
+      header_up Host shdrch.pop.home.shdr.ch
       header_up X-Real-IP {http.request.remote.host}
-      header_up X-Forwarded-For {http.request.remote.host}
+      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
       header_up X-Pop-Edge public
       header_up X-Pop-Public-Host {http.request.host}
       header_up X-Forwarded-Proto https
     }
   }
 
-  handle @shdrch {
-    @publicShdrchRoot path /
-    rewrite @publicShdrchRoot /shdrch/index.html
-    @publicShdrchNotRoot not path /
-    rewrite @publicShdrchNotRoot /shdrch{uri}
-
-    reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
-      header_up Host s3.home.shdr.ch
-      header_up X-Real-IP {http.request.header.X-Real-IP}
-      header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
-      header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-    }
-  }
 
   handle @auth {
     # Block admin console and master realm from public internet
@@ -989,20 +962,16 @@ api.siren.home.shdr.ch {
       header_up X-Forwarded-Proto https
     }
   }
-
-  # attain.ing root: static site served from the attaining-www RGW bucket
-  # (deployed by so/attaining/www CI). Same shape as @shdrch above.
+  # Public project domains use their production alias on the pop origin.
+  # These custom domains resolve through the registered production aliases.
   handle @attaining {
-    @publicAttainingRoot path /
-    rewrite @publicAttainingRoot /attaining-www/index.html
-    @publicAttainingNotRoot not path /
-    rewrite @publicAttainingNotRoot /attaining-www{uri}
-
-    reverse_proxy 192.168.2.202:7480 192.168.2.204:7480 192.168.2.205:7480 {
-      header_up Host s3.home.shdr.ch
-      header_up X-Real-IP {http.request.header.X-Real-IP}
+    reverse_proxy 10.0.3.19 {
+      header_up Host attaining-www.pop.home.shdr.ch
+      header_up X-Real-IP {http.request.remote.host}
       header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
-      header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+      header_up X-Pop-Edge public
+      header_up X-Pop-Public-Host {http.request.host}
+      header_up X-Forwarded-Proto https
     }
   }
 
