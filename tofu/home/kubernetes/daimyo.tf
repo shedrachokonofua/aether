@@ -44,13 +44,19 @@ locals {
   # (config.controller.instance below); unlabelled CRs are ignored.
   daimyo_instance  = "daimyo"
   daimyo_cr_labels = merge(local.daimyo_labels, { "daimyo.shdr.ch/instance" = local.daimyo_instance })
+  # Org `qa` is the venue of the end-to-end test campaign (daimyo repo
+  # docs/plans/2026-10-10-e2e-campaign.md); its objects carry this label too.
+  daimyo_qa_labels = merge(local.daimyo_cr_labels, { "daimyo.shdr.ch/campaign" = "e2e" })
   # Model alias the bootstrap echo agent's grant names. Must exist in
   # aether's LiteLLM config (litellm_config.yaml.tftpl): a cheap real alias
   # so key minting succeeds even though echo never calls the model.
-  daimyo_echo_model  = "moira/flash"
-  daimyo_orgs        = toset(["personal", "seven30"])
-  daimyo_s3_endpoint = "https://s3.seaweed.home.shdr.ch"
-  daimyo_s3_region   = "us-east-1"
+  daimyo_echo_model = "moira/flash"
+  daimyo_orgs       = toset(["personal", "seven30", "qa"])
+  # Orgs whose tasks reach Deskplane's MCP server (daimyo_tasks_egress and
+  # deskplane_mcp_daimyo_ingress).
+  daimyo_deskplane_orgs = ["personal", "qa"]
+  daimyo_s3_endpoint    = "https://s3.seaweed.home.shdr.ch"
+  daimyo_s3_region      = "us-east-1"
   # Static in-cluster service names (not resource references): referencing
   # live resources pulls their dependency chains into every targeted plan.
   daimyo_litellm_upstream = "http://litellm.litellm.svc.cluster.local:4000"
@@ -100,7 +106,7 @@ resource "kubernetes_secret_v1" "daimyo_registry" {
 # cross-namespace secret references do not exist.
 resource "kubernetes_secret_v1" "daimyo_tasks_registry" {
   for_each   = local.daimyo_orgs
-  depends_on = [module.namespace["personal-tasks"], module.namespace["seven30-tasks"]]
+  depends_on = [module.namespace["personal-tasks"], module.namespace["seven30-tasks"], module.namespace["qa-tasks"]]
 
   metadata {
     name      = "daimyo-gitlab-registry"
@@ -261,7 +267,7 @@ resource "kubernetes_secret_v1" "daimyo_s3" {
 resource "terraform_data" "daimyo_buckets" {
   depends_on = [random_password.daimyo_s3_access_key, random_password.daimyo_s3_secret_key]
 
-  triggers_replace = ["daimyo-personal,daimyo-seven30,daimyo-backups"]
+  triggers_replace = ["daimyo-personal,daimyo-seven30,daimyo-qa,daimyo-backups"]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -276,7 +282,7 @@ resource "terraform_data" "daimyo_buckets" {
       AWS_DEFAULT_REGION        = "us-east-1"
       AWS_EC2_METADATA_DISABLED = "true"
       S3_ENDPOINT               = local.daimyo_s3_endpoint
-      S3_BUCKETS                = "daimyo-personal daimyo-seven30 daimyo-backups"
+      S3_BUCKETS                = "daimyo-personal daimyo-seven30 daimyo-qa daimyo-backups"
     }
   }
 }
@@ -293,8 +299,10 @@ resource "helm_release" "daimyo" {
     module.namespace["daimyo-system"],
     module.namespace["org-personal"],
     module.namespace["org-seven30"],
+    module.namespace["org-qa"],
     module.namespace["personal-tasks"],
     module.namespace["seven30-tasks"],
+    module.namespace["qa-tasks"],
     kubernetes_secret_v1.daimyo_registry,
     kubernetes_secret_v1.daimyo_tasks_registry,
     kubernetes_secret_v1.daimyo_postgres,
@@ -404,6 +412,7 @@ resource "helm_release" "daimyo" {
     orgs = [
       { name = "personal" },
       { name = "seven30" },
+      { name = "qa" },
     ]
     # The chart's migrate hook can't run here: it fires before the CNPG
     # Cluster's Service exists on install, and it disables the SA token that
@@ -549,7 +558,7 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
         ], [
         # Deskplane's MCP server (the researcher agent's `web` MCP grant;
         # no client auth, so this rule and deskplane_mcp_daimyo_ingress are
-        # the whole access boundary). personal only.
+        # the whole access boundary). local.daimyo_deskplane_orgs only.
         for org in [each.key] : {
           toEndpoints = [{
             matchLabels = {
@@ -559,7 +568,7 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
             }
           }]
           toPorts = [{ ports = [{ port = "8100", protocol = "TCP" }] }]
-        } if org == "personal"
+        } if contains(local.daimyo_deskplane_orgs, org)
       ])
     }
   }
@@ -622,11 +631,11 @@ resource "kubectl_manifest" "daimyo_org" {
     kind       = "Org"
     metadata = {
       name   = each.key
-      labels = local.daimyo_cr_labels
+      labels = each.key == "qa" ? local.daimyo_qa_labels : local.daimyo_cr_labels
     }
     spec = merge(
       {
-        issuers = each.key == "personal" ? [
+        issuers = contains(["personal", "qa"], each.key) ? [
           {
             issuer    = "https://auth.shdr.ch/realms/aether"
             audiences = ["daimyo"]
@@ -670,10 +679,14 @@ resource "kubectl_manifest" "daimyo_project" {
     metadata = {
       name      = each.key
       namespace = "org-${each.key}"
-      labels    = local.daimyo_cr_labels
+      labels    = each.key == "qa" ? local.daimyo_qa_labels : local.daimyo_cr_labels
     }
     spec = {
-      description = each.key == "personal" ? "Personal agents." : "Seven30 agents."
+      description = {
+        personal = "Personal agents."
+        seven30  = "Seven30 agents."
+        qa       = "End-to-end test campaign agents."
+      }[each.key]
     }
   })
 }
@@ -734,6 +747,91 @@ resource "kubectl_manifest" "daimyo_echo_agent" {
   })
 }
 
+# Org `qa` (e2e test campaign): the same `echo` agent as personal's, and the
+# org Policies campaign agents need. Tasks get no baseline permits (§7.4):
+# the baseline only forbids calls and sandbox classes outside the revision's
+# `calls`/`sandboxes` and sandboxes the task does not own, so these permits
+# (mirroring the daimyo repo's deploy/e2e/m3-agents.yaml) make each agent's
+# declared `calls` and `sandboxes` exactly what it may use.
+resource "kubectl_manifest" "daimyo_qa_echo_bundle" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "ConfigBundle"
+    metadata = {
+      name      = "echo"
+      namespace = "org-qa"
+      labels    = local.daimyo_qa_labels
+    }
+    spec = {
+      versions = [
+        { version = 1, contents = { model = local.daimyo_echo_model } },
+      ]
+    }
+  })
+}
+
+resource "kubectl_manifest" "daimyo_qa_echo_agent" {
+  depends_on = [kubectl_manifest.daimyo_qa_echo_bundle]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "echo"
+      namespace = "org-qa"
+      labels    = local.daimyo_qa_labels
+    }
+    spec = {
+      project     = "qa"
+      description = "Echoes its input."
+      contract    = "v1"
+      image       = local.daimyo_echo_image
+      resources   = { cpu = "250m", memory = "256Mi", workspace = "512Mi" }
+      operations = [
+        {
+          name        = "say"
+          inputSchema = { type = "object" }
+          outputSchema = {
+            type       = "object"
+            required   = ["echo"]
+            properties = { echo = { type = "object" } }
+          }
+        },
+      ]
+      config = { bundle = "echo", version = 1 }
+      grants = [
+        { name = "models", model = { models = [local.daimyo_echo_model], budgetUsd = 1 } },
+      ]
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+resource "kubectl_manifest" "daimyo_qa_policy" {
+  for_each = {
+    "task-invoke"         = "permit (principal is Task, action == Action::\"agent::invoke\", resource is Operation);"
+    "task-sandbox-create" = "permit (principal is Task, action == Action::\"sandbox::create\", resource is SandboxClass);"
+    "task-sandbox-use"    = "permit (principal is Task, action in [Action::\"sandbox::use\", Action::\"sandbox::delete\"], resource is Sandbox);"
+    # A delegating task follows its child (`GET /v1/tasks/<child>/events`):
+    # it may read the tasks it created, and only those.
+    "task-read-own" = "permit (principal is Task, action == Action::\"task::read\", resource is Task) when { resource.owner == principal.sub };"
+  }
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Policy"
+    metadata = {
+      name      = each.key
+      namespace = "org-qa"
+      labels    = local.daimyo_qa_labels
+    }
+    spec = { text = each.value }
+  })
+}
+
 # `researcher`: a declarative claude-code harness agent (no image of its own;
 # compiles onto config.harness.images["claude-code"], and harness revisions
 # skip attestation). Models through the sidecar's LiteLLM grant on
@@ -789,8 +887,9 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
 
 # Deskplane's chart policy (deskplane-mcp-ingress, from helm_release.deskplane
 # mcp.ingressFrom) admits only serve, LiteLLM and the collector to MCP :8100.
-# NetworkPolicies are additive: this admits Daimyo's personal task pods (the
-# researcher's `web` grant) without rolling the Deskplane release. No
+# NetworkPolicies are additive: this admits the task pods of
+# local.daimyo_deskplane_orgs (the researcher's `web` grant, the qa campaign)
+# without rolling the Deskplane release. No
 # depends_on: the release already exists, and referencing it would pull its
 # dependency chain into every targeted plan of this policy.
 resource "kubernetes_manifest" "deskplane_mcp_daimyo_ingress" {
@@ -811,8 +910,8 @@ resource "kubernetes_manifest" "deskplane_mcp_daimyo_ingress" {
       }
       policyTypes = ["Ingress"]
       ingress = [{
-        from = [{
-          namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = "personal-tasks" } }
+        from = [for org in local.daimyo_deskplane_orgs : {
+          namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = "${org}-tasks" } }
         }]
         ports = [{ protocol = "TCP", port = 8100 }]
       }]

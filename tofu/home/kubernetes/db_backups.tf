@@ -361,7 +361,7 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
             secretKey = random_password.daimyo_s3_secret_key.result
           }]
           actions = flatten([
-            for bucket in ["daimyo-personal", "daimyo-seven30", "daimyo-backups"] : [
+            for bucket in ["daimyo-personal", "daimyo-seven30", "daimyo-qa", "daimyo-backups"] : [
               "Read:${bucket}",
               "Write:${bucket}",
               "List:${bucket}",
