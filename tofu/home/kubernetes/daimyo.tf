@@ -26,11 +26,11 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # 280b110 server (pipeline 6518): ecb75b8 plus orphan task Secret/ConfigMap
-  # reaping (30fa883), MCP session tail without waitSeconds, `--roles none
-  # --migrate` exits without NATS. Sidecar unchanged since ecb75b8. No new
-  # migrations (0019).
-  daimyo_server_tag  = "sha256:ad56e4ae39114056fb20bf2ea61c2b3efd49d9256fe1cbca82ea35bf0ab20c63"
+  # a5381cb server (pipeline 6560): 280b110 plus the sweeper keeping live
+  # session grants (177d0ba), per-kind orphan reaping (9e5e3cb) with list RBAC
+  # and the migrate pre-upgrade hook (d58a660), one replica releasing a closed
+  # session (a5381cb). Sidecar/harness unchanged. No new migrations (0019).
+  daimyo_server_tag  = "sha256:600e6e5607e1455e0bf37562e21fce97b7cee57189cf14e04f2fb584590b9ef3"
   daimyo_sidecar_tag = "sha256:2573c67f21dcb54d901d9027561e7547b0478e629b5b99a7ae160a97ceb5434d"
   # Built-in harness images (Helm config.harness.images); 280b110: the
   # interrupted turn keeps its context (native session id stored at init,
@@ -431,11 +431,11 @@ resource "helm_release" "daimyo" {
       { name = "seven30" },
       { name = "qa" },
     ]
-    # The chart's migrate hook can't run here: it fires before the CNPG
-    # Cluster's Service exists on install, and it disables the SA token that
-    # `--roles none` still needs for the kata launcher. See the note at the
-    # end of this file for how migrations run.
-    migrate = { enabled = false }
+    # The chart's pre-upgrade hook migrates before any server pod rolls
+    # (d58a660): `serve --roles none --migrate` with only the DB secrets, no
+    # NATS/OpenBao/SA token, waiting up to 5 min for the database. A failed
+    # migration fails the upgrade (atomic) and leaves the old pods running.
+    migrate = { enabled = true }
     serviceAccount = {
       create = true
       name   = "daimyo-server"
@@ -970,11 +970,6 @@ resource "kubernetes_manifest" "deskplane_mcp_daimyo_ingress" {
   }
 }
 
-# Migrations: the server does NOT migrate on boot (the Deployment runs
-# `serve` without `--migrate`). Before a helm_release bump that ships a new
-# migration, run a one-off Job built from the live Deployment's pod template
-# (same SA, render-config initContainer and volumes) with the new server
-# image and args `--config /etc/daimyo/daimyo.toml serve --roles none
-# --migrate`; it logs "migrations applied" and exits 0. 0008 (task/approval
-# renames) ran this way as Job daimyo-migrate-0008; 0009 (outbox retry) as
-# Job daimyo-migrate-0009.
+# Migrations run in the chart's pre-install/pre-upgrade hook (see
+# migrate.enabled above and the daimyo repo's docs/ops/upgrades.md).
+# Migrations are forward-only: an older server cannot run on a newer schema.
