@@ -2153,7 +2153,13 @@ resource "keycloak_openid_client" "pop_visitor" {
   direct_access_grants_enabled = false
   implicit_flow_enabled        = false
   pkce_code_challenge_method   = "S256"
-  valid_redirect_uris          = each.key == "aether" ? ["https://pop.home.shdr.ch/auth/aether/callback"] : ["https://pop.home.shdr.ch/auth/seven30/callback"]
+  valid_redirect_uris = each.key == "aether" ? [
+    "https://pop.home.shdr.ch/auth/aether/callback",
+    "https://shdr.ch/_pop/callback",
+    ] : [
+    "https://pop.home.shdr.ch/auth/seven30/callback",
+    "https://attain.ing/_pop/callback",
+  ]
 }
 
 resource "keycloak_openid_user_realm_role_protocol_mapper" "pop_visitor_roles" {

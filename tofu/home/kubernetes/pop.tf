@@ -137,21 +137,22 @@ resource "helm_release" "pop" {
   timeout    = 600
   values = [yamlencode({
     api = {
-      image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = "latest" }
+      image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = var.pop_api_image_tag }
       replicas = 2
       port     = 8080
     }
     origin = {
-      image    = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-origin", tag = "latest" }
-      replicas = 2
-      port     = 8080
+      image         = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-origin", tag = var.pop_origin_image_tag }
+      replicas      = 2
+      port          = 8080
+      customDomains = ["shdr.ch", "attain.ing"]
     }
     clamd = {
       image     = { repository = "clamav/clamav", tag = "1.4" }
       freshclam = { image = { repository = "clamav/clamav", tag = "1.4" } }
       port      = 3310
     }
-    migration = { image = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = "latest" } }
+    migration = { image = { repository = "registry.gitlab.home.shdr.ch/so/pop/pop-api", tag = var.pop_api_image_tag } }
     serviceAccount = {
       api    = { create = true, name = "pop-api" }
       origin = { create = true, name = "pop-origin" }
@@ -266,6 +267,14 @@ resource "kubernetes_manifest" "pop_egress" {
         {
           toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = local.pop_namespace, "k8s:cnpg.io/cluster" = "pop" } }]
           toPorts     = [{ ports = [{ port = "5432", protocol = "TCP" }] }]
+        },
+        {
+          toEndpoints = [{ matchLabels = { "k8s:io.kubernetes.pod.namespace" = "observability", "k8s:app.kubernetes.io/name" = "opentelemetry-collector" } }]
+          toPorts     = [{ ports = [{ port = "4318", protocol = "TCP" }] }]
+        },
+        {
+          toFQDNs = [{ matchName = "database.clamav.net" }]
+          toPorts = [{ ports = [{ port = "80", protocol = "TCP" }, { port = "443", protocol = "TCP" }] }]
         },
       ]
     }
