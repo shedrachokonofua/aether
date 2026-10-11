@@ -470,6 +470,20 @@ model_list:
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Step 5 Preview free (StepFun launch promotion, reported as one week; added
+  # 2026-10-10, remove once it errors). Go serves it with our own client
+  # headers and without drawing the Go plan: it answered while Go's own models
+  # returned "Go usage limit exceeded" (monthly), and a 60k-token streamed
+  # tool call returned tool_calls in 5 s. Zen's /v1 free tier refuses
+  # non-OpenCode clients, so it stays on Go.
+  - model_name: "opencode-go/step-5-preview-free"
+    litellm_params:
+      model: "openai/step-5-preview-free"
+      litellm_credential_name: opencode_go_credential
+      use_chat_completions_api: true
+      extra_headers: *opencode_go_headers
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 1024000, max_output_tokens: 65536, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "router/mimo-v2.6-flash"
     litellm_params:
       cooldown_time: 300

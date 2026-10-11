@@ -58,6 +58,9 @@ providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "commandcode-free/", id: commandcode-free, quota: { kind: none } }
   - { prefix: "openrouter/",   id: openrouter,   quota: { kind: none } }
   - { prefix: "opencode-go/",  id: opencode-go,  quota: { kind: endpoint } }
+  # Go's free Step 5 does not draw the Go plan (it answered while Go was at its
+  # monthly limit), so the Go windows must not block it.
+  - { prefix: "opencode-go/",  upstream_prefix: "openai/step-5-preview-free", id: opencode-free, quota: { kind: none } }
   - { prefix: "ollama-cloud/", id: ollama-cloud, quota: { kind: endpoint } }
   - { prefix: "antigravity/",  id: antigravity,  quota: { kind: bridge, bridge: antigravity } }
   - { prefix: "supergrok/",    id: supergrok,    quota: { kind: bridge, bridge: grok } }
