@@ -635,6 +635,59 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
   }
 }
 
+# Sandbox pods share `<org>-tasks` with task pods, so daimyo_tasks_egress
+# (endpointSelector {}) lets them reach every service a task may. A sandbox
+# has no sidecar and no credentials: it is driven by pod exec, and the code
+# in it is the agent's. Deny it the credential-gated in-cluster services
+# (Deskplane MCP, LiteLLM, the Daimyo API); Cilium denies beat any allow.
+resource "kubernetes_manifest" "daimyo_sandbox_egress_deny" {
+  for_each   = local.daimyo_orgs
+  depends_on = [helm_release.cilium, helm_release.daimyo]
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "daimyo-sandbox-egress-deny"
+      namespace = "${each.key}-tasks"
+      labels    = local.daimyo_labels
+    }
+    spec = {
+      endpointSelector = {
+        matchExpressions = [{ key = "daimyo.shdr.ch/sandbox", operator = "Exists" }]
+      }
+      egressDeny = [
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "deskplane"
+              "app.kubernetes.io/component" = "mcp"
+              "io.kubernetes.pod.namespace" = "deskplane"
+            }
+          }]
+        },
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "app"                         = "litellm"
+              "io.kubernetes.pod.namespace" = "litellm"
+            }
+          }]
+        },
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "daimyo"
+              "app.kubernetes.io/component" = "server"
+              "io.kubernetes.pod.namespace" = local.daimyo_ns
+            }
+          }]
+        },
+      ]
+    }
+  }
+}
+
 # --- HTTPRoute: daimyo.home.shdr.ch ------------------------------------------------
 # LAN Caddy already routes `*.home.shdr.ch` to the Gateway VIP (Caddyfile.j2
 # wildcard); in-cluster routing is this HTTPRoute on main-gateway. Follows
