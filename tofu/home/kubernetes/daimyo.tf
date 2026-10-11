@@ -26,22 +26,22 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # c3244e3 (pipeline 6652, server/sidecar built at 8dd6e68): M7 (outcomes,
-  # tool permission policies, files + s3 grant, memory stores, durable tasks
-  # and session fork) and M8 (schedules, script workflows with the built-in
-  # workflow-runner). Migrations 0020-0027 run in the pre-upgrade hook.
-  daimyo_server_tag  = "sha256:76afcc50f8ad29cf73d501f8d67f5ff5f2ffbabb594aff1fe12216cfdfbd5599"
-  daimyo_sidecar_tag = "sha256:c38587412a4f10a4fbbb2bbc6adb83f77fff3e1b4b837d1108f0096248e9dc5c"
-  # Built-in harness images (Helm config.harness.images), built at 3434faa:
-  # permission hooks to the sidecar decision endpoint (§9.4), journal events
-  # and turn tags (§8.7), memory mounts (§11c.3). workflow-runner runs script
-  # workflows (§11.5) with no per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:60e7a1f42a247de38a7485852e6f654229aee71032233633b9243b9d72260cd3"
-  daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:7946bcf207a0f41516997f23f1577ea698e897d9e8c514e939c33bf49a8e7bc8"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:cf8377ee20c1f649f668c6ebe52a2fe533af7fe9131408654d68de859014bcdd"
-  daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:3d6b61a20eb4a44af72b09ab71ffeb3c2095168c264e1a38733388dc1c0e93d1"
-  # d7e6ec1 echo (pipeline 6422).
-  daimyo_echo_image    = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
+  # 7eaeb9c (tag campaign2-fixes-1, pipeline 6741): every campaign 2 fix
+  # (docs/e2e/2026-10-11-*.md). Migrations 0028-0035 run in the pre-upgrade
+  # hook.
+  daimyo_server_tag  = "sha256:eefed41d80153f1c526345ad711e52c420b4b8f5ae001b889494c7526d9f877b"
+  daimyo_sidecar_tag = "sha256:34aa63a3d7a932a866f2f851bffa09920fde74d1ccdff8072979a388a8ff5aab"
+  # Built-in harness images (Helm config.harness.images), built at 7eaeb9c.
+  # workflow-runner runs script workflows (§11.5) with no per-project Agent CR.
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:6d02fd9a9581db0913b0e8686dac11f64996070c8cf49cf51d5749dc3386bc48"
+  daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:b896c3028cf3b78fd02f00b6818d8f818f56c5c49987db437b5eda65ad3ed992"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:ea652f3b88f687326bb8ef35e80db3d8b922a4de96bbf0d8e425d8c30fc9021a"
+  daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:e9e21ec10c6162d6dd6898b0e2ba17a14c3add5e2ce47d3a78258f6400f53082"
+  # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
+  daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
+  # 7eaeb9c echo (pipeline 6741, current Python SDK: prompt cancel, no null
+  # data part): org qa's echo, attested in qa by the campaign client.
+  daimyo_qa_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:95af48a0d5280015793bc4c89ed2d105c38a9598453db11cb897540dc36cd22c"
   daimyo_ns            = module.namespace["daimyo-system"].name
   daimyo_host          = "daimyo.home.shdr.ch"
   daimyo_registry_host = "registry.gitlab.home.shdr.ch"
@@ -171,7 +171,9 @@ resource "kubernetes_secret_v1" "daimyo_postgres_api" {
 
   type = "Opaque"
   data = {
-    # Placeholder: CNPG managed.roles overwrites with the generated password.
+    # CNPG managed.roles reads the role's login from this Secret: `username`
+    # must name the role. The password is a placeholder CNPG overwrites.
+    username = "daimyo_api"
     password = random_password.daimyo_postgres_password.result
   }
 
@@ -191,7 +193,9 @@ resource "kubernetes_secret_v1" "daimyo_postgres_engine" {
 
   type = "Opaque"
   data = {
-    # Placeholder: CNPG managed.roles overwrites with the generated password.
+    # CNPG managed.roles reads the role's login from this Secret: `username`
+    # must name the role. The password is a placeholder CNPG overwrites.
+    username = "daimyo_engine"
     password = random_password.daimyo_postgres_password.result
   }
 
@@ -387,7 +391,12 @@ resource "helm_release" "daimyo" {
       }
       # Memory search embeds through LiteLLM; the server default alias
       # (text-embedding-3-small) is not served here (litellm_config.yaml.tftpl).
-      memory = { embeddingModel = "aether/qwen3-embedding:0.6b" }
+      # The built-in dreamer (§11c.3) runs on the cheap alias.
+      memory = {
+        embeddingModel   = "aether/qwen3-embedding:0.6b"
+        dreamerModel     = "moira/flash"
+        dreamerBudgetUsd = 0.25
+      }
       database = {
         ownerUrl  = "postgres://daimyo:__DB_PASSWORD_owner__@daimyo-pg-rw:5432/daimyo"
         apiUrl    = "postgres://daimyo_api:__DB_PASSWORD_api__@daimyo-pg-rw:5432/daimyo"
@@ -844,7 +853,7 @@ resource "kubectl_manifest" "daimyo_qa_echo_agent" {
       project     = "qa"
       description = "Echoes its input."
       contract    = "v1"
-      image       = local.daimyo_echo_image
+      image       = local.daimyo_qa_echo_image
       resources   = { cpu = "250m", memory = "256Mi", workspace = "512Mi" }
       operations = [
         {
@@ -874,6 +883,11 @@ resource "kubectl_manifest" "daimyo_qa_policy" {
     # A delegating task follows its child (`GET /v1/tasks/<child>/events`):
     # it may read the tasks it created, and only those.
     "task-read-own" = "permit (principal is Task, action == Action::\"task::read\", resource is Task) when { resource.owner == principal.sub };"
+    # The campaign client is a Service; the baseline's workflow permits cover
+    # Users only. It starts and reads workflows, and reads and cancels the
+    # runs it started (I-D6).
+    "service-workflow-start"     = "permit (principal is Service, action in [Action::\"workflow::start\", Action::\"workflow::read\"], resource is Workflow);"
+    "service-workflow-run-owner" = "permit (principal is Service, action in [Action::\"workflow::read\", Action::\"workflow::cancel\"], resource is WorkflowRun) when { resource.owner == principal.sub };"
   }
   depends_on = [kubectl_manifest.daimyo_org]
 
@@ -970,7 +984,7 @@ resource "kubectl_manifest" "daimyo_notes_agent" {
       project     = "personal"
       description = "Keeps a running notes file across a session and recalls earlier turns."
       contract    = "v1"
-      image       = "registry.gitlab.home.shdr.ch/so/daimyo/notes-agent@sha256:ae8fe5e7e080711f5a0251d518ed87b900939b34386e03d79ec5a1bfe837c5f9"
+      image       = "registry.gitlab.home.shdr.ch/so/daimyo/notes-agent@sha256:614091a79afb4917ff2f4a007950096834d49881839fc90912e796528ace072a"
       resources   = { cpu = "250m", memory = "256Mi", workspace = "512Mi" }
       operations = [{
         name        = "note"
