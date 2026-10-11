@@ -112,8 +112,10 @@ locals {
   pop_deploy_token_ready = local.pop_registry_user != null && local.pop_registry_password != null
 }
 
+# Always present: pop-api's WorkloadDeployments name `gitlab-registry` as the
+# component imagePullSecret. so/pop is public, so without a deploy token the
+# secret carries no credentials and pulls are anonymous.
 resource "kubernetes_secret_v1" "pop_gitlab_registry" {
-  count      = local.pop_deploy_token_ready ? 1 : 0
   depends_on = [module.namespace["pop"]]
   metadata {
     name      = "gitlab-registry"
@@ -123,7 +125,7 @@ resource "kubernetes_secret_v1" "pop_gitlab_registry" {
   data = {
     ".dockerconfigjson" = jsonencode({
       auths = {
-        (local.pop_registry_host) = {
+        for host in(local.pop_deploy_token_ready ? [local.pop_registry_host] : []) : host => {
           username = local.pop_registry_user
           password = local.pop_registry_password
           auth     = base64encode("${local.pop_registry_user}:${local.pop_registry_password}")
