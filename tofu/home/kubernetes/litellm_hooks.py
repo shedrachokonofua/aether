@@ -249,6 +249,10 @@ class MoiraRouter(CustomLogger):
                 None,
             ),
             "allowed_models": _effective_allowed_models(user_api_key_dict),
+            # Keys Moira's decision log (moira.decision.request_id); LiteLLM sets it
+            # before pre-call hooks and logs it as metadata.litellm_call_id in
+            # LiteLLM_SpendLogs, so the two join per request.
+            "request_id": data.get("litellm_call_id"),
         }
         allowed = payload["allowed_models"]
         route_key = (model, api, payload["stream"], effort, None if allowed is None else tuple(sorted(allowed)))
