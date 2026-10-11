@@ -24,13 +24,16 @@ locals {
   # tools, "#/properties/docId"), and did one-shot discovery, so one bad schema
   # silently broke every tool. The native client forwards schemas as-is and
   # connects per chat. Tool IDs are server:mcp:<info.id>.
+  # system_oauth adds the signed-in user's Keycloak token as `Authorization`
+  # next to the x-litellm-api-key admission header; LiteLLM forwards it only
+  # to oauth_delegate servers (pop), so pop tools run as the user.
   openwebui_tool_server_connections = jsonencode([{
     type      = "mcp"
     url       = var.litellm_mcp_url
     spec_type = "url"
     spec      = ""
     path      = "openapi.json"
-    auth_type = "none"
+    auth_type = "system_oauth"
     key       = ""
     headers = {
       "x-litellm-api-key" = "Bearer ${var.secrets["litellm.virtual_keys.openwebui"]}"
