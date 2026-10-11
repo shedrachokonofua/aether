@@ -104,24 +104,13 @@ resource "helm_release" "wasmcloud" {
 
 locals {
   pop_registry_host = "registry.gitlab.home.shdr.ch"
-  # GitLab deploy token for so/pop (read_registry for image/OCI pulls, plus
-  # registry delete for pop-api's retention GC). The keys are NOT in
-  # secrets/secrets.yml yet and direct indexing fails the ENTIRE home plan
-  # with "Invalid index", so read them through try() and gate every consumer
-  # (this pull secret, pop.tf's registry token vault key + ExternalSecret) on
-  # both being present. To enable function image pulls/GC, provision the
-  # deploy token on so/pop and add with sops to secrets/secrets.yml:
-  #   gitlab:
-  #     pop_deploy_user: <deploy token username>
-  #     pop_deploy_token: <deploy token value>
-  pop_registry_user      = try(var.secrets["gitlab.pop_deploy_user"], null)
-  pop_registry_password  = try(var.secrets["gitlab.pop_deploy_token"], null)
-  pop_deploy_token_ready = local.pop_registry_user != null && local.pop_registry_password != null
 }
 
-# Always present: pop-api's WorkloadDeployments name `gitlab-registry` as the
-# component imagePullSecret. so/pop is public, so without a deploy token the
-# secret carries no credentials and pulls are anonymous.
+# Credential-less: the chart's global.image.pullSecrets names `gitlab-registry`
+# for every host group, so the pop host pods expect one in namespace `pop`.
+# Function workloads carry no imagePullSecret (so/pop-functions is public, and
+# the host would turn even this empty secret into failing Basic auth); the
+# push/delete token is pop-api's alone (pop.tf, OpenBao pop/registry-token).
 resource "kubernetes_secret_v1" "pop_gitlab_registry" {
   depends_on = [module.namespace["pop"]]
   metadata {
@@ -130,15 +119,7 @@ resource "kubernetes_secret_v1" "pop_gitlab_registry" {
   }
   type = "kubernetes.io/dockerconfigjson"
   data = {
-    ".dockerconfigjson" = jsonencode({
-      auths = {
-        for host in(local.pop_deploy_token_ready ? [local.pop_registry_host] : []) : host => {
-          username = local.pop_registry_user
-          password = local.pop_registry_password
-          auth     = base64encode("${local.pop_registry_user}:${local.pop_registry_password}")
-        }
-      }
-    })
+    ".dockerconfigjson" = jsonencode({ auths = {} })
   }
 }
 

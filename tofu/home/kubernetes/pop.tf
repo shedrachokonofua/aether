@@ -8,10 +8,10 @@ locals {
   # wash (pop host group) exports only via gRPC OTLP (wasmcloud.tf).
   pop_otel_grpc_endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4317"
   # Immutable digests emitted by the pop CI images job (image-digests.env),
-  # pinned to so/pop main 9b0ec9c. The precondition on helm_release.pop keeps
+  # pinned to so/pop main 10a9a85. The precondition on helm_release.pop keeps
   # refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:431b6b40453b30459ab22d00d8d5a6e20d355ea8ef990d2665f6b4eecaead039"
-  pop_origin_image_tag = "sha256:aec66650d69d4ac52f89f283deaa778cfd4bdf82e490394f2ef0188ffd5cae36"
+  pop_api_image_tag    = "sha256:6e39940c188fd751823916a61c3ca61b6da573400d882e6aa6cdb251bdeebf57"
+  pop_origin_image_tag = "sha256:7a27f6b5fcfe4ca13e2c1664e05881296988031501fc9fe08e608c1d4b50aa76"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
   # ConfigMap mounts on update but NEVER subPath mounts.
@@ -233,13 +233,9 @@ resource "helm_release" "pop" {
       { name = "AWS_ENDPOINT_URL_STS", value = "https://s3.home.shdr.ch" },
       { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_endpoint },
     ]
-    # so/pop is public: pop images and function components pull anonymously
-    # (gitlab-registry carries no credentials until SOPS has the deploy token).
-    # The deploy token (gitlab.pop_deploy_*) only enables registry GC of expired
-    # components; without it the chart renders the explicit
-    # POP_REGISTRY_GC=disabled opt-out.
-    registryToken       = { enabled = local.pop_deploy_token_ready }
-    imagePullSecrets    = [{ name = kubernetes_secret_v1.pop_gitlab_registry.metadata[0].name }]
+    # Pop images (so/pop) and function components (so/pop-functions) are
+    # public and pull anonymously. pop-api alone holds the so/pop-functions
+    # token (pop-registry-token below) to push components and delete tags.
     podDisruptionBudget = { minAvailable = 1 }
   })]
 }
@@ -286,24 +282,31 @@ resource "vault_kv_secret_v2" "pop_webhook_key" {
   })
 }
 
+# GitLab project access token for so/pop-functions (Maintainer, `api` scope:
+# GitLab grants registry delete only to Maintainer `api` tokens). Scoped to
+# that registry-only project so pop-api can never touch pop's source. pop-api
+# reads it as POP_REGISTRY_TOKEN_FILE (`<user>:<token>`) to push function
+# components at upload and delete deploy tags in retention. Expires
+# 2027-10-10 (GitLab's 1-year maximum): rotate in GitLab, then sops set.
 resource "vault_kv_secret_v2" "pop_registry_token" {
-  # Present once gitlab.pop_deploy_user / gitlab.pop_deploy_token are in SOPS
-  # (see wasmcloud.tf): pop-api reads it as POP_REGISTRY_TOKEN_FILE for
-  # registry GC of expired components. Without it the chart renders the
-  # explicit POP_REGISTRY_GC=disabled opt-out (pulls are anonymous).
-  count = local.pop_deploy_token_ready ? 1 : 0
-
   mount = var.openbao_kv_mount_path
   name  = "pop/registry-token"
-  # Same GitLab deploy token the wasmCloud pull secret uses (read+delete on
-  # so/pop), stored `<user>:<token>` as pop-api's POP_REGISTRY_TOKEN_FILE.
   data_json = jsonencode({
-    token = "${local.pop_registry_user}:${local.pop_registry_password}"
+    token = "${var.secrets["gitlab.pop_functions_registry_user"]}:${var.secrets["gitlab.pop_functions_registry_token"]}"
   })
 }
 
+moved {
+  from = vault_kv_secret_v2.pop_registry_token[0]
+  to   = vault_kv_secret_v2.pop_registry_token
+}
+
+moved {
+  from = kubectl_manifest.pop_registry_token[0]
+  to   = kubectl_manifest.pop_registry_token
+}
+
 resource "kubectl_manifest" "pop_registry_token" {
-  count      = local.pop_deploy_token_ready ? 1 : 0
   depends_on = [kubectl_manifest.namespace_secret_store["pop"], vault_kv_secret_v2.pop_registry_token]
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1"
