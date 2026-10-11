@@ -7,11 +7,25 @@ locals {
   pop_otel_endpoint    = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
   # wash (pop host group) exports only via gRPC OTLP (wasmcloud.tf).
   pop_otel_grpc_endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4317"
+  # Grafana Explore on the provisioned "Tempo" datasource (uid is Grafana's
+  # stable hash of that name). PROJECT/DEPLOY survive urlencode and become the
+  # {project}/{deploy} placeholders pop-api fills in.
+  pop_grafana_explore = replace(replace(
+    "https://grafana.home.shdr.ch/explore?orgId=1&left=${urlencode(jsonencode({
+      datasource = "P214B5B846CF3925F"
+      queries = [{
+        refId     = "A"
+        queryType = "traceql"
+        query     = "{span.pop.project=\"PROJECT\" && span.pop.deploy_id=~\"DEPLOY.*\"}"
+      }]
+      range = { from = "now-6h", to = "now" }
+    }))}",
+  "PROJECT", "{project}"), "DEPLOY", "{deploy}")
   # Immutable digests emitted by the pop CI images job (image-digests.env),
-  # pinned to so/pop main 10a9a85. The precondition on helm_release.pop keeps
+  # pinned to so/pop main 1628d00. The precondition on helm_release.pop keeps
   # refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:6e39940c188fd751823916a61c3ca61b6da573400d882e6aa6cdb251bdeebf57"
-  pop_origin_image_tag = "sha256:7a27f6b5fcfe4ca13e2c1664e05881296988031501fc9fe08e608c1d4b50aa76"
+  pop_api_image_tag    = "sha256:01c00cf26108e828c203d683e9687d833a09bdfbfcec1a237462b1f2e8f0e705"
+  pop_origin_image_tag = "sha256:bc564ef548f41f4bea365e5a309223c4509240a0b2b7fe58ae4a9fd37e630a0e"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
   # ConfigMap mounts on update but NEVER subPath mounts.
@@ -219,7 +233,13 @@ resource "helm_release" "pop" {
     }
     awsStsEndpoint = "https://s3.home.shdr.ch"
     webhookCIDRs   = local.pop_webhook_cidrs
-    config         = { webhookInternalAllow = "ntfy.home.shdr.ch" }
+    config = {
+      webhookInternalAllow = "ntfy.home.shdr.ch"
+      # `pop telemetry` / MCP telemetry_link: Tempo traces of the project's
+      # origin spans; pop-api substitutes {project} and {deploy} (empty when
+      # no deploy is given, which the `=~"{deploy}.*"` match tolerates).
+      grafanaExplore = local.pop_grafana_explore
+    }
     orgs           = { configMap = "pop-orgs", mountPath = "/etc/pop/orgs", fileName = "pop-orgs.json" }
     sessionKey     = { secretName = "pop-session-key", mountPath = "/var/run/pop/session.key" }
     webhookKey     = { secretName = "pop-webhook-key", mountPath = "/var/run/pop/webhook.key" }
@@ -229,10 +249,6 @@ resource "helm_release" "pop" {
       resourceAttributes = "service.namespace=pop,deployment.environment=home"
     }
     internal = { port = 8081 }
-    env = [
-      { name = "AWS_ENDPOINT_URL_STS", value = "https://s3.home.shdr.ch" },
-      { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_endpoint },
-    ]
     # Pop images (so/pop) and function components (so/pop-functions) are
     # public and pull anonymously. pop-api alone holds the so/pop-functions
     # token (pop-registry-token below) to push components and delete tags.

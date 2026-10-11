@@ -70,7 +70,7 @@ Two services plus a CLI:
 
 - **pop-api** — control plane: projects, deploys, aliases, presigned uploads, function and schedule lifecycle, form submissions and uploads, malware scanning, webhooks, visitor-login callback, retention, and the MCP server at `/mcp`.
 - **pop-origin** — data plane: hostname → deploy → manifest → blob, visitor sessions, redirects, headers, function proxying. Read-only on storage; form POSTs are forwarded to pop-api. Stateless; scales horizontally.
-- **pop** CLI — `login`, `init`, `dev`, `deploy`, `promote`, `rollback`, `alias`, `ls`, `forms`, `hooks`, `mcp` (stdio bridge).
+- **pop** CLI — `login`, `logout`, `init`, `dev`, `deploy`, `status`, `open`, `link`, `unlink`, `projects`, `deploys`, `aliases`, `promote`, `rollback`, `hooks`, `forms`, `functions`, `events`, `telemetry`, `admin`, `api`, `health`, `mcp` (stdio bridge). Every API-backed command prints the API's JSON on stdout and errors carry the problem detail (see `docs/cli.md`).
 
 ## Repository ownership
 
@@ -148,13 +148,13 @@ Postgres is the control plane only. pop-origin reads aliases and deploy states, 
 
 ## Deploy flow
 
-1. CLI reads `pop.toml`, runs `build.command`, and hashes every file in the publish dir.
+1. CLI reads `pop.toml`, runs `build.command`, and hashes every file in the publish dir. `pop deploy <path>` (or `--dir <dir>`) instead publishes a directory or single file as-is — a single `.html`/`.htm` file becomes `/index.html` — with no build and `pop.toml` optional.
 2. `POST /deploys` with `{path, sha256, size}` for each file. pop-api creates the deploy (`uploading`) and returns presigned PUT URLs for blobs not already in RGW.
 3. CLI uploads missing blobs directly to RGW (`s3.home.shdr.ch`).
 4. CLI builds functions (see Functions) and uploads components to pop-api with the deployer's pop token; pop-api pushes them to the function registry.
 5. `POST /deploys/<id>/finalize`. pop-api verifies every blob exists, parses `_redirects`/`_headers` and extracts forms from HTML (rejecting invalid rules or form declarations with file and line), writes the manifest, creates function workloads and ExternalSecrets, and marks the deploy `ready`.
 6. With `--alias <name>` (or `--prod`, which means `--alias production`), pop-api moves that alias after `ready`. Moving `production` also re-points scheduled functions.
-7. CLI prints the deploy URL, any alias URL that moved, and a Grafana Explore link filtered to the deploy.
+7. The CLI prints the deploy/alias URLs to stdout (`Draft URL`/`Website URL`/`Alias URL`), the finalize progress and the Grafana link to stderr, and `--json` emits `{deploy_id, deploy_url, url, alias, project}`.
 
 Alias moves are compare-and-set updates (`UPDATE aliases … WHERE deploy_id = $expected`) and append to `alias_history`. An alias can only target `ready` deploys of the same project. `pop rollback [--alias X]` moves the alias to its previous `alias_history` entry. Deploys that never finalize expire after 1 hour.
 
@@ -184,7 +184,7 @@ The `:9443` handler for every custom domain overwrites `X-Pop-Edge: public` on t
 
 ## Aliases
 
-- `pop deploy --alias staging`, `pop promote <deploy> [--alias X]`, `pop rollback [--alias X]`, `pop alias ls|rm`.
+- `pop deploy --alias staging`, `pop promote <project> <deploy> [--alias X]`, `pop rollback <project> [--alias X]`, `pop aliases ls|set|rm|history`.
 - CI convention: deploy each branch with `--alias <branch-slug>` for a stable per-branch URL, and with `--prod` on the default branch.
 - Custom domains only ever map to `production`.
 
@@ -210,12 +210,12 @@ Runtime facts from `docs/paas.md` and `tofu/home/kubernetes/wasmcloud.tf`: wasmC
 - **Uploads:** multipart files stream to `uploads/…`. Count, per-file size and type (`accept` on the input) are enforced while streaming, so an oversized request is rejected before it is fully stored. pop's own request cap is `max_files × max_size + 1 MB`; larger requests get 413 from the `Content-Length` header or as soon as the stream exceeds it.
 - **Scanning:** a `clamd` Deployment (with `freshclam` signature updates) runs in namespace `pop`. pop-api streams every upload to clamd. `infected` files are deleted immediately, the submission is flagged, and an `upload.infected` event fires. Only `clean` files are downloadable.
 - **Response:** 303 to `data-pop-success`, else back to the submitting page with `?submitted=<form>`.
-- **Reading:** `pop forms ls <project> [form]`, `pop forms export <project> <form> --csv`, `pop forms download <submission>` (short-lived presigned GET; requires `pop:deploy`). No route — public, LAN, or origin — ever serves upload bytes.
+- **Reading:** `pop forms ls <project> [form]`, `pop forms export <project> <form>`, `pop forms download <project> <submission>` (short-lived presigned GET; requires `pop:deploy`). No route — public, LAN, or origin — ever serves upload bytes.
 - **Events:** `form.submitted` fires after the spam check and, when files are attached, after scanning finishes.
 
 ## Webhooks
 
-- Managed per project: `pop hooks add <url> [--events …]`, `pop hooks ls|rm`, `pop hooks deliveries <id>`. The signing secret is generated server-side and shown once.
+- Managed per project: `pop hooks add <project> <url> <events…>`, `pop hooks ls|rm <project> …`, `pop hooks deliveries <project> <hook-id> [--limit --cursor]`. The signing secret is generated server-side and shown once.
 - Events: `deploy.ready`, `deploy.failed`, `deploy.expired`, `alias.updated` (covers promote and rollback), `form.submitted`, `upload.infected`.
 - Payload: JSON `{id, type, at, project, deploy_id, alias, url, actor, data}`; the deploy and alias URLs are included so a receiver like ntfy can link straight to them.
 - Signature: `X-Pop-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>`; receivers reject timestamps older than 5 minutes.
@@ -258,7 +258,7 @@ Every project belongs to exactly one org, and each org brings its own OIDC issue
 
 ## MCP server
 
-pop-api serves MCP over streamable HTTP at `https://pop.home.shdr.ch/mcp/<org>` (Rust `rmcp`, the version pinned in daimyo). It reuses the REST handlers, so MCP and CLI behaviour cannot drift.
+pop-api serves MCP over streamable HTTP at `https://pop.home.shdr.ch/mcp/<org>` (Rust `rmcp`, the version pinned in daimyo). It reuses the REST handlers, so MCP and CLI behaviour cannot drift. Every tool and resource is also reachable from the REST API and the CLI — the MCP-only operations gained `GET /v1/projects/{p}/events`, `GET /v1/projects/{p}/telemetry?deploy=` and `GET /v1/projects/{p}/deploys/{id}/manifest` — and `docs/cli.md` maps every tool and resource to its CLI command.
 
 - **Authorization (MCP authorization spec, OAuth 2.1):** pop-api is the resource server. Unauthenticated requests get `401` with `WWW-Authenticate: Bearer resource_metadata=…`, pointing at `/.well-known/oauth-protected-resource/mcp/<org>`. That document names the org's issuer as the authorization server and `pop` as the resource. Tokens must carry audience `pop`. Roles are enforced exactly as on the REST API.
 - **Clients:**
