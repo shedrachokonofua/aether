@@ -24,7 +24,15 @@ exclude:
   # use Ollama's OpenAI-compatible /v1 instead of LiteLLM's ollama_chat
   # adapter, which had merged parallel tool calls ("Extra data"). Verified
   # with a 7-case matrix per model (litellm_config.yaml.tftpl Ollama block).
-  providers: [aether]   # never in tiers (aether = local llama-swap; may be enabled later)
+  # aether = local llama-swap (may be enabled later).
+  # step: the Flash Mini plan ended 2026-10-09; every call since answers 400
+  # "you have no active step plan subscription" (0 successes, 2026-10-10).
+  # clinepass: both Cline Pass legs fail through LiteLLM (glm-5.3-flash 500
+  # "empty response content", qwen3.8-max 404 / no `choices`; 1 success since
+  # 2026-10-06) while its quota still reads 31% weekly, so Moira ranked it
+  # first for moira/strong and agent turns died (2026-10-10). Re-enable each
+  # once a direct call through LiteLLM succeeds.
+  providers: [aether, step, clinepass]
 
 providers:                  # model-name prefix -> provider id + quota source
   # chat_requires_stream: LiteLLM 1.99.x returns 500 "Unknown items in
@@ -108,7 +116,10 @@ plans:                      # local-count providers
     offpeak: { utc_from: 14, utc_to: 24, factor: 0.4 }
     rates:
       qwen3.8-max: { cached: 0.0001493, input: 0.0012055, output: 0.0036156 }
-    calibration: { used: 448.68, at: "2026-10-03T19:59:05Z" }   # usage API per1MonthPercentage 0.00249267
+    # Qwen answered "token-plan 1-month quota has been exhausted ... reset at
+    # 10-30 16:00:00 UTC" at 2026-10-11T00:08Z while the meter read 91.7%: the
+    # estimated rates undercount, so the calibration takes the provider's word.
+    calibration: { used: 180000, at: "2026-10-11T00:08:00Z" }
   codebuddy:
     # Pro (CodeBuddy Intl console 2026-10-09): 1,000 base credits per cycle;
     # next cycle 2026-10-31 10:02:09 UTC+8. The 1,000 bonus (赠送) credits are
