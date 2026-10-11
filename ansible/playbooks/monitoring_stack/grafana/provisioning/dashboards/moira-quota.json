@@ -1,7 +1,7 @@
 {
   "uid": "moira-quota",
   "title": "Moira — Subscription Utilization",
-  "description": "How much of each LLM subscription is used before it resets. Source: moira-poller (moira_quota_used_pct, used % per provider window, polled every 5 min). Used % only rises within a window, so the reading right before a drop is that window's final utilization; 100 minus it expired unused.",
+  "description": "How much of each LLM subscription is used before it resets, and how many requests Moira routes to each model. Source: moira-poller (moira_quota_used_pct, used % per provider window, polled every 5 min) and Moira's /decide counters (moira_decide_total, moira_refusals_total). Used % only rises within a window, so the reading right before a drop is that window's final utilization; 100 minus it expired unused.",
   "tags": ["moira", "llm"],
   "schemaVersion": 39,
   "time": { "from": "now-30d", "to": "now" },
@@ -93,6 +93,73 @@
         }
       ],
       "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "points", "pointSize": 8 } } }
+    },
+    {
+      "type": "bargauge",
+      "title": "Requests per model",
+      "description": "Requests Moira routed to each model in the selected time range. Counts Moira's choice; when a LiteLLM fallback serves instead, LiteLLM_SpendLogs.model_group differs (join on moira.decision.request_id = metadata->>'litellm_call_id').",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "sort_desc(round(sum by (model) (increase(moira_decide_total[$__range]))) > 0)",
+          "legendFormat": "{{model}}",
+          "instant": true
+        }
+      ],
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "min": 0, "color": { "mode": "continuous-BlPu" } } }
+    },
+    {
+      "type": "bargauge",
+      "title": "Requests per tier and model",
+      "description": "Requested name (moira/<tier> or a router/* group) and the model Moira routed it to, over the selected time range.",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "sort_desc(round(sum by (requested, model) (increase(moira_decide_total[$__range]))) > 0)",
+          "legendFormat": "{{requested}} → {{model}}",
+          "instant": true
+        }
+      ],
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "min": 0, "color": { "mode": "continuous-BlPu" } } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per model per hour",
+      "description": "Requests Moira routed to each model, one bar per hour.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 38 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "round(sum by (model) (increase(moira_decide_total[1h]))) > 0",
+          "legendFormat": "{{model}}",
+          "interval": "1h"
+        }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"], "sortBy": "Total", "sortDesc": true } },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "min": 0, "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Refusals per hour",
+      "description": "Requests Moira refused (tier_exhausted: no eligible model has quota), per requested name and reason.",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 48 },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "expr": "round(sum by (requested, reason) (increase(moira_refusals_total[1h]))) > 0",
+          "legendFormat": "{{requested}} {{reason}}",
+          "interval": "1h"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "min": 0, "custom": { "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "stacking": { "mode": "normal" } } } }
     }
   ]
 }
