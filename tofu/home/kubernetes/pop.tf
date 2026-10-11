@@ -8,9 +8,9 @@ locals {
   # wash (pop host group) exports only via gRPC OTLP (wasmcloud.tf).
   pop_otel_grpc_endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4317"
   # Immutable digests emitted by the pop CI images job (image-digests.env),
-  # pinned to so/pop main 087b4b8. The precondition on helm_release.pop keeps
+  # pinned to so/pop main 9b0ec9c. The precondition on helm_release.pop keeps
   # refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:453f7a29392deef8d27b1d83564609c97c0a212796f7d3dc18cc9acc70696a3b"
+  pop_api_image_tag    = "sha256:431b6b40453b30459ab22d00d8d5a6e20d355ea8ef990d2665f6b4eecaead039"
   pop_origin_image_tag = "sha256:aec66650d69d4ac52f89f283deaa778cfd4bdf82e490394f2ef0188ffd5cae36"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
