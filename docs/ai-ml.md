@@ -547,7 +547,10 @@ and `cycle`; Ollama Cloud has no plan and is polled at its quota endpoint.
 CodeBuddy's plan still needs the operator's tier (`total_credits`) and renewal
 date (`cycle.anchor`) before local credit counting is meaningful. Moira's state
 lives in the `moira` database on `litellm-cnpg` (managed role `moira`, which
-also reads the `litellm` database read-only for the ledger).
+also reads the `litellm` database read-only for the ledger). `moira.decision`
+logs each routed or refused request for 7 days (chosen model, fallbacks, pin,
+ranked candidates, exclusions), keyed by LiteLLM's call id, which spend logs
+carry as `metadata->>'litellm_call_id'`.
 
 ### OpenWebUI
 
