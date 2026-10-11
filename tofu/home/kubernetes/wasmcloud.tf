@@ -79,9 +79,16 @@ resource "helm_release" "wasmcloud" {
             requests = { cpu = "250m", memory = "256Mi" }
             limits   = { cpu = "500m", memory = "2Gi" }
           }
-          extraArgs = ["--wasi-otel", "--enable-meters"]
+          # No --enable-meters: on wash 2.5.2 its fuel metering makes every
+          # pop function (wstd Rust and jco TS alike) fail with HTTP 500
+          # ("oneshot channel closed but no response was sent"); reproduced
+          # locally with `wash dev --enable-meters` against the same component.
+          extraArgs = ["--wasi-otel"]
+          # wash 2.5.2 exports host and wasi-otel plugin telemetry with the
+          # tonic (gRPC) OTLP exporter only, so the host gets the collector's
+          # gRPC port; pop-api/pop-origin use OTLP/HTTP on 4318.
           env = [
-            { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_endpoint },
+            { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_grpc_endpoint },
             { name = "OTEL_RESOURCE_ATTRIBUTES", value = "service.namespace=pop,deployment.environment=home" },
           ]
         },
