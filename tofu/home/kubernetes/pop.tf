@@ -5,11 +5,13 @@ locals {
   pop_database_cluster = "pop"
   pop_database_host    = "${local.pop_database_cluster}-rw.${local.pop_namespace}.svc.cluster.local"
   pop_otel_endpoint    = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
+  # wash (pop host group) exports only via gRPC OTLP (wasmcloud.tf).
+  pop_otel_grpc_endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4317"
   # Immutable digests emitted by the pop CI images job (image-digests.env),
-  # pinned to so/pop main 7223b0d. The precondition on helm_release.pop keeps
+  # pinned to so/pop main 087b4b8. The precondition on helm_release.pop keeps
   # refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:465114a49aa8e22fe89eb7a533ed7f3d9e648deda585937b962709e1c5356c2a"
-  pop_origin_image_tag = "sha256:8ca1e6959428879116cdede37dd8fec8f49d9951d038c7c98afbc38672f95e7d"
+  pop_api_image_tag    = "sha256:453f7a29392deef8d27b1d83564609c97c0a212796f7d3dc18cc9acc70696a3b"
+  pop_origin_image_tag = "sha256:aec66650d69d4ac52f89f283deaa778cfd4bdf82e490394f2ef0188ffd5cae36"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
   # ConfigMap mounts on update but NEVER subPath mounts.
@@ -285,10 +287,10 @@ resource "vault_kv_secret_v2" "pop_webhook_key" {
 }
 
 resource "vault_kv_secret_v2" "pop_registry_token" {
-  # Skipped until gitlab.pop_deploy_user / gitlab.pop_deploy_token land in
-  # SOPS (see wasmcloud.tf). pop-api needs the materialised token as
-  # POP_REGISTRY_TOKEN_FILE (popEnv=prod refuses to start without it), so
-  # function image pulls and retention GC stay disabled until the keys exist.
+  # Present once gitlab.pop_deploy_user / gitlab.pop_deploy_token are in SOPS
+  # (see wasmcloud.tf): pop-api reads it as POP_REGISTRY_TOKEN_FILE for
+  # registry GC of expired components. Without it the chart renders the
+  # explicit POP_REGISTRY_GC=disabled opt-out (pulls are anonymous).
   count = local.pop_deploy_token_ready ? 1 : 0
 
   mount = var.openbao_kv_mount_path
@@ -540,12 +542,15 @@ resource "kubernetes_manifest" "pop_hostgroup" {
           toPorts = [{ ports = [{ port = "80", protocol = "TCP" }, { port = "443", protocol = "TCP" }] }]
         },
         # The home Caddy front (10.0.2.2) restricted by SNI to the GitLab
-        # registry — the function-component OCI pull path. Every other LAN
-        # service behind the same IP stays denied.
+        # registry plus GitLab itself: the registry's token realm is
+        # https://gitlab.home.shdr.ch/jwt/auth, so an OCI pull (even an
+        # anonymous one) needs both names. Every other LAN service behind the
+        # same IP stays denied; per-function egress is still limited by
+        # wasmCloud allowed_hosts.
         {
           toCIDR = ["10.0.2.2/32"]
           toPorts = [{
-            serverNames = [local.pop_registry_host]
+            serverNames = [local.pop_registry_host, "gitlab.home.shdr.ch"]
             ports       = [{ port = "443", protocol = "TCP" }]
           }]
         },
