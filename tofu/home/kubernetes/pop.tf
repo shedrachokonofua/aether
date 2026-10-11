@@ -6,9 +6,9 @@ locals {
   pop_database_host    = "${local.pop_database_cluster}-rw.${local.pop_namespace}.svc.cluster.local"
   pop_otel_endpoint    = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
   # Immutable digests emitted by the pop CI images job (image-digests.env),
-  # pinned to so/pop main bcd659c. The precondition on helm_release.pop keeps
+  # pinned to so/pop main 7223b0d. The precondition on helm_release.pop keeps
   # refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:080cd06bb5c03f81aab617eefb9ee558445a69a46d258ed97078f8f145d3c8e6"
+  pop_api_image_tag    = "sha256:465114a49aa8e22fe89eb7a533ed7f3d9e648deda585937b962709e1c5356c2a"
   pop_origin_image_tag = "sha256:8ca1e6959428879116cdede37dd8fec8f49d9951d038c7c98afbc38672f95e7d"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
@@ -231,9 +231,13 @@ resource "helm_release" "pop" {
       { name = "AWS_ENDPOINT_URL_STS", value = "https://s3.home.shdr.ch" },
       { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_endpoint },
     ]
-    # The GitLab pull secret exists only once SOPS carries the deploy token
-    # (wasmcloud.tf); the chart skips imagePullSecrets when the list is empty.
-    imagePullSecrets    = local.pop_deploy_token_ready ? [{ name = kubernetes_secret_v1.pop_gitlab_registry[0].metadata[0].name }] : []
+    # so/pop is public: pop images and function components pull anonymously
+    # (gitlab-registry carries no credentials until SOPS has the deploy token).
+    # The deploy token (gitlab.pop_deploy_*) only enables registry GC of expired
+    # components; without it the chart renders the explicit
+    # POP_REGISTRY_GC=disabled opt-out.
+    registryToken       = { enabled = local.pop_deploy_token_ready }
+    imagePullSecrets    = [{ name = kubernetes_secret_v1.pop_gitlab_registry.metadata[0].name }]
     podDisruptionBudget = { minAvailable = 1 }
   })]
 }
