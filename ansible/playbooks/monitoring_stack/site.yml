@@ -445,7 +445,8 @@
         src: ./grafana/provisioning/dashboards/
         dest: ./grafana/provisioning/dashboards/
         mode: "0755"
-      tags: [grafana]
+      # grafana-dashboards: copy only; Grafana's file provider reloads them, no restart.
+      tags: [grafana, grafana-dashboards]
 
     - name: Copy Estate Scan dashboard provisioning
       copy:
