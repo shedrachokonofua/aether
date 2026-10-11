@@ -102,8 +102,28 @@ resource "kubernetes_secret_v1" "pop_cnpg_origin" {
   data = { username = "pop_origin", password = random_password.pop_origin_password.result }
 }
 
+# The init SQL goes through a ConfigMap (postInitApplicationSQLRefs), not the
+# inline postInitApplicationSQL list: CNPG passes the inline list to the init
+# pod as container args, where Kubernetes $(VAR) expansion rewrites `$$` to `$`
+# and breaks every dollar-quoted DO block (seen on the first pop bootstrap).
+resource "kubernetes_config_map_v1" "pop_cnpg_init_sql" {
+  depends_on = [module.namespace["pop"]]
+  metadata {
+    name      = "pop-cnpg-init-sql"
+    namespace = local.pop_namespace
+  }
+  data = {
+    "init.sql" = <<-SQL
+      DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pop_origin') THEN CREATE ROLE pop_origin LOGIN; END IF; END $$;
+      GRANT SELECT ON ALL TABLES IN SCHEMA public TO pop_origin;
+      ALTER DEFAULT PRIVILEGES FOR ROLE ${local.pop_database_user} IN SCHEMA public GRANT SELECT ON TABLES TO pop_origin;
+      DO $$ BEGIN IF to_regclass('public.aliases') IS NOT NULL AND to_regclass('public.deploys') IS NOT NULL THEN EXECUTE 'GRANT SELECT ON aliases, deploys TO pop_origin'; END IF; END $$;
+    SQL
+  }
+}
+
 resource "kubectl_manifest" "pop_cnpg_cluster" {
-  depends_on = [helm_release.cnpg, kubectl_manifest.cnpg_require_ceph_rbd_storage, kubernetes_secret_v1.pop_cnpg_app, kubernetes_secret_v1.pop_cnpg_origin]
+  depends_on = [helm_release.cnpg, kubectl_manifest.cnpg_require_ceph_rbd_storage, kubernetes_secret_v1.pop_cnpg_app, kubernetes_secret_v1.pop_cnpg_origin, kubernetes_config_map_v1.pop_cnpg_init_sql]
   yaml_body = yamlencode({
     apiVersion = "postgresql.cnpg.io/v1"
     kind       = "Cluster"
@@ -118,12 +138,9 @@ resource "kubectl_manifest" "pop_cnpg_cluster" {
         database = local.pop_database
         owner    = local.pop_database_user
         secret   = { name = kubernetes_secret_v1.pop_cnpg_app.metadata[0].name }
-        postInitApplicationSQL = [
-          "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pop_origin') THEN CREATE ROLE pop_origin LOGIN; END IF; END $$",
-          "GRANT SELECT ON ALL TABLES IN SCHEMA public TO pop_origin",
-          "ALTER DEFAULT PRIVILEGES FOR ROLE pop IN SCHEMA public GRANT SELECT ON TABLES TO pop_origin",
-          "DO $$ BEGIN IF to_regclass('public.aliases') IS NOT NULL AND to_regclass('public.deploys') IS NOT NULL THEN EXECUTE 'GRANT SELECT ON aliases, deploys TO pop_origin'; END IF; END $$",
-        ]
+        postInitApplicationSQLRefs = {
+          configMapRefs = [{ name = kubernetes_config_map_v1.pop_cnpg_init_sql.metadata[0].name, key = "init.sql" }]
+        }
       } }
       managed = { roles = [{ name = "pop_origin", login = true, passwordSecret = { name = kubernetes_secret_v1.pop_cnpg_origin.metadata[0].name } }] }
       plugins = local.cnpg_plugin_specs["pop"]
