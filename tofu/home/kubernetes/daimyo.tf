@@ -26,18 +26,20 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # a5381cb server (pipeline 6560): 280b110 plus the sweeper keeping live
-  # session grants (177d0ba), per-kind orphan reaping (9e5e3cb) with list RBAC
-  # and the migrate pre-upgrade hook (d58a660), one replica releasing a closed
-  # session (a5381cb). Sidecar/harness unchanged. No new migrations (0019).
-  daimyo_server_tag  = "sha256:600e6e5607e1455e0bf37562e21fce97b7cee57189cf14e04f2fb584590b9ef3"
-  daimyo_sidecar_tag = "sha256:2573c67f21dcb54d901d9027561e7547b0478e629b5b99a7ae160a97ceb5434d"
-  # Built-in harness images (Helm config.harness.images); 280b110: the
-  # interrupted turn keeps its context (native session id stored at init,
-  # one CLI per session), on top of 625e47d's tools-off/maxTurns/budget fixes.
-  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:594a483ece5394856f9ff8d689b8d7a4128a55b180a49dbab862e0a0e17da366"
-  daimyo_harness_codex_image       = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:ac9f76e65e791f6335bf06cc25f13b73c25cd67267a0c95f32551488246e811b"
-  daimyo_harness_omp_image         = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:995082c4ce2d303cfd12d79597eded099c5d14fbc5973a4425dd42c8c2344b04"
+  # c3244e3 (pipeline 6652, server/sidecar built at 8dd6e68): M7 (outcomes,
+  # tool permission policies, files + s3 grant, memory stores, durable tasks
+  # and session fork) and M8 (schedules, script workflows with the built-in
+  # workflow-runner). Migrations 0020-0027 run in the pre-upgrade hook.
+  daimyo_server_tag  = "sha256:76afcc50f8ad29cf73d501f8d67f5ff5f2ffbabb594aff1fe12216cfdfbd5599"
+  daimyo_sidecar_tag = "sha256:c38587412a4f10a4fbbb2bbc6adb83f77fff3e1b4b837d1108f0096248e9dc5c"
+  # Built-in harness images (Helm config.harness.images), built at 3434faa:
+  # permission hooks to the sidecar decision endpoint (§9.4), journal events
+  # and turn tags (§8.7), memory mounts (§11c.3). workflow-runner runs script
+  # workflows (§11.5) with no per-project Agent CR.
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:60e7a1f42a247de38a7485852e6f654229aee71032233633b9243b9d72260cd3"
+  daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:7946bcf207a0f41516997f23f1577ea698e897d9e8c514e939c33bf49a8e7bc8"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:cf8377ee20c1f649f668c6ebe52a2fe533af7fe9131408654d68de859014bcdd"
+  daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:3d6b61a20eb4a44af72b09ab71ffeb3c2095168c264e1a38733388dc1c0e93d1"
   # d7e6ec1 echo (pipeline 6422).
   daimyo_echo_image    = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   daimyo_ns            = module.namespace["daimyo-system"].name
@@ -377,11 +379,15 @@ resource "helm_release" "daimyo" {
       controller = { instance = local.daimyo_instance }
       harness = {
         images = {
-          "claude-code" = local.daimyo_harness_claude_code_image
-          "codex"       = local.daimyo_harness_codex_image
-          "omp"         = local.daimyo_harness_omp_image
+          "claude-code"     = local.daimyo_harness_claude_code_image
+          "codex"           = local.daimyo_harness_codex_image
+          "omp"             = local.daimyo_harness_omp_image
+          "workflow-runner" = local.daimyo_harness_workflow_runner_image
         }
       }
+      # Memory search embeds through LiteLLM; the server default alias
+      # (text-embedding-3-small) is not served here (litellm_config.yaml.tftpl).
+      memory = { embeddingModel = "aether/qwen3-embedding:0.6b" }
       database = {
         ownerUrl  = "postgres://daimyo:__DB_PASSWORD_owner__@daimyo-pg-rw:5432/daimyo"
         apiUrl    = "postgres://daimyo_api:__DB_PASSWORD_api__@daimyo-pg-rw:5432/daimyo"
