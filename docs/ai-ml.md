@@ -417,12 +417,13 @@ flowchart LR
         FC[Firecrawl]
         GMAPS[Google Maps]
         TMDB[TMDB]
+        POP[pop<br/><i>user token passthrough</i>]
     end
 
     OWUI & API --> LLM
     LLM --> LS & RR
     LLM --> OAI & ZAI & QWEN & OCGO & STEP
-    LLM --> TIME & FC & GMAPS & TMDB
+    LLM --> TIME & FC & GMAPS & TMDB & POP
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0
     style Cloud fill:#f0e4d4,stroke:#c4a06a
@@ -445,6 +446,24 @@ servers. Search covers only the servers listed in
 `litellm_openwebui_mcp_servers`, so update that list when a server is added to
 `mcp_servers`. In LiteLLM 1.99.1, search returns results over `/mcp/` but `[]`
 over `/mcp-rest`.
+
+pop (`https://pop.home.shdr.ch/mcp/aether`) is registered with
+`auth_type: oauth_delegate`: callers are admitted by their `x-litellm-api-key`,
+and their own `Authorization` bearer is forwarded to pop unchanged, so pop
+authorizes and audits the real user rather than a gateway identity. OpenWebUI's
+LiteLLM connection is `system_oauth`, which adds the signed-in user's Keycloak
+access token next to the virtual key; the `openwebui` client carries audience
+`pop` (`keycloak_openid_audience_protocol_mapper.openwebui_pop_audience`) and the
+realm-roles `roles` claim, so pop sees the user's `pop:deploy` / `pop:admin`.
+Verified 2026-10-11 through the gateway: with a user token, the `pop-*` tools are
+searchable and `alias_set` lands in pop's events as that user (`via=mcp`); with
+only a virtual key, pop answers 401 and its tools are absent from search. pop
+must stay the only `mcp_servers` entry that consumes the caller's
+`Authorization` (`true_passthrough`/`oauth_delegate`): with two, LiteLLM
+withholds it from aggregate listings (RFC 9700 cross-resource replay guard).
+LiteLLM's SSRF guard blocks its OAuth metadata discovery for pop
+(`auth.shdr.ch` resolves to 10.0.2.2) and logs warnings at startup; forwarding
+does not depend on it.
 
 LiteLLM converts MCP tools without a description into OpenAI tools with
 `description: null`, and llama.cpp b11223+ rejects that. The

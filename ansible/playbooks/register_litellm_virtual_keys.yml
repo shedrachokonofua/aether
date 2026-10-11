@@ -169,6 +169,8 @@
       - finviz
       - affine
       - colony
+      # oauth_delegate: tools run as the OpenWebUI user's forwarded token.
+      - pop
       - espn
       - tmdb
       - jellyfin
@@ -374,7 +376,7 @@
     - name: Check the seven30-foundry key is unique
       ansible.builtin.assert:
         that:
-          - litellm_seven30_foundry_key.json.keys | length == 1
+          - litellm_seven30_foundry_key.json['keys'] | length == 1
         fail_msg: "expected exactly one LiteLLM key with alias {{ litellm_seven30_foundry_alias }}"
 
     - name: Scope the seven30-foundry virtual key to its MCP servers
@@ -386,7 +388,7 @@
           Content-Type: application/json
         body_format: json
         body:
-          key: "{{ litellm_seven30_foundry_key.json.keys[0].token }}"
+          key: "{{ litellm_seven30_foundry_key.json['keys'][0].token }}"
           object_permission:
             mcp_servers: "{{ litellm_seven30_foundry_mcp_servers }}"
         status_code: [200]

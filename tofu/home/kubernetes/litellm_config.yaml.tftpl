@@ -1164,6 +1164,17 @@ mcp_servers:
     client_id: "colony-litellm"
     client_secret: "${colony_mcp_client_secret}"
     token_url: "https://auth.shdr.ch/realms/aether/protocol/openid-connect/token"
+  pop:
+    # pop (sites + functions). oauth_delegate: the caller is admitted by its
+    # x-litellm-api-key and its own `Authorization` bearer is forwarded to pop
+    # verbatim, so pop authorizes and audits the real user. Open WebUI sends
+    # the signed-in user's Keycloak token (system_oauth, audience `pop` via
+    # keycloak.tf openwebui_pop_audience). Callers with no pop token get pop's
+    # 401 and simply see no pop tools. Keep pop the only server that consumes
+    # the caller's Authorization: a second one makes LiteLLM withhold it from
+    # aggregate tools/list (RFC 9700 cross-resource replay guard).
+    url: "https://pop.home.shdr.ch/mcp/aether"
+    auth_type: oauth_delegate
   espn:
     url: "http://localhost:8080/mcp"
   tmdb:

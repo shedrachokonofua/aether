@@ -2034,6 +2034,20 @@ resource "keycloak_openid_audience_protocol_mapper" "openwebui_daimyo_audience" 
   add_to_access_token      = true
 }
 
+# Open WebUI forwards the signed-in user's access token through LiteLLM's MCP
+# gateway to pop (litellm_config.yaml.tftpl `pop`, auth_type oauth_delegate;
+# kubernetes/openwebui.tf LiteLLM connection is system_oauth). pop's aether
+# org requires audience `pop`; the realm-roles `roles` claim (openwebui_roles)
+# already carries pop:deploy / pop:admin. Picked up on the next token refresh.
+resource "keycloak_openid_audience_protocol_mapper" "openwebui_pop_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openwebui.id
+  name      = "pop-audience"
+
+  included_custom_audience = "pop"
+  add_to_access_token      = true
+}
+
 # Local MCP clients (Claude Code: --client-id colony-mcp --callback-port 4401).
 resource "keycloak_openid_client" "colony_mcp" {
   realm_id  = keycloak_realm.aether.id
