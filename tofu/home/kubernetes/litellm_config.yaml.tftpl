@@ -802,6 +802,18 @@ model_list:
       timeout: 900
       stream_timeout: 900
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Muse Wonder Full, the higher-capability variant; Muse Code subscription on
+  # the Power/Maximum Usage plans only (Power since 2026-10-12), Contributor
+  # mode only. Same context and efforts as Wonder.
+  - model_name: "meta/muse-wonder-full-1.0-contributor"
+    litellm_params:
+      model: "openai/muse-subscription/muse-wonder-full-1.0-contributor"
+      litellm_credential_name: muse_bridge_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+      timeout: 900
+      stream_timeout: 900
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Private SuperGrok subscription pins. The bridge owns native Responses
   # translation; stock LiteLLM uses Chat Completions with no PAYG fallback.
