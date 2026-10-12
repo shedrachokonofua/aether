@@ -208,16 +208,18 @@ no deployed bridge or OpenBao credential was changed by those checks.
 
 The private Muse bridge exchanges the operator's Muse Code account grant for
 the subscription-backed key and exposes `muse-subscription/muse-spark-1.3`,
-`muse-subscription/muse-spark-1.3-contributor` and
-`muse-subscription/muse-wonder-1.0-contributor` on both `/v1/chat/completions`
-and `/v1/responses`. The key is entitled to both Spark tiers and both Wonder
-tiers (Meta's `/v1/models` lists `muse-wonder-1.0` and
-`muse-wonder-1.0-contributor` on 2026-10-12; Wonder Full needs a Power or
-Maximum Usage plan and is absent). Only Wonder's Contributor tier is exposed,
-as LiteLLM's `meta/muse-wonder-1.0-contributor`, scored by Moira at AA's
-Wonder (Max) 52 (frontier). All draw on the same subscription quota: on
-2026-09-26 both Spark tiers returned `Subscription quota exhausted` with the
-same reset time.
+`muse-subscription/muse-spark-1.3-contributor`,
+`muse-subscription/muse-wonder-1.0-contributor` and
+`muse-subscription/muse-wonder-full-1.0-contributor` on both
+`/v1/chat/completions` and `/v1/responses`. The account is on the Power Usage
+plan (since 2026-10-12), so Meta's `/v1/models` lists both tiers of Spark 1.3,
+Wonder (`muse-wonder-1.0`) and Wonder Full (`muse-wonder-full-1.0`). Only the
+Wonder Contributor tiers are exposed, as LiteLLM's
+`meta/muse-wonder-1.0-contributor` and `meta/muse-wonder-full-1.0-contributor`,
+scored by Moira at AA's Wonder (Max) 52 and Wonder Full (Max) 56 (frontier).
+All draw on the same subscription quota at different per-token rates (Meta
+publishes none for the subscription); on 2026-09-26 both Spark tiers returned
+`Subscription quota exhausted` with the same reset time.
 Rotated OAuth and subscription credentials persist in a dedicated OpenBao
 record; the bridge never falls back to a PAYG Meta key.
 
