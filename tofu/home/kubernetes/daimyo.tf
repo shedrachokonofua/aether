@@ -26,12 +26,11 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server f072def (tag campaign2-fixes-2, pipeline 6760): MCP arguments
-  # coerced for Open WebUI, outcome cancel and grader deadline, script start
-  # refusals. Sidecar unchanged since 7eaeb9c (identical digest). No new
-  # migrations after 0035.
-  daimyo_server_tag  = "sha256:06e61da53c555b6e46acf5445e14f3ad6e5166de725043ef150888eafc178634"
-  daimyo_sidecar_tag = "sha256:34aa63a3d7a932a866f2f851bffa09920fde74d1ccdff8072979a388a8ff5aab"
+  # fb7f18a (tag campaign2-fixes-3, pipeline 6774): every campaign 2 and
+  # re-test fix (docs/e2e/2026-10-11-retest-*.md). Migration 0036 (memory
+  # namespaces, listing attribution) runs in the pre-upgrade hook.
+  daimyo_server_tag  = "sha256:1fc277da11f19598b66352c97485b51456ce7913ce1b2af1a9da550ccf92f499"
+  daimyo_sidecar_tag = "sha256:6c9cf984aa4b2a235938424f332fd154e01192c9f3a312df2af83a0bcaf37c2b"
   # Built-in harness images (Helm config.harness.images), built at f072def
   # (interrupt notice, omp image input). workflow-runner runs script
   # workflows (§11.5) with no per-project Agent CR.
