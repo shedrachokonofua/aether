@@ -10,8 +10,16 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-1fad5266"
-  deskplane_image_tag     = "1fad5266"
+  deskplane_chart_version = "0.1.0-8c682834"
+  deskplane_image_tag     = "8c682834"
+  # Daimyo task tokens Deskplane trusts (SPEC "Workload Tokens and Tunnels"):
+  # a task owns its browser session, and its sidecar's tunnel grant lets that
+  # session load the task's own localhost. Same orgs as daimyo.tf's
+  # Deskplane MCP egress.
+  deskplane_workload_issuers = [for org in local.daimyo_deskplane_orgs : {
+    issuer   = "https://daimyo.home.shdr.ch/orgs/${org}"
+    audience = "deskplane"
+  }]
   # CI rebuilds a session image only when images/<name>/** changes and tags
   # it with that pipeline's commit (the push head, not necessarily the commit
   # that touched the image) -- check the registry before bumping.
@@ -21,7 +29,15 @@ locals {
   deskplane_registry_user         = var.secrets["gitlab.root_email"]
   deskplane_registry_pass         = var.secrets["gitlab.root_password"]
   deskplane_registry_image        = "${local.deskplane_registry_host}/so/deskplane"
+  # Session pods: any amd64 node. Pinning the default profile to talos-smith
+  # left web-engine browser sessions Pending once smith's memory was fully
+  # requested (2026-10-12): the MCP's session registry creates them without a
+  # per-session nodeSelector, so the profile alone decides placement.
   deskplane_node_selector = {
+    "kubernetes.io/arch" = "amd64"
+  }
+  # The GPU profile needs smith's GPUs.
+  deskplane_gpu_node_selector = {
     "kubernetes.io/hostname" = "talos-smith"
   }
   deskplane_mcp_token   = var.secrets["deskplane.mcp_api_token"]
@@ -226,6 +242,11 @@ resource "helm_release" "deskplane" {
       }]
     }
 
+    # Workload tokens and the loopback-aware proxy their sessions use (only
+    # session pods reach deskplane-proxy:8888, per the chart's policy).
+    workloadIssuers = local.deskplane_workload_issuers
+    serveProxyHost  = "deskplane-proxy.${local.deskplane_namespace}.svc.cluster.local:8888"
+
     profiles = [
       {
         name = "default"
@@ -256,7 +277,7 @@ resource "helm_release" "deskplane" {
             "nvidia.com/gpu" = "1"
           }
         }
-        nodeSelector = local.deskplane_node_selector
+        nodeSelector = local.deskplane_gpu_node_selector
         tolerations = [
           {
             key      = "nvidia.com/gpu"
@@ -375,12 +396,8 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "1fad5266"
+        tag        = "dab4676a"
       }
-      # Sessions the MCP opens (computer use, browsing) need no smith-only
-      # device: let them schedule on any amd64 node. talos-smith's memory is
-      # fully requested, which left MCP sessions Pending (E2E 2026-10-10).
-      sessionNodeSelector = "kubernetes.io/arch=amd64"
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
       podLabels = {
@@ -397,9 +414,13 @@ resource "helm_release" "deskplane" {
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # The web engine's LLM calls (json/summary/extract) use it too.
-        DESKPLANE_MCP_MODEL           = "chatgpt/gpt-6.1-sol"
+        # chatgpt/gpt-6.1-sol hit its plan's weekly usage limit on 2026-10-12
+        # (resets ~2026-10-18); both models are on the deskplane_mcp key.
+        DESKPLANE_MCP_MODEL           = "antigravity/gemini-3.8-flash"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
+        # Daimyo task tokens: such a caller owns one browser session.
+        DESKPLANE_MCP_WORKLOAD_ISSUERS = jsonencode(local.deskplane_workload_issuers)
         # 40 was tuned when every long run was doomed by the stale-screenshot
         # bug, so raising it only bought more flailing. With the settle delay
         # and the agent's carried-forward memory a real multi-page flow makes
