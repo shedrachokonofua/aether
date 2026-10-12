@@ -139,6 +139,17 @@ opposition instructions.
   `@825307168:57,1198877028:<session>,1348620377:<human>,1348825715:<person>,1769566810:<team>`
   moves the person without the editor dialog. A moved staff member gets their
   `PreferredJob` as `PrimaryJob` on the new contract.
+- **Staff jobs.** `<move token>.JobOptions` lists the jobs a person can take
+  (`{DisplayValue, PropertyValue:{1348692591: JobType, 1416914273: team}}`).
+  `EventFmxMoveToTeamConfirm` to the move token with that `PropertyValue` as data
+  hires straight into the job (writing `SelectedJob` does not survive). The
+  team field renders empty but matters: Valencia B is its own club, and a
+  "Valencia B …" job needs `1416914273: {DatabaseReferenceField: <B team>}`.
+  Sent empty, it means the first team. A B-team Head Coach sent that way
+  replaced the manager (2026-10-12), so check the hiring club and the
+  manager's job after every hire. Doctors have no `JobOptions`, so they can't be
+  hired this way. Staff Recommended CA follows the job's attributes but is
+  capped by PA.
 - **Responsibilities.** `Human.Club.TeamSettingsEditSession` is a
   `TeamSettingsEditSessionReference` (`@825307168:115,…,<human>,<club>`):
   `ResponsibilityTabList` → tab (124) `ResponsibilityGroupList` → group (122)
@@ -153,7 +164,11 @@ opposition instructions.
   (`FM.UI.InPossessionRole` / `OutOfPossessionRole`, powers of two up to 2^57).
   `EventFmxSelectRole` to the tactic with
   `{TeamSelectionIndex, Role:{PropertyValue, DisplayValue:{Role:<flag>}}, IsInPossession}`
-  sets a role; FM ignores roles a position can't take. Flags above 2^53 must be
+  sets a role; FM ignores roles a position can't take, and drops events sent
+  within a frame or two of the previous one (`fm_set_roles` paces and
+  retries). Position flags: lower bit = right (D 4/8/16, WB 32/64, DM 128,
+  M 256/512/1024, AM 2048/4096/8192, ST 16384); a shared central slot carries
+  2097152 = centre-right or 1048576 = centre-left. Flags above 2^53 must be
   sent as exact integer literals (the plugin parses Int64 digits verbatim).
 - **Team instructions.** 28 instructions are tactic properties (`Tempo`,
   `DefensiveLine`, `PressingTrigger`, `BuildUpStrategy`, …) whose value is the
