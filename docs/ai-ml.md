@@ -580,7 +580,9 @@ carry as `metadata->>'litellm_call_id'`.
 
 Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (Docling + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
 
-Pinned to `v0.11.4`. Its pod-template annotation hashes LiteLLM's model
+Pinned to `v0.12.0` (fixes earlier tool calls being re-sent after an `ask_user`
+answer, which strict providers such as Muse reject as duplicate tool
+responses). Its pod-template annotation hashes LiteLLM's model
 configuration; include the OpenWebUI deployment when applying model-route
 changes so its startup catalog refreshes through IaC rather than an
 imperative restart.
