@@ -122,7 +122,9 @@ opposition instructions.
   Date, Renew Income, Fixed Value. `SponsorshipsData` on the club is a
   read-only view of it. FM re-sorts rows when a value changes, so
   `fm_edit_fields` re-finds each row by its label and cell values before
-  writing.
+  writing. `Finances › Debt and Loans` (`0:5,1:3`) lists loans (Original Debt,
+  Monthly Repayment, Monthly Interest Repayment, …); setting a loan's Original
+  Debt to 0 makes FM delete that row, which clears the loan.
 - **Staff data.** Staff attributes are direct person properties (`Attacking`,
   `Defending`, `Possession`, `SetPieces`, `Tactical`, `Technical`,
   `CoachingFitness`, `GoalkeepingCoaching`, `WorkingWithYoungster`,
