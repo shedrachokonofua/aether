@@ -455,6 +455,12 @@ LiteLLM connection is `system_oauth`, which adds the signed-in user's Keycloak
 access token next to the virtual key; the `openwebui` client carries audience
 `pop` (`keycloak_openid_audience_protocol_mapper.openwebui_pop_audience`) and the
 realm-roles `roles` claim, so pop sees the user's `pop:deploy` / `pop:admin`.
+Its default scopes include `basic`, without which Keycloak 26 access tokens
+have no `sub` and pop answers 401. Scope changes reach a user only on their next
+Open WebUI sign-in; a token refresh keeps the old scopes. Open WebUI drops its
+stored Keycloak session when the refresh token expires (realm SSO max 12 h, idle
+2 h) but keeps the user signed in, after which `system_oauth` sends no token
+(log: `No OAuth session found`) until they sign in again.
 Verified 2026-10-11 through the gateway: with a user token, the `pop-*` tools are
 searchable and `alias_set` lands in pop's events as that user (`via=mcp`); with
 only a virtual key, pop answers 401 and its tools are absent from search. pop
