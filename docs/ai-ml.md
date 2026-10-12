@@ -215,8 +215,11 @@ the subscription-backed key and exposes `muse-subscription/muse-spark-1.3`,
 plan (since 2026-10-12), so Meta's `/v1/models` lists both tiers of Spark 1.3,
 Wonder (`muse-wonder-1.0`) and Wonder Full (`muse-wonder-full-1.0`). Only the
 Wonder Contributor tiers are exposed, as LiteLLM's
-`meta/muse-wonder-1.0-contributor` and `meta/muse-wonder-full-1.0-contributor`,
-scored by Moira at AA's Wonder (Max) 52 and Wonder Full (Max) 56 (frontier).
+`meta/muse-wonder-1.0-contributor` and `meta/muse-wonder-full-1.0-contributor`.
+Moira routes Wonder Full at max (AA 56, frontier) and Wonder at xhigh only
+(strong, ahead of Spark Contributor on the shared quota). Wonder's xhigh score
+(49) is inferred, not measured: AA scores Wonder only at max (52.4), and Meta's
+one measured effort step, Spark 1.3 max to xhigh, costs 3.0 points.
 All draw on the same subscription quota at different per-token rates (Meta
 publishes none for the subscription); on 2026-09-26 both Spark tiers returned
 `Subscription quota exhausted` with the same reset time.
