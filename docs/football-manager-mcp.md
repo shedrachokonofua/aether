@@ -70,7 +70,7 @@ Edit a clone of `so/fm-mcp` on a workstation, then:
 
 Read: `fm_status`, `fm_schema_search`, `fm_read`, `fm_read_list`, `fm_browse`,
 `fm_search_players`, `fm_scan_records`, `fm_editor_fields`.
-Write: `fm_edit_field`, `fm_run_action`, `fm_move_person`, `fm_send_event`,
+Write: `fm_edit_fields`, `fm_run_action`, `fm_move_person`, `fm_send_event`,
 `fm_write`, `fm_load_last_save`.
 
 Verified on a copy of the career (2026-10-12): club balance and transfer budget
@@ -97,18 +97,29 @@ terminating a contract, `TeamImproveTeamCohesion`, La Liga player search.
   The engine serves values only while `<editor>.Sections` and each ancestor's
   `Sections`/`Fields` are bound, so reads and writes pass them as `hold`.
   Writing a leaf's `PropertyValue` applies the edit (no confirm event).
+  `EventFmxRefreshIgeProperties` to the editor token selects the editor tab
+  (its payload is the tab index; staff: 0 Details, 2 Attributes/General/Staff
+  Roles, 4 Club Contract). Section numbers are global across tabs, so
+  `fm_editor_fields` walks tabs 0–7 and returns `{tab, field}` per field.
+- **Staff data.** Staff attributes are direct person properties (`Attacking`,
+  `Defending`, `Possession`, `SetPieces`, `Tactical`, `Technical`,
+  `CoachingFitness`, `GoalkeepingCoaching`, `WorkingWithYoungster`,
+  `Motivating`, `PeopleManagement`, `JudgingPlayerAbility`, `AnalysingData`,
+  `Physiotherapy`, `SportsScience`, …); `StaffRoles` holds FM's 0–20 role
+  suitability per job, `PreferredJob` / `PrimaryClubJobRecord` the jobs.
 - **Actions.** Editor/context actions are `HandleActionEvent(ActionID, 44 =
   EventFmxDoAction, @825307168:1,1198877028:<session>,1633904996:<ActionID>,
   context)` where the context record carries `Human`, the target as
   `DatabaseReferenceField`, and the selection list.
 - **Moves.** `EventFmxMoveToTeam` to
   `@825307168:57,1198877028:<session>,1348620377:<human>,1348825715:<person>,1769566810:<team>`
-  moves the person without the editor dialog.
+  moves the person without the editor dialog. A moved staff member gets their
+  `PreferredJob` as `PrimaryJob` on the new contract.
 
 ## Known limits
 
 - String payloads built by the plugin (`TypedValue.Create<string>`, including
-  inside records) crashed FM natively twice; `fm_edit_field` and
+  inside records) crashed FM natively twice; `fm_edit_fields` and
   `fm_send_event` accept numbers, booleans and record tokens only.
 - Harmony hooks installed at plugin load deadlocked FM in
   `GAME_PLUGIN::initialise()`. The trace hooks install at runtime only
