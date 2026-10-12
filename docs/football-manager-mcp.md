@@ -149,14 +149,19 @@ opposition instructions.
   replaced the manager (2026-10-12), so check the hiring club and the
   manager's job after every hire. Doctors have no `JobOptions`, so they can't be
   hired this way. Staff Recommended CA follows the job's attributes but is
-  capped by PA.
+  capped by PA. The first team has a single Assistant Coach seat: a second
+  first-team assistant replaces the first. The U19 assistant ("Under 19s
+  Assistant Coach", team field = U19 team) also reads back as "Assistant Coach".
 - **Responsibilities.** `Human.Club.TeamSettingsEditSession` is a
   `TeamSettingsEditSessionReference` (`@825307168:115,…,<human>,<club>`):
   `ResponsibilityTabList` → tab (124) `ResponsibilityGroupList` → group (122)
   `ResponsibilityList` → responsibility (120) with `ResponsibilityName`,
   `StaffMemberInCharge`, `AssignableStaffList`, `IsUserInControl`. Writing
   `StaffMemberInCharge` (a person token; the manager = take control) and sending
-  `EventFmxConfirmTeamSettings` to the session commits it.
+  `EventFmxConfirmTeamSettings` to the session commits it. The session is a
+  snapshot: after staff changes it keeps departed staff assignable until it is
+  rebuilt, either by opening Staff › Responsibilities or by sending
+  `EventFmxConfirmTeamSettings` with no pending edits.
 - **Tactics.** `@825307168:126,<session>,1651271022:1,1685218662:<team>` is the
   team's `TeamTacticReference`. `CurrentTacticSlot`, `TacticalStyle` and
   `Mentality` are directly writable (a style change resets mentality).
