@@ -26,9 +26,11 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # 82d82a5 (tag campaign2-final, pipeline 6783): every campaign 2 fix
-  # (docs/e2e/2026-10-11-report.md). Migrations through 0036; no new one.
-  daimyo_server_tag  = "sha256:b3a4a7d4d783dd0901f37c942642c6cb730d5e84d2b3854945865012ce153e4f"
+  # Server ba5ad44 (tag mcp-org-default, pipeline 6788): every /mcp tool's
+  # org defaults to the connection's own, named in the instructions and the
+  # cross-org refusal. Sidecar stays at 82d82a5 (tag campaign2-final,
+  # pipeline 6783; docs/e2e/2026-10-11-report.md). Migrations through 0036.
+  daimyo_server_tag  = "sha256:c85af57ffca448f41c12eca338b5580db40c10ebd5804d70fc6c6ad774f01021"
   daimyo_sidecar_tag = "sha256:39d2c8afcf534637bfc7e992a7ed493bae9014f9f1c81fea53c0a9ed8a3b13c5"
   # Built-in harness images (Helm config.harness.images), built at 82d82a5
   # (codex MCP approval mode, omp image input). workflow-runner runs script
@@ -640,6 +642,25 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toFQDNs = [{ matchName = "pop.home.shdr.ch" }]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if contains(local.daimyo_pop_orgs, org)
+        ], [
+        # trip-planner's `flights` grant: fli, in-cluster without client auth
+        # (trip_planner.tf), so this rule is its access boundary.
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app"                         = "fli"
+              "io.kubernetes.pod.namespace" = local.fli_ns
+            }
+          }]
+          toPorts = [{ ports = [{ port = tostring(local.fli_port), protocol = "TCP" }] }]
+        } if contains(local.trip_planner_orgs, org)
+        ], [
+        # trip-planner's keyless public MCP grants (Kiwi, Skiplagged,
+        # trivago, Ferryhopper).
+        for org in [each.key] : {
+          toFQDNs = [for host in local.trip_planner_public_mcp_hosts : { matchName = host }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
+        } if contains(local.trip_planner_orgs, org)
       ])
     }
   }
