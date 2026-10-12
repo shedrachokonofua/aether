@@ -26,13 +26,15 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server and sidecar 1b15a89 (tag tunnel-grant-2, pipeline 6805): the
-  # `tunnel` grant (§9.5; the sidecar's outbound client lets a task's own
-  # Deskplane browser load its localhost), agents/attestations pagination, and
-  # the /mcp org default. The Agent CRD gained spec.grants[].tunnel and was
-  # applied server-side first (docs/ops/upgrades.md). Migrations through 0036.
+  # Server 1b15a89 (tag tunnel-grant-2, pipeline 6805): the `tunnel` grant
+  # (§9.5; the sidecar's outbound client lets a task's own Deskplane browser
+  # load its localhost), agents/attestations pagination, and the /mcp org
+  # default. The Agent CRD gained spec.grants[].tunnel and was applied
+  # server-side first (docs/ops/upgrades.md). Sidecar 130fd94 (tag
+  # tunnel-grant-3, pipeline 6811): the tunnel also reaches dev servers bound
+  # to the IPv6 loopback (Vite). Migrations through 0036.
   daimyo_server_tag  = "sha256:7ab2a4d420cfa9bacc82122608e049ab723eb482ee811f18643af26e8200a564"
-  daimyo_sidecar_tag = "sha256:c2806c1697493fe13b42b7ca7c017261cd8e7941090d6359b7d27e63d98726ce"
+  daimyo_sidecar_tag = "sha256:d6327e4985a9e20ca2c8147f44ca6378c0c42fe125e8e1dc4c8e3f06cc281652"
   # Built-in harness images (Helm config.harness.images), built at 82d82a5
   # (codex MCP approval mode, omp image input). workflow-runner runs script
   # workflows (§11.5) with no per-project Agent CR.
