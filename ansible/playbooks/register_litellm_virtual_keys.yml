@@ -171,6 +171,9 @@
       - colony
       # oauth_delegate: tools run as the OpenWebUI user's forwarded token.
       - pop
+      # oauth2_token_exchange: tools run as the user via a Keycloak-exchanged
+      # daimyo-audience token (keycloak.tf litellm_mcp_exchange).
+      - daimyo
       - espn
       - tmdb
       - jellyfin

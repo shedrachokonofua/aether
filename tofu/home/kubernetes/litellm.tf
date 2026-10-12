@@ -33,10 +33,11 @@ locals {
   litellm_db_host             = "${local.litellm_cnpg_cluster}-rw.${local.litellm_ns}.svc.cluster.local"
   litellm_affine_workspace_id = "5e3fe4c1-8c87-489b-95a5-77daa164a836"
   litellm_config_yaml = templatefile("${path.module}/litellm_config.yaml.tftpl", {
-    affine_mcp_http_token    = random_password.litellm_affine_mcp_http.result
-    deskplane_mcp_auth_token = var.deskplane_mcp_auth_token
-    colony_mcp_client_secret = var.colony_litellm_client_secret
-    google_maps_enabled      = var.litellm_google_maps_enabled
+    affine_mcp_http_token      = random_password.litellm_affine_mcp_http.result
+    deskplane_mcp_auth_token   = var.deskplane_mcp_auth_token
+    colony_mcp_client_secret   = var.colony_litellm_client_secret
+    daimyo_mcp_exchange_secret = var.litellm_mcp_exchange_client_secret
+    google_maps_enabled        = var.litellm_google_maps_enabled
   })
   litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@${local.litellm_db_host}/litellm?sslmode=disable"
   litellm_registry_host = "registry.gitlab.home.shdr.ch"

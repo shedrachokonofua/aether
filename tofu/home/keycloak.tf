@@ -2052,6 +2052,69 @@ resource "keycloak_openid_audience_protocol_mapper" "openwebui_pop_audience" {
   add_to_access_token      = true
 }
 
+# LiteLLM's MCP gateway reaches Daimyo as the signed-in Open WebUI user without
+# replaying that user's token: it exchanges it here (RFC 8693, standard token
+# exchange) for one whose only audience is `daimyo` (litellm_config.yaml.tftpl
+# `daimyo`, auth_type oauth2_token_exchange). The exchanged token keeps the
+# user's `sub` and `preferred_username` (profile scope) and carries realm roles
+# as `groups`, the claims Daimyo's org issuer reads (daimyo.tf issuers).
+resource "keycloak_openid_client" "litellm_mcp_exchange" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "litellm-mcp-exchange"
+  name      = "LiteLLM MCP gateway (token exchange)"
+  enabled   = true
+
+  access_type                     = "CONFIDENTIAL"
+  service_accounts_enabled        = false
+  standard_flow_enabled           = false
+  direct_access_grants_enabled    = false
+  implicit_flow_enabled           = false
+  standard_token_exchange_enabled = true
+}
+
+resource "keycloak_openid_client_default_scopes" "litellm_mcp_exchange_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.litellm_mcp_exchange.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# Makes `daimyo` an audience this client may request in an exchange.
+resource "keycloak_openid_audience_protocol_mapper" "litellm_mcp_exchange_daimyo_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.litellm_mcp_exchange.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "litellm_mcp_exchange_groups" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.litellm_mcp_exchange.id
+  name      = "realm-roles"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = false
+}
+
+# A subject token may only be exchanged by a client it is addressed to.
+resource "keycloak_openid_audience_protocol_mapper" "openwebui_litellm_mcp_exchange_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openwebui.id
+  name      = "litellm-mcp-exchange-audience"
+
+  included_client_audience = keycloak_openid_client.litellm_mcp_exchange.client_id
+  add_to_access_token      = true
+}
+
 # Local MCP clients (Claude Code: --client-id colony-mcp --callback-port 4401).
 resource "keycloak_openid_client" "colony_mcp" {
   realm_id  = keycloak_realm.aether.id
