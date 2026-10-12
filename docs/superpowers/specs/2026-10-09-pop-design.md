@@ -272,7 +272,9 @@ pop-api serves MCP over streamable HTTP at `https://pop.home.shdr.ch/mcp/<org>` 
   - Alias: `alias_set` (promote), `alias_rollback`, `alias_delete`.
   - Forms: `forms_export` (CSV text), `form_file_link` (short-lived presigned download, `clean` files only).
   - Hooks: `hook_add` (returns the secret once), `hook_remove`.
-  - Admin: `project_create`, `project_delete` (require `pop:admin`).
+  - Admin: `project_create` (`org` defaults to the endpoint's org, since agents behind a gateway never see `/mcp/<org>`), `project_delete` (both require `pop:admin`).
+- **Results:** `structuredContent` is always a JSON object, as MCP requires; list results come back as `{"items": [...]}`. Strict clients (the Python MCP SDK behind LiteLLM's gateway) reject the whole result otherwise.
+- **Gateway:** aether's LiteLLM registers pop with `auth_type: oauth_delegate`. The caller's own bearer is forwarded unchanged, so pop authorizes and audits the real user. Open WebUI sends the signed-in user's Keycloak token, which needs audience `pop` and a `sub` claim.
 - **Resources:** `pop://projects/{project}/deploys/{deploy}/manifest` (manifest JSON) and `pop://projects/{project}/aliases`.
 - **Audit:** every MCP call records `actor` (token `sub`), `client_id` and `via = "mcp"` in `events`, and emits an OTel span named after the tool.
 
