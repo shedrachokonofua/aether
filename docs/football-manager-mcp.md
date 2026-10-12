@@ -114,6 +114,15 @@ opposition instructions.
   (its payload is the tab index; staff: 0 Details, 2 Attributes/General/Staff
   Roles, 4 Club Contract). Section numbers are global across tabs, so
   `fm_editor_fields` walks tabs 0–7 and returns `{tab, field}` per field.
+- **Editor tables.** Some editor groups are tables: the group field has
+  `Columns` (`…,2:<c>`) and `Rows` (`…,2:-<r>`, labelled by `RowString`), and
+  each row's `Fields` are cells (`…,2:-<r>,3:<c>`) that edit like any field.
+  Club `Finances › Other Income` (`0:5,1:1`) is the sponsorship/commercial
+  income table: Total Value (cash, ±1,000,000,000 per row), Income Type, Start/End
+  Date, Renew Income, Fixed Value. `SponsorshipsData` on the club is a
+  read-only view of it. FM re-sorts rows when a value changes, so
+  `fm_edit_fields` re-finds each row by its label and cell values before
+  writing.
 - **Staff data.** Staff attributes are direct person properties (`Attacking`,
   `Defending`, `Possession`, `SetPieces`, `Tactical`, `Technical`,
   `CoachingFitness`, `GoalkeepingCoaching`, `WorkingWithYoungster`,
