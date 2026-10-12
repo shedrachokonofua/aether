@@ -455,7 +455,11 @@ resource "keycloak_openid_client_default_scopes" "openwebui_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.openwebui.id
 
+  # `basic` puts `sub` in the access token (Keycloak 25+ moved it out of the
+  # implicit claims). pop rejects tokens without `sub`, and Open WebUI forwards
+  # this access token to pop through LiteLLM (system_oauth).
   default_scopes = [
+    "basic",
     "profile",
     "email",
     "roles",
