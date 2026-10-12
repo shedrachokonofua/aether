@@ -22,10 +22,11 @@ locals {
     }))}",
   "PROJECT", "{project}"), "DEPLOY", "{deploy}")
   # Immutable digests emitted by the pop CI images job (image-digests.env),
-  # pinned to so/pop main 142d39e. The precondition on helm_release.pop keeps
-  # refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:339d1c86db46854ac6ad414326acae15aaac13af037ccbf9a5c590240f80e842"
-  pop_origin_image_tag = "sha256:bc564ef548f41f4bea365e5a309223c4509240a0b2b7fe58ae4a9fd37e630a0e"
+  # pinned to so/pop main 81640ae (agent issuers: Daimyo task tokens, decision
+  # 26; migration 09). The precondition on helm_release.pop keeps refusing to
+  # apply if either tag is ever reset to null.
+  pop_api_image_tag    = "sha256:bd9a22eb8a9b8e66f8f39fa676d806a51308390d9fff25a4b5299a8267e420c0"
+  pop_origin_image_tag = "sha256:f3a6fccf5d0e7bf423026a4bfcf3362c4d46d17714ab52977550bc8d388f383e"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
   # ConfigMap mounts on update but NEVER subPath mounts.
@@ -53,6 +54,12 @@ locals {
       # the repo exists; until then shdr.ch keeps serving from RGW (the
       # Caddyfile cutover is a separate change).
       ci_project_paths = []
+      # Daimyo task tokens from org `personal` (daimyo.tf `pop` grant,
+      # auth.taskToken audience pop): exactly pop:deploy, never admin; pop's
+      # audit records the task as actor and the delegating person from `act`.
+      agent_issuers = [
+        { issuer = "https://daimyo.home.shdr.ch/orgs/personal", audience = "pop", roles = ["pop:deploy"] },
+      ]
     }
     seven30 = {
       slug               = "seven30"
@@ -66,6 +73,7 @@ locals {
       # attain.ing static site, published by that repo's CI
       # (https://attain.ing/_pop/callback is on the seven30 realm).
       ci_project_paths = ["so/attaining/www"]
+      agent_issuers    = []
     }
   }
 }

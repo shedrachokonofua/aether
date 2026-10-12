@@ -61,8 +61,11 @@ locals {
   # Orgs whose tasks reach Deskplane's MCP server (daimyo_tasks_egress and
   # deskplane_mcp_daimyo_ingress).
   daimyo_deskplane_orgs = ["personal", "qa"]
-  daimyo_s3_endpoint    = "https://s3.seaweed.home.shdr.ch"
-  daimyo_s3_region      = "us-east-1"
+  # Orgs whose tasks reach pop's MCP server through the Caddy front
+  # (daimyo_tasks_egress); pop trusts their task tokens (pop.tf agent_issuers).
+  daimyo_pop_orgs    = ["personal"]
+  daimyo_s3_endpoint = "https://s3.seaweed.home.shdr.ch"
+  daimyo_s3_region   = "us-east-1"
   # Static in-cluster service names (not resource references): referencing
   # live resources pulls their dependency chains into every targeted plan.
   daimyo_litellm_upstream = "http://litellm.litellm.svc.cluster.local:4000"
@@ -630,6 +633,13 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           }]
           toPorts = [{ ports = [{ port = "8100", protocol = "TCP" }] }]
         } if contains(local.daimyo_deskplane_orgs, org)
+        ], [
+        # pop's MCP server, https://pop.home.shdr.ch/mcp/<org> through Caddy:
+        # the `pop` grant authenticates with a task token pop verifies.
+        for org in [each.key] : {
+          toFQDNs = [{ matchName = "pop.home.shdr.ch" }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
+        } if contains(local.daimyo_pop_orgs, org)
       ])
     }
   }
@@ -1008,6 +1018,33 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
               }
             }
             tools = ["search_web", "scrape", "parse_document"]
+          }
+        },
+        {
+          # pop (sites + functions). A Daimyo task token with aud `pop`: pop's
+          # aether org trusts this org's issuer as an agent issuer with exactly
+          # pop:deploy (pop.tf `agent_issuers`), and its audit records the
+          # task as actor and the person who started it from `act`. Reading and
+          # uploading a deploy run freely; anything that changes what is live,
+          # deletes, or exports form data asks the task's creator (§9.4).
+          name = "pop"
+          mcp = {
+            url  = "https://pop.home.shdr.ch/mcp/aether"
+            auth = { taskToken = { audience = "pop" } }
+            tools = [
+              "projects_list", "deploys_list", "deploy_get", "aliases_list",
+              "events_list", "forms_list", "hooks_list", "telemetry_link",
+              "deploy_begin", "deploy_files", "deploy_finalize",
+              { name = "project_create", policy = "ask" },
+              { name = "project_delete", policy = "ask" },
+              { name = "alias_set", policy = "ask" },
+              { name = "alias_rollback", policy = "ask" },
+              { name = "alias_delete", policy = "ask" },
+              { name = "hook_add", policy = "ask" },
+              { name = "hook_remove", policy = "ask" },
+              { name = "forms_export", policy = "ask" },
+              { name = "form_file_link", policy = "ask" },
+            ]
           }
         },
       ]
