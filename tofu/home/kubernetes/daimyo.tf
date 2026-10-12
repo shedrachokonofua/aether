@@ -26,12 +26,13 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server ba5ad44 (tag mcp-org-default, pipeline 6788): every /mcp tool's
-  # org defaults to the connection's own, named in the instructions and the
-  # cross-org refusal. Sidecar stays at 82d82a5 (tag campaign2-final,
-  # pipeline 6783; docs/e2e/2026-10-11-report.md). Migrations through 0036.
-  daimyo_server_tag  = "sha256:c85af57ffca448f41c12eca338b5580db40c10ebd5804d70fc6c6ad774f01021"
-  daimyo_sidecar_tag = "sha256:39d2c8afcf534637bfc7e992a7ed493bae9014f9f1c81fea53c0a9ed8a3b13c5"
+  # Server and sidecar 1b15a89 (tag tunnel-grant-2, pipeline 6805): the
+  # `tunnel` grant (§9.5; the sidecar's outbound client lets a task's own
+  # Deskplane browser load its localhost), agents/attestations pagination, and
+  # the /mcp org default. The Agent CRD gained spec.grants[].tunnel and was
+  # applied server-side first (docs/ops/upgrades.md). Migrations through 0036.
+  daimyo_server_tag  = "sha256:7ab2a4d420cfa9bacc82122608e049ab723eb482ee811f18643af26e8200a564"
+  daimyo_sidecar_tag = "sha256:c2806c1697493fe13b42b7ca7c017261cd8e7941090d6359b7d27e63d98726ce"
   # Built-in harness images (Helm config.harness.images), built at 82d82a5
   # (codex MCP approval mode, omp image input). workflow-runner runs script
   # workflows (§11.5) with no per-project Agent CR.
@@ -634,6 +635,14 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
             }
           }]
           toPorts = [{ ports = [{ port = "8100", protocol = "TCP" }] }]
+        } if contains(local.daimyo_deskplane_orgs, org)
+        ], [
+        # A `tunnel` grant's sidecar client dials Deskplane's tunnel endpoint
+        # (wss://<deskplane_host>/api/tunnel) through Caddy with a task token,
+        # so the task's own Deskplane browser can load its localhost (§9.5).
+        for org in [each.key] : {
+          toFQDNs = [{ matchName = local.deskplane_host }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if contains(local.daimyo_deskplane_orgs, org)
         ], [
         # pop's MCP server, https://pop.home.shdr.ch/mcp/<org> through Caddy:
