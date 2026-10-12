@@ -75,7 +75,7 @@ Read: `fm_status`, `fm_schema_search`, `fm_read`, `fm_read_list`, `fm_browse`,
 `fm_search_players`, `fm_scan_records`, `fm_editor_fields`,
 `fm_responsibilities`, `fm_tactic`.
 Write: `fm_edit_fields`, `fm_run_action`, `fm_move_person`,
-`fm_set_responsibilities`, `fm_set_tactic`, `fm_set_roles`, `fm_send_event`,
+`fm_set_responsibilities`, `fm_set_tactic`, `fm_set_roles`, `fm_set_instructions`, `fm_send_event`,
 `fm_write`, `fm_load_last_save`.
 
 Verified on a copy of the career (2026-10-12): club balance and transfer budget
@@ -83,12 +83,11 @@ edits, stadium capacity, player CA, moving a player from another club,
 terminating a contract, `TeamImproveTeamCohesion`, La Liga player search,
 staff attribute/CA edits across editor tabs, responsibility reassignment and
 taking control, tactic slot/style/mentality changes, in- and out-of-possession
-role changes (including 2^56 role flags).
+role changes (including 2^56 role flags), multi-step team instruction changes
+and their restore.
 
-Not covered yet: team instructions (`Tempo`, `DefensiveLine`,
-`LineOfEngagement`, … read as hashed option ids on the tactic; their option
-lists and `EventFmxSetTacticTeamInstruction` payload are untraced), player
-instructions, set-piece routines.
+Not covered yet: player instructions, set-piece routines, opposition
+instructions.
 
 ## How it works (FM26 internals the tools rely on)
 
@@ -144,6 +143,16 @@ instructions, set-piece routines.
   `{TeamSelectionIndex, Role:{PropertyValue, DisplayValue:{Role:<flag>}}, IsInPossession}`
   sets a role; FM ignores roles a position can't take. Flags above 2^53 must be
   sent as exact integer literals (the plugin parses Int64 digits verbatim).
+- **Team instructions.** 28 instructions are tactic properties (`Tempo`,
+  `DefensiveLine`, `PressingTrigger`, `BuildUpStrategy`, …) whose value is the
+  schema property id of the selected option's name (`HigherTempo`,
+  `PlayThroughPress`, …). `EventFmxQuickChangeTacticInstructionIncrement` /
+  `Decrement` to the tactic with the instruction index as data steps one
+  option; the index → instruction map and option order are in `tactics.ts`.
+  Steps sent within a frame or two of the previous one are dropped, so the tool
+  settles 200 ms per step and resends unconfirmed steps. The options panel's
+  `SelectedTeamInstructionOption` write only resolves inside the panel's
+  binding context.
 
 ## Known limits
 
