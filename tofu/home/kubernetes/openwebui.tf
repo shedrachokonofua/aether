@@ -25,8 +25,10 @@ locals {
   # silently broke every tool. The native client forwards schemas as-is and
   # connects per chat. Tool IDs are server:mcp:<info.id>.
   # system_oauth adds the signed-in user's Keycloak token as `Authorization`
-  # next to the x-litellm-api-key admission header; LiteLLM forwards it only
-  # to oauth_delegate servers (pop), so pop tools run as the user.
+  # next to the x-litellm-api-key admission header. LiteLLM forwards it as is
+  # to oauth_delegate servers (pop) and exchanges it for a daimyo-audience
+  # token for Daimyo (oauth2_token_exchange, keycloak.tf
+  # litellm_mcp_exchange), so pop and Daimyo tools both run as the user.
   openwebui_tool_server_connections = jsonencode([{
     type      = "mcp"
     url       = var.litellm_mcp_url
@@ -48,28 +50,6 @@ locals {
       id          = "litellm"
       name        = "LiteLLM"
       description = "LiteLLM"
-    }
-    }, {
-    # Daimyo sessions (docs/ops/open-webui.md in so/daimyo). system_oauth
-    # forwards the signed-in user's Keycloak access token, which carries
-    # audience `daimyo` (keycloak.tf openwebui_daimyo_audience); Daimyo's org
-    # `personal` then authenticates the user as themselves. Empty
-    # access_grants = admin-only.
-    type      = "mcp"
-    url       = "https://daimyo.home.shdr.ch/mcp?org=personal"
-    spec_type = "url"
-    spec      = ""
-    path      = "openapi.json"
-    auth_type = "system_oauth"
-    key       = ""
-    config = {
-      enable        = true
-      access_grants = []
-    }
-    info = {
-      id          = "daimyo"
-      name        = "Daimyo"
-      description = "Daimyo agents and sessions"
     }
   }])
 
@@ -586,9 +566,14 @@ resource "kubernetes_deployment_v1" "openwebui" {
             name  = "OPENID_REDIRECT_URI"
             value = "https://ai.shdr.ch/oauth/oidc/callback"
           }
+          # offline_access: the refresh token outlives the realm's 2h-idle /
+          # 12h-max SSO session. system_oauth tool connections (LiteLLM MCP,
+          # Daimyo) need a live user token; when the SSO session expired,
+          # OWUI dropped its OAuth session and every tool server went dark
+          # while the OWUI login itself stayed valid (2026-10-12).
           env {
             name  = "OAUTH_SCOPES"
-            value = "openid email profile roles"
+            value = "openid email profile roles offline_access"
           }
           env {
             name  = "ENABLE_OAUTH_ROLE_MANAGEMENT"
