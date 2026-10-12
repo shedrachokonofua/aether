@@ -22,9 +22,9 @@ locals {
     }))}",
   "PROJECT", "{project}"), "DEPLOY", "{deploy}")
   # Immutable digests emitted by the pop CI images job (image-digests.env),
-  # pinned to so/pop main 1628d00. The precondition on helm_release.pop keeps
+  # pinned to so/pop main 03d5b49. The precondition on helm_release.pop keeps
   # refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:01c00cf26108e828c203d683e9687d833a09bdfbfcec1a237462b1f2e8f0e705"
+  pop_api_image_tag    = "sha256:d04cc5f4a45d34383837c7d0adea810d8f6684bcd9b9748ca1c7de227a7f49d0"
   pop_origin_image_tag = "sha256:bc564ef548f41f4bea365e5a309223c4509240a0b2b7fe58ae4a9fd37e630a0e"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
