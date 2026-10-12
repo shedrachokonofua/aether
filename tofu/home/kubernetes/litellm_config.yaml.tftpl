@@ -790,6 +790,18 @@ model_list:
       timeout: 900
       stream_timeout: 900
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Muse Wonder (Meta's top model, preview) on the same subscription quota,
+  # Contributor mode only. Efforts minimal..max; 1,048,576-token context
+  # (dev.meta.ai/docs/models). Output cap copied from Spark: Meta publishes none.
+  - model_name: "meta/muse-wonder-1.0-contributor"
+    litellm_params:
+      model: "openai/muse-subscription/muse-wonder-1.0-contributor"
+      litellm_credential_name: muse_bridge_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+      timeout: 900
+      stream_timeout: 900
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Private SuperGrok subscription pins. The bridge owns native Responses
   # translation; stock LiteLLM uses Chat Completions with no PAYG fallback.
