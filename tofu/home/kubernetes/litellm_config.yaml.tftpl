@@ -1204,6 +1204,12 @@ mcp_servers:
   # namespace contract but has no Caddy vhost (the wildcard is single-label).
   siren:
     url: "http://siren-mcp.siren.svc.cluster.local:8082/mcp"
+  # Football Manager 26 (game_server.tf fm-mcp sidecar): reads the loaded career and
+  # edits it through FM's own editor/command paths. Answers only while FM runs.
+  fm:
+    url: "http://fm-mcp.games.svc.cluster.local:18766/mcp"
+    auth_type: bearer_token
+    auth_value: "${fm_mcp_token}"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"

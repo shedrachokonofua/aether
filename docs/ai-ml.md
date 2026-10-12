@@ -19,15 +19,21 @@ Model weights and ComfyUI state live on the **local NVMe** PV mounted on `talos-
 with `local.gpu_neo_node_selector`; they still require the NVIDIA Talos
 extension selector in addition to the hostname.
 
-Do not run a display server on the `talos-neo` GPU. Any running X server,
-such as the game server's `steam-headless` Xorg, sets the card to
-`Display Active`. The NVIDIA driver then enforces a kernel-runtime watchdog on
-compute work. Long `qwen3.8-27b` kernels trip it with `NVRM: Xid 8` and
-`CUDA error: the launch timed out and was terminated`, which kills the
-llama-server. From 2026-09-25, when Inquest sent its long Holmes prompts to
-the 27B, this caused about 40–110 crashes a day. With `game-server`
-`replicas = 0` (`game_server.tf`), the card reports `Display Active: Disabled`,
-and the same 46k-token workload ran 35 minutes on 2026-09-30 with no Xid.
+A display server on the `talos-neo` GPU must run with the NVIDIA X driver's
+watchdog off. Any running X server, such as the game server's
+`steam-headless` Xorg, sets the card to `Display Active`, and with the
+driver's default `Option "Interactive"` (on) the watchdog kills long compute
+kernels with `NVRM: Xid 8` and `CUDA error: the launch timed out and was
+terminated`, which kills the llama-server. From 2026-09-25, when Inquest sent
+its long Holmes prompts to `qwen3.8-27b`, this caused about 40–110 crashes a
+day, and `game-server` was held at `replicas = 0` from 2026-09-30.
+`game_server.tf` now installs `xorg-noninteractive.sh` as a steam-headless
+user init script, which adds `Option "Interactive" "False"` to the generated
+`xorg.conf` before Xorg starts. On 2026-10-12, with `game-server` running
+and Xorg logging that option, three 46.8k-token prompts to
+`qwen3.8-flash-next` produced no Xid and no llama-swap restart. The fix is
+tied to the pinned `debian-1.0.3` steam-headless image layout; upstream's 2.x
+line uses a different init and needs the hook re-done.
 
 Speech (STT/TTS) is served by `audiocpp_server` spawned as llama-swap child
 processes: an init container copies the official audio.cpp image's binaries

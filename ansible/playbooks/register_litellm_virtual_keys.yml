@@ -179,6 +179,7 @@
       - jellyfin
       - deskplane
       - siren
+      - fm
       - google_maps
     # The seven30-foundry key was created through the LiteLLM API (its value is
     # not in SOPS), so it is found by alias and updated by its hashed token.
