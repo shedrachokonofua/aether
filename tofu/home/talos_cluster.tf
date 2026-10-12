@@ -647,29 +647,30 @@ module "kubernetes" {
   operator_oidc_subject = keycloak_user.shdrch_aether.id
 
   # Crossplane Keycloak provider credentials
-  keycloak_url                     = "https://auth.shdr.ch"
-  keycloak_client_id               = keycloak_openid_client.crossplane.client_id
-  keycloak_client_secret           = keycloak_openid_client.crossplane.client_secret
-  assay_oauth_client_secret        = keycloak_openid_client.assay_cockpit.client_secret
-  assay_allowed_email              = var.keycloak_shdrch_email
-  openwebui_oauth_client_secret    = keycloak_openid_client.openwebui.client_secret
-  colony_litellm_client_secret     = keycloak_openid_client.colony_litellm.client_secret
-  immich_oauth_client_secret       = keycloak_openid_client.immich.client_secret
-  nextcloud_oauth_client_secret    = keycloak_openid_client.nextcloud.client_secret
-  coder_oauth_client_secret        = keycloak_openid_client.coder.client_secret
-  orion_oauth_client_secret        = keycloak_openid_client.orion.client_secret
-  deskplane_oauth_client_secret    = keycloak_openid_client.deskplane.client_secret
-  deskplane_mcp_auth_token         = random_password.deskplane_mcp_auth.result
-  affine_oauth_client_secret       = keycloak_openid_client.affine.client_secret
-  karakeep_oauth_client_secret     = keycloak_openid_client.karakeep.client_secret
-  memos_oauth_client_secret        = keycloak_openid_client.memos.client_secret
-  snapotter_oauth_client_secret    = keycloak_openid_client.snapotter.client_secret
-  nextexplorer_oauth_client_secret = keycloak_openid_client.nextexplorer.client_secret
-  miniflux_oauth_client_secret     = keycloak_openid_client.miniflux.client_secret
-  matrix_oauth_client_secret       = keycloak_openid_client.matrix.client_secret
-  litellm_mcp_url                  = "http://litellm.litellm.svc.cluster.local:4000/mcp"
-  litellm_google_maps_api_key      = var.litellm_google_maps_api_key
-  litellm_google_maps_enabled      = var.litellm_google_maps_enabled
+  keycloak_url                       = "https://auth.shdr.ch"
+  keycloak_client_id                 = keycloak_openid_client.crossplane.client_id
+  keycloak_client_secret             = keycloak_openid_client.crossplane.client_secret
+  assay_oauth_client_secret          = keycloak_openid_client.assay_cockpit.client_secret
+  assay_allowed_email                = var.keycloak_shdrch_email
+  openwebui_oauth_client_secret      = keycloak_openid_client.openwebui.client_secret
+  colony_litellm_client_secret       = keycloak_openid_client.colony_litellm.client_secret
+  litellm_mcp_exchange_client_secret = keycloak_openid_client.litellm_mcp_exchange.client_secret
+  immich_oauth_client_secret         = keycloak_openid_client.immich.client_secret
+  nextcloud_oauth_client_secret      = keycloak_openid_client.nextcloud.client_secret
+  coder_oauth_client_secret          = keycloak_openid_client.coder.client_secret
+  orion_oauth_client_secret          = keycloak_openid_client.orion.client_secret
+  deskplane_oauth_client_secret      = keycloak_openid_client.deskplane.client_secret
+  deskplane_mcp_auth_token           = random_password.deskplane_mcp_auth.result
+  affine_oauth_client_secret         = keycloak_openid_client.affine.client_secret
+  karakeep_oauth_client_secret       = keycloak_openid_client.karakeep.client_secret
+  memos_oauth_client_secret          = keycloak_openid_client.memos.client_secret
+  snapotter_oauth_client_secret      = keycloak_openid_client.snapotter.client_secret
+  nextexplorer_oauth_client_secret   = keycloak_openid_client.nextexplorer.client_secret
+  miniflux_oauth_client_secret       = keycloak_openid_client.miniflux.client_secret
+  matrix_oauth_client_secret         = keycloak_openid_client.matrix.client_secret
+  litellm_mcp_url                    = "http://litellm.litellm.svc.cluster.local:4000/mcp"
+  litellm_google_maps_api_key        = var.litellm_google_maps_api_key
+  litellm_google_maps_enabled        = var.litellm_google_maps_enabled
 
   # Media stack migration
   nfs_server_ip       = local.vm.nfs.ip.vyos

@@ -1175,6 +1175,20 @@ mcp_servers:
     # aggregate tools/list (RFC 9700 cross-resource replay guard).
     url: "https://pop.home.shdr.ch/mcp/aether"
     auth_type: oauth_delegate
+  daimyo:
+    # Daimyo control plane (agents, tasks, sessions, approvals) as the caller.
+    # oauth2_token_exchange: the caller's Authorization (the Open WebUI user's
+    # Keycloak token) is the RFC 8693 subject token, exchanged at Keycloak by
+    # client litellm-mcp-exchange for a token whose only audience is `daimyo`;
+    # only that one is sent upstream. Not an Authorization consumer, so pop's
+    # oauth_delegate keeps its aggregate tools/list. Daimyo's org `personal`
+    # admits the exchanged token as user:<preferred_username>.
+    url: "https://daimyo.home.shdr.ch/mcp?org=personal"
+    auth_type: oauth2_token_exchange
+    token_exchange_endpoint: "https://auth.shdr.ch/realms/aether/protocol/openid-connect/token"
+    client_id: "litellm-mcp-exchange"
+    client_secret: "${daimyo_mcp_exchange_secret}"
+    audience: "daimyo"
   espn:
     url: "http://localhost:8080/mcp"
   tmdb:
