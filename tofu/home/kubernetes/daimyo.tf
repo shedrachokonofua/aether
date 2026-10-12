@@ -26,18 +26,17 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # fb7f18a (tag campaign2-fixes-3, pipeline 6774): every campaign 2 and
-  # re-test fix (docs/e2e/2026-10-11-retest-*.md). Migration 0036 (memory
-  # namespaces, listing attribution) runs in the pre-upgrade hook.
-  daimyo_server_tag  = "sha256:1fc277da11f19598b66352c97485b51456ce7913ce1b2af1a9da550ccf92f499"
-  daimyo_sidecar_tag = "sha256:6c9cf984aa4b2a235938424f332fd154e01192c9f3a312df2af83a0bcaf37c2b"
-  # Built-in harness images (Helm config.harness.images), built at f072def
-  # (interrupt notice, omp image input). workflow-runner runs script
+  # 82d82a5 (tag campaign2-final, pipeline 6783): every campaign 2 fix
+  # (docs/e2e/2026-10-11-report.md). Migrations through 0036; no new one.
+  daimyo_server_tag  = "sha256:b3a4a7d4d783dd0901f37c942642c6cb730d5e84d2b3854945865012ce153e4f"
+  daimyo_sidecar_tag = "sha256:39d2c8afcf534637bfc7e992a7ed493bae9014f9f1c81fea53c0a9ed8a3b13c5"
+  # Built-in harness images (Helm config.harness.images), built at 82d82a5
+  # (codex MCP approval mode, omp image input). workflow-runner runs script
   # workflows (§11.5) with no per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:a7138cb5603f89bf1a9b4f37b09fcecf76a691a972904c4f80cee4d42ac5b10f"
-  daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:69995d77f4d2ba2df1a2cf9eded2583760c679357e002ffe0cc49a35ecb4d512"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:3c297e9353fd5a213ed82bd4fa86d83adf15275f4d485bc7af5e9fc3013ce1ac"
-  daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:fe1a6e8a2bdfa89d067c4b3eacf8d6587fa08543bf8934f2d4c01d0191566ec0"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:fc4e2c9c5bc4b137ea3a653b45706b41add6626e5ca2094f0f7599582604e1d4"
+  daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:8a0193126be261d215b8e38d0269b0546c35c5f72bd30b95f36cc98051fb5596"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:bce6d5e70643f2975e73938eee7daef7b400666a402cc5eafb7bfd2f95170649"
+  daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:a6a3094a6c440e8a2574ef3ebdfc6f9825018042309dcbfc1e561481e0482e55"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   # 7eaeb9c echo (pipeline 6741, current Python SDK: prompt cancel, no null
