@@ -18,7 +18,11 @@
 # configs carry over. ROM/ISO library stays on CephFS (/gaming), mounted as-is.
 
 locals {
-  game_server_image  = "docker.io/josh5/steam-headless:latest" # TODO pin by digest once a build is settled (no immutable named tag upstream)
+  # debian-1.0.3: the last build that ran (until 2026-09-30). Upstream moved
+  # `latest` to the rewritten 2.x line on 2026-10-04 (new init, `steamheadless`
+  # user, first-run setup UI), which the boot-fix and xorg init hook below do
+  # not support. Moving to 2.x is a deliberate migration, not a tag bump.
+  game_server_image  = "docker.io/josh5/steam-headless:debian-1.0.3@sha256:b682c3fbd296af7e51a313f0ee6b62fedcb02a67bb37a565e65ef37d0d936b7f"
   game_server_ns     = module.namespace["games"].name
   game_server_labels = { app = "game-server" }
 
@@ -35,6 +39,13 @@ locals {
   # TCP 47984/48010 + UDP 47998-48002/48010.
   game_server_tcp_ports = [47984, 47989, 47990, 48010]
   game_server_udp_ports = [47998, 47999, 48000, 48002, 48010]
+
+  # FM MCP sidecar: serves MCP tools over the FM Bridge BepInEx plugin, which FM26
+  # loads under Proton and which listens on 127.0.0.1:18765 in this pod's network
+  # namespace. The server is built in place on the home PVC (~/fm-mcp, a git repo)
+  # and mounted read-only; see docs/football-manager-mcp.md.
+  fm_mcp_image = "docker.io/node:24.19.0-alpine3.23@sha256:244cc2b53f46f9e876304391d17682b0ddae9ac33491f4857e25e35a36ba7995"
+  fm_mcp_port  = 18766
 }
 
 # =============================================================================
@@ -59,6 +70,23 @@ resource "kubernetes_secret_v1" "game_server" {
   }
 }
 
+# Bearer token the FM MCP sidecar requires on /mcp; LiteLLM's MCP gateway sends it
+# (litellm_config.yaml.tftpl mcp_servers.fm). The tools can rewrite the career.
+resource "random_password" "fm_mcp_token" {
+  length  = 48
+  special = false
+}
+
+resource "kubernetes_secret_v1" "fm_mcp" {
+  metadata {
+    name      = "fm-mcp"
+    namespace = local.game_server_ns
+  }
+  data = {
+    token = random_password.fm_mcp_token.result
+  }
+}
+
 # =============================================================================
 # Boot-fix script — runs (as root) via a postStart hook before the X session +
 # Sunshine start. Fixes four steam-headless-in-headless-container issues:
@@ -75,6 +103,12 @@ resource "kubernetes_secret_v1" "game_server" {
 #      make_settings_manager returns nullptr off Windows), so a client whose
 #      viewport differs from the desktop gets a rescaled, letterboxed image.
 #      Install a global_prep_cmd that switches the mode to the client's request.
+#
+# xorg-noninteractive.sh is NOT part of the postStart hook: it must edit the
+# xorg.conf that upstream's cont-init 70-configure_xorg.sh regenerates on every
+# boot, after that script and before supervisord starts Xorg. postStart has no
+# ordering guarantee against the entrypoint, so an init container drops it into
+# the home PVC's init.d, which the entrypoint runs (as root) in exactly that gap.
 # =============================================================================
 
 resource "kubernetes_config_map_v1" "game_server_bootfix" {
@@ -247,6 +281,24 @@ resource "kubernetes_config_map_v1" "game_server_bootfix" {
         chown 1000:1000 "$GSCONF"
       fi
     EOT
+
+    # Turn off the NVIDIA X driver's watchdog on the game-server GPU. Any X
+    # screen sets talos-neo's RTX PRO 6000 to "Display Active", and the default
+    # Interactive=on watchdog then kills long CUDA kernels (llama-swap's
+    # qwen3.8-27b died with Xid 8 "launch timed out"). Interactive=False keeps
+    # X running without the watchdog. Idempotent; the file is rebuilt each boot.
+    "xorg-noninteractive.sh" = <<-EOT
+      #!/bin/sh
+      CONF=/etc/X11/xorg.conf
+      if ! grep -q 'Driver[[:space:]]*"nvidia"' "$CONF" 2>/dev/null; then
+        echo "gs-xorg: no NVIDIA Device section in $CONF; watchdog option not applied"
+        exit 0
+      fi
+      if ! grep -q 'Option[[:space:]]*"Interactive"' "$CONF"; then
+        sed -i '/Driver[[:space:]]*"nvidia"/a\    Option         "Interactive" "False"' "$CONF"
+      fi
+      grep -n '"Interactive"' "$CONF" | sed 's/^/gs-xorg: /'
+    EOT
   }
 }
 
@@ -369,10 +421,11 @@ resource "kubernetes_deployment_v1" "game_server" {
   }
 
   spec {
-    # 0 since 2026-09-30: this pod's Xorg makes the RTX PRO 6000 "Display
-    # Active", which arms the NVIDIA kernel-runtime watchdog; qwen3.8-27b on
-    # llama-swap then dies with Xid 8 / "launch timed out" on long kernels.
-    replicas = 0
+    # Was 0 from 2026-09-30: this pod's Xorg makes the RTX PRO 6000 "Display
+    # Active", which arms the NVIDIA X driver's watchdog; qwen3.8-27b on
+    # llama-swap then died with Xid 8 / "launch timed out" on long kernels.
+    # xorg-noninteractive.sh now sets Option "Interactive" "False" instead.
+    replicas = 1
     strategy { type = "Recreate" } # single GPU, single writer (RWO home/games)
 
     selector {
@@ -383,13 +436,32 @@ resource "kubernetes_deployment_v1" "game_server" {
       metadata {
         labels = local.game_server_labels
         annotations = {
-          "aether.shdr.ch/bootfix-sha" = sha256(kubernetes_config_map_v1.game_server_bootfix.data["boot-fix.sh"])
+          "aether.shdr.ch/bootfix-sha" = sha256(join("\n", values(kubernetes_config_map_v1.game_server_bootfix.data)))
         }
       }
 
       spec {
         runtime_class_name = "nvidia"
         node_selector      = local.gpu_neo_node_selector
+
+        # Install the Xorg watchdog fix as an upstream user init script (see the
+        # boot-fix header). Overwritten every start, so the ConfigMap stays the
+        # source of truth for the copy on the home PVC.
+        init_container {
+          name    = "install-xorg-init"
+          image   = "busybox:latest"
+          command = ["sh", "-c", "mkdir -p /home/default/init.d && cp /opt/gs-bootfix/xorg-noninteractive.sh /home/default/init.d/50-gs-xorg-noninteractive.sh && chmod 0755 /home/default/init.d/50-gs-xorg-noninteractive.sh && chown -R 1000:1000 /home/default/init.d"]
+
+          volume_mount {
+            name       = "home"
+            mount_path = "/home/default"
+          }
+          volume_mount {
+            name       = "bootfix"
+            mount_path = "/opt/gs-bootfix"
+            read_only  = true
+          }
+        }
 
         security_context {
           fs_group = 1000 # PUID/PGID — own the PVCs so the desktop user can write
@@ -529,6 +601,79 @@ resource "kubernetes_deployment_v1" "game_server" {
           }
         }
 
+        # FM MCP server (see locals). Reaches the plugin over the shared loopback;
+        # fails readiness only if the server itself is down, not when FM is closed
+        # (its tools then answer "FM Bridge unreachable").
+        container {
+          name        = "fm-mcp"
+          image       = local.fm_mcp_image
+          command     = ["node", "/app/dist/index.js"]
+          working_dir = "/app"
+
+          env {
+            name  = "HOST"
+            value = "0.0.0.0"
+          }
+          env {
+            name  = "PORT"
+            value = tostring(local.fm_mcp_port)
+          }
+          env {
+            name  = "FM_BRIDGE_URL"
+            value = "http://127.0.0.1:18765"
+          }
+          env {
+            name = "FM_MCP_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.fm_mcp.metadata[0].name
+                key  = "token"
+              }
+            }
+          }
+
+          port {
+            name           = "mcp"
+            container_port = local.fm_mcp_port
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/healthz"
+              port = local.fm_mcp_port
+            }
+            period_seconds = 10
+          }
+
+          security_context {
+            run_as_user                = 1000
+            run_as_group               = 1000
+            run_as_non_root            = true
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "64Mi"
+            }
+            limits = {
+              memory = "256Mi"
+            }
+          }
+
+          volume_mount {
+            name       = "home"
+            mount_path = "/app"
+            sub_path   = "fm-mcp/mcp"
+            read_only  = true
+          }
+        }
+
         volume {
           name = "home"
           persistent_volume_claim {
@@ -614,6 +759,32 @@ resource "kubernetes_service_v1" "game_server" {
         target_port = port.value
         protocol    = "UDP"
       }
+    }
+  }
+}
+
+# =============================================================================
+# Service — FM MCP (cluster-internal; LiteLLM's MCP gateway is the client)
+# =============================================================================
+# Not on the Moonlight VIP: that Service lists its ports explicitly, and the MCP
+# stays ClusterIP behind its bearer token.
+
+resource "kubernetes_service_v1" "fm_mcp" {
+  metadata {
+    name      = "fm-mcp"
+    namespace = local.game_server_ns
+    labels    = local.game_server_labels
+  }
+
+  spec {
+    type     = "ClusterIP"
+    selector = local.game_server_labels
+
+    port {
+      name        = "mcp"
+      port        = local.fm_mcp_port
+      target_port = local.fm_mcp_port
+      protocol    = "TCP"
     }
   }
 }

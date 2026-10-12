@@ -37,6 +37,7 @@ locals {
     deskplane_mcp_auth_token   = var.deskplane_mcp_auth_token
     colony_mcp_client_secret   = var.colony_litellm_client_secret
     daimyo_mcp_exchange_secret = var.litellm_mcp_exchange_client_secret
+    fm_mcp_token               = random_password.fm_mcp_token.result
     google_maps_enabled        = var.litellm_google_maps_enabled
   })
   litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@${local.litellm_db_host}/litellm?sslmode=disable"
