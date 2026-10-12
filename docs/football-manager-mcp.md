@@ -47,8 +47,11 @@ Edit a clone of `so/fm-mcp` on a workstation, then:
   plugin DLL and restart FM through Steam (BepInEx cannot hot-reload). Refuses
   while a save is loaded unless `--force`; after a forced restart it reloads
   FM's last save automatically.
-- The sidecar runs `~/fm-mcp/mcp/dist`; restart the pod's `fm-mcp` container
-  (or the pod) to pick up a new build.
+- The sidecar runs `~/fm-mcp/mcp/dist`. Pick up a new build without touching
+  FM with `kubectl -n games exec <pod> -c fm-mcp -- kill 1` (the server exits on
+  SIGTERM and the kubelet restarts the container; repeated restarts hit
+  CrashLoopBackOff delays of up to minutes). `noEmitOnError` keeps a failed
+  build from replacing `dist`.
 
 ## FM Bridge HTTP API (127.0.0.1:18765, inside the pod)
 
@@ -69,13 +72,23 @@ Edit a clone of `so/fm-mcp` on a workstation, then:
 ## MCP tools
 
 Read: `fm_status`, `fm_schema_search`, `fm_read`, `fm_read_list`, `fm_browse`,
-`fm_search_players`, `fm_scan_records`, `fm_editor_fields`.
-Write: `fm_edit_fields`, `fm_run_action`, `fm_move_person`, `fm_send_event`,
+`fm_search_players`, `fm_scan_records`, `fm_editor_fields`,
+`fm_responsibilities`, `fm_tactic`.
+Write: `fm_edit_fields`, `fm_run_action`, `fm_move_person`,
+`fm_set_responsibilities`, `fm_set_tactic`, `fm_set_roles`, `fm_send_event`,
 `fm_write`, `fm_load_last_save`.
 
 Verified on a copy of the career (2026-10-12): club balance and transfer budget
 edits, stadium capacity, player CA, moving a player from another club,
-terminating a contract, `TeamImproveTeamCohesion`, La Liga player search.
+terminating a contract, `TeamImproveTeamCohesion`, La Liga player search,
+staff attribute/CA edits across editor tabs, responsibility reassignment and
+taking control, tactic slot/style/mentality changes, in- and out-of-possession
+role changes (including 2^56 role flags).
+
+Not covered yet: team instructions (`Tempo`, `DefensiveLine`,
+`LineOfEngagement`, … read as hashed option ids on the tactic; their option
+lists and `EventFmxSetTacticTeamInstruction` payload are untraced), player
+instructions, set-piece routines.
 
 ## How it works (FM26 internals the tools rely on)
 
@@ -115,6 +128,22 @@ terminating a contract, `TeamImproveTeamCohesion`, La Liga player search.
   `@825307168:57,1198877028:<session>,1348620377:<human>,1348825715:<person>,1769566810:<team>`
   moves the person without the editor dialog. A moved staff member gets their
   `PreferredJob` as `PrimaryJob` on the new contract.
+- **Responsibilities.** `Human.Club.TeamSettingsEditSession` is a
+  `TeamSettingsEditSessionReference` (`@825307168:115,…,<human>,<club>`):
+  `ResponsibilityTabList` → tab (124) `ResponsibilityGroupList` → group (122)
+  `ResponsibilityList` → responsibility (120) with `ResponsibilityName`,
+  `StaffMemberInCharge`, `AssignableStaffList`, `IsUserInControl`. Writing
+  `StaffMemberInCharge` (a person token; the manager = take control) and sending
+  `EventFmxConfirmTeamSettings` to the session commits it.
+- **Tactics.** `@825307168:126,<session>,1651271022:1,1685218662:<team>` is the
+  team's `TeamTacticReference`. `CurrentTacticSlot`, `TacticalStyle` and
+  `Mentality` are directly writable (a style change resets mentality).
+  `TacticalPositionsCombined` lists positions with `IPRole`/`OOPRole` flags
+  (`FM.UI.InPossessionRole` / `OutOfPossessionRole`, powers of two up to 2^57).
+  `EventFmxSelectRole` to the tactic with
+  `{TeamSelectionIndex, Role:{PropertyValue, DisplayValue:{Role:<flag>}}, IsInPossession}`
+  sets a role; FM ignores roles a position can't take. Flags above 2^53 must be
+  sent as exact integer literals (the plugin parses Int64 digits verbatim).
 
 ## Known limits
 
