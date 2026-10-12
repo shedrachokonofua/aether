@@ -75,7 +75,8 @@ Read: `fm_status`, `fm_schema_search`, `fm_read`, `fm_read_list`, `fm_browse`,
 `fm_search_players`, `fm_scan_records`, `fm_editor_fields`,
 `fm_responsibilities`, `fm_tactic`.
 Write: `fm_edit_fields`, `fm_run_action`, `fm_move_person`,
-`fm_set_responsibilities`, `fm_set_tactic`, `fm_set_roles`, `fm_set_instructions`, `fm_send_event`,
+`fm_set_responsibilities`, `fm_set_tactic`, `fm_set_roles`, `fm_set_instructions`,
+`fm_pick_players`, `fm_send_event`,
 `fm_write`, `fm_load_last_save`.
 
 Verified on a copy of the career (2026-10-12): club balance and transfer budget
@@ -84,10 +85,10 @@ terminating a contract, `TeamImproveTeamCohesion`, La Liga player search,
 staff attribute/CA edits across editor tabs, responsibility reassignment and
 taking control, tactic slot/style/mentality changes, in- and out-of-possession
 role changes (including 2^56 role flags), multi-step team instruction changes
-and their restore.
+and their restore, picking and moving players in the XI.
 
-Not covered yet: player instructions, set-piece routines, opposition
-instructions.
+Not covered yet: player instructions (see below), set-piece routines,
+opposition instructions.
 
 ## How it works (FM26 internals the tools rely on)
 
@@ -153,6 +154,18 @@ instructions.
   settles 200 ms per step and resends unconfirmed steps. The options panel's
   `SelectedTeamInstructionOption` write only resolves inside the panel's
   binding context.
+- **Starting XI.** `EventFmxTeamSelectionPickPlayer` to the tactic with
+  `{PropertyValue: 2, DisplayValue:{Player, PlayerTeamSelectionIndex, Index, TeamSelectionIndex}}`
+  (`Index` = the person's database index, `PlayerTeamSelectionIndex` = their
+  current slot or -1) places a player. The engine accepts anyone, even another
+  club's staff, so `fm_pick_players` restricts picks to `<team>.Players`.
+- **Player instructions.** The UI steps them with
+  `EventFmxQuickChangePlayerInstructionIncrement` / `Decrement` to the tactic
+  with `{TeamSelectionIndex, PlayerInstructionGroupID, IsInPossession}`. Their
+  current values (`SelectedPlayerInstruction`, `PlayerInstructionGroupOptions`)
+  resolve only against that inline group record inside the panel's binding
+  remapper; there is no `UiRecordID` for it, so the plugin cannot address it
+  as a token yet.
 
 ## Known limits
 
