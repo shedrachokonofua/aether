@@ -121,29 +121,17 @@ Moira's `tiers.yaml` marks the `chatgpt/` provider `chat_requires_stream`, so
 non-streaming Chat requests to a Moira tier never route to ChatGPT. No paid
 API-key or OpenRouter fallback is configured.
 
-OpenWebUI's single household model is `router/family` ("Family Assistant"), a
-LiteLLM priority pool: GPT-6 Astra on the ChatGPT subscription (`order: 1`),
-Muse Spark 1.3 on the subscription bridge and Command Code (`order: 2`), then
-MiMo V2.6 Pro on the Xiaomi token plan (`order: 3`). `DEFAULT_MODELS` points
-OpenWebUI at it, and it is the only model entry non-admin users can read. The
-fallbacks were chosen from the family's own prompts (447 unique, March to
-September 2026: study and homework 31%, writing 28%, health 12%; 41% where a
-wrong answer could cause harm; 8% need images and 13% documents), so every leg
-reads images. On 2026-09-25 the ChatGPT plan hit its weekly usage limit
-(`usage_limit_reached`, resetting about 2026-10-02); the `seven30-foundry` key
-drove about 84% of that day's ChatGPT-route tokens, so the household pool now
-falls through to Muse instead of failing.
+OpenWebUI's single household model is `moira/frontier` ("Family Assistant"):
+`DEFAULT_MODELS` points OpenWebUI at it, and it is the only model entry
+non-admin users can read (OpenWebUI's `model` row and its read grant to every
+user live in OpenWebUI's database). It replaced the `router/family` priority
+pool (GPT-6 Astra, Muse Spark 1.3 Standard, MiMo V2.6 Pro) on 2026-10-13, when
+Standard Muse was removed for every caller; household chats now follow Moira's
+frontier ranking, which includes Muse Wonder Full Contributor, so Meta may
+train on the chats routed there.
 
-Muse reasons privately for up to about 50 seconds before its first token, and
-Meta redacts that reasoning on Chat Completions for external keys. The family
-pool's Muse legs therefore call Meta's Responses API (`openai/responses/…`)
-with `reasoning.summary: concise`; LiteLLM streams the summary as
-`reasoning_content`, which OpenWebUI shows as a thinking block. Measured on
-2026-09-26, a 250-word explanation showed its summary at 6.8 s and its answer
-at 23.7 s. Colony and the other Muse routes stay on Chat Completions.
-
-Clinepass also exposes `clinepass/qwen3.8-max`, `clinepass/muse-spark-1.3`,
-and `clinepass/muse-spark-1.3-contributor` as standalone provider pins.
+Clinepass also exposes `clinepass/qwen3.8-max` and
+`clinepass/muse-spark-1.3-contributor` as standalone provider pins.
 
 Google Antigravity is exposed through the single-tenant bridge as
 `antigravity/gemini-3.8-flash`. The bridge translates OpenAI chat-completions
@@ -207,14 +195,16 @@ bridge. Credentials were updated only in an isolated in-memory store;
 no deployed bridge or OpenBao credential was changed by those checks.
 
 The private Muse bridge exchanges the operator's Muse Code account grant for
-the subscription-backed key and exposes `muse-subscription/muse-spark-1.3`,
+the subscription-backed key and exposes only Contributor tiers:
 `muse-subscription/muse-spark-1.3-contributor`,
 `muse-subscription/muse-wonder-1.0-contributor` and
-`muse-subscription/muse-wonder-full-1.0-contributor` on both
+`muse-subscription/muse-wonder-full-1.0-contributor`, on both
 `/v1/chat/completions` and `/v1/responses`. The account is on the Power Usage
-plan (since 2026-10-12), so Meta's `/v1/models` lists both tiers of Spark 1.3,
-Wonder (`muse-wonder-1.0`) and Wonder Full (`muse-wonder-full-1.0`). Only the
-Wonder Contributor tiers are exposed, as LiteLLM's
+plan (since 2026-10-12), so Meta's `/v1/models` also lists the Standard tiers
+of Spark 1.3, Wonder and Wonder Full; the bridge refuses them, and LiteLLM has
+no Standard Muse route for any caller (2026-10-13, after `seven30-foundry`'s
+direct `meta/muse-spark-1.3` calls took the Power plan's weekly quota from 1% to
+21% in four hours). LiteLLM serves `meta/muse-spark-1.3-contributor`,
 `meta/muse-wonder-1.0-contributor` and `meta/muse-wonder-full-1.0-contributor`.
 Moira routes Wonder Full at max (AA 56, frontier) and Wonder at xhigh only
 (strong, ahead of Spark Contributor on the shared quota). Wonder's xhigh score
@@ -232,18 +222,17 @@ weights 4:1. Holmes primary and Hermes Tungsten use this canonical group.
 OpenCode Go, and Ollama Cloud. Provider-prefixed Flash pins remain standalone,
 including the Clinepass pin; Clinepass is not a pool member.
 
-Other multi-provider pools are `router/muse-spark-1.3`,
-`router/muse-spark-1.3-contributor`, and `router/hy4-preview`. The normal Muse
-pool uses Command Code and the private subscription. The Contributor pool uses
-Command Code's Contributor model and the subscription bridge's Contributor
-model. Until 2026-09-26 the bridge leg served standard Muse, so Colony's
-Contributor traffic on that leg (about 94M prompt tokens from 2026-09-25) ran on
-the Standard model. OpenCode Go is not a Contributor leg: its Muse
-Contributor endpoint answered "Endpoint is unavailable" (region-limited per
-OpenCode's docs, 2026-09-25). Both Muse routers require streaming. Both are
-priority pools: the subscription bridge leg (`order: 1`) takes every request
-while healthy, and Command Code (`order: 2`) serves only while the
-subscription is failing or cooling down. Hy4 pools Command Code and OpenCode Go.
+Other multi-provider pools are `router/muse-spark-1.3-contributor` and
+`router/hy4-preview`. The Contributor pool uses Command Code's Contributor model
+and the subscription bridge's Contributor model. Until 2026-09-26 the bridge leg
+served standard Muse, so Colony's Contributor traffic on that leg (about 94M
+prompt tokens from 2026-09-25) ran on the Standard model. OpenCode Go is not a
+Contributor leg: its Muse Contributor endpoint answered "Endpoint is
+unavailable" (region-limited per OpenCode's docs, 2026-09-25). The Muse router
+requires streaming and is a priority pool: the subscription bridge leg
+(`order: 1`) takes every request while healthy, and Command Code (`order: 2`)
+serves only while the subscription is failing or cooling down. Hy4 pools
+Command Code and OpenCode Go.
 
 `router/deepseek-v4-pro` and `router/minimax-m3` each have one Ollama Cloud
 backend. Their `router/*` names remain canonical.
@@ -296,8 +285,8 @@ the custom `openai/<id>` backends, so every chat deployment except the native
 rerank, and embedding routes declare `audio_transcription`, `audio_speech`,
 `rerank`, or `embedding`. LiteLLM 1.99.1 builds a group's entry from the first
 deployment's `mode`, sets a `supports_*` flag if any deployment sets it, and
-reports the largest token limit among the legs. `router/family` therefore
-reports 1048576 input tokens although its order-1 Astra leg takes 272000.
+reports the largest token limit among the legs, so a mixed pool can report a
+limit larger than one of its legs accepts.
 
 `openai/` and `chatgpt/` deployments do not list `reasoning_effort` as a
 supported parameter, so `drop_params` strips it unless the deployment sets
