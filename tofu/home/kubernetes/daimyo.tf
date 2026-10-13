@@ -26,15 +26,17 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server 2cdc4d7 (tag kata-start-fast, pipeline 6835): task pods start
-  # seconds sooner (sidecar containers burst to 500m CPU, readiness polled
-  # every 250 ms), on top of the `tunnel` grant (§9.5), agents/attestations
-  # pagination and the /mcp org default (1b15a89; the Agent CRD gained
+  # Server f0a1b5b (tag sessions-evict-warm-files, pipeline 6845): at the
+  # org's hot-session limit the least-recently-used idle session goes cold
+  # instead of the request being refused (migration 0037), POST
+  # /v1/sessions/{id}:warm, read-only session workspace file routes, and SSE
+  # responses without the Connection header (HTTP/2). Earlier, 2cdc4d7: task
+  # pods start seconds sooner, the `tunnel` grant (§9.5; the Agent CRD gained
   # spec.grants[].tunnel, applied server-side first per docs/ops/upgrades.md).
   # Sidecar 130fd94 (tag tunnel-grant-3, pipeline 6811): the tunnel also
   # reaches dev servers bound to the IPv6 loopback (Vite). Migrations through
-  # 0036.
-  daimyo_server_tag  = "sha256:0ffa589e0c74aa0024d64023c562be493cbd59e82d3bc4fc75ace69b058b49c1"
+  # 0037.
+  daimyo_server_tag  = "sha256:750c0dac2604c7e2320647ce7305562f379ff53f17f0477fe9edb8537d607457"
   daimyo_sidecar_tag = "sha256:d6327e4985a9e20ca2c8147f44ca6378c0c42fe125e8e1dc4c8e3f06cc281652"
   # Built-in harness images (Helm config.harness.images). claude-code at
   # 3d67440 (tag harness-answered-end, pipeline 6824): the system prompt is
