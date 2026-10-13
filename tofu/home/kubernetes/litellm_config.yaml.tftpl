@@ -11,14 +11,14 @@
 # attempt: MiMo V2.6 Pro answers a named forced tool_choice with a different
 # tool call (2026-09-25 probe), and Step 5 Preview honoured one 1/3.
 #
-# reasoning_effort: `openai/` deployments do not list it as a supported
-# param, so drop_params strips it unless allowed_openai_params names it.
-# Clients read the same gap from /model_group/info: omp sends an effort only
-# when supported_openai_params lists reasoning_effort, and LiteLLM computes
-# that list from the provider, not allowed_openai_params. Every leg that
-# forwards reasoning_effort therefore declares supported_openai_params (the
-# provider's own list plus reasoning_effort). A group reports the list of its
-# LAST deployment, so every leg declares it.
+# reasoning_effort: since LiteLLM 1.106, `openai/` models missing from its
+# bundled map (every custom backend here) forward reasoning_effort by default
+# and report it in supported_openai_params. Legs that must not forward it
+# (llama-swap, whose IDs fix thinking, and Command Code, never tested with it)
+# set additional_drop_params: ["reasoning_effort"]. Legs that forward it still
+# name it in allowed_openai_params and declare supported_openai_params (the
+# provider's own list plus reasoning_effort): omp sends an effort only when
+# that list names it, and a group reports the list of its LAST deployment.
 model_list:
   # llama-swap (K8s) — AFFiNE Copilot streams via /v1/responses; bridge to chat/completions.
   # Each local model is one llama-server (4 slots sharing a 262144-token KV
@@ -41,96 +41,112 @@ model_list:
       model: "openai/qwen3.8-flash-next"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/qwen3.8-flash-next:code"
     litellm_params:
       model: "openai/qwen3.8-flash-next:code"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-flash-next:think"
     litellm_params:
       model: "openai/qwen3.8-flash-next:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-flash-next:xhigh"
     litellm_params:
       model: "openai/qwen3.8-flash-next:xhigh"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-27b"
     litellm_params:
       model: "openai/qwen3.8-27b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/qwen3.8-27b:code"
     litellm_params:
       model: "openai/qwen3.8-27b:code"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.8-27b:think"
     litellm_params:
       model: "openai/qwen3.8-27b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.6-35b-a3b"
     litellm_params:
       model: "openai/qwen3.6-35b-a3b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/qwen3.6-35b-a3b:code"
     litellm_params:
       model: "openai/qwen3.6-35b-a3b:code"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.6-35b-a3b:think"
     litellm_params:
       model: "openai/qwen3.6-35b-a3b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/qwen3.5-9b"
     litellm_params:
       model: "openai/qwen3.5-9b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 131072, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/qwen3.5-9b:think"
     litellm_params:
       model: "openai/qwen3.5-9b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/gemma-4-31b"
     litellm_params:
       model: "openai/gemma-4-31b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/gemma-4-31b:think"
     litellm_params:
       model: "openai/gemma-4-31b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "aether/gemma-4-26b-a4b"
     litellm_params:
       model: "openai/gemma-4-26b-a4b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/gemma-4-26b-a4b:think"
     litellm_params:
       model: "openai/gemma-4-26b-a4b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   # Glimmer thinks via chat_template_kwargs.reasoning_effort, which only the
   # :think ID sets; b10423 does not map the top-level field onto it.
@@ -139,12 +155,14 @@ model_list:
       model: "openai/muse-glimmer-30b"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 131072, supports_function_calling: true, supports_reasoning: false, supports_vision: true}
   - model_name: "aether/muse-glimmer-30b:think"
     litellm_params:
       model: "openai/muse-glimmer-30b:think"
       litellm_credential_name: llama_swap_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
 
   # Clinepass models (https://api.cline.bot — OpenAI-compatible).
@@ -271,6 +289,7 @@ model_list:
       model: "openai/meta/muse-spark-1.3-contributor"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/muse-spark-1.3-contributor"
     litellm_params:
@@ -278,6 +297,7 @@ model_list:
       model: "openai/meta/muse-spark-1.3-contributor"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
       order: 2
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "commandcode/glm-5.3-flash"
@@ -285,6 +305,7 @@ model_list:
       model: "openai/z-ai/glm-5.3-flash"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
@@ -292,12 +313,14 @@ model_list:
       model: "openai/z-ai/glm-5.3-flash"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "commandcode/hy4-preview"
     litellm_params:
       model: "openai/tencent/hy4-preview"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
   - model_name: "router/hy4-preview"
     litellm_params:
@@ -305,12 +328,14 @@ model_list:
       model: "openai/tencent/hy4-preview"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 64000, supports_function_calling: true, supports_reasoning: true, supports_vision: false}
   - model_name: "commandcode/mimo-v2.6-pro"
     litellm_params:
       model: "openai/xiaomi/mimo-v2.6-pro"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/mimo-v2.6-pro"
     litellm_params:
@@ -318,6 +343,7 @@ model_list:
       model: "openai/xiaomi/mimo-v2.6-pro"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
       order: 2
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "commandcode/mimo-v2.6-flash"
@@ -325,6 +351,7 @@ model_list:
       model: "openai/xiaomi/mimo-v2.6-flash"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/mimo-v2.6-flash"
     litellm_params:
@@ -332,6 +359,7 @@ model_list:
       model: "openai/xiaomi/mimo-v2.6-flash"
       litellm_credential_name: commandcode_credential
       use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
       order: 2
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
 
@@ -963,9 +991,8 @@ credential_list:
 litellm_settings:
   drop_params: true
   # litellm_hooks.py (mounted as /app/aether_hooks.py):
-  # - chat_reasoning_effort flattens the Responses `reasoning` object that
-  #   LiteLLM copies into reasoning_effort when it bridges /v1/responses onto
-  #   Chat Completions backends.
+  # - chat_reasoning_effort flattens an object-valued reasoning_effort to its
+  #   effort string before a Chat Completions backend sees it.
   # - moira_router asks Moira's POST /decide which concrete model a
   #   moira/<tier> or router/* request should use, rewriting the request (or
   #   refusing with the tier's 429/400) before deployment selection. Fail-open:
@@ -1057,6 +1084,10 @@ general_settings:
   # Daily aggregate tables retain cost history; bound the raw audit detail.
   maximum_spend_logs_retention_period: "7d"
   maximum_spend_logs_retention_interval: "1d"
+  # LiteLLM 1.106 otherwise GETs every openai-compatible deployment's
+  # /v1/models at boot and every 300 s with its credentials (subscription
+  # bridges and quota plans included). model_info here is curated by hand.
+  disable_model_info_refresh: true
 
 mcp_servers:
   time:

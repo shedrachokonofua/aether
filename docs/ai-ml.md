@@ -106,20 +106,17 @@ configured in LiteLLM.
 The subscription routes are `chatgpt/gpt-6-astra`, `chatgpt/gpt-6.1-sol`, and
 `chatgpt/gpt-6-luna`, available to OMP and Colony without changing their
 defaults; Deskplane's MCP uses `chatgpt/gpt-6.1-sol`. They declare Responses
-mode and native streaming explicitly because LiteLLM 1.99.1 does not include
-GPT-6 in its bundled model catalog. GPT-6.1 Sol replaced GPT-6 Sol on
-2026-09-29 and rejects `reasoning_effort` `none`/`minimal`.
+mode, native streaming and a 272000-token input limit explicitly; LiteLLM
+1.106's bundled catalog lists GPT-6 with a larger limit than the Codex backend
+accepts. GPT-6.1 Sol replaced GPT-6 Sol on 2026-09-29 and rejects
+`reasoning_effort` `none`/`minimal`.
 
-Use `stream: true` with these routes and list-form `input` for `/v1/responses`.
-All three passed streaming Responses inference; streaming Chat Completions
-also passed. Non-streaming Chat Completions fail with
-`Unknown items in responses API response: []` (verified on LiteLLM 1.99.1;
-1.99.4 has the same code): the Responses bridge reads the upstream stream and
-keeps only the `response.completed` payload, whose `output` the Codex backend
-leaves empty; the message only arrives in `response.output_item.done`.
-Moira's `tiers.yaml` marks the `chatgpt/` provider `chat_requires_stream`, so
-non-streaming Chat requests to a Moira tier never route to ChatGPT. No paid
-API-key or OpenRouter fallback is configured.
+Use list-form `input` for `/v1/responses`. Streaming and non-streaming Chat
+Completions both work on LiteLLM 1.106 (verified 2026-10-13, including a
+non-streaming tool call): 1.99 failed non-streaming calls with
+`Unknown items in responses API response: []`, which is why Moira used to
+mark `chatgpt/` `chat_requires_stream`. No paid API-key or OpenRouter fallback
+is configured.
 
 OpenWebUI's single household model is `moira/frontier` ("Family Assistant"):
 `DEFAULT_MODELS` points OpenWebUI at it, and it is the only model entry
@@ -283,22 +280,22 @@ the custom `openai/<id>` backends, so every chat deployment except the native
 `mode`, `supports_reasoning`, `supports_function_calling`, `supports_vision`,
 `max_input_tokens`, and `max_output_tokens` where one is published. Speech,
 rerank, and embedding routes declare `audio_transcription`, `audio_speech`,
-`rerank`, or `embedding`. LiteLLM 1.99.1 builds a group's entry from the first
+`rerank`, or `embedding`. LiteLLM (observed on 1.99.1) builds a group's entry from the first
 deployment's `mode`, sets a `supports_*` flag if any deployment sets it, and
 reports the largest token limit among the legs, so a mixed pool can report a
 limit larger than one of its legs accepts.
 
-`openai/` and `chatgpt/` deployments do not list `reasoning_effort` as a
-supported parameter, so `drop_params` strips it unless the deployment sets
-`allowed_openai_params: ["reasoning_effort"]`. The allow-list is set on
-the Kimi, Qwen Cloud, Step, OpenCode Go, Xiaomi, CodeBuddy, Clinepass,
-ChatGPT, Muse bridge, SuperGrok, and Antigravity deployments. These deployments
-and the Ollama legs also declare `supported_openai_params` including
-`reasoning_effort`. LiteLLM derives that list from the provider and ignores
-the allow-list, and OMP sends an effort level only when the list names it.
-Command Code
-legs were left without it: their weekly limit (reset 2026-10-01) prevented
-testing. Ollama legs map it to `think` natively. Z.AI's provider drops it, and
+Since LiteLLM 1.106, `openai/` deployments missing from its bundled model map
+forward `reasoning_effort` by default. The llama-swap legs (their IDs fix
+thinking) and the Command Code legs set
+`additional_drop_params: ["reasoning_effort"]` so they still never receive
+it. The Kimi, Qwen Cloud, Step, OpenCode Go, Xiaomi, CodeBuddy, Clinepass,
+ChatGPT, Muse bridge, SuperGrok, and Antigravity deployments set
+`allowed_openai_params: ["reasoning_effort"]`; they and the Ollama legs also
+declare `supported_openai_params` including `reasoning_effort`, and OMP sends
+an effort level only when that list names it.
+Command Code was never tested with it: its weekly limit (reset 2026-10-01)
+prevented testing. Ollama legs map it to `think` natively. Z.AI's provider drops it, and
 GLM reasons by default. For `reasoning_effort: "none"`, the Antigravity bridge
 selects Gemini's thinking-off route. The Muse bridge raises it to `minimal`,
 because Meta rejects `none`. ChatGPT returns reasoning text only when a summary
@@ -551,12 +548,6 @@ allowlist (the `colony` and `omp` keys have all four),
 and Moira only chooses among the key's allowed models: the hook passes the
 allowlist to `/decide`, because LiteLLM does not re-check the rewritten model
 against the key allowlist after the hook replaces `data["model"]`.
-
-ChatGPT is excluded from non-streaming Chat: the `chatgpt/` provider is
-`chat_requires_stream` in tiers.yaml, so Moira never routes a non-streaming
-Chat request to it (the LiteLLM Responses bridge fails those with
-`Unknown items in responses API response: []`, see above). Streaming chat and
-`/v1/responses` stay routable.
 
 Quota sources per provider: Z.AI, Kimi, Command Code, OpenCode Go, Clinepass
 and Ollama Cloud are polled at their quota endpoints by `moira-poller`; Muse,
