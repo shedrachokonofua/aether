@@ -28,7 +28,7 @@ resource "helm_release" "wasmcloud" {
   chart            = "runtime-operator"
   namespace        = "wasmcloud-system"
   create_namespace = false
-  version          = "2.5.2"
+  version          = "2.10.3"
   wait             = true
   timeout          = 600
 
@@ -47,11 +47,13 @@ resource "helm_release" "wasmcloud" {
       enabled = false
     }
 
-    # Two host pods for fault tolerance. Hosts are tiny (64Mi request, 512Mi
-    # limit) and each can run hundreds of I/O-bound component instances, so
-    # capacity isn't the constraint — only HA matters. arm-pool preference
-    # comes from the existing aether-k8s-arch-labeler + arm-pool-guardrails
-    # chain (multi-arch host images qualify automatically).
+    # Two host pods for fault tolerance. A wash host idles at ~400Mi on its
+    # own (measured on 2.5.2, with only a few small components), so a 512Mi
+    # limit left ~90Mi for compiling and running components: deploying a 13MB
+    # jco (StarlingMonkey) component OOM-killed a default host. The limit is
+    # also the host's guest-memory ceiling since 2.9 (WASH_HOST_MAX_GUEST_MEMORY).
+    # arm-pool preference comes from the existing aether-k8s-arch-labeler +
+    # arm-pool-guardrails chain (multi-arch host images qualify automatically).
     runtime = {
       hostGroups = [
         {
@@ -63,8 +65,8 @@ resource "helm_release" "wasmcloud" {
           webgpu    = { enabled = false }
           wasip3    = { enabled = false }
           resources = {
-            requests = { cpu = "250m", memory = "64Mi" }
-            limits   = { cpu = "500m", memory = "512Mi" }
+            requests = { cpu = "250m", memory = "128Mi" }
+            limits   = { cpu = "500m", memory = "1Gi" }
           }
         },
         {
@@ -79,18 +81,40 @@ resource "helm_release" "wasmcloud" {
             requests = { cpu = "250m", memory = "256Mi" }
             limits   = { cpu = "500m", memory = "2Gi" }
           }
-          # No --enable-meters: on wash 2.5.2 its fuel metering makes every
+          # No --enable-meters: on wash 2.5.2 its fuel metering made every
           # pop function (wstd Rust and jco TS alike) fail with HTTP 500
           # ("oneshot channel closed but no response was sent"); reproduced
           # locally with `wash dev --enable-meters` against the same component.
           extraArgs = ["--wasi-otel"]
-          # wash 2.5.2 exports host and wasi-otel plugin telemetry with the
-          # tonic (gRPC) OTLP exporter only, so the host gets the collector's
-          # gRPC port; pop-api/pop-origin use OTLP/HTTP on 4318.
+          # Host and wasi-otel plugin telemetry go to the collector's gRPC port
+          # (pop-api/pop-origin use OTLP/HTTP on 4318). Since 2.10 the host's
+          # OTel init follows the env spec, whose default protocol is
+          # http/protobuf, so gRPC is pinned explicitly.
           env = [
             { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = local.pop_otel_grpc_endpoint },
+            { name = "OTEL_EXPORTER_OTLP_PROTOCOL", value = "grpc" },
             { name = "OTEL_RESOURCE_ATTRIBUTES", value = "service.namespace=pop,deployment.environment=home" },
           ]
+        },
+        # molecule spike: wasm agents with a shell (brush) and files. Kept off
+        # `default` so a heavy agent component cannot OOM the aether
+        # components' hosts; workloads opt in with hostSelector
+        # { hostgroup = "daimyo" } (canary and reaper pin `default`). The
+        # workspace volume is what components preopen as their working tree.
+        {
+          name      = "daimyo"
+          namespace = "wasmcloud-system"
+          replicas  = 1
+          service   = { type = "ClusterIP" }
+          http      = { enabled = true, port = 9191, tls = { enabled = false } }
+          webgpu    = { enabled = false }
+          wasip3    = { enabled = false }
+          resources = {
+            requests = { cpu = "250m", memory = "256Mi" }
+            limits   = { cpu = "2", memory = "2Gi" }
+          }
+          volumes      = [{ name = "workspace", emptyDir = { sizeLimit = "2Gi" } }]
+          volumeMounts = [{ name = "workspace", mountPath = "/var/molecule/workspace" }]
         },
       ]
     }

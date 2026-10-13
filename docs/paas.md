@@ -155,9 +155,13 @@ the `standard` group (ntfy `/alerts` push + Matrix `#alerts`).
 ### WebAssembly (wasmCloud)
 
 WebAssembly components run on the **wasmCloud runtime-operator** (Helm chart,
-pinned `2.5.2`) in `wasmcloud-system`. The operator schedules components,
-declared as `WorkloadDeployment` CRs (`runtime.wasmcloud.dev/v1alpha1`), onto a
-small pool of shared **host pods** (`hostgroup-default`, 2 replicas). Each
+pinned `2.10.3`) in `wasmcloud-system`. The operator schedules components,
+declared as `WorkloadDeployment` CRs (`runtime.wasmcloud.dev/v1alpha1`), onto
+pools of shared **host pods**: `hostgroup-default` (2 replicas, 1Gi; aether's
+own components, pinned with `hostSelector: {hostgroup: default}`),
+`hostgroup-daimyo` (1 replica, 2Gi, `/var/molecule/workspace` volume; the
+molecule spike) and pop's `hostgroup-pop` (namespace `pop`). A wash host idles
+at ~400Mi on its own, so a host's memory limit is mostly that baseline. Each
 component's selector-less `Service` gets an operator-managed EndpointSlice
 (runtime-gateway disabled since 2.0.3); Istio Ambient provides mTLS.
 
@@ -212,6 +216,21 @@ Hosts re-register automatically under the new CRD (`Host` now carries
 `ENVIRONMENT=<namespace>`) and the operator re-places components — brief
 workload unavailability, no node reboot. Repeat this CRD-first sequence for any
 future scope-changing bump.
+
+**2.5.2 → 2.10.3** (2026-10-13) changed no CRD scope: the five CRDs gained only
+optional fields and were applied server-side first as above (the `artifacts`
+CRD needed `--force-conflicts` to take `.spec.versions` from the original Helm
+install). Two consequences to know when writing manifests:
+
+- The CRDs now admit **at most one unnamed `hostInterface` per
+  `namespace:package`** (CEL validation). `incoming-handler` and
+  `outgoing-handler` go in ONE `wasi:http` entry; two entries are rejected and
+  an existing workload stops reconciling (the reaper did, until merged).
+- Hosts re-pull components after a restart, and a component carrying an
+  `imagePullSecret` with empty credentials fails with `Not authorized` (the
+  host sends empty Basic auth). Two retired pop smoke deploys from the old
+  `so/pop/functions` path still carry one and no longer start; current pop
+  omits the secret.
 
 ### Access
 
