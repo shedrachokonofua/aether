@@ -37,21 +37,24 @@ locals {
   # sessions this replica still supervises. d172f36: lost agent streams,
   # harness.models slots, cold-resume histogram (0038), session file PUT,
   # cold committed before the old pod retires (0039). Migrations through 0040.
+  # Sidecar fd7ec0f (tag sessions-p1-final, pipeline 6857): after a restore
+  # the journal adopts the restored workspace as its baseline instead of
+  # re-uploading all of it before the first turn can start.
   daimyo_server_tag  = "sha256:53b03653ae9c2224419dace1e180068d584c2cc647ba86a33bc51717c6e15bd2"
-  daimyo_sidecar_tag = "sha256:69da123e19fbae6b91b21b15278388318901453731d63370a0530712bcb051a4"
+  daimyo_sidecar_tag = "sha256:15a62baad97b5a9be5e2922b833796d03de58327c1645c13cd6eef28cf39de2c"
   # Built-in harness images (Helm config.harness.images). claude-code, omp
-  # and codex at d172f36 (tag sessions-p1, pipeline 6849): a hot session keeps
-  # one harness CLI process across turns (claude-code stream-json input, omp
-  # --mode rpc, codex app-server, resumed natively after a crash), honour
-  # harness.models slots, and stream live text deltas (codex through its
-  # app-server notifications), batched ~50 ms / ~1 KB with each block's first
-  # delta sent at once, never journaled. The system prompt is read from a
-  # file (an agent's `pkill -f <word>` cannot kill its own harness).
+  # and codex at fd7ec0f (tag sessions-p1-final, pipeline 6857): a hot
+  # session keeps one harness CLI process across turns (claude-code
+  # stream-json input, omp --mode rpc, codex app-server, resumed natively
+  # after a crash), honour harness.models slots, and stream live text deltas,
+  # never journaled; every codex agent message reaches the transcript, in
+  # order. The system prompt is read from a file (an agent's `pkill -f
+  # <word>` cannot kill its own harness).
   # workflow-runner at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:74c973efe4b52c6304d5b925e0bfe5d014cf471a6736ecce6682befe56969f0d"
-  daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:9c2a3ade29d04c4fdd61eecfb3aef0e1e1571929f73806da7b1347dde1678380"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:c7d0a60b94394f5615de8891c39c6d7c56f4a671b8bd3fc1dfec4bd1425da0ef"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:9439ca1f1ec1567efee7077f7677360e98db3828a14f4404a04e24bb7e8235b8"
+  daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:af25ff2b8a61596ba0602cf64af5f2c37a87b48df8f260743ea3a10baef4373f"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:e5bb667ce3f0047c896d1c33a70bd5f809e69fab32b95a659beadcc51ec1a86d"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:a6a3094a6c440e8a2574ef3ebdfc6f9825018042309dcbfc1e561481e0482e55"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
