@@ -76,6 +76,8 @@ resource "kubectl_manifest" "comfyui_reaper_workload" {
       kubernetes   = { service = { name = local.comfyui_reaper_name } }
       template = {
         spec = {
+          # wasmcloud-system hosts more than one host group; stay on `default`.
+          hostSelector = { hostgroup = "default" }
           components = [{
             name  = local.comfyui_reaper_name
             image = local.comfyui_reaper_image
@@ -98,18 +100,18 @@ resource "kubectl_manifest" "comfyui_reaper_workload" {
             }
           }]
           # incoming-handler (HTTP entrypoint) + outgoing-handler (Prometheus/
-          # ComfyUI calls). wasi:cli/environment is host-native — NOT declared
-          # here (declaring it makes the operator seek a nonexistent plugin and
-          # fail the workload); env values arrive via localResources.environment.
-          hostInterfaces = [
-            {
-              namespace  = "wasi"
-              package    = "http"
-              interfaces = ["incoming-handler"]
-              config     = { host = local.comfyui_reaper_name }
-            },
-            { namespace = "wasi", package = "http", interfaces = ["outgoing-handler"] },
-          ]
+          # ComfyUI calls) in ONE wasi:http entry: since 2.10 the CRDs allow at
+          # most one unnamed hostInterface per namespace:package, so two
+          # entries are rejected and the workload stops reconciling.
+          # wasi:cli/environment is host-native — NOT declared here (declaring
+          # it makes the operator seek a nonexistent plugin and fail the
+          # workload); env values arrive via localResources.environment.
+          hostInterfaces = [{
+            namespace  = "wasi"
+            package    = "http"
+            interfaces = ["incoming-handler", "outgoing-handler"]
+            config     = { host = local.comfyui_reaper_name }
+          }]
         }
       }
     }

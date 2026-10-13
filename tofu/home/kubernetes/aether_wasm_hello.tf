@@ -73,6 +73,8 @@ resource "kubectl_manifest" "aether_wasm_hello_workload" {
       kubernetes   = { service = { name = local.aether_wasm_hello_name } }
       template = {
         spec = {
+          # wasmcloud-system hosts more than one host group; stay on `default`.
+          hostSelector = { hostgroup = "default" }
           # Hello-world: incoming handler only — no egress, no env.
           components = [{
             name            = local.aether_wasm_hello_name
