@@ -35,12 +35,16 @@ locals {
   # to the IPv6 loopback (Vite). Migrations through 0036.
   daimyo_server_tag  = "sha256:7ab2a4d420cfa9bacc82122608e049ab723eb482ee811f18643af26e8200a564"
   daimyo_sidecar_tag = "sha256:d6327e4985a9e20ca2c8147f44ca6378c0c42fe125e8e1dc4c8e3f06cc281652"
-  # Built-in harness images (Helm config.harness.images), built at 82d82a5
-  # (codex MCP approval mode, omp image input). workflow-runner runs script
-  # workflows (§11.5) with no per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:fc4e2c9c5bc4b137ea3a653b45706b41add6626e5ca2094f0f7599582604e1d4"
+  # Built-in harness images (Helm config.harness.images). claude-code at
+  # 3d67440 (tag harness-answered-end, pipeline 6824): the system prompt is
+  # read from a file (an agent's `pkill -f <word>` cannot kill its own
+  # harness), and a turn ends once Claude Code has answered even if a
+  # background dev server keeps it up. omp at aec2c85 (prompt file). codex and
+  # workflow-runner at 82d82a5 (codex MCP approval mode). workflow-runner runs
+  # script workflows (§11.5) with no per-project Agent CR.
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:7eaf5fe07c4bd8d9aeefa09e5b510b9da10d1b6ec3e74a8d17e23590169abf8e"
   daimyo_harness_codex_image           = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-codex@sha256:8a0193126be261d215b8e38d0269b0546c35c5f72bd30b95f36cc98051fb5596"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:bce6d5e70643f2975e73938eee7daef7b400666a402cc5eafb7bfd2f95170649"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:e6b294c53be882b1afdfa95b9eab963028b76bd901e814bf8f871b412b4a676c"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:a6a3094a6c440e8a2574ef3ebdfc6f9825018042309dcbfc1e561481e0482e55"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
@@ -1076,6 +1080,87 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
               { name = "hook_remove", policy = "ask" },
               { name = "forms_export", policy = "ask" },
               { name = "form_file_link", policy = "ask" },
+            ]
+          }
+        },
+      ]
+      sessions  = { enabled = true }
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+# `frontend`: builds web apps and checks them in a real browser. Its dev
+# server runs on the task's localhost; the `browser` grant is Deskplane's MCP
+# as this task (a task token Deskplane trusts, deskplane.tf
+# deskplane_workload_issuers), and the `browser-tunnel` grant lets that
+# browser load the task's localhost (§9.5) with no inbound path to the pod.
+# The session is watchable live at the navigate result's watch_url. `pop`
+# publishes previews as researcher's grant does.
+resource "kubectl_manifest" "daimyo_frontend_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "frontend"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "personal"
+      description = "Builds web apps and checks them in a real browser while it works."
+      harness = {
+        kind         = "claude-code"
+        model        = "moira/strong"
+        systemPrompt = <<-EOT
+          You build web front ends. Work in $DAIMYO_WORKSPACE. Run the dev
+          server in the background on localhost (for Vite: npx vite --port
+          5173). Look at your work in the browser: navigate to
+          http://localhost:<port>/ (that browser reaches your localhost),
+          take a screenshot, and fix what looks wrong; repeat after changes
+          (the dev server's live reload updates the page, so you rarely need
+          to navigate again). Report the watch_url the browser tools return
+          so the user can watch. Publish a preview with the pop tools only
+          when asked.
+        EOT
+        tools        = { bash = true, files = true, web = false }
+        maxTurns     = 200
+      }
+      resources  = { cpu = "2", memory = "4Gi", workspace = "4Gi" }
+      operations = [{ name = "ask", deadline = "2h" }]
+      grants = [
+        { name = "models", model = { models = ["moira/strong"], budgetUsd = 5 } },
+        {
+          name = "browser"
+          mcp = {
+            url  = "http://deskplane-mcp.deskplane.svc:8100/mcp"
+            auth = { taskToken = { audience = "deskplane" } }
+            tools = [
+              "navigate", "screenshot", "click", "double_click", "move", "drag",
+              "type_text", "key", "scroll", "wait", "watch_link",
+            ]
+          }
+        },
+        {
+          name = "browser-tunnel"
+          tunnel = {
+            url  = "wss://${local.deskplane_host}/api/tunnel"
+            auth = { taskToken = { audience = "deskplane" } }
+          }
+        },
+        {
+          name = "pop"
+          mcp = {
+            url  = "https://pop.home.shdr.ch/mcp/aether"
+            auth = { taskToken = { audience = "pop" } }
+            tools = [
+              "projects_list", "deploys_list", "deploy_get", "aliases_list",
+              "deploy_begin", "deploy_files", "deploy_finalize",
+              { name = "project_create", policy = "ask" },
+              { name = "alias_set", policy = "ask" },
+              { name = "alias_rollback", policy = "ask" },
             ]
           }
         },
