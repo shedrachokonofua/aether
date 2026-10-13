@@ -611,12 +611,13 @@ resource "kubernetes_deployment_v1" "openwebui" {
             })
           }
 
-          # Default chat model for new chats (family members only have access
-          # to this model; access grants live in OpenWebUI's DB). Chosen
-          # 2026-09-25 after Anthropic was removed from LiteLLM.
+          # Default chat model for new chats. Family members only have access
+          # to this model (OpenWebUI's model row "Family Assistant" and its
+          # read grant to every user live in OpenWebUI's DB). Moira's frontier
+          # tier since 2026-10-13, replacing the router/family pool.
           env {
             name  = "DEFAULT_MODELS"
-            value = "router/family"
+            value = "moira/frontier"
           }
 
           # Background tasks (titles, tags, follow-ups, search queries) use

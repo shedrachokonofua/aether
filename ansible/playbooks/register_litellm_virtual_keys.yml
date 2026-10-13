@@ -40,10 +40,6 @@
         - commandcode/hy4-preview
         - opencode-go/hy4-preview
         - router/hy4-preview
-        - meta/muse-spark-1.3
-        - commandcode/muse-spark-1.3
-        - clinepass/muse-spark-1.3
-        - router/muse-spark-1.3
         - commandcode/muse-spark-1.3-contributor
         - meta/muse-spark-1.3-contributor
         - meta/muse-wonder-1.0-contributor
@@ -114,10 +110,6 @@
         - opencode-go/hy4-preview
         - codebuddy/hy4-preview
         - router/hy4-preview
-        - meta/muse-spark-1.3
-        - commandcode/muse-spark-1.3
-        - clinepass/muse-spark-1.3
-        - router/muse-spark-1.3
         - commandcode/muse-spark-1.3-contributor
         - meta/muse-spark-1.3-contributor
         - meta/muse-wonder-1.0-contributor
@@ -138,7 +130,6 @@
         - qwen-cloud/qwen3.8-max
         - qwen-cloud/qwen3.8-flash
         - clinepass/qwen3.8-max
-        - clinepass/muse-spark-1.3
         - aether/qwen3.8-flash-next
         - aether/qwen3.8-27b
         - moira/frontier
