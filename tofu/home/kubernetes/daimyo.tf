@@ -26,19 +26,20 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server d172f36 (tag sessions-p1, pipeline 6849): a broken agent stream
-  # counts as a severed stream (reattach, then lost or resume with backoff),
-  # harness.models slots checked against the model grant (Agent CRD gained
-  # spec.harness.models, applied server-side first), the cold-resume
-  # histogram (migration 0038), PUT /v1/sessions/{id}/files/{path} with a
-  # 1 GiB cap shared with the sandbox PUT, and going cold commits before the
-  # old pod is retired (migration 0039, crash recovery by adoption).
-  # Sidecar fa5b5ff (tag live-deltas, pipeline 6847): the journal refuses
-  # live delta batches. Earlier: live text deltas over core NATS (fa5b5ff),
-  # LRU eviction, :warm and session file reads (f0a1b5b), the `tunnel` grant
-  # (2cdc4d7). Migrations through 0039.
-  daimyo_server_tag  = "sha256:ebcb0e42a1090c0176b7275378e36be10a3ae77a32a263965897bab0463bd7f9"
-  daimyo_sidecar_tag = "sha256:5f86fb109c13cd34ee2f563c19705318775d5d82b4f92ff99ec04cc24436d7e6"
+  # Server and sidecar 97e9437 (tag sessions-p1-fixes, pipeline 6851): the
+  # sidecar streams workspace snapshots, restores, journal segments and input
+  # fetches with bounded memory (a ~250 MB workspace used to OOM-kill the
+  # 64 MiB sidecar, so the session could never go cold), snapshot failures
+  # are counted (daimyo_session_snapshot_failures_total), session file routes
+  # wait for a starting pod instead of answering 503, 413 is its own problem
+  # type, and lease claims skip sessions this replica still supervises (a
+  # warmed session could be left leased with no supervisor for 30 s).
+  # Before that, d172f36: lost agent streams, harness.models slots (Agent CRD
+  # spec.harness.models), the cold-resume histogram (0038), session file PUT,
+  # cold committed before the old pod retires (0039); fa5b5ff live deltas;
+  # f0a1b5b LRU eviction, :warm, file reads. Migrations through 0039.
+  daimyo_server_tag  = "sha256:c1bb40971365d6d711cefd054cce670ba3bbc82503a1fb37ecd73192704757b3"
+  daimyo_sidecar_tag = "sha256:9af73491ab363246c9b8e03e4fcf57583be6e2599b0036af02196b083f1ba7f5"
   # Built-in harness images (Helm config.harness.images). claude-code, omp
   # and codex at d172f36 (tag sessions-p1, pipeline 6849): a hot session keeps
   # one harness CLI process across turns (claude-code stream-json input, omp
