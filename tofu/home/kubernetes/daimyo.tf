@@ -26,14 +26,15 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server 1b15a89 (tag tunnel-grant-2, pipeline 6805): the `tunnel` grant
-  # (§9.5; the sidecar's outbound client lets a task's own Deskplane browser
-  # load its localhost), agents/attestations pagination, and the /mcp org
-  # default. The Agent CRD gained spec.grants[].tunnel and was applied
-  # server-side first (docs/ops/upgrades.md). Sidecar 130fd94 (tag
-  # tunnel-grant-3, pipeline 6811): the tunnel also reaches dev servers bound
-  # to the IPv6 loopback (Vite). Migrations through 0036.
-  daimyo_server_tag  = "sha256:7ab2a4d420cfa9bacc82122608e049ab723eb482ee811f18643af26e8200a564"
+  # Server 2cdc4d7 (tag kata-start-fast, pipeline 6835): task pods start
+  # seconds sooner (sidecar containers burst to 500m CPU, readiness polled
+  # every 250 ms), on top of the `tunnel` grant (§9.5), agents/attestations
+  # pagination and the /mcp org default (1b15a89; the Agent CRD gained
+  # spec.grants[].tunnel, applied server-side first per docs/ops/upgrades.md).
+  # Sidecar 130fd94 (tag tunnel-grant-3, pipeline 6811): the tunnel also
+  # reaches dev servers bound to the IPv6 loopback (Vite). Migrations through
+  # 0036.
+  daimyo_server_tag  = "sha256:0ffa589e0c74aa0024d64023c562be493cbd59e82d3bc4fc75ace69b058b49c1"
   daimyo_sidecar_tag = "sha256:d6327e4985a9e20ca2c8147f44ca6378c0c42fe125e8e1dc4c8e3f06cc281652"
   # Built-in harness images (Helm config.harness.images). claude-code at
   # 3d67440 (tag harness-answered-end, pipeline 6824): the system prompt is
