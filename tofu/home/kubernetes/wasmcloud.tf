@@ -47,11 +47,11 @@ resource "helm_release" "wasmcloud" {
       enabled = false
     }
 
-    # Two host pods for fault tolerance. A wash host idles at ~400Mi on its
-    # own (measured on 2.5.2, with only a few small components), so a 512Mi
-    # limit left ~90Mi for compiling and running components: deploying a 13MB
-    # jco (StarlingMonkey) component OOM-killed a default host. The limit is
-    # also the host's guest-memory ceiling since 2.9 (WASH_HOST_MAX_GUEST_MEMORY).
+    # Two host pods for fault tolerance. Host memory is mostly what the
+    # components cost: 2.5.2 hosts sat near 400Mi, so a 512Mi limit left ~90Mi
+    # and deploying a 13MB jco (StarlingMonkey) component OOM-killed a default
+    # host; 2.10.3 hosts idle at 7–32Mi. The limit is also the host's
+    # guest-memory ceiling since 2.9 (WASH_HOST_MAX_GUEST_MEMORY).
     # arm-pool preference comes from the existing aether-k8s-arch-labeler +
     # arm-pool-guardrails chain (multi-arch host images qualify automatically).
     runtime = {

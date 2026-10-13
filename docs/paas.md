@@ -160,8 +160,9 @@ declared as `WorkloadDeployment` CRs (`runtime.wasmcloud.dev/v1alpha1`), onto
 pools of shared **host pods**: `hostgroup-default` (2 replicas, 1Gi; aether's
 own components, pinned with `hostSelector: {hostgroup: default}`),
 `hostgroup-daimyo` (1 replica, 2Gi, `/var/molecule/workspace` volume; the
-molecule spike) and pop's `hostgroup-pop` (namespace `pop`). A wash host idles
-at ~400Mi on its own, so a host's memory limit is mostly that baseline. Each
+molecule spike) and pop's `hostgroup-pop` (namespace `pop`). Host memory is
+mostly what its components cost: on 2.10.3 an idle host sits at 7–32Mi, a host
+with a 4.7MB component warm at ~315Mi (2.5.2 hosts idled near 400Mi). Each
 component's selector-less `Service` gets an operator-managed EndpointSlice
 (runtime-gateway disabled since 2.0.3); Istio Ambient provides mTLS.
 
