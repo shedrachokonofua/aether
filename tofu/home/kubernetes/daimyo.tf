@@ -26,20 +26,19 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server and sidecar 97e9437 (tag sessions-p1-fixes, pipeline 6851): the
-  # sidecar streams workspace snapshots, restores, journal segments and input
-  # fetches with bounded memory (a ~250 MB workspace used to OOM-kill the
-  # 64 MiB sidecar, so the session could never go cold), snapshot failures
-  # are counted (daimyo_session_snapshot_failures_total), session file routes
-  # wait for a starting pod instead of answering 503, 413 is its own problem
-  # type, and lease claims skip sessions this replica still supervises (a
-  # warmed session could be left leased with no supervisor for 30 s).
-  # Before that, d172f36: lost agent streams, harness.models slots (Agent CRD
-  # spec.harness.models), the cold-resume histogram (0038), session file PUT,
-  # cold committed before the old pod retires (0039); fa5b5ff live deltas;
-  # f0a1b5b LRU eviction, :warm, file reads. Migrations through 0039.
-  daimyo_server_tag  = "sha256:c1bb40971365d6d711cefd054cce670ba3bbc82503a1fb37ecd73192704757b3"
-  daimyo_sidecar_tag = "sha256:9af73491ab363246c9b8e03e4fcf57583be6e2599b0036af02196b083f1ba7f5"
+  # Server and sidecar 1eec468 (tag sessions-p1-journal, pipeline 6855): the
+  # journal never publishes a torn tar (a file written during a sync used to
+  # corrupt the journal and make the session unrestorable), a corrupt journal
+  # falls back to a go-cold snapshot that provably covers it (migration
+  # 0040) or fails the turn and leaves the session cold, an unreadable
+  # manifest no longer resets the journal, and a slow turn archive no longer
+  # delays the next message. 97e9437: bounded sidecar memory for any
+  # workspace size, file routes wait for a starting pod, lease claims skip
+  # sessions this replica still supervises. d172f36: lost agent streams,
+  # harness.models slots, cold-resume histogram (0038), session file PUT,
+  # cold committed before the old pod retires (0039). Migrations through 0040.
+  daimyo_server_tag  = "sha256:53b03653ae9c2224419dace1e180068d584c2cc647ba86a33bc51717c6e15bd2"
+  daimyo_sidecar_tag = "sha256:69da123e19fbae6b91b21b15278388318901453731d63370a0530712bcb051a4"
   # Built-in harness images (Helm config.harness.images). claude-code, omp
   # and codex at d172f36 (tag sessions-p1, pipeline 6849): a hot session keeps
   # one harness CLI process across turns (claude-code stream-json input, omp
