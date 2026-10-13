@@ -39,11 +39,7 @@ exclude:
   providers: [aether, step, clinepass]
 
 providers:                  # model-name prefix -> provider id + quota source
-  # chat_requires_stream: LiteLLM 1.99.x returns 500 "Unknown items in
-  # responses API response: []" for non-streaming /chat/completions on
-  # chatgpt/* (its bridge keeps only response.completed, whose output the
-  # Codex backend leaves empty). Streaming chat and /v1/responses work.
-  - { prefix: "chatgpt/",      id: chatgpt,      quota: { kind: sidecar }, chat_requires_stream: true }
+  - { prefix: "chatgpt/",      id: chatgpt,      quota: { kind: sidecar } }
   - { prefix: "meta/",         id: muse,         quota: { kind: bridge, bridge: muse } }
   # Claude subscription via claude-bridge; shares the operator's interactive
   # Claude allowance. Scored: Opus (frontier efforts), Haiku 5.5 (flash efforts).

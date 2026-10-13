@@ -4,7 +4,7 @@
 # Migrated from the legacy Podman VM to Kubernetes.
 
 locals {
-  litellm_image               = "ghcr.io/berriai/litellm:1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+  litellm_image               = "ghcr.io/berriai/litellm:v1.106.0-rc.1@sha256:de5b050c1e9bd7e6c0aebfa126c5df71de071962592ba3e9638b28e45bed3901"
   litellm_espn_mcp_image      = "registry.gitlab.home.shdr.ch/so/espn-mcp:latest"
   litellm_postgres_image      = "docker.io/postgres:18"
   litellm_finviz_image        = "registry.gitlab.home.shdr.ch/shdrch/finviz-mcp-server/main:latest"
@@ -251,6 +251,20 @@ resource "kubernetes_deployment_v1" "litellm" {
             }
           }
 
+          # LiteLLM 1.106 seals MCP pagination/continuation cursors with
+          # LITELLM_SALT_KEY only (no master-key fallback). Stored DB secrets
+          # are encrypted with the master key while no salt key is set, so the
+          # salt key must be that same value or existing rows stop decrypting.
+          env {
+            name = "LITELLM_SALT_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "LITELLM_MASTER_KEY"
+              }
+            }
+          }
+
           env {
             name = "DATABASE_URL"
             value_from {
@@ -450,6 +464,19 @@ resource "kubernetes_deployment_v1" "litellm" {
           env {
             name  = "MOIRA_GROUPS"
             value = join(",", keys(local.moira_tiers.groups))
+          }
+
+          # Prisma migrations run before the server listens. Liveness killing a
+          # migration mid-flight leaves a half-recorded migration that blocks
+          # every later start (P3009, 2026-10-13: a lock wait outlasted the
+          # liveness window). Liveness/readiness start only after this passes.
+          startup_probe {
+            http_get {
+              path = "/health/liveliness"
+              port = local.litellm_port
+            }
+            period_seconds    = 10
+            failure_threshold = 90
           }
 
           readiness_probe {

@@ -75,12 +75,12 @@ def _recent_route(key: tuple[Any, ...]) -> tuple[float, dict[str, Any]] | None:
 class ChatReasoningEffort(CustomLogger):
     """Send Chat Completions backends a string reasoning_effort.
 
-    LiteLLM 1.99.1 bridges /v1/responses onto Chat Completions by copying the
-    whole Responses `reasoning` object into `reasoning_effort` whenever it has
-    a `summary` (litellm/responses/litellm_completion_transformation). Clients
-    such as OMP always send {"effort": ..., "summary": ...}, and Chat
-    Completions backends (Meta, xAI and Antigravity bridges, OpenCode Go,
-    CodeBuddy, Ollama) reject the object. Keep its effort string.
+    LiteLLM 1.99 bridged /v1/responses onto Chat Completions by copying the
+    whole Responses `reasoning` object into `reasoning_effort`; 1.106 sends
+    only `reasoning.effort` there. A client can still send an object-valued
+    reasoning_effort to Chat Completions directly, and Chat Completions
+    backends (Meta, xAI and Antigravity bridges, OpenCode Go, CodeBuddy,
+    Ollama) reject the object. Keep its effort string.
 
     Responses-API deployments (`responses/` models, chatgpt/) take the object
     as `reasoning`, so they are left alone; the family pool's configured
@@ -714,7 +714,7 @@ def _install_empty_function_call_filter() -> None:
 
     CodeBuddy (Hy4) closes a tool-call turn with a delta carrying
     `"function_call": {"name": "", "arguments": ""}` beside `tool_calls`.
-    LiteLLM 1.99.1's stream_chunk_builder treats any non-null function_call as
+    LiteLLM's stream_chunk_builder (still in 1.106) treats any non-null function_call as
     a legacy function call and reads `.name` off the dumped dict, raising
     "Error building chunks for logging/streaming usage calculation". On
     /v1/responses that build runs at the done event, so every Hy4 tool call
