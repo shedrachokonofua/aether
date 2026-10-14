@@ -287,6 +287,20 @@ locals {
         "app.kubernetes.io/part-of"    = "daimyo"
       }
     }
+    "daimyo-dev" = {
+      tier                    = "sandbox",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Disposable Postgres, NATS and S3 for Daimyo workspace tests"
+      source_file             = "tofu/home/kubernetes/daimyo_dev.tf"
+      registry_access         = "dockerhub"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
     "org-personal" = {
       tier                    = "guest",
       owner                   = "daimyo",
