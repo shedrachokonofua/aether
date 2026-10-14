@@ -1202,20 +1202,6 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "policy-reporter" = {
-      tier                    = "platform",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/security_observability.tf",
-      hostnames = [
-        "policy-reporter.home.shdr.ch",
-      ]
-      extra_labels = {
-        "pod-security.kubernetes.io/enforce" = "restricted"
-      }
-    }
     "sandboxes" = {
       tier                    = "sandbox",
       owner                   = "aether",

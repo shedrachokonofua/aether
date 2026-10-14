@@ -13,7 +13,7 @@
 #   - OTEL Collectors (observability)
 #   - Metrics Server (resource metrics API)
 #   - Kyverno (policy guardrails)
-#   - Tetragon, Trivy Operator, Policy Reporter (security observability)
+#   - Tetragon, Trivy Operator (security observability)
 #   - Headlamp (dashboard)
 #   - GitLab Agent (CI/CD deployments)
 

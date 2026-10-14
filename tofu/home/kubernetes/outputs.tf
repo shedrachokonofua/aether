@@ -93,16 +93,6 @@ output "trivy_operator_version" {
   value       = helm_release.trivy_operator.version
 }
 
-output "policy_reporter_url" {
-  description = "Policy Reporter UI URL"
-  value       = "https://${local.policy_reporter_host}"
-}
-
-output "policy_reporter_version" {
-  description = "Installed Policy Reporter chart version"
-  value       = helm_release.policy_reporter.version
-}
-
 output "synthetic_probe_targets" {
   description = "HTTP synthetic probe targets from namespace contract hostnames (internal/public exposure only)"
   value       = local.synthetic_probe_targets

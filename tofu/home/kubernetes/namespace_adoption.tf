@@ -106,11 +106,6 @@ moved {
 }
 
 moved {
-  from = kubernetes_namespace_v1.policy_reporter
-  to   = module.namespace["policy-reporter"].kubernetes_namespace_v1.this
-}
-
-moved {
   from = kubernetes_namespace_v1.sandboxes
   to   = module.namespace["sandboxes"].kubernetes_namespace_v1.this
 }

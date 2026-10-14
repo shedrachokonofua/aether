@@ -22,7 +22,6 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Goldilocks     | Resource request right-sizing dashboard for opt-in namespaces |
 | Tetragon       | eBPF runtime security observability, observe-only      |
 | Trivy Operator | Vulnerability/config/RBAC/security report generation   |
-| Policy Reporter | UI and metrics for Kyverno and Trivy report results   |
 | Headlamp       | Kubernetes dashboard with OIDC auth                   |
 | Hubble UI      | Cilium network observability UI                       |
 | GitLab Agent   | CI/CD deploys via GitLab KAS tunnel                   |
@@ -43,7 +42,7 @@ still running. Keep it out of application architecture claims; its removal is a
 separate IaC decision because applying that change deletes live platform
 resources.
 
-Tetragon, Trivy Operator, and Policy Reporter are observability/reporting
+Tetragon and Trivy Operator are observability/reporting
 components only. They do not block admissions, mutate workloads, or enforce
 runtime policy.
 
@@ -240,7 +239,6 @@ install). Two consequences to know when writing manifests:
 - Headlamp: `https://headlamp.home.shdr.ch`
 - Hubble UI: `https://hubble.home.shdr.ch`
 - Goldilocks: `https://goldilocks.home.shdr.ch`
-- Policy Reporter: `https://policy-reporter.home.shdr.ch`
 - Kestra: `https://kestra.home.shdr.ch`
 
 ### Kestra
