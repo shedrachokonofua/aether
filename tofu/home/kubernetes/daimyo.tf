@@ -26,7 +26,9 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server 9030a52 (tag reattach-alive, pipeline 6866): a severed agent
+  # Server f784955 (tag priority-class, pipeline 6902): agent pods carry
+  # config.launcher.priorityClass (aether-app below). Before that, 9030a52
+  # (tag reattach-alive, pipeline 6866): a severed agent
   # stream locates the pod every time and reattaches while it is alive
   # (0.5 s backoff doubling to 30 s, reset on progress); only a missing pod,
   # or ~10 minutes of severings without progress, loses or resumes the task.
@@ -41,7 +43,7 @@ locals {
   # 0040), bounded sidecar memory and file routes that wait for a starting
   # pod (97e9437), lost agent streams, model slots, the cold-resume histogram
   # and session file PUT (d172f36). Migrations through 0040.
-  daimyo_server_tag  = "sha256:f087b1d1e1b529edfaeb601f9dba779d8f999ca3aaa9058b4b306e3e576d23f7"
+  daimyo_server_tag  = "sha256:a12aac091570bc0cf4d285389691a9d9d5e549b0253125f6d57e6554004071e6"
   daimyo_sidecar_tag = "sha256:88bcc6e8ae86682f7a718ab671bf579f5ad777159dcd1b3e32078b01610a4134"
   # Built-in harness images (Helm config.harness.images). claude-code and omp
   # at 3b8f263 (tag agent-api, pipeline 6859): a hot session keeps one
@@ -454,12 +456,12 @@ resource "helm_release" "daimyo" {
       # OTLP/HTTP traces to the in-cluster collector (-> Tempo), spec §15.4.
       otel = { endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces" }
       launcher = {
-        kind             = "kata"
-        runtimeClass     = "kata"
+        kind         = "kata"
+        runtimeClass = "kata"
         # Agent, session and script-runner pods outrank CI jobs (aether-batch,
         # 100): without it they took the cluster default (aether-sandbox, 0)
         # and GitLab runner pods preempted live sessions mid-turn (2026-10-14).
-        priorityClass = "aether-app"
+        priorityClass    = "aether-app"
         sidecarImage     = ""
         imagePullSecrets = [kubernetes_secret_v1.daimyo_tasks_registry["personal"].metadata[0].name]
       }
