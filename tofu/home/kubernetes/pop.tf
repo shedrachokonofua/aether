@@ -22,12 +22,12 @@ locals {
     }))}",
   "PROJECT", "{project}"), "DEPLOY", "{deploy}")
   # Immutable digests emitted by the pop CI images job (image-digests.env).
-  # pop-api: so/pop main 8d3f7fb (OpenAPI at /v1/openapi.json, Scalar at
+  # pop-api: so/pop main f8c79e0 (OpenAPI at /v1/openapi.json, Scalar at
   # /v1/docs; includes 8b70d2b's single wasi:http hostInterface).
   # pop-origin: 81640ae (agent issuers:
   # Daimyo task tokens, decision 26; migration 09). The precondition on
   # helm_release.pop keeps refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:dde96cb3f44635e6eac06f417f2dba71ce90de049566b41565769c7e42fcd1d7"
+  pop_api_image_tag    = "sha256:aac0beb8765396a81bed42126c9003b4bbaf98677535d20dea8165baf6cd38a3"
   pop_origin_image_tag = "sha256:f3a6fccf5d0e7bf423026a4bfcf3362c4d46d17714ab52977550bc8d388f383e"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
