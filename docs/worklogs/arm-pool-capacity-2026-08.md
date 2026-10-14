@@ -1,5 +1,8 @@
 # ARM pool capacity review and resource-request correction (2026-08-15)
 
+> Hermes (beryl/tungsten) referenced below was retired 2026-10-14; the sizing
+> figures are historical.
+
 **Scope:** the four Raspberry Pi workers `talos-mouse`, `talos-dozer`,
 `talos-tank`, `talos-sparks`. **Trigger:** `talos-sparks` had been cordoned
 since `2026-08-05T14:13Z` "pending capacity review"

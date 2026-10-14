@@ -46,8 +46,8 @@
 #   6. Scale matrix Deployment back to 1:
 #        kubectl -n matrix scale deployment/matrix --replicas=1
 #        kubectl -n matrix rollout status deployment/matrix --timeout=5m
-#   7. After verification (Element login, bridge bots responsive, hermes-bots
-#      still hitting matrix), rerun this playbook with -e cleanup=true to
+#   7. After verification (Element login, bridge bots responsive), rerun this
+#      playbook with -e cleanup=true to
 #      stop+disable the matrix-pod quadlet on the VM and remove the legacy
 #      app dirs.
 #   8. After cleanup, drop matrix.yml from messaging_stack/site.yml + remove

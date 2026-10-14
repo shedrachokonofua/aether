@@ -1182,47 +1182,6 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "kubernetes_groups" {
 }
 
 # =============================================================================
-# Hermes Dashboard OIDC Client
-# =============================================================================
-# Public PKCE client for the Hermes Agent dashboards.
-
-resource "keycloak_openid_client" "hermes_dashboard" {
-  realm_id  = keycloak_realm.aether.id
-  client_id = "hermes-dashboard"
-  name      = "Hermes Dashboard"
-  enabled   = true
-
-  access_type                  = "PUBLIC"
-  standard_flow_enabled        = true
-  direct_access_grants_enabled = false
-  implicit_flow_enabled        = false
-  pkce_code_challenge_method   = "S256"
-
-  root_url = "https://beryl-dashboard.home.shdr.ch"
-  base_url = "https://beryl-dashboard.home.shdr.ch"
-
-  valid_redirect_uris = [
-    "https://beryl-dashboard.home.shdr.ch/auth/callback",
-    "https://tungsten-dashboard.home.shdr.ch/auth/callback",
-  ]
-
-  web_origins = [
-    "https://beryl-dashboard.home.shdr.ch",
-    "https://tungsten-dashboard.home.shdr.ch",
-  ]
-}
-
-resource "keycloak_openid_client_default_scopes" "hermes_dashboard_default_scopes" {
-  realm_id  = keycloak_realm.aether.id
-  client_id = keycloak_openid_client.hermes_dashboard.id
-
-  default_scopes = [
-    "profile",
-    "email",
-  ]
-}
-
-# =============================================================================
 # Seven30 vcluster OIDC Client
 # =============================================================================
 # Public client for kubectl authentication to the Seven30 vcluster.
@@ -1959,7 +1918,7 @@ resource "keycloak_openid_audience_protocol_mapper" "colony_mcp_client_audience"
   add_to_access_token      = true
 }
 
-# Device login for the colony CLI and headless agents (Hermes). offline_access
+# Device login for the colony CLI and headless agents. offline_access
 # is requested by the client (it is a realm optional scope) so the refresh
 # token outlives the SSO session.
 resource "keycloak_openid_client" "colony_cli" {

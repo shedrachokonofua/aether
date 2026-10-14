@@ -171,34 +171,6 @@ resource "vault_jwt_auth_backend_role" "cli_seven30_developer" {
   bound_audiences   = [keycloak_openid_client.seven30_cli.client_id]
 }
 
-# Read-only policy for machine agents operating inside Seven30.
-resource "vault_policy" "seven30_agent_readonly" {
-  name   = "seven30-agent-readonly"
-  policy = <<-EOT
-    path "kv/data/seven30/*" {
-      capabilities = ["read"]
-    }
-
-    path "kv/metadata/seven30/*" {
-      capabilities = ["read", "list"]
-    }
-  EOT
-}
-
-resource "vault_jwt_auth_backend_role" "cli_seven30_agent_readonly" {
-  backend        = vault_jwt_auth_backend.seven30_cli.path
-  role_name      = "cli-seven30-agent-readonly"
-  role_type      = "jwt"
-  token_policies = ["default", vault_policy.seven30_agent_readonly.name]
-
-  user_claim = "preferred_username"
-  bound_claims = {
-    "roles" = "agent-readonly"
-    "azp"   = "system:serviceaccount:default:hermes"
-  }
-  bound_audiences = ["system:serviceaccount:default:hermes"]
-}
-
 # =============================================================================
 # JWT Auth Backend — trusts GitLab CI OIDC tokens
 # =============================================================================

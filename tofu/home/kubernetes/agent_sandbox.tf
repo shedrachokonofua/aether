@@ -7,8 +7,8 @@
 # Phase 1 (this file): controller, namespace, RuntimeClass, default policies.
 #                      No agent consumes this yet.
 # Phase 2 (agent_shell.tf, future):
-#                      SandboxTemplates + Sandbox CRs for tungsten / beryl,
-#                      egress allow-lists, hermes ssh-backend rewiring.
+#                      SandboxTemplates + Sandbox CRs for agent workloads,
+#                      egress allow-lists, ssh-backend rewiring.
 #
 # Runtime: kata-containers via Talos system extension.
 # Pi Talos schematics ship no kata extension; Pi 5 kata is unvalidated.

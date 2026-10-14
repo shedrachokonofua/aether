@@ -2,11 +2,12 @@
 # HolmesGPT - standalone AI incident forensics (CNCF sandbox)
 # =============================================================================
 # Read-only investigator: the chart manages a get/list/watch-only ClusterRole
-# for cluster state; metrics/logs come from the monitoring VM (Prometheus/Loki
-# via LAN); LLM access goes through a LiteLLM virtual key - Holmes holds no
-# direct provider creds and no write credentials of any kind.
+# for cluster state; metrics/logs come from ClickHouse (otel.* via
+# clickhouse.home.shdr.ch, user agent_reader); LLM access goes through a
+# LiteLLM virtual key - Holmes holds no direct provider creds and no write
+# credentials of any kind.
 #
-# In-cluster consumers only (tungsten calls the service API) - no HTTPRoute.
+# In-cluster consumers only (Kestra calls the service API) - no HTTPRoute.
 # Server: holmes-holmes.<ns>.svc:80 -> pod :5050, endpoints /api/chat etc.
 
 locals {
@@ -17,8 +18,7 @@ locals {
   holmes_model_local    = "qwen-local"
   holmes_model_trial    = "aether/qwen3.8-flash-next:think"
   holmes_model_cloud    = "qwen-cloud/qwen3.8-max"
-  holmes_prometheus_url = "https://prometheus.home.shdr.ch"
-  holmes_loki_url       = "https://loki.home.shdr.ch"
+  holmes_clickhouse_url = "https://clickhouse.home.shdr.ch"
 }
 
 # LiteLLM virtual key (minted against /key/generate, stored in SOPS).
@@ -45,7 +45,22 @@ resource "kubernetes_secret_v1" "holmes_extra_apis" {
   }
 
   data = {
-    "grafana-token" = var.secrets["grafana.holmes_token"]
+    "grafana-token" = grafana_service_account_token.holmes.key
+  }
+
+  type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "holmes_clickhouse" {
+  depends_on = [module.namespace["holmesgpt"]]
+
+  metadata {
+    name      = "holmes-clickhouse"
+    namespace = local.holmes_ns
+  }
+
+  data = {
+    "clickhouse-password" = var.secrets["clickhouse.agent_reader_password"]
   }
 
   type = "Opaque"
@@ -53,7 +68,7 @@ resource "kubernetes_secret_v1" "holmes_extra_apis" {
 
 
 resource "helm_release" "holmesgpt" {
-  depends_on = [kubernetes_secret_v1.holmes_llm, kubernetes_secret_v1.holmes_extra_apis]
+  depends_on = [kubernetes_secret_v1.holmes_llm, kubernetes_secret_v1.holmes_extra_apis, kubernetes_secret_v1.holmes_clickhouse]
 
   name             = "holmes"
   repository       = "https://robusta-charts.storage.googleapis.com"
@@ -83,7 +98,14 @@ resource "helm_release" "holmesgpt" {
         }
       },
       { name = "GRAFANA_URL", value = "https://grafana.home.shdr.ch" },
-      { name = "LOKI_URL", value = local.holmes_loki_url },
+      { name = "CLICKHOUSE_URL", value = local.holmes_clickhouse_url },
+      { name = "CLICKHOUSE_USER", value = "agent_reader" },
+      {
+        name = "CLICKHOUSE_PASSWORD"
+        valueFrom = {
+          secretKeyRef = { name = "holmes-clickhouse", key = "clickhouse-password" }
+        }
+      },
       {
         name = "GRAFANA_TOKEN"
         valueFrom = {
@@ -126,20 +148,30 @@ resource "helm_release" "holmesgpt" {
     }
 
     # Deep-merged over chart defaults. Disable bash: alert-driven prompts can
-    # carry attacker-controlled annotations/logs (Inquest); keep RO k8s + Prom/Loki.
+    # carry attacker-controlled annotations/logs (Inquest); keep RO k8s + ClickHouse.
     toolsets = {
       # Requires the Robusta SaaS platform - not deployed here.
       robusta = { enabled = false }
       bash    = { enabled = false }
-      "prometheus/metrics" = {
-        enabled = true
-        subtype = "prometheus"
-        config  = { prometheus_url = local.holmes_prometheus_url }
-      }
-      # Direct Loki connection (no Grafana proxy, no token needed).
-      "grafana/loki" = {
-        enabled = true
-        config  = { api_url = local.holmes_loki_url }
+      "aether/clickhouse" = {
+        description = "Read-only ClickHouse SQL on otel.* / aether.* (user agent_reader, max_execution_time=30). Tables: otel.otel_logs(Timestamp,ServiceName,Body,ResourceAttributes,LogAttributes,SeverityText), otel.otel_metrics_gauge / otel_metrics_sum / otel_metrics_histogram(TimeUnix,ServiceName,MetricName,Attributes,ResourceAttributes,Value), otel.otel_traces, aether.namespace_contract(namespace,tier,owner,backup,criticality,exposure). PromQL->SQL: metric=MetricName (prom-scraped keep Prometheus names e.g. node_cpu_seconds_total in otel_metrics_sum, kube_pod_status_phase gauge; OTLP-native dotted e.g. system.cpu.time), job=ServiceName, instance=ResourceAttributes['service.instance.id'], other labels=Attributes['<label>']; gauge latest=argMax(Value,TimeUnix) with 5m lookback; counter rate=deltaSum(Value) per (Attributes,service.instance.id,ServiceName,StartTimeUnix) / window seconds. Logs: ServiceName='<namespace>/<pod>' k8s or hostname for VMs, Body raw line. Always bound by time (TimeUnix/Timestamp > now() - INTERVAL ...) and LIMIT."
+        tools = [
+          {
+            name        = "clickhouse_sql"
+            description = "Run a bounded read-only SELECT against ClickHouse (otel.* / aether.*). Only SELECT; always include a time bound (TimeUnix/Timestamp > now() - INTERVAL ...) and LIMIT. max_execution_time=30 enforced server-side."
+            command     = "printf '%s' \"{{ query }}\" | head -c 2000 | grep -qiE '^[[:space:]]*(select|with)[[:space:]]' || { echo 'only SELECT/WITH queries allowed'; exit 1; }; printf '%s' \"{{ query }}\" | grep -qiE '\\blimit\\b' || { echo 'LIMIT required'; exit 1; }; curl -sS -u \"$${CLICKHOUSE_USER}:$${CLICKHOUSE_PASSWORD}\" \"$${CLICKHOUSE_URL}/?max_execution_time=30\" --data-binary \"{{ query }}\""
+          },
+          {
+            name        = "clickhouse_logs_search"
+            description = "Search ClickHouse logs (otel.otel_logs) for a service (ServiceName, e.g. 'keycloak' or 'holmesgpt/<pod>') containing a substring (case-insensitive) over the last N hours (default 6)."
+            command     = "curl -sS -u \"$${CLICKHOUSE_USER}:$${CLICKHOUSE_PASSWORD}\" \"$${CLICKHOUSE_URL}/?max_execution_time=30\" --data-binary \"SELECT Timestamp, ServiceName, SeverityText, substring(Body, 1, 500) AS Body FROM otel.otel_logs WHERE ServiceName = '{{ service }}' AND positionCaseInsensitive(Body, '{{ search }}') > 0 AND Timestamp > now() - INTERVAL {{ hours | default(6) }} HOUR ORDER BY Timestamp DESC LIMIT 100\""
+          },
+          {
+            name        = "clickhouse_metric_latest"
+            description = "Latest value per series for a ClickHouse metric (e.g. kube_pod_status_phase, node_cpu_seconds_total, system.cpu.time) over the last 5 minutes. Optional: attribute key (e.g. namespace) and value to filter on; leave empty for no filter."
+            command     = "curl -sS -u \"$${CLICKHOUSE_USER}:$${CLICKHOUSE_PASSWORD}\" \"$${CLICKHOUSE_URL}/?max_execution_time=30\" --data-binary \"SELECT ServiceName, Attributes, Value FROM (SELECT ServiceName, Attributes, argMax(Value, TimeUnix) AS Value FROM otel.otel_metrics_gauge WHERE MetricName = '{{ metric }}' AND TimeUnix > now() - INTERVAL 5 MINUTE AND ('{{ attr_key }}' = '' OR Attributes['{{ attr_key }}'] = '{{ attr_value }}') GROUP BY ServiceName, Attributes UNION ALL SELECT ServiceName, Attributes, argMax(Value, TimeUnix) AS Value FROM otel.otel_metrics_sum WHERE MetricName = '{{ metric }}' AND TimeUnix > now() - INTERVAL 5 MINUTE AND ('{{ attr_key }}' = '' OR Attributes['{{ attr_key }}'] = '{{ attr_value }}') GROUP BY ServiceName, Attributes) LIMIT 100\""
+          },
+        ]
       }
       "aether/grafana" = {
         description = "Query the aether Grafana API (read-only Viewer token): server health, alert-rule health with last evaluation errors, dashboard search. Use grafana_failing_alert_rules to diagnose DatasourceError alerts."
@@ -162,17 +194,17 @@ resource "helm_release" "holmesgpt" {
         ]
       }
       "aether/keycloak" = {
-        description = "Query Keycloak authentication events from Loki (stream {service_name=\"keycloak\"}). Event lines carry type, realmName, clientId, userId, ipAddress, error. Covers all realms. Only WARN-level events (failures) are logged; successful logins are not."
+        description = "Query Keycloak authentication events from ClickHouse otel.otel_logs (ServiceName='keycloak'). Event lines (Body) carry type, realmName, clientId, userId, ipAddress, error. Covers all realms. Only WARN-level events (failures) are logged; successful logins are not."
         tools = [
           {
             name        = "keycloak_login_failures"
             description = "List Keycloak LOGIN_ERROR events from the last N hours (default 6) with user, client, IP, and error reason."
-            command     = "curl -sS -G \"$${LOKI_URL}/loki/api/v1/query_range\" --data-urlencode 'query={service_name=\"keycloak\"} |= \"LOGIN_ERROR\"' --data-urlencode 'since={{ hours | default(6) }}h' --data-urlencode 'limit=100' | jq -r '.data.result[].values[][1]'"
+            command     = "curl -sS -u \"$${CLICKHOUSE_USER}:$${CLICKHOUSE_PASSWORD}\" \"$${CLICKHOUSE_URL}/?max_execution_time=30\" --data-binary \"SELECT Timestamp, substring(Body, 1, 500) AS Body FROM otel.otel_logs WHERE ServiceName = 'keycloak' AND Body LIKE '%LOGIN_ERROR%' AND Timestamp > now() - INTERVAL {{ hours | default(6) }} HOUR ORDER BY Timestamp DESC LIMIT 100\""
           },
           {
             name        = "keycloak_log_search"
-            description = "Search the Keycloak server log in Loki for a substring (e.g. an event type like LOGIN_ERROR, a username, an IP, or an error string) over the last N hours (default 6)."
-            command     = "curl -sS -G \"$${LOKI_URL}/loki/api/v1/query_range\" --data-urlencode 'query={service_name=\"keycloak\"} |= \"{{ search }}\"' --data-urlencode 'since={{ hours | default(6) }}h' --data-urlencode 'limit=100' | jq -r '.data.result[].values[][1]'"
+            description = "Search the Keycloak server log in ClickHouse (otel.otel_logs, ServiceName='keycloak') for a substring (e.g. an event type like LOGIN_ERROR, a username, an IP, or an error string) over the last N hours (default 6)."
+            command     = "curl -sS -u \"$${CLICKHOUSE_USER}:$${CLICKHOUSE_PASSWORD}\" \"$${CLICKHOUSE_URL}/?max_execution_time=30\" --data-binary \"SELECT Timestamp, substring(Body, 1, 500) AS Body FROM otel.otel_logs WHERE ServiceName = 'keycloak' AND positionCaseInsensitive(Body, '{{ search }}') > 0 AND Timestamp > now() - INTERVAL {{ hours | default(6) }} HOUR ORDER BY Timestamp DESC LIMIT 100\""
           },
         ]
       }
@@ -230,9 +262,9 @@ resource "kubernetes_cluster_role_binding_v1" "holmes_readonly" {
   }
 }
 
-# Restrict Holmes API to Kestra (Inquest) and Hermes (tungsten interactive).
+# Restrict Holmes API to Kestra (Inquest); system ns for the webhook probes.
 resource "kubernetes_manifest" "holmes_ingress_policy" {
-  depends_on = [helm_release.holmesgpt, module.namespace["kestra"], module.namespace["hermes"]]
+  depends_on = [helm_release.holmesgpt, module.namespace["kestra"]]
 
   field_manager {
     force_conflicts = true
@@ -254,16 +286,6 @@ resource "kubernetes_manifest" "holmes_ingress_policy" {
           fromEndpoints = [{
             matchLabels = {
               "io.kubernetes.pod.namespace" = module.namespace["kestra"].name
-            }
-          }]
-          toPorts = [{
-            ports = [{ port = "5050", protocol = "TCP" }]
-          }]
-        },
-        {
-          fromEndpoints = [{
-            matchLabels = {
-              "io.kubernetes.pod.namespace" = module.namespace["hermes"].name
             }
           }]
           toPorts = [{
