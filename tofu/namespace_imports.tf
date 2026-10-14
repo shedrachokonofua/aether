@@ -10,11 +10,6 @@ import {
 }
 
 import {
-  to = module.home.module.kubernetes.module.namespace["crossplane-system"].kubernetes_namespace_v1.this
-  id = "crossplane-system"
-}
-
-import {
   to = module.home.module.kubernetes.module.namespace["default"].kubernetes_namespace_v1.this
   id = "default"
 }

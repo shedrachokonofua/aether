@@ -409,17 +409,6 @@ locals {
         "colony.shdr.ch/purpose"       = "agent-sandboxes"
       }
     }
-    "crossplane-system" = {
-      tier                    = "platform",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/crossplane.tf"
-      extra_labels = {
-        "name" = "crossplane-system"
-      }
-    }
     "dawarich" = {
       tier                    = "app",
       owner                   = "aether",

@@ -56,17 +56,6 @@ output "keycloak_memos_client_secret" {
   sensitive = true
 }
 
-output "keycloak_crossplane_client_id" {
-  description = "Crossplane service account client ID (for Keycloak provider)"
-  value       = keycloak_openid_client.crossplane.client_id
-}
-
-output "keycloak_crossplane_client_secret" {
-  description = "Crossplane service account client secret (for Keycloak provider)"
-  value       = keycloak_openid_client.crossplane.client_secret
-  sensitive   = true
-}
-
 output "keycloak_ceph_rgw_client_id" {
   value = keycloak_openid_client.ceph_rgw.client_id
 }

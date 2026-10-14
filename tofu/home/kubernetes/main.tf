@@ -16,7 +16,6 @@
 #   - Tetragon, Trivy Operator, Policy Reporter (security observability)
 #   - Headlamp (dashboard)
 #   - GitLab Agent (CI/CD deployments)
-#   - Crossplane (infrastructure control plane)
 
 terraform {
   required_providers {
@@ -126,26 +125,6 @@ variable "secrets" {
   description = "SOPS secrets map (for Ceph credentials)"
 }
 
-
-# =============================================================================
-# Crossplane Keycloak Provider
-# =============================================================================
-
-variable "keycloak_url" {
-  type        = string
-  description = "Keycloak base URL for Crossplane provider"
-}
-
-variable "keycloak_client_id" {
-  type        = string
-  description = "Keycloak service account client ID for Crossplane"
-}
-
-variable "keycloak_client_secret" {
-  type        = string
-  sensitive   = true
-  description = "Keycloak service account client secret for Crossplane"
-}
 
 # =============================================================================
 # OpenWebUI OIDC

@@ -60,30 +60,6 @@ resource "keycloak_openid_client_service_account_realm_role" "gitlab_ci_admin" {
   role                    = "admin"
 }
 
-# =============================================================================
-# Crossplane Service Account - for Keycloak provider
-# =============================================================================
-# Service account in master realm with admin privileges.
-# Used by Crossplane provider-keycloak to manage OIDC clients, realms, users.
-
-resource "keycloak_openid_client" "crossplane" {
-  realm_id  = "master"
-  client_id = "crossplane"
-  name      = "Crossplane Service Account"
-  enabled   = true
-
-  access_type                  = "CONFIDENTIAL"
-  service_accounts_enabled     = true
-  standard_flow_enabled        = false
-  direct_access_grants_enabled = false
-}
-
-resource "keycloak_openid_client_service_account_realm_role" "crossplane_admin" {
-  realm_id                = "master"
-  service_account_user_id = keycloak_openid_client.crossplane.service_account_user_id
-  role                    = "admin"
-}
-
 resource "keycloak_realm" "aether" {
   realm   = "aether"
   enabled = true
