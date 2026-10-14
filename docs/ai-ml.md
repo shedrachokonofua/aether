@@ -56,7 +56,7 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 | LiteLLM   | LLM gateway and proxy             |
 | OpenWebUI | Chat UI (K8s)                     |
 | SearXNG   | Metasearch (K8s)                  |
-| Firecrawl | Crawl + MCP (K8s)                 |
+| Deskplane | Browser sessions; web search, scrape, crawl MCP (K8s) |
 
 ### LiteLLM
 
@@ -214,7 +214,7 @@ Rotated OAuth and subscription credentials persist in a dedicated OpenBao
 record; the bridge never falls back to a PAYG Meta key.
 
 `router/glm-5.3` uses weighted shuffle across Z.AI and Ollama Cloud with
-weights 4:1. Holmes primary and Hermes Tungsten use this canonical group.
+weights 4:1. Holmes primary uses this canonical group.
 `router/glm-5.3-flash` is a separate pool across Z.AI, Command Code,
 OpenCode Go, and Ollama Cloud. Provider-prefixed Flash pins remain standalone,
 including the Clinepass pin; Clinepass is not a pool member.
@@ -417,7 +417,7 @@ flowchart LR
 
     subgraph MCP["MCP Tools"]
         TIME[Time]
-        FC[Firecrawl]
+        DP[Deskplane]
         GMAPS[Google Maps]
         TMDB[TMDB]
         POP[pop<br/><i>user token passthrough</i>]
@@ -426,7 +426,7 @@ flowchart LR
     OWUI & API --> LLM
     LLM --> LS & RR
     LLM --> OAI & ZAI & QWEN & OCGO & STEP
-    LLM --> TIME & FC & GMAPS & TMDB & POP
+    LLM --> TIME & DP & GMAPS & TMDB & POP
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0
     style Cloud fill:#f0e4d4,stroke:#c4a06a
@@ -434,9 +434,11 @@ flowchart LR
 
 See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/litellm_config.yaml.tftpl) for the declared model list and MCP registry. Google Maps MCP is opt-in: when `google.project_id` exists in SOPS, [`tofu/google/main.tf`](../tofu/google/main.tf) provisions the Google Maps API key, keeps it in Terraform state, restricts it to Maps APIs, and passes it to the LiteLLM sidecar as `GOOGLE_MAPS_API_KEY`. Google Cloud admin access is keyless after bootstrap: the first apply uses a human Application Default Credential from `gcloud auth application-default login`, then `task login` writes Workload Identity Federation external-account credentials for future OpenTofu runs instead of using a service-account JSON key.
 
-MCP tool calls get LiteLLM's default 60 s cap (`LITELLM_MCP_CLIENT_TIMEOUT`). An overrun returns HTTP 504, which closes the caller's whole MCP session, so a registry entry can raise its own cap with `timeout`; Firecrawl has 110 s. The Seven30 Foundry virtual key (`seven30-foundry`) was created through the LiteLLM API and its value is not in SOPS. `ansible/playbooks/register_litellm_virtual_keys.yml` (`task configure:litellm-keys`) finds it by alias and sets its `object_permission.mcp_servers`: Firecrawl and Finviz since 2026-09-26, plus Deskplane (browser-backed `search_web`, `scrape`, `parse_document`) for research since 2026-10-10.
+MCP tool calls get LiteLLM's default 60 s cap (`LITELLM_MCP_CLIENT_TIMEOUT`). An overrun returns HTTP 504, which closes the caller's whole MCP session, so a registry entry can raise its own cap with `timeout`. The Seven30 Foundry virtual key (`seven30-foundry`) was created through the LiteLLM API and its value is not in SOPS. `ansible/playbooks/register_litellm_virtual_keys.yml` (`task configure:litellm-keys`) finds it by alias and sets its `object_permission.mcp_servers`: Deskplane (browser-backed `search_web`, `scrape`, `parse_document`) and Finviz. The same playbook deletes the live keys of retired aliases (`firecrawl`, `hermes_beryl`, `hermes_tungsten`) by alias.
 
-Deskplane's web tools stay under that 60 s cap without a registry `timeout`: `scrape`'s `timeout_ms` (default 30 s) bounds the whole fetch → headless → headful ladder, and `search_web` reranks SearXNG's top 15 with `DESKPLANE_MCP_MODEL`, falling back to SearXNG's order after 6 s. The web engine's pool browsers are Deskplane session Pods; their profiles set `priorityClassName = aether-batch` in `tofu/home/kubernetes/deskplane.tf`, because bare Pods are not covered by the namespace-tier priority defaults in `kyverno.tf` and otherwise run at `aether-sandbox` (0). Against the self-hosted Firecrawl on 2026-10-14 (`mcp/bench/vs_firecrawl.py` in the deskplane repo, blind judge in both orders), Deskplane read 51 of 56 training URLs to Firecrawl's 38 (judge 46-1, 9 ties) and 23 of 27 held-out URLs to 19 (17-6, 4 ties).
+Deskplane's web tools stay under that 60 s cap without a registry `timeout`: `scrape`'s `timeout_ms` (default 30 s) bounds the whole fetch → headless → headful ladder, and `search_web` reranks SearXNG's top 15 with `DESKPLANE_MCP_MODEL`, falling back to SearXNG's order after 6 s. The web engine's pool browsers are Deskplane session Pods; their profiles set `priorityClassName = aether-batch` in `tofu/home/kubernetes/deskplane.tf`, because bare Pods are not covered by the namespace-tier priority defaults in `kyverno.tf` and otherwise run at `aether-sandbox` (0). Deskplane replaced the self-hosted Firecrawl, retired 2026-10-14. In the bench run that day (`mcp/bench/vs_firecrawl.py` in the deskplane repo, blind judge in both orders), Deskplane read 51 of 56 training URLs to Firecrawl's 38 (judge 46-1, 9 ties) and 23 of 27 held-out URLs to 19 (17-6, 4 ties).
+
+Orion's answer engine extracts pages through Deskplane's REST API (`POST /api/web/scrape` on the `deskplane` Service, proxied by `deskplane-serve` to the MCP pod's web engine). It authenticates with the `deskplane-orion-token` API token, which `deskplane.tf` limits to `/api/web` with `allowedPathPrefixes`; `orion.tf` passes it as `DESKPLANE_API_TOKEN`.
 
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by

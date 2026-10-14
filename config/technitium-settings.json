@@ -63,7 +63,8 @@
     "media.brightdata.com",
     "brightdata.com",
     "ng",
-    "logging-alv.googleapis.com"
+    "logging-alv.googleapis.com",
+    "storage.googleapis.com"
   ],
   "blockedZones": [
     "www.langflow.store"

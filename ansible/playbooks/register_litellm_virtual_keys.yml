@@ -160,7 +160,6 @@
     # (what OpenWebUI uses); LiteLLM 1.99.1's /mcp-rest search returns [].
     litellm_openwebui_mcp_servers:
       - time
-      - firecrawl
       - finviz
       - affine
       - colony
@@ -180,12 +179,12 @@
     # not in SOPS), so it is found by alias and updated by its hashed token.
     # Foundry's agents send the same list in x-mcp-servers; the key permission is
     # the boundary (2026-09-26: firecrawl + finviz; 2026-10-10: + deskplane, the
-    # browser-backed search/scrape/parse server, for research).
+    # browser-backed search/scrape/parse server, for research; 2026-10-14:
+    # firecrawl retired — deskplane is the only web data server).
     litellm_seven30_foundry_alias: seven30-foundry
     litellm_seven30_foundry_mcp_servers:
-      - firecrawl
-      - finviz
       - deskplane
+      - finviz
 
   tasks:
     - name: Load secrets
@@ -393,9 +392,60 @@
         status_code: [200]
       no_log: true
 
+    # Aliases retired from the cluster. The playbook can create and update keys
+    # but nothing else deletes them, so the live keys orphan when their SOPS
+    # entries go. Delete by alias, idempotently: an alias with no live key is
+    # a no-op, so this is safe to run repeatedly and before the SOPS removal.
+    - name: Delete retired virtual keys by alias
+      vars:
+        litellm_retired_key_aliases:
+          - firecrawl
+          - hermes_beryl
+          - hermes_tungsten
+      block:
+        - name: Look up retired virtual keys by alias
+          ansible.builtin.uri:
+            url: "{{ litellm_url }}/key/list?key_alias={{ item }}&return_full_object=true"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ secrets.litellm.master_key }}"
+            status_code: [200]
+            return_content: true
+          register: litellm_retired_key_lookup
+          loop: "{{ litellm_retired_key_aliases }}"
+          loop_control:
+            label: "{{ item }}"
+          no_log: true
+
+        - name: Delete live retired virtual keys
+          ansible.builtin.uri:
+            url: "{{ litellm_url }}/key/delete"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ secrets.litellm.master_key }}"
+              Content-Type: application/json
+            body_format: json
+            body:
+              keys: "{{ item.json['keys'] | map(attribute='token') | list }}"
+            status_code: [200]
+          loop: "{{ litellm_retired_key_lookup.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+          when: item.json['keys'] | default([]) | length > 0
+          no_log: true
+
+        - name: Record deleted aliases
+          ansible.builtin.set_fact:
+            litellm_deleted_aliases: "{{ (litellm_deleted_aliases | default([])) + [item.item] }}"
+          loop: "{{ litellm_retired_key_lookup.results }}"
+          loop_control:
+            label: "{{ item.item }}"
+          when: item.json['keys'] | default([]) | length > 0
+
     - name: Report virtual key registration
       ansible.builtin.debug:
         msg:
           litellm_url: "{{ litellm_url }}"
           existing_aliases: "{{ litellm_existing_aliases | default([]) | sort }}"
           created_aliases: "{{ litellm_missing_aliases | default([]) | sort }}"
+          deleted_aliases: "{{ litellm_deleted_aliases | default([]) | sort }}"

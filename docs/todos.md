@@ -101,7 +101,6 @@
   - [ ] Unify secrets under `secrets.protonvpn.*` (move qbittorrent VPN creds — `slskd.tf` reads the same `qbittorrent.vpn_{provider,wireguard_private_key}` keys, so both consumers move in one change)
   - [ ] Switch qBittorrent from Gluetun to tun2socks → rotating-proxy
   - [ ] Configure SearXNG to use rotating-proxy SOCKS5
-  - [ ] Configure Firecrawl to use rotating-proxy SOCKS5
   - [ ] Configure Prowlarr to use rotating-proxy SOCKS5
   - [x] slskd Soulseek egress → rotating-proxy SOCKS5 (2026-08-03): slsknet.org's
         front-end (forged RSTs, TTL/TOS mismatch vs real server packets) kills

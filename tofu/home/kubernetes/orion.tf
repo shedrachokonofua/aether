@@ -13,9 +13,9 @@
 # the bare apex.
 
 locals {
-  # Pinned to the dev/revamp build (Postgres + new shell) until it merges to
-  # main; keel only follows digests of this exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/dev-revamp:68074738acc8807f9d05efc19500aa1430c900f0"
+  # Pinned to the main build by commit SHA; keel only follows digests of this
+  # exact tag, so it stays put.
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:895c1e23d17ae0c7acd9ef3376d7f48c371c8cd0"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -90,10 +90,10 @@ locals {
     LITELLM_API_KEY = var.secrets["litellm.virtual_keys.orion"]
     SEARXNG_URL     = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
     # Answer engine (orion docs/plans/answer-engine.md): one resident chat
-    # model for every pipeline call, and Firecrawl for page extraction.
-    ANSWER_MODEL      = "aether/qwen3.8-flash-next"
-    FIRECRAWL_URL     = "http://${kubernetes_service_v1.firecrawl.metadata[0].name}.${local.firecrawl_ns}.svc.cluster.local:${local.firecrawl_api_port}"
-    FIRECRAWL_API_KEY = var.secrets["firecrawl.api_key"]
+    # model for every pipeline call, and Deskplane for page extraction.
+    ANSWER_MODEL        = "aether/qwen3.8-flash-next"
+    DESKPLANE_URL       = "http://deskplane.deskplane.svc.cluster.local"
+    DESKPLANE_API_TOKEN = random_password.deskplane_orion_token.result
     # Metrics + briefing drill-down → ClickHouse (ClickStack telemetry store;
     # agent_reader is the shared read-only identity for orion/Holmes/scripts).
     CLICKHOUSE_URL      = "https://clickhouse.home.shdr.ch"
@@ -102,10 +102,6 @@ locals {
     # Still read by the deployed image's Home fetchers (alerts, quotas, platform
     # health) until they move to ClickHouse; drop once nothing reads it.
     PROMETHEUS_URL = "https://prometheus.home.shdr.ch"
-    # Search "Ask Beryl" → the Hermes Beryl agent's OpenAI-compatible API
-    # (in-cluster; key is the same random_password Hermes uses for its api_server).
-    BERYL_API_URL = "http://hermes-beryl.hermes.svc.cluster.local:8642/v1"
-    BERYL_API_KEY = random_password.hermes_api_server_key["beryl"].result
   }
 }
 
@@ -343,7 +339,7 @@ resource "kubernetes_manifest" "orion_route" {
 }
 
 # Declared egress for the answer engine's in-cluster flows (orion → litellm,
-# searxng, firecrawl) plus ClickHouse via the home Caddy front (10.0.2.2:443,
+# searxng, deskplane) plus ClickHouse via the home Caddy front (10.0.2.2:443,
 # clickhouse.home.shdr.ch — same pattern as grafana.tf). Additive-only:
 # enableDefaultDeny=false mirrors the cluster-baseline pattern — these rules
 # pre-authorize the flows for the namespace-strategy default-deny flip
@@ -392,11 +388,13 @@ resource "kubernetes_manifest" "orion_answer_egress" {
         {
           toEndpoints = [{
             matchLabels = {
-              "io.kubernetes.pod.namespace" = local.firecrawl_ns
+              "io.kubernetes.pod.namespace" = local.deskplane_namespace
             }
           }]
           toPorts = [{
-            ports = [{ port = tostring(local.firecrawl_api_port), protocol = "TCP" }]
+            # Cilium matches the post-DNAT backend port (deskplane-serve :8080),
+            # not the Service port 80 that DESKPLANE_URL dials.
+            ports = [{ port = "8080", protocol = "TCP" }]
           }]
         },
         {
