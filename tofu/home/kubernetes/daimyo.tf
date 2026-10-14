@@ -26,7 +26,11 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server and sidecar 3b8f263 (tag agent-api, pipeline 6859): agents and
+  # Server 9030a52 (tag reattach-alive, pipeline 6866): a severed agent
+  # stream locates the pod every time and reattaches while it is alive
+  # (0.5 s backoff doubling to 30 s, reset on progress); only a missing pod,
+  # or ~10 minutes of severings without progress, loses or resumes the task.
+  # Sidecar 3b8f263 (tag agent-api, pipeline 6859): agents and
   # projects can be created, updated and deleted through the API
   # (API-managed Agent/Project CRs, server-side applied with fieldManager
   # daimyo-api and label daimyo.shdr.ch/managed-by=api; the chart's org Role
@@ -37,7 +41,7 @@ locals {
   # 0040), bounded sidecar memory and file routes that wait for a starting
   # pod (97e9437), lost agent streams, model slots, the cold-resume histogram
   # and session file PUT (d172f36). Migrations through 0040.
-  daimyo_server_tag  = "sha256:d73c81194670c61556aa35ead945e1b895a9796ea55c9dca1e32aa6b91abbde5"
+  daimyo_server_tag  = "sha256:f087b1d1e1b529edfaeb601f9dba779d8f999ca3aaa9058b4b306e3e576d23f7"
   daimyo_sidecar_tag = "sha256:88bcc6e8ae86682f7a718ab671bf579f5ad777159dcd1b3e32078b01610a4134"
   # Built-in harness images (Helm config.harness.images). claude-code and omp
   # at 3b8f263 (tag agent-api, pipeline 6859): a hot session keeps one
