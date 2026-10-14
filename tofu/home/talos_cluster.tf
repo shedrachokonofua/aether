@@ -646,10 +646,6 @@ module "kubernetes" {
   # person rather than a service -- e.g. deskplane's watch-any-session list.
   operator_oidc_subject = keycloak_user.shdrch_aether.id
 
-  # Crossplane Keycloak provider credentials
-  keycloak_url                       = "https://auth.shdr.ch"
-  keycloak_client_id                 = keycloak_openid_client.crossplane.client_id
-  keycloak_client_secret             = keycloak_openid_client.crossplane.client_secret
   assay_oauth_client_secret          = keycloak_openid_client.assay_cockpit.client_secret
   assay_allowed_email                = var.keycloak_shdrch_email
   openwebui_oauth_client_secret      = keycloak_openid_client.openwebui.client_secret

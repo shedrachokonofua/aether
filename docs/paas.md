@@ -26,7 +26,6 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Headlamp       | Kubernetes dashboard with OIDC auth                   |
 | Hubble UI      | Cilium network observability UI                       |
 | GitLab Agent   | CI/CD deploys via GitLab KAS tunnel                   |
-| Crossplane     | OIDC client control plane (Keycloak). S3/IAM moved to tofu-native 2026-07 |
 | Kestra OSS     | YAML automation plane and Inquest flow runtime         |
 | HolmesGPT      | Read-only Kubernetes/Prometheus/Loki investigation agent |
 | Keel           | Auto-updates our GitLab `:latest` app images on new digests |
