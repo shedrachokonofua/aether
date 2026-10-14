@@ -436,6 +436,8 @@ See [`tofu/home/kubernetes/litellm_config.yaml.tftpl`](../tofu/home/kubernetes/l
 
 MCP tool calls get LiteLLM's default 60 s cap (`LITELLM_MCP_CLIENT_TIMEOUT`). An overrun returns HTTP 504, which closes the caller's whole MCP session, so a registry entry can raise its own cap with `timeout`; Firecrawl has 110 s. The Seven30 Foundry virtual key (`seven30-foundry`) was created through the LiteLLM API and its value is not in SOPS. `ansible/playbooks/register_litellm_virtual_keys.yml` (`task configure:litellm-keys`) finds it by alias and sets its `object_permission.mcp_servers`: Firecrawl and Finviz since 2026-09-26, plus Deskplane (browser-backed `search_web`, `scrape`, `parse_document`) for research since 2026-10-10.
 
+Deskplane's web tools stay under that 60 s cap without a registry `timeout`: `scrape`'s `timeout_ms` (default 30 s) bounds the whole fetch → headless → headful ladder, and `search_web` reranks SearXNG's top 15 with `DESKPLANE_MCP_MODEL`, falling back to SearXNG's order after 6 s. The web engine's pool browsers are Deskplane session Pods; their profiles set `priorityClassName = aether-batch` in `tofu/home/kubernetes/deskplane.tf`, because bare Pods are not covered by the namespace-tier priority defaults in `kyverno.tf` and otherwise run at `aether-sandbox` (0). Against the self-hosted Firecrawl on 2026-10-14 (`mcp/bench/vs_firecrawl.py` in the deskplane repo, blind judge in both orders), Deskplane read 51 of 56 training URLs to Firecrawl's 38 (judge 46-1, 9 ties) and 23 of 27 held-out URLs to 19 (17-6, 4 ties).
+
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by
 `ansible/playbooks/register_litellm_virtual_keys.yml`). OpenWebUI's native MCP

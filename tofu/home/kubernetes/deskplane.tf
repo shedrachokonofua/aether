@@ -10,8 +10,13 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-8c682834"
-  deskplane_image_tag     = "8c682834"
+  deskplane_chart_version = "0.1.0-fb4f1a73"
+  deskplane_image_tag     = "fb4f1a73"
+  # Session Pods are bare Pods: the namespace-tier priority defaults
+  # (kyverno.tf) only mutate controller templates, so without this the
+  # web engine's pool browsers ran at aether-sandbox (0) and were preempted
+  # ~12 times a day. Agent tier may use aether-batch.
+  deskplane_session_priority_class = local.aether_priority_classes.batch
   # Daimyo task tokens Deskplane trusts (SPEC "Workload Tokens and Tunnels"):
   # a task owns its browser session, and its sidecar's tunnel grant lets that
   # session load the task's own localhost. Same orgs as daimyo.tf's
@@ -260,11 +265,13 @@ resource "helm_release" "deskplane" {
             memory = "8Gi"
           }
         }
-        nodeSelector = local.deskplane_node_selector
+        nodeSelector      = local.deskplane_node_selector
+        priorityClassName = local.deskplane_session_priority_class
       },
       {
-        name             = "gpu"
-        runtimeClassName = "nvidia"
+        name              = "gpu"
+        runtimeClassName  = "nvidia"
+        priorityClassName = local.deskplane_session_priority_class
         resources = {
           requests = {
             cpu              = "500m"
@@ -396,7 +403,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "dab4676a"
+        tag        = "ce00346e"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
