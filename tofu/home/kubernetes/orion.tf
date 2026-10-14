@@ -15,7 +15,7 @@
 locals {
   # Pinned to the dev/revamp build (Postgres + new shell) until it merges to
   # main; keel only follows digests of this exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/dev-revamp:28c43cf01847128aa2fc7e9167a21e7c6f595586"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/dev-revamp:de6f96283289137272e7f314ef57d992e8ff98d2"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
