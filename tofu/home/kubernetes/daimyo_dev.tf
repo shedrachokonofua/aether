@@ -49,6 +49,12 @@ resource "kubernetes_role_v1" "daimyo_dev_workspace" {
     resources  = ["statefulsets", "deployments"]
     verbs      = ["create", "delete", "get", "list", "patch", "update", "watch"]
   }
+
+  rule {
+    api_groups = ["batch"]
+    resources  = ["jobs"]
+    verbs      = ["create", "delete", "get", "list", "patch", "update", "watch"]
+  }
 }
 
 resource "kubernetes_role_binding_v1" "daimyo_dev_workspace" {
