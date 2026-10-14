@@ -1393,8 +1393,8 @@ resource "kubectl_manifest" "kyverno_namespace_resourcequota" {
       }
       matchConditions = [
         {
-          name       = "resourcequota-tier-or-gitlab-runner"
-          expression = "object.metadata.name == 'gitlab-runner' || (has(object.metadata.labels) && 'aether.shdr.ch/tier' in object.metadata.labels && object.metadata.labels['aether.shdr.ch/tier'] in ['guest', 'sandbox', 'tenant'])"
+          name       = "resourcequota-tier"
+          expression = "has(object.metadata.labels) && 'aether.shdr.ch/tier' in object.metadata.labels && object.metadata.labels['aether.shdr.ch/tier'] in ['guest', 'sandbox', 'tenant']"
         },
       ]
       variables = [
@@ -1405,8 +1405,6 @@ resource "kubectl_manifest" "kyverno_namespace_resourcequota" {
         {
           name       = "quotaHard"
           expression = <<-EOT
-            object.metadata.name == "gitlab-runner" ?
-              dyn(${jsonencode(local.namespace_resourcequota_gitlab_runner)}) :
             object.metadata.labels["aether.shdr.ch/tier"] == "sandbox" ?
               dyn(${jsonencode(local.namespace_resourcequota_sandbox)}) :
             object.metadata.labels["aether.shdr.ch/tier"] == "tenant" ?
@@ -1439,6 +1437,30 @@ resource "kubectl_manifest" "kyverno_namespace_resourcequota" {
     }
   })
 }
+
+# The gitlab-runner namespace quota is owned by tofu directly. The object
+# that the watcher restored on 2026-09-24 carries no Kyverno ownership, so
+# the GeneratingPolicy above never reconciled it and every quota change had
+# to be patched by hand (observed 2026-10-14: the controller logged "start
+# processing UR" and never wrote the object). The policy no longer matches
+# gitlab-runner, so exactly one controller owns this quota. The restored
+# label is kept as a historical marker; it is harmless.
+resource "kubernetes_resource_quota_v1" "gitlab_runner_namespace_quota" {
+  depends_on = [module.namespace["gitlab-runner"]]
+
+  metadata {
+    name      = "namespace-quota"
+    namespace = module.namespace["gitlab-runner"].name
+    labels = {
+      "aether.shdr.ch/restored" = "kyverno-watcher-deletion-2026-09-24"
+    }
+  }
+
+  spec {
+    hard = local.namespace_resourcequota_gitlab_runner
+  }
+}
+
 
 resource "kubectl_manifest" "kyverno_priority_controller_template_rbac" {
   depends_on = [helm_release.kyverno]
