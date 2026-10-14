@@ -30,6 +30,12 @@ locals {
       retention = "14d"
       schedule  = "0 15 2 * * *"
     }
+    grafana = {
+      namespace = local.grafana_namespace
+      cluster   = local.grafana_cnpg_cluster
+      retention = "14d"
+      schedule  = "0 17 2 * * *"
+    }
     hoppscotch = {
       namespace = local.hoppscotch_ns
       cluster   = local.hoppscotch_cnpg_cluster
@@ -83,6 +89,12 @@ locals {
       cluster   = local.openwebui_cnpg_cluster
       retention = "14d"
       schedule  = "0 50 2 * * *"
+    }
+    orion = {
+      namespace = local.orion_ns
+      cluster   = local.orion_cnpg
+      retention = "14d"
+      schedule  = "0 32 2 * * *"
     }
     temporal = {
       namespace = local.temporal_namespace
@@ -224,6 +236,7 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     kubectl_manifest.miniflux_cnpg_cluster,
     kubectl_manifest.nextcloud_cnpg_cluster,
     kubectl_manifest.openwebui_cnpg_cluster,
+    kubectl_manifest.orion_cnpg_cluster,
     kubectl_manifest.temporal_cnpg_cluster,
   ]
 
