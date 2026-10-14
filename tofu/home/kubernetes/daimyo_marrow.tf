@@ -18,8 +18,11 @@
 # this digest in org seven30.
 
 locals {
-  # seven30/marrow main at b064d3f (pipeline 6840, job build:image).
-  marrow_image = "registry.gitlab.home.shdr.ch/seven30/marrow@sha256:ca408aca6257835193bcac320de2aad704dc9dc6f62a039cb957d235032eec8f"
+  # seven30/marrow main at 5f29a59 (pipeline 6862, job build:image): Daimyo
+  # SDK 25c89de sends 15 s SSE keepalives, so a long quiet model call no
+  # longer trips the supervisor's 300 s idle read timeout; progress lines
+  # that fail to publish are reported (33e8b84).
+  marrow_image = "registry.gitlab.home.shdr.ch/seven30/marrow@sha256:2decd3f52ded9a4d144b8fd939e9b4224a143297775b1b7f50dd678e8920e654"
   marrow_models = [
     "moira/strong",
     "moira/frontier",
