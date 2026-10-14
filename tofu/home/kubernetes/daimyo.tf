@@ -1179,6 +1179,9 @@ resource "kubectl_manifest" "daimyo_frontend_agent" {
 # digest in the org before the revision goes Ready (POST
 # /v1/orgs/personal/attestations as an org user; `daimyoctl conformance
 # <image> --agent <cr> --attest --org personal` runs the kit and posts it).
+# Image fd7ec0f (pipeline 6857): the Python SDK waits for its local journal
+# calls (no 5 s read timeout), so a turn after restoring a large workspace
+# no longer fails; attested for personal 2026-10-14.
 resource "kubectl_manifest" "daimyo_notes_agent" {
   depends_on = [kubectl_manifest.daimyo_project]
 
@@ -1194,7 +1197,7 @@ resource "kubectl_manifest" "daimyo_notes_agent" {
       project     = "personal"
       description = "Keeps a running notes file across a session and recalls earlier turns."
       contract    = "v1"
-      image       = "registry.gitlab.home.shdr.ch/so/daimyo/notes-agent@sha256:614091a79afb4917ff2f4a007950096834d49881839fc90912e796528ace072a"
+      image       = "registry.gitlab.home.shdr.ch/so/daimyo/notes-agent@sha256:2e092d62bb4ddfded12942ddf5adf090cd7ac0a73695d85485350ea885cdfd9b"
       resources   = { cpu = "250m", memory = "256Mi", workspace = "512Mi" }
       operations = [{
         name        = "note"
