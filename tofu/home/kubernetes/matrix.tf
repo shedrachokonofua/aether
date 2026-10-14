@@ -13,7 +13,7 @@
 #                       RWO PVCs can be mounted into multiple containers within
 #                       the same Pod.
 #
-# Hermes agents use the in-cluster synapse service after their namespace move;
+# Bot clients reach the in-cluster synapse service over cluster DNS;
 # the public matrix.home.shdr.ch route remains for clients and federation.
 
 

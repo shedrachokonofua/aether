@@ -10,8 +10,8 @@
 # the task-namespace CiliumNetworkPolicies, and the HTTPRoute.
 #
 # Requires the daimyo checkout as a sibling of aether
-# (../daimyo/deploy/helm/daimyo/Chart.yaml) — copy the hermes.tf
-# precondition pattern: fail with an actionable message, not file() noise.
+# (../daimyo/deploy/helm/daimyo/Chart.yaml) — fail with an actionable
+# message, not file() noise.
 #
 # Stages (targeted plans, smallest blast radius first):
 #   1. namespaces/contracts (namespace_contracts.tf stanzas, this file: none)
@@ -90,7 +90,7 @@ locals {
 }
 
 # --- Sibling-checkout precondition ------------------------------------------------
-# Mirrors hermes.tf: the chart is vendored from the sibling repo at apply
+# The chart is vendored from the sibling repo at apply
 # time, so a missing checkout must fail with an actionable message.
 
 resource "terraform_data" "daimyo_chart_present" {
@@ -456,6 +456,10 @@ resource "helm_release" "daimyo" {
       launcher = {
         kind             = "kata"
         runtimeClass     = "kata"
+        # Agent, session and script-runner pods outrank CI jobs (aether-batch,
+        # 100): without it they took the cluster default (aether-sandbox, 0)
+        # and GitLab runner pods preempted live sessions mid-turn (2026-10-14).
+        priorityClass = "aether-app"
         sidecarImage     = ""
         imagePullSecrets = [kubernetes_secret_v1.daimyo_tasks_registry["personal"].metadata[0].name]
       }
@@ -599,7 +603,7 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           ] }]
         },
         {
-          # LiteLLM model gateway (spec §18.1; cluster DNS like hermes.tf).
+          # LiteLLM model gateway (spec §18.1; cluster DNS).
           toEndpoints = [{
             matchLabels = {
               "app"                         = "litellm"

@@ -7,7 +7,7 @@
 locals {
   assay_namespace            = module.namespace["assay"].name
   assay_host                 = "assay.home.shdr.ch"
-  assay_chart_version        = "0.2.33"
+  assay_chart_version        = "0.2.34" # 0.2.34 = clickhouseUid values API; publish the assay chart before applying
   assay_image_tag            = "v0.2.33"
   assay_registry_host        = "registry.gitlab.home.shdr.ch"
   assay_registry_repository  = "${local.assay_registry_host}/so/assay"
@@ -459,10 +459,9 @@ resource "helm_release" "assay" {
         }
       }
       grafana = {
-        enabled               = true
-        url                   = "https://grafana.home.shdr.ch"
-        prometheusUid         = "ffs597mxke39ca"
-        alertingPrometheusUid = "prometheus-local"
+        enabled       = true
+        url           = "https://grafana.home.shdr.ch"
+        clickhouseUid = "clickhouse"
         secretRef = {
           name     = "assay-grafana"
           tokenKey = "GRAFANA_TOKEN"
@@ -608,16 +607,6 @@ resource "kubernetes_manifest" "assay_api_ingress" {
         {
           fromEndpoints = [{
             matchLabels = { "io.kubernetes.pod.namespace" = local.assay_namespace }
-          }]
-          toPorts = [{ ports = [{ port = "3000", protocol = "TCP" }] }]
-        },
-        {
-          # Beryl (hermes) drives the MCP endpoint with the API bearer token.
-          fromEndpoints = [{
-            matchLabels = {
-              "io.kubernetes.pod.namespace" = "hermes"
-              "app"                         = "hermes-beryl"
-            }
           }]
           toPorts = [{ ports = [{ port = "3000", protocol = "TCP" }] }]
         },

@@ -191,7 +191,11 @@ grafana.home.shdr.ch {
   import home_acme_dns
   import access_logs
   bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
-  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}
+  # Keep LAN + Tailscale access while the Gateway API route owns Grafana.
+  reverse_proxy 10.0.3.19 {
+    header_up Host {host}
+    header_up X-Forwarded-Proto https
+  }
 }
 
 # CORS-stripping feed proxy for the Grafana home dashboard.
@@ -388,7 +392,7 @@ ha.home.shdr.ch {
   import home_acme_dns
   import access_logs
   # Avoid duplicate Server header (upstream + Caddy) — strict aiohttp
-  # clients (hermes) reject it with 400. Needs both: header_down for normal
+  # clients reject it with 400. Needs both: header_down for normal
   # responses, site-level header for the websocket 101 upgrade response.
   header -Server
   reverse_proxy {{ vm.iot_management_stack.ip }}:{{ vm.iot_management_stack.ports.home_assistant }} {
@@ -865,7 +869,7 @@ api.siren.home.shdr.ch {
     header_up X-Forwarded-For {http.request.remote.host}
     header_up X-Forwarded-Proto {http.request.scheme}
     # Strip envoy's Server header — combined with Caddy's own it produces a
-    # duplicate that strict HTTP clients (aiohttp/hermes) reject with 400.
+    # duplicate that strict HTTP clients (aiohttp) reject with 400.
     header_down -Server
   }
 }

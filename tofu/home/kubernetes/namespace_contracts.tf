@@ -299,20 +299,6 @@ locals {
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "daimyo"
-      }
-    }
-    "daimyo-dev" = {
-      tier                    = "sandbox",
-      owner                   = "daimyo",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      description             = "Disposable Postgres, NATS and S3 for Daimyo workspace tests"
-      source_file             = "tofu/home/kubernetes/daimyo_dev.tf"
-      registry_access         = "dockerhub"
-      extra_labels = {
-        "app.kubernetes.io/managed-by"       = "opentofu"
-        "app.kubernetes.io/part-of"          = "daimyo"
         # The sandbox default is restricted, which the official postgres:17
         # image cannot satisfy (it must start as root to initdb). Baseline is
         # what the other namespaces running stock images enforce.
@@ -634,25 +620,6 @@ locals {
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled" = "true"
-      }
-    }
-    "hermes" = {
-      tier                    = "agent",
-      owner                   = "aether",
-      backup                  = "standard",
-      exposure                = "internal",
-      create_s3_backup_secret = true,
-      source_file             = "tofu/home/kubernetes/hermes.tf",
-      egress                  = "allowlist",
-      registry_access         = "dockerhub",
-      hostnames = [
-        "beryl.home.shdr.ch",
-        "beryl-dashboard.home.shdr.ch",
-        "tungsten.home.shdr.ch",
-        "tungsten-dashboard.home.shdr.ch",
-      ],
-      extra_labels = {
-        "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
     "holmesgpt" = {
@@ -1251,6 +1218,20 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    # Google Flights MCP server for the trip-planner Daimyo agent. Stateless;
+    # reached only from Daimyo task pods (daimyo_tasks_egress).
+    "fli" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "none"
+      create_s3_backup_secret = false
+      source_file             = "tofu/home/kubernetes/trip_planner.tf"
+      registry_access         = "github"
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "vaultwarden" = {
       tier                    = "app",
       owner                   = "aether",
@@ -1328,6 +1309,39 @@ locals {
       registry_access         = "dockerhub",
       extra_labels = {
         "pod-security.kubernetes.io/enforce" = "privileged"
+      }
+    }
+    "grafana" = {
+      tier                    = "platform"
+      owner                   = "aether"
+      backup                  = "critical"
+      exposure                = "internal"
+      create_s3_backup_secret = true
+      description             = "Grafana dashboards and unified alerting over ClickHouse"
+      source_file             = "tofu/home/kubernetes/grafana.tf"
+      egress                  = "allowlist"
+      registry_access         = "dockerhub"
+      hostnames = [
+        "grafana.home.shdr.ch",
+      ]
+      extra_labels = {
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
+    "hyperdx" = {
+      tier                    = "platform"
+      owner                   = "aether"
+      backup                  = "standard"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "HyperDX (ClickStack UI) over the monitoring-stack ClickHouse"
+      source_file             = "tofu/home/kubernetes/hyperdx.tf"
+      registry_access         = "dockerhub"
+      hostnames = [
+        "hyperdx.home.shdr.ch",
+      ]
+      extra_labels = {
+        "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
     "system" = {
@@ -1472,7 +1486,6 @@ locals {
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
     "antigravity.home.shdr.ch"   = "/health"
-    "beryl.home.shdr.ch"         = "/health"
     "colony.home.shdr.ch"        = "/health"
     "composer.home.shdr.ch"      = "/health"
     "docling.home.shdr.ch"       = "/health"
@@ -1483,7 +1496,6 @@ locals {
     "matrix.home.shdr.ch"        = "/_matrix/client/versions"
     "kestra.home.shdr.ch"        = "/ui/"
     "searxng.home.shdr.ch"       = "/healthz"
-    "tungsten.home.shdr.ch"      = "/health"
   }
 
   # These endpoints are not meaningful to check with the current GET-based

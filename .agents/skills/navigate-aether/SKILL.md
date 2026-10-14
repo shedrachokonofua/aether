@@ -9,7 +9,7 @@ Orient in this private-cloud repository without treating documentation as curren
 
 ## Start
 
-1. Read the nearest `AGENTS.md`, including a nested one when working under `hermes/`.
+1. Read the nearest `AGENTS.md` if one exists along the path.
 2. Run all commands inside `nix develop` and prefer current `task` targets over copied commands.
 3. Check `git status --short` before drawing conclusions from the checkout.
 4. Run `task login:status` before provider, secret, cloud, or SSH work. Reuse cached credentials; run unified `task login` only when required access is missing or expired.

@@ -142,16 +142,6 @@ output "openwebui_k8s_url" {
   value       = module.kubernetes.openwebui_url
 }
 
-output "hermes_k8s_urls" {
-  description = "Hermes Agent URLs running in Kubernetes"
-  value       = module.kubernetes.hermes_urls
-}
-
-output "hermes_k8s_dashboard_urls" {
-  description = "Hermes Agent dashboard URLs running in Kubernetes"
-  value       = module.kubernetes.hermes_dashboard_urls
-}
-
 output "synthetic_probe_targets" {
   description = "HTTP synthetic probe targets from Kubernetes namespace contracts and explicit off-Kubernetes services"
   value       = distinct(concat(module.kubernetes.synthetic_probe_targets, local.synthetic_probe_off_k8s_targets))

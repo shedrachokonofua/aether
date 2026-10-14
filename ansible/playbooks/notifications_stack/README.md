@@ -26,5 +26,4 @@ task configure:notifications-stack
 task configure:notifications
 task ansible:playbook -- notifications_stack/apprise.yml
 task ansible:playbook -- notifications_stack/ntfy.yml
-task ansible:playbook -- notifications_stack/hermes_bots.yml
 ```
