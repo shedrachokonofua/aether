@@ -30,12 +30,6 @@ locals {
       retention = "14d"
       schedule  = "0 15 2 * * *"
     }
-    grafana = {
-      namespace = local.grafana_namespace
-      cluster   = local.grafana_cnpg_cluster
-      retention = "14d"
-      schedule  = "0 17 2 * * *"
-    }
     hoppscotch = {
       namespace = local.hoppscotch_ns
       cluster   = local.hoppscotch_cnpg_cluster
