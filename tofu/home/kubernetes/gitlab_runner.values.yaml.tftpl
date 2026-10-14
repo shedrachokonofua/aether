@@ -79,14 +79,22 @@ runners:
         service_cpu_request = "100m"
         service_memory_request = "128Mi"
         service_ephemeral_storage_request = "512Mi"
-        service_cpu_limit = "500m"
-        service_memory_limit = "512Mi"
+        # Test services (postgres:17, rustfs) were capped at half a core and
+        # 512Mi, so cargo test spent its time waiting on the database. 2 CPU /
+        # 2Gi lets them run; requests stay small so they still pack next to
+        # the build container. Only neo (32 alloc CPU, ~94 GiB RAM) has room
+        # for a job this size: trinity and niobe sit at 99%/95% CPU requests.
+        service_cpu_limit = "2"
+        service_memory_limit = "2Gi"
         service_ephemeral_storage_limit = "1Gi"
-        cpu_request_overwrite_max_allowed = "2"
-        memory_request_overwrite_max_allowed = "4Gi"
+        # A rust-test job asks for 6 CPU / 12Gi. 8 / 16Gi is the largest
+        # overwrite that still fits neo (~4.4 CPU and ~35 GiB free) and the
+        # namespace quota.
+        cpu_request_overwrite_max_allowed = "8"
+        memory_request_overwrite_max_allowed = "16Gi"
         ephemeral_storage_request_overwrite_max_allowed = "16Gi"
-        cpu_limit_overwrite_max_allowed = "4"
-        memory_limit_overwrite_max_allowed = "8Gi"
+        cpu_limit_overwrite_max_allowed = "8"
+        memory_limit_overwrite_max_allowed = "16Gi"
         ephemeral_storage_limit_overwrite_max_allowed = "64Gi"
         poll_timeout = 1800
         pull_policy = "if-not-present"
