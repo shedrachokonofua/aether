@@ -1337,17 +1337,19 @@ locals {
   }
 
   namespace_resourcequota_gitlab_runner = {
-    # Sized for 8 counted job pods (4 running x 2.1/4.0 CPU + 4 Terminating
-    # with the runner's 5s termination grace) plus 4 managers (0.4 req / 2.0
-    # lim). This yields 17.2 CPU requests (rounded to 18) and 34 CPU limits.
-    # Backtested 2026-08-01 against 3 weeks of job timelines: cap 8 + 5s grace
-    # removes ~87% of quota rejections; bigger bumps buy nothing while the
-    # grace period is short.
-    "requests.cpu"               = "18"
-    "requests.memory"            = "24Gi"
+    # 4 managers (0.4 req / 2.0 lim CPU, 0.5 / 2 GiB) plus 4 counted job
+    # pods, one of which may overwrite. Measured 2026-10-14: a 6 CPU / 12Gi
+    # job with two services asks for 6.3 CPU and 12.4Gi (limits 12 CPU,
+    # 16.5Gi). Three default jobs are 3 x 2.1 CPU / 2.1Gi requests and
+    # 3 x 4 CPU / 4.5Gi limits. With the managers that is 13.9 CPU and
+    # 22.2Gi of requests, 26.8 CPU and 35Gi of limits. The quota has to
+    # clear the request side, which is what rejected the first 6 CPU job
+    # (18 CPU / 24Gi, already 13 CPU and 19Gi used).
+    "requests.cpu"               = "26"
+    "requests.memory"            = "40Gi"
     "requests.ephemeral-storage" = "96Gi"
-    "limits.cpu"                 = "34"
-    "limits.memory"              = "40Gi"
+    "limits.cpu"                 = "40"
+    "limits.memory"              = "56Gi"
     "limits.ephemeral-storage"   = "264Gi"
     "pods"                       = "20"
   }
