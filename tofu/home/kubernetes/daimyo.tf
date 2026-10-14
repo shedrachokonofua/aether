@@ -458,10 +458,6 @@ resource "helm_release" "daimyo" {
       launcher = {
         kind         = "kata"
         runtimeClass = "kata"
-        # Agent, session and script-runner pods outrank CI jobs (aether-batch,
-        # 100): without it they took the cluster default (aether-sandbox, 0)
-        # and GitLab runner pods preempted live sessions mid-turn (2026-10-14).
-        priorityClass    = "aether-app"
         sidecarImage     = ""
         imagePullSecrets = [kubernetes_secret_v1.daimyo_tasks_registry["personal"].metadata[0].name]
       }
