@@ -1305,6 +1305,9 @@ resource "keycloak_openid_client" "orion" {
   standard_flow_enabled        = true
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
+  # Orion reaches Daimyo as the signed-in user: it exchanges the user's token
+  # here (RFC 8693) for one whose audience is `daimyo` (Orion threads).
+  standard_token_exchange_enabled = true
 
   root_url  = "https://home.shdr.ch"
   base_url  = "https://home.shdr.ch"
@@ -1334,6 +1337,39 @@ resource "keycloak_openid_client_default_scopes" "orion_default_scopes" {
     "email",
     "roles",
   ]
+}
+
+# Orion's own tokens are addressed to Orion, so Orion may exchange them.
+resource "keycloak_openid_audience_protocol_mapper" "orion_self_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.orion.id
+  name      = "orion-audience"
+
+  included_client_audience = keycloak_openid_client.orion.client_id
+  add_to_access_token      = true
+}
+
+# Makes `daimyo` an audience Orion may request in an exchange.
+resource "keycloak_openid_audience_protocol_mapper" "orion_daimyo_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.orion.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
+  add_to_access_token      = true
+}
+
+# Realm roles as `groups`, the claim Daimyo's org issuer reads (daimyo.tf).
+resource "keycloak_openid_user_realm_role_protocol_mapper" "orion_groups" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.orion.id
+  name      = "realm-roles"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = false
 }
 
 # =============================================================================
