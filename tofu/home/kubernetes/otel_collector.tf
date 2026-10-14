@@ -284,7 +284,6 @@ resource "helm_release" "otel_collector_deployment" {
     helm_release.ztunnel,
     helm_release.tetragon,
     helm_release.trivy_operator,
-    helm_release.policy_reporter,
   ]
 
   name       = "otel-cluster"
@@ -640,21 +639,6 @@ resource "helm_release" "otel_collector_deployment" {
                 metric_relabel_configs = [{
                   source_labels = ["__name__", "severity"]
                   regex         = "trivy_vulnerability_id;(Unknown|Low|Medium|High)"
-                  action        = "drop"
-                }]
-              },
-              {
-                job_name        = "policy-reporter"
-                scrape_interval = "30s"
-                static_configs = [{
-                  targets = ["policy-reporter.${local.policy_reporter_namespace}.svc.cluster.local:8080"]
-                }]
-                # Drop per-resource policy_report_result (~36k series, unused in Grafana;
-                # per-resource state stays in PolicyReport CRs + policy-reporter UI).
-                # policy_report_summary (aggregate) is retained.
-                metric_relabel_configs = [{
-                  source_labels = ["__name__"]
-                  regex         = "policy_report_result"
                   action        = "drop"
                 }]
               },
