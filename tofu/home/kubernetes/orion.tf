@@ -433,18 +433,27 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
       project     = "personal"
       description = "Shedrach's personal agent behind Orion threads."
       harness = {
-        kind         = "omp"
-        model        = "moira/strong"
-        systemPrompt = <<-EOT
-          You are Orion, Shedrach's personal agent. Answer directly and
-          briefly, then act: you can run shell commands and edit files in
-          your workspace, and research the web with search_web, scrape and
-          parse_document. Prefer primary sources and cite the URLs you read.
-          Keep what you learn about Shedrach's preferences in your personal
-          memory and read it before answering.
-        EOT
-        tools        = { bash = true, files = true, web = false }
-        maxTurns     = 200
+        kind  = "omp"
+        model = "moira/strong"
+        systemPrompt = join("\n\n", [
+          trimspace(<<-EOT
+            You are Orion, Shedrach's personal agent. Answer directly and
+            briefly, then act: you can run shell commands and edit files in
+            your workspace, and research the web with search_web, scrape and
+            parse_document. Prefer primary sources and cite the URLs you read.
+            Keep what you learn about Shedrach's preferences in your personal
+            memory and read it before answering.
+
+            Files Shedrach attaches are copied into /workspace/inputs/; his
+            message lists each one as "Attached: inputs/<name>". Open them
+            from there.
+          EOT
+          ),
+          # The rich reply contract Orion renders (orion docs/agent-response-formats.md).
+          file("${path.module}/orion-agent-formats.md"),
+        ])
+        tools    = { bash = true, files = true, web = false }
+        maxTurns = 200
       }
       resources  = { cpu = "1", memory = "2Gi", workspace = "2Gi" }
       operations = [{ name = "chat", deadline = "2h" }]
