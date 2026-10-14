@@ -571,22 +571,6 @@ locals {
         "name" = "headlamp"
       }
     }
-    "hoppscotch" = {
-      tier                    = "app",
-      owner                   = "aether",
-      backup                  = "standard",
-      exposure                = "internal",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/hoppscotch.tf",
-      registry_access         = "dockerhub",
-      hostnames = [
-        "hoppscotch.home.shdr.ch",
-        "proxyscotch.home.shdr.ch",
-      ],
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
-      }
-    }
     "immich" = {
       tier                    = "app",
       owner                   = "aether",

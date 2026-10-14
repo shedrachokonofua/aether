@@ -59,11 +59,6 @@ moved {
 
 
 moved {
-  from = kubernetes_namespace_v1.hoppscotch
-  to   = module.namespace["hoppscotch"].kubernetes_namespace_v1.this
-}
-
-moved {
   from = kubernetes_namespace_v1.immich
   to   = module.namespace["immich"].kubernetes_namespace_v1.this
 }
