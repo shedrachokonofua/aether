@@ -64,9 +64,12 @@ resource "kubernetes_priority_class_v1" "aether_batch" {
     name = "aether-batch"
   }
 
-  value             = 100
-  global_default    = false
-  preemption_policy = "PreemptLowerPriority"
+  value          = 100
+  global_default = false
+  # Deferrable work waits for free capacity instead of evicting running pods:
+  # CI jobs preempted live Daimyo session pods (sandbox tier) mid-turn on
+  # 2026-10-14. Batch still schedules ahead of sandbox pods in the queue.
+  preemption_policy = "Never"
   description       = "Autonomous agents, CI jobs, and other deferrable compute."
 }
 
