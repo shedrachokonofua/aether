@@ -43,15 +43,6 @@ locals {
       port      = 5432
       schedule  = "13 1 * * *"
     }
-    firecrawl = {
-      namespace = local.firecrawl_ns
-      name      = "firecrawl-postgres"
-      service   = "${local.firecrawl_cnpg_cluster}-rw"
-      user      = local.firecrawl_db_user
-      database  = "postgres"
-      port      = 5432
-      schedule  = "18 1 * * *"
-    }
     hoppscotch = {
       namespace = "hoppscotch"
       name      = "hoppscotch-postgres"
@@ -134,7 +125,6 @@ locals {
     affine     = random_password.affine_db_password.result
     coder      = random_password.coder_postgres_password.result
     dawarich   = random_password.dawarich_postgres_password.result
-    firecrawl  = var.secrets["firecrawl.database_password"]
     hoppscotch = random_password.hoppscotch_postgres_password.result
     immich     = random_password.immich_postgres_password.result
     litellm    = var.secrets["litellm.database_password"]
@@ -146,13 +136,6 @@ locals {
   }
 
   db_backup_sidecar_postgres_services = {
-    firecrawl = {
-      namespace         = local.firecrawl_ns
-      service           = "firecrawl-postgres-backup"
-      labels            = { app = "firecrawl-postgres-backup" }
-      selector          = { "cnpg.io/cluster" = local.firecrawl_cnpg_cluster, "cnpg.io/instanceRole" = "primary" }
-      publish_not_ready = true
-    }
     litellm = {
       namespace         = local.litellm_ns
       service           = "litellm-postgres-backup"

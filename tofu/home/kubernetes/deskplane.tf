@@ -10,7 +10,7 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-fb4f1a73"
+  deskplane_chart_version = "0.1.0-d5de1f60"
   deskplane_image_tag     = "fb4f1a73"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
@@ -109,6 +109,29 @@ resource "kubernetes_secret_v1" "deskplane_mcp_token" {
   }
   data = {
     token = local.deskplane_mcp_token
+  }
+  type = "Opaque"
+}
+
+# Dedicated scrape API token for orion's answer engine. Path-scoped to
+# /api/web (the scrape/map/search/parse surface) so the token cannot drive
+# sessions or the admin API. Held in tofu state like orion_session_secret;
+# the same value is exported to orion's env secret via orion.tf.
+resource "random_password" "deskplane_orion_token" {
+  length  = 48
+  special = false
+}
+
+resource "kubernetes_secret_v1" "deskplane_orion_token" {
+  depends_on = [module.namespace["deskplane"]]
+  metadata {
+    name      = "deskplane-orion-token"
+    namespace = local.deskplane_namespace
+  }
+  # Key name doubles as the file name in serve's shared api-tokens projected
+  # volume, so it must differ from deskplane-mcp-token's "token".
+  data = {
+    orion-token = random_password.deskplane_orion_token.result
   }
   type = "Opaque"
 }
@@ -386,6 +409,13 @@ resource "helm_release" "deskplane" {
         key      = "token"
         subject  = "svc:deskplane-mcp"
         username = "deskplane-mcp"
+      },
+      {
+        name                = kubernetes_secret_v1.deskplane_orion_token.metadata[0].name
+        key                 = "orion-token"
+        subject             = "svc:orion"
+        username            = "orion"
+        allowedPathPrefixes = ["/api/web"]
       }
     ]
 

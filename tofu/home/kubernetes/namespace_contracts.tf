@@ -97,25 +97,6 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
-    "firecrawl" = {
-      tier                    = "app"
-      owner                   = "aether"
-      backup                  = "critical"
-      exposure                = "internal"
-      create_s3_backup_secret = false
-      description             = "Web crawling and Firecrawl MCP service"
-      egress                  = "internet"
-      registry_access         = "github"
-      hostnames = [
-        "firecrawl.home.shdr.ch",
-        "firecrawl-mcp.home.shdr.ch",
-      ]
-      extra_labels = {
-        "aether.shdr.ch/arch"                = "amd64"
-        "goldilocks.fairwinds.com/enabled"   = "true"
-        "pod-security.kubernetes.io/enforce" = "baseline"
-      }
-    }
     "frame-gallery" = {
       tier                    = "app"
       owner                   = "aether"
@@ -1485,17 +1466,16 @@ locals {
   # consumed by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
-    "antigravity.home.shdr.ch"   = "/health"
-    "colony.home.shdr.ch"        = "/health"
-    "composer.home.shdr.ch"      = "/health"
-    "docling.home.shdr.ch"       = "/health"
-    "firecrawl-mcp.home.shdr.ch" = "/health"
-    "muse.home.shdr.ch"          = "/health"
-    "grok.home.shdr.ch"          = "/health"
-    "claude.home.shdr.ch"        = "/health"
-    "matrix.home.shdr.ch"        = "/_matrix/client/versions"
-    "kestra.home.shdr.ch"        = "/ui/"
-    "searxng.home.shdr.ch"       = "/healthz"
+    "antigravity.home.shdr.ch" = "/health"
+    "colony.home.shdr.ch"      = "/health"
+    "composer.home.shdr.ch"    = "/health"
+    "docling.home.shdr.ch"     = "/health"
+    "muse.home.shdr.ch"        = "/health"
+    "grok.home.shdr.ch"        = "/health"
+    "claude.home.shdr.ch"      = "/health"
+    "matrix.home.shdr.ch"      = "/_matrix/client/versions"
+    "kestra.home.shdr.ch"      = "/ui/"
+    "searxng.home.shdr.ch"     = "/healthz"
   }
 
   # These endpoints are not meaningful to check with the current GET-based

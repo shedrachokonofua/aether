@@ -355,7 +355,7 @@ graph LR
     subgraph Consumers
         QB[qBittorrent]
         SX[SearXNG]
-        FC[Firecrawl]
+        DP[Deskplane]
         PW[Prowlarr]
     end
 
@@ -376,7 +376,7 @@ graph LR
         VPN2[US Servers]
     end
 
-    QB & SX & FC & PW -->|SOCKS5| HAP
+    QB & SX & DP & PW -->|SOCKS5| HAP
     HAP -->|Random| Pool
     WCA -->|WireGuard| VPN1
     WUS -->|WireGuard| VPN2
@@ -392,7 +392,6 @@ graph LR
 | ----------- | ----------------------------- |
 | qBittorrent | Torrent traffic anonymization |
 | SearXNG     | Search query privacy          |
-| Firecrawl   | Web scraping IP rotation      |
 | Prowlarr    | Indexer access                |
 | Deskplane   | Web-engine browser proxy `aether-rotating` (the only entry, so `proxy=auto` uses it) |
 
