@@ -15,7 +15,7 @@
 locals {
   # Pinned to the dev/revamp build (Postgres + new shell) until it merges to
   # main; keel only follows digests of this exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/dev-revamp:50233280fad40ee72b7690ae05ece34f3630110c"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/dev-revamp:28c43cf01847128aa2fc7e9167a21e7c6f595586"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -60,6 +60,12 @@ resource "random_password" "orion_session_secret" {
   special = true
 }
 
+# Encrypts users' stored Keycloak refresh tokens (Orion threads reach Daimyo
+# as the user via token exchange). Rotating it forces everyone to sign in again.
+resource "random_bytes" "orion_token_encryption_key" {
+  length = 32
+}
+
 # Env vars sourced from tofu state + the OIDC client secret var. The OIDC
 # client secret is passed down from the parent module (see talos_cluster.tf).
 locals {
@@ -71,6 +77,10 @@ locals {
     OIDC_SCOPE         = "openid profile email"
     SESSION_SECRET     = random_password.orion_session_secret.result
     DATABASE_URL       = "postgresql://${local.orion_database_user}:${random_password.orion_database_password.result}@${local.orion_database_service}:5432/${local.orion_database}?sslmode=disable"
+    # Threads → the `orion` Daimyo agent, as the signed-in user (keycloak.tf
+    # orion client: token exchange to aud `daimyo`).
+    DAIMYO_URL           = "https://daimyo.home.shdr.ch"
+    TOKEN_ENCRYPTION_KEY = random_bytes.orion_token_encryption_key.base64
     # News widget → self-hosted Miniflux (API key minted in Miniflux, stored in SOPS).
     MINIFLUX_URL     = "https://miniflux.home.shdr.ch"
     MINIFLUX_API_KEY = var.secrets["miniflux.orion_api_key"]
