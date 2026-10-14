@@ -77,7 +77,8 @@ The lab *intends* 3-2-1 but currently isn't there:
   `ceph-rbd` storage guardrail; Miniflux, Hoppscotch, Coder, Temporal, Affine, OpenWebUI,
   Nextcloud, Matrix, Immich, LiteLLM, Firecrawl, and Mnemo are CNPG-backed. Native CNPG
   object-store backups are configured for all 12 current clusters with 14-day retention and were
-  manually verified on 2026-07-02. Firecrawl and its cluster were retired on 2026-10-14.
+  manually verified on 2026-07-02. Firecrawl and Hoppscotch, with their clusters, were retired on
+  2026-10-14.
 - **Kubernetes control-plane protection** — `backup-stack` runs `aether-talos-etcd-snapshot.timer`
   daily at 02:20, using the Tofu-generated Talos client config. A manual proof snapshot on
   2026-06-27 wrote a 412MB etcd snapshot to `/mnt/hdd/data/backups/talos-etcd`; the scheduled

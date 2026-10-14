@@ -160,7 +160,7 @@ Current DB dump flow:
 
 - Kubernetes CronJobs write logical dumps to bucket `aether-db-dumps`
 - Postgres jobs use `pg_dump --format=custom --no-owner`; the Mongo job uses `mongodump --archive --gzip`
-- Miniflux, Hoppscotch, Coder, Temporal, Affine, OpenWebUI, Nextcloud, Matrix, Immich, and
+- Miniflux, Coder, Temporal, Affine, OpenWebUI, Nextcloud, Matrix, Immich, and
   LiteLLM are CNPG-backed and their dump jobs target the matching `*-cnpg-rw` writer services
 - Other Postgres jobs still target their current app Postgres services until they are migrated
 - Jobs run between 01:03 and 02:07, before the offsite Backrest window

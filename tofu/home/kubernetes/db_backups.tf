@@ -43,15 +43,6 @@ locals {
       port      = 5432
       schedule  = "13 1 * * *"
     }
-    hoppscotch = {
-      namespace = "hoppscotch"
-      name      = "hoppscotch-postgres"
-      service   = "${local.hoppscotch_cnpg_cluster}-rw"
-      user      = "hoppscotch"
-      database  = "hoppscotch"
-      port      = local.hoppscotch_pg_port
-      schedule  = "23 1 * * *"
-    }
     immich = {
       namespace = "immich"
       name      = "immich-postgres"
@@ -125,7 +116,6 @@ locals {
     affine     = random_password.affine_db_password.result
     coder      = random_password.coder_postgres_password.result
     dawarich   = random_password.dawarich_postgres_password.result
-    hoppscotch = random_password.hoppscotch_postgres_password.result
     immich     = random_password.immich_postgres_password.result
     litellm    = var.secrets["litellm.database_password"]
     matrix     = var.secrets["matrix.database_password"]
