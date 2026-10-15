@@ -26,7 +26,10 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server 9a7212d (tag release-1014d, pipeline 6935): a rewind of a hot
+  # Server and sidecar 1fd7937 (tag release-1015a, pipeline 6941): a hot
+  # session's attached files are delivered into the running pod (sidecar
+  # POST /inputs over pods/exec) instead of restarting it. Before that the
+  # server was 9a7212d (tag release-1014d, pipeline 6935): a rewind of a hot
   # session stops its pod and waits until it is gone before cutting the
   # journal, so the next turn relaunches from the cut workspace. Before that
   # 09e7eb0 (tag release-1014c, pipeline 6925): session and task event
@@ -53,8 +56,8 @@ locals {
   # 0040), bounded sidecar memory and file routes that wait for a starting
   # pod (97e9437), lost agent streams, model slots, the cold-resume histogram
   # and session file PUT (d172f36). Migrations through 0040.
-  daimyo_server_tag  = "sha256:cbd312506da0b9b896d2bbafbee73259a147f3c899dbed4d61e9e1d76b3c2156"
-  daimyo_sidecar_tag = "sha256:91e0084e86180771b9d2c7871eee197e6b45cda890dcc3635775f5aee82450a3"
+  daimyo_server_tag  = "sha256:93609420bd6b7d1045f5a06d568489a49a0a9c039bd43195dad6d01ebc5f4d09"
+  daimyo_sidecar_tag = "sha256:1169d36cb2b47276fe76ba4b926c3b412d8960201459e616ee2079a14eca37e3"
   # Built-in harness images (Helm config.harness.images). claude-code and omp
   # at c694ac8 (tag release-1014b, pipeline 6918); before that 3b8f263: a hot session keeps one
   # harness CLI process across turns (claude-code stream-json input, omp
