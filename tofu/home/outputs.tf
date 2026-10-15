@@ -13,11 +13,6 @@ output "backup_stack_password" {
   sensitive = true
 }
 
-output "cockpit_password" {
-  value     = random_password.cockpit_password.result
-  sensitive = true
-}
-
 output "iot_management_stack_password" {
   value     = random_password.iot_management_stack_console_password.result
   sensitive = true

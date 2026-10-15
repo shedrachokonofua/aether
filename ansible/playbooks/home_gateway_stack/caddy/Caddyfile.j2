@@ -433,16 +433,6 @@ sunshine.home.shdr.ch {
   }
 }
 
-cockpit.home.shdr.ch {
-  import home_acme_dns
-  import access_logs
-  reverse_proxy {{ vm.cockpit.ip }}:{{ vm.cockpit.ports.cockpit }} {
-    transport http {
-      tls_insecure_skip_verify
-    }
-  }
-}
-
 # matrix.home.shdr.ch + element.home.shdr.ch live on the Talos cluster now
 # (matrix namespace, HTTPRoutes on main-gateway); they fall through to the
 # *.home.shdr.ch wildcard below.

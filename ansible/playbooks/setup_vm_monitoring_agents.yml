@@ -12,6 +12,5 @@
     - router
     - nfs
     - backup-stack
-    - cockpit
   roles:
     - vm_monitoring_agent

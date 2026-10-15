@@ -52,12 +52,6 @@ locals {
       exposure    = "internal"
       criticality = "high"
     }
-    "cockpit.home.shdr.ch" = {
-      path        = ""
-      namespace   = "cockpit"
-      exposure    = "internal"
-      criticality = "normal"
-    }
     "dns.home.shdr.ch" = {
       path        = ""
       namespace   = "adguard"

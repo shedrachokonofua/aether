@@ -200,7 +200,6 @@ let
     (mkTarget "monitoring-stack" facts.vm.monitoring_stack.ip)
     (mkTarget "nfs" facts.vm.nfs.ip.vyos)
     (mkTarget "gitlab" facts.vm.gitlab.ip)
-    (mkTarget "cockpit" facts.vm.cockpit.ip)
     (mkTarget "notifications-stack" facts.vm.notifications_stack.ip)
     (mkTarget "seaweedfs" facts.vm.seaweedfs.ip)
     (mkTarget "keycloak" facts.vm.keycloak.ip)
@@ -473,13 +472,6 @@ let
         port = 443;
         matcher = "";
         reason = "declared Vaultwarden (accepted)";
-      }
-      {
-        template_id = "cockpit-project-panel";
-        host = "cockpit.home.shdr.ch";
-        port = 443;
-        matcher = "";
-        reason = "declared Cockpit (accepted)";
       }
       {
         template_id = "swagger-api";

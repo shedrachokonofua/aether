@@ -140,19 +140,6 @@ bazzite_builder:
   ip: "192.168.2.234"
   gateway: "192.168.2.1"
 
-cockpit:
-  id: 1015
-  name: "cockpit"
-  node: "niobe"
-  admin: "root"
-  cores: 1
-  memory: 1024
-  disk_gb: 32
-  ip: "10.0.2.5"
-  gateway: "10.0.2.1"
-  ports:
-    cockpit: 39090
-
 # Formerly messaging-stack (10.0.3.4, VLAN 3) — renamed in place after the
 # Matrix → k8s migration; only ntfy/postfix/apprise remain. Same vmid.
 # NOT 10.0.2.4 (the old reservation): that IP belongs to the NFS LXC's
