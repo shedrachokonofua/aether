@@ -93,6 +93,23 @@ resource "vault_kv_secret_v2" "daimyo_deskplane_mcp_auth" {
   })
 }
 
+# Orion's `notes` MCP (/api/mcp/notes) takes a bearer token per grant
+# (NOTES_MCP_TOKENS in kubernetes/orion.tf). The `orion` agent's notes grant
+# reads this copy through its `auth.secret`; the sidecar adds the header.
+resource "random_password" "orion_notes_mcp" {
+  length  = 48
+  special = false
+}
+
+resource "vault_kv_secret_v2" "daimyo_orion_notes_mcp" {
+  mount = local.daimyo_kv_mount
+  name  = "orgs/personal/orion-notes"
+
+  data_json = jsonencode({
+    token = random_password.orion_notes_mcp.result
+  })
+}
+
 # The server presents its ServiceAccount token (created by the chart's rbac)
 # to the shared `kubernetes-aether` backend — the claude_bridge pattern.
 resource "vault_kubernetes_auth_backend_role" "daimyo_server" {

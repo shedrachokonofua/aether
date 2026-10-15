@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:2285d1b20e1a95cf7f4822471c6413076ffa7d4a"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:7b3f1c6b0bc441fb80da7a4b9a89e249519c9147"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -83,6 +83,15 @@ locals {
     TOKEN_ENCRYPTION_KEY = random_bytes.orion_token_encryption_key.base64
     # POST /auth/token: a `task login` token buys a 2 h session (automated QA).
     ORION_TOKEN_LOGIN = "1"
+    # Notes vault: a git working tree on the orion-vault volume; Orion is the
+    # only writer (Recreate deploys, one replica). The agent's notes grant
+    # authenticates with this token (openbao_daimyo.tf, orgs/personal/orion-notes).
+    VAULT_DIR = "/vault/notes"
+    NOTES_MCP_TOKENS = jsonencode([{
+      token = var.orion_notes_mcp_token
+      name  = "Orion agent"
+      email = "orion-agent@home.shdr.ch"
+    }])
     # News widget → self-hosted Miniflux (API key minted in Miniflux, stored in SOPS).
     MINIFLUX_URL     = "https://miniflux.home.shdr.ch"
     MINIFLUX_API_KEY = var.secrets["miniflux.orion_api_key"]
@@ -135,6 +144,27 @@ resource "kubernetes_persistent_volume_claim_v1" "orion_data" {
     access_modes       = ["ReadWriteOnce"]
     storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
     resources { requests = { storage = "1Gi" } }
+  }
+}
+
+# The notes vault's git working tree (VAULT_DIR). RWO: Orion is its single
+# writer, so the deployment recreates instead of rolling.
+resource "kubernetes_persistent_volume_claim_v1" "orion_vault" {
+  depends_on = [module.namespace["orion"], kubernetes_storage_class_v1.ceph_rbd]
+
+  metadata {
+    name      = "orion-vault"
+    namespace = local.orion_ns
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
+    resources { requests = { storage = "5Gi" } }
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -213,6 +243,7 @@ resource "kubernetes_deployment_v1" "orion" {
     kubectl_manifest.orion_cnpg_cluster,
     kubernetes_secret_v1.orion_gitlab_registry,
     kubernetes_secret_v1.orion_env,
+    kubernetes_persistent_volume_claim_v1.orion_vault,
   ]
 
   wait_for_rollout = false
@@ -230,7 +261,9 @@ resource "kubernetes_deployment_v1" "orion" {
 
   spec {
     replicas = 1
-    strategy { type = "RollingUpdate" }
+    # Recreate: the notes vault (RWO volume, a lock file under VAULT_DIR)
+    # allows one writer, so the old pod stops before the new one starts.
+    strategy { type = "Recreate" }
 
     selector {
       match_labels = local.orion_labels
@@ -267,7 +300,10 @@ resource "kubernetes_deployment_v1" "orion" {
             name           = "http"
           }
 
-
+          volume_mount {
+            name       = "vault"
+            mount_path = "/vault"
+          }
           resources {
             requests = { cpu = "100m", memory = "128Mi" }
             limits   = { cpu = "500m", memory = "512Mi" }
@@ -280,6 +316,13 @@ resource "kubernetes_deployment_v1" "orion" {
             }
             initial_delay_seconds = 5
             period_seconds        = 15
+          }
+        }
+
+        volume {
+          name = "vault"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.orion_vault.metadata[0].name
           }
         }
       }
@@ -446,6 +489,21 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             Keep what you learn about Shedrach's preferences in your personal
             memory and read it before answering.
 
+            Your workspace has no direct internet access: fetching a URL with
+            read, curl or similar hangs until it times out. Reach the web only
+            through search_web, scrape and parse_document. To show an image,
+            put its URL in an orion-images block; Orion fetches it for
+            Shedrach, so you don't need to download it.
+
+            Shedrach's notes vault (Markdown, Obsidian-compatible) is yours
+            through the notes tools: search and read before writing, keep his
+            structure, and give every change a short reason. Your changes
+            apply at once and he can revert them.
+
+            You can drive a desktop through open_session and the computer-use
+            tools; Shedrach watches it in the thread's Screen tab. Follow the
+            Deskplane section of the formats below.
+
             Files Shedrach attaches are copied into /workspace/inputs/; his
             message lists each one as "Attached: inputs/<name>". Open them
             from there.
@@ -472,7 +530,31 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
                 prefix = "Bearer"
               }
             }
-            tools = ["search_web", "scrape", "parse_document"]
+            tools = [
+              "search_web", "scrape", "parse_document",
+              # Computer use: Shedrach watches or takes over in the Screen tab.
+              "open_session", "list_sessions", "close_session", "watch_link", "screenshot",
+              "navigate", "click", "double_click", "move", "drag", "type_text", "key", "scroll", "wait",
+              "run_browser_task", "start_desktop_task",
+            ]
+          }
+        },
+        {
+          name = "notes"
+          mcp = {
+            # Orion's notes MCP, in-cluster (daimyo.tf opens personal-tasks → orion:3000).
+            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
+            auth = {
+              secret = {
+                secret = { path = "orgs/personal/orion-notes", key = "token" }
+                header = { name = "Authorization" }
+                prefix = "Bearer"
+              }
+            }
+            tools = [
+              "notes_search", "notes_get", "notes_create", "notes_patch_block",
+              "notes_set_property", "notes_move", "notes_delete",
+            ]
           }
         },
       ]
