@@ -119,13 +119,13 @@ Upgrade side effects observed:
 
 Keel (`tofu/home/kubernetes/keel.tf`, namespace `keel`) force-updates a curated
 set of workloads when the digest behind their `:latest` tag changes in the
-private GitLab registry. Only our own CI-built images opt in: orion, composer,
+private GitLab registry. Only our own CI-built images opt in: orion,
 litellm's `espn-mcp` + `finviz-mcp-server` sidecars, mnemo, and deskplane
 (controller + serve). Third-party `:latest` sidecars in the litellm pod are
 excluded via `keel.sh/monitorContainers`.
 
 Opt-in is per-workload metadata — `keel.sh/policy=force`, `keel.sh/trigger=poll`,
-`keel.sh/matchTag=true`. Native Deployments (orion/composer/litellm) carry the
+`keel.sh/matchTag=true`. Native Deployments (orion/litellm) carry the
 annotations inline; Helm-managed Deployments (mnemo/deskplane) get them via
 `kubernetes_annotations` because their charts expose no annotation passthrough.
 Keel polls every minute using each workload's existing image pull secret, so no
