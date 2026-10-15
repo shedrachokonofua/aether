@@ -26,8 +26,12 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server f784955 (tag priority-class, pipeline 6902): agent pods carry
-  # config.launcher.priorityClass (aether-app below). Before that, 9030a52
+  # Server and sidecar c694ac8 (tag release-1014b, pipeline 6918): an idle hot
+  # session notices its pod vanished and goes cold, a message to a dead pod
+  # relaunches it instead of losing the turn, a replica that loses a task
+  # lease stops writing it, session rewind and branching (migration 0041),
+  # and the chart's image pre-pull DaemonSet. Before that, f784955 (agent
+  # pods may carry config.launcher.priorityClass, unset here) and 9030a52
   # (tag reattach-alive, pipeline 6866): a severed agent
   # stream locates the pod every time and reattaches while it is alive
   # (0.5 s backoff doubling to 30 s, reset on progress); only a missing pod,
@@ -43,18 +47,18 @@ locals {
   # 0040), bounded sidecar memory and file routes that wait for a starting
   # pod (97e9437), lost agent streams, model slots, the cold-resume histogram
   # and session file PUT (d172f36). Migrations through 0040.
-  daimyo_server_tag  = "sha256:a12aac091570bc0cf4d285389691a9d9d5e549b0253125f6d57e6554004071e6"
-  daimyo_sidecar_tag = "sha256:88bcc6e8ae86682f7a718ab671bf579f5ad777159dcd1b3e32078b01610a4134"
+  daimyo_server_tag  = "sha256:3e897f0a97b8b7d4c7377f22790cc2bc6946f080bea0f0a109831ec03eda3a9f"
+  daimyo_sidecar_tag = "sha256:91e0084e86180771b9d2c7871eee197e6b45cda890dcc3635775f5aee82450a3"
   # Built-in harness images (Helm config.harness.images). claude-code and omp
-  # at 3b8f263 (tag agent-api, pipeline 6859): a hot session keeps one
+  # at c694ac8 (tag release-1014b, pipeline 6918); before that 3b8f263: a hot session keeps one
   # harness CLI process across turns (claude-code stream-json input, omp
   # --mode rpc, resumed natively after a crash), honour harness.models slots,
   # and stream live text deltas, never journaled. The system prompt is read
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:5490c6507ffb7cabb0dbf54a33e0144ce2c1432e7d8cbca5dc2bac0de42f15f9"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:ee0e58bf648725a73a28186600df6806c8ae745fc5ed96e76678a18bb4fbd4b0"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:366512cc7dcd1fa22cfe2efa58404588074ba6c7f19855c9cbc5baaf53b45368"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:c809f1a08f5bf8980db1a0d3404c8a035ea3fe4b5d4800b398c10bc08a92e3dc"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:a6a3094a6c440e8a2574ef3ebdfc6f9825018042309dcbfc1e561481e0482e55"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
@@ -394,6 +398,12 @@ resource "helm_release" "daimyo" {
         role     = "aether-k8s-daimyo-server" # vault_kubernetes_auth_backend_role.daimyo_server (tofu/home)
         audience = "https://bao.home.shdr.ch"
       }
+    }
+    # Pre-pull only where agent pods can run: the kata RuntimeClass schedules
+    # on kubernetes.io/arch=amd64, and the images are amd64 (the arm pool
+    # would only spend disk on them).
+    prepull = {
+      nodeSelector = { "kubernetes.io/arch" = "amd64" }
     }
     config = {
       publicBaseUrl = "https://daimyo.home.shdr.ch"
