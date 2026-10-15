@@ -46,10 +46,15 @@ locals {
     # Bound PVCs only: a snapshot of an unprovisioned PVC never becomes ready,
     # and the preflight above then blocks every later run (2026-10-04..07, a
     # tenant RWX claim on ceph-rbd that can never bind).
+    # Mounted PVCs only: a claim no pod uses does not change, and the
+    # pre-CNPG *-postgres-data rollback claims had piled up 88 identical
+    # copies each by 2026-10-14. Their last retained snapshots stay.
     for ns in $(kubectl get ns -l "aether.shdr.ch/backup=$${tier}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+      mounted="$(kubectl get pods -n "$${ns}" -o jsonpath='{range .items[*]}{range .spec.volumes[*]}{.persistentVolumeClaim.claimName}{"\n"}{end}{end}' | sort -u)"
       kubectl get pvc -n "$${ns}" -l '!cnpg.io/cluster' -o go-template='{{range .items}}{{if and (eq .spec.storageClassName "ceph-rbd") (eq .status.phase "Bound")}}{{.metadata.name}}{{"\n"}}{{end}}{{end}}' |
       while IFS= read -r pvc; do
         [ -n "$${pvc}" ] || continue
+        printf '%s\n' "$${mounted}" | grep -qxF "$${pvc}" || continue
         short="$(printf '%s' "$${pvc}" | cut -c1-26)"
         hash="$(printf '%s' "$${pvc}" | cksum | cut -d ' ' -f1)"
         snapshot="$${short}-$${hash}-$${tier}-$${stamp}"
@@ -83,7 +88,21 @@ locals {
         rc=1
       fi
     done < "$${created}"
-    exit "$${rc}"
+    [ "$${rc}" -eq 0 ] || exit "$${rc}"
+
+    # ---- Prune ---------------------------------------------------------------
+    # Keep the newest $SNAPSHOT_KEEP snapshots per source PVC in this tier.
+    # Runs only after every new snapshot verified, so a wedged pipeline never
+    # deletes the last good copies. Deletion is async (deletionPolicy Delete
+    # removes the RBD clone and frees its trashed parent snapshot).
+    keep="$${SNAPSHOT_KEEP:?SNAPSHOT_KEEP is required}"
+    kubectl get volumesnapshot -A -l "aether.shdr.ch/snapshot-schedule=$${tier}" \
+      -o go-template='{{range .items}}{{.metadata.namespace}} {{index .metadata.labels "aether.shdr.ch/source-pvc"}} {{.metadata.creationTimestamp}} {{.metadata.name}}{{"\n"}}{{end}}' |
+      sort -k1,1 -k2,2 -k3,3r |
+      awk -v keep="$${keep}" '{ k = $1 " " $2; if (++n[k] > keep) print $1, $4 }' |
+      while read -r ns name; do
+        kubectl -n "$${ns}" delete volumesnapshot "$${name}" --wait=false
+      done
   EOT
 }
 
@@ -233,9 +252,10 @@ resource "kubernetes_cluster_role_v1" "volume_snapshot_scheduler" {
     }
   }
 
+  # pods: the create step snapshots only PVCs a pod mounts.
   rule {
     api_groups = [""]
-    resources  = ["namespaces", "persistentvolumeclaims"]
+    resources  = ["namespaces", "persistentvolumeclaims", "pods"]
     verbs      = ["get", "list"]
   }
 
@@ -247,11 +267,11 @@ resource "kubernetes_cluster_role_v1" "volume_snapshot_scheduler" {
   }
 
   # get/list for the stuck-snapshot preflight, get+watch for the readyToUse
-  # verify wait, create for the snapshots themselves.
+  # verify wait, create for the snapshots themselves, delete for retention.
   rule {
     api_groups = ["snapshot.storage.k8s.io"]
     resources  = ["volumesnapshots"]
-    verbs      = ["create", "get", "list", "watch"]
+    verbs      = ["create", "delete", "get", "list", "watch"]
   }
 }
 
@@ -278,9 +298,11 @@ resource "kubernetes_cluster_role_binding_v1" "volume_snapshot_scheduler" {
 }
 
 resource "kubernetes_cron_job_v1" "volume_snapshot_scheduler" {
+  # keep = snapshots retained per source PVC: a week of dailies, a month of
+  # weeklies.
   for_each = {
-    critical = "17 3 * * *"
-    standard = "43 3 * * 0"
+    critical = { schedule = "17 3 * * *", keep = 7 }
+    standard = { schedule = "43 3 * * 0", keep = 4 }
   }
 
   depends_on = [
@@ -301,7 +323,7 @@ resource "kubernetes_cron_job_v1" "volume_snapshot_scheduler" {
   }
 
   spec {
-    schedule                      = each.value
+    schedule                      = each.value.schedule
     concurrency_policy            = "Forbid"
     successful_jobs_history_limit = 3
     failed_jobs_history_limit     = 3
@@ -345,6 +367,11 @@ resource "kubernetes_cron_job_v1" "volume_snapshot_scheduler" {
               env {
                 name  = "SNAPSHOT_CLASS"
                 value = "ceph-rbd"
+              }
+
+              env {
+                name  = "SNAPSHOT_KEEP"
+                value = tostring(each.value.keep)
               }
 
               resources {
