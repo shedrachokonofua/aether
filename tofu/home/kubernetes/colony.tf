@@ -22,7 +22,7 @@ data "vault_kv_secret_v2" "colony_litellm" {
 
 locals {
   colony_ns                    = module.namespace["colony"].name
-  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:54d6aa8e331c3042c35bb45753044353cb51eaeef4963e97dac6b33787747240"
+  colony_image                 = "registry.gitlab.home.shdr.ch/so/colony/colonyd@sha256:ba7964dc7e9ffe8c2bfc87a87e6e80b5ab13b6b8bf4986a34f60dc7f3da1ddf3"
   colony_drain_timeout_seconds = 600
   colony_host                  = "colony.home.shdr.ch"
 
@@ -84,10 +84,23 @@ locals {
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT  = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces"
     # Full HTTP sampling: control-plane volume is one operator, not a fleet.
     COLONY_TRACE_HTTP_RATIO = "1"
-    # Grafana Explore deep link into the Tempo datasource (resolved by name,
-    # which works in any org); the console substitutes {trace_id} (hex,
-    # encoding-stable) into the panes JSON.
-    COLONY_TRACE_UI_BASE_URL = "https://grafana.home.shdr.ch/explore?schemaVersion=1&panes=%7B%22t%22%3A%7B%22datasource%22%3A%22Tempo%22%2C%22queries%22%3A%5B%7B%22query%22%3A%22{trace_id}%22%2C%22queryType%22%3A%22traceql%22%2C%22refId%22%3A%22A%22%7D%5D%7D%7D&orgId=1"
+    # Grafana Explore deep link into the ClickHouse datasource (uid
+    # clickhouse): trace-view SQL (plugin 4.21 format 3 / queryType traces,
+    # documented column aliases) over otel.otel_traces; the console
+    # substitutes {trace_id} (hex, URL-encoded by colony traceHref; braces
+    # survive jsonencode+urlencode, so the placeholder stays literal).
+    COLONY_TRACE_UI_BASE_URL = replace("https://grafana.home.shdr.ch/explore?schemaVersion=1&panes=${urlencode(jsonencode({ t = {
+      datasource = "clickhouse"
+      queries = [{
+        refId      = "A"
+        datasource = { type = "grafana-clickhouse-datasource", uid = "clickhouse" }
+        editorType = "sql"
+        format     = 3
+        queryType  = "traces"
+        rawSql     = "SELECT TraceId AS traceID, SpanId AS spanID, SpanName AS operationName, ParentSpanId AS parentSpanID, ServiceName AS serviceName, Duration / 1000000 AS duration, Timestamp AS startTime, arrayMap(key -> map('key', key, 'value', SpanAttributes[key]), mapKeys(SpanAttributes)) AS tags, arrayMap(key -> map('key', key, 'value', ResourceAttributes[key]), mapKeys(ResourceAttributes)) AS serviceTags, if(StatusCode IN ('Error', 'STATUS_CODE_ERROR'), 2, 0) AS statusCode FROM otel.otel_traces WHERE TraceId = 'TRACEIDSLOT' ORDER BY startTime ASC"
+      }]
+      range = { from = "now-6h", to = "now" }
+    } }))}&orgId=1", "TRACEIDSLOT", "{trace_id}")
 
     HOME   = "/tmp"
     TMPDIR = "/tmp"
