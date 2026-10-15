@@ -71,11 +71,6 @@ moved {
 
 
 moved {
-  from = kubernetes_namespace_v1.knative_serving
-  to   = module.namespace["knative-serving"].kubernetes_namespace_v1.this
-}
-
-moved {
   from = kubernetes_namespace_v1.matrix
   to   = module.namespace["matrix"].kubernetes_namespace_v1.this
 }

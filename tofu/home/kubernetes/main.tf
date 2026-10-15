@@ -9,7 +9,6 @@
 #   - Istio Ambient (service mesh, CA delegated to cert-manager)
 #   - Gateway API (ingress)
 #   - Ceph CSI (storage)
-#   - Knative Serving (serverless)
 #   - OTEL Collectors (observability)
 #   - Metrics Server (resource metrics API)
 #   - Kyverno (policy guardrails)

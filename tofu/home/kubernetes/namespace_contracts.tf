@@ -733,29 +733,6 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "knative-operator" = {
-      tier                    = "platform",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/knative.tf"
-      extra_labels = {
-        "name" = "knative-operator"
-      }
-    }
-    "knative-serving" = {
-      tier                    = "platform",
-      owner                   = "aether",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/knative.tf"
-      extra_labels = {
-        "app.kubernetes.io/name"    = "knative-serving"
-        "app.kubernetes.io/version" = "1.20.0"
-      }
-    }
     "kube-node-lease" = {
       tier                    = "platform",
       owner                   = "aether",

@@ -271,8 +271,8 @@ Actions: **keep** (module adoption + contract labels — "keep" ≠ untouched), 
 | 27 | istio-system | keep (name frozen) | platform (priv, justified) | none / none | — |
 | 28 | karakeep | keep | app | **standard** / internal | currently zero backup of any kind; prevent_destroy is not a backup |
 | 29 | **removed outright** | **delete** | — | — | release removed; no namespace or workload remains |
-| 30 | knative-operator | **delete** (owner-gated, Phase 0/1) | platform (interim if retained) | — | zero ksvc cluster-wide; teardown order per §9 (CRs → operator → ns) |
-| 31 | knative-serving | **delete** (owner-gated) | platform (interim if retained) | — | 23 idle HA pods pinned to the amd64 relief valve; the largest pure-waste line item; reversal = one tf apply |
+| 30 | knative-operator | **removed** | — | — | removed 2026-10-14 (zero ksvc) |
+| 31 | knative-serving | **removed** | — | — | removed 2026-10-14 (zero ksvc; 25 idle pods, 2.4 CPU requested) |
 | 32 | kube-node-lease | keep | platform | — | structural; exempt-list stamp sets registry-access=none → loses cloned dockerhub secret (one-time cleanup, §5.3 row 9) |
 | 33 | kube-public | keep | platform | — | structural; exempt-list stamp sets registry-access=none → loses cloned dockerhub secret (one-time cleanup, §5.3 row 9) |
 | 34 | kube-system | keep | platform | — | Talos PSA-exempt; untouched **except gateway-access/exposure labeling — it hosts the hubble-ui HTTPRoute (hubble.home.shdr.ch → default/main-gateway), and Kyverno's default resourceFilters skip kube-system, so the stamper cannot label it: an explicit tofu-side `kubernetes_labels` resource carries it through the listener flip** (§9 Phase 2) |
