@@ -33,7 +33,36 @@
         compress: "lz4"
         recordsize: "default"
         atime: "off"
+    # ARC was uncapped (default: up to all of RAM, 23 GB in use on
+    # 2026-10-15). Capping it leaves room for talos-smith to grow; the HDD
+    # pool serves NFS and backups, which do not need a bigger cache.
+    zfs_arc_max_bytes: 17179869184 # 16 GiB
   tasks:
+    # --- ARC cap ---
+    - name: Persist the ZFS ARC cap
+      copy:
+        dest: /etc/modprobe.d/zfs-arc.conf
+        content: "options zfs zfs_arc_max={{ zfs_arc_max_bytes }}\n"
+        mode: "0644"
+      register: zfs_arc_conf
+      tags: [arc]
+
+    - name: Rebuild initramfs so the ARC cap applies at boot
+      command: update-initramfs -u -k all
+      when: zfs_arc_conf.changed
+      tags: [arc]
+
+    - name: Apply the ZFS ARC cap now
+      shell: |
+        current=$(cat /sys/module/zfs/parameters/zfs_arc_max)
+        if [ "$current" != "{{ zfs_arc_max_bytes }}" ]; then
+          echo {{ zfs_arc_max_bytes }} > /sys/module/zfs/parameters/zfs_arc_max
+          echo changed
+        fi
+      register: zfs_arc_runtime
+      changed_when: "'changed' in zfs_arc_runtime.stdout"
+      tags: [arc]
+
     # --- Pool Creation Tasks ---
     - name: Check if HDD pool "{{ hdd_pool_name }}" exists
       shell: "zpool list -H -o name | grep -w {{ hdd_pool_name }}"

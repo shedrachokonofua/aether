@@ -387,8 +387,11 @@ talos_smith:
   name: "talos-smith"
   role: "worker"
   node: "smith"
-  cores: 12
-  memory: 32768
+  # 2026-10-15: 12 -> 16 cores, 32 -> 64 GiB. smith had 56 GiB free plus an
+  # uncapped ZFS ARC (now capped at 16 GiB); the cluster's memory headroom
+  # goes here and on neo, not on trinity/niobe.
+  cores: 16
+  memory: 65536
   disk_gb: 128
   gpu: true
   gpu_input: true # uinput extension + module for the Sunshine game-server (kept as a fallback; primary host is now neo)
