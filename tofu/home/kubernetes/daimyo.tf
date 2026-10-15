@@ -26,7 +26,10 @@ locals {
   daimyo_chart_path = "${path.module}/../../../../daimyo/deploy/helm/daimyo"
   # NOTE: the chart's helpers treat a `sha256:`-prefixed tag as a digest
   # (`repo@sha256:…`), so pass the digest as the tag (M1E2EAether's fix).
-  # Server and sidecar c694ac8 (tag release-1014b, pipeline 6918): an idle hot
+  # Server 09e7eb0 (tag release-1014c, pipeline 6925): session and task event
+  # streams wake on a PostgreSQL NOTIFY in the appending transaction instead
+  # of a 1 s poll (30 s re-read backstop). Sidecar, and before that the
+  # server, c694ac8 (tag release-1014b, pipeline 6918): an idle hot
   # session notices its pod vanished and goes cold, a message to a dead pod
   # relaunches it instead of losing the turn, a replica that loses a task
   # lease stops writing it, session rewind and branching (migration 0041),
@@ -47,7 +50,7 @@ locals {
   # 0040), bounded sidecar memory and file routes that wait for a starting
   # pod (97e9437), lost agent streams, model slots, the cold-resume histogram
   # and session file PUT (d172f36). Migrations through 0040.
-  daimyo_server_tag  = "sha256:3e897f0a97b8b7d4c7377f22790cc2bc6946f080bea0f0a109831ec03eda3a9f"
+  daimyo_server_tag  = "sha256:249593c2497615998c50e64076b6f441f79d814582dbaaedad022fb5ab50ff16"
   daimyo_sidecar_tag = "sha256:91e0084e86180771b9d2c7871eee197e6b45cda890dcc3635775f5aee82450a3"
   # Built-in harness images (Helm config.harness.images). claude-code and omp
   # at c694ac8 (tag release-1014b, pipeline 6918); before that 3b8f263: a hot session keeps one
