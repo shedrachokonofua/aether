@@ -360,6 +360,22 @@ resource "talos_machine_configuration_apply" "this" {
               # what unauthenticated callers can actually read.
               "anonymous-auth" = "true"
             }
+            # Live heap is 1.2-3 GB, but Go's default GC target (2x live)
+            # let the busy API servers sit at 7-10 GB RSS for the 30 days to
+            # 2026-10-15. A 5 GiB soft limit makes the GC collect before
+            # growing past it while leaving headroom over the ~4.3 GB live
+            # peak seen on trinity, so it does not thrash. The 3 Gi request
+            # stops the scheduler treating that memory as free (default was
+            # 512Mi).
+            env = {
+              GOMEMLIMIT = "5GiB"
+            }
+            resources = {
+              requests = {
+                cpu    = "200m"
+                memory = "3Gi"
+              }
+            }
           }
         }
         }) : yamlencode({
