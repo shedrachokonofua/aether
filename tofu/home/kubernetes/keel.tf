@@ -3,7 +3,7 @@
 # =============================================================================
 # Keel (keel.sh) watches Deployments carrying keel.sh/* annotations and
 # force-updates them when the digest behind a fixed tag (:latest) changes in the
-# private GitLab registry. Only OUR CI-built images opt in: orion, composer,
+# private GitLab registry. Only OUR CI-built images opt in: orion,
 # litellm's espn-mcp + finviz-mcp-server sidecars, mnemo, and deskplane.
 # Third-party :latest sidecars are excluded per-workload via
 # keel.sh/monitorContainers.
@@ -14,7 +14,7 @@
 #     spec.template.metadata.annotations["keel.sh/update-time"] (the rollout
 #     trigger) and metadata.annotations["kubernetes.io/change-cause"]. Both are
 #     excluded via lifecycle.ignore_changes on every managed native Deployment
-#     (orion/composer/litellm). Helm-managed Deployments (mnemo/deskplane) are
+#     (orion/litellm). Helm-managed Deployments (mnemo/deskplane) are
 #     opted in with kubernetes_annotations, whose field manager owns only the
 #     keel.sh/* keys, so Keel's writes never fight tofu.
 #   * Registry auth for polling reuses each workload's existing imagePullSecret —

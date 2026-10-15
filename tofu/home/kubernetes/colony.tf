@@ -3,7 +3,7 @@
 # =============================================================================
 # Colony ships only a container image (registry.gitlab.home.shdr.ch/so/colony/
 # colonyd, :latest on main, agent config baked into the image); aether owns
-# every cluster object, following the orion/composer pattern. Keel is disabled;
+# every cluster object, following the orion pattern. Keel is disabled;
 # roll out a verified immutable image through IaC after quiescing all scopes.
 #
 # Migrated 2026-08-16 from colony's own tofu module (so/colony tofu/ +

@@ -68,12 +68,10 @@ SuperGrok upgrade, and Cursor integration removal are staged changes.
 Their rollout and virtual-key synchronization have not been performed;
 do not apply them during server maintenance.
 
-Cursor/Composer is no longer registered with LiteLLM: its model entry,
-`composer_credential`, `CURSOR_BRIDGE_API_KEY` injection, and model permissions
-have been removed. The standalone Composer deployment and its own credentials
-remain declared in [`composer.tf`](../tofu/home/kubernetes/composer.tf).
-It still exposes Grok 4.6 over Cursor's native HTTP/2 transport for direct
-clients; this change neither upgrades nor decommissions that service.
+Cursor/Composer is gone: it was dropped from LiteLLM first, and the standalone
+Composer deployment (`composer.home.shdr.ch`, a Grok bridge over Cursor) was
+removed on 2026-10-15. The `composer-api` GitLab project stays because its
+container registry hosts the open-design image.
 
 Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
 `qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest is configured

@@ -1073,22 +1073,6 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
-    "composer" = {
-      tier                    = "app"
-      owner                   = "aether"
-      backup                  = "none"
-      exposure                = "internal"
-      create_s3_backup_secret = false
-      source_file             = "tofu/home/kubernetes/composer.tf"
-      egress                  = "allowlist"
-      registry_access         = "gitlab"
-      hostnames = [
-        "composer.home.shdr.ch",
-      ]
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
-      }
-    }
     "memos" = {
       tier                    = "app"
       owner                   = "aether"
@@ -1404,7 +1388,6 @@ locals {
   synthetic_probe_path_overrides = {
     "antigravity.home.shdr.ch" = "/health"
     "colony.home.shdr.ch"      = "/health"
-    "composer.home.shdr.ch"    = "/health"
     "docling.home.shdr.ch"     = "/health"
     "muse.home.shdr.ch"        = "/health"
     "grok.home.shdr.ch"        = "/health"

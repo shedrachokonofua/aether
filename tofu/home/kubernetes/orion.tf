@@ -29,7 +29,7 @@ locals {
   orion_database_service = "${local.orion_cnpg}-rw.${local.orion_ns}.svc.cluster.local"
 }
 
-# Pull secret for the private GitLab registry (same creds as composer/open-design).
+# Pull secret for the private GitLab registry (same creds as open-design).
 resource "kubernetes_secret_v1" "orion_gitlab_registry" {
   depends_on = [module.namespace["orion"]]
 
