@@ -1,7 +1,6 @@
 ---
 - name: Upgrade Fedora VMs
   hosts:
-    - cockpit
     - notifications-stack
     - gitlab
     - iot-management-stack

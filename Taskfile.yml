@@ -508,10 +508,6 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/setup_vm_monitoring_agents.yml]
   configure:host-agents:
     cmds: [ansible-playbook ansible/playbooks/setup_host_monitoring_agents.yml]
-  configure:cockpit-agents:
-    cmds: [ansible-playbook ansible/playbooks/setup_cockpit_agents.yml]
-  configure:cockpit:
-    cmds: [ansible-playbook ansible/playbooks/cockpit/site.yml]
   configure:litellm-keys:
     desc: Register SOPS-backed LiteLLM virtual keys by alias
     cmds: [ansible-playbook ansible/playbooks/register_litellm_virtual_keys.yml]

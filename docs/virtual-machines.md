@@ -21,7 +21,6 @@ services may have additional passthrough devices, datasets, or mount points.
 | `gitlab` | `gitlab` | Trinity | VM | 8 | 8 GiB | 256 GB | `tofu/home/gitlab.tf` |
 | `backup_stack` | `backup-stack` | Smith | LXC | 4 | 8 GiB | 20 GB | `tofu/home/backup_stack.tf` |
 | `iot_management_stack` | `iot-management-stack` | Niobe | VM | 4 | 2 GiB | 32 GB | `tofu/home/iot_management_stack.tf` |
-| `cockpit` | `cockpit` | Niobe | VM | 1 | 1 GiB | 32 GB | `tofu/home/cockpit.tf` |
 | `notifications_stack` | `notifications-stack` | Niobe | VM | 2 | 2 GiB | 64 GB | `tofu/home/notifications_stack.tf` |
 | `seaweedfs` | `seaweedfs` | Smith | LXC | 4 | 4 GiB | 32 GB | Ansible SeaweedFS provisioning |
 | `keycloak` | `keycloak` | Oracle | LXC | 2 | 2 GiB | 32 GB | Ansible Keycloak provisioning |

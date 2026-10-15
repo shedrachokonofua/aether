@@ -1,4 +1,3 @@
 ---
 dependencies:
-  - cockpit_agent
   - ssh_ca_trust

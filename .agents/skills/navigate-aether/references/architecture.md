@@ -29,7 +29,7 @@ Targeted operations still parse all loaded root files. Never assume `-target` is
 | Component class | Provisioning | Configuration/runtime |
 | --- | --- | --- |
 | Talos and Kubernetes | OpenTofu | Talos resources plus Kubernetes/Helm/Kubectl providers |
-| Monitoring, GitLab, gateway, Cockpit, IoT, notifications | Usually OpenTofu VM | Ansible playbooks and roles |
+| Monitoring, GitLab, gateway, IoT, notifications | Usually OpenTofu VM | Ansible playbooks and roles |
 | Backup stack | OpenTofu LXC | Ansible; Kubernetes and AWS own additional backup surfaces |
 | AdGuard | Ansible LXC provisioning | NixOS configuration via Taskfile |
 | IDS and blockchain stacks | OpenTofu VM | NixOS configuration via Taskfile |
