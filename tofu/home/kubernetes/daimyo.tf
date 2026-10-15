@@ -514,7 +514,21 @@ resource "helm_release" "daimyo" {
       }
       database  = "daimyo"
       owner     = "daimyo"
-      extraSpec = {}
+      # Sized from 2.5 days of kubeletstats (2026-10-12/15): primary p50
+      # 262m / p95 317m CPU, working set p95 235 MiB, max 313 MiB. Requests
+      # keep the database out of BestEffort; no CPU limit (throttling a
+      # database hurts more than it saves); memory limit well above the max.
+      extraSpec = {
+        # A pod-spec change (e.g. these resources, 2026-10-15) restarted the
+        # primary in place: its Ceph RBD volume took ~4 min to move and
+        # Daimyo had no primary meanwhile. Promote the replica first instead.
+        primaryUpdateMethod   = "switchover"
+        primaryUpdateStrategy = "unsupervised"
+        resources = {
+          requests = { cpu = "300m", memory = "384Mi" }
+          limits   = { memory = "1Gi" }
+        }
+      }
     }
     devPostgres = { enabled = false }
     nats = {
@@ -530,9 +544,18 @@ resource "helm_release" "daimyo" {
       # OnDelete (the chart leaves updateStrategy alone), apply, delete all
       # NATS pods together, then patch back to RollingUpdate.
       natsBox = { enabled = false }
+      # Measured p95 16m CPU / 37 MiB, max 36m / 87 MiB per pod.
+      container = {
+        resources = {
+          requests = { cpu = "25m", memory = "64Mi" }
+          limits   = { memory = "256Mi" }
+        }
+      }
     }
+    # Measured per pod: CPU p50 30m / p99 119m, working set p50 25 MiB /
+    # p99 75 MiB; bursts to ~400 MiB stream large workspace files.
     resources = {
-      requests = { cpu = "500m", memory = "512Mi" }
+      requests = { cpu = "100m", memory = "128Mi" }
       limits   = { cpu = "2", memory = "2Gi" }
     }
   })]
