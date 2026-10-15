@@ -27,7 +27,6 @@ locals {
     "postgresql.cnpg.io",
     "rbac.authorization.k8s.io",
     "scheduling.k8s.io",
-    "serving.knative.dev",
     "storage.k8s.io",
   ]
 

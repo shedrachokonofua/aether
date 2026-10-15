@@ -17,16 +17,6 @@ output "storage_class" {
   value       = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
 }
 
-output "knative_serving_version" {
-  description = "Installed Knative Serving version"
-  value       = local.knative_version
-}
-
-output "knative_domain" {
-  description = "Domain for Knative services"
-  value       = local.knative_domain
-}
-
 output "otel_daemonset_service" {
   description = "OTLP endpoint for apps to send telemetry (within cluster)"
   value       = "otel-daemonset-opentelemetry-collector.${module.namespace["system"].name}.svc.cluster.local:4317"

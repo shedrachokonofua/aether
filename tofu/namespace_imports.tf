@@ -25,11 +25,6 @@ import {
 }
 
 import {
-  to = module.home.module.kubernetes.module.namespace["knative-operator"].kubernetes_namespace_v1.this
-  id = "knative-operator"
-}
-
-import {
   to = module.home.module.kubernetes.module.namespace["kube-node-lease"].kubernetes_namespace_v1.this
   id = "kube-node-lease"
 }
