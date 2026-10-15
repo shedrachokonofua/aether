@@ -479,8 +479,8 @@ resource "helm_release" "daimyo" {
       # OTLP/HTTP traces to the in-cluster collector (-> Tempo), spec §15.4.
       otel = { endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces" }
       launcher = {
-        kind         = "kata"
-        runtimeClass = "kata"
+        kind             = "kata"
+        runtimeClass     = "kata"
         sidecarImage     = ""
         imagePullSecrets = [kubernetes_secret_v1.daimyo_tasks_registry["personal"].metadata[0].name]
       }
@@ -519,8 +519,8 @@ resource "helm_release" "daimyo" {
         endpointURL       = local.daimyo_s3_endpoint
         destinationPath   = "s3://daimyo-backups/"
       }
-      database  = "daimyo"
-      owner     = "daimyo"
+      database = "daimyo"
+      owner    = "daimyo"
       # Sized from 2.5 days of kubeletstats (2026-10-12/15): primary p50
       # 262m / p95 317m CPU, working set p95 235 MiB, max 313 MiB. Requests
       # keep the database out of BestEffort; no CPU limit (throttling a
@@ -712,6 +712,18 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toFQDNs = [{ matchName = "pop.home.shdr.ch" }]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if contains(local.daimyo_pop_orgs, org)
+        ], [
+        # Orion's notes MCP (/api/mcp/notes): the `orion` agent's notes grant,
+        # bearer-authenticated by Orion (NOTES_MCP_TOKENS, orion.tf).
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app"                         = "orion"
+              "io.kubernetes.pod.namespace" = local.orion_ns
+            }
+          }]
+          toPorts = [{ ports = [{ port = tostring(local.orion_port), protocol = "TCP" }] }]
+        } if org == "personal"
         ], [
         # trip-planner's `flights` grant: fli, in-cluster without client auth
         # (trip_planner.tf), so this rule is its access boundary.

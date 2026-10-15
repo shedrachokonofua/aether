@@ -162,6 +162,12 @@ variable "openwebui_oauth_client_secret" {
   type        = string
   sensitive   = true
   description = "OpenWebUI Keycloak OIDC client secret"
+variable "orion_notes_mcp_token" {
+  type        = string
+  sensitive   = true
+  description = "Bearer token the orion agent's notes grant presents to Orion's /api/mcp/notes (openbao_daimyo.tf)"
+}
+
 }
 
 variable "immich_oauth_client_secret" {
