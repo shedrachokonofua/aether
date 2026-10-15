@@ -26,6 +26,26 @@ resource "helm_release" "kyverno" {
       ]
     }
 
+    # Report churn was the largest write load on etcd: in 7.3 days the API
+    # server took 1.66M PolicyReport writes, 0.80M EphemeralReport writes and
+    # 1.65M EphemeralReport LISTs (2026-10-14). Nothing alerts on these
+    # reports. Audit results still come from background scans; admission-time
+    # reports and mutate/generate reports (which only say "mutated") are off,
+    # and the scan runs twice a day instead of hourly.
+    features = {
+      admissionReports = { enabled = false }
+      reporting = {
+        validate       = true
+        imageVerify    = true
+        mutate         = false
+        mutateExisting = false
+        generate       = false
+      }
+      backgroundScan = {
+        backgroundScanInterval = "12h"
+      }
+    }
+
     admissionController = {
       replicas = 1
       rbac = {
