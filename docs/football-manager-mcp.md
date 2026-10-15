@@ -215,9 +215,11 @@ completed match; no live-only fixture property resolved outside a match).
   around them. Mark-read is `EventFmxMarkPortalMessageAsRead` to the message.
 - **Fixtures and the table.** `LeagueTable` / standings properties do not
   resolve. Fixture tokens (kind 50) are built per team pairing and date (the
-  packed date advances 256 per day), filtered by `Competition` and a
+  packed date advances 256 per day) from the season start (`SeasonName`
+  "2025/26" → 1 July), filtered by `FixtureDate`, `Competition` and a
   non-negative score; the table is derived with FM's head-to-head tie-break.
-  The true home side comes from stadium ownership.
+  The true home side comes from stadium ownership. Past days are cached per
+  session, so only the first call scans the whole season.
 - **Advancing time.** The Continue button sends `EventFmxContinueGame` with
   target `@825307168:54`; without that target the event is ignored. A forced
   news screen is dismissed with `EventFmxRemoveNewsAggregatorForcedScreen` to
