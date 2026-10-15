@@ -73,10 +73,12 @@ Edit a clone of `so/fm-mcp` on a workstation, then:
 
 Read: `fm_status`, `fm_schema_search`, `fm_read`, `fm_read_list`, `fm_browse`,
 `fm_search_players`, `fm_scan_records`, `fm_editor_fields`,
-`fm_responsibilities`, `fm_tactic`.
+`fm_responsibilities`, `fm_tactic`, `fm_inbox`, `fm_inbox_message`,
+`fm_match`, `fm_results`, `fm_fixtures`, `fm_league_table`,
+`fm_team_snapshot`, `fm_rivals`.
 Write: `fm_edit_fields`, `fm_run_action`, `fm_move_person`,
 `fm_set_responsibilities`, `fm_set_tactic`, `fm_set_roles`, `fm_set_instructions`,
-`fm_pick_players`, `fm_send_event`,
+`fm_pick_players`, `fm_inbox_mark_read`, `fm_send_event`,
 `fm_write`, `fm_load_last_save`.
 
 Verified on a copy of the career (2026-10-12): club balance and transfer budget
@@ -87,8 +89,14 @@ taking control, tactic slot/style/mentality changes, in- and out-of-possession
 role changes (including 2^56 role flags), multi-step team instruction changes
 and their restore, picking and moving players in the XI.
 
+Verified live (2026-10-15): inbox listing/filters/triage and mark-read,
+Valencia's completed results with scorers and assists, upcoming fixtures, the
+derived league table (matches FM's `LeaguePosition` for all 20 teams) and
+rival snapshots.
+
 Not covered yet: player instructions (see below), set-piece routines,
-opposition instructions.
+opposition instructions, live in-match state (`fm_match` falls back to the last
+completed match; no live-only fixture property resolved outside a match).
 
 ## How it works (FM26 internals the tools rely on)
 
@@ -194,9 +202,31 @@ opposition instructions.
   `EventFmxQuickChangePlayerInstructionIncrement` / `Decrement` to the tactic
   with `{TeamSelectionIndex, PlayerInstructionGroupID, IsInPossession}`. Their
   current values (`SelectedPlayerInstruction`, `PlayerInstructionGroupOptions`)
-  resolve only against that inline group record inside the panel's binding
-  remapper; there is no `UiRecordID` for it, so the plugin cannot address it
-  as a token yet.
+  are served by `PlayerInstructionGroupDataHandler` /
+  `PlayerInstructionEntryDataHandler` only with binding contexts the panel's
+  `BindingRemapper` supplies (TeamSelectionIndex, PlayerInstructionGroupID,
+  InPossession). `@910447949:0` is not a UI record, and stepping events sent
+  without the panel open leave `PlayerPersonalisedInstructionsCountText` at
+  "0 players set". Supporting them needs a plugin endpoint that reads and
+  writes with explicit contexts.
+- **Inbox.** The portal list properties never resolve through the bridge;
+  `fm_inbox` anchors on `HumanPortalOldestUnreadMessage` /
+  `HumanPortalLastSelectedMessageReference` and scans message ids (kind 70)
+  around them. Mark-read is `EventFmxMarkPortalMessageAsRead` to the message.
+- **Fixtures and the table.** `LeagueTable` / standings properties do not
+  resolve. Fixture tokens (kind 50) are built per team pairing and date (the
+  packed date advances 256 per day), filtered by `Competition` and a
+  non-negative score; the table is derived with FM's head-to-head tie-break.
+  The true home side comes from stadium ownership.
+- **Advancing time.** The Continue button sends `EventFmxContinueGame` with
+  target `@825307168:54`; without that target the event is ignored. A forced
+  news screen is dismissed with `EventFmxRemoveNewsAggregatorForcedScreen` to
+  the human person. Each continue may advance only part of a day; poll
+  `game.GameProcessing` and `game.GameManagersNotContinuedCount`, not the date.
+  `EventFmxSaveGame` with the same target saves to the loaded save file.
+- **Preferred squad number.** Editor tab 0 field `0:0,1:28` is optional; write
+  `IsOptionalFieldTicked=false` to blank it. The actual squad number is not
+  changed by this field.
 
 ## Known limits
 
