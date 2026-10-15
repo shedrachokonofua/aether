@@ -973,6 +973,19 @@ resource "keycloak_openid_audience_protocol_mapper" "toolbox_audience" {
   add_to_access_token      = true
 }
 
+# Lets Orion exchange a `task login` token for an Orion session (Orion's
+# POST /auth/token, ORION_TOKEN_LOGIN): automated QA signs in as you without
+# a browser. The exchange requires `orion` in the subject token's audience.
+resource "keycloak_openid_audience_protocol_mapper" "toolbox_orion_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.toolbox.id
+  name      = "orion-audience"
+
+  included_client_audience = keycloak_openid_client.orion.client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
 # =============================================================================
 # oauth2-proxy OIDC Client (forward_auth for apps without built-in auth)
 # =============================================================================
@@ -1243,6 +1256,10 @@ resource "keycloak_openid_client" "orion" {
   # Orion reaches Daimyo as the signed-in user: it exchanges the user's token
   # here (RFC 8693) for one whose audience is `daimyo` (Orion threads).
   standard_token_exchange_enabled = true
+  # Orion's token login exchanges a toolbox token for its own refresh token,
+  # bound to the same SSO session (Keycloak "Allow refresh token in Standard
+  # Token Exchange": Same session).
+  allow_refresh_token_in_standard_token_exchange = "SAME_SESSION"
 
   root_url  = "https://home.shdr.ch"
   base_url  = "https://home.shdr.ch"

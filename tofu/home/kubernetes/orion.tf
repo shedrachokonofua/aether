@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:9fd04dfd66445bdcb73f3e48c65e0a8029b9455e"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:2285d1b20e1a95cf7f4822471c6413076ffa7d4a"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -81,6 +81,8 @@ locals {
     # orion client: token exchange to aud `daimyo`).
     DAIMYO_URL           = "https://daimyo.home.shdr.ch"
     TOKEN_ENCRYPTION_KEY = random_bytes.orion_token_encryption_key.base64
+    # POST /auth/token: a `task login` token buys a 2 h session (automated QA).
+    ORION_TOKEN_LOGIN = "1"
     # News widget → self-hosted Miniflux (API key minted in Miniflux, stored in SOPS).
     MINIFLUX_URL     = "https://miniflux.home.shdr.ch"
     MINIFLUX_API_KEY = var.secrets["miniflux.orion_api_key"]
