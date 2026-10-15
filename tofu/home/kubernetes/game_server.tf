@@ -585,12 +585,13 @@ resource "kubernetes_deployment_v1" "game_server" {
               # Guaranteed CPU share for games: RPCS3 and FM26 are CPU-bound
               # and this pod queues behind CI-runner bursts on talos-neo
               # (measured 2026-07-25: pod cgroup PSI cpu some avg60=81%, node
-              # avg60=62% while four gitlab runners shared the node). An 8-core
-              # request floors its CFS weight under contention -- the comment
-              # here always said 8, but the value had drifted to 4; with no CPU
-              # *limit* it still bursts higher when the node is idle, and
-              # neighbors reclaim these cycles whenever nobody is streaming.
-              cpu              = "8"
+              # avg60=62% while four gitlab runners shared the node). The
+              # request is the CFS share it keeps under contention; with no
+              # CPU *limit* it still bursts higher when the node is idle.
+              # 30d to 2026-10-15 (Prometheus, 5m rate): avg 0.49, p95 2.9,
+              # p99 3.0, max 4.5 cores -- FM26 running nonstop sat at
+              # 2.3-2.8. 8 cores reserved a quarter of neo for that.
+              cpu              = "3"
               memory           = "8Gi"
               "nvidia.com/gpu" = "1"
             }
