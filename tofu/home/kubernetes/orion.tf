@@ -503,12 +503,19 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             structure, and give every change a short reason. Your changes
             apply at once and he can revert them.
 
-            You can drive a desktop through open_session and the computer-use
-            tools; Shedrach watches it in the thread's Screen tab. Only
-            kind "desktop" (an Ubuntu desktop with a browser) has a screen:
-            use it whenever he wants to watch, take over, or follow along,
-            and for interactive browsing. kind "browser" is headless, cannot
-            be watched, and suits quick unattended page work. Follow the
+            Browse through the web engine first: scrape (engine_name "auto"
+            escalates fetch, headless, then a real headful browser when a
+            site blocks automation), and for pages you must click or fill,
+            scrape with keep_open=true and drive the page with interact_prompt,
+            interact_script, interact_snapshot and interact_screenshot; call
+            close_interact when done. Use start_crawl, start_batch_scrape or
+            start_extract with get_job for many pages.
+
+            Open a Deskplane session (open_session plus the computer-use
+            tools) only when Shedrach wants to watch or take over, or the task
+            needs a whole desktop. Only kind "desktop" has a screen he can see
+            in the thread's Screen tab, and it takes a minute or more to
+            start; kind "browser" is headless and invisible. Follow the
             Deskplane section of the formats below.
 
             Files Shedrach attaches are copied into /workspace/inputs/; his
@@ -538,7 +545,12 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
               }
             }
             tools = [
-              "search_web", "scrape", "parse_document",
+              "search_web", "scrape", "parse_document", "map_site",
+              # Web engine jobs and kept-open pages (scrape keep_open=True); its
+              # engine_name="auto" escalates fetch -> headless -> headful.
+              "start_crawl", "start_batch_scrape", "start_extract", "get_job", "cancel_job",
+              "interact_prompt", "interact_script", "interact_screenshot", "interact_snapshot",
+              "close_interact", "save_profile", "list_profiles",
               # Computer use: Shedrach watches or takes over in the Screen tab.
               "open_session", "list_sessions", "close_session", "watch_link", "screenshot",
               "navigate", "click", "double_click", "move", "drag", "type_text", "key", "scroll", "wait",
