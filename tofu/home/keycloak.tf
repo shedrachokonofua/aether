@@ -1311,6 +1311,17 @@ resource "keycloak_openid_audience_protocol_mapper" "orion_daimyo_audience" {
   add_to_access_token      = true
 }
 
+# Makes `deskplane` an audience Orion may request in an exchange: the Screen
+# tab mints Deskplane view tickets as the signed-in user.
+resource "keycloak_openid_audience_protocol_mapper" "orion_deskplane_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.orion.id
+  name      = "deskplane-audience"
+
+  included_client_audience = keycloak_openid_client.deskplane.client_id
+  add_to_access_token      = true
+}
+
 # Realm roles as `groups`, the claim Daimyo's org issuer reads (daimyo.tf).
 resource "keycloak_openid_user_realm_role_protocol_mapper" "orion_groups" {
   realm_id  = keycloak_realm.aether.id

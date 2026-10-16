@@ -10,20 +10,23 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-d5de1f60"
-  deskplane_image_tag     = "fb4f1a73"
+  deskplane_chart_version = "0.1.0-2fea9e6e"
+  deskplane_image_tag     = "2fea9e6e"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
   # ~12 times a day. Agent tier may use aether-batch.
   deskplane_session_priority_class = local.aether_priority_classes.batch
   # Daimyo task tokens Deskplane trusts (SPEC "Workload Tokens and Tunnels"):
-  # a task owns its browser session, and its sidecar's tunnel grant lets that
-  # session load the task's own localhost. Same orgs as daimyo.tf's
+  # a task's sidecar tunnel grant lets its session load the task's own
+  # localhost. With delegation, a task acting for a user (act chain root
+  # user:<name>) opens sessions owned by agent:<org>/<project>/<agent> on that
+  # user's behalf, so the user can watch them. Same orgs as daimyo.tf's
   # Deskplane MCP egress.
   deskplane_workload_issuers = [for org in local.daimyo_deskplane_orgs : {
-    issuer   = "https://daimyo.home.shdr.ch/orgs/${org}"
-    audience = "deskplane"
+    issuer     = "https://daimyo.home.shdr.ch/orgs/${org}"
+    audience   = "deskplane"
+    delegation = org == "personal"
   }]
   # CI rebuilds a session image only when images/<name>/** changes and tags
   # it with that pipeline's commit (the push head, not necessarily the commit
@@ -233,7 +236,15 @@ resource "helm_release" "deskplane" {
       existingSecret  = kubernetes_secret_v1.deskplane_oidc.metadata[0].name
       clientSecretKey = "client-secret"
       redirectURL     = "${local.deskplane_public_url}/auth/callback"
+      # user:<preferred_username>, the principal Daimyo puts in act (daimyo.tf).
+      principal = { claim = "preferred_username", prefix = "user:" }
+      # Orion's exchanged tokens (keycloak.tf orion_deskplane_audience): status
+      # reads and view tickets only.
+      accessTokens = { audience = "deskplane", clients = ["orion"] }
     }
+
+    # Only Orion's Screen tab (and Deskplane itself) may frame sessions.
+    frameAncestors = ["https://home.shdr.ch"]
 
     gateway = {
       enabled = true
@@ -433,7 +444,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "ce00346e"
+        tag        = "e6f65761"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
@@ -448,6 +459,10 @@ resource "helm_release" "deskplane" {
         DESKPLANE_PUBLIC_URL            = local.deskplane_public_url
         DESKPLANE_MCP_IMAGE_REF         = "cua-ubuntu"
         DESKPLANE_MCP_BROWSER_IMAGE_REF = "headless-chromium"
+        # Opt-in watchable browsers (open_session kind=browser watch=true,
+        # run/start_browser_task watch=true) and delegated callers' human
+        # handoff pages: headful Chrome on KasmVNC.
+        DESKPLANE_MCP_WATCH_BROWSER_IMAGE_REF = "chrome-cdp"
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # The web engine's LLM calls (json/summary/extract) use it too.
@@ -456,7 +471,7 @@ resource "helm_release" "deskplane" {
         DESKPLANE_MCP_MODEL           = "antigravity/gemini-3.8-flash"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
-        # Daimyo task tokens: such a caller owns one browser session.
+        # Daimyo task tokens; Deskplane calls carry the caller's own token.
         DESKPLANE_MCP_WORKLOAD_ISSUERS = jsonencode(local.deskplane_workload_issuers)
         # 40 was tuned when every long run was doomed by the stale-screenshot
         # bug, so raising it only bought more flailing. With the settle delay
