@@ -197,7 +197,9 @@ completed match; no live-only fixture property resolved outside a match).
   `{PropertyValue: 2, DisplayValue:{Player, PlayerTeamSelectionIndex, Index, TeamSelectionIndex}}`
   (`Index` = the person's database index, `PlayerTeamSelectionIndex` = their
   current slot or -1) places a player. The engine accepts anyone, even another
-  club's staff, so `fm_pick_players` restricts picks to `<team>.Players`.
+  club's staff, so `fm_pick_players` restricts picks to the players of every
+  team at the club (`<team>.Club.Teams[*].Players`: first team, reserve and
+  youth teams), as FM's picker does.
 - **Player instructions.** The UI steps them with
   `EventFmxQuickChangePlayerInstructionIncrement` / `Decrement` to the tactic
   with `{TeamSelectionIndex, PlayerInstructionGroupID, IsInPossession}`. Their
