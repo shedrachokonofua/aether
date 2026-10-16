@@ -101,6 +101,28 @@ locals {
   # (daimyo_tasks_egress); pop trusts their task tokens (pop.tf agent_issuers).
   daimyo_pop_orgs    = ["personal"]
   daimyo_s3_endpoint = "https://s3.seaweed.home.shdr.ch"
+  # Hostnames Daimyo task pods may resolve and reach over HTTPS
+  # (daimyo_tasks_egress): the toFQDNs allowlist and the DNS allowlist are
+  # both built from this, so a name is resolvable exactly when it is
+  # reachable and anything else fails at once with a DNS refusal instead of
+  # a connect timeout.
+  daimyo_tasks_fqdns_common = [
+    "gitlab.home.shdr.ch",
+    "registry.gitlab.home.shdr.ch",
+    "registry.npmjs.org",
+    "registry.yarnpkg.com",
+    "pypi.org",
+    "files.pythonhosted.org",
+    "s3.seaweed.home.shdr.ch",
+  ]
+  daimyo_tasks_fqdns = {
+    for org in local.daimyo_orgs : org => concat(
+      local.daimyo_tasks_fqdns_common,
+      contains(local.daimyo_deskplane_orgs, org) ? [local.deskplane_host] : [],
+      contains(local.daimyo_pop_orgs, org) ? ["pop.home.shdr.ch"] : [],
+      contains(local.trip_planner_orgs, org) ? local.trip_planner_public_mcp_hosts : [],
+    )
+  }
   daimyo_s3_region   = "us-east-1"
   # Static in-cluster service names (not resource references): referencing
   # live resources pulls their dependency chains into every targeted plan.
@@ -629,7 +651,14 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
               { port = "53", protocol = "UDP" },
               { port = "53", protocol = "TCP" },
             ]
-            rules = { dns = [{ matchPattern = "*" }] }
+            # Only in-cluster names and the allowlisted hosts resolve; the
+            # task namespaces are outside aether-cluster-baseline's blanket
+            # DNS allow (cilium.tf), so this list is the whole DNS policy.
+            # `**.` covers every search-path expansion (ndots 5).
+            rules = { dns = concat(
+              [{ matchPattern = "**.cluster.local" }],
+              [for host in local.daimyo_tasks_fqdns[each.key] : { matchName = host }],
+            ) }
           }]
         },
         {
@@ -672,15 +701,7 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           # the GitLab container registry, and SeaweedFS S3 (the sidecar's
           # session workspace snapshot/restore via presigned URLs, §11a.2):
           # FQDN egress, no broad CIDR.
-          toFQDNs = [
-            { matchName = "gitlab.home.shdr.ch" },
-            { matchName = "registry.gitlab.home.shdr.ch" },
-            { matchName = "registry.npmjs.org" },
-            { matchName = "registry.yarnpkg.com" },
-            { matchName = "pypi.org" },
-            { matchName = "files.pythonhosted.org" },
-            { matchName = "s3.seaweed.home.shdr.ch" },
-          ]
+          toFQDNs = [for host in local.daimyo_tasks_fqdns_common : { matchName = host }]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         },
         ], [
