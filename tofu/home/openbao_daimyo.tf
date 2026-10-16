@@ -110,6 +110,41 @@ resource "vault_kv_secret_v2" "daimyo_orion_notes_mcp" {
   })
 }
 
+# Orion's `home` MCP (/api/mcp/home) takes a bearer token per grant
+# (HOME_MCP_TOKENS in kubernetes/orion.tf). The `orion-feed` agent's home
+# grant reads this copy through its `auth.secret`; the sidecar adds the header.
+resource "random_password" "orion_home_mcp" {
+  length  = 48
+  special = false
+}
+
+resource "vault_kv_secret_v2" "daimyo_orion_home_mcp" {
+  mount = local.daimyo_kv_mount
+  name  = "orgs/personal/orion-home"
+
+  data_json = jsonencode({
+    token = random_password.orion_home_mcp.result
+  })
+}
+
+# ntfy has no auth: the topic name is the only access control, so it is a
+# random secret. Orion publishes needsYou feed cards to it (NTFY_TOPIC in
+# kubernetes/orion.tf); the Daimyo server policy above already reads
+# orgs/*, and this copy documents the value in the org tree.
+resource "random_password" "orion_ntfy_topic" {
+  length  = 32
+  special = false
+}
+
+resource "vault_kv_secret_v2" "daimyo_orion_ntfy" {
+  mount = local.daimyo_kv_mount
+  name  = "orgs/personal/orion-ntfy"
+
+  data_json = jsonencode({
+    topic = random_password.orion_ntfy_topic.result
+  })
+}
+
 # The server presents its ServiceAccount token (created by the chart's rbac)
 # to the shared `kubernetes-aether` backend — the claude_bridge pattern.
 resource "vault_kubernetes_auth_backend_role" "daimyo_server" {
