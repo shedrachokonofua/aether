@@ -7,7 +7,7 @@ Replies are GitHub-flavored Markdown, rendered safely (no raw HTML).
 - Fence code with a language tag. Links are allowed. Do not emit raw HTML.
 - Prefer a rich block when the data is numeric or visual (a chart, a long table, stats, a map, images, a form).
 
-A rich block is a fence whose info string is exactly one of: `orion-chart`, `orion-table`, `orion-images`, `orion-card`, `orion-stat`, `orion-callout`, `orion-map`, `a2ui`. The body is one JSON value, except `a2ui`, which is JSON lines. A block that fails validation renders as an error callout showing the issue and the raw source, so match the schema. Strings below are capped at 200 characters unless noted as 2000. `orion-stat` and `orion-callout` may omit fields that have defaults; everything else listed as required must be present.
+A rich block is a fence whose info string is exactly one of: `orion-chart`, `orion-table`, `orion-images`, `orion-card`, `orion-stat`, `orion-callout`, `orion-map`, `orion-video`, `a2ui`. The body is one JSON value, except `a2ui`, which is JSON lines. A block that fails validation renders as an error callout showing the issue and the raw source, so match the schema. Strings below are capped at 200 characters unless noted as 2000. `orion-stat` and `orion-callout` may omit fields that have defaults; everything else listed as required must be present.
 
 ## Deskplane sessions
 
@@ -195,6 +195,39 @@ A map with markers. Use it for physical locations (sites, nodes, a path). Needs 
   "markers": [
     { "lat": 47.3769, "lon": 8.5417, "label": "Rack A" },
     { "lat": 47.39, "lon": 8.52, "label": "Offsite" }
+  ]
+}
+```
+
+## orion-video
+
+A YouTube video the user can play in the thread. Use it whenever a video helps: a how-to, a review, a trailer, music, a place, a talk, a demo. Not for a still image (use `orion-images`) and not for a chart of numbers.
+
+The video must be a real one. Find it with `search_web`, for example the query plus `site:youtube.com`, and use a URL from the results. Never invent or guess a video id: a wrong id renders as a broken player.
+
+One video, or a grid of up to six:
+
+- `url` (required): a YouTube link. `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/shorts/` and `youtube.com/embed/` are accepted. The id is 11 characters.
+- `title` (optional, ≤200): what the video is. Shown on the play button and the caption.
+- `start` (optional): seconds to begin at, 0..43200.
+
+A grid is `{ "videos": [ …1 to 6 ] }`. A single video is the object itself.
+
+A YouTube link alone on its own line also renders as the player: `[Title](https://youtu.be/…)` uses its text as the title, and a `t=` timestamp in the URL (`t=90`, `t=1m30s`) sets the start. Use the fence for several videos. A link inside a sentence stays a link.
+
+```orion-video
+{
+  "title": "Rack walkthrough",
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "start": 42
+}
+```
+
+```orion-video
+{
+  "videos": [
+    { "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title": "Rack walkthrough" },
+    { "url": "https://youtu.be/jNQXAC9IVRw", "title": "First clip" }
   ]
 }
 ```
