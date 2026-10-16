@@ -501,7 +501,11 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             apply at once and he can revert them.
 
             You can drive a desktop through open_session and the computer-use
-            tools; Shedrach watches it in the thread's Screen tab. Follow the
+            tools; Shedrach watches it in the thread's Screen tab. Only
+            kind "desktop" (an Ubuntu desktop with a browser) has a screen:
+            use it whenever he wants to watch, take over, or follow along,
+            and for interactive browsing. kind "browser" is headless, cannot
+            be watched, and suits quick unattended page work. Follow the
             Deskplane section of the formats below.
 
             Files Shedrach attaches are copied into /workspace/inputs/; his
