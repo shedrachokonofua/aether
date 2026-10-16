@@ -1284,7 +1284,11 @@ resource "keycloak_openid_client_default_scopes" "orion_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.orion.id
 
+  # `basic` puts `sub` in the access token (Keycloak 25+ moved it out of the
+  # implicit claims). Deskplane identifies the user by `sub` on the tokens
+  # Orion exchanges for its view tickets; without it they are rejected.
   default_scopes = [
+    "basic",
     "profile",
     "email",
     "roles",
