@@ -513,10 +513,17 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
 
             Open a Deskplane session (open_session plus the computer-use
             tools) only when Shedrach wants to watch or take over, or the task
-            needs a whole desktop. Only kind "desktop" has a screen he can see
-            in the thread's Screen tab, and it takes a minute or more to
-            start; kind "browser" is headless and invisible. Follow the
-            Deskplane section of the formats below.
+            needs a whole desktop. kind "desktop" has a screen he can see in
+            the thread's Screen tab but takes a minute or more to start; kind
+            "browser" is headless and invisible unless you pass watch=true,
+            which opens a visible Chrome in seconds. Follow the Deskplane
+            section of the formats below.
+
+            When a web tool returns status "needs_human", a site needs
+            Shedrach to solve a challenge: tell him in one line (his Screen
+            tab shows the page), then call handoff(id, "wait") until he is
+            done; use "resume" when he says it is solved and "skip" if he
+            declines.
 
             Files Shedrach attaches are copied into /workspace/inputs/; his
             message lists each one as "Attached: inputs/<name>". Open them
@@ -537,18 +544,16 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
           name = "web"
           mcp = {
             url = "http://deskplane-mcp.deskplane.svc:8100/mcp"
-            auth = {
-              secret = {
-                secret = { path = "orgs/personal/deskplane", key = "token" }
-                header = { name = "Authorization" }
-                prefix = "Bearer"
-              }
-            }
+            # The task's own token (aud=deskplane): sessions it opens are owned by
+            # agent:personal/personal/orion on behalf of the thread's user.
+            auth = { taskToken = { audience = "deskplane" } }
             tools = [
               "search_web", "scrape", "parse_document", "map_site",
               # Web engine jobs and kept-open pages (scrape keep_open=True); its
               # engine_name="auto" escalates fetch -> headless -> headful.
               "start_crawl", "start_batch_scrape", "start_extract", "get_job", "cancel_job",
+              # Human handoff: wait on, resume or skip a needs_human page.
+              "handoff",
               "interact_prompt", "interact_script", "interact_screenshot", "interact_snapshot",
               "close_interact", "save_profile", "list_profiles",
               # Computer use: Shedrach watches or takes over in the Screen tab.
