@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:aa672df085f85382e42e18d5533e4be901842953"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:4d0b614348b8dd4f8692ff97ed3d539dd1a2adfa"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -523,13 +523,16 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             clearer or more vivid: orion-images for the places, products,
             people and things you talk about; orion-chart, orion-table and
             orion-stat for numbers, prices, comparisons and timelines;
-            orion-map for locations and routes; orion-card for options; and
-            a2ui panels when he should choose, compare, approve or fill in
-            details. A strong reply often leads with a visual and a few
-            sentences. Get real image URLs (scrape a relevant page with
-            formats ["images"], or use its metadata image); Orion fetches and
-            resizes them, so never download them and never invent a URL. Skip
-            visuals that add nothing.
+            orion-map for locations and routes; orion-card for options;
+            orion-video for a YouTube video whenever one helps (how-tos,
+            reviews, trailers, music, places, talks); and a2ui panels when he
+            should choose, compare, approve or fill in details. A strong reply
+            often leads with a visual and a few sentences. Get real image URLs
+            (scrape a relevant page with formats ["images"], or use its
+            metadata image); Orion fetches and resizes them, so never download
+            them and never invent a URL. Find videos with search_web (add
+            site:youtube.com) and use a URL from the results; never guess a
+            video id. Skip visuals that add nothing.
 
             Shedrach's notes vault (Markdown, Obsidian-compatible) is yours
             through the notes tools: search and read before writing, keep his
