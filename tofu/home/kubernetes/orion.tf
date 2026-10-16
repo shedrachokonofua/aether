@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:bbcacd3edf8ef83c313dd585b2213edebecf394e"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:b1f48dfcee53f7519866d7b6e68bf3c758bef203"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -74,7 +74,10 @@ locals {
     OIDC_CLIENT_ID     = "orion"
     OIDC_CLIENT_SECRET = var.orion_oauth_client_secret
     OIDC_REDIRECT_URI  = "https://${local.orion_host}/auth/callback"
-    OIDC_SCOPE         = "openid profile email"
+    # offline_access: the stored refresh token outlives the realm's 2h-idle /
+    # 12h-max SSO session, so Daimyo calls keep working for the life of the
+    # Orion session (30 days) instead of failing after two idle hours.
+    OIDC_SCOPE         = "openid profile email offline_access"
     SESSION_SECRET     = random_password.orion_session_secret.result
     DATABASE_URL       = "postgresql://${local.orion_database_user}:${random_password.orion_database_password.result}@${local.orion_database_service}:5432/${local.orion_database}?sslmode=disable"
     # Threads → the `orion` Daimyo agent, as the signed-in user (keycloak.tf
