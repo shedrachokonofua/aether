@@ -209,7 +209,17 @@ resource "kubernetes_manifest" "cilium_cluster_baseline_network" {
       name = "aether-cluster-baseline"
     }
     spec = {
-      endpointSelector = {}
+      # Every pod except Daimyo's task namespaces: their own default-deny
+      # policy (daimyo_tasks_egress) allows DNS for an explicit name list and
+      # denies kube-apiserver, and this blanket port-53 allow would otherwise
+      # widen that DNS list back to every name.
+      endpointSelector = {
+        matchExpressions = [{
+          key      = "k8s:io.kubernetes.pod.namespace"
+          operator = "NotIn"
+          values   = [for org in local.daimyo_orgs : "${org}-tasks"]
+        }]
+      }
       enableDefaultDeny = {
         ingress = false
         egress  = false
