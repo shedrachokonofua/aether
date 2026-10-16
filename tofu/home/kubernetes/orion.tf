@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:53c91d742c747f113bceef334b5660655a473e44"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:aa672df085f85382e42e18d5533e4be901842953"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -95,6 +95,28 @@ locals {
       name  = "Orion agent"
       email = "orion-agent@home.shdr.ch"
     }])
+    # Who may bulk-import into the vault (POST /api/notes/import).
+    NOTES_IMPORT_ADMINS = "shedrachokonofua@gmail.com"
+    # Feed agent → Orion's home MCP (/api/mcp/home); the orion-feed agent's
+    # home grant reads the same token from OpenBao orgs/personal/orion-home.
+    HOME_MCP_TOKENS = jsonencode([{
+      token = var.orion_home_mcp_token
+      name  = "Orion feed agent"
+      email = "orion-feed@home.shdr.ch"
+    }])
+    # Feed: Daimyo agents the poller ingests (legacy name kept; the poller
+    # also polls every orion-feed-<topic> agent), the single feed owner (OIDC
+    # subject), and ntfy for needsYou cards (topic is a random secret,
+    # openbao_daimyo.tf orgs/personal/orion-ntfy; ntfy has no auth).
+    FEED_AGENT = "personal/orion-feed"
+    FEED_OWNER = var.operator_oidc_subject
+    NTFY_URL   = "https://ntfy.home.shdr.ch"
+    NTFY_TOPIC = var.orion_ntfy_topic
+    # GitLab for the gitlab feed topic's home-MCP `gitlab` tool: a read_api
+    # token of the `orion-feed` GitLab user (reporter on so, seven30, lute and
+    # shdrch's projects; expires 2027-10-15).
+    GITLAB_URL   = "https://gitlab.home.shdr.ch"
+    GITLAB_TOKEN = var.secrets["gitlab.orion_feed_token"]
     # News widget → self-hosted Miniflux (API key minted in Miniflux, stored in SOPS).
     MINIFLUX_URL     = "https://miniflux.home.shdr.ch"
     MINIFLUX_API_KEY = var.secrets["miniflux.orion_api_key"]
@@ -494,9 +516,20 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
 
             Your workspace has no direct internet access: fetching a URL with
             read, curl or similar hangs until it times out. Reach the web only
-            through search_web, scrape and parse_document. To show an image,
-            put its URL in an orion-images block; Orion fetches it for
-            Shedrach, so you don't need to download it.
+            through search_web, scrape and parse_document.
+
+            Show, don't just tell. Orion renders rich blocks on his phone and
+            desktop, so use them liberally wherever they make an answer
+            clearer or more vivid: orion-images for the places, products,
+            people and things you talk about; orion-chart, orion-table and
+            orion-stat for numbers, prices, comparisons and timelines;
+            orion-map for locations and routes; orion-card for options; and
+            a2ui panels when he should choose, compare, approve or fill in
+            details. A strong reply often leads with a visual and a few
+            sentences. Get real image URLs (scrape a relevant page with
+            formats ["images"], or use its metadata image); Orion fetches and
+            resizes them, so never download them and never invent a URL. Skip
+            visuals that add nothing.
 
             Shedrach's notes vault (Markdown, Obsidian-compatible) is yours
             through the notes tools: search and read before writing, keep his
