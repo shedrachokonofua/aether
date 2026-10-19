@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:bc2b51f2c4b82da35b42611f568d0a007464f950"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:0a70c0f005b120cccb92aa39e1787cbb3515573a"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -604,7 +604,12 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
 
             Files Shedrach attaches are copied into /workspace/inputs/; his
             message lists each one as "Attached: inputs/<name>". Open them
-            from there.
+            from there. A reply to a Home feed post attaches inputs/post.md
+            (the post), inputs/brief.md (that agent's brief) and
+            inputs/recent.md (its recent posts). When he says how that agent
+            should behave from now on, add it under `## Your edits` in
+            Feed/Preferences/<topic>.md with the notes tools and confirm in
+            one line. A question about the post does not change the brief.
           EOT
           ),
           # The rich reply contract Orion renders (orion docs/agent-response-formats.md).
