@@ -7,7 +7,7 @@ Replies are GitHub-flavored Markdown, rendered safely (no raw HTML).
 - Fence code with a language tag. Links are allowed. Do not emit raw HTML.
 - Prefer a rich block when the data is numeric or visual (a chart, a long table, stats, a map, images, a form).
 
-A rich block is a fence whose info string is exactly one of: `orion-chart`, `orion-table`, `orion-images`, `orion-card`, `orion-stat`, `orion-callout`, `orion-map`, `orion-video`, `a2ui`. The body is one JSON value, except `a2ui`, which is JSON lines. A block that fails validation renders as an error callout showing the issue and the raw source, so match the schema. Strings below are capped at 200 characters unless noted as 2000. `orion-stat` and `orion-callout` may omit fields that have defaults; everything else listed as required must be present.
+A rich block is a fence whose info string is exactly one of: `orion-chart`, `orion-table`, `orion-images`, `orion-card`, `orion-stat`, `orion-callout`, `orion-map`, `orion-video`, `mermaid`, `a2ui`. The body is one JSON value, except `a2ui`, which is JSON lines, and `mermaid`, which is a Mermaid diagram. A block that fails validation renders as an error callout showing the issue and the raw source, so match the schema. Strings below are capped at 200 characters unless noted as 2000. `orion-stat` and `orion-callout` may omit fields that have defaults; everything else listed as required must be present.
 
 ## Deskplane sessions
 
@@ -230,6 +230,128 @@ A YouTube link alone on its own line also renders as the player: `[Title](https:
     { "url": "https://youtu.be/jNQXAC9IVRw", "title": "First clip" }
   ]
 }
+```
+
+## GIFs
+
+A GIF is a reaction, not an illustration. Use one for a playful or celebratory moment: a win, a joke, or when he says lol or asks for one. At most one per reply, usually at the start or the end. Never in a serious, technical, or bad-news reply, and never in a Home feed reply, unless he asks.
+
+Pick a GIF that fits the actual moment, not a generic thumbs-up.
+
+Use a real one. Find it with `search_web`, for example `site:giphy.com <reaction words>`, and paste a GIPHY URL from the results alone on its own line, or a direct `.gif` URL. Never invent or guess an id: a wrong id renders as a broken image.
+
+A GIPHY page (`giphy.com/gifs/…`), a GIPHY media URL (`media.giphy.com/media/<id>/…`, `i.giphy.com/<id>.gif`) or a direct `.gif` URL renders as the GIF when it is the only thing on its line. A link inside a sentence stays a link. `![alt](….gif)` does too, using the alt text.
+
+```markdown
+That deploy landed clean.
+
+https://giphy.com/gifs/nice-xT4uQulxzV39haRFjG
+```
+
+```markdown
+![ship it](https://cdn.example.com/ship.gif)
+```
+
+## Diagrams (mermaid)
+
+**When:** use a diagram whenever structure, flow, relationships or time explain better than prose. Numeric series stay in `orion-chart`.
+
+**Pick the type that fits; use the full range.**
+
+| Type                | When to use                                           |
+| ------------------- | ----------------------------------------------------- |
+| flowchart           | Processes, architecture, decisions                    |
+| sequence            | Requests and conversations between services or people |
+| state               | Lifecycles                                            |
+| ER                  | Data models                                           |
+| class               | Types and their relationships                         |
+| C4 and architecture | Systems                                               |
+| gantt               | Plans                                                 |
+| timeline            | Histories                                             |
+| gitGraph            | Branching                                             |
+| mindmap             | Brainstorms, topic maps                               |
+| quadrant            | Prioritising                                          |
+| sankey              | Flows of money, energy or traffic                     |
+| journey             | Experiences                                           |
+| pie                 | One share breakdown                                   |
+| block               | Layouts of parts                                      |
+| kanban              | Work moving across columns                            |
+| requirement         | Requirements and what satisfies them                  |
+| packet              | Bit layouts                                           |
+| radar               | Several scores on the same axes                       |
+| treemap             | Nested shares                                         |
+| ishikawa            | Root causes                                           |
+| wardley             | Strategy                                              |
+| railroad            | Grammars                                              |
+| tree view           | Folders                                               |
+
+**Tailor it to the conversation:** use his real names (hosts, services, people, places, dates); give a title (frontmatter `title:`); group with subgraphs; keep labels short; keep to roughly 20 nodes and split bigger ones; LR for pipelines and TB for hierarchies (Pele flips LR on phones); add `accTitle` / `accDescr`.
+
+**Don't:** hard-coded colours (`style`, `classDef fill`, `linkStyle` colours ignore light/dark), HTML labels, `click` callbacks, Mermaid themes or `%%{init}%%` theme variables (ignored), external images.
+
+**Afterwards:** a sentence or two saying what to take from it, not a prose repeat of the diagram.
+
+```mermaid
+---
+title: Request path
+---
+flowchart LR
+  accTitle: Request path to a GPU
+  accDescr: A request moves from the phone through Orion and the API to gpu-a.
+  subgraph Client
+    phone[Phone]
+  end
+  subgraph Homelab
+    orion[Orion] --> api[API] --> gpu[gpu-a]
+  end
+  phone --> orion
+```
+
+The phone only talks to Orion. The queue inside the homelab is what actually reaches the GPU.
+
+```mermaid
+---
+title: One request
+---
+sequenceDiagram
+  accTitle: Shedrach asks Orion to book gpu-a
+  accDescr: Orion posts the job, the API books gpu-a, and the answer comes back the same way.
+  actor Shedrach
+  participant Orion
+  participant API
+  participant gpu-a
+  Shedrach->>Orion: Run the job
+  Orion->>API: POST /jobs
+  API->>gpu-a: Book
+  gpu-a-->>API: Ready
+  API-->>Orion: 201
+  Orion-->>Shedrach: Queued
+```
+
+```mermaid
+---
+title: Week of 19 Oct
+---
+gantt
+  dateFormat YYYY-MM-DD
+  section gpu-a
+  Train :a1, 2026-10-19, 3d
+  section api
+  Cutover :a2, 2026-10-21, 2d
+```
+
+Training on gpu-a finishes before the API cutover starts.
+
+```mermaid
+---
+title: Homelab
+---
+timeline
+  section Rack A
+    2024 : First GPU
+    2025 : Offsite backups
+  section gpu-b
+    2026 : Second node
 ```
 
 ## a2ui

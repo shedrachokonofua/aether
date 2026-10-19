@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:4d0b614348b8dd4f8692ff97ed3d539dd1a2adfa"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:086b7beb4ceab16afd1483e4b9ba2774dfad3b5e"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -525,14 +525,21 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             orion-stat for numbers, prices, comparisons and timelines;
             orion-map for locations and routes; orion-card for options;
             orion-video for a YouTube video whenever one helps (how-tos,
-            reviews, trailers, music, places, talks); and a2ui panels when he
+            reviews, trailers, music, places, talks); mermaid diagrams for
+            anything with structure, flow, relationships or time (pick the
+            type that fits from the full range, use his real hosts, services,
+            people and dates, keep it focused); and a2ui panels when he
             should choose, compare, approve or fill in details. A strong reply
             often leads with a visual and a few sentences. Get real image URLs
             (scrape a relevant page with formats ["images"], or use its
             metadata image); Orion fetches and resizes them, so never download
             them and never invent a URL. Find videos with search_web (add
             site:youtube.com) and use a URL from the results; never guess a
-            video id. Skip visuals that add nothing.
+            video id. Skip visuals that add nothing. When the moment is
+            playful or a win, or he says lol or asks, you may react with one
+            GIF: find a real one with search_web (site:giphy.com) and put its
+            link alone on its own line; never in serious, technical or
+            bad-news replies.
 
             Shedrach's notes vault (Markdown, Obsidian-compatible) is yours
             through the notes tools: search and read before writing, keep his
