@@ -127,6 +127,26 @@ resource "vault_kv_secret_v2" "daimyo_orion_home_mcp" {
   })
 }
 
+# The `orion` agent's LiteLLM virtual key for the MCP gateway's per-server
+# routes (kubernetes/orion.tf gateway grants). Registered in LiteLLM through
+# its API with key_alias `daimyo-orion` and models ["no-default-models"],
+# scoped by object_permission.mcp_servers (register_litellm_virtual_keys.yml
+# keeps the scope). Only the Daimyo sidecar holds it, so the agent's shell
+# cannot reach gateway servers around its tool policy.
+resource "random_password" "orion_litellm_mcp" {
+  length  = 48
+  special = false
+}
+
+resource "vault_kv_secret_v2" "daimyo_orion_litellm_mcp" {
+  mount = local.daimyo_kv_mount
+  name  = "orgs/personal/litellm-mcp"
+
+  data_json = jsonencode({
+    token = "sk-${random_password.orion_litellm_mcp.result}"
+  })
+}
+
 # ntfy has no auth: the topic name is the only access control, so it is a
 # random secret. Orion publishes needsYou feed cards to it (NTFY_TOPIC in
 # kubernetes/orion.tf); the Daimyo server policy above already reads

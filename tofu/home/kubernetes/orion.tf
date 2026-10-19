@@ -77,9 +77,9 @@ locals {
     # offline_access: the stored refresh token outlives the realm's 2h-idle /
     # 12h-max SSO session, so Daimyo calls keep working for the life of the
     # Orion session (30 days) instead of failing after two idle hours.
-    OIDC_SCOPE         = "openid profile email offline_access"
-    SESSION_SECRET     = random_password.orion_session_secret.result
-    DATABASE_URL       = "postgresql://${local.orion_database_user}:${random_password.orion_database_password.result}@${local.orion_database_service}:5432/${local.orion_database}?sslmode=disable"
+    OIDC_SCOPE     = "openid profile email offline_access"
+    SESSION_SECRET = random_password.orion_session_secret.result
+    DATABASE_URL   = "postgresql://${local.orion_database_user}:${random_password.orion_database_password.result}@${local.orion_database_service}:5432/${local.orion_database}?sslmode=disable"
     # Threads → the `orion` Daimyo agent, as the signed-in user (keycloak.tf
     # orion client: token exchange to aud `daimyo`).
     DAIMYO_URL           = "https://daimyo.home.shdr.ch"
@@ -479,6 +479,26 @@ resource "kubernetes_manifest" "orion_answer_egress" {
   }
 }
 
+locals {
+  # The `orion` agent reaches LiteLLM's MCP gateway through its per-server
+  # routes (/mcp/<server>): one grant per server, so each keeps its own tool
+  # policy. The sidecar adds the agent's key (openbao_daimyo.tf
+  # daimyo_orion_litellm_mcp); the gateway already reaches every server.
+  orion_gateway_mcp = "${local.daimyo_litellm_upstream}/mcp"
+  orion_gateway_auth = {
+    secret = {
+      secret = { path = "orgs/personal/litellm-mcp", key = "token" }
+      header = { name = "x-litellm-api-key" }
+      prefix = "Bearer"
+    }
+  }
+  # Policy for tools that should ask Shedrach first (deleting, spending,
+  # publishing, admin). Daimyo holds an `ask` call until he answers; Orion
+  # shows that as a card in the thread once its tool-approval card ships.
+  # Until then these are refused rather than hanging a turn for 10 minutes.
+  orion_ask = "deny"
+}
+
 # `orion`: the personal agent behind Orion's threads (Home "Ask Orion", New
 # chat). A declarative omp harness agent in org-personal with sessions, so a
 # thread is a chain of Daimyo sessions and every message is a turn (Orion
@@ -568,6 +588,18 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             done; use "resume" when he says it is solved and "skip" if he
             declines.
 
+            Shedrach's other services are tools too: his music library and
+            Spotify (siren), media (jellyfin, tmdb), sports (espn), markets
+            (finviz), maps and places (google_maps), image generation
+            (comfyui), his AFFiNE workspace (affine), his message archive
+            (mnemo: email and chats, read-only), travel search (flights,
+            kiwi, skiplagged, trivago, ferryhopper), his Football Manager save
+            (fm), pop sites (pop), Colony (colony) and Daimyo (daimyo). Use
+            them whenever they answer better than the web. Deleting, spending,
+            publishing and admin calls wait for his approval in the thread;
+            make them only when he asked for that outcome, and when one is
+            refused, say so in a line and carry on without it.
+
             Files Shedrach attaches are copied into /workspace/inputs/; his
             message lists each one as "Attached: inputs/<name>". Open them
             from there.
@@ -581,7 +613,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
       }
       resources  = { cpu = "1", memory = "2Gi", workspace = "2Gi" }
       operations = [{ name = "chat", deadline = "2h" }]
-      grants = [
+      grants = concat([
         { name = "models", model = { models = ["moira/strong"], budgetUsd = 5 } },
         {
           name = "web"
@@ -624,7 +656,143 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             ]
           }
         },
-      ]
+        # Shedrach's other services. Reads and reversible actions in his own
+        # tools are allowed; deleting, spending, publishing and admin use
+        # local.orion_ask. Tools a task must never have are left out, which
+        # hides them (daimyo: approval_resolve would let the agent approve its
+        # own held calls; agent, project and workflow writes are config).
+        # Names are exact: Daimyo's grant allowlist does not match globs.
+        {
+          name = "pop"
+          mcp = {
+            url  = "https://pop.home.shdr.ch/mcp/aether"
+            auth = { taskToken = { audience = "pop" } }
+            tools = [
+              "projects_list", "deploys_list", "deploy_get", "aliases_list",
+              "events_list", "forms_list", "hooks_list", "telemetry_link",
+              "deploy_begin", "deploy_files", "deploy_finalize",
+              { name = "project_create", policy = local.orion_ask },
+              { name = "project_delete", policy = local.orion_ask },
+              { name = "alias_set", policy = local.orion_ask },
+              { name = "alias_rollback", policy = local.orion_ask },
+              { name = "alias_delete", policy = local.orion_ask },
+              { name = "hook_add", policy = local.orion_ask },
+              { name = "hook_remove", policy = local.orion_ask },
+              { name = "forms_export", policy = local.orion_ask },
+              { name = "form_file_link", policy = local.orion_ask },
+            ]
+          }
+        },
+        {
+          name = "daimyo"
+          mcp = {
+            # In-cluster API (daimyo_tasks_egress allows it; the public host is
+            # not on the egress list). Task tokens never get config writes.
+            url  = "http://${local.daimyo_svc_name}.daimyo-system.svc.cluster.local/mcp?org=personal"
+            auth = { taskToken = { audience = "daimyo" } }
+            tools = [
+              "agents_list", "agent_get", "task_get", "task_events_tail",
+              "sessions_list", "session_events_tail", "workflow_run_get",
+              "approvals_list", "schedules_list", "files_list", "files_get",
+              "memory_list_stores", "memory_list", "memory_read", "memory_versions",
+              "memory_search",
+              { name = "task_create", policy = local.orion_ask },
+              { name = "task_cancel", policy = local.orion_ask },
+              { name = "session_create", policy = local.orion_ask },
+              { name = "session_send", policy = local.orion_ask },
+              { name = "session_close", policy = local.orion_ask },
+              { name = "session_warm", policy = local.orion_ask },
+              { name = "session_rewind", policy = local.orion_ask },
+              { name = "session_fork", policy = local.orion_ask },
+              { name = "workflow_start", policy = local.orion_ask },
+              { name = "workflow_run_script", policy = local.orion_ask },
+              { name = "sandbox_create", policy = local.orion_ask },
+              { name = "sandbox_exec", policy = local.orion_ask },
+              { name = "sandbox_read_file", policy = local.orion_ask },
+              { name = "sandbox_write_file", policy = local.orion_ask },
+              { name = "sandbox_delete", policy = local.orion_ask },
+              { name = "files_upload", policy = local.orion_ask },
+              { name = "memory_write", policy = local.orion_ask },
+              { name = "memory_delete", policy = local.orion_ask },
+              { name = "memory_restore", policy = local.orion_ask },
+              { name = "memory_dream", policy = local.orion_ask },
+              { name = "memory_dream_resolve", policy = local.orion_ask },
+              { name = "attestation_revoke", policy = local.orion_ask },
+            ]
+          }
+        },
+        ], [
+        # The LiteLLM gateway's servers, one grant each (orion_agent_tools.tf).
+        for server, tools in local.orion_gateway_tools : {
+          name = server
+          mcp = {
+            url  = "${local.orion_gateway_mcp}/${server}"
+            auth = local.orion_gateway_auth
+            tools = concat(
+              tools.allow,
+              [for tool in tools.ask : { name = tool, policy = local.orion_ask }],
+            )
+          }
+        }
+        ], [
+        {
+          name = "mnemo"
+          mcp = {
+            # His message archive, read-only and without auth. Its public host:
+            # in-cluster requests get a 307 to it, which the sidecar refuses.
+            # orion_agent_egress below resolves it for orion's pods only.
+            url = "https://mnemo.home.shdr.ch/mcp"
+            tools = [
+              "mnemo.search_messages", "mnemo.rag_context", "mnemo.get_thread", "mnemo.timeline",
+              "mnemo.get_message", "mnemo.source_status",
+            ]
+          }
+        },
+        # Keyless travel search, the same servers as trip-planner
+        # (trip_planner.tf; daimyo_tasks_egress opens them for personal).
+        {
+          name = "flights"
+          mcp = {
+            url   = local.fli_url
+            tools = ["search_flights", "search_dates", "get_booking_options", "find_airports"]
+          }
+        },
+        {
+          name = "kiwi"
+          mcp  = { url = "https://mcp.kiwi.com", tools = ["search-flight"] }
+        },
+        {
+          name = "skiplagged"
+          mcp = {
+            url = "https://mcp.skiplagged.com/mcp"
+            tools = [
+              "sk_flights_search", "sk_flex_departure_calendar", "sk_flex_return_calendar",
+              "sk_destinations_anywhere", "sk_resolve_iata",
+              "sk_hotels_search", "sk_hotel_details", "sk_cars_search",
+            ]
+          }
+        },
+        {
+          name = "trivago"
+          mcp = {
+            url = "https://mcp.trivago.com/mcp"
+            tools = [
+              "trivago-accommodation-search", "trivago-accommodation-radius-search",
+              "trivago-destination-price-trends",
+            ]
+          }
+        },
+        {
+          name = "ferryhopper"
+          mcp = {
+            url = "https://mcp.ferryhopper.com/mcp"
+            tools = [
+              "search_ferry_trips", "trip_details", "get_ports",
+              "get_direct_connections_for_ports", "get_disruptions",
+            ]
+          }
+        },
+      ])
       memory = [{
         store       = "personal"
         scope       = "perUser"
@@ -635,4 +803,50 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
       endpoints = { stable = { revision = "latest" } }
     }
   })
+}
+
+# Mnemo for the `orion` agent's mnemo grant only: its MCP has no auth, so the
+# name is the boundary. orion's task pods may resolve and reach
+# mnemo.home.shdr.ch (the gateway, which mnemo-ingress admits); other personal
+# agents (orion-feed-*, researcher, trip-planner) cannot resolve it. Additive
+# to daimyo_tasks_egress (daimyo.tf), which keeps default-deny and the rest of
+# the DNS allowlist.
+resource "kubernetes_manifest" "orion_agent_egress" {
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "orion-agent-egress"
+      namespace = "personal-tasks"
+      labels    = local.daimyo_labels
+    }
+    spec = {
+      endpointSelector = { matchLabels = { "daimyo.shdr.ch/agent" = "orion" } }
+      egress = [
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "k8s-app"                     = "kube-dns"
+              "io.kubernetes.pod.namespace" = "kube-system"
+            }
+          }]
+          toPorts = [{
+            ports = [
+              { port = "53", protocol = "UDP" },
+              { port = "53", protocol = "TCP" },
+            ]
+            rules = { dns = [{ matchName = "mnemo.home.shdr.ch" }] }
+          }]
+        },
+        {
+          toFQDNs = [{ matchName = "mnemo.home.shdr.ch" }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
+        },
+      ]
+    }
+  }
 }
