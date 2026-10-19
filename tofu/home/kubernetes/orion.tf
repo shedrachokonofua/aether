@@ -505,7 +505,7 @@ locals {
 # chat). A declarative omp harness agent in org-personal with sessions, so a
 # thread is a chain of Daimyo sessions and every message is a turn (Orion
 # repo docs/mind-dump-2026-10-13.md §5, §8). Models through the sidecar's
-# LiteLLM grant on moira/strong (Orion remaps per-function models through
+# LiteLLM grant on moira/frontier (Orion remaps per-function models through
 # Moira aliases, not per turn); web research through Deskplane's MCP server,
 # the same grant and network path as `researcher` (daimyo.tf); a per-user
 # `personal` memory store, created on first use. 1 CPU: cold starts are
@@ -526,7 +526,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
       description = "Shedrach's personal agent behind Orion threads."
       harness = {
         kind  = "omp"
-        model = "moira/strong"
+        model = "moira/frontier"
         systemPrompt = join("\n\n", [
           trimspace(<<-EOT
             You are Orion, Shedrach's personal agent. Answer directly and
@@ -621,7 +621,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
       resources  = { cpu = "1", memory = "2Gi", workspace = "2Gi" }
       operations = [{ name = "chat", deadline = "2h" }]
       grants = concat([
-        { name = "models", model = { models = ["moira/strong"], budgetUsd = 5 } },
+        { name = "models", model = { models = ["moira/frontier"], budgetUsd = 5 } },
         {
           name = "web"
           mcp = {
