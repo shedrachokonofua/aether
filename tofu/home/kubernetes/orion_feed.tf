@@ -121,23 +121,42 @@ locals {
       near-duplicates under new keys.
     - topic: this run's topic.
     - title: ≤120 characters, the headline finding.
-    - body: Markdown ≤4000 characters. A short paragraph of finished findings
-      with confidence — never a plan, a question, or "unavailable" when a tool
-      errored (retry or try another tool first). Where useful add ONE small
-      rich fence: orion-chart (series), orion-table (exact rows), orion-stat
-      (headline numbers), orion-callout (a warning). Keep tables ≤10 rows and
-      charts ≤24 points in feed cards.
+    - body: plain Markdown, at most three short sentences (≤400 characters):
+      what you found and why it matters, with your confidence. Never a plan,
+      a question, or a report that a tool failed. No headings, no Markdown
+      tables.
+    - Optionally ONE fence after the body, only when numbers say more than
+      words. Its content must be valid JSON in exactly one of these shapes:
+      ```orion-stat
+      {"stats": [{"label": "RAM used", "value": 87.9, "unit": "%"}]}
+      ```
+      (1–4 stats; each may add "delta", "deltaLabel", "good": "up"|"down")
+      ```orion-table
+      {"columns": ["pod", "node", "state"], "rows": [{"pod": "brink-worker", "node": "talos-neo", "state": "ImagePullBackOff"}]}
+      ```
+      (≤8 rows, each an object keyed by column)
+      ```orion-chart
+      {"type": "line", "x": "hour", "y": "cpu", "unit": "%", "data": [{"hour": "18", "cpu": 31}, {"hour": "19", "cpu": 38}]}
+      ```
+      (≤24 points; every y value a number)
+      Never put prose, Markdown or a pipe table inside a fence. If unsure,
+      leave the fence out.
     - needsYou: true only when Shedrach must act. It pushes a phone
       notification (held 22:00–07:00 Toronto unless a homelab cluster-down
       outage). Set it sparingly. Markets cards must never set needsYou.
     - priority: "low" | "normal" | "high".
-    - actions: up to 6 of {"label", "kind": "open"|"ask"|"refresh", "url"?,
-      "prompt"?}. An "ask" action starts a thread with prompt (e.g.
-      "Investigate the failing backup"); "open" needs a url.
+    - actions: at most 2 of {"label", "kind": "open"|"ask"|"refresh", "url"?,
+      "prompt"?}, labels ≤32 characters. An "ask" action starts a thread with
+      prompt (e.g. "Investigate the failing backup"); "open" needs a url.
     - expiresAt: RFC 3339, when the card stops mattering.
     - resolved: true (with key/title/body) closes the card with that key —
       use it when an issue you reported has cleared, instead of a "fixed" card.
     - watchId: only for topic "watch" (not yours unless instructed).
+
+    Never post a card about your own tools or run failing; Orion shows failed
+    runs itself. Retry a failing tool once, then report only what you could
+    verify, or nothing. When nothing is new, post no card: {"cards": []} is a
+    complete answer.
   EOT
 
   feed_topic_instructions = {
@@ -162,14 +181,16 @@ locals {
       orion-table of the watchlist moves. Never needsYou.
     EOT
     sports   = <<-EOT
-      Topic: sports. Use espn (scoreboard, standings, news). Teams that
-      matter: Manchester United, Arsenal, Miami Heat, Toronto Tempo (WNBA),
-      plus Lionel Messi (Inter Miami and Argentina matches). One card per
-      game involving those teams, keyed "sports:<home>-<away>-<date>":
-      a preview before it starts, updated in place while live (same key),
-      a final at full time, expiring a few hours after. Other leagues only
-      if something big happened. A compact orion-stat score/minute line is
-      welcome on live cards.
+      Topic: sports. Teams that matter: Manchester United and Arsenal (epl,
+      ucl), Miami Heat (nba), Toronto Tempo (wnba) and Lionel Messi through
+      Argentina (worldcup; espn has no MLS, so not Inter Miami). Make exactly
+      these espn calls, then write the cards: get_scoreboard for epl, ucl,
+      nba, wnba and worldcup, each with no date (today). No other
+      competitions, standings, news or dates. One card per game involving
+      those teams, keyed "sports:<home>-<away>-<date>": a preview before it
+      starts, updated in place while live (same key), a final at full time,
+      expiring a few hours after. If none of them plays today, post no card.
+      A compact orion-stat score/minute line is welcome on live cards.
     EOT
     news     = <<-EOT
       Topic: news. Read news (Miniflux) and web search for the day's several
