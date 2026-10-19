@@ -312,8 +312,12 @@ resource "kubectl_manifest" "daimyo_orion_feed_agent" {
         # llama-swap resident; moira/flash is Ollama Cloud.
         model        = each.value.model
         systemPrompt = join("\n\n", [trimspace(local.feed_card_contract)])
-        tools        = { bash = false, files = false, web = false }
-        maxTurns     = each.value.max_turns
+        # omp reaches MCP grants only through its read/write tools (xd://
+        # devices); with every group off Daimyo passes --no-tools and the
+        # agent cannot call even its home tools (first runs failed `schema`).
+        # File tools touch only the task's own workspace; no shell, no web.
+        tools    = { bash = false, files = true, web = false }
+        maxTurns = each.value.max_turns
       }
       resources = { cpu = "1", memory = "2Gi", workspace = "1Gi" }
       operations = [{
