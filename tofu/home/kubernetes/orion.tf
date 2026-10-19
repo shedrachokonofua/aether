@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:15c3a8d9e13ae51042858290246c92b7a2b333f9"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:bc2b51f2c4b82da35b42611f568d0a007464f950"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -493,9 +493,11 @@ locals {
     }
   }
   # Policy for tools that should ask Shedrach first (deleting, spending,
-  # publishing, admin). Daimyo holds an `ask` call until he answers; Orion
-  # shows that as a card in the thread once its tool-approval card ships.
-  # Until then these are refused rather than hanging a turn for 10 minutes.
+  # publishing, admin). Orion renders Daimyo tool approvals in the thread, but
+  # Daimyo cannot park them for session agents yet: the sidecar parks under the
+  # session id and the server looks up a task row by that id (daimyo
+  # crates/daimyo-workflow/src/approvals.rs park_tool_call), so every `ask`
+  # answered 404 on 2026-10-19. Hidden until that is fixed; then set "ask".
   orion_ask = "deny"
 }
 
