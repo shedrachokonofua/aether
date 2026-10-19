@@ -187,6 +187,23 @@
       - finviz
 
   tasks:
+    # The `orion` Daimyo agent's gateway key: its value is in OpenBao
+    # (orgs/personal/litellm-mcp, tofu/home/openbao_daimyo.tf), not SOPS, so it
+    # is found by alias. MCP only (no models); the server list must track
+    # tofu/home/kubernetes/orion_agent_tools.tf's orion_gateway_tools.
+    litellm_daimyo_orion_alias: daimyo-orion
+    litellm_daimyo_orion_mcp_servers:
+      - colony
+      - affine
+      - siren
+      - jellyfin
+      - comfyui
+      - espn
+      - finviz
+      - fm
+      - google_maps
+      - time
+      - tmdb
     - name: Load secrets
       community.sops.load_vars:
         file: "{{ aether_root }}/secrets/secrets.yml"
@@ -394,6 +411,39 @@
 
     # Aliases retired from the cluster. The playbook can create and update keys
     # but nothing else deletes them, so the live keys orphan when their SOPS
+    - name: Look up the daimyo-orion virtual key by alias
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/list?key_alias={{ litellm_daimyo_orion_alias }}&return_full_object=true"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+        status_code: [200]
+        return_content: true
+      register: litellm_daimyo_orion_key
+      no_log: true
+
+    - name: Check the daimyo-orion key is unique
+      ansible.builtin.assert:
+        that:
+          - litellm_daimyo_orion_key.json['keys'] | length == 1
+        fail_msg: "expected exactly one LiteLLM key with alias {{ litellm_daimyo_orion_alias }}"
+
+    - name: Scope the daimyo-orion virtual key to its MCP servers, without models
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ litellm_daimyo_orion_key.json['keys'][0].token }}"
+          models: ["no-default-models"]
+          object_permission:
+            mcp_servers: "{{ litellm_daimyo_orion_mcp_servers }}"
+        status_code: [200]
+      no_log: true
+
     # entries go. Delete by alias, idempotently: an alias with no live key is
     # a no-op, so this is safe to run repeatedly and before the SOPS removal.
     - name: Delete retired virtual keys by alias
