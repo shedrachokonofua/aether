@@ -1090,6 +1090,27 @@ resource "kubectl_manifest" "daimyo_qa_policy" {
   })
 }
 
+# Org `personal`: a user decides the approvals he is an assignee of. The
+# baseline only forbids non-assignees and grants read (daimyo baseline.cedar),
+# so without this even the session's own user gets 403. Orion resolves tool
+# approvals with his exchanged token from the thread's approval card.
+resource "kubectl_manifest" "daimyo_personal_approval_policy" {
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Policy"
+    metadata = {
+      name      = "approval-assignee"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      text = "permit (principal is User, action in [Action::\"approval::read\", Action::\"approval::resolve\"], resource is Approval) when { resource.assignees.contains(principal.name) || principal.groups.containsAny(resource.assignees) };"
+    }
+  })
+}
+
 # `researcher`: a declarative claude-code harness agent (no image of its own;
 # compiles onto config.harness.images["claude-code"], and harness revisions
 # skip attestation). Models through the sidecar's LiteLLM grant on
