@@ -210,12 +210,14 @@ locals {
       needsYou only if any source card does.
     EOT
     gitlab   = <<-EOT
-      Topic: gitlab. Call gitlab: failed pipelines on default branches and
-      open merge requests needing Shedrach's review. One card per failed
-      pipeline ("gitlab:pipeline:<project>:<ref>") and one summary card
-      "gitlab:merge-requests" when MRs wait. needsYou for failed pipelines
-      on default branches. Resolve pipeline keys that pass again (check the
-      latest pipeline state). A small orion-table of waiting MRs helps.
+      Topic: gitlab. Call gitlab once: it lists default branches whose newest
+      pipeline failed, and open merge requests needing Shedrach's review.
+      One card per failed pipeline ("gitlab:pipeline:<project>:<ref>") and
+      one summary card "gitlab:merge-requests" when MRs wait. needsYou for
+      failed pipelines on default branches. Any open gitlab:pipeline key the
+      tool no longer lists has passed or moved on: resolve it. Work only from
+      the tool's output; never open pipeline pages, job logs or the GitLab
+      API yourself. A small orion-table of waiting MRs helps.
     EOT
     todos    = <<-EOT
       Topic: todos. Call todos: open items from his Notes vault. Post ONE
