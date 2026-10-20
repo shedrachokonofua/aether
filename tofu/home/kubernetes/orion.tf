@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:58e205061e6bd689fcbf4adb5588b036d4bc034f"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:b794ee0c75c6d3474abe419156e97c07aa12f861"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -90,11 +90,21 @@ locals {
     # only writer (Recreate deploys, one replica). The agent's notes grant
     # authenticates with this token (openbao_daimyo.tf, orgs/personal/orion-notes).
     VAULT_DIR = "/vault/notes"
-    NOTES_MCP_TOKENS = jsonencode([{
-      token = var.orion_notes_mcp_token
-      name  = "Orion agent"
-      email = "orion-agent@home.shdr.ch"
-    }])
+    NOTES_MCP_TOKENS = jsonencode([
+      {
+        token = var.orion_notes_mcp_token
+        name  = "Orion agent"
+        email = "orion-agent@home.shdr.ch"
+      },
+      {
+        # The notes-keeper agent: keeperId confines its writes to keep:-marked
+        # sections and attributes its runs in Activity.
+        token    = var.orion_keeper_notes_mcp_token
+        name     = "Notes keeper"
+        email    = "notes-keeper@home.shdr.ch"
+        keeperId = "notes-keeper"
+      },
+    ])
     # Who may bulk-import into the vault (POST /api/notes/import).
     NOTES_IMPORT_ADMINS = "shedrachokonofua@gmail.com"
     # Feed agent → Orion's home MCP (/api/mcp/home); the orion-feed agent's
@@ -662,7 +672,9 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             }
             tools = [
               "notes_search", "notes_get", "notes_create", "notes_patch_block",
-              "notes_set_property", "notes_move", "notes_delete",
+              "notes_set_property", "notes_move", "notes_delete", "notes_query",
+              # Note sqlite sidecars and declared data sources (_sources/*.yaml).
+              "note_db_exec", "note_db_query", "source_list", "source_query",
             ]
           }
         },
@@ -810,6 +822,96 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
         description = "Shedrach's preferences, facts about his setup and decisions he has made."
       }]
       sessions  = { enabled = true, idleTtl = "4h", maxLifetime = "30d" }
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+# Notes v2 (orion docs/plans/notes-full.md N9/N10): one notes-keeper agent on
+# a static hourly schedule refreshes kept-current sections and evaluates
+# watches. Orion never creates schedules; notes_due decides whether any
+# section is actually due, and the server refuses a keeper write outside a
+# keep:-marked section (its token's keeperId).
+resource "kubectl_manifest" "daimyo_notes_keeper_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "notes-keeper"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "personal"
+      description = "Refreshes kept-current Notes sections and evaluates watches, hourly."
+      harness = {
+        kind  = "omp"
+        model = "moira/strong"
+        systemPrompt = trimspace(<<-EOT
+          You are the notes keeper for Shedrach's Markdown vault. Each run:
+          1. Call notes_due. It returns only the kept sections whose cadence
+             has elapsed, with the note path, heading, instructions and cadence.
+          2. For each entry, call notes_get for its path, follow its
+             instructions using sources you can verify (source_list and
+             source_query for his declared data sources; search_web, scrape and
+             parse_document for the web), and call notes_patch_block with
+             exactly that path and block. The content replaces the whole
+             section, so begin with its heading line. Edit nothing outside that
+             section; the server rejects it.
+          3. Then call notes_watches_run once to append newly matching watch
+             changes, and report what you changed and what it appended.
+          If a section cannot be refreshed from verifiable information, leave
+          it unchanged and say why in one line. Never create, move, rename or
+          delete notes, and never edit frontmatter.
+        EOT
+        )
+        tools    = { bash = false, files = true, web = false }
+        maxTurns = 60
+      }
+      resources = { cpu = "500m", memory = "1Gi", workspace = "512Mi" }
+      operations = [{
+        name           = "keep"
+        deadline       = "10m"
+        promptTemplate = "'Refresh every due kept-current section, then evaluate watches.'"
+      }]
+      schedules = [{
+        name      = "keep"
+        cron      = "0 * * * *"
+        timezone  = "America/Toronto"
+        operation = "keep"
+        overlap   = "skip"
+        jitter    = "300s"
+      }]
+      grants = [
+        { name = "models", model = { models = ["moira/strong"], budgetUsd = 1 } },
+        {
+          name = "notes"
+          mcp = {
+            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
+            auth = {
+              secret = {
+                secret = { path = "orgs/personal/orion-keeper-notes", key = "token" }
+                header = { name = "Authorization" }
+                prefix = "Bearer"
+              }
+            }
+            tools = [
+              "notes_due", "notes_get", "notes_patch_block", "notes_watches_run",
+              "source_list", "source_query",
+            ]
+          }
+        },
+        {
+          name = "web"
+          mcp = {
+            url   = "http://deskplane-mcp.deskplane.svc:8100/mcp"
+            auth  = { taskToken = { audience = "deskplane" } }
+            tools = ["search_web", "scrape", "parse_document"]
+          }
+        },
+      ]
       endpoints = { stable = { revision = "latest" } }
     }
   })

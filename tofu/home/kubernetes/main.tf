@@ -180,6 +180,12 @@ variable "orion_notes_mcp_token" {
   description = "Bearer token the orion agent's notes grant presents to Orion's /api/mcp/notes (openbao_daimyo.tf)"
 }
 
+variable "orion_keeper_notes_mcp_token" {
+  type        = string
+  sensitive   = true
+  description = "Bearer token the notes-keeper agent's notes grant presents to Orion's /api/mcp/notes (openbao_daimyo.tf)"
+}
+
 }
 
 variable "immich_oauth_client_secret" {

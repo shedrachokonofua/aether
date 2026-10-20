@@ -110,6 +110,23 @@ resource "vault_kv_secret_v2" "daimyo_orion_notes_mcp" {
   })
 }
 
+# The notes-keeper agent's own notes token: its keeperId (NOTES_MCP_TOKENS)
+# restricts writes to keep:-marked sections and attributes its runs, so it
+# must not share the orion agent's token.
+resource "random_password" "orion_keeper_notes_mcp" {
+  length  = 48
+  special = false
+}
+
+resource "vault_kv_secret_v2" "daimyo_orion_keeper_notes_mcp" {
+  mount = local.daimyo_kv_mount
+  name  = "orgs/personal/orion-keeper-notes"
+
+  data_json = jsonencode({
+    token = random_password.orion_keeper_notes_mcp.result
+  })
+}
+
 # Orion's `home` MCP (/api/mcp/home) takes a bearer token per grant
 # (HOME_MCP_TOKENS in kubernetes/orion.tf). The `orion-feed` agent's home
 # grant reads this copy through its `auth.secret`; the sidecar adds the header.
