@@ -1091,7 +1091,7 @@ locals {
     "orion" = {
       tier                    = "app"
       owner                   = "aether"
-      backup                  = "standard"
+      backup                  = "critical"
       exposure                = "internal"
       create_s3_backup_secret = false
       source_file             = "tofu/home/kubernetes/orion.tf"
