@@ -70,6 +70,12 @@ resource "vault_kv_secret_v2" "daimyo_org_placeholders" {
   data_json = jsonencode({
     token = ""
   })
+
+  # The org owner writes the real token with `bao kv put`; a later apply
+  # must not reset it to the placeholder.
+  lifecycle {
+    ignore_changes = [data_json]
+  }
 }
 
 # Bearer token Deskplane's MCP server requires on /mcp (kubernetes/deskplane.tf
