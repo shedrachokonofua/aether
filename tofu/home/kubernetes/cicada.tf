@@ -145,105 +145,19 @@ resource "kubernetes_secret_v1" "cicada_secrets" {
   }
 }
 
-
 # The chart owns daimyo-pg's `managed.roles` and Helm replaces that list, so
-# adding the cicada login there would drop daimyo_api and daimyo_engine. This
-# Job creates the role through the cluster superuser (Secret
-# daimyo-pg-superuser, which the chart points superuserSecret at). Its name
-# carries the password hash, so a password change reruns it. The password is
-# a psql variable, never interpolated into the SQL text.
-resource "kubernetes_job_v1" "cicada_db_role" {
-  depends_on = [helm_release.daimyo, kubernetes_secret_v1.cicada_db_credentials]
-
-  metadata {
-    name      = "cicada-db-role-${substr(sha256(random_password.cicada_db_password.result), 0, 8)}"
-    namespace = local.daimyo_ns
-    labels    = local.cicada_labels
-  }
-
-  spec {
-    backoff_limit              = 8
-    ttl_seconds_after_finished = 86400
-
-    template {
-      metadata {
-        labels = merge(local.cicada_labels, { "app.kubernetes.io/component" = "db-role" })
-      }
-      spec {
-        restart_policy                  = "OnFailure"
-        automount_service_account_token = false
-
-        # postgres user in ghcr.io/cloudnative-pg/postgresql (nss uid 26).
-        security_context {
-          run_as_non_root = true
-          run_as_user     = 26
-          run_as_group    = 26
-          seccomp_profile { type = "RuntimeDefault" }
-        }
-
-        container {
-          name              = "role"
-          image             = "ghcr.io/cloudnative-pg/postgresql:17"
-          image_pull_policy = "IfNotPresent"
-          command           = ["/bin/sh", "-c"]
-          args = [<<-SH
-            set -eu
-            export PGPASSWORD="$SUPERUSER_PASSWORD"
-            psql -h daimyo-pg-rw -U postgres -d postgres -v ON_ERROR_STOP=1 \
-              -v cicada_password="$CICADA_PASSWORD" <<'SQL'
-            DO $$
-            BEGIN
-              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'cicada') THEN
-                EXECUTE format('CREATE ROLE cicada LOGIN PASSWORD %L', :'cicada_password');
-              ELSE
-                EXECUTE format('ALTER ROLE cicada PASSWORD %L', :'cicada_password');
-              END IF;
-            END
-            $$;
-            SQL
-          SH
-          ]
-
-          env {
-            name = "SUPERUSER_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = "daimyo-pg-superuser"
-                key  = "password"
-              }
-            }
-          }
-          env {
-            name = "CICADA_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.cicada_db_credentials.metadata[0].name
-                key  = "password"
-              }
-            }
-          }
-
-          security_context {
-            allow_privilege_escalation = false
-            read_only_root_filesystem  = true
-            run_as_non_root            = true
-            capabilities { drop = ["ALL"] }
-          }
-
-          resources {
-            requests = { cpu = "20m", memory = "64Mi" }
-            limits   = { memory = "256Mi" }
-          }
-        }
-      }
-    }
-  }
-
-  wait_for_completion = false
-}
-
+# adding the cicada login there would drop daimyo_api and daimyo_engine; and
+# the cluster has no superuser Secret (superuser access is off). The role was
+# created once on the primary over the local socket, with the password from
+# Secret daimyo-system/cicada-db-credentials (rerun after rotating it):
+#   P=$(kubectl get pods -n daimyo-system -l cnpg.io/cluster=daimyo-pg,cnpg.io/instanceRole=primary -o name)
+#   PW=$(kubectl get secret -n daimyo-system cicada-db-credentials -o jsonpath='{.data.password}' | base64 -d)
+#   kubectl exec -i -n daimyo-system "$P" -c postgres -- psql -U postgres -v ON_ERROR_STOP=1 -v pw="$PW" <<'SQL'
+#   SELECT format('CREATE ROLE cicada LOGIN PASSWORD %L', :'pw') WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cicada') \gexec
+#   SELECT format('ALTER ROLE cicada LOGIN PASSWORD %L', :'pw') \gexec
+#   SQL
 resource "kubectl_manifest" "cicada_db" {
-  depends_on = [kubernetes_job_v1.cicada_db_role]
+  depends_on = [kubernetes_secret_v1.cicada_db_credentials]
 
   yaml_body = yamlencode({
     apiVersion = "postgresql.cnpg.io/v1"
