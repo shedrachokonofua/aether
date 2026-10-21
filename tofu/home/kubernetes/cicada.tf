@@ -11,9 +11,8 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # PENDING_CI_DIGEST: the first main pipeline's `image.digest` artifact.
-  # Replace this sentinel before the first apply; a pull of it fails closed.
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  # so/cicada main 77d58ca, pipeline 7535 job build-image (image.digest).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:a33856f1bff7d883ad990250fa0d5c6cfbc412a2cb592da1f16958c178ec99ed"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
