@@ -2028,6 +2028,32 @@ resource "keycloak_openid_audience_protocol_mapper" "daimyo_smoke_audience" {
   add_to_access_token      = true
 }
 
+# Cicada's machine principal (daimyo org `cicada`, issuer entry azp=cicada,
+# prefix svc:): client-credentials only, aud=daimyo. The secret is a tofu
+# output (home output keycloak_cicada_client_secret); read it with
+# `tofu output -raw keycloak_cicada_client_secret` from tofu/home.
+resource "keycloak_openid_client" "cicada" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "cicada"
+  name      = "Cicada"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "cicada_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.cicada.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
+  add_to_access_token      = true
+}
+
 # Open WebUI forwards the signed-in user's access token through LiteLLM's MCP
 # gateway to pop (litellm_config.yaml.tftpl `pop`, auth_type oauth_delegate;
 # kubernetes/openwebui.tf LiteLLM connection is system_oauth). pop's aether
