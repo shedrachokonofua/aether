@@ -714,6 +714,18 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         },
         ], [
+        # Cicada's MCP (cicada.tf `[agents] mcp_url`). Only the cicada org's
+        # task pods; the matching ingress is cicada_ingress.
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "cicada"
+              "io.kubernetes.pod.namespace" = "cicada"
+            }
+          }]
+          toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
+        } if org == "cicada"
+        ], [
         # Deskplane's MCP server (the researcher agent's `web` MCP grant;
         # no client auth, so this rule and deskplane_mcp_daimyo_ingress are
         # the whole access boundary). local.daimyo_deskplane_orgs only.
