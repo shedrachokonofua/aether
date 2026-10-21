@@ -231,6 +231,24 @@ locals {
         "aether.shdr.ch/data" = "rebuildable"
       }
     }
+    "cicada" = {
+      tier                    = "app",
+      owner                   = "cicada",
+      backup                  = "none",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Cicada software factory (ledger on daimyo-pg)",
+      source_file             = "tofu/home/kubernetes/cicada.tf",
+      registry_access         = "gitlab",
+      hostnames = [
+        "cicada.home.shdr.ch",
+      ],
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "cicada"
+      }
+    }
+
     "colony" = {
       tier  = "guest",
       owner = "colony",
@@ -1412,6 +1430,8 @@ locals {
   # consumed by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
+    # GET / is not a route; /ui/config.json is the public sign-in config.
+    "cicada.home.shdr.ch"      = "/ui/config.json"
     "antigravity.home.shdr.ch" = "/health"
     "colony.home.shdr.ch"      = "/health"
     "docling.home.shdr.ch"     = "/health"
