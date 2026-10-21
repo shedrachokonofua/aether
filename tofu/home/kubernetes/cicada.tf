@@ -66,8 +66,12 @@ locals {
 # uncommitted changes). Before the first plan:
 #   bao kv put kv/cicada/gitlab \
 #     token="$(cat ~/.config/cicada/gitlab-token)" \
-#     client_secret="$(tofu -chdir=tofu/home output -raw keycloak_cicada_client_secret)"
+#     client_secret="$(tofu -chdir=tofu/home output -raw keycloak_cicada_client_secret)" \
+#     webhook_token="$(cat ~/.config/cicada/gitlab-webhook-token)"
 # `token` is the lander token: api scope, Maintainer on so/cicada.
+# `webhook_token` is the secret of so/cicada's project hook 10
+# (https://cicada.home.shdr.ch/hooks/gitlab; merge request, pipeline, push
+# and note events), which already exists; GitLab sends it as X-Gitlab-Token.
 data "vault_kv_secret_v2" "cicada_gitlab" {
   mount = "kv"
   name  = "cicada/gitlab"
@@ -75,14 +79,6 @@ data "vault_kv_secret_v2" "cicada_gitlab" {
 
 resource "random_password" "cicada_db_password" {
   length  = 32
-  special = false
-}
-
-# GitLab sends this as X-Gitlab-Token on the so/cicada project hook. This
-# repo has no GitLab provider, so creating the hook is an operator step;
-# the value to paste is this resource's result.
-resource "random_password" "cicada_gitlab_webhook_token" {
-  length  = 48
   special = false
 }
 
@@ -145,7 +141,7 @@ resource "kubernetes_secret_v1" "cicada_secrets" {
     "cicada.toml"          = local.cicada_config
     "daimyo-client-secret" = data.vault_kv_secret_v2.cicada_gitlab.data["client_secret"]
     "gitlab-token"         = data.vault_kv_secret_v2.cicada_gitlab.data["token"]
-    "gitlab-webhook-token" = random_password.cicada_gitlab_webhook_token.result
+    "gitlab-webhook-token" = data.vault_kv_secret_v2.cicada_gitlab.data["webhook_token"]
   }
 }
 
