@@ -521,8 +521,10 @@ locals {
 # LiteLLM grant on moira/strong (Orion remaps per-function models through
 # Moira aliases, not per turn); web research through Deskplane's MCP server,
 # the same grant and network path as `researcher` (daimyo.tf); a per-user
-# `personal` memory store, created on first use. 1 CPU: cold starts are
-# ~4.5 s at 1 CPU vs ~7 s at 250m.
+# `personal` memory store, created on first use. 1 CPU limit: cold starts are
+# ~4.5 s at 1 CPU vs ~7 s at 250m. Requests sit far below the limits because a
+# session pod idles most of its life (7 days, 23 pods: median 0.06 CPU /
+# 512 MiB, p90 peak 0.84 CPU / 773 MiB), so idle threads stay cheap to keep warm.
 resource "kubectl_manifest" "daimyo_orion_agent" {
   depends_on = [kubectl_manifest.daimyo_project]
 
@@ -631,7 +633,12 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
         tools    = { bash = true, files = true, web = false }
         maxTurns = 200
       }
-      resources  = { cpu = "1", memory = "2Gi", workspace = "2Gi" }
+      resources = {
+        cpu       = "1"
+        memory    = "2Gi"
+        workspace = "2Gi"
+        requests  = { cpu = "100m", memory = "768Mi" }
+      }
       operations = [{ name = "chat", deadline = "2h" }]
       grants = concat([
         { name = "models", model = { models = ["moira/strong"], budgetUsd = 5 } },
