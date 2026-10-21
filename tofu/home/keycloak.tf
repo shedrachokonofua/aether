@@ -2054,6 +2054,62 @@ resource "keycloak_openid_audience_protocol_mapper" "cicada_audience" {
   add_to_access_token      = true
 }
 
+# The operator's sign-in to Cicada: the web UI (authorization code + PKCE)
+# and the CLI (`cicada login`, device grant). Public client; its access
+# tokens carry aud=cicada so Cicada's API verifier accepts them, and Cicada
+# admits only the preferred_username values it is configured with.
+resource "keycloak_openid_client" "cicada_operator" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "cicada-operator"
+  name      = "Cicada (operator)"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  pkce_code_challenge_method   = "S256"
+
+  oauth2_device_authorization_grant_enabled = true
+
+  root_url = "https://cicada.home.shdr.ch"
+  base_url = "https://cicada.home.shdr.ch/ui/"
+
+  valid_redirect_uris = [
+    "https://cicada.home.shdr.ch/ui/*",
+    "http://127.0.0.1:8080/ui/*",
+  ]
+
+  valid_post_logout_redirect_uris = [
+    "https://cicada.home.shdr.ch/ui/",
+    "http://127.0.0.1:8080/ui/",
+  ]
+
+  web_origins = [
+    "https://cicada.home.shdr.ch",
+    "http://127.0.0.1:8080",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "cicada_operator_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.cicada_operator.id
+
+  default_scopes = [
+    "profile",
+    "email",
+  ]
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "cicada_operator_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.cicada_operator.id
+  name      = "cicada-audience"
+
+  included_client_audience = keycloak_openid_client.cicada.client_id
+  add_to_access_token      = true
+}
+
 # Open WebUI forwards the signed-in user's access token through LiteLLM's MCP
 # gateway to pop (litellm_config.yaml.tftpl `pop`, auth_type oauth_delegate;
 # kubernetes/openwebui.tf LiteLLM connection is system_oauth). pop's aether
