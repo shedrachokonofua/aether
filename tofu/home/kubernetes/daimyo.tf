@@ -99,7 +99,7 @@ locals {
   # aether's LiteLLM config (litellm_config.yaml.tftpl): a cheap real alias
   # so key minting succeeds even though echo never calls the model.
   daimyo_echo_model = "moira/flash"
-  daimyo_orgs       = toset(["personal", "seven30", "qa"])
+  daimyo_orgs       = toset(["personal", "seven30", "qa", "cicada"])
   # Orgs whose tasks reach Deskplane's MCP server (daimyo_tasks_egress and
   # deskplane_mcp_daimyo_ingress).
   daimyo_deskplane_orgs = ["personal", "qa"]
@@ -179,7 +179,7 @@ resource "kubernetes_secret_v1" "daimyo_registry" {
 # cross-namespace secret references do not exist.
 resource "kubernetes_secret_v1" "daimyo_tasks_registry" {
   for_each   = local.daimyo_orgs
-  depends_on = [module.namespace["personal-tasks"], module.namespace["seven30-tasks"], module.namespace["qa-tasks"]]
+  depends_on = [module.namespace["personal-tasks"], module.namespace["seven30-tasks"], module.namespace["qa-tasks"], module.namespace["cicada-tasks"]]
 
   metadata {
     name      = "daimyo-gitlab-registry"
@@ -347,7 +347,7 @@ resource "kubernetes_secret_v1" "daimyo_s3" {
 resource "terraform_data" "daimyo_buckets" {
   depends_on = [random_password.daimyo_s3_access_key, random_password.daimyo_s3_secret_key]
 
-  triggers_replace = ["daimyo-personal,daimyo-seven30,daimyo-qa,daimyo-backups"]
+  triggers_replace = ["daimyo-personal,daimyo-seven30,daimyo-qa,daimyo-cicada,daimyo-backups"]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -362,7 +362,7 @@ resource "terraform_data" "daimyo_buckets" {
       AWS_DEFAULT_REGION        = "us-east-1"
       AWS_EC2_METADATA_DISABLED = "true"
       S3_ENDPOINT               = local.daimyo_s3_endpoint
-      S3_BUCKETS                = "daimyo-personal daimyo-seven30 daimyo-qa daimyo-backups"
+      S3_BUCKETS                = "daimyo-personal daimyo-seven30 daimyo-qa daimyo-cicada daimyo-backups"
     }
   }
 }
@@ -380,9 +380,11 @@ resource "helm_release" "daimyo" {
     module.namespace["org-personal"],
     module.namespace["org-seven30"],
     module.namespace["org-qa"],
+    module.namespace["org-cicada"],
     module.namespace["personal-tasks"],
     module.namespace["seven30-tasks"],
     module.namespace["qa-tasks"],
+    module.namespace["cicada-tasks"],
     kubernetes_secret_v1.daimyo_registry,
     kubernetes_secret_v1.daimyo_tasks_registry,
     kubernetes_secret_v1.daimyo_postgres,
@@ -517,6 +519,7 @@ resource "helm_release" "daimyo" {
       { name = "personal" },
       { name = "seven30" },
       { name = "qa" },
+      { name = "cicada" },
     ]
     # The chart's pre-upgrade hook migrates before any server pod rolls
     # (d58a660): `serve --roles none --migrate` with only the DB secrets, no
@@ -891,7 +894,7 @@ resource "kubectl_manifest" "daimyo_org" {
       {
         # personal: only shdrch. qa: any aether-realm principal (the
         # daimyo-smoke client drives the e2e campaign there).
-        issuers = contains(["personal", "qa"], each.key) ? [
+        issuers = contains(["personal", "qa", "cicada"], each.key) ? [
           merge(
             {
               issuer    = "https://auth.shdr.ch/realms/aether"
@@ -899,7 +902,7 @@ resource "kubectl_manifest" "daimyo_org" {
               principal = { claim = "preferred_username", prefix = "user:" }
               groups    = { claim = "groups" }
             },
-            each.key == "personal" ? { requiredClaims = { preferred_username = "shdrch" } } : {},
+            contains(["personal", "cicada"], each.key) ? { requiredClaims = { preferred_username = "shdrch" } } : {},
           ),
         ] : []
         namespaces = { config = "org-${each.key}", tasks = "${each.key}-tasks" }
@@ -923,7 +926,27 @@ resource "kubectl_manifest" "daimyo_org" {
             requiredClaims = { namespace_path = "seven30*" }
           },
         ]
-      } : {}
+      } : {},
+      # cicada: the operator (above) plus the cicada service account. One
+      # issuer URL may appear twice; a prefix other than `user:` maps to a
+      # Service principal (daimyo-identity authenticator.rs).
+      each.key == "cicada" ? {
+        issuers = [
+          {
+            issuer         = "https://auth.shdr.ch/realms/aether"
+            audiences      = ["daimyo"]
+            principal      = { claim = "preferred_username", prefix = "user:" }
+            groups         = { claim = "groups" }
+            requiredClaims = { preferred_username = "shdrch" }
+          },
+          {
+            issuer         = "https://auth.shdr.ch/realms/aether"
+            audiences      = ["daimyo"]
+            principal      = { claim = "azp", prefix = "svc:" }
+            requiredClaims = { azp = "cicada" }
+          },
+        ]
+      } : {},
     )
   })
 }
@@ -945,6 +968,7 @@ resource "kubectl_manifest" "daimyo_project" {
         personal = "Personal agents."
         seven30  = "Seven30 agents."
         qa       = "End-to-end test campaign agents."
+        cicada   = "Cicada software factory agents."
       }[each.key]
     }
   })
@@ -1093,6 +1117,63 @@ resource "kubectl_manifest" "daimyo_qa_policy" {
       labels    = local.daimyo_qa_labels
     }
     spec = { text = each.value }
+  })
+}
+
+# Org `cicada`: the cicada service account (Service principal `svc:cicada`,
+# entity uid Service::"svc:cicada", attributes name and sub both "svc:cicada")
+# writes Agents and drives sandboxes and sessions. The baseline already
+# permits a Service agent::read, task::read, task::cancel, session::create
+# and artifact::read; these cover the rest, and only this one principal.
+resource "kubectl_manifest" "daimyo_cicada_policy" {
+  for_each = {
+    "service-agents"   = "permit (principal == Service::\"svc:cicada\", action in [Action::\"agent::create\", Action::\"agent::update\", Action::\"agent::delete\", Action::\"agent::read\"], resource is Agent);"
+    "service-sandboxes" = "permit (principal == Service::\"svc:cicada\", action in [Action::\"sandbox::create\", Action::\"sandbox::use\", Action::\"sandbox::delete\"], resource);"
+    # session::create targets an Operation; use/read/close target the Session.
+    "service-sessions"  = "permit (principal == Service::\"svc:cicada\", action in [Action::\"session::create\", Action::\"session::use\", Action::\"session::read\", Action::\"session::close\"], resource);"
+    "service-tasks"     = "permit (principal == Service::\"svc:cicada\", action in [Action::\"task::read\", Action::\"task::cancel\"], resource is Task);"
+    "service-artifacts" = "permit (principal == Service::\"svc:cicada\", action == Action::\"artifact::read\", resource is Artifact);"
+  }
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Policy"
+    metadata = {
+      name      = each.key
+      namespace = "org-cicada"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = { text = each.value }
+  })
+}
+
+# `model-allowlist`: a live Agent whose model grant is the set API-managed
+# Cicada agents may grant (daimyo-api managed.rs unions spec.grants[].model.models
+# over the org's live Agents). Never invoked.
+resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "model-allowlist"
+      namespace = "org-cicada"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "cicada"
+      description = "Exists only so API-managed Cicada agents may grant these models. Never invoked."
+      harness = {
+        kind  = "omp"
+        model = "moira/strong"
+        tools = {}
+      }
+      grants = [
+        { name = "models", model = { models = ["moira/frontier", "moira/strong", "moira/flash"], budgetUsd = 1 } },
+      ]
+    }
   })
 }
 

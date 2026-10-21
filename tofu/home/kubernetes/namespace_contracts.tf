@@ -325,6 +325,19 @@ locals {
         "app.kubernetes.io/part-of"    = "daimyo"
       }
     }
+    "org-cicada" = {
+      tier                    = "guest",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Daimyo org-cicada CRDs (spec §6.1)"
+      source_file             = "tofu/home/kubernetes/daimyo.tf"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
     "personal-tasks" = {
       tier                    = "sandbox",
       owner                   = "daimyo",
@@ -358,6 +371,19 @@ locals {
       exposure                = "none",
       create_s3_backup_secret = false,
       description             = "Daimyo qa task pods (Kata, e2e test campaign, spec §18.1)"
+      source_file             = "tofu/home/kubernetes/daimyo.tf"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
+    "cicada-tasks" = {
+      tier                    = "sandbox",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Daimyo cicada task pods (Kata, spec §18.1)"
       source_file             = "tofu/home/kubernetes/daimyo.tf"
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
