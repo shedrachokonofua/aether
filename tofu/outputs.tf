@@ -179,6 +179,12 @@ output "keycloak_cicada_client_secret" {
   sensitive   = true
 }
 
+output "keycloak_cicada_automation_client_secret" {
+  description = "Keycloak client secret for the cicada-automation operator service account (client credentials, realm aether)"
+  value       = module.home.keycloak_cicada_automation_client_secret
+  sensitive   = true
+}
+
 # AWS OIDC Federation (for task login)
 output "keycloak_oidc_provider_arn" {
   description = "ARN of the Keycloak OIDC identity provider in AWS"

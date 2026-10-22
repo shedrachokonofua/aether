@@ -121,12 +121,30 @@ locals {
     "files.pythonhosted.org",
     "s3.seaweed.home.shdr.ch",
   ]
+  # Cicada's ci_exec sandboxes build the repositories it runs (cicada.tf):
+  # crates, Go modules and the pinned tool downloads (wasi-sdk, cmake,
+  # componentize-py from GitHub releases; the SQLite amalgamation). Task pods
+  # share the allow; they have no toolchain to use it with.
+  daimyo_cicada_build_fqdns = [
+    "index.crates.io",
+    "static.crates.io",
+    "crates.io",
+    "github.com",
+    "codeload.github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+    "proxy.golang.org",
+    "sum.golang.org",
+    "storage.googleapis.com",
+    "www.sqlite.org",
+  ]
   daimyo_tasks_fqdns = {
     for org in local.daimyo_orgs : org => concat(
       local.daimyo_tasks_fqdns_common,
       contains(local.daimyo_deskplane_orgs, org) ? [local.deskplane_host] : [],
       contains(local.daimyo_pop_orgs, org) ? ["pop.home.shdr.ch"] : [],
       contains(local.trip_planner_orgs, org) ? local.trip_planner_public_mcp_hosts : [],
+      org == "cicada" ? local.daimyo_cicada_build_fqdns : [],
     )
   }
   daimyo_s3_region   = "us-east-1"
@@ -726,6 +744,13 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
         } if org == "cicada"
         ], [
+        # Cicada's ci_exec sandboxes fetch crates, Go modules and pinned
+        # tools (local.daimyo_cicada_build_fqdns).
+        for org in [each.key] : {
+          toFQDNs = [for host in local.daimyo_cicada_build_fqdns : { matchName = host }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
+        } if org == "cicada"
+        ], [
         # Deskplane's MCP server (the researcher agent's `web` MCP grant;
         # no client auth, so this rule and deskplane_mcp_daimyo_ingress are
         # the whole access boundary). local.daimyo_deskplane_orgs only.
@@ -1187,6 +1212,50 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
       ]
     }
   })
+}
+
+# Cicada's ci_exec sandboxes, one class per repository (its workflow's
+# `[ci] sandbox_class`). Images are so/cicada deploy/sandboxes/<repo>, built
+# by its build-sandboxes job; pin the digest that job prints. Sizes are in
+# local.daimyo_cicada_sandbox_classes, against cicada-tasks' sandbox-tier
+# quota.
+resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
+  for_each   = local.daimyo_cicada_sandbox_classes
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "SandboxClass"
+    metadata = {
+      name      = each.key
+      namespace = "org-cicada"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      image      = each.value.image
+      resources  = each.value.resources
+      defaultTtl = "8h"
+      maxTtl     = "24h"
+    }
+  })
+}
+
+locals {
+  daimyo_cicada_sandbox_classes = {
+    # so/molecule: wasmtime and the component recipes are heavy builds.
+    # workspace is daimyo's 20Gi maximum. A sandbox requests its whole
+    # cpu/memory, and cicada-tasks' quota caps requests at 8 CPU / 16Gi, so
+    # both classes together leave 1 CPU / 3Gi for writer and lens pods.
+    molecule = {
+      image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-molecule@sha256:f02e29ef98e653e45d13a06ebd03293072098ef66662e637a77556b9fee28c69"
+      resources = { cpu = "4", memory = "7Gi", workspace = "20Gi" }
+    }
+    # so/turmeric: cargo, Go, bun, Chromium, NATS and ClickHouse in one pod.
+    turmeric = {
+      image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-turmeric@sha256:ab650c338e7b999e0f207c36fac66258b70599109246df46c3f2012a0a199520"
+      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi" }
+    }
+  }
 }
 
 # Org `personal`: a user decides the approvals he is an assignee of. The

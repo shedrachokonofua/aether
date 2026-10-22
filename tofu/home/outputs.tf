@@ -57,6 +57,12 @@ output "keycloak_cicada_client_secret" {
   sensitive   = true
 }
 
+output "keycloak_cicada_automation_client_secret" {
+  description = "Keycloak client secret for the cicada-automation operator service account (client credentials, realm aether)"
+  value       = keycloak_openid_client.cicada_automation.client_secret
+  sensitive   = true
+}
+
 output "keycloak_ceph_rgw_client_id" {
   value = keycloak_openid_client.ceph_rgw.client_id
 }

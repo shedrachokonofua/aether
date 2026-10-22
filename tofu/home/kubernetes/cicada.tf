@@ -11,8 +11,8 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 77d58ca, pipeline 7535 job build-image (image.digest).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:a33856f1bff7d883ad990250fa0d5c6cfbc412a2cb592da1f16958c178ec99ed"
+  # so/cicada main 7da103f, pipeline 7575 job build-image (image.digest).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:8a9bf34ff2bef8c255194ea5d437328a2a9427987f74957725b1213c06020532"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
@@ -44,6 +44,12 @@ locals {
     token_file = "/etc/cicada/secrets/gitlab-token"
     webhook_token_file = "/etc/cicada/secrets/gitlab-webhook-token"
 
+    # Every repository's writers run in the one daimyo project `cicada`
+    # (daimyo.tf daimyo_project), not a project per repository.
+    [projects]
+    "so/molecule" = "cicada"
+    "so/turmeric" = "cicada"
+
     [agents]
     # As pods in cicada-tasks reach this Service.
     mcp_url = "http://cicada.cicada.svc.cluster.local:8080/mcp"
@@ -54,7 +60,9 @@ locals {
     [auth]
     issuer = "https://auth.shdr.ch/realms/aether"
     audience = "cicada"
-    operators = ["shdrch"]
+    # shdrch signs in through cicada-operator; the automation client
+    # (keycloak.tf cicada_automation) acts for the operator from scripts.
+    operators = ["shdrch", "service-account-cicada-automation"]
     ui_client_id = "cicada-operator"
   TOML
 }
@@ -65,13 +73,18 @@ locals {
 # editing main.tf and talos_cluster.tf, both of which have unrelated
 # uncommitted changes). Before the first plan:
 #   bao kv put kv/cicada/gitlab \
-#     token="$(cat ~/.config/cicada/gitlab-token)" \
+#     token="$(cat ~/.config/cicada/group-lander-token)" \
 #     client_secret="$(tofu -chdir=tofu/home output -raw keycloak_cicada_client_secret)" \
 #     webhook_token="$(cat ~/.config/cicada/gitlab-webhook-token)"
-# `token` is the lander token: api scope, Maintainer on so/cicada.
-# `webhook_token` is the secret of so/cicada's project hook 10
+# `token` is the lander token: group access token cicada-lander on group `so`
+# (api scope, Maintainer), so one token reaches every repository Cicada runs.
+# The writers' git token is kv/orgs/cicada/gitlab `token`: group access token
+# cicada-writer on `so` (read/write_repository, Developer); daimyo mints the
+# writers' git grants from it.
+# `webhook_token` is the secret of every Cicada repository's project hook
 # (https://cicada.home.shdr.ch/hooks/gitlab; merge request, pipeline, push
-# and note events), which already exists; GitLab sends it as X-Gitlab-Token.
+# and note events: so/cicada hook 10, so/molecule, so/turmeric); GitLab sends
+# it as X-Gitlab-Token.
 data "vault_kv_secret_v2" "cicada_gitlab" {
   mount = "kv"
   name  = "cicada/gitlab"
