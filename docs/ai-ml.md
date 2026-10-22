@@ -448,6 +448,17 @@ requests through the workload's tunnel. `deskplane.tf` trusts Daimyo task
 tokens for `personal`, `qa` and `seven30`; the Ivy project, CI deployment
 permission and model ceiling are declared in `daimyo.tf`.
 
+Deskplane's transient browser lifecycle uses a 15-minute controller idle lease,
+independent of its maximum TTL. Real API/proxy/MCP activity renews persisted
+`status.lastSeenAt`, so MCP rollout or caller-registry loss cannot reset idle age.
+Task browser requests reuse matching sessions belonging to the exact task actor;
+cleanup is not agent-wide. Daimyo explicitly calls authenticated
+`POST /api/sessions/release` at task termination and retries failed releases;
+the idle lease remains the fallback. Persistent sessions and the two
+`svc:deskplane-mcp` reserved web-pool sessions are excluded from idle/release
+cleanup. Pool TTL rotation and closed-CDP reconnection happen before serving
+requests rather than returning a stale connection error to Orion.
+
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by
 `ansible/playbooks/register_litellm_virtual_keys.yml`). OpenWebUI's native MCP
