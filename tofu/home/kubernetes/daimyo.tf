@@ -1011,6 +1011,28 @@ resource "kubectl_manifest" "daimyo_project" {
   })
 }
 
+# Cicada names its agents `writer`, `planner` and `lens-<name>` per daimyo
+# project, so each repository it runs needs its own project (Cicada's
+# default: the repository path's last segment). so/cicada uses `cicada`
+# above. The org's policies and model allowlist are project-independent.
+resource "kubectl_manifest" "daimyo_cicada_repo_project" {
+  for_each   = toset(["molecule", "turmeric"])
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Project"
+    metadata = {
+      name      = each.key
+      namespace = "org-cicada"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      description = "Cicada agents for so/${each.key}."
+    }
+  })
+}
+
 resource "kubectl_manifest" "daimyo_echo_bundle" {
   depends_on = [kubectl_manifest.daimyo_project]
 
