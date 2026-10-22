@@ -65,11 +65,11 @@ locals {
   # 0040), bounded sidecar memory and file routes that wait for a starting
   # pod (97e9437), lost agent streams, model slots, the cold-resume histogram
   # and session file PUT (d172f36). Migrations through 0040.
-  # Server d49dd90 (pipeline 7603): the task sidecar's memory limit is 256Mi
-  # (request 64Mi); 64Mi killed busy Cicada writers' sidecars every few
-  # minutes. Before that 3f04716 and the history above.
-  daimyo_server_tag  = "sha256:46305dfa45140ec50c0a227ad3afdfbb1062e81528924f1d1bab040814b6ef93"
-  daimyo_sidecar_tag = "sha256:abb4b22c8e561fd73f8c5ac20e6173bb727df341b83ccad7223ff8c0e193b7b3"
+  # Server and sidecar af132ff (pipeline 7609): HTTP GrantAuth task tokens,
+  # attested custom harness images and image-bundled skills. Keeps d49dd90's
+  # 256Mi sidecar memory limit (request 64Mi).
+  daimyo_server_tag  = "sha256:edf078e77e30fc3aed6036f6851b14eae842bbdb85202a7032c240585ef94ac1"
+  daimyo_sidecar_tag = "sha256:dd3bb56d43966228380ac5408153ea38e54ac29791bde29d9ae82e40f62b7055"
   # Built-in harness images (Helm config.harness.images). claude-code, omp and
   # workflow-runner at 3f04716 (release-1021a, pre-spawned session CLI); before
   # that claude-code and omp at c694ac8 (tag release-1014b, pipeline 6918); before that 3b8f263: a hot session keeps one
