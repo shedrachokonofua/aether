@@ -451,8 +451,12 @@ permission and model ceiling are declared in `daimyo.tf`.
 Deskplane's transient browser lifecycle uses a 15-minute controller idle lease,
 independent of its maximum TTL. Real API/proxy/MCP activity renews persisted
 `status.lastSeenAt`, so MCP rollout or caller-registry loss cannot reset idle age.
-Task browser requests reuse matching sessions belonging to the exact task actor;
-cleanup is not agent-wide. Daimyo explicitly calls authenticated
+MCP allocation reuses matching browsers belonging to the exact task actor; cleanup
+is not agent-wide. REST `POST /api/sessions` retains create semantics. Ivy's HTTP
+grant calls this route directly, so its client should retain/reuse session names
+and stop obsolete browsers rather than allocate another on reconnection. This
+avoids silently sharing browser page state between parallel REST consumers.
+Daimyo explicitly calls authenticated
 `POST /api/sessions/release` at task termination and retries failed releases;
 the idle lease remains the fallback. Persistent sessions and the two
 `svc:deskplane-mcp` reserved web-pool sessions are excluded from idle/release
