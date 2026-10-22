@@ -472,11 +472,12 @@ Ready and `poolReserved`, a visible bootstrap-pending gauge/log accompanies
 protection of actor-less, undelegated MCP-service sessions. A durable namespace
 ConfigMap records completion, so neither restarts nor a pool's four-hour TTL
 replacement resets the transition. Once complete, unreserved service canaries
-expire from their original persisted activity timestamp. The pool initializes
-lazily on a normal scrape; if bootstrap remains pending after that, correct pool
-settings/connectivity/capacity through IaC rather than manipulating reservations
-or the marker with `kubectl`. Switching back to observe disables idle enforcement
-without changing activity recording or maximum TTL enforcement.
+expire from their original persisted activity timestamp. MCP startup reserves both
+engines before readiness or its idle reapers start. If bootstrap remains pending,
+inspect `deskplane_pool_bootstrap_pending` and correct pool settings, connectivity,
+or capacity through IaC rather than manipulating reservations or the marker with
+`kubectl`. Switching back to observe disables idle enforcement without changing
+activity recording or maximum TTL enforcement.
 
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by
