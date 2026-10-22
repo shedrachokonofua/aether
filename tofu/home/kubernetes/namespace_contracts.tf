@@ -406,6 +406,8 @@ locals {
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "daimyo"
+        # kyverno.tf namespace_resourcequota_sandbox_large: build sandboxes.
+        "aether.shdr.ch/quota-profile" = "sandbox-large"
       }
     }
     "colony-sandboxes" = {

@@ -1348,6 +1348,20 @@ locals {
     "pods"                   = "20"
   }
 
+  # Sandbox namespaces that run builds, selected by the namespace label
+  # aether.shdr.ch/quota-profile = sandbox-large (cicada-tasks: Cicada's
+  # writers, review lenses and ci_exec build sandboxes, which request their
+  # whole cpu/memory).
+  namespace_resourcequota_sandbox_large = {
+    "requests.cpu"           = "20"
+    "requests.memory"        = "40Gi"
+    "limits.cpu"             = "32"
+    "limits.memory"          = "64Gi"
+    "requests.storage"       = "200Gi"
+    "persistentvolumeclaims" = "10"
+    "pods"                   = "30"
+  }
+
   namespace_resourcequota_tenant = {
     "requests.cpu"           = "32"
     "requests.memory"        = "64Gi"
@@ -1425,6 +1439,10 @@ resource "kubectl_manifest" "kyverno_namespace_resourcequota" {
         {
           name       = "quotaHard"
           expression = <<-EOT
+            object.metadata.labels["aether.shdr.ch/tier"] == "sandbox" &&
+            "aether.shdr.ch/quota-profile" in object.metadata.labels &&
+            object.metadata.labels["aether.shdr.ch/quota-profile"] == "sandbox-large" ?
+              dyn(${jsonencode(local.namespace_resourcequota_sandbox_large)}) :
             object.metadata.labels["aether.shdr.ch/tier"] == "sandbox" ?
               dyn(${jsonencode(local.namespace_resourcequota_sandbox)}) :
             object.metadata.labels["aether.shdr.ch/tier"] == "tenant" ?
