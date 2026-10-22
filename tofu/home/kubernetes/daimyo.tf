@@ -1343,17 +1343,17 @@ locals {
   daimyo_cicada_sandbox_classes = {
     # so/molecule: wasmtime and the component recipes are heavy builds.
     # workspace is daimyo's 20Gi maximum. A sandbox requests its whole
-    # cpu/memory; cicada-tasks' sandbox-large quota (kyverno.tf, requests
-    # 20 CPU / 40Gi) holds both classes plus writer and lens pods (1 CPU,
-    # 2Gi each).
+    # cpu/memory (daimyo G13), and the amd64 nodes run at ~90% of their CPU
+    # requests (2026-10-22: neo had 3.6 CPU free, the rest less), so a class
+    # asking 4-6 CPU never scheduled. 3 CPU fits; the quota is not the limit.
     molecule = {
       image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-molecule@sha256:f02e29ef98e653e45d13a06ebd03293072098ef66662e637a77556b9fee28c69"
-      resources = { cpu = "6", memory = "12Gi", workspace = "20Gi" }
+      resources = { cpu = "3", memory = "8Gi", workspace = "20Gi" }
     }
     # so/turmeric: cargo, Go, bun, Chromium, NATS and ClickHouse in one pod.
     turmeric = {
       image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-turmeric@sha256:ab650c338e7b999e0f207c36fac66258b70599109246df46c3f2012a0a199520"
-      resources = { cpu = "4", memory = "8Gi", workspace = "20Gi" }
+      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi" }
     }
   }
 }
