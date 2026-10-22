@@ -10,8 +10,8 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-c95f17a5"
-  deskplane_image_tag     = "c95f17a5"
+  deskplane_chart_version = "0.1.0-7c07523b"
+  deskplane_image_tag     = "7c07523b"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
@@ -229,6 +229,12 @@ resource "helm_release" "deskplane" {
     }]
 
     publicURL = local.deskplane_public_url
+
+    # Deploy the new controller in observe mode before rolling the MCP.
+    # Switch to enforce only with the new MCP's durable pool reservations.
+    sessions = {
+      idleLeaseMode = "observe"
+    }
 
     oidc = {
       issuerURL       = var.oidc_issuer_url
