@@ -2110,6 +2110,33 @@ resource "keycloak_openid_audience_protocol_mapper" "cicada_operator_audience" {
   add_to_access_token      = true
 }
 
+# Automation operator for Cicada's API: client credentials, aud=cicada. Its
+# service account (preferred_username service-account-cicada-automation) is
+# listed in Cicada's [auth] operators, so scripts and agents acting for the
+# operator can open goals and answer Questions without a browser sign-in.
+# The secret is home output keycloak_cicada_automation_client_secret.
+resource "keycloak_openid_client" "cicada_automation" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "cicada-automation"
+  name      = "Cicada (automation operator)"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  service_accounts_enabled     = true
+  standard_flow_enabled        = false
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "cicada_automation_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.cicada_automation.id
+  name      = "cicada-audience"
+
+  included_client_audience = keycloak_openid_client.cicada.client_id
+  add_to_access_token      = true
+}
+
 # Open WebUI forwards the signed-in user's access token through LiteLLM's MCP
 # gateway to pop (litellm_config.yaml.tftpl `pop`, auth_type oauth_delegate;
 # kubernetes/openwebui.tf LiteLLM connection is system_oauth). pop's aether
