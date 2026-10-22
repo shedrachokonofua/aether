@@ -456,12 +456,16 @@ is not agent-wide. REST `POST /api/sessions` retains create semantics. Ivy's HTT
 grant calls this route directly, so its client should retain/reuse session names
 and stop obsolete browsers rather than allocate another on reconnection. This
 avoids silently sharing browser page state between parallel REST consumers.
-Daimyo explicitly calls authenticated `POST /api/sessions/release` after terminal
-backend teardown and retries failures independently of grant revocation. Cleanup
-tokens preserve the exact task identity but authorize only that release endpoint;
-the idle lease remains the fallback. Persistent sessions and the two
+Daimyo's independent 30-second worker calls authenticated
+`POST /api/sessions/release` after terminal backend teardown, using a small
+database pool separate from task lease renewal. With a responsive database and
+release endpoint, release completes within 120 seconds after the backend handle
+clears, including one recoverable release failure and retry. A hung teardown falls
+back to the 15-minute idle lease; this is not an unconditional terminal-to-release
+deadline. Cleanup tokens preserve the exact task identity but authorize only that
+release endpoint. Persistent sessions and the two
 `svc:deskplane-mcp` reserved web-pool sessions are excluded from idle/release
-cleanup. Pool TTL rotation and closed-CDP reconnection happen before serving
+cleanup. Pool replacement and closed-CDP reconnection happen before serving
 requests rather than returning a stale connection error to Orion.
 
 Lease rollout is declarative and staged: first the Go service/chart in
