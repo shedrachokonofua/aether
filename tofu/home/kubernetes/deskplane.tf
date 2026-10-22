@@ -291,7 +291,7 @@ resource "helm_release" "deskplane" {
         name = "default"
         resources = {
           requests = {
-            cpu    = "500m"
+            cpu    = "200m"
             memory = "1Gi"
           }
           limits = {
@@ -308,7 +308,7 @@ resource "helm_release" "deskplane" {
         priorityClassName = local.deskplane_session_priority_class
         resources = {
           requests = {
-            cpu              = "500m"
+            cpu              = "200m"
             memory           = "1Gi"
             "nvidia.com/gpu" = "1"
           }
