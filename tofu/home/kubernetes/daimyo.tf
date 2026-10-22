@@ -65,14 +65,19 @@ locals {
   # 0040), bounded sidecar memory and file routes that wait for a starting
   # pod (97e9437), lost agent streams, model slots, the cold-resume histogram
   # and session file PUT (d172f36). Migrations through 0040.
-  # Server and sidecar af132ff (pipeline 7609): HTTP GrantAuth task tokens,
-  # attested custom harness images and image-bundled skills. Keeps d49dd90's
-  # 256Mi sidecar memory limit (request 64Mi).
-  daimyo_server_tag  = "sha256:edf078e77e30fc3aed6036f6851b14eae842bbdb85202a7032c240585ef94ac1"
+  # Server 767449e (pipeline on so/daimyo main): sandbox launch runs in its
+  # own task, so a dropped create no longer leaves the row `creating` with a
+  # running pod that holds quota and refuses deletion. Before that af132ff
+  # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
+  # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
+  # limit (request 64Mi). The sidecar stays at af132ff.
+  daimyo_server_tag  = "sha256:d2281736fbdf28202fe029d65cdcc4af0e689404c4c8c61319a71e49a678fe07"
   daimyo_sidecar_tag = "sha256:dd3bb56d43966228380ac5408153ea38e54ac29791bde29d9ae82e40f62b7055"
   # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
-  # omp and workflow-runner remain at 3f04716 (pre-spawned session CLI); before
+  # omp a9eb769: MCP servers without omp's 30 s client timeout (long granted
+  # tool calls such as Cicada's ci_exec). workflow-runner remains at 3f04716
+  # (pre-spawned session CLI); before
   # that claude-code and omp at c694ac8 (tag release-1014b, pipeline 6918); before that 3b8f263: a hot session keeps one
   # harness CLI process across turns (claude-code stream-json input, omp
   # --mode rpc, resumed natively after a crash), honour harness.models slots,
@@ -81,7 +86,7 @@ locals {
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
   daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:6e763a95c2f414cd39b4e34d23d6c6cdbfe7d33ebdb9f88dea1c1817f983019a"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:3889edfef3abe6b0baf1610ef4cc84d4d3a8a904947f45e7e7d7fc2a2ea7abf5"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:903d25b8a06ce6f1eeaafacb1516e7eece14fae49bca85efde83ee4ffe5a8411"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0779a1c1b27fea8b2ff1bdfd2f04ea924a9ffc4c6319cceee2f5dc0219bbfc30"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
