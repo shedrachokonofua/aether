@@ -438,6 +438,14 @@ Deskplane's web tools stay under that 60 s cap without a registry `timeout`: `sc
 
 Orion's answer engine extracts pages through Deskplane's REST API (`POST /api/web/scrape` on the `deskplane` Service, proxied by `deskplane-serve` to the MCP pod's web engine). It authenticates with the `deskplane-orion-token` API token, which `deskplane.tf` limits to `/api/web` with `allowedPathPrefixes`; `orion.tf` passes it as `DESKPLANE_API_TOKEN`.
 
+Deskplane also serves CDP over authenticated discovery and short-lived tickets.
+The `headless-chromium-tunnel` catalog image is for offline workload previews:
+its session Pod can reach only DNS and the serve proxy on port 8888, and its
+proxy credentials refuse public destinations. The browser returns localhost
+requests through the workload's tunnel. `deskplane.tf` trusts Daimyo task
+tokens for `personal`, `qa` and `seven30`; the Ivy project, CI deployment
+permission and model ceiling are declared in `daimyo.tf`.
+
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by
 `ansible/playbooks/register_litellm_virtual_keys.yml`). OpenWebUI's native MCP
