@@ -10,8 +10,8 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-2fea9e6e"
-  deskplane_image_tag     = "2fea9e6e"
+  deskplane_chart_version = "0.1.0-c95f17a5"
+  deskplane_image_tag     = "c95f17a5"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
@@ -399,6 +399,17 @@ resource "helm_release" "deskplane" {
             controlPort = 9222
           }
           network = { egress = "restricted" }
+        },
+        {
+          name  = "headless-chromium-tunnel", displayName = "Headless Browser (workload tunnel)"
+          image = "${local.deskplane_registry_image}/headless-chromium:${local.deskplane_headless_chromium_tag}"
+          runtime = {
+            type        = "cdp"
+            port        = 9222
+            scheme      = "http"
+            controlPort = 9222
+          }
+          network = { egress = "tunnel" }
         },
         {
           # Headful Chrome: KasmVNC for a human, CDP for automation. The web

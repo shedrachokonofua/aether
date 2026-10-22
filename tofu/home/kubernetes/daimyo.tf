@@ -103,9 +103,9 @@ locals {
   # so key minting succeeds even though echo never calls the model.
   daimyo_echo_model = "moira/flash"
   daimyo_orgs       = toset(["personal", "seven30", "qa", "cicada"])
-  # Orgs whose tasks reach Deskplane's MCP server (daimyo_tasks_egress and
-  # deskplane_mcp_daimyo_ingress).
-  daimyo_deskplane_orgs = ["personal", "qa"]
+  # Orgs whose tasks reach Deskplane's REST API, MCP server and workload
+  # tunnel (daimyo_tasks_egress and deskplane_mcp_daimyo_ingress).
+  daimyo_deskplane_orgs = ["personal", "qa", "seven30"]
   # Orgs whose tasks reach pop's MCP server through the Caddy front
   # (daimyo_tasks_egress); pop trusts their task tokens (pop.tf agent_issuers).
   daimyo_pop_orgs    = ["personal"]
@@ -150,7 +150,7 @@ locals {
       org == "cicada" ? local.daimyo_cicada_build_fqdns : [],
     )
   }
-  daimyo_s3_region   = "us-east-1"
+  daimyo_s3_region = "us-east-1"
   # Static in-cluster service names (not resource references): referencing
   # live resources pulls their dependency chains into every targeted plan.
   daimyo_litellm_upstream = "http://litellm.litellm.svc.cluster.local:4000"
@@ -390,13 +390,21 @@ resource "terraform_data" "daimyo_buckets" {
 
 # --- Helm release (chart from the sibling checkout) --------------------------------
 # helm_release with a local chart path (no repository): the chart directory
-# itself is the source. CRDs in the chart's crds/ install once at release
-# creation. Values mirror the e2e gate's proven shape (values-e2e.yaml) with
-# production stores: CNPG, Transit signer, OpenBao KV, real LiteLLM.
+# itself is the source. Helm installs CRDs only on release creation; manage
+# the Agent schema separately so grant and harness fields update on upgrades.
+# Values mirror the e2e gate's production stores.
+
+resource "kubectl_manifest" "daimyo_agent_crd" {
+  depends_on = [terraform_data.daimyo_chart_present]
+
+  yaml_body         = file("${local.daimyo_chart_path}/crds/daimyo-agents.yaml")
+  server_side_apply = true
+}
 
 resource "helm_release" "daimyo" {
   depends_on = [
     terraform_data.daimyo_chart_present,
+    kubectl_manifest.daimyo_agent_crd,
     module.namespace["daimyo-system"],
     module.namespace["org-personal"],
     module.namespace["org-seven30"],
@@ -1014,6 +1022,66 @@ resource "kubectl_manifest" "daimyo_project" {
   })
 }
 
+# Ivy releases its Agent through the API; infrastructure owns its project,
+# CI permission and model ceiling, not the release's Agent fields.
+resource "kubectl_manifest" "daimyo_ivy_project" {
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Project"
+    metadata = {
+      name      = "ivy"
+      namespace = "org-seven30"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = { description = "Ivy: verified design kits from Marrow product kits." }
+  })
+}
+
+resource "kubectl_manifest" "daimyo_ivy_ci_policy" {
+  depends_on = [kubectl_manifest.daimyo_ivy_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Policy"
+    metadata = {
+      name      = "ivy-ci-deploy"
+      namespace = "org-seven30"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      text = "permit (principal == Service::\"ci:seven30/ivy\", action in [Action::\"agent::create\", Action::\"agent::update\"], resource == Agent::\"ivy\");"
+    }
+  })
+}
+
+resource "kubectl_manifest" "daimyo_ivy_model_allowlist" {
+  depends_on = [kubectl_manifest.daimyo_ivy_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "ivy-model-allowlist"
+      namespace = "org-seven30"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "ivy"
+      description = "Model ceiling for API-managed Ivy releases. Never invoked."
+      harness = {
+        kind  = "claude-code"
+        model = "claude/opus-5-5"
+        tools = {}
+      }
+      grants = [
+        { name = "models", model = { models = ["claude/opus-5-5"], budgetUsd = 1 } },
+      ]
+    }
+  })
+}
+
 # Cicada names its agents `writer`, `planner` and `lens-<name>` per daimyo
 # project, so each repository it runs needs its own project (Cicada's
 # default: the repository path's last segment). so/cicada uses `cicada`
@@ -1189,7 +1257,7 @@ resource "kubectl_manifest" "daimyo_qa_policy" {
 # and artifact::read; these cover the rest, and only this one principal.
 resource "kubectl_manifest" "daimyo_cicada_policy" {
   for_each = {
-    "service-agents"   = "permit (principal == Service::\"svc:cicada\", action in [Action::\"agent::create\", Action::\"agent::update\", Action::\"agent::delete\", Action::\"agent::read\"], resource is Agent);"
+    "service-agents"    = "permit (principal == Service::\"svc:cicada\", action in [Action::\"agent::create\", Action::\"agent::update\", Action::\"agent::delete\", Action::\"agent::read\"], resource is Agent);"
     "service-sandboxes" = "permit (principal == Service::\"svc:cicada\", action in [Action::\"sandbox::create\", Action::\"sandbox::use\", Action::\"sandbox::delete\"], resource);"
     # session::create targets an Operation; use/read/close target the Session.
     "service-sessions"  = "permit (principal == Service::\"svc:cicada\", action in [Action::\"session::create\", Action::\"session::use\", Action::\"session::read\", Action::\"session::close\"], resource);"
