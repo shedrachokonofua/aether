@@ -44,12 +44,6 @@ locals {
     token_file = "/etc/cicada/secrets/gitlab-token"
     webhook_token_file = "/etc/cicada/secrets/gitlab-webhook-token"
 
-    # Every repository's writers run in the one daimyo project `cicada`
-    # (daimyo.tf daimyo_project), not a project per repository.
-    [projects]
-    "so/molecule" = "cicada"
-    "so/turmeric" = "cicada"
-
     [agents]
     # As pods in cicada-tasks reach this Service.
     mcp_url = "http://cicada.cicada.svc.cluster.local:8080/mcp"
