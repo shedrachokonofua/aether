@@ -384,6 +384,7 @@ resource "helm_release" "deskplane" {
           runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 8000 }
           persistence = { defaultMountPath = "/home/kasm-user" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+          resources   = { requests = { memory = "3Gi" } }
         },
         {
           # Headless Chromium: the web engine's browser pool and browser-only
@@ -399,6 +400,7 @@ resource "helm_release" "deskplane" {
             controlPort = 9222
           }
           network = { egress = "restricted" }
+          resources = { requests = { memory = "1Gi" } }
         },
         {
           name  = "headless-chromium-tunnel", displayName = "Headless Browser (workload tunnel)"
@@ -410,6 +412,7 @@ resource "helm_release" "deskplane" {
             controlPort = 9222
           }
           network = { egress = "tunnel" }
+          resources = { requests = { memory = "1Gi" } }
         },
         {
           # Headful Chrome: KasmVNC for a human, CDP for automation. The web
@@ -421,6 +424,7 @@ resource "helm_release" "deskplane" {
           persistence = { defaultMountPath = "/home/kasm-user" }
           network     = { egress = "restricted" }
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
+          resources   = { requests = { memory = "1536Mi" } }
         },
       ]
     }
