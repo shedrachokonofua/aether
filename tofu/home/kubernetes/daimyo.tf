@@ -487,6 +487,7 @@ resource "helm_release" "daimyo" {
       publicBaseUrl = "https://daimyo.home.shdr.ch"
       listen        = "0.0.0.0:8080"
       apiUpstream   = "http://daimyo-api.daimyo-system.svc:80"
+      deskplaneReleaseUrl = "${local.deskplane_public_url}/api/sessions/release"
       # The controller reconciles only CRs labelled with this instance
       # (local.daimyo_cr_labels); set explicitly rather than inheriting the
       # release fullname.
