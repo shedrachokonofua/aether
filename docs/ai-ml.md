@@ -456,12 +456,27 @@ is not agent-wide. REST `POST /api/sessions` retains create semantics. Ivy's HTT
 grant calls this route directly, so its client should retain/reuse session names
 and stop obsolete browsers rather than allocate another on reconnection. This
 avoids silently sharing browser page state between parallel REST consumers.
-Daimyo explicitly calls authenticated
-`POST /api/sessions/release` at task termination and retries failed releases;
+Daimyo explicitly calls authenticated `POST /api/sessions/release` after terminal
+backend teardown and retries failures independently of grant revocation. Cleanup
+tokens preserve the exact task identity but authorize only that release endpoint;
 the idle lease remains the fallback. Persistent sessions and the two
 `svc:deskplane-mcp` reserved web-pool sessions are excluded from idle/release
 cleanup. Pool TTL rotation and closed-CDP reconnection happen before serving
 requests rather than returning a stale connection error to Orion.
+
+Lease rollout is declarative and staged: first the Go service/chart in
+`sessions.idleLeaseMode: observe`, then the new MCP with `enforce`. Observe mode
+records activity and logs would-expire decisions without idle deletion. The chart
+derives expected pool images/counts from the actual MCP settings. Until all are
+Ready and `poolReserved`, a visible bootstrap-pending gauge/log accompanies
+protection of actor-less, undelegated MCP-service sessions. A durable namespace
+ConfigMap records completion, so neither restarts nor a pool's four-hour TTL
+replacement resets the transition. Once complete, unreserved service canaries
+expire from their original persisted activity timestamp. The pool initializes
+lazily on a normal scrape; if bootstrap remains pending after that, correct pool
+settings/connectivity/capacity through IaC rather than manipulating reservations
+or the marker with `kubectl`. Switching back to observe disables idle enforcement
+without changing activity recording or maximum TTL enforcement.
 
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by
