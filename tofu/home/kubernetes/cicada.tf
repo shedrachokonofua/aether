@@ -11,8 +11,8 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 7da103f, pipeline 7575 job build-image (image.digest).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:8a9bf34ff2bef8c255194ea5d437328a2a9427987f74957725b1213c06020532"
+  # so/cicada main b51e00e, job 35984 build-image (image.digest).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:cb38c2e41e4b18ec18449ce3dd71806797e156399c8b845c7cb3d8df52252cd8"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
