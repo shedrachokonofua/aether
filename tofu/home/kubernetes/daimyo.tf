@@ -71,7 +71,7 @@ locals {
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
   # limit (request 64Mi). The sidecar stays at af132ff.
-  daimyo_server_tag  = "sha256:d2281736fbdf28202fe029d65cdcc4af0e689404c4c8c61319a71e49a678fe07"
+  daimyo_server_tag  = "sha256:f4555c75d0df838a80aa10823dae30cd37ef1a67fad10279c5cb1896e82699d7"
   daimyo_sidecar_tag = "sha256:dd3bb56d43966228380ac5408153ea38e54ac29791bde29d9ae82e40f62b7055"
   # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
