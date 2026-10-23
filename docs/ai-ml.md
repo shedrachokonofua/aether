@@ -485,6 +485,29 @@ or capacity through IaC rather than manipulating reservations or the marker with
 `kubectl`. Switching back to observe disables idle enforcement without changing
 activity recording or maximum TTL enforcement.
 
+The 2026-10-23 rollout exposed a duplicate-key trap: two `sessions` keys in the
+HCL `yamlencode` object silently discarded the first block's `observe` setting,
+so revision 108 actually ran in enforce mode. The bootstrap guard protected the
+legacy service pool until migration completed. Keep quota and idle mode in one
+`sessions` block; inspect the rendered plan values, not only the source diff.
+Revision 111 runs Go/chart `c1ecf1a1` and MCP `5ad1d1b9`. Headful pool adoption
+matches the configured image and reachable control endpoint, not `runtime.type`:
+`chrome-cdp` uses `kasmvnc` with CDP on 9222. Requiring `type=cdp` skipped headful
+pool reservations on restart and created an extra browser. The corrected rollout
+adopted both existing pool Pods with no new browser Pods, and its first scrape
+returned HTTP 200. Failed CDP connection/reservation attempts now emit warnings.
+
+An untouched transient canary persisted `lastSeenAt=2026-10-23T05:13:46Z`, crossed
+the MCP rollout at 05:17:32Z, and its Pod stopped at 05:28:47Z (901 seconds).
+A separate active canary survived 55 minutes of activity renewals and was stopped
+explicitly afterward. A scrape after more than 30 minutes without pool requests
+returned HTTP 200. The live canaries used the MCP service identity, so their
+cleanup does not distinguish the controller from the MCP reaper; controller-only
+expiry remains covered by regression tests. Daimyo task-terminal live acceptance
+is pending its separately coordinated server deployment, not claimed by these
+Deskplane-only observations. Reserved pools still have a four-hour absolute TTL;
+reservations bypass idle expiry, not maximum lifetime.
+
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by
 `ansible/playbooks/register_litellm_virtual_keys.yml`). OpenWebUI's native MCP
