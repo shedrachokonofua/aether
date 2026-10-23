@@ -45,7 +45,8 @@ locals {
   INI
   nextcloud_opcache_hash   = substr(sha256(local.nextcloud_opcache_config), 0, 12)
 
-  nextcloud_server_image   = "nextcloud:34.0.1-apache"
+  # 34.0.5 ships PHP 8.5.12: fixes PHP2Shell RCE (CVE-2026-109618, CVE-2026-109619).
+  nextcloud_server_image   = "nextcloud:34.0.5-apache@sha256:9dbdc711cef21e1767a6e45a97e318e654d9e2ab2c1f1c570bb9cafc94529a18"
   nextcloud_postgres_image = "postgres:16-alpine"
   nextcloud_redis_image    = "redis:7-alpine"
 
@@ -54,7 +55,7 @@ locals {
   # drifts behind the image, nextcloud goes into upgrade-required mode on every
   # pod start and the bootstrap Jobs error with "Nextcloud or one of the apps
   # require upgrade". Bump in lockstep with nextcloud_server_image.
-  nextcloud_installed_version = "34.0.1.2"
+  nextcloud_installed_version = "34.0.5.1"
 
   nextcloud_server_port   = 80
   nextcloud_postgres_port = 5432
