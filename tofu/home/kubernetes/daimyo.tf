@@ -70,12 +70,14 @@ locals {
   # running pod that holds quota and refuses deletion. Before that af132ff
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
-  # limit (request 64Mi). The sidecar stays at af132ff.
+  # limit (request 64Mi).
   # Server 1860310: b81ee80 (Deskplane browser release on task end) plus the
   # sandbox sweep for creates no launch owns (G18, f177a8d) and the resume of
   # a running session turn whose pod vanished (G19).
   daimyo_server_tag  = "sha256:521072edace6b7a3b0acf9d05973da1d1433478344b4ba5054226ce2eb77de42"
-  daimyo_sidecar_tag = "sha256:dd3bb56d43966228380ac5408153ea38e54ac29791bde29d9ae82e40f62b7055"
+  # Sidecar ed78a29: journal archives leave Unix sockets out (G20; omp's
+  # daemon broker.sock failed every journal sync and every later turn).
+  daimyo_sidecar_tag = "sha256:99f6c319dcc4e8d83005887abd44ce3a9df4e2ddd1b885dbb88bad613e8026aa"
   # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
   # omp a9eb769: MCP servers without omp's 30 s client timeout (long granted
