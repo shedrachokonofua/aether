@@ -230,10 +230,16 @@ resource "helm_release" "deskplane" {
 
     publicURL = local.deskplane_public_url
 
-    # Deploy the new controller in observe mode before rolling the MCP.
-    # Switch to enforce only with the new MCP's durable pool reservations.
+    # Single sessions block (HCL silently keeps the LAST duplicate key, so
+    # never split this): the persisted idle lease is enforced only with the
+    # new MCP's durable pool reservations. The quota counts the MCP's own
+    # sessions too: the web engine keeps a headless browser resident (plus a
+    # headful one once that tier is back on), and every agent run adds its
+    # own. The MCP reaps its oldest session on a 409, so a tight quota kills
+    # in-flight work.
     sessions = {
-      idleLeaseMode = "observe"
+      maxPerUser    = 6
+      idleLeaseMode = "enforce"
     }
 
     oidc = {
@@ -265,13 +271,7 @@ resource "helm_release" "deskplane" {
       storageClassName = kubernetes_storage_class_v1.ceph_rbd.metadata[0].name
     }
 
-    # The quota counts the MCP's own sessions too: the web engine keeps a
-    # headless browser resident (plus a headful one once that tier is back on),
-    # and every agent run adds its own. The MCP reaps its oldest session on a
-    # 409, so a tight quota kills in-flight work.
-    sessions = {
-      maxPerUser = 6
-    }
+    # (sessions quota lives in the single sessions block above.)
 
     # v2 egress fences: restricted session pods (headless-chromium, chrome-cdp)
     # get public internet only, and the MCP gets serve, its session control
@@ -465,7 +465,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "e6f65761"
+        tag        = "c1ecf1a1"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
