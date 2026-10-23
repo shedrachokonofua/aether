@@ -71,7 +71,10 @@ locals {
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
   # limit (request 64Mi). The sidecar stays at af132ff.
-  daimyo_server_tag  = "sha256:f4555c75d0df838a80aa10823dae30cd37ef1a67fad10279c5cb1896e82699d7"
+  # Server 1860310: b81ee80 (Deskplane browser release on task end) plus the
+  # sandbox sweep for creates no launch owns (G18, f177a8d) and the resume of
+  # a running session turn whose pod vanished (G19).
+  daimyo_server_tag  = "sha256:521072edace6b7a3b0acf9d05973da1d1433478344b4ba5054226ce2eb77de42"
   daimyo_sidecar_tag = "sha256:dd3bb56d43966228380ac5408153ea38e54ac29791bde29d9ae82e40f62b7055"
   # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
@@ -1353,7 +1356,8 @@ locals {
     }
     # so/turmeric: cargo, Go, bun, Chromium, NATS and ClickHouse in one pod.
     turmeric = {
-      image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-turmeric@sha256:ab650c338e7b999e0f207c36fac66258b70599109246df46c3f2012a0a199520"
+      # so/cicada 3d0e7ab: FROM turmeric's CI image with MinIO.
+      image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-turmeric@sha256:fefc7b6338137daf31addffc14a1ba346b76a0595f285259f70ffb62fab1f0c6"
       resources = { cpu = "3", memory = "6Gi", workspace = "20Gi" }
     }
   }
