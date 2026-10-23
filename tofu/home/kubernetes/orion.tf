@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:ec6adc6e1ae92f16db21a5617e89fe5baab1792a"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:f87c7551998df8b435c48e205649a2231327421f"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -64,6 +64,33 @@ resource "random_password" "orion_session_secret" {
 # as the user via token exchange). Rotating it forces everyone to sign in again.
 resource "random_bytes" "orion_token_encryption_key" {
   length = 32
+}
+
+# The Trace view (orion docs/trace-view-research.md) reads LiteLLM spend rows
+# by request id. Its key reaches only GET /spend/logs and no models; it is
+# registered with the master key on apply, like daimyo_buckets.
+resource "random_password" "orion_litellm_spend" {
+  length  = 48
+  special = false
+}
+
+resource "terraform_data" "orion_litellm_spend_key" {
+  triggers_replace = [sha256(random_password.orion_litellm_spend.result)]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eu
+      if curl -fsS -H "Authorization: Bearer $MASTER" "$LITELLM/key/info?key=$KEY" >/dev/null 2>&1; then exit 0; fi
+      curl -fsS -H "Authorization: Bearer $MASTER" -H 'content-type: application/json' \
+        -d "{\"key\":\"$KEY\",\"key_alias\":\"orion-trace\",\"allowed_routes\":[\"/spend/logs\"],\"models\":[\"no-default-models\"],\"metadata\":{\"owner\":\"orion\",\"purpose\":\"Trace view spend lookup\"}}" \
+        "$LITELLM/key/generate" >/dev/null
+    EOT
+    environment = {
+      LITELLM = "https://${local.litellm_host}"
+      MASTER  = var.secrets["litellm.master_key"]
+      KEY     = "sk-${random_password.orion_litellm_spend.result}"
+    }
+  }
 }
 
 # Env vars sourced from tofu state + the OIDC client secret var. The OIDC
@@ -137,7 +164,9 @@ locals {
     # LAN Caddy VM removed per namespace-strategy §8.2 / answer-engine Slice 13).
     LITELLM_URL     = "http://${kubernetes_service_v1.litellm.metadata[0].name}.${local.litellm_ns}.svc.cluster.local:${local.litellm_port}/v1"
     LITELLM_API_KEY = var.secrets["litellm.virtual_keys.orion"]
-    SEARXNG_URL     = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
+    # Trace view: spend rows by request id (orion_litellm_spend_key above).
+    LITELLM_SPEND_KEY = "sk-${random_password.orion_litellm_spend.result}"
+    SEARXNG_URL       = "http://${kubernetes_service_v1.searxng.metadata[0].name}.${local.searxng_ns}.svc.cluster.local:${local.searxng_port}"
     # Answer engine (orion docs/plans/answer-engine.md): one resident chat
     # model for every pipeline call, and Deskplane for page extraction.
     ANSWER_MODEL        = "aether/qwen3.8-flash-next"
