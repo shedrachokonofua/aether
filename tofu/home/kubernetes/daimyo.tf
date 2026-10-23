@@ -71,10 +71,12 @@ locals {
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
   # limit (request 64Mi).
-  # Server 1860310: b81ee80 (Deskplane browser release on task end) plus the
-  # sandbox sweep for creates no launch owns (G18, f177a8d) and the resume of
-  # a running session turn whose pod vanished (G19).
-  daimyo_server_tag  = "sha256:521072edace6b7a3b0acf9d05973da1d1433478344b4ba5054226ce2eb77de42"
+  # Server 8ecf6f4: SandboxClass `imageRepository` and a per-create `image`
+  # digest (repositories own their sandbox image), on top of 1860310:
+  # b81ee80 (Deskplane browser release on task end), the sandbox sweep for
+  # creates no launch owns (G18) and the resume of a turn whose pod vanished
+  # (G19). Migration 0044.
+  daimyo_server_tag  = "sha256:6518080a8314f87690ba6bc0b490de12d818490e643a61848074702c01ebec45"
   # Sidecar ed78a29: journal archives leave Unix sockets out (G20; omp's
   # daemon broker.sock failed every journal sync and every later turn).
   daimyo_sidecar_tag = "sha256:99f6c319dcc4e8d83005887abd44ce3a9df4e2ddd1b885dbb88bad613e8026aa"
@@ -410,6 +412,16 @@ resource "kubectl_manifest" "daimyo_agent_crd" {
 
   yaml_body         = file("${local.daimyo_chart_path}/crds/daimyo-agents.yaml")
   server_side_apply = true
+}
+
+# The SandboxClass schema likewise: daimyo 8ecf6f4 adds `imageRepository`
+# (exactly one of image/imageRepository, CEL-validated).
+resource "kubectl_manifest" "daimyo_sandboxclass_crd" {
+  depends_on = [terraform_data.daimyo_chart_present]
+
+  yaml_body         = file("${local.daimyo_chart_path}/crds/daimyo-sandboxclasses.yaml")
+  server_side_apply = true
+  force_conflicts   = true
 }
 
 resource "helm_release" "daimyo" {
@@ -1320,13 +1332,14 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
 }
 
 # Cicada's ci_exec sandboxes, one class per repository (its workflow's
-# `[ci] sandbox_class`). Images are so/cicada deploy/sandboxes/<repo>, built
-# by its build-sandboxes job; pin the digest that job prints. Sizes are in
-# local.daimyo_cicada_sandbox_classes, against cicada-tasks' sandbox-tier
+# `[ci] sandbox_class`). Each repository owns its image: its pipeline
+# publishes `<repo>/ci:<commit sha>`, and Cicada names the digest per sandbox
+# (daimyo 8ecf6f4 `imageRepository`; Cicada decision 57). A class holds only
+# the allowed repository and the size, against cicada-tasks' sandbox-tier
 # quota.
 resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
   for_each   = local.daimyo_cicada_sandbox_classes
-  depends_on = [kubectl_manifest.daimyo_project]
+  depends_on = [kubectl_manifest.daimyo_project, kubectl_manifest.daimyo_sandboxclass_crd]
 
   yaml_body = yamlencode({
     apiVersion = "daimyo.shdr.ch/v1alpha1"
@@ -1337,10 +1350,10 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
       labels    = local.daimyo_cr_labels
     }
     spec = {
-      image      = each.value.image
-      resources  = each.value.resources
-      defaultTtl = "8h"
-      maxTtl     = "24h"
+      imageRepository = "registry.gitlab.home.shdr.ch/so/${each.key}/ci"
+      resources       = each.value.resources
+      defaultTtl      = "8h"
+      maxTtl          = "24h"
     }
   })
 }
@@ -1353,13 +1366,10 @@ locals {
     # requests (2026-10-22: neo had 3.6 CPU free, the rest less), so a class
     # asking 4-6 CPU never scheduled. 3 CPU fits; the quota is not the limit.
     molecule = {
-      image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-molecule@sha256:f02e29ef98e653e45d13a06ebd03293072098ef66662e637a77556b9fee28c69"
       resources = { cpu = "3", memory = "8Gi", workspace = "20Gi" }
     }
     # so/turmeric: cargo, Go, bun, Chromium, NATS and ClickHouse in one pod.
     turmeric = {
-      # so/cicada 3d0e7ab: FROM turmeric's CI image with MinIO.
-      image     = "registry.gitlab.home.shdr.ch/so/cicada/sandbox-turmeric@sha256:fefc7b6338137daf31addffc14a1ba346b76a0595f285259f70ffb62fab1f0c6"
       resources = { cpu = "3", memory = "6Gi", workspace = "20Gi" }
     }
   }
