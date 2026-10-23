@@ -266,6 +266,7 @@ resource "kubectl_manifest" "orion_cnpg_cluster" {
     helm_release.cnpg_barman_cloud,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.orion_cnpg_app,
+    kubernetes_secret_v1.orion_gitlab_registry,
   ]
 
   yaml_body = yamlencode({
@@ -274,13 +275,24 @@ resource "kubectl_manifest" "orion_cnpg_cluster" {
     metadata = {
       name      = local.orion_cnpg
       namespace = local.orion_ns
-      labels    = merge(local.orion_labels, { "aether.sh/arm-ok" = "true" })
+      # No aether.sh/arm-ok: the image below is amd64-only, so Kyverno keeps the
+      # instance off the ARM pool.
+      labels = local.orion_labels
     }
     spec = {
       instances            = 1
       smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
       enablePDB            = !local.cnpg_node_maintenance
-      imageName            = "ghcr.io/cloudnative-pg/postgresql:16.14"
+      # Postgres 18 with pg_textsearch (BM25) and pgvector, built from Orion's
+      # ops/postgres/Dockerfile on the 18.6 standard trixie image. Reached from 16.14
+      # (bullseye) via 16.15-standard-trixie, because CNPG's in-place pg_upgrade
+      # needs both images on the same OS. Collation is C, so no reindex.
+      imageName        = "registry.gitlab.home.shdr.ch/so/orion/postgres:18.6-pgts1.5.1"
+      imagePullSecrets = [{ name = kubernetes_secret_v1.orion_gitlab_registry.metadata[0].name }]
+      postgresql = {
+        # pg_textsearch must be preloaded (its README); vector needs nothing here.
+        shared_preload_libraries = ["pg_textsearch"]
+      }
       resources = {
         requests = { cpu = "100m", memory = "256Mi" }
         limits   = { cpu = "1000m", memory = "1Gi" }
@@ -297,6 +309,36 @@ resource "kubectl_manifest" "orion_cnpg_cluster" {
           secret   = { name = kubernetes_secret_v1.orion_cnpg_app.metadata[0].name }
         }
       }
+    }
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Extensions in Orion's database, managed by CNPG. The database itself comes from
+# the cluster's initdb; databaseReclaimPolicy keeps it if this resource goes away.
+resource "kubectl_manifest" "orion_cnpg_database" {
+  depends_on = [kubectl_manifest.orion_cnpg_cluster]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Database"
+    metadata = {
+      name      = "orion-db"
+      namespace = local.orion_ns
+      labels    = local.orion_labels
+    }
+    spec = {
+      name                  = local.orion_database
+      owner                 = local.orion_database_user
+      cluster               = { name = local.orion_cnpg }
+      databaseReclaimPolicy = "retain"
+      extensions = [
+        { name = "pg_textsearch", ensure = "present" },
+        { name = "vector", ensure = "present" },
+      ]
     }
   })
 
