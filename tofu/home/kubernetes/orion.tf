@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:2dba08abc2cac02819dc05f744dfdf77760f6846"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:85d78feb44eab0135945a9d8380fbab6c077aaa1"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -107,6 +107,9 @@ locals {
     OIDC_SCOPE     = "openid profile email offline_access"
     SESSION_SECRET = random_password.orion_session_secret.result
     DATABASE_URL   = "postgresql://${local.orion_database_user}:${random_password.orion_database_password.result}@${local.orion_database_service}:5432/${local.orion_database}?sslmode=disable"
+    # Tables' read-only SQL (Orion src/lib/server/tables/query.ts): a separate
+    # login that can only select from the generated views in schema `tables`.
+    TABLES_READER_DATABASE_URL = "postgresql://orion_tables_reader:${random_password.orion_tables_reader_password.result}@${local.orion_database_service}:5432/${local.orion_database}?sslmode=disable"
     # Threads → the `orion` Daimyo agent, as the signed-in user (keycloak.tf
     # orion client: token exchange to aud `daimyo`).
     DAIMYO_URL           = "https://daimyo.home.shdr.ch"
@@ -260,12 +263,36 @@ resource "kubernetes_secret_v1" "orion_cnpg_app" {
   }
 }
 
+# Read-only login for Tables SQL. CNPG manages the role (spec.managed.roles);
+# Orion's migrations grant it usage on schema `tables` and select on its views.
+resource "random_password" "orion_tables_reader_password" {
+  length  = 32
+  special = false
+}
+
+resource "kubernetes_secret_v1" "orion_tables_reader" {
+  depends_on = [module.namespace["orion"]]
+
+  metadata {
+    name      = "orion-tables-reader"
+    namespace = local.orion_ns
+    labels    = merge(local.orion_labels, { "cnpg.io/reload" = "true" })
+  }
+
+  type = "kubernetes.io/basic-auth"
+  data = {
+    username = "orion_tables_reader"
+    password = random_password.orion_tables_reader_password.result
+  }
+}
+
 resource "kubectl_manifest" "orion_cnpg_cluster" {
   depends_on = [
     helm_release.cnpg,
     helm_release.cnpg_barman_cloud,
     kubectl_manifest.cnpg_require_ceph_rbd_storage,
     kubernetes_secret_v1.orion_cnpg_app,
+    kubernetes_secret_v1.orion_tables_reader,
     kubernetes_secret_v1.orion_gitlab_registry,
   ]
 
@@ -308,6 +335,15 @@ resource "kubectl_manifest" "orion_cnpg_cluster" {
           owner    = local.orion_database_user
           secret   = { name = kubernetes_secret_v1.orion_cnpg_app.metadata[0].name }
         }
+      }
+      managed = {
+        roles = [{
+          name            = "orion_tables_reader"
+          ensure          = "present"
+          login           = true
+          connectionLimit = 10
+          passwordSecret  = { name = kubernetes_secret_v1.orion_tables_reader.metadata[0].name }
+        }]
       }
     }
   })
@@ -765,10 +801,11 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
               }
             }
             tools = [
-              "notes_search", "notes_get", "notes_create", "notes_patch_block",
+              "notes_search", "notes_get", "notes_create", "notes_patch_block", "notes_insert_block",
               "notes_set_property", "notes_move", "notes_delete", "notes_query",
-              # Note sqlite sidecars and declared data sources (_sources/*.yaml).
-              "note_db_exec", "note_db_query", "source_list", "source_query",
+              # Tables (Postgres, schema `tables`) and declared data sources (_sources/*.yaml).
+              "table_list", "table_describe", "table_query", "table_write", "table_create", "table_propose",
+              "source_list", "source_query",
             ]
           }
         },
@@ -967,7 +1004,7 @@ resource "kubectl_manifest" "daimyo_coordinator_agent" {
         {
           name = "threads"
           mcp = {
-            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/threads"
+            url  = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/threads"
             auth = { taskToken = { audience = "orion-threads" } }
             tools = [
               "threads_search", "thread_read", "project_get", "threads_list",
@@ -1042,6 +1079,9 @@ resource "kubectl_manifest" "daimyo_notes_keeper_agent" {
         maxTurns = 60
       }
       resources = { cpu = "500m", memory = "1Gi", workspace = "512Mi" }
+      # Orion's Agent panel "Run now" (src/lib/server/notes/keep-run.ts) starts a
+      # short session of `keep` naming one section; the hourly schedule is unchanged.
+      sessions = { enabled = true, idleTtl = "10m", maxLifetime = "1h" }
       operations = [{
         name           = "keep"
         deadline       = "10m"
@@ -1070,7 +1110,7 @@ resource "kubectl_manifest" "daimyo_notes_keeper_agent" {
             }
             tools = [
               "notes_due", "notes_get", "notes_patch_block", "notes_watches_run",
-              "source_list", "source_query",
+              "table_describe", "table_query", "table_write", "table_propose", "source_list", "source_query",
             ]
           }
         },
