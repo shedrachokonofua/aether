@@ -199,6 +199,22 @@ Current components: `aether-wasm-hello` (canary, gateway-exposed —
 ComfyUI model state, cron-triggered — `comfyui_reaper.tf`). Runtime owned by
 `tofu/home/kubernetes/wasmcloud.tf`.
 
+The ComfyUI reaper ticks every minute and unloads models plus the RAM weight
+cache after 300 seconds without an execution, provided `/queue` has neither
+running nor pending work. Queue/history request failures skip reclamation.
+The queue check and `/free` are separate requests: a prompt arriving between
+them can incur an extra model reload, but ComfyUI processes the free flags
+between executions rather than interrupting a running generation.
+On 2026-10-24, the existing `/free` mechanism reduced ComfyUI working set from
+23.92 GB to 5.12 GB and talos-neo GPU framebuffer usage from 85,766 MiB to
+73,810 MiB. Of 200 inter-generation gaps in the retained history, only two
+were between five and thirty minutes; cold executions had a median of
+18.89 seconds versus 8.42 seconds for warm executions (different prompts,
+so the median difference is not a controlled reload benchmark).
+Changing `localResources.environment.config` created a new WorkloadReplicaSet
+and the next cron response reported `idleWindowSeconds: 300`; no manual host
+restart was needed for the configuration change.
+
 **Version note.** The runtime was migrated `2.0.5 → 2.5.2` on 2026-07-12. It is
 **not a drop-in**, because the `Host` CRD scope changed `Cluster → Namespaced`
 and CRD scope is immutable. The migration therefore: (1) patched the
