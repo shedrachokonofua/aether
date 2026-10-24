@@ -56,6 +56,19 @@ flowchart TB
 
 ### Data Retention
 
+Capacity-plan history (2026-09-24 06:00 through 2026-10-24 10:00 UTC, end
+exclusive) is preserved at five-minute resolution in
+`s3://aether-db-dumps/capacity-prometheus/2026-10-24/` on SeaweedFS
+(`https://s3.seaweed.home.shdr.ch`), in the existing backup-stack dump-mirror
+path. `manifest.json` records queries, per-file ranges/counts and SHA256 checksums;
+`manifest.sha256` verifies it. `LOADER.txt` and
+`scripts/archive-prometheus-capacity.py rows` describe loading a separate
+ClickHouse table without a TTL: the normal 30-day metrics TTL would delete this
+history. This focused archive complements, rather than runs or replaces, the
+user's `scripts/telemetry-migration` backfill.
+Returned samples span 2026-09-24 06:05 through 2026-10-24 09:55 UTC;
+the archive contains 40,386,780 samples in 854 gzip objects (117,373,223 bytes).
+
 | Backend | Retention | Notes |
 | --- | --- | --- |
 | Prometheus | 30 days raw | Authoritative live PromQL and alert-evaluation source; remote-writes the post-scrape series to GreptimeDB |
