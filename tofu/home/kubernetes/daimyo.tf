@@ -71,7 +71,9 @@ locals {
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
   # limit (request 64Mi).
-  # Server 877174b (main pipeline 7958): task claims and adoption skip session
+  # Server 2f64e17: an exec may run up to the sandbox's remaining TTL, not the
+  # 600 s default (G21; goal acceptance was cut at ten minutes). Before that
+  # 877174b (main pipeline 7958): task claims and adoption skip session
   # turns (the adoption replica claimed, refused and released every running
   # turn ~40 times a second). Before that, server and sidecar 89e1a1c (main
   # pipeline 7948): tool approvals for
@@ -84,7 +86,7 @@ locals {
   # browser release on task end), the sandbox sweep for creates no launch
   # owns (G18) and the resume of a turn whose pod vanished (G19). Migration
   # 0044.
-  daimyo_server_tag = "sha256:8377fe5fc9ac566fcf3b3bbc106a373fb6ebc1e65160ab467ca1e07056ff3819"
+  daimyo_server_tag = "sha256:a6aa50f02ea715fd1c534973f5b63c98d6cd9bfd634f67ecb12562098540142c"
   # Sidecar 89e1a1c: a 409 from parking reports "no running turn"; includes
   # ed78a29 (journal archives leave Unix sockets out, G20).
   daimyo_sidecar_tag = "sha256:6554605d017e374d8015fb086bff2dc2d67a5c23ce62488b6559789ee2cf14e6"
