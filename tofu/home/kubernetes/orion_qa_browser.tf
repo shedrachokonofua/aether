@@ -63,9 +63,11 @@ resource "kubernetes_deployment_v1" "orion_qa_browser" {
           }
 
           # One browser per connected QA run; several worktrees may run at once.
+          # QA audits long tasks (> 50 ms), so CFS throttling distorts results: at
+          # a 4-CPU limit three concurrent runs were throttled in 20% of periods.
           resources {
-            requests = { cpu = "500m", memory = "1Gi" }
-            limits   = { cpu = "4", memory = "6Gi" }
+            requests = { cpu = "1", memory = "2Gi" }
+            limits   = { cpu = "12", memory = "8Gi" }
           }
 
           readiness_probe {
