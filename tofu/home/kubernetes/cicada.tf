@@ -11,8 +11,9 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main c9ad6d5 (build-image, image.digest).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:8c03512a824d1829c30eb0f7c58880a52c3340c10044f98dbf3c2e45cbdf21ee"
+  # so/cicada main 2ee3cee (build-image, image.digest): the token sub says its
+  # workload kind (`session:` for writer/planner sessions; decision 60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:4785a7d50f696abee7283d8158054b2b4320dad8e34ce33097eca7492ea925a1"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
