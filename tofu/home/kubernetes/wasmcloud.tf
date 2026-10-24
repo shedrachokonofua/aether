@@ -65,7 +65,7 @@ resource "helm_release" "wasmcloud" {
           webgpu    = { enabled = false }
           wasip3    = { enabled = false }
           resources = {
-            requests = { cpu = "250m", memory = "128Mi" }
+            requests = { cpu = "75m", memory = "128Mi" }
             limits   = { cpu = "500m", memory = "1Gi" }
           }
         },
@@ -78,7 +78,7 @@ resource "helm_release" "wasmcloud" {
           webgpu    = { enabled = false }
           wasip3    = { enabled = false }
           resources = {
-            requests = { cpu = "250m", memory = "256Mi" }
+            requests = { cpu = "100m", memory = "256Mi" }
             limits   = { cpu = "500m", memory = "2Gi" }
           }
           # No --enable-meters: on wash 2.5.2 its fuel metering made every
@@ -110,7 +110,7 @@ resource "helm_release" "wasmcloud" {
           webgpu    = { enabled = false }
           wasip3    = { enabled = false }
           resources = {
-            requests = { cpu = "250m", memory = "256Mi" }
+            requests = { cpu = "50m", memory = "256Mi" }
             limits   = { cpu = "2", memory = "2Gi" }
           }
           volumes      = [{ name = "workspace", emptyDir = { sizeLimit = "2Gi" } }]

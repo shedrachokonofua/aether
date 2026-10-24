@@ -168,7 +168,7 @@ resource "kubernetes_stateful_set_v1" "celld" {
             period_seconds        = 20
           }
           resources {
-            requests = { cpu = "250m", memory = "512Mi" }
+            requests = { cpu = "50m", memory = "512Mi" }
             limits   = { cpu = "2", memory = "2Gi" }
           }
         }

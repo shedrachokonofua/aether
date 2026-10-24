@@ -267,6 +267,12 @@ resource "helm_release" "buzz" {
       tag = local.buzz_image_tag
     }
 
+    relay = {
+      resources = {
+        requests = { cpu = "50m" }
+      }
+    }
+
     relayUrl    = "wss://${local.buzz_host}"
     ownerPubkey = local.buzz_owner_pubkey
 
