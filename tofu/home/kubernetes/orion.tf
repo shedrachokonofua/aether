@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:0eacff1eefe3e7730eaf3978f0c0e0e80e77d149"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:2dba08abc2cac02819dc05f744dfdf77760f6846"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -655,6 +655,8 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             structure, and give every change a short reason. Your changes
             apply at once and he can revert them.
 
+            Search Shedrach's other threads with `threads_search` when he refers to earlier work or a related conversation would help; read one with `thread_read`.
+
             Browse through the web engine first: scrape (engine_name "auto"
             escalates fetch, headless, then a real headful browser when a
             site blocks automation), and for pages you must click or fill,
@@ -734,6 +736,19 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
               "open_session", "list_sessions", "close_session", "watch_link", "screenshot",
               "navigate", "click", "double_click", "move", "drag", "type_text", "key", "scroll", "wait",
               "run_browser_task", "start_desktop_task",
+            ]
+          }
+        },
+        {
+          name = "threads"
+          mcp = {
+            # Orion's threads MCP, in-cluster (same path as the notes grant).
+            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/threads"
+            # A Daimyo task token (aud orion-threads): Orion verifies it against
+            # the org issuer and reads the calling session from its `task` claim.
+            auth = { taskToken = { audience = "orion-threads" } }
+            tools = [
+              "threads_search", "thread_read",
             ]
           }
         },
@@ -901,6 +916,83 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
         description = "Shedrach's preferences, facts about his setup and decisions he has made."
       }]
       sessions  = { enabled = true, idleTtl = "4h", maxLifetime = "30d" }
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+# Projects (orion docs/projects-design.md): one long-lived coordinator session
+# per project. It holds no shell, files or web tools — it answers small
+# questions itself and spawns briefed worker threads on the `orion` agent
+# through Orion's threads MCP (identity comes from the Daimyo session header;
+# project tools are refused for non-coordinator callers server-side).
+resource "kubectl_manifest" "daimyo_coordinator_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "coordinator"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "personal"
+      description = "Coordinates one of Shedrach's Orion projects: spawns, briefs and tracks worker threads."
+      harness = {
+        kind  = "omp"
+        model = "moira/flash"
+        systemPrompt = trimspace(<<-EOT
+          You coordinate one of Shedrach's projects in Orion. Call project_get at the start of a session and follow the project's instructions.
+          Answer small questions yourself. For real work, call thread_start with a short title and a self-contained brief: the thread's agent sees only the brief and the project's goal and instructions. Split independent work into parallel threads; at most 4 run at once.
+          Messages that start with "[orion] Thread updates:" come from Orion, not Shedrach. For each update, read the thread with thread_read when you need its result, then tell Shedrach in one or two lines what is done and what waits on him, naming the thread. Do not redo a thread's work yourself; use thread_message to steer it and thread_stop to stop it.
+          Use threads_search to find earlier work in his other threads.
+          Keep replies short.
+        EOT
+        )
+        # files: omp invokes MCP tools by writing to xd://mcp__<tool> devices.
+        tools    = { bash = false, files = true, web = false }
+        maxTurns = 60
+      }
+      resources = {
+        cpu       = "2"
+        memory    = "2Gi"
+        workspace = "2Gi"
+        requests  = { cpu = "100m", memory = "768Mi" }
+      }
+      operations = [{ name = "chat", deadline = "30m" }]
+      grants = [
+        { name = "models", model = { models = ["moira/flash"], budgetUsd = 1 } },
+        {
+          name = "threads"
+          mcp = {
+            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/threads"
+            auth = { taskToken = { audience = "orion-threads" } }
+            tools = [
+              "threads_search", "thread_read", "project_get", "threads_list",
+              "thread_start", "thread_message", "thread_stop",
+            ]
+          }
+        },
+        {
+          name = "notes"
+          mcp = {
+            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
+            auth = {
+              secret = {
+                secret = { path = "orgs/personal/orion-notes", key = "token" }
+                header = { name = "Authorization" }
+                prefix = "Bearer"
+              }
+            }
+            tools = [
+              "notes_search", "notes_get",
+            ]
+          }
+        },
+      ]
+      sessions  = { enabled = true, idleTtl = "24h", maxLifetime = "30d" }
       endpoints = { stable = { revision = "latest" } }
     }
   })
