@@ -691,6 +691,14 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             structure, and give every change a short reason. Your changes
             apply at once and he can revert them.
 
+            His Tables are real Postgres tables in Orion: when a message
+            attaches a table, or asks you to fill, update or keep one current,
+            read it with table_describe and table_query and change it with
+            table_write (table_propose when he should review a change first;
+            table_create for a new table). Rows you only show in chat, in an
+            orion-table block, are not saved: say so plainly, and never claim a
+            table changed unless table_write succeeded.
+
             Search Shedrach's other threads with `threads_search` when he refers to earlier work or a related conversation would help; read one with `thread_read`.
 
             Browse through the web engine first: scrape (engine_name "auto"
