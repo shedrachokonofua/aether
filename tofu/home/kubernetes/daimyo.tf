@@ -825,8 +825,8 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if contains(local.daimyo_pop_orgs, org)
         ], [
-        # Orion's notes MCP (/api/mcp/notes): the `orion` agent's notes grant,
-        # bearer-authenticated by Orion (NOTES_MCP_TOKENS, orion.tf).
+        # Orion's notes MCP (/api/mcp/notes): the `orion` and coordinator agents'
+        # notes grants (Daimyo task tokens, aud orion-notes) and the keeper's.
         for org in [each.key] : {
           toEndpoints = [{
             matchLabels = {

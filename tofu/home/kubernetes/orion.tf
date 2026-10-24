@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:85d78feb44eab0135945a9d8380fbab6c077aaa1"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:18a20146ecceaa6012d1cf4559ce2cbb71097014"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -117,8 +117,11 @@ locals {
     # POST /auth/token: a `task login` token buys a 2 h session (automated QA).
     ORION_TOKEN_LOGIN = "1"
     # Notes vault: a git working tree on the orion-vault volume; Orion is the
-    # only writer (Recreate deploys, one replica). The agent's notes grant
-    # authenticates with this token (openbao_daimyo.tf, orgs/personal/orion-notes).
+    # only writer (Recreate deploys, one replica). Thread agents (orion,
+    # coordinator) authenticate with Daimyo task tokens (aud orion-notes). The
+    # "Orion agent" token serves only sessions started before that switch
+    # (sessions keep their revision's grants, maxLifetime 30d); remove it, its
+    # var and orgs/personal/orion-notes once none remain.
     VAULT_DIR = "/vault/notes"
     NOTES_MCP_TOKENS = jsonencode([
       {
@@ -801,13 +804,9 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
           mcp = {
             # Orion's notes MCP, in-cluster (daimyo.tf opens personal-tasks → orion:3000).
             url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
-            auth = {
-              secret = {
-                secret = { path = "orgs/personal/orion-notes", key = "token" }
-                header = { name = "Authorization" }
-                prefix = "Bearer"
-              }
-            }
+            # A Daimyo task token (aud orion-notes): Orion maps its signed task
+            # to the calling thread, which table_write/table_create require.
+            auth = { taskToken = { audience = "orion-notes" } }
             tools = [
               "notes_search", "notes_get", "notes_create", "notes_patch_block", "notes_insert_block",
               "notes_set_property", "notes_move", "notes_delete", "notes_query",
@@ -1024,13 +1023,7 @@ resource "kubectl_manifest" "daimyo_coordinator_agent" {
           name = "notes"
           mcp = {
             url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
-            auth = {
-              secret = {
-                secret = { path = "orgs/personal/orion-notes", key = "token" }
-                header = { name = "Authorization" }
-                prefix = "Bearer"
-              }
-            }
+            auth = { taskToken = { audience = "orion-notes" } }
             tools = [
               "notes_search", "notes_get",
             ]
