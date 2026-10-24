@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:4c28d785ff9e6b7643aa6461fac9f1b0ef641ebd"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:a947889e5bee72306413a27899791564ad44d2d3"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
