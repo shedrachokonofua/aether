@@ -94,7 +94,7 @@ resource "kubectl_manifest" "comfyui_reaper_workload" {
               environment = {
                 config = {
                   COMFYUI_URL            = "http://comfyui.ai-serving.svc.cluster.local:8188"
-                  IDLE_THRESHOLD_SECONDS = "1800"
+                  IDLE_THRESHOLD_SECONDS = "300"
                 }
               }
             }
@@ -118,7 +118,7 @@ resource "kubectl_manifest" "comfyui_reaper_workload" {
   })
 }
 
-# Wake-up cadence; the component decides per-target whether to flush.
+# Wake every minute so the 300-second idle threshold reclaims within 5-6 minutes.
 resource "kubectl_manifest" "comfyui_reaper_cron" {
   depends_on = [kubectl_manifest.comfyui_reaper_workload]
 
@@ -131,7 +131,7 @@ resource "kubectl_manifest" "comfyui_reaper_cron" {
       labels    = local.comfyui_reaper_labels
     }
     spec = {
-      schedule                   = "*/10 * * * *"
+      schedule                   = "* * * * *"
       concurrencyPolicy          = "Forbid"
       successfulJobsHistoryLimit = 1
       failedJobsHistoryLimit     = 3
