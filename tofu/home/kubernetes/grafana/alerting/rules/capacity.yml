@@ -1,0 +1,339 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: Capacity
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: capacity-amd64-large-slot
+        title: No Large amd64 Scheduling Slot
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                WITH
+                active AS (
+                  SELECT Attributes['uid'] AS uid
+                  FROM otel.otel_metrics_gauge
+                  WHERE MetricName = 'kube_pod_status_phase' AND Attributes['phase'] IN ('Running', 'Pending') AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  GROUP BY uid, Attributes['phase'] HAVING argMax(Value, TimeUnix) = 1
+                ),
+                requests AS (
+                  SELECT node, resource, sum(greatest(app, init)) AS requested
+                  FROM (
+                    SELECT node, uid, resource,
+                      sumIf(v, MetricName = 'kube_pod_container_resource_requests') AS app,
+                      maxIf(v, MetricName = 'kube_pod_init_container_resource_requests') AS init
+                    FROM (
+                      SELECT MetricName, Attributes['node'] AS node, Attributes['uid'] AS uid,
+                        Attributes['resource'] AS resource, Attributes['container'] AS container, argMax(Value, TimeUnix) AS v
+                      FROM otel.otel_metrics_gauge
+                      WHERE MetricName IN ('kube_pod_container_resource_requests', 'kube_pod_init_container_resource_requests')
+                        AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe') AND Attributes['resource'] IN ('cpu', 'memory')
+                        AND TimeUnix > now() - INTERVAL 5 MINUTE
+                      GROUP BY MetricName, node, uid, resource, container
+                    ) AS latest INNER JOIN active USING (uid)
+                    GROUP BY node, uid, resource
+                  ) GROUP BY node, resource
+                ),
+                capacity AS (
+                  SELECT node, resource, allocatable, ifNull(requested, 0) AS requested, allocatable - ifNull(requested, 0) AS free
+                  FROM (
+                    SELECT Attributes['node'] AS node, Attributes['resource'] AS resource, argMax(Value, TimeUnix) AS allocatable
+                    FROM otel.otel_metrics_gauge
+                    WHERE MetricName = 'kube_node_status_allocatable' AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe')
+                      AND Attributes['resource'] IN ('cpu', 'memory') AND TimeUnix > now() - INTERVAL 5 MINUTE
+                    GROUP BY node, resource
+                  ) AS allocation LEFT JOIN requests USING (node, resource)
+                )
+                SELECT toFloat64(countIf(free_cpu >= 8 AND free_memory >= 17179869184)) AS value
+                FROM (SELECT node, maxIf(free, resource = 'cpu') AS free_cpu, maxIf(free, resource = 'memory') AS free_memory FROM capacity GROUP BY node)
+                HAVING count() = 4
+                LIMIT 1
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        missingSeriesEvalsToResolve: 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "No amd64 node has 8 CPU and 16 GiB unreserved simultaneously"
+          description: "Allocatable minus requests of assigned Running/Pending pods on talos-neo/smith/trinity/niobe. Per-pod request is the greater of summed application containers and largest init container. Value is the number of qualifying nodes; zero means no large slot."
+
+      - uid: capacity-pod-not-scheduled
+        title: Pod Not Scheduled For 10 Minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT p.namespace AS namespace, p.pod AS pod, toFloat64(1) AS value
+                FROM (
+                  SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['uid'] AS uid, argMax(Value, TimeUnix) AS v
+                  FROM otel.otel_metrics_gauge WHERE MetricName = 'kube_pod_status_phase' AND Attributes['phase'] = 'Pending'
+                    AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod, uid
+                ) AS p INNER JOIN (
+                  SELECT Attributes['uid'] AS uid, argMax(Value, TimeUnix) AS v
+                  FROM otel.otel_metrics_gauge WHERE MetricName = 'kube_pod_status_scheduled' AND Attributes['condition'] = 'false'
+                    AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY uid
+                ) AS s ON p.uid = s.uid WHERE p.v = 1 AND s.v = 1 LIMIT 1000
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        missingSeriesEvalsToResolve: 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is not scheduled"
+          description: "Pending and PodScheduled=False for 10 minutes. This is a superset of Unschedulable and also catches scheduling gates; the scheduling-condition reason metric is not collected."
+
+      - uid: capacity-amd64-cpu-requests
+        title: amd64 CPU Requests Above 85 Percent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                WITH
+                active AS (
+                  SELECT Attributes['uid'] AS uid
+                  FROM otel.otel_metrics_gauge
+                  WHERE MetricName = 'kube_pod_status_phase' AND Attributes['phase'] IN ('Running', 'Pending') AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  GROUP BY uid, Attributes['phase'] HAVING argMax(Value, TimeUnix) = 1
+                ),
+                requests AS (
+                  SELECT node, resource, sum(greatest(app, init)) AS requested
+                  FROM (
+                    SELECT node, uid, resource,
+                      sumIf(v, MetricName = 'kube_pod_container_resource_requests') AS app,
+                      maxIf(v, MetricName = 'kube_pod_init_container_resource_requests') AS init
+                    FROM (
+                      SELECT MetricName, Attributes['node'] AS node, Attributes['uid'] AS uid,
+                        Attributes['resource'] AS resource, Attributes['container'] AS container, argMax(Value, TimeUnix) AS v
+                      FROM otel.otel_metrics_gauge
+                      WHERE MetricName IN ('kube_pod_container_resource_requests', 'kube_pod_init_container_resource_requests')
+                        AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe') AND Attributes['resource'] IN ('cpu', 'memory')
+                        AND TimeUnix > now() - INTERVAL 5 MINUTE
+                      GROUP BY MetricName, node, uid, resource, container
+                    ) AS latest INNER JOIN active USING (uid)
+                    GROUP BY node, uid, resource
+                  ) GROUP BY node, resource
+                ),
+                capacity AS (
+                  SELECT node, resource, allocatable, ifNull(requested, 0) AS requested, allocatable - ifNull(requested, 0) AS free
+                  FROM (
+                    SELECT Attributes['node'] AS node, Attributes['resource'] AS resource, argMax(Value, TimeUnix) AS allocatable
+                    FROM otel.otel_metrics_gauge
+                    WHERE MetricName = 'kube_node_status_allocatable' AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe')
+                      AND Attributes['resource'] IN ('cpu', 'memory') AND TimeUnix > now() - INTERVAL 5 MINUTE
+                    GROUP BY node, resource
+                  ) AS allocation LEFT JOIN requests USING (node, resource)
+                )
+                SELECT node, toFloat64(100 * requested / nullIf(allocatable, 0)) AS value FROM capacity WHERE resource = 'cpu' LIMIT 4
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [85]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        missingSeriesEvalsToResolve: 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU requests exceed 85% on {{ $labels.node }}"
+          description: "Assigned Running/Pending pod CPU requests as a percentage of node allocatable, including the larger of summed application requests and largest init-container request."
+
+      - uid: capacity-neo-memory-headroom
+        title: Talos Neo Memory Headroom Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT Attributes['node'] AS node, toFloat64(argMax(Value, TimeUnix) / 1073741824) AS value
+                FROM otel.otel_metrics_gauge WHERE MetricName = 'node_memory_MemAvailable_bytes' AND Attributes['node'] = 'talos-neo'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node LIMIT 1
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [16]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        missingSeriesEvalsToResolve: 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "talos-neo has less than 16 GiB MemAvailable"
+          description: "Actual node-exporter MemAvailable, including reclaimable memory, has stayed below 16 GiB for 10 minutes."
+
+      - uid: capacity-workload-disk-free
+        title: Talos Workload Disk Free Below 20 Percent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT node, mountpoint, toFloat64(100 * avail / nullIf(size, 0)) AS value
+                FROM (
+                  SELECT Attributes['node'] AS node, Attributes['mountpoint'] AS mountpoint, Attributes['device'] AS device,
+                    argMaxIf(Value, TimeUnix, MetricName = 'node_filesystem_avail_bytes') AS avail,
+                    argMaxIf(Value, TimeUnix, MetricName = 'node_filesystem_size_bytes') AS size
+                  FROM otel.otel_metrics_gauge
+                  WHERE MetricName IN ('node_filesystem_avail_bytes', 'node_filesystem_size_bytes') AND Attributes['node'] != ''
+                    AND Attributes['mountpoint'] IN ('/var/mnt/gpu-storage', '/var/mnt/ci') AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  GROUP BY node, mountpoint, device
+                ) WHERE size > 0 LIMIT 100
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [20]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        missingSeriesEvalsToResolve: 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on {{ $labels.node }} {{ $labels.mountpoint }}"
+          description: "Node-exporter filesystem available space on the GPU model or CI disk has stayed below 20% for 30 minutes."

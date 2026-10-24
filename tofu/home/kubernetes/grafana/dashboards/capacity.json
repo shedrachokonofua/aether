@@ -1,0 +1,262 @@
+{
+  "uid": "aether-capacity",
+  "title": "Aether Capacity",
+  "description": "amd64 reservation headroom and live Talos capacity. Reservation accounting includes only assigned Running/Pending pods, using the greater of summed app-container requests and the largest init-container request. Paired CPU/RAM slots always refer to the same node.",
+  "tags": [
+    "aether",
+    "capacity"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "1m",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "amd64 Allocatable, Requested And Free",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "WITH\nactive AS (\n  SELECT Attributes['uid'] AS uid\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'kube_pod_status_phase' AND Attributes['phase'] IN ('Running', 'Pending') AND TimeUnix > now() - INTERVAL 5 MINUTE\n  GROUP BY uid, Attributes['phase'] HAVING argMax(Value, TimeUnix) = 1\n),\nrequests AS (\n  SELECT node, resource, sum(greatest(app, init)) AS requested\n  FROM (\n    SELECT node, uid, resource,\n      sumIf(v, MetricName = 'kube_pod_container_resource_requests') AS app,\n      maxIf(v, MetricName = 'kube_pod_init_container_resource_requests') AS init\n    FROM (\n      SELECT MetricName, Attributes['node'] AS node, Attributes['uid'] AS uid,\n        Attributes['resource'] AS resource, Attributes['container'] AS container, argMax(Value, TimeUnix) AS v\n      FROM otel.otel_metrics_gauge\n      WHERE MetricName IN ('kube_pod_container_resource_requests', 'kube_pod_init_container_resource_requests')\n        AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe') AND Attributes['resource'] IN ('cpu', 'memory')\n        AND TimeUnix > now() - INTERVAL 5 MINUTE\n      GROUP BY MetricName, node, uid, resource, container\n    ) AS latest INNER JOIN active USING (uid)\n    GROUP BY node, uid, resource\n  ) GROUP BY node, resource\n),\ncapacity AS (\n  SELECT node, resource, allocatable, ifNull(requested, 0) AS requested, allocatable - ifNull(requested, 0) AS free\n  FROM (\n    SELECT Attributes['node'] AS node, Attributes['resource'] AS resource, argMax(Value, TimeUnix) AS allocatable\n    FROM otel.otel_metrics_gauge\n    WHERE MetricName = 'kube_node_status_allocatable' AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe')\n      AND Attributes['resource'] IN ('cpu', 'memory') AND TimeUnix > now() - INTERVAL 5 MINUTE\n    GROUP BY node, resource\n  ) AS allocation LEFT JOIN requests USING (node, resource)\n)\nSELECT node, maxIf(allocatable, resource='cpu') AS cpu_allocatable, maxIf(requested, resource='cpu') AS cpu_requested, maxIf(free, resource='cpu') AS cpu_free, maxIf(allocatable, resource='memory')/1073741824 AS memory_allocatable_gib, maxIf(requested, resource='memory')/1073741824 AS memory_requested_gib, maxIf(free, resource='memory')/1073741824 AS memory_free_gib FROM capacity GROUP BY node ORDER BY cpu_free DESC LIMIT 4"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 2,
+      "title": "Largest Paired Free CPU / RAM Slots",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "WITH\nactive AS (\n  SELECT Attributes['uid'] AS uid\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'kube_pod_status_phase' AND Attributes['phase'] IN ('Running', 'Pending') AND TimeUnix > now() - INTERVAL 5 MINUTE\n  GROUP BY uid, Attributes['phase'] HAVING argMax(Value, TimeUnix) = 1\n),\nrequests AS (\n  SELECT node, resource, sum(greatest(app, init)) AS requested\n  FROM (\n    SELECT node, uid, resource,\n      sumIf(v, MetricName = 'kube_pod_container_resource_requests') AS app,\n      maxIf(v, MetricName = 'kube_pod_init_container_resource_requests') AS init\n    FROM (\n      SELECT MetricName, Attributes['node'] AS node, Attributes['uid'] AS uid,\n        Attributes['resource'] AS resource, Attributes['container'] AS container, argMax(Value, TimeUnix) AS v\n      FROM otel.otel_metrics_gauge\n      WHERE MetricName IN ('kube_pod_container_resource_requests', 'kube_pod_init_container_resource_requests')\n        AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe') AND Attributes['resource'] IN ('cpu', 'memory')\n        AND TimeUnix > now() - INTERVAL 5 MINUTE\n      GROUP BY MetricName, node, uid, resource, container\n    ) AS latest INNER JOIN active USING (uid)\n    GROUP BY node, uid, resource\n  ) GROUP BY node, resource\n),\ncapacity AS (\n  SELECT node, resource, allocatable, ifNull(requested, 0) AS requested, allocatable - ifNull(requested, 0) AS free\n  FROM (\n    SELECT Attributes['node'] AS node, Attributes['resource'] AS resource, argMax(Value, TimeUnix) AS allocatable\n    FROM otel.otel_metrics_gauge\n    WHERE MetricName = 'kube_node_status_allocatable' AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe')\n      AND Attributes['resource'] IN ('cpu', 'memory') AND TimeUnix > now() - INTERVAL 5 MINUTE\n    GROUP BY node, resource\n  ) AS allocation LEFT JOIN requests USING (node, resource)\n)\nSELECT node, maxIf(free, resource='cpu') AS free_cpu, maxIf(free, resource='memory')/1073741824 AS free_memory_gib, least(maxIf(free, resource='cpu')/8, maxIf(free, resource='memory')/17179869184) AS large_slot_fraction FROM capacity GROUP BY node ORDER BY large_slot_fraction DESC LIMIT 4"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 3,
+      "title": "Nodes With An 8 CPU + 16 GiB Slot",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "WITH\nactive AS (\n  SELECT Attributes['uid'] AS uid\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'kube_pod_status_phase' AND Attributes['phase'] IN ('Running', 'Pending') AND TimeUnix > now() - INTERVAL 5 MINUTE\n  GROUP BY uid, Attributes['phase'] HAVING argMax(Value, TimeUnix) = 1\n),\nrequests AS (\n  SELECT node, resource, sum(greatest(app, init)) AS requested\n  FROM (\n    SELECT node, uid, resource,\n      sumIf(v, MetricName = 'kube_pod_container_resource_requests') AS app,\n      maxIf(v, MetricName = 'kube_pod_init_container_resource_requests') AS init\n    FROM (\n      SELECT MetricName, Attributes['node'] AS node, Attributes['uid'] AS uid,\n        Attributes['resource'] AS resource, Attributes['container'] AS container, argMax(Value, TimeUnix) AS v\n      FROM otel.otel_metrics_gauge\n      WHERE MetricName IN ('kube_pod_container_resource_requests', 'kube_pod_init_container_resource_requests')\n        AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe') AND Attributes['resource'] IN ('cpu', 'memory')\n        AND TimeUnix > now() - INTERVAL 5 MINUTE\n      GROUP BY MetricName, node, uid, resource, container\n    ) AS latest INNER JOIN active USING (uid)\n    GROUP BY node, uid, resource\n  ) GROUP BY node, resource\n),\ncapacity AS (\n  SELECT node, resource, allocatable, ifNull(requested, 0) AS requested, allocatable - ifNull(requested, 0) AS free\n  FROM (\n    SELECT Attributes['node'] AS node, Attributes['resource'] AS resource, argMax(Value, TimeUnix) AS allocatable\n    FROM otel.otel_metrics_gauge\n    WHERE MetricName = 'kube_node_status_allocatable' AND Attributes['node'] IN ('talos-neo','talos-smith','talos-trinity','talos-niobe')\n      AND Attributes['resource'] IN ('cpu', 'memory') AND TimeUnix > now() - INTERVAL 5 MINUTE\n    GROUP BY node, resource\n  ) AS allocation LEFT JOIN requests USING (node, resource)\n)\nSELECT toFloat64(countIf(free_cpu >= 8 AND free_memory >= 17179869184)) AS value\nFROM (SELECT node, maxIf(free, resource = 'cpu') AS free_cpu, maxIf(free, resource = 'memory') AS free_memory FROM capacity GROUP BY node)\nHAVING count() = 4\nLIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Pending Pods Not Scheduled",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT p.namespace AS namespace, p.pod AS pod, toFloat64(1) AS value\nFROM (\n  SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['uid'] AS uid, argMax(Value, TimeUnix) AS v\n  FROM otel.otel_metrics_gauge WHERE MetricName = 'kube_pod_status_phase' AND Attributes['phase'] = 'Pending'\n    AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod, uid\n) AS p INNER JOIN (\n  SELECT Attributes['uid'] AS uid, argMax(Value, TimeUnix) AS v\n  FROM otel.otel_metrics_gauge WHERE MetricName = 'kube_pod_status_scheduled' AND Attributes['condition'] = 'false'\n    AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY uid\n) AS s ON p.uid = s.uid WHERE p.v = 1 AND s.v = 1 LIMIT 1000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 5,
+      "title": "Talos MemAvailable (GiB)",
+      "type": "table",
+      "gridPos": {
+        "x": 12,
+        "y": 15,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT Attributes['node'] AS node, toFloat64(argMax(Value, TimeUnix) / 1073741824) AS value\nFROM otel.otel_metrics_gauge WHERE MetricName = 'node_memory_MemAvailable_bytes' AND Attributes['node'] != ''\n  AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node LIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 6,
+      "title": "GPU / CI Disk Available (%)",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 7
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql",
+          "rawSql": "SELECT node, mountpoint, toFloat64(100 * avail / nullIf(size, 0)) AS value\nFROM (\n  SELECT Attributes['node'] AS node, Attributes['mountpoint'] AS mountpoint, Attributes['device'] AS device,\n    argMaxIf(Value, TimeUnix, MetricName = 'node_filesystem_avail_bytes') AS avail,\n    argMaxIf(Value, TimeUnix, MetricName = 'node_filesystem_size_bytes') AS size\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName IN ('node_filesystem_avail_bytes', 'node_filesystem_size_bytes') AND Attributes['node'] != ''\n    AND Attributes['mountpoint'] IN ('/var/mnt/gpu-storage', '/var/mnt/ci') AND TimeUnix > now() - INTERVAL 5 MINUTE\n  GROUP BY node, mountpoint, device\n) WHERE size > 0 LIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    }
+  ]
+}
