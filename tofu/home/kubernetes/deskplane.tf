@@ -459,6 +459,9 @@ resource "helm_release" "deskplane" {
 
     mcp = {
       enabled = true
+      resources = {
+        requests = { cpu = "100m" }
+      }
       # CI path-filters build:image:mcp to mcp/**, so this tag only advances
       # on commits that touch the MCP. Bumping it in lockstep with the
       # control-plane SHA pins a tag that was never built: the pod cannot
