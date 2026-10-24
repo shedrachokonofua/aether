@@ -62,6 +62,8 @@ locals {
         "affine-delete_custom_property", "affine-delete_blob", "affine-cleanup_blobs",
       ]
     }
+    # Full control: every siren tool is allowed, admin and destructive ones
+    # included (Shedrach, 2026-10-23).
     siren = {
       allow = [
         "siren-m9weby603s_ionService_DefaultQuantileRankAlbumAssessmentSettings",
@@ -95,8 +97,8 @@ locals {
         "siren-siren_SpotifyService_GetAuthorizationUrl",
         "siren-siren_SpotifyService_GetPlaylistTracks", "siren-siren_SpotifyService_GetSavedTracks",
         "siren-siren_SpotifyService_IsAuthorized",
-      ]
-      ask = [
+        # Admin and destructive: queue purges, processor/subscriber control,
+        # store wipes, migrations, file and profile deletes.
         "siren-siren_CrawlerService_Empty", "siren-siren_CrawlerService_RemoveThrottle",
         "siren-siren_CrawlerService_RequeueFailed", "siren-siren_CrawlerService_ResetLimiter",
         "siren-siren_CrawlerService_SetStatus", "siren-siren_EventService_DeleteCursor",
@@ -119,6 +121,7 @@ locals {
         "siren-siren_SpotifyService_DeleteCredentials",
         "siren-siren_SpotifyService_HandleAuthorizationCode",
       ]
+      ask = []
     }
     jellyfin = {
       allow = [

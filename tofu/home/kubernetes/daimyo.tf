@@ -71,15 +71,20 @@ locals {
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
   # limit (request 64Mi).
-  # Server 8ecf6f4: SandboxClass `imageRepository` and a per-create `image`
-  # digest (repositories own their sandbox image), on top of 1860310:
-  # b81ee80 (Deskplane browser release on task end), the sandbox sweep for
-  # creates no launch owns (G18) and the resume of a turn whose pod vanished
-  # (G19). Migration 0044.
-  daimyo_server_tag  = "sha256:6518080a8314f87690ba6bc0b490de12d818490e643a61848074702c01ebec45"
-  # Sidecar ed78a29: journal archives leave Unix sockets out (G20; omp's
-  # daemon broker.sock failed every journal sync and every later turn).
-  daimyo_sidecar_tag = "sha256:99f6c319dcc4e8d83005887abd44ce3a9df4e2ddd1b885dbb88bad613e8026aa"
+  # Server and sidecar 89e1a1c (main pipeline 7948): tool approvals for
+  # session pods. A session's grants name the session, not a turn; parking
+  # and audit resolve it to the running turn (409 when none), polls stay
+  # bound to the parked turn, and approvals are assigned to the session
+  # owner. Before it every `ask` from a session answered 404. On top of
+  # 8ecf6f4: SandboxClass `imageRepository` and a per-create `image` digest
+  # (repositories own their sandbox image), and 1860310: b81ee80 (Deskplane
+  # browser release on task end), the sandbox sweep for creates no launch
+  # owns (G18) and the resume of a turn whose pod vanished (G19). Migration
+  # 0044.
+  daimyo_server_tag = "sha256:9cadd4eccbd26fb9bc7d8906c209cb46160bdcbebb13828250e3ae754285e481"
+  # Sidecar 89e1a1c: a 409 from parking reports "no running turn"; includes
+  # ed78a29 (journal archives leave Unix sockets out, G20).
+  daimyo_sidecar_tag = "sha256:6554605d017e374d8015fb086bff2dc2d67a5c23ce62488b6559789ee2cf14e6"
   # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
   # omp a9eb769: MCP servers without omp's 30 s client timeout (long granted
