@@ -577,12 +577,11 @@ locals {
     }
   }
   # Policy for tools that should ask Shedrach first (deleting, spending,
-  # publishing, admin). Orion renders Daimyo tool approvals in the thread, but
-  # Daimyo cannot park them for session agents yet: the sidecar parks under the
-  # session id and the server looks up a task row by that id (daimyo
-  # crates/daimyo-workflow/src/approvals.rs park_tool_call), so every `ask`
-  # answered 404 on 2026-10-19. Hidden until that is fixed; then set "ask".
-  orion_ask = "deny"
+  # publishing, admin). The sidecar parks the call on a Daimyo tool approval
+  # and Orion renders it in the thread. Session pods park under their session
+  # id, which Daimyo resolves to the running turn (daimyo 89e1a1c; before it
+  # every `ask` from a session answered 404 and this was "deny").
+  orion_ask = "ask"
 }
 
 # `orion`: the personal agent behind Orion's threads (Home "Ask Orion", New
