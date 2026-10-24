@@ -71,7 +71,16 @@ locals {
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
   # limit (request 64Mi).
-  # Server 2f64e17: an exec may run up to the sandbox's remaining TTL, not the
+  # Server and sidecar 9d1cfe8 (main pipeline 8069): explicit workload
+  # identity. A session pod's token sub is `session:<org>/<project>/<agent>/
+  # <id>` (tasks keep `task:`), grants.json carries `workload {kind,id}`,
+  # session tool approvals use /v1/sessions/{id}/tool-*, session sandboxes are
+  # owned as `session` and deleted on close. Migration 0045 renames
+  # grants_issued/deskplane_cleanup task_id to workload_id + workload_kind:
+  # a contract migration, so it ships as a downtime upgrade (server scaled to
+  # 0 for the hook) and hot session pods are cycled after it. Orion a51e5b1
+  # and Cicada 2ee3cee accept `session:` subs. Before that, server 2f64e17: an
+  # exec may run up to the sandbox's remaining TTL, not the
   # 600 s default (G21; goal acceptance was cut at ten minutes). Before that
   # 877174b (main pipeline 7958): task claims and adoption skip session
   # turns (the adoption replica claimed, refused and released every running
@@ -86,10 +95,10 @@ locals {
   # browser release on task end), the sandbox sweep for creates no launch
   # owns (G18) and the resume of a turn whose pod vanished (G19). Migration
   # 0044.
-  daimyo_server_tag = "sha256:a6aa50f02ea715fd1c534973f5b63c98d6cd9bfd634f67ecb12562098540142c"
-  # Sidecar 89e1a1c: a 409 from parking reports "no running turn"; includes
-  # ed78a29 (journal archives leave Unix sockets out, G20).
-  daimyo_sidecar_tag = "sha256:6554605d017e374d8015fb086bff2dc2d67a5c23ce62488b6559789ee2cf14e6"
+  daimyo_server_tag = "sha256:0ab173f0021abeffdcda6837bd52e869b8169b43c95f9c9c8bab4f6268729c76"
+  # Sidecar 9d1cfe8: grants.json `workload`, session tool-approval routes.
+  # Includes ed78a29 (journal archives leave Unix sockets out, G20).
+  daimyo_sidecar_tag = "sha256:fb448831cecc9f7abf06c02af7e948f72f49146d2d7c94795dfea22b62c9cbff"
   # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
   # omp a9eb769: MCP servers without omp's 30 s client timeout (long granted
