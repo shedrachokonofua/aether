@@ -25,7 +25,9 @@
     "template": {
       "metadata": {
         "annotations": {
-          "aether.shdr.ch/env-checksum": "ea4de91fc760b00e4178f93ade876cb60d98a9bbdadfc807d34dd0c7c25975d1"
+          "aether.shdr.ch/env-checksum": "ea4de91fc760b00e4178f93ade876cb60d98a9bbdadfc807d34dd0c7c25975d1",
+          "keel.sh/update-time": "2026-08-16 03:16:03.609078856 +0000 UTC m=+772751.163010190",
+          "kubectl.kubernetes.io/restartedAt": "2026-10-15T23:47:30-04:00"
         },
         "labels": {
           "app": "orion"
@@ -43,7 +45,7 @@
                 }
               }
             ],
-            "image": "registry.gitlab.home.shdr.ch/so/orion/main:3a062f6c73231cb6065beb1cad707e7e02142ffe",
+            "image": "registry.gitlab.home.shdr.ch/so/orion/main:d13849f22cb7e16d9abff4a5a33ea5255e468d0e",
             "imagePullPolicy": "Always",
             "name": "orion",
             "ports": [

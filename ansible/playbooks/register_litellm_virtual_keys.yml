@@ -22,6 +22,7 @@
         - qwen-cloud/qwen3.8-max
       omp: &omp_models
         - antigravity/gemini-3.8-flash
+        - antigravity/gemini-4-argon
         - supergrok/grok-4.7
         - step/step-5-preview
         - chatgpt/gpt-6-astra
@@ -74,6 +75,7 @@
         - kimi/k3
         - router/deepseek-v4-pro
         - ollama-cloud/deepseek-v4-pro
+        - ollama-cloud/deepseek-v4.1-flash
         - router/minimax-m3
         - moira/frontier
         - moira/strong
@@ -86,6 +88,7 @@
         - router/ling-3.1-flash
         - openrouter/ling-3.1-flash
         - commandcode-free/ling-3.1-flash
+        - routeway/glm-5.3-flash-uncensored
       # omp on the Coder workspace: same allowlist as the workstation omp, its
       # own key so its traffic is attributable (it ran on the master key).
       omp_coder: *omp_models
@@ -127,6 +130,7 @@
         - kimi/k3
         - router/deepseek-v4-pro
         - ollama-cloud/deepseek-v4-pro
+        - ollama-cloud/deepseek-v4.1-flash
         - qwen-cloud/qwen3.8-max
         - qwen-cloud/qwen3.8-flash
         - clinepass/qwen3.8-max
@@ -162,6 +166,7 @@
       - time
       - finviz
       - affine
+      - comfyui
       - colony
       # oauth_delegate: tools run as the OpenWebUI user's forwarded token.
       - pop
@@ -185,15 +190,15 @@
     litellm_seven30_foundry_mcp_servers:
       - deskplane
       - finviz
-
-  tasks:
     # The `orion` Daimyo agent's gateway key: its value is in OpenBao
     # (orgs/personal/litellm-mcp, tofu/home/openbao_daimyo.tf), not SOPS, so it
     # is found by alias. MCP only (no models); the server list must track
-    # tofu/home/kubernetes/orion_agent_tools.tf's orion_gateway_tools.
+    # Orion chart values agents.orion.spec.grants (deploy/helm/orion), plus
+    # dev's retained ClickStack grant in tofu/home/kubernetes/orion_agent_tools.tf.
     litellm_daimyo_orion_alias: daimyo-orion
     litellm_daimyo_orion_mcp_servers:
       - colony
+      - clickstack
       - affine
       - siren
       - jellyfin
@@ -204,6 +209,8 @@
       - google_maps
       - time
       - tmdb
+
+  tasks:
     - name: Load secrets
       community.sops.load_vars:
         file: "{{ aether_root }}/secrets/secrets.yml"
@@ -409,8 +416,6 @@
         status_code: [200]
       no_log: true
 
-    # Aliases retired from the cluster. The playbook can create and update keys
-    # but nothing else deletes them, so the live keys orphan when their SOPS
     - name: Look up the daimyo-orion virtual key by alias
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/list?key_alias={{ litellm_daimyo_orion_alias }}&return_full_object=true"
@@ -444,6 +449,8 @@
         status_code: [200]
       no_log: true
 
+    # Aliases retired from the cluster. The playbook can create and update keys
+    # but nothing else deletes them, so the live keys orphan when their SOPS
     # entries go. Delete by alias, idempotently: an alias with no live key is
     # a no-op, so this is safe to run repeatedly and before the SOPS removal.
     - name: Delete retired virtual keys by alias
