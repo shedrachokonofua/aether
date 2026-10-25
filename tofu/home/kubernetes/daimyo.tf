@@ -113,7 +113,11 @@ locals {
   # 9f4cdb8 (main pipeline 8240): agents-as-tools discovery, thread labels,
   # next-turn revision cycling, and fresh harness starts for never-used
   # sessions. Migrations 0047/0048; Agent CRD applied server-side first.
-  daimyo_server_tag = "sha256:08556dc322952c1b4c78176dcf9651d40926772c0f3f4230c73eaac427836e78"
+  # e2e02b6 (main pipeline 8297): standalone Schedule resources (managed
+  # PUT/PATCH/DELETE routes, Cedar Schedule entity, signed trigger
+  # `schedule:<org>/agent/<agent>/<name>`) and task `trigger` in task
+  # get/list. Migration 0049; Schedule CRD applied server-side first.
+  daimyo_server_tag = "sha256:3959d32e7dc192d69bd56792460b340aec919371edc5e3b760baf79ec623fb66"
   # Sidecar 7f40da5: the kubernetes grant's kubeconfig projection and the
   # per-task git identity env. Includes 9d1cfe8 (grants.json `workload`,
   # session tool-approval routes) and ed78a29 (journal archives leave Unix
@@ -484,10 +488,23 @@ resource "kubectl_manifest" "daimyo_sandboxclass_crd" {
   force_conflicts   = true
 }
 
+# The standalone Schedule schema (daimyo standalone-schedules, migration 0049):
+# a schedule that targets an existing agent operation, API- or GitOps-managed.
+# The isolated release gate installed it first, so take ownership with
+# server-side apply.
+resource "kubectl_manifest" "daimyo_schedule_crd" {
+  depends_on = [terraform_data.daimyo_chart_present]
+
+  yaml_body         = file("${local.daimyo_chart_path}/crds/daimyo-schedules.yaml")
+  server_side_apply = true
+  force_conflicts   = true
+}
+
 resource "helm_release" "daimyo" {
   depends_on = [
     terraform_data.daimyo_chart_present,
     kubectl_manifest.daimyo_agent_crd,
+    kubectl_manifest.daimyo_schedule_crd,
     module.namespace["daimyo-system"],
     module.namespace["org-personal"],
     module.namespace["org-seven30"],
