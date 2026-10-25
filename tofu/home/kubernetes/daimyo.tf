@@ -71,7 +71,16 @@ locals {
   # (pipeline 7609): HTTP GrantAuth task tokens, attested custom harness
   # images and image-bundled skills. Keeps d49dd90's 256Mi sidecar memory
   # limit (request 64Mi).
-  # Server and sidecar 9d1cfe8 (main pipeline 8069): explicit workload
+  # Server 0e818b8: 7f40da5 plus a `ping` comment every 15 s on silent
+  # sandbox exec streams (G22; the gateway resets a stream idle for 300 s and
+  # cut goal acceptance and ci_exec mid-run). Sidecar stays at 7f40da5.
+  # Server and sidecar 7f40da5 (main pipeline 8086): group git grants
+  # (`so/*`), per-agent GitLab identities with a per-task PAT, and the
+  # kubernetes grant (a read-only `dev` ServiceAccount, label-gated
+  # kube-apiserver egress). Migration 0046 adds git_identities and
+  # git_memberships (additive; the pre-upgrade hook applies it). CRDs orgs
+  # and agents applied server-side first. Harnesses unchanged. Before that,
+  # server and sidecar 9d1cfe8 (main pipeline 8069): explicit workload
   # identity. A session pod's token sub is `session:<org>/<project>/<agent>/
   # <id>` (tasks keep `task:`), grants.json carries `workload {kind,id}`,
   # session tool approvals use /v1/sessions/{id}/tool-*, session sandboxes are
@@ -95,10 +104,12 @@ locals {
   # browser release on task end), the sandbox sweep for creates no launch
   # owns (G18) and the resume of a turn whose pod vanished (G19). Migration
   # 0044.
-  daimyo_server_tag = "sha256:0ab173f0021abeffdcda6837bd52e869b8169b43c95f9c9c8bab4f6268729c76"
-  # Sidecar 9d1cfe8: grants.json `workload`, session tool-approval routes.
-  # Includes ed78a29 (journal archives leave Unix sockets out, G20).
-  daimyo_sidecar_tag = "sha256:fb448831cecc9f7abf06c02af7e948f72f49146d2d7c94795dfea22b62c9cbff"
+  daimyo_server_tag = "sha256:65b37f3ed88ca9efbff2e230b093b95a2489d8f3173e0066fa7fdc77dbfba635"
+  # Sidecar 7f40da5: the kubernetes grant's kubeconfig projection and the
+  # per-task git identity env. Includes 9d1cfe8 (grants.json `workload`,
+  # session tool-approval routes) and ed78a29 (journal archives leave Unix
+  # sockets out, G20).
+  daimyo_sidecar_tag = "sha256:d07e327d211b328282873f940c945012a794be957e22e48bea5bb84d03647037"
   # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
   # omp a9eb769: MCP servers without omp's 30 s client timeout (long granted
@@ -520,9 +531,9 @@ resource "helm_release" "daimyo" {
       nodeSelector = { "kubernetes.io/arch" = "amd64" }
     }
     config = {
-      publicBaseUrl = "https://daimyo.home.shdr.ch"
-      listen        = "0.0.0.0:8080"
-      apiUpstream   = "http://daimyo-api.daimyo-system.svc:80"
+      publicBaseUrl       = "https://daimyo.home.shdr.ch"
+      listen              = "0.0.0.0:8080"
+      apiUpstream         = "http://daimyo-api.daimyo-system.svc:80"
       deskplaneReleaseUrl = "${local.deskplane_public_url}/api/sessions/release"
       # The controller reconciles only CRs labelled with this instance
       # (local.daimyo_cr_labels); set explicitly rather than inheriting the
@@ -572,6 +583,10 @@ resource "helm_release" "daimyo" {
       }
       git = {
         defaultBaseUrl = "https://gitlab.home.shdr.ch"
+        adminTokenSecret = {
+          path = "daimyo/gitlab-admin"
+          key  = "token"
+        }
       }
       metricsListen = "0.0.0.0:9090"
       storage = {
@@ -700,12 +715,6 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
         egress  = true
         ingress = true
       }
-      # Cilium deny rules beat allows from any policy, including the cluster
-      # baseline CCNP that lets every pod reach kube-apiserver. Task and
-      # sandbox pods have no ServiceAccount token and no business there.
-      egressDeny = [
-        { toEntities = ["kube-apiserver"] },
-      ]
       ingress = [
         {
           # The engine reaches agent pods by pod IP on 8080 (chart P5).
@@ -1038,6 +1047,20 @@ resource "kubectl_manifest" "daimyo_org" {
           },
         ]
       } : {},
+      # personal: per-agent GitLab identities over the org's group grants and
+      # the read-only `dev` ServiceAccount kubernetes grants bind. `values()`
+      # flattens the filtered map so `merge` adds these attributes themselves;
+      # a bare conditional would need null placeholders for the other orgs,
+      # and an unflattened map would add a "personal" attribute to the spec.
+      values({ for name, extra in {
+        personal = {
+          git = {
+            identity     = "perAgent"
+            allowedRepos = ["so/*", "seven30/*"]
+          }
+          kubernetes = { serviceAccounts = ["dev"] }
+        }
+      } : name => extra if name == each.key })...
     )
   })
 }
@@ -1666,3 +1689,181 @@ resource "kubernetes_manifest" "deskplane_mcp_daimyo_ingress" {
 # Migrations run in the chart's pre-install/pre-upgrade hook (see
 # migrate.enabled above and the daimyo repo's docs/ops/upgrades.md).
 # Migrations are forward-only: an older server cannot run on a newer schema.
+
+# Keep the API deny separate: Cilium deny rules override every allow rule.
+# NotIn also selects pods without the grant label, including sandboxes.
+resource "kubernetes_manifest" "daimyo_tasks_kubernetes_deny" {
+  for_each   = local.daimyo_orgs
+  depends_on = [helm_release.cilium, helm_release.daimyo]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "daimyo-tasks-kubernetes-deny"
+      namespace = "${each.key}-tasks"
+      labels    = local.daimyo_labels
+    }
+    spec = {
+      endpointSelector = {
+        matchExpressions = [{
+          key      = "daimyo.shdr.ch/kubernetes"
+          operator = "NotIn"
+          values   = ["true"]
+        }]
+      }
+      egressDeny = [{ toEntities = ["kube-apiserver"] }]
+    }
+  }
+}
+
+resource "kubernetes_manifest" "daimyo_tasks_kubernetes_allow" {
+  for_each   = local.daimyo_orgs
+  depends_on = [helm_release.cilium, helm_release.daimyo]
+
+  field_manager {
+    force_conflicts = true
+  }
+
+  manifest = {
+    apiVersion = "cilium.io/v2"
+    kind       = "CiliumNetworkPolicy"
+    metadata = {
+      name      = "daimyo-tasks-kubernetes-allow"
+      namespace = "${each.key}-tasks"
+      labels    = local.daimyo_labels
+    }
+    spec = {
+      endpointSelector = {
+        matchLabels = { "daimyo.shdr.ch/kubernetes" = "true" }
+      }
+      egress = [{ toEntities = ["kube-apiserver"] }]
+    }
+  }
+}
+
+resource "kubernetes_service_account_v1" "daimyo_personal_dev" {
+  metadata {
+    name      = "dev"
+    namespace = module.namespace["personal-tasks"].name
+  }
+  automount_service_account_token = false
+}
+
+resource "kubernetes_cluster_role_binding_v1" "daimyo_personal_dev_view" {
+  metadata {
+    name = "daimyo-personal-dev-view"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "view"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.daimyo_personal_dev.metadata[0].name
+    namespace = module.namespace["personal-tasks"].name
+  }
+}
+
+resource "kubernetes_cluster_role_v1" "daimyo_cluster_read" {
+  metadata {
+    name = "cluster-read"
+  }
+  rule {
+    api_groups = [""]
+    resources  = ["nodes", "persistentvolumes"]
+    verbs      = ["get", "list", "watch"]
+  }
+  rule {
+    api_groups = ["storage.k8s.io"]
+    resources  = ["storageclasses"]
+    verbs      = ["get", "list", "watch"]
+  }
+  rule {
+    api_groups = ["apiextensions.k8s.io"]
+    resources  = ["customresourcedefinitions"]
+    verbs      = ["get", "list", "watch"]
+  }
+  rule {
+    api_groups = ["networking.k8s.io"]
+    resources  = ["ingressclasses"]
+    verbs      = ["get", "list", "watch"]
+  }
+  rule {
+    api_groups = ["scheduling.k8s.io"]
+    resources  = ["priorityclasses"]
+    verbs      = ["get", "list", "watch"]
+  }
+  # Match the explicit CRD read surface in holmesgpt.tf holmes_readonly.
+  rule {
+    api_groups = ["aquasecurity.github.io"]
+    resources  = ["vulnerabilityreports", "configauditreports", "exposedsecretreports"]
+    verbs      = ["get", "list", "watch"]
+  }
+  rule {
+    api_groups = ["cilium.io"]
+    resources  = ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies", "tracingpolicies"]
+    verbs      = ["get", "list", "watch"]
+  }
+  rule {
+    api_groups = ["snapshot.storage.k8s.io"]
+    resources  = ["volumesnapshots", "volumesnapshotcontents", "volumesnapshotclasses"]
+    verbs      = ["get", "list", "watch"]
+  }
+  rule {
+    api_groups = ["cert-manager.io"]
+    resources  = ["certificates", "certificaterequests", "issuers", "clusterissuers"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding_v1" "daimyo_personal_dev_cluster_read" {
+  metadata {
+    name = "daimyo-personal-dev-cluster-read"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role_v1.daimyo_cluster_read.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.daimyo_personal_dev.metadata[0].name
+    namespace = module.namespace["personal-tasks"].name
+  }
+}
+
+resource "kubernetes_role_v1" "daimyo_personal_token_request" {
+  metadata {
+    name      = "daimyo-token-request"
+    namespace = module.namespace["personal-tasks"].name
+  }
+  rule {
+    api_groups     = [""]
+    resources      = ["serviceaccounts/token"]
+    resource_names = [kubernetes_service_account_v1.daimyo_personal_dev.metadata[0].name]
+    verbs          = ["create"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "daimyo_personal_token_request" {
+  metadata {
+    name      = "daimyo-token-request"
+    namespace = module.namespace["personal-tasks"].name
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.daimyo_personal_token_request.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "daimyo-server"
+    namespace = local.daimyo_ns
+  }
+}
