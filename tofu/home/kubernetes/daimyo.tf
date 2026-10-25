@@ -110,7 +110,11 @@ locals {
   # session tool-approval routes) and ed78a29 (journal archives leave Unix
   # sockets out, G20).
   daimyo_sidecar_tag = "sha256:d07e327d211b328282873f940c945012a794be957e22e48bea5bb84d03647037"
-  # Claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
+  # Claude-code and omp 8a300c3 (pipeline 8160): the coding harness images
+  # carry pinned, checksum-verified kubectl v1.36.5 (the cluster minor) so a
+  # kubernetes grant is usable - the grant hands the agent a kubeconfig for
+  # the sidecar's API-server proxy and expects the real client. Before that
+  # claude-code 9747dcd (pipeline 7613): image skills through a session plugin;
   # writable user hooks/agents cannot bypass the sidecar permission decision.
   # omp a9eb769: MCP servers without omp's 30 s client timeout (long granted
   # tool calls such as Cicada's ci_exec). workflow-runner remains at 3f04716
@@ -122,8 +126,8 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:6e763a95c2f414cd39b4e34d23d6c6cdbfe7d33ebdb9f88dea1c1817f983019a"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:903d25b8a06ce6f1eeaafacb1516e7eece14fae49bca85efde83ee4ffe5a8411"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:34bdeefdd0502ce4ce39b66f86358217b6ac31e8f5bb493027edb28fecabb3cf"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:324cc0c40c661fcf87e269cde49cf4ff63aa0e4390ec180bd6b037637e7e0d8b"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0779a1c1b27fea8b2ff1bdfd2f04ea924a9ffc4c6319cceee2f5dc0219bbfc30"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
