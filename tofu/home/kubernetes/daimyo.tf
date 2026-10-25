@@ -104,7 +104,13 @@ locals {
   # browser release on task end), the sandbox sweep for creates no launch
   # owns (G18) and the resume of a turn whose pod vanished (G19). Migration
   # 0044.
-  daimyo_server_tag = "sha256:65b37f3ed88ca9efbff2e230b093b95a2489d8f3173e0066fa7fdc77dbfba635"
+  # f55ca3b (main pipeline 8182): review fixes for the git identities and the
+  # kubernetes grant - `daimyo_<org>_<agent>` usernames with email-checked
+  # adoption, membership dedup under an enclosing group, PAT expiry on the
+  # UTC day after the grant, a single kubernetes grant per revision, and
+  # allowedRepos checked at mint. Sidecar digest unchanged: the fixes are
+  # broker/config code only.
+  daimyo_server_tag = "sha256:917d1590c02695f47af86a0f6b383459f9e1c0a350520d8069d35e2b241caab4"
   # Sidecar 7f40da5: the kubernetes grant's kubeconfig projection and the
   # per-task git identity env. Includes 9d1cfe8 (grants.json `workload`,
   # session tool-approval routes) and ed78a29 (journal archives leave Unix
