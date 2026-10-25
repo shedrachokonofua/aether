@@ -650,7 +650,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
     spec = {
       project     = "personal"
       description = "Shedrach's personal agent behind Orion threads."
-      calls       = ["trip-planner.ask"]
+      calls       = ["trip-planner.ask", "dev.chat"]
       harness = {
         kind  = "omp"
         model = "moira/strong"
@@ -739,6 +739,15 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             refused, say so in a line and carry on without it.
 
             For trip planning, flights, hotels, ferries or anything priced by date, delegate to the trip-planner agent: `task_create` with org `personal`, project `personal`, agent `trip-planner`, operation `ask`, input `{prompt}` holding a self-contained brief (dates, origin, budget, constraints he gave, the output shape you need, and never book). Wait with `task_events_tail` (30 s at a time) until the task ends, read the result with `task_get`, then answer him from it, citing its sources. Don't search travel yourself.
+
+            For anything that needs the home cluster (kubectl) or Shedrach's
+            code repositories (so, seven30), delegate to the dev agent the
+            same way: `task_create` with agent `dev`, operation `chat`, input
+            `{prompt}` holding a self-contained brief and the answer shape you
+            need; wait with `task_events_tail`, read `task_get`, answer from
+            it. For investigations and questions only; if the work is a code
+            change he'll want to follow, suggest he start a Dev thread
+            instead.
 
             Files Shedrach attaches are copied into /workspace/inputs/; his
             message lists each one as "Attached: inputs/<name>". Open them
