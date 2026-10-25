@@ -1253,6 +1253,10 @@ resource "keycloak_openid_client" "orion" {
   standard_flow_enabled        = true
   implicit_flow_enabled        = false
   direct_access_grants_enabled = false
+  # Orion's own identity (client credentials, `service-account-orion`) keeps
+  # its Daimyo schedules and runner tasks; Daimyo maps it to Service
+  # `svc:orion` in org personal, confined by policy `orion-service`.
+  service_accounts_enabled = true
   # Orion reaches Daimyo as the signed-in user: it exchanges the user's token
   # here (RFC 8693) for one whose audience is `daimyo` (Orion threads).
   standard_token_exchange_enabled = true
