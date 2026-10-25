@@ -110,12 +110,15 @@ locals {
   # UTC day after the grant, a single kubernetes grant per revision, and
   # allowedRepos checked at mint. Sidecar digest unchanged: the fixes are
   # broker/config code only.
-  daimyo_server_tag = "sha256:917d1590c02695f47af86a0f6b383459f9e1c0a350520d8069d35e2b241caab4"
+  # 9f4cdb8 (main pipeline 8240): agents-as-tools discovery, thread labels,
+  # next-turn revision cycling, and fresh harness starts for never-used
+  # sessions. Migrations 0047/0048; Agent CRD applied server-side first.
+  daimyo_server_tag = "sha256:08556dc322952c1b4c78176dcf9651d40926772c0f3f4230c73eaac427836e78"
   # Sidecar 7f40da5: the kubernetes grant's kubeconfig projection and the
   # per-task git identity env. Includes 9d1cfe8 (grants.json `workload`,
   # session tool-approval routes) and ed78a29 (journal archives leave Unix
   # sockets out, G20).
-  daimyo_sidecar_tag = "sha256:d07e327d211b328282873f940c945012a794be957e22e48bea5bb84d03647037"
+  daimyo_sidecar_tag = "sha256:ea0553b0b45f4189446fb9e72f7705491b75670ada00d66872f087a9e359408a"
   # Claude-code and omp 8a300c3 (pipeline 8160): the coding harness images
   # carry pinned, checksum-verified kubectl v1.36.5 (the cluster minor) so a
   # kubernetes grant is usable - the grant hands the agent a kubeconfig for
@@ -132,13 +135,13 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:34bdeefdd0502ce4ce39b66f86358217b6ac31e8f5bb493027edb28fecabb3cf"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:324cc0c40c661fcf87e269cde49cf4ff63aa0e4390ec180bd6b037637e7e0d8b"
-  daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0779a1c1b27fea8b2ff1bdfd2f04ea924a9ffc4c6319cceee2f5dc0219bbfc30"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:73b16b8fd60560b2a40a27570622cacb90d1abce3b972c99612fb898bb06b7a2"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:34e5bea5c099f5193c17642c2f4b2818bd12f912e49a39102ea8ab00422e13ca"
+  daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:fc3f521f2f8ab829dffd96afd01d910ad11aa251e760486898fbb8ffafbc050b"
   # omp-dev 9f56762 (pipeline 8193): the omp harness image plus Node 24,
   # Python 3, a C toolchain and Rust (stable + the pinned toolchain) for the
   # dev agent; attested v1 in org personal.
-  daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:102be5e0cc74bc4979cf9f10fae0bbf060b52f5a952fcf619a078e45c58ec595"
+  daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:97627298d77be10bc976a2f233854290be3c531ca4c576af1f8f138d19ac8c2a"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   # 7eaeb9c echo (pipeline 6741, current Python SDK: prompt cancel, no null

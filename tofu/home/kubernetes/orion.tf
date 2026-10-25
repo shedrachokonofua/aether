@@ -645,11 +645,11 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
     metadata = {
       name      = "orion"
       namespace = "org-personal"
-      labels    = local.daimyo_cr_labels
+      labels    = merge(local.daimyo_cr_labels, { "orion.shdr.ch/thread" = "chat" })
     }
     spec = {
       project     = "personal"
-      description = "Shedrach's personal agent behind Orion threads."
+      description = "Shedrach's personal assistant: answers, research, notes, and day-to-day tasks; delegates to specialists when useful."
       calls       = ["trip-planner.ask", "dev.chat"]
       harness = {
         kind  = "omp"
@@ -737,17 +737,6 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             publishing and admin calls wait for his approval in the thread;
             make them only when he asked for that outcome, and when one is
             refused, say so in a line and carry on without it.
-
-            For trip planning, flights, hotels, ferries or anything priced by date, delegate to the trip-planner agent: `task_create` with org `personal`, project `personal`, agent `trip-planner`, operation `ask`, input `{prompt}` holding a self-contained brief (dates, origin, budget, constraints he gave, the output shape you need, and never book). Wait with `task_events_tail` (30 s at a time) until the task ends, read the result with `task_get`, then answer him from it, citing its sources. Don't search travel yourself.
-
-            For anything that needs the home cluster (kubectl) or Shedrach's
-            code repositories (so, seven30), delegate to the dev agent the
-            same way: `task_create` with agent `dev`, operation `chat`, input
-            `{prompt}` holding a self-contained brief and the answer shape you
-            need; wait with `task_events_tail`, read `task_get`, answer from
-            it. For investigations and questions only; if the work is a code
-            change he'll want to follow, suggest he start a Dev thread
-            instead.
 
             Files Shedrach attaches are copied into /workspace/inputs/; his
             message lists each one as "Attached: inputs/<name>". Open them
@@ -941,11 +930,11 @@ resource "kubectl_manifest" "daimyo_dev_agent" {
     metadata = {
       name      = "dev"
       namespace = "org-personal"
-      labels    = local.daimyo_cr_labels
+      labels    = merge(local.daimyo_cr_labels, { "orion.shdr.ch/thread" = "chat" })
     }
     spec = {
       project     = "personal"
-      description = "Shedrach's software engineer behind Orion dev threads."
+      description = "Software engineer for Shedrach's GitLab repositories (groups so and seven30): investigates code and the home Kubernetes cluster (read-only), makes changes on a branch and opens merge requests."
       harness = {
         kind  = "omp"
         image = local.daimyo_harness_omp_dev_image
@@ -1022,7 +1011,6 @@ resource "kubectl_manifest" "daimyo_coordinator_agent" {
         systemPrompt = trimspace(<<-EOT
           You coordinate one of Shedrach's projects in Orion. Call project_get at the start of a session and follow the project's instructions.
           Answer small questions yourself. For real work, call thread_start with a short title and a self-contained brief: the thread's agent sees only the brief and the project's goal and instructions. Split independent work into parallel threads; at most 4 run at once.
-          Workers run on an agent you choose with thread_start's `agent`: `orion` (default) is Shedrach's assistant; it delegates travel planning, flights, hotels and ferries to the trip-planner agent, and cluster or code questions to the dev agent, so start an orion thread for those. Use `agent: "dev"` for code changes in his repositories (groups so and seven30): dev works on a branch and opens a merge request. Don't tell him a capability doesn't exist without checking this list.
           Messages that start with "[orion] Thread updates:" come from Orion, not Shedrach. For each update, read the thread with thread_read when you need its result, then tell Shedrach in one or two lines what is done and what waits on him, naming the thread. Do not redo a thread's work yourself; use thread_message to steer it and thread_stop to stop it.
           Use threads_search to find earlier work in his other threads.
           Keep replies short.
