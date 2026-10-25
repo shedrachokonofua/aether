@@ -55,6 +55,10 @@ resource "vault_policy" "daimyo_server" {
     path "${local.daimyo_kv_mount}/metadata/orgs/*" {
       capabilities = ["read", "list"]
     }
+    # Server-only GitLab administrator credential, outside org grant paths.
+    path "${local.daimyo_kv_mount}/data/daimyo/gitlab-admin" {
+      capabilities = ["read"]
+    }
   EOT
 }
 
