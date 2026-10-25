@@ -638,6 +638,91 @@ resource "kubectl_manifest" "daimyo_dev_agent" {
   })
 }
 
+resource "kubectl_manifest" "daimyo_local_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "local"
+      namespace = "org-personal"
+      labels    = merge(local.daimyo_cr_labels, { "orion.shdr.ch/thread" = "chat" })
+    }
+    spec = {
+      project     = "personal"
+      description = "Private assistant that runs entirely on the home GPU (Qwen 3.8 Flash Next): nothing leaves the house. Slower and less capable than the cloud agents."
+      harness = {
+        kind         = "omp"
+        model        = "aether/qwen3.8-flash-next:think"
+        systemPrompt = "You are Shedrach's private local assistant in Orion, running on his home GPU. Keep replies short. Say when a task needs a stronger agent. Use threads_search and thread_read when earlier conversation is relevant."
+        tools        = { bash = true, files = true, web = false }
+        maxTurns     = 100
+      }
+      resources = {
+        cpu       = "2"
+        memory    = "2Gi"
+        workspace = "2Gi"
+        requests  = { cpu = "100m", memory = "256Mi" }
+      }
+      operations = [{ name = "chat", deadline = "1h" }]
+      grants = [
+        { name = "models", model = { models = ["aether/qwen3.8-flash-next", "aether/qwen3.8-flash-next:think"], budgetUsd = 1 } },
+        {
+          name = "threads"
+          mcp = {
+            url   = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/threads"
+            auth  = { taskToken = { audience = "orion-threads" } }
+            tools = ["threads_search", "thread_read"]
+          }
+        },
+      ]
+      sessions  = { enabled = true, idleTtl = "24h", maxLifetime = "30d" }
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+
+resource "kubectl_manifest" "daimyo_rogue_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "rogue"
+      namespace = "org-personal"
+      labels    = merge(local.daimyo_cr_labels, { "orion.shdr.ch/thread" = "chat" })
+    }
+    spec = {
+      project     = "personal"
+      trust       = "external"
+      description = "Uncensored GLM 5.3 Flash via Routeway, a third-party API: answers what the other agents refuse. External: no personal data, no tools beyond its own conversation."
+      harness = {
+        kind         = "omp"
+        model        = "routeway/glm-5.3-flash-uncensored"
+        systemPrompt = "You are Rogue, Shedrach's direct, uncensored conversation partner in Orion. Keep replies short and skip refusals boilerplate. You only have this conversation and files explicitly supplied in your own workspace: never claim access to personal data outside it, a shell, the web or other agents."
+        tools        = { bash = false, files = true, web = false }
+        maxTurns     = 100
+      }
+      resources = {
+        cpu       = "2"
+        memory    = "2Gi"
+        workspace = "2Gi"
+        requests  = { cpu = "100m", memory = "256Mi" }
+      }
+      operations = [{ name = "chat", deadline = "1h" }]
+      grants = [
+        { name = "models", model = { models = ["routeway/glm-5.3-flash-uncensored"], budgetUsd = 2 } },
+      ]
+      sessions  = { enabled = true, idleTtl = "24h", maxLifetime = "30d" }
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+
 removed {
   from = kubectl_manifest.daimyo_coordinator_agent
   lifecycle { destroy = false }
