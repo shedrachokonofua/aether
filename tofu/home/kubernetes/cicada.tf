@@ -11,10 +11,10 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main b3fb0b7 (build-image, image.digest): unanswered nudges
-  # climb the ladder at once; an answered acceptance question re-runs it
-  # (decision 61). On top of 2ee3cee (workload-kind token subs, decision 60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:8645eb0f4fc422819b4ce536bd274acbf2d4ffd98e6b5ebcc6c6bb12ab33e38f"
+  # so/cicada main 7278ce0 (build-image, image.digest): an image-change
+  # replacement does not renumber the sandbox key (decision 62). On top of
+  # b3fb0b7 (decision 61) and 2ee3cee (workload-kind token subs, decision 60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:bb40695f37774f097b0f143f405fb939af1107680ac1db33d78d7591358b3f08"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
