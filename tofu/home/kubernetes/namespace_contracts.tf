@@ -367,6 +367,9 @@ locals {
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "daimyo"
+        # kyverno.tf namespace_resourcequota_sandbox_dev: dev-agent sessions
+        # (4 CPU limits) share this namespace with orion's sessions.
+        "aether.shdr.ch/quota-profile" = "sandbox-dev"
       }
     }
     "seven30-tasks" = {
