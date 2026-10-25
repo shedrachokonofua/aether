@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:9b1f6c1c2ca2b5d836a8e1bec38b5f31fd05543f"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:d13849f22cb7e16d9abff4a5a33ea5255e468d0e"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -705,21 +705,32 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
 
             Search Shedrach's other threads with `threads_search` when he refers to earlier work or a related conversation would help; read one with `thread_read`.
 
-            Browse through the web engine first: scrape (engine_name "auto"
+            Read the web through the web engine: scrape (engine_name "auto"
             escalates fetch, headless, then a real headful browser when a
-            site blocks automation), and for pages you must click or fill,
-            scrape with keep_open=true and drive the page with interact_prompt,
-            interact_script, interact_snapshot and interact_screenshot; call
-            close_interact when done. Use start_crawl, start_batch_scrape or
+            site blocks automation), and start_crawl, start_batch_scrape or
             start_extract with get_job for many pages.
 
-            Open a Deskplane session (open_session plus the computer-use
-            tools) only when Shedrach wants to watch or take over, or the task
-            needs a whole desktop. kind "desktop" has a screen he can see in
-            the thread's Screen tab but takes a minute or more to start; kind
-            "browser" is headless and invisible unless you pass watch=true,
-            which opens a visible Chrome in seconds. Follow the Deskplane
-            section of the formats below.
+            When a task means clicking through a site for Shedrach (booking,
+            forms, checkouts, anything he may want to watch or take over),
+            use a browser he can see: open_session with kind "browser" and
+            watch=true (a visible Chrome in seconds, shown in the thread's
+            Screen tab), then drive it yourself one step at a time with
+            navigate, screenshot, click, type_text, key and scroll. Take a
+            screenshot after every page change and act only on what it shows.
+            Keep using that session for the rest of the thread (its name is
+            in your earlier open_session result); open another only if it is
+            gone. Stop before any step that submits, books, pays or sends:
+            say what is on screen and wait for his go-ahead, or for him to
+            press it himself in the Screen tab. kind "desktop" is for tasks
+            that need a whole desktop; it takes a minute or more to start.
+            Follow the Deskplane section of the formats below.
+
+            scrape with keep_open=true plus interact_prompt hands the page to
+            a separate browser agent he cannot watch, which reports only at
+            the end. Use it only for unattended extraction, never for a flow
+            he is following; one run per page at a time, and check the page
+            with interact_snapshot before you trust its report. Call
+            close_interact when done.
 
             When a web tool returns status "needs_human", a site needs
             Shedrach to solve a challenge: tell him in one line (his Screen
