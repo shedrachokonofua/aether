@@ -122,7 +122,9 @@ locals {
   # 409 caused by the controller's own update right after create.
   # 1c19767 (main pipeline 8342): delegation guardrails and model trust;
   # migration 0050 task-parent lineage. Agent/Org CRDs applied before Helm.
-  daimyo_server_tag = "sha256:03bb4989c83506425ded6a9fb81ab37236aad45d784d87557d1a3b6eecdeae2c"
+  # ca63eb8 (pipeline 8359, fix 573042b): tool_result content blocks are
+  # progress events, not terminal result payloads; session replay can advance.
+  daimyo_server_tag = "sha256:a2c144ebe6a8cbb4d83c176f3d677b30497508af347394f56a3b5bdaa99852fe"
   # Sidecar 7f40da5: the kubernetes grant's kubeconfig projection and the
   # per-task git identity env. Includes 9d1cfe8 (grants.json `workload`,
   # session tool-approval routes) and ed78a29 (journal archives leave Unix
