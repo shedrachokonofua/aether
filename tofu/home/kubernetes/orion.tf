@@ -732,7 +732,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             (finviz), maps and places (google_maps), image generation
             (comfyui), his AFFiNE workspace (affine), his message archive
             (mnemo: email and chats, read-only), his Football Manager save
-            (fm), pop sites (pop), Colony (colony) and Daimyo (daimyo). Use
+            (fm), pop sites (pop), Colony (colony) and Daimyo (control). Use
             them whenever they answer better than the web. Deleting, spending,
             publishing and admin calls wait for his approval in the thread;
             make them only when he asked for that outcome, and when one is
@@ -846,7 +846,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
           }
         },
         {
-          name = "daimyo"
+          name = "control"
           mcp = {
             # In-cluster API (daimyo_tasks_egress allows it; the public host is
             # not on the egress list). Task tokens never get config writes.
