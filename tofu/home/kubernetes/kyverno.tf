@@ -1348,6 +1348,15 @@ locals {
     "pods"                   = "20"
   }
 
+  # personal-tasks runs dev-agent sessions (4 CPU limits, spec §18.1) beside
+  # orion's long-lived ones. The sandbox cap of 16 CPU rejected their pods
+  # (measured 2026-10-25: 15500m of 16000m used by seven session pods). Only
+  # the overcommit cap moves: requests stay at the sandbox profile, which is
+  # what constrains scheduling.
+  namespace_resourcequota_sandbox_dev = merge(local.namespace_resourcequota_sandbox, {
+    "limits.cpu" = "32"
+  })
+
   # Sandbox namespaces that run builds, selected by the namespace label
   # aether.shdr.ch/quota-profile = sandbox-large (cicada-tasks: Cicada's
   # writers, review lenses and ci_exec build sandboxes, which request their
@@ -1443,6 +1452,10 @@ resource "kubectl_manifest" "kyverno_namespace_resourcequota" {
             "aether.shdr.ch/quota-profile" in object.metadata.labels &&
             object.metadata.labels["aether.shdr.ch/quota-profile"] == "sandbox-large" ?
               dyn(${jsonencode(local.namespace_resourcequota_sandbox_large)}) :
+            object.metadata.labels["aether.shdr.ch/tier"] == "sandbox" &&
+            "aether.shdr.ch/quota-profile" in object.metadata.labels &&
+            object.metadata.labels["aether.shdr.ch/quota-profile"] == "sandbox-dev" ?
+              dyn(${jsonencode(local.namespace_resourcequota_sandbox_dev)}) :
             object.metadata.labels["aether.shdr.ch/tier"] == "sandbox" ?
               dyn(${jsonencode(local.namespace_resourcequota_sandbox)}) :
             object.metadata.labels["aether.shdr.ch/tier"] == "tenant" ?

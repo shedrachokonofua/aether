@@ -135,6 +135,10 @@ locals {
   daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:34bdeefdd0502ce4ce39b66f86358217b6ac31e8f5bb493027edb28fecabb3cf"
   daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:324cc0c40c661fcf87e269cde49cf4ff63aa0e4390ec180bd6b037637e7e0d8b"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0779a1c1b27fea8b2ff1bdfd2f04ea924a9ffc4c6319cceee2f5dc0219bbfc30"
+  # omp-dev 9f56762 (pipeline 8193): the omp harness image plus Node 24,
+  # Python 3, a C toolchain and Rust (stable + the pinned toolchain) for the
+  # dev agent; attested v1 in org personal.
+  daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:102be5e0cc74bc4979cf9f10fae0bbf060b52f5a952fcf619a078e45c58ec595"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   # 7eaeb9c echo (pipeline 6741, current Python SDK: prompt cancel, no null
@@ -194,6 +198,18 @@ locals {
     "storage.googleapis.com",
     "www.sqlite.org",
   ]
+  # The dev agent's toolchains (the omp-dev harness image) fetch crates, Rust
+  # toolchains and GitHub releases from its task pods; npm and pypi come from
+  # the common allowlist. Named once so the DNS and HTTPS rules agree.
+  daimyo_personal_build_fqdns = [
+    "crates.io",
+    "index.crates.io",
+    "static.crates.io",
+    "static.rust-lang.org",
+    "github.com",
+    "codeload.github.com",
+    "objects.githubusercontent.com",
+  ]
   daimyo_tasks_fqdns = {
     for org in local.daimyo_orgs : org => concat(
       local.daimyo_tasks_fqdns_common,
@@ -201,6 +217,7 @@ locals {
       contains(local.daimyo_pop_orgs, org) ? ["pop.home.shdr.ch"] : [],
       contains(local.trip_planner_orgs, org) ? local.trip_planner_public_mcp_hosts : [],
       org == "cicada" ? local.daimyo_cicada_build_fqdns : [],
+      org == "personal" ? local.daimyo_personal_build_fqdns : [],
     )
   }
   daimyo_s3_region = "us-east-1"
@@ -824,6 +841,14 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if org == "cicada"
         ], [
+        # The dev agent's package registries and toolchain downloads
+        # (local.daimyo_personal_build_fqdns) need HTTPS as well as the DNS
+        # allowlist above; the common rule only covers the common list.
+        for org in [each.key] : {
+          toFQDNs = [for host in local.daimyo_personal_build_fqdns : { matchName = host }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
+        } if org == "personal"
+        ], [
         # Deskplane's MCP server (the researcher agent's `web` MCP grant;
         # no client auth, so this rule and deskplane_mcp_daimyo_ingress are
         # the whole access boundary). local.daimyo_deskplane_orgs only.
@@ -1321,6 +1346,26 @@ resource "kubectl_manifest" "daimyo_qa_policy" {
       name      = each.key
       namespace = "org-qa"
       labels    = local.daimyo_qa_labels
+    }
+    spec = { text = each.value }
+  })
+}
+
+# Task delegation remains restricted by each caller revision's calls allowlist.
+resource "kubectl_manifest" "daimyo_personal_task_policy" {
+  for_each = {
+    "task-invoke"   = "permit (principal is Task, action == Action::\"agent::invoke\", resource is Operation);"
+    "task-read-own" = "permit (principal is Task, action == Action::\"task::read\", resource is Task) when { resource.owner == principal.sub };"
+  }
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Policy"
+    metadata = {
+      name      = each.key
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
     }
     spec = { text = each.value }
   })

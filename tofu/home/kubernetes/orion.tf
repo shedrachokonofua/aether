@@ -15,7 +15,7 @@
 locals {
   # Pinned to the main build by commit SHA; keel only follows digests of this
   # exact tag, so it stays put.
-  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:381a478f4c6d26b04a8385275c0091bd20597703"
+  orion_image            = "registry.gitlab.home.shdr.ch/so/orion/main:3a062f6c73231cb6065beb1cad707e7e02142ffe"
   orion_host             = "home.shdr.ch"
   orion_port             = 3000
   orion_ns               = module.namespace["orion"].name
@@ -650,6 +650,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
     spec = {
       project     = "personal"
       description = "Shedrach's personal agent behind Orion threads."
+      calls       = ["trip-planner.ask"]
       harness = {
         kind  = "omp"
         model = "moira/strong"
@@ -730,13 +731,14 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             Spotify (siren), media (jellyfin, tmdb), sports (espn), markets
             (finviz), maps and places (google_maps), image generation
             (comfyui), his AFFiNE workspace (affine), his message archive
-            (mnemo: email and chats, read-only), travel search (flights,
-            kiwi, skiplagged, trivago, ferryhopper), his Football Manager save
+            (mnemo: email and chats, read-only), his Football Manager save
             (fm), pop sites (pop), Colony (colony) and Daimyo (daimyo). Use
             them whenever they answer better than the web. Deleting, spending,
             publishing and admin calls wait for his approval in the thread;
             make them only when he asked for that outcome, and when one is
             refused, say so in a line and carry on without it.
+
+            For trip planning, flights, hotels, ferries or anything priced by date, delegate to the trip-planner agent: `task_create` with org `personal`, project `personal`, agent `trip-planner`, operation `ask`, input `{prompt}` holding a self-contained brief (dates, origin, budget, constraints he gave, the output shape you need, and never book). Wait with `task_events_tail` (30 s at a time) until the task ends, read the result with `task_get`, then answer him from it, citing its sources. Don't search travel yourself.
 
             Files Shedrach attaches are copied into /workspace/inputs/; his
             message lists each one as "Attached: inputs/<name>". Open them
@@ -856,7 +858,7 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
               "approvals_list", "schedules_list", "files_list", "files_get",
               "memory_list_stores", "memory_list", "memory_read", "memory_versions",
               "memory_search",
-              { name = "task_create", policy = local.orion_ask },
+              "task_create",
               { name = "task_cancel", policy = local.orion_ask },
               { name = "session_create", policy = local.orion_ask },
               { name = "session_send", policy = local.orion_ask },
@@ -908,50 +910,6 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
             ]
           }
         },
-        # Keyless travel search, the same servers as trip-planner
-        # (trip_planner.tf; daimyo_tasks_egress opens them for personal).
-        {
-          name = "flights"
-          mcp = {
-            url   = local.fli_url
-            tools = ["search_flights", "search_dates", "get_booking_options", "find_airports"]
-          }
-        },
-        {
-          name = "kiwi"
-          mcp  = { url = "https://mcp.kiwi.com", tools = ["search-flight"] }
-        },
-        {
-          name = "skiplagged"
-          mcp = {
-            url = "https://mcp.skiplagged.com/mcp"
-            tools = [
-              "sk_flights_search", "sk_flex_departure_calendar", "sk_flex_return_calendar",
-              "sk_destinations_anywhere", "sk_resolve_iata",
-              "sk_hotels_search", "sk_hotel_details", "sk_cars_search",
-            ]
-          }
-        },
-        {
-          name = "trivago"
-          mcp = {
-            url = "https://mcp.trivago.com/mcp"
-            tools = [
-              "trivago-accommodation-search", "trivago-accommodation-radius-search",
-              "trivago-destination-price-trends",
-            ]
-          }
-        },
-        {
-          name = "ferryhopper"
-          mcp = {
-            url = "https://mcp.ferryhopper.com/mcp"
-            tools = [
-              "search_ferry_trips", "trip_details", "get_ports",
-              "get_direct_connections_for_ports", "get_disruptions",
-            ]
-          }
-        },
       ])
       memory = [{
         store       = "personal"
@@ -960,6 +918,71 @@ resource "kubectl_manifest" "daimyo_orion_agent" {
         description = "Shedrach's preferences, facts about his setup and decisions he has made."
       }]
       sessions  = { enabled = true, idleTtl = "4h", maxLifetime = "30d" }
+      endpoints = { stable = { revision = "latest" } }
+    }
+  })
+}
+
+resource "kubectl_manifest" "daimyo_dev_agent" {
+  depends_on = [kubectl_manifest.daimyo_project]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Agent"
+    metadata = {
+      name      = "dev"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      project     = "personal"
+      description = "Shedrach's software engineer behind Orion dev threads."
+      harness = {
+        kind  = "omp"
+        image = local.daimyo_harness_omp_dev_image
+        model = "moira/strong"
+        systemPrompt = trimspace(<<-EOT
+          You are Shedrach's software engineer in Orion. You work in /workspace on his GitLab repositories (groups so and seven30) through git at $DAIMYO_GIT_BASE_URL (for example `git clone $DAIMYO_GIT_BASE_URL/so/orion.git`); you push as your own GitLab user.
+          Work on a branch named for the change, never on main, and open a merge request with `git push -o merge_request.create -o merge_request.title="…" origin HEAD:<branch>`. Never merge. Report the MR URL.
+          Read before you write: find the repo's conventions (AGENTS.md, README, Taskfile, package.json, Cargo.toml) and follow them. Run the repo's own formatter, linter and tests before pushing when the toolchain is available (node, bun, python3, cargo); say which checks you ran and which you could not.
+          You can read the home Kubernetes cluster with kubectl (read-only: no Secrets, no exec, no changes). Use it to inspect deployments, logs and events when a change touches running services.
+          Use threads_search and thread_read to find earlier conversations about the work. Use search_web and scrape for documentation.
+          Keep replies short: what you changed, where, how you verified it, and anything he must decide.
+        EOT
+        )
+        tools    = { bash = true, files = true, web = false }
+        maxTurns = 300
+      }
+      resources = {
+        cpu       = "4"
+        memory    = "8Gi"
+        workspace = "20Gi"
+        requests  = { cpu = "100m", memory = "768Mi" }
+      }
+      operations = [{ name = "chat", deadline = "2h" }]
+      grants = [
+        { name = "models", model = { models = ["moira/strong"], budgetUsd = 10 } },
+        { name = "git-so", git = { repo = "so/*", access = "write" } },
+        { name = "git-seven30", git = { repo = "seven30/*", access = "write" } },
+        { name = "kubernetes", kubernetes = { serviceAccount = "dev" } },
+        {
+          name = "web"
+          mcp = {
+            url   = "http://deskplane-mcp.deskplane.svc:8100/mcp"
+            auth  = { taskToken = { audience = "deskplane" } }
+            tools = ["search_web", "scrape", "parse_document"]
+          }
+        },
+        {
+          name = "threads"
+          mcp = {
+            url   = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/threads"
+            auth  = { taskToken = { audience = "orion-threads" } }
+            tools = ["threads_search", "thread_read"]
+          }
+        },
+      ]
+      sessions  = { enabled = true, idleTtl = "24h", maxLifetime = "30d" }
       endpoints = { stable = { revision = "latest" } }
     }
   })
@@ -1022,7 +1045,7 @@ resource "kubectl_manifest" "daimyo_coordinator_agent" {
         {
           name = "notes"
           mcp = {
-            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
+            url  = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
             auth = { taskToken = { audience = "orion-notes" } }
             tools = [
               "notes_search", "notes_get",
