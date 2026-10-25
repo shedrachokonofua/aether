@@ -117,7 +117,10 @@ locals {
   # PUT/PATCH/DELETE routes, Cedar Schedule entity, signed trigger
   # `schedule:<org>/agent/<agent>/<name>`) and task `trigger` in task
   # get/list. Migration 0049; Schedule CRD applied server-side first.
-  daimyo_server_tag = "sha256:3959d32e7dc192d69bd56792460b340aec919371edc5e3b760baf79ec623fb66"
+  # 18d6df2 (on e2e02b6; API tests and clippy remote, main pipeline 8326
+  # rust-test): managed Schedule/Agent writes retry a stale-resourceVersion
+  # 409 caused by the controller's own update right after create.
+  daimyo_server_tag = "sha256:3038962cfaaf010251484fcb3dce6c8fb69b852ee8c6d4f32f4f362f53755d40"
   # Sidecar 7f40da5: the kubernetes grant's kubeconfig projection and the
   # per-task git identity env. Includes 9d1cfe8 (grants.json `workload`,
   # session tool-approval routes) and ed78a29 (journal archives leave Unix
