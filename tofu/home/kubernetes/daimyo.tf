@@ -1102,6 +1102,26 @@ resource "kubectl_manifest" "daimyo_org" {
           },
         ]
       } : {},
+      # personal: the operator plus Orion's service account. Service tokens
+      # need both claims: `azp = orion` alone would also match the operator's
+      # tokens exchanged through Orion. Scope: policy `orion-service`.
+      each.key == "personal" ? {
+        issuers = [
+          {
+            issuer         = "https://auth.shdr.ch/realms/aether"
+            audiences      = ["daimyo"]
+            principal      = { claim = "preferred_username", prefix = "user:" }
+            groups         = { claim = "groups" }
+            requiredClaims = { preferred_username = "shdrch" }
+          },
+          {
+            issuer         = "https://auth.shdr.ch/realms/aether"
+            audiences      = ["daimyo"]
+            principal      = { claim = "azp", prefix = "svc:" }
+            requiredClaims = { azp = "orion", preferred_username = "service-account-orion" }
+          },
+        ]
+      } : {},
       # personal: per-agent GitLab identities over the org's group grants and
       # the read-only `dev` ServiceAccount kubernetes grants bind. `values()`
       # flattens the filtered map so `merge` adds these attributes themselves;
@@ -1509,6 +1529,44 @@ resource "kubectl_manifest" "daimyo_personal_approval_policy" {
     }
     spec = {
       text = "permit (principal is User, action in [Action::\"approval::read\", Action::\"approval::resolve\"], resource is Approval) when { resource.assignees.contains(principal.name) || principal.groups.containsAny(resource.assignees) };"
+    }
+  })
+}
+
+# Org `personal`: Orion's service identity (Service `svc:orion`) manages its
+# own `orion-*` schedules, invokes only its runner and feed card operations,
+# and reads those agents' tasks. The forbid confines everything else,
+# including the baseline's broad Service grants (agent::read, task::cancel,
+# session::create, ...), since a forbid overrides any permit.
+resource "kubectl_manifest" "daimyo_orion_service_policy" {
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Policy"
+    metadata = {
+      name      = "orion-service"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      text = <<-CEDAR
+        permit (principal == Service::"svc:orion", action in [Action::"schedule::create", Action::"schedule::update", Action::"schedule::delete", Action::"schedule::read", Action::"schedule::pause", Action::"schedule::resume", Action::"schedule::run"], resource is Schedule)
+        when { resource.org == "personal" && resource.project == "personal" && resource.name like "orion-*" };
+
+        permit (principal == Service::"svc:orion", action == Action::"agent::invoke", resource is Operation)
+        when { resource.org == "personal" && resource in Project::"personal" && (resource.call == "orion-runner.run" || resource.call == "orion-feed.cards" || (resource.agent like "orion-feed-*" && resource.name == "cards")) };
+
+        permit (principal == Service::"svc:orion", action == Action::"task::read", resource is Task)
+        when { resource.org == "personal" && (resource.agent_home == "agents/orion-runner/home/" || resource.agent_home == "agents/orion-feed/home/" || resource.agent_home like "agents/orion-feed-*/home/") };
+
+        forbid (principal == Service::"svc:orion", action, resource)
+        unless {
+          (resource is Schedule && action in [Action::"schedule::create", Action::"schedule::update", Action::"schedule::delete", Action::"schedule::read", Action::"schedule::pause", Action::"schedule::resume", Action::"schedule::run"] && resource.org == "personal" && resource.project == "personal" && resource.name like "orion-*") ||
+          (resource is Operation && action == Action::"agent::invoke" && resource.org == "personal" && resource in Project::"personal" && (resource.call == "orion-runner.run" || resource.call == "orion-feed.cards" || (resource.agent like "orion-feed-*" && resource.name == "cards"))) ||
+          (resource is Task && action == Action::"task::read" && resource.org == "personal" && (resource.agent_home == "agents/orion-runner/home/" || resource.agent_home == "agents/orion-feed/home/" || resource.agent_home like "agents/orion-feed-*/home/"))
+        };
+      CEDAR
     }
   })
 }
