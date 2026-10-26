@@ -1542,9 +1542,10 @@ resource "kubectl_manifest" "daimyo_personal_approval_policy" {
 
 # Org `personal`: Orion's service identity (Service `svc:orion`) manages its
 # own `orion-*` schedules, invokes only its runner and feed card operations,
-# and reads those agents' tasks. The forbid confines everything else,
-# including the baseline's broad Service grants (agent::read, task::cancel,
-# session::create, ...), since a forbid overrides any permit.
+# and reads and lists those agents' tasks (listing needs agent::read on the
+# filtered agent). The forbid confines everything else, including the
+# baseline's broad Service grants (agent::read on any other agent,
+# task::cancel, session::create, ...), since a forbid overrides any permit.
 resource "kubectl_manifest" "daimyo_orion_service_policy" {
   depends_on = [kubectl_manifest.daimyo_org]
 
@@ -1567,11 +1568,15 @@ resource "kubectl_manifest" "daimyo_orion_service_policy" {
         permit (principal == Service::"svc:orion", action == Action::"task::read", resource is Task)
         when { resource.org == "personal" && (resource.agent_home == "agents/orion-runner/home/" || resource.agent_home == "agents/orion-feed/home/" || resource.agent_home like "agents/orion-feed-*/home/") };
 
+        permit (principal == Service::"svc:orion", action == Action::"agent::read", resource is Agent)
+        when { resource.org == "personal" && resource in Project::"personal" && (resource.name == "orion-runner" || resource.name == "orion-feed" || resource.name like "orion-feed-*") };
+
         forbid (principal == Service::"svc:orion", action, resource)
         unless {
           (resource is Schedule && action in [Action::"schedule::create", Action::"schedule::update", Action::"schedule::delete", Action::"schedule::read", Action::"schedule::pause", Action::"schedule::resume", Action::"schedule::run"] && resource.org == "personal" && resource.project == "personal" && resource.name like "orion-*") ||
           (resource is Operation && action == Action::"agent::invoke" && resource.org == "personal" && resource in Project::"personal" && (resource.call == "orion-runner.run" || resource.call == "orion-feed.cards" || (resource.agent like "orion-feed-*" && resource.name == "cards"))) ||
-          (resource is Task && action == Action::"task::read" && resource.org == "personal" && (resource.agent_home == "agents/orion-runner/home/" || resource.agent_home == "agents/orion-feed/home/" || resource.agent_home like "agents/orion-feed-*/home/"))
+          (resource is Task && action == Action::"task::read" && resource.org == "personal" && (resource.agent_home == "agents/orion-runner/home/" || resource.agent_home == "agents/orion-feed/home/" || resource.agent_home like "agents/orion-feed-*/home/")) ||
+          (resource is Agent && action == Action::"agent::read" && resource.org == "personal" && resource in Project::"personal" && (resource.name == "orion-runner" || resource.name == "orion-feed" || resource.name like "orion-feed-*"))
         };
       CEDAR
     }
