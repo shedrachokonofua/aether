@@ -143,6 +143,11 @@ locals {
     # openbao_daimyo.tf orgs/personal/orion-ntfy; ntfy has no auth).
     FEED_AGENT = "personal/orion-feed"
     FEED_OWNER = var.operator_oidc_subject
+    # Feed topics run on Orion's schedules registry (orion-<id> standalone
+    # Daimyo schedules on the orion-feed-* runners); the chart has no nested
+    # feed schedules since a1d851b.
+    FEED_REGISTRY_ENABLED = "true"
+
     NTFY_URL   = "https://ntfy.home.shdr.ch"
     NTFY_TOPIC = var.orion_ntfy_topic
     # GitLab for the gitlab feed topic's home-MCP `gitlab` tool: a read_api
