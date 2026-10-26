@@ -490,10 +490,10 @@ resource "helm_release" "deskplane" {
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # The web engine's LLM calls (json/summary/extract) use it too.
-        # gpt-6.1-sol: its predecessor gpt-6-sol has the only complete real-world
-        # bench run (deskplane mcp/bench/results/, 9/11, no false claims).
-        # gemini-3.8-flash was a stopgap from 2026-10-12 (sol's weekly limit).
-        DESKPLANE_MCP_MODEL           = "chatgpt/gpt-6.1-sol"
+        # moira/computer-use (moira/tiers.yaml): sol, then gemini-3.8-flash, then
+        # self-hosted qwen3.8-flash-next, skipping any member out of quota. The
+        # order follows deskplane mcp/bench/results/.
+        DESKPLANE_MCP_MODEL           = "moira/computer-use"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
         # Daimyo task tokens; Deskplane calls carry the caller's own token.

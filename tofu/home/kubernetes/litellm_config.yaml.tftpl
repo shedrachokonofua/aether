@@ -891,6 +891,16 @@ model_list:
       allowed_openai_params: ["reasoning_effort"]
     model_info: {unique_response_ids: false}
 
+  # Moira group for Deskplane's browser/desktop agent (moira/tiers.yaml,
+  # preference order sol -> gemini-3.8-flash -> qwen3.8-flash-next). Like the
+  # tier aliases this is a real deployment: its static default (sol) serves the
+  # request when Moira is down or passes it through.
+  - model_name: "moira/computer-use"
+    litellm_params:
+      model: "chatgpt/gpt-6.1-sol"
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
+
 credential_list:
   - credential_name: llama_swap_credential
     credential_values:

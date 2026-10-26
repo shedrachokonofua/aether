@@ -85,6 +85,16 @@ groups:
   router/muse-spark-1.3-contributor: [meta/muse-spark-1.3-contributor, commandcode/muse-spark-1.3-contributor, clinepass/muse-spark-1.3-contributor]
   router/deepseek-v4-pro: [ollama-cloud/deepseek-v4-pro]
   router/ling-3.1-flash: [openrouter/ling-3.1-flash, commandcode-free/ling-3.1-flash]
+  # Deskplane's browser/desktop agent (DESKPLANE_MCP_MODEL). Members need tool
+  # calling and vision; order = benchmark preference (deskplane
+  # mcp/bench/results/): sol most reliable, gemini fastest but made confident
+  # false claims, self-hosted qwen never runs out of quota.
+  moira/computer-use: [chatgpt/gpt-6.1-sol, antigravity/gemini-3.8-flash, aether/qwen3.8-flash-next]
+
+# Groups ranked by member order instead of quota urgency. Exhausted members are
+# still skipped; the next ones become the LiteLLM fallbacks.
+group_order:
+  moira/computer-use: preference
 
 plans:                      # local-count providers
   xiaomi:
