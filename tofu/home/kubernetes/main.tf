@@ -158,18 +158,6 @@ variable "deskplane_mcp_auth_token" {
   description = "Bearer token Deskplane's MCP server requires on /mcp (openbao_daimyo.tf)"
 }
 
-variable "orion_notes_mcp_token" {
-  type        = string
-  sensitive   = true
-  description = "Bearer token the orion agent's notes grant presents to Orion's /api/mcp/notes (openbao_daimyo.tf)"
-}
-
-variable "orion_home_mcp_token" {
-  type        = string
-  sensitive   = true
-  description = "Bearer token the orion-feed agent's home grant presents to Orion's /api/mcp/home (openbao_daimyo.tf)"
-}
-
 variable "orion_ntfy_topic" {
   type        = string
   sensitive   = true

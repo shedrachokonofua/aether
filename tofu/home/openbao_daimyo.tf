@@ -103,40 +103,6 @@ resource "vault_kv_secret_v2" "daimyo_deskplane_mcp_auth" {
   })
 }
 
-# Orion's `notes` MCP (/api/mcp/notes) takes a bearer token per grant
-# (NOTES_MCP_TOKENS in kubernetes/orion.tf). The `orion` agent's notes grant
-# reads this copy through its `auth.secret`; the sidecar adds the header.
-resource "random_password" "orion_notes_mcp" {
-  length  = 48
-  special = false
-}
-
-resource "vault_kv_secret_v2" "daimyo_orion_notes_mcp" {
-  mount = local.daimyo_kv_mount
-  name  = "orgs/personal/orion-notes"
-
-  data_json = jsonencode({
-    token = random_password.orion_notes_mcp.result
-  })
-}
-
-# Orion's `home` MCP (/api/mcp/home) takes a bearer token per grant
-# (HOME_MCP_TOKENS in kubernetes/orion.tf). The `orion-feed` agent's home
-# grant reads this copy through its `auth.secret`; the sidecar adds the header.
-resource "random_password" "orion_home_mcp" {
-  length  = 48
-  special = false
-}
-
-resource "vault_kv_secret_v2" "daimyo_orion_home_mcp" {
-  mount = local.daimyo_kv_mount
-  name  = "orgs/personal/orion-home"
-
-  data_json = jsonencode({
-    token = random_password.orion_home_mcp.result
-  })
-}
-
 # The `orion` agent's LiteLLM virtual key for the MCP gateway's per-server
 # routes (kubernetes/orion.tf gateway grants). Registered in LiteLLM through
 # its API with key_alias `daimyo-orion` and models ["no-default-models"],

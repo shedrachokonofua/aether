@@ -115,39 +115,15 @@ locals {
     # POST /auth/token: a `task login` token buys a 2 h session (automated QA).
     ORION_TOKEN_LOGIN = "1"
     # Notes vault: a git working tree on the orion-vault volume; Orion is the
-    # only writer (Recreate deploys, one replica). Thread agents (orion,
-    # coordinator) authenticate with Daimyo task tokens (aud orion-notes). The
-    # "Orion agent" token serves only sessions started before that switch
-    # (sessions keep their revision's grants, maxLifetime 30d); remove it, its
-    # var and orgs/personal/orion-notes once none remain.
+    # only writer (Recreate deploys, one replica). Agents reach the notes and
+    # home MCPs with Daimyo task tokens (audiences orion-notes, orion-home).
     VAULT_DIR = "/vault/notes"
-    NOTES_MCP_TOKENS = jsonencode([
-      {
-        token = var.orion_notes_mcp_token
-        name  = "Orion agent"
-        email = "orion-agent@home.shdr.ch"
-      },
-    ])
     # Who may bulk-import into the vault (POST /api/notes/import).
     NOTES_IMPORT_ADMINS = "shedrachokonofua@gmail.com"
-    # Feed agent → Orion's home MCP (/api/mcp/home); the orion-feed agent's
-    # home grant reads the same token from OpenBao orgs/personal/orion-home.
-    HOME_MCP_TOKENS = jsonencode([{
-      token = var.orion_home_mcp_token
-      name  = "Orion feed agent"
-      email = "orion-feed@home.shdr.ch"
-    }])
-    # Feed: Daimyo agents the poller ingests (legacy name kept; the poller
-    # also polls every orion-feed-<topic> agent), the single feed owner (OIDC
-    # subject), and ntfy for needsYou cards (topic is a random secret,
+    # Feed: the single feed owner (OIDC subject) whose registry feed topics
+    # Orion imports, and ntfy for needsYou cards (topic is a random secret,
     # openbao_daimyo.tf orgs/personal/orion-ntfy; ntfy has no auth).
-    FEED_AGENT = "personal/orion-feed"
     FEED_OWNER = var.operator_oidc_subject
-    # Feed topics run on Orion's schedules registry (orion-<id> standalone
-    # Daimyo schedules on the orion-feed-* runners); the chart has no nested
-    # feed schedules since a1d851b.
-    FEED_REGISTRY_ENABLED = "true"
-
     NTFY_URL   = "https://ntfy.home.shdr.ch"
     NTFY_TOPIC = var.orion_ntfy_topic
     # GitLab for the gitlab feed topic's home-MCP `gitlab` tool: a read_api
