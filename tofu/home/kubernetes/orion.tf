@@ -127,14 +127,6 @@ locals {
         name  = "Orion agent"
         email = "orion-agent@home.shdr.ch"
       },
-      {
-        # The notes-keeper agent: keeperId confines its writes to keep:-marked
-        # sections and attributes its runs in Activity.
-        token    = var.orion_keeper_notes_mcp_token
-        name     = "Notes keeper"
-        email    = "notes-keeper@home.shdr.ch"
-        keeperId = "notes-keeper"
-      },
     ])
     # Who may bulk-import into the vault (POST /api/notes/import).
     NOTES_IMPORT_ADMINS = "shedrachokonofua@gmail.com"
@@ -726,91 +718,6 @@ resource "kubectl_manifest" "daimyo_rogue_agent" {
 removed {
   from = kubectl_manifest.daimyo_coordinator_agent
   lifecycle { destroy = false }
-}
-
-# Notes v2 (orion docs/plans/notes-full.md N9/N10): one notes-keeper agent on
-# a static hourly schedule refreshes kept-current sections and evaluates
-# watches. Orion never creates schedules; notes_due decides whether any
-# section is actually due, and the server refuses a keeper write outside a
-# keep:-marked section (its token's keeperId).
-resource "kubectl_manifest" "daimyo_notes_keeper_agent" {
-  depends_on = [kubectl_manifest.daimyo_project]
-
-  yaml_body = yamlencode({
-    apiVersion = "daimyo.shdr.ch/v1alpha1"
-    kind       = "Agent"
-    metadata = {
-      name      = "notes-keeper"
-      namespace = "org-personal"
-      labels    = local.daimyo_cr_labels
-    }
-    spec = {
-      project     = "personal"
-      description = "Refreshes kept-current Notes sections and evaluates watches, hourly."
-      harness = {
-        kind  = "omp"
-        model = "moira/strong"
-        systemPrompt = trimspace(<<-EOT
-          You are the notes keeper for Shedrach's Markdown vault. Each run:
-          1. Call notes_due. It returns only the kept sections whose cadence
-             has elapsed, with the note path, heading, instructions and cadence.
-          2. For each entry, call notes_get for its path, follow its
-             instructions using sources you can verify (source_list and
-             source_query for his declared data sources; search_web, scrape and
-             parse_document for the web), and call notes_patch_block with
-             exactly that path and block. The content replaces the whole
-             section, so begin with its heading line. Edit nothing outside that
-             section; the server rejects it.
-          3. Then call notes_watches_run once to append newly matching watch
-             changes, and report what you changed and what it appended.
-          If a section cannot be refreshed from verifiable information, leave
-          it unchanged and say why in one line. Never create, move, rename or
-          delete notes, and never edit frontmatter.
-        EOT
-        )
-        tools    = { bash = false, files = true, web = false }
-        maxTurns = 60
-      }
-      resources = { cpu = "500m", memory = "1Gi", workspace = "512Mi" }
-      # Retiring: Orion's schedules registry (orion-runner) now keeps sections
-      # current; this agent stays only until its last runs drain.
-      sessions = { enabled = true, idleTtl = "10m", maxLifetime = "1h" }
-      operations = [{
-        name           = "keep"
-        deadline       = "10m"
-        promptTemplate = "'Refresh every due kept-current section, then evaluate watches.'"
-      }]
-      grants = [
-        { name = "models", model = { models = ["moira/strong"], budgetUsd = 1 } },
-        {
-          name = "notes"
-          mcp = {
-            url = "http://orion.${local.orion_ns}.svc:${local.orion_port}/api/mcp/notes"
-            auth = {
-              secret = {
-                secret = { path = "orgs/personal/orion-keeper-notes", key = "token" }
-                header = { name = "Authorization" }
-                prefix = "Bearer"
-              }
-            }
-            tools = [
-              "notes_due", "notes_get", "notes_patch_block", "notes_watches_run",
-              "table_describe", "table_query", "table_write", "table_propose", "source_list", "source_query",
-            ]
-          }
-        },
-        {
-          name = "web"
-          mcp = {
-            url   = "http://deskplane-mcp.deskplane.svc:8100/mcp"
-            auth  = { taskToken = { audience = "deskplane" } }
-            tools = ["search_web", "scrape", "parse_document"]
-          }
-        },
-      ]
-      endpoints = { stable = { revision = "latest" } }
-    }
-  })
 }
 
 # Mnemo for the `orion` agent's mnemo grant only: its MCP has no auth, so the

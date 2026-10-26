@@ -158,6 +158,12 @@ variable "deskplane_mcp_auth_token" {
   description = "Bearer token Deskplane's MCP server requires on /mcp (openbao_daimyo.tf)"
 }
 
+variable "orion_notes_mcp_token" {
+  type        = string
+  sensitive   = true
+  description = "Bearer token the orion agent's notes grant presents to Orion's /api/mcp/notes (openbao_daimyo.tf)"
+}
+
 variable "orion_home_mcp_token" {
   type        = string
   sensitive   = true
@@ -174,18 +180,6 @@ variable "openwebui_oauth_client_secret" {
   type        = string
   sensitive   = true
   description = "OpenWebUI Keycloak OIDC client secret"
-variable "orion_notes_mcp_token" {
-  type        = string
-  sensitive   = true
-  description = "Bearer token the orion agent's notes grant presents to Orion's /api/mcp/notes (openbao_daimyo.tf)"
-}
-
-variable "orion_keeper_notes_mcp_token" {
-  type        = string
-  sensitive   = true
-  description = "Bearer token the notes-keeper agent's notes grant presents to Orion's /api/mcp/notes (openbao_daimyo.tf)"
-}
-
 }
 
 variable "immich_oauth_client_secret" {
