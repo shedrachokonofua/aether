@@ -243,11 +243,44 @@ changes remain Aether changes and intentionally update `envChecksum`, which
 can restart Orion. No release/checksum metadata is added to pod templates or
 Agent specs beyond the existing environment checksum.
 
+For amd64-only Orion images, add
+`nodeSelector: {kubernetes.io/arch: amd64}` to the approved pre-pull
+DaemonSet recipe. Without it the ARM nodes pull the image but fail its
+`/bin/sh` init command with `exec format error`.
+
 An explicitly approved `nix develop --command helm rollback orion <revision>
 -n orion --wait` rolls back app and Agents together. Pin the corresponding
 rollback SHA in Aether before the next apply; Helm rollback alone does not
 update the declared release pin. First-install failure is not a rollback to
 legacy Tofu owners and must never be handled by uninstall/reinstall.
+
+#### Instacart MCP Access
+
+`litellm_config.yaml.tftpl` registers the in-cluster Instacart MCP; the
+Orion chart owns its `instacart` grant. The `daimyo-orion` gateway key must
+also list `instacart`. Update only that key, including its secret-loading
+prerequisites, without reconciling other keys or deleting retired aliases:
+
+```bash
+nix develop --command bash -c 'export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat ~/.aether-toolbox/bao/token) ANSIBLE_CONFIG=./ansible/ansible.cfg; ansible-playbook ansible/playbooks/register_litellm_virtual_keys.yml --tags orion-mcp'
+```
+
+Reads, login and individual cart edits are allowed; `place_order`,
+`clear_cart` and `instacart_logout` require approval in the Orion grant.
+Instacart is deliberately absent from OpenWebUI's shared key scope.
+Existing Daimyo sessions retain their pinned revision; use a new Orion
+chat to receive the changed grant.
+
+Cold-session MCP discovery is asynchronous: an immediate catalog lookup
+may omit gateway tools before they finish connecting. The native status
+device is `xd://mcp__instacart_instacart_status`.
+
+Rollout evidence (2026-10-26): release
+`6c8ee84c1703bd05208f8a0deb9ebb189b97dc9b`, Orion revision `r-38`.
+The scoped key discovered all 14 tools; a native Orion status call returned
+`logged_in: true` (task `01M5X7VWWHW2J1Z9DEMSPQ9RMK`).
+An approval for `place_order` with `confirm: false` was opened and denied
+(`01M5X8422B1RT49MR92FJ0E0QM`); no purchase was authorized.
 
 ### Scoped Configuration
 

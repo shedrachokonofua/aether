@@ -1151,6 +1151,13 @@ mcp_servers:
     url: "http://localhost:8006/mcp"
   jellyfin:
     url: "http://localhost:8007/mcp"
+  # Instacart.ca shopping (instacart_mcp.tf): one logged-in browser session on
+  # Shedrach's account; place_order spends real money. Granted to the `orion`
+  # agent (daimyo-orion key scope, register_litellm_virtual_keys.yml), whose
+  # grant asks before place_order, clear_cart and instacart_logout. Not in the
+  # OpenWebUI key's list on purpose: OpenWebUI is multi-user.
+  instacart:
+    url: "http://instacart-mcp.instacart-mcp.svc.cluster.local:8080/mcp"
   deskplane:
     url: "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
     auth_type: bearer_token
