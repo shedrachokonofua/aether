@@ -11,10 +11,10 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 7278ce0 (build-image, image.digest): an image-change
-  # replacement does not renumber the sandbox key (decision 62). On top of
+  # so/cicada main ff3b9cd (build-image, image.digest): the planner is told an
+  # item lands only as a change (decision 63). On top of 7278ce0 (decision 62),
   # b3fb0b7 (decision 61) and 2ee3cee (workload-kind token subs, decision 60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:bb40695f37774f097b0f143f405fb939af1107680ac1db33d78d7591358b3f08"
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:f02ad16830eccdf63e0d1cea4a503ddd0ed15aa961504a1cbe962baa5cbf7c89"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
