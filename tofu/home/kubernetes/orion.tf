@@ -772,21 +772,13 @@ resource "kubectl_manifest" "daimyo_notes_keeper_agent" {
         maxTurns = 60
       }
       resources = { cpu = "500m", memory = "1Gi", workspace = "512Mi" }
-      # Orion's Agent panel "Run now" (src/lib/server/notes/keep-run.ts) starts a
-      # short session of `keep` naming one section; the hourly schedule is unchanged.
+      # Retiring: Orion's schedules registry (orion-runner) now keeps sections
+      # current; this agent stays only until its last runs drain.
       sessions = { enabled = true, idleTtl = "10m", maxLifetime = "1h" }
       operations = [{
         name           = "keep"
         deadline       = "10m"
         promptTemplate = "'Refresh every due kept-current section, then evaluate watches.'"
-      }]
-      schedules = [{
-        name      = "keep"
-        cron      = "0 * * * *"
-        timezone  = "America/Toronto"
-        operation = "keep"
-        overlap   = "skip"
-        jitter    = "300s"
       }]
       grants = [
         { name = "models", model = { models = ["moira/strong"], budgetUsd = 1 } },
