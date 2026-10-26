@@ -150,6 +150,8 @@
         - aether/qwen3.8-27b
 
       deskplane_mcp:
+        # Moira group (tiers.yaml): sol -> gemini-3.8-flash -> qwen3.8-flash-next.
+        - moira/computer-use
         - chatgpt/gpt-6.1-sol
         - antigravity/gemini-3.8-flash
         - aether/qwen3.8-flash-next
