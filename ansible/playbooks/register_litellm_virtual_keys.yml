@@ -211,14 +211,17 @@
       - google_maps
       - time
       - tmdb
+      - instacart
 
   tasks:
     - name: Load secrets
+      tags: [orion-mcp]
       community.sops.load_vars:
         file: "{{ aether_root }}/secrets/secrets.yml"
         name: secrets
 
     - name: Check LiteLLM key inputs
+      tags: [orion-mcp]
       ansible.builtin.assert:
         that:
           - secrets.litellm.master_key is defined
@@ -227,6 +230,7 @@
         fail_msg: "secrets.litellm.master_key and secrets.litellm.virtual_keys are required"
 
     - name: Wait for LiteLLM API
+      tags: [orion-mcp]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/health/liveliness"
         method: GET
@@ -419,6 +423,7 @@
       no_log: true
 
     - name: Look up the daimyo-orion virtual key by alias
+      tags: [orion-mcp]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/list?key_alias={{ litellm_daimyo_orion_alias }}&return_full_object=true"
         method: GET
@@ -430,12 +435,14 @@
       no_log: true
 
     - name: Check the daimyo-orion key is unique
+      tags: [orion-mcp]
       ansible.builtin.assert:
         that:
           - litellm_daimyo_orion_key.json['keys'] | length == 1
         fail_msg: "expected exactly one LiteLLM key with alias {{ litellm_daimyo_orion_alias }}"
 
     - name: Scope the daimyo-orion virtual key to its MCP servers, without models
+      tags: [orion-mcp]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/update"
         method: POST
