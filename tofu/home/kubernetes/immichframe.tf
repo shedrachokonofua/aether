@@ -31,10 +31,10 @@ resource "kubernetes_secret_v1" "immichframe_config" {
   data = {
     "Settings.yml" = yamlencode({
       General = {
-        Interval           = 30
-        ShowClock          = true
-        ShowPhotoDate      = false
-        ImageZoom          = true
+        Interval      = 30
+        ShowClock     = true
+        ShowPhotoDate = false
+        ImageZoom     = true
         # Portrait 1080x1920 panel — splitview only helps landscape frames.
         Layout = "single"
       }
@@ -78,7 +78,7 @@ resource "kubernetes_deployment_v1" "immichframe" {
         annotations = {
           # ImmichFrame caches its asset pool. Coupling the selected album to
           # the pod template forces a fresh pool when the album changes.
-          "aether.shdr.ch/album-selection" = local.immichframe_album_art
+          "aether.shdr.ch/album-selection"            = local.immichframe_album_art
           "aether.shdr.ch/slideshow-interval-seconds" = "30"
           # ImmichFrame reads Settings.yml only at startup; roll on any change.
           "aether.shdr.ch/settings-sha" = nonsensitive(sha256(kubernetes_secret_v1.immichframe_config.data["Settings.yml"]))

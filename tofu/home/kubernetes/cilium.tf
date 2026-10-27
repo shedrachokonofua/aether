@@ -43,7 +43,7 @@ resource "helm_release" "cilium" {
       leaseRenewDeadline = "3s"
       leaseRetryPeriod   = "1s"
     }
-    externalIPs     = { enabled = true }
+    externalIPs = { enabled = true }
 
     # Hubble observability — Prom-scrapeable L4 + L7 metrics with
     # source/destination workload labels. Lets us answer "is service X

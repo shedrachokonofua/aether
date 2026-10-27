@@ -24,6 +24,12 @@ locals {
       retention = "14d"
       schedule  = "0 10 2 * * *"
     }
+    grafana = {
+      namespace = local.grafana_namespace
+      cluster   = local.grafana_cnpg_cluster
+      retention = "14d"
+      schedule  = "0 17 2 * * *"
+    }
     kestra = {
       namespace = local.kestra_ns
       cluster   = local.kestra_cnpg_cluster

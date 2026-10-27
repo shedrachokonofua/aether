@@ -3,7 +3,7 @@
 # =============================================================================
 
 locals {
-  comfyui_image   = "docker.io/yanwk/comfyui-boot:cu129-slim"
+  comfyui_image   = "docker.io/yanwk/comfyui-boot:cu130-slim-20261012"
   comfyui_host    = "comfyui.home.shdr.ch"
   comfyui_port    = 8188
   comfyui_ns      = module.namespace["ai-serving"].name
@@ -74,7 +74,7 @@ resource "kubernetes_deployment_v1" "comfyui" {
           name  = "comfyui"
           image = local.comfyui_image
 
-          # cu129-slim omits comfy_kitchen, required by the fp8/fp4 ops path.
+          # cu130-slim omits comfy_kitchen, required by the fp8/fp4 ops path.
           command = ["bash", "-c"]
           args = [
             "set -e; /usr/bin/python3 -m pip install --no-cache-dir --quiet comfy-kitchen -r /root/ComfyUI/requirements.txt; exec bash /runner-scripts/entrypoint.sh"

@@ -149,9 +149,8 @@ locals {
   daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:03926379fd6367c6e2b8ffdb10eac90a9e9e34c5d18af25c1c50e250919828e8"
   daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:7514e19b8567974a5e36fe104d340c41ecb6e8da4178038dc5eb30ba0cb658d4"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
-  # omp-dev 9f56762 (pipeline 8193): the omp harness image plus Node 24,
-  # Python 3, a C toolchain and Rust (stable + the pinned toolchain) for the
-  # dev agent; attested v1 in org personal.
+  # omp-dev (pipeline 8342): coding toolchain image, attested v1 in
+  # org personal before applying the dev Agent image override.
   daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:b43173b9c12ea7184c44b05992057cd2940532a22913b7c55e2180c65e70a077"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
