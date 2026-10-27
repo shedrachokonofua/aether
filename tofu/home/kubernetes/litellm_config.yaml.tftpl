@@ -405,6 +405,25 @@ model_list:
       order: 1
     model_info: {mode: chat, max_input_tokens: 262144, max_output_tokens: 32768, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
 
+  # Routeway (https://api.routeway.ai/v1), pay-per-token ($0.35 in / $1.40 out
+  # per 1M). GLM 5.3 Flash Uncensored is a community fine-tune. Unless a
+  # request names an effort other than "none", Routeway glues the model's
+  # reasoning onto `content` with no separator (2026-10-19: 8/8 with no effort;
+  # "none" and the thinking-disable switches leak too; low and high 8/8 clean).
+  # deployment_adapter (litellm_hooks.py) sends high on every attempt via
+  # reasoning_effort_override. additional_drop_params + extra_body did not
+  # deliver it (14/16 calls through LiteLLM still leaked).
+  # supported_openai_params leaves reasoning_effort out so omp sends none.
+  # Vision verified; Routeway publishes no output limit. No Moira rule, so
+  # Moira ignores it.
+  - model_name: "routeway/glm-5.3-flash-uncensored"
+    litellm_params:
+      model: "openai/glm-5.3-flash-uncensored"
+      litellm_credential_name: routeway_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true, reasoning_effort_override: high, supported_openai_params: [frequency_penalty, logit_bias, max_tokens, max_completion_tokens, presence_penalty, response_format, stop, stream, stream_options, temperature, tool_choice, tools, top_p]}
+
   # OpenCode Go (https://opencode.ai/zen/go/v1).
   # Go rejects requests without x-opencode-session (MissingSessionID) and asks
   # clients to identify with their own User-Agent. LiteLLM sends one static
@@ -593,6 +612,16 @@ model_list:
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
     model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: false, supported_openai_params: *openai_reasoning_params}
+  # DeepSeek V4.1 Flash 1017 (2026-10-17), the newest DeepSeek; V4.1 Pro has
+  # not shipped. One Ollama Cloud backend, so a pin, not a router/ pool.
+  # Context and capabilities (thinking, tools, vision) from /api/show.
+  - model_name: "ollama-cloud/deepseek-v4.1-flash"
+    litellm_params:
+      model: "openai/deepseek-v4.1-flash:1017"
+      litellm_credential_name: ollama_cloud_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 1048576, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   # MiniMax M3 stays on LiteLLM's native ollama_chat adapter: Ollama's /v1
   # streams its parallel tool calls all at `index: 0` (distinct ids), which
   # OpenAI clients merge into one call (probe 2026-10-07, 3/3). ollama_chat
@@ -682,13 +711,22 @@ model_list:
     model_info: {mode: embedding}
 
 
-  # Gemini Flash models through the single-tenant Antigravity bridge. Clients
-  # own the tool loop and may select none/minimal/low/medium/high/xhigh via
-  # reasoning_effort ("none" selects the thinking-off route). Limits and image
-  # input come from the bridge's pi-antigravity model table.
+  # Gemini models through the single-tenant Antigravity bridge. Clients own the
+  # tool loop and may select none/minimal/low/medium/high/xhigh via
+  # reasoning_effort. "none" selects Flash's thinking-off route; Argon has no
+  # such route, so the bridge runs it at low. Limits and image input come from
+  # live fetchAvailableModels (2026-10-15). Argon draws a separate weekly-only
+  # quota that the bridge's /usage (and so Moira) does not report.
   - model_name: "antigravity/gemini-3.8-flash"
     litellm_params:
       model: "openai/antigravity/gemini-3.8-flash"
+      litellm_credential_name: antigravity_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  - model_name: "antigravity/gemini-4-argon"
+    litellm_params:
+      model: "openai/antigravity/gemini-4-argon"
       litellm_credential_name: antigravity_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
@@ -973,6 +1011,12 @@ credential_list:
       api_key: os.environ/OPENROUTER_API_KEY
     credential_info:
       description: "OpenRouter ($0 models only; see openrouter/ling-3.1-flash)"
+  - credential_name: routeway_credential
+    credential_values:
+      api_base: https://api.routeway.ai/v1
+      api_key: os.environ/ROUTEWAY_API_KEY
+    credential_info:
+      description: "Routeway (pay-per-token; see routeway/glm-5.3-flash-uncensored)"
   - credential_name: clinepass_credential
     credential_values:
       api_base: https://api.cline.bot/api/v1
@@ -1102,6 +1146,33 @@ general_settings:
 mcp_servers:
   time:
     url: "http://localhost:8003/mcp"
+  comfyui:
+    # Official Comfy-Org comfy-mcp (litellm.tf comfy-mcp sidecar) driving the
+    # in-cluster ComfyUI. Only generation, template, workflow and job tools
+    # are exposed. Blocked: install/update/version switching, model downloads,
+    # launch/stop/restart and logs (they act on the sidecar, which has no
+    # ComfyUI), partner/auth/billing (Comfy credits), and upload_file (it
+    # uploads any file the sidecar can read into ComfyUI's input dir).
+    url: "http://localhost:8008/mcp"
+    allowed_tools:
+      - server_info
+      - system_stats
+      - free_memory
+      - generate_image
+      - run_template
+      - run_workflow
+      - job
+      - fetch_outputs
+      - search_templates
+      - get_template
+      - fetch_template
+      - list_workflow_slots
+      - list_workflow_notes
+      - set_workflow_slot
+      - vary_workflow
+      - validate_workflow
+      - nodes
+      - search_models
   # Web data (scrape/crawl/search/parse) is deskplane, below.
   # coingecko:
   #   url: "http://localhost:8002/"
@@ -1173,6 +1244,36 @@ mcp_servers:
     url: "http://fm-mcp.games.svc.cluster.local:18766/mcp"
     auth_type: bearer_token
     auth_value: "${fm_mcp_token}"
+  # ClickStack (HyperDX 2.39 built-in MCP, hyperdx.tf): logs/traces/metrics in
+  # ClickHouse via HyperDX's hyperdx_reader identity. Cluster DNS skips Caddy.
+  # The key is the HyperDX admin's personal access key (SOPS hyperdx.api_key).
+  # Read-only allowlist: the save/patch/delete tools (dashboards, alerts,
+  # webhooks, sources) and get_webhook (returns webhook URLs) are not exposed.
+  clickstack:
+    url: "http://hyperdx.hyperdx.svc.cluster.local:3000/api/mcp"
+    auth_type: bearer_token
+    auth_value: "${hyperdx_mcp_token}"
+    allowed_tools:
+      - clickstack_list_sources
+      - clickstack_describe_source
+      - clickstack_list_metrics
+      - clickstack_describe_metric
+      - clickstack_get_alert
+      - clickstack_get_dashboard
+      - clickstack_get_dashboard_tile
+      - clickstack_search_dashboards
+      - clickstack_query_tile
+      - clickstack_query_tiles
+      - clickstack_get_saved_search
+      - clickstack_timeseries
+      - clickstack_table
+      - clickstack_search
+      - clickstack_event_patterns
+      - clickstack_event_deltas
+      - clickstack_emerging_signals
+      - clickstack_sql
+      - clickstack_trace_waterfall
+      - clickstack_trace_top_time_consuming_operations
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"
