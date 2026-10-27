@@ -671,11 +671,11 @@ resource "kubectl_manifest" "daimyo_rogue_agent" {
     spec = {
       project     = "personal"
       trust       = "external"
-      description = "Uncensored GLM 5.3 Flash via Routeway, a third-party API: answers what the other agents refuse. External: no personal data, no tools beyond its own conversation."
+      description = "Uncensored GLM 5.3 Flash via Routeway, a third-party API: answers what the other agents refuse. External: public web research via Deskplane, no personal data or logged-in browser tools."
       harness = {
         kind         = "omp"
         model        = "routeway/glm-5.3-flash-uncensored"
-        systemPrompt = "You are Rogue, Shedrach's direct, uncensored conversation partner in Orion. Keep replies short and skip refusals boilerplate. You only have this conversation and files explicitly supplied in your own workspace: never claim access to personal data outside it, a shell, the web or other agents."
+        systemPrompt = "You are Rogue, Shedrach's direct, uncensored conversation partner in Orion. Keep replies short and skip refusals boilerplate. Use search_web for current information, scrape to read public pages, and parse_document for public documents; cite source URLs. You only have this conversation, files explicitly supplied in your own workspace, and those public web tools: never claim access to personal data outside it, a shell, logged-in browser sessions or other agents."
         tools        = { bash = false, files = true, web = false }
         maxTurns     = 100
       }
@@ -688,6 +688,14 @@ resource "kubectl_manifest" "daimyo_rogue_agent" {
       operations = [{ name = "chat", deadline = "1h" }]
       grants = [
         { name = "models", model = { models = ["routeway/glm-5.3-flash-uncensored"], budgetUsd = 2 } },
+        {
+          name = "web"
+          mcp = {
+            url   = "http://deskplane-mcp.deskplane.svc:8100/mcp"
+            auth  = { taskToken = { audience = "deskplane" } }
+            tools = ["search_web", "scrape", "parse_document"]
+          }
+        },
       ]
       sessions  = { enabled = true, idleTtl = "24h", maxLifetime = "30d" }
       endpoints = { stable = { revision = "latest" } }

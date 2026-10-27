@@ -1141,6 +1141,10 @@ resource "kubectl_manifest" "daimyo_org" {
             allowedRepos = ["so/*", "seven30/*"]
           }
           kubernetes = { serviceAccounts = ["dev"] }
+          # Rogue keeps external trust: only public web tools through Deskplane.
+          externalAgents = {
+            allowedHosts = ["deskplane-mcp.deskplane.svc"]
+          }
         }
       } : name => extra if name == each.key })...
     )

@@ -282,6 +282,21 @@ The scoped key discovered all 14 tools; a native Orion status call returned
 An approval for `place_order` with `confirm: false` was opened and denied
 (`01M5X8422B1RT49MR92FJ0E0QM`); no purchase was authorized.
 
+#### Rogue Public Web Access
+
+Rogue retains `trust: external` and its Routeway model. Its only network
+grant is Deskplane's `search_web`, `scrape` and `parse_document`, authenticated
+with a task token. The personal Org's `externalAgents.allowedHosts` admits
+only `deskplane-mcp.deskplane.svc`; it is not unrestricted pod internet access.
+Shell access, logged-in browser tools, memory and agent delegation remain off.
+The grant and prompt live in `orion.tf`; the Org host allowlist is in
+`daimyo.tf`. New Rogue chats use revision `r-2`; existing chats retain their
+previous revision.
+
+Verified with a real Rogue search and an HTTP 200 scrape of
+`https://www.iana.org/help/example-domains`
+(task `01M5XGB4ATPQVQQDDW0PFA6NFJ`).
+
 ### Scoped Configuration
 
 There is deliberately no `configure:all`: gateway, monitoring, GitLab, backup,
