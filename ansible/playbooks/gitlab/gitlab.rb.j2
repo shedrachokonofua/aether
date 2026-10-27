@@ -12,6 +12,13 @@ registry_nginx['listen_port'] = 5050
 registry_nginx['listen_https'] = false
 gitlab_rails['registry_issuer'] = "gitlab-issuer"
 gitlab_rails['registry_key_path'] = "/var/opt/gitlab/gitlab-rails/certificate.key"
+# Online GC (metadata database). Defaults (5s per task, 24h review delay) free
+# space ~48h after a tag delete and fall behind high-churn CI cache repos.
+registry['gc'] = {
+  'reviewafter' => '6h',
+  'manifests' => { 'interval' => '1s' },
+  'blobs' => { 'interval' => '1s' }
+}
 pages_external_url 'https://pages.gitlab.home.shdr.ch'
 gitlab_pages['enable'] = true
 pages_nginx['listen_port'] = 3210
