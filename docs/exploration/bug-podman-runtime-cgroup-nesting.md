@@ -1,5 +1,7 @@
 # Bug: rootless podman nests `runtime` cgroups on restart → systemd EBUSY, unit unstartable
 
+> 2026-10-13: The Loki-backed alert-impact assumptions below were superseded by the ClickStack migration; Grafana now queries ClickHouse (`../../tofu/home/kubernetes/grafana.tf`), while Loki remains a temporary dual-write/backfill store.
+
 Status: workaround documented (depth-first cgroup cleanup); root cause not fixed.
 Found: 2026-07-26 during a routine Loki config deploy.
 

@@ -83,8 +83,9 @@ The lab *intends* 3-2-1 but currently isn't there:
   daily at 02:20, using the Tofu-generated Talos client config. A manual proof snapshot on
   2026-06-27 wrote a 412MB etcd snapshot to `/mnt/hdd/data/backups/talos-etcd`; the scheduled
   2026-06-28 run wrote a 424MB snapshot, and the scheduled Backrest `/mnt/hdd/data` offsite
-  snapshot includes both files. Prometheus scrapes `aether_talos_etcd_snapshot_*` metrics from
-  the `aether-restic` exporter. Grafana alert rules cover failed and stale Talos etcd snapshots.
+  snapshot includes both files. The OTel Collector scrapes `aether_talos_etcd_snapshot_*`
+  metrics from `aether-restic` into ClickHouse (`otel_config.yml.j2`). Grafana SQL
+  alert rules cover failed and stale Talos etcd snapshots.
 - **Freshness alerts** — now cover PBS, DB dump CronJobs, restic metrics/exporter, Backrest/restic
   plan freshness, and Talos etcd snapshot success/staleness. Additional coverage is still needed
   for native CNPG backup freshness, k8up, sanoid, and PBS remote-sync.

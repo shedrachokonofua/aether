@@ -1,5 +1,7 @@
 # NixOS Exploration
 
+> 2026-10-13: The telemetry topology and VM Grafana assumptions below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
+
 Exploration of NixOS for foundational VMs — declarative, reproducible, and atomically rollbackable infrastructure.
 
 ## Goal

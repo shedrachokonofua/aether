@@ -67,6 +67,18 @@ timeouts, and a multi-node NotReady cascade. Two mitigations, both in IaC:
   no field for this agent sub-option). Talos gains nothing from filesystem quiesce and etcd
   fsyncs must never be frozen.
 
+### Backup fleecing (2026-10-12)
+
+The same copy-before-write throttling hit `monitoring-stack` (VM 1003, 1.2 TiB across two
+local disks): its nightly backup ran 15–33 min daily, then 67 min on 2026-10-12 after the
+weekly `fstrim` marked 774 GiB dirty. The guest disk sat at 100% busy, load hit 117, Grafana's
+SQLite locked, and the central OTel collector refused ingest from 06:30 to 06:45 UTC. The job
+now sets `fleecing enabled=1,storage=ceph-vm-disks`, so guest writes land in a temporary fleecing image
+instead of waiting on PBS. `configure_proxmox_backups.yml` converges the job's options
+(`backup_job_options`) on every run, not only at creation. Ceph is the fleecing target because
+it is shared by every node with TBs free; niobe's `local-lvm` thin pool has ~88 GiB free and
+overfilling it would pause every guest on it. Fleecing applies to QEMU VMs only.
+
 ## Offsite Backups
 
 Restic + Backrest sync critical data to AWS S3 for offsite disaster recovery.
@@ -193,6 +205,11 @@ live internal storage and is not a stable backup interface.
 This is an interim target for DB/PVC backup work. It is useful now, but it is still on Smith and
 therefore does not replace the planned off-smith copy on Neo or a dedicated backup box.
 
+Grafana's Kubernetes UI state is also CNPG-backed (`grafana-cnpg`, declared in
+`tofu/home/kubernetes/grafana.tf`). Its native object-store backup configuration
+in `tofu/home/kubernetes/cnpg_backups.tf` retains 14 days and schedules backups
+at 02:17 daily; telemetry itself lives in ClickHouse, not Grafana's database.
+
 ## Kubernetes Control-Plane Backups
 
 `backup-stack` runs `aether-talos-etcd-snapshot.timer` daily at 02:20. The service uses the
@@ -205,8 +222,9 @@ talosctl --nodes 10.0.3.16 --endpoints 10.0.3.16,10.0.3.17,10.0.3.18 etcd snapsh
 Snapshots are written to `/mnt/hdd/data/backups/talos-etcd` with 30-day local retention. A manual
 proof run on 2026-06-27 created a 412MB snapshot; the scheduled 2026-06-28 run created a 424MB
 snapshot, and the scheduled Backrest `/mnt/hdd/data` offsite snapshot includes both files.
-Snapshot generation emits `aether_talos_etcd_snapshot_*` metrics through the `aether-restic`
-Prometheus scrape. Grafana alerts cover failed and stale Talos etcd snapshots.
+Snapshot generation emits `aether_talos_etcd_snapshot_*` metrics through the
+collector's `aether-restic` scrape into ClickHouse (`otel_config.yml.j2`). Grafana
+SQL alerts cover failed and stale Talos etcd snapshots.
 
 ## PKI — step-ca CA Key Backup
 

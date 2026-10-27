@@ -1,5 +1,7 @@
 # GPU Kubernetes Migration
 
+> 2026-10-13: The telemetry backend diagram and Grafana provisioning paths below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
+
 **Status:** Phase 6 cleanup is applied in Git — the GPU Workstation VM, its Ansible playbooks, and Tofu module are removed; GPU workloads run on **talos-neo** in Kubernetes.
 
 ## Goal

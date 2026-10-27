@@ -127,7 +127,7 @@ Admin-activity audit logs are collected by **vigil** (`gcp.audit`, every
 5 min): Keycloak `aud=cloud-audit` JWT → WIF STS exchange (sibling provider
 `cloud-audit` in the `aether` pool, tofu/google/cloud-audit.tf) →
 impersonation of the read-only `cloud-audit` SA (`roles/logging.viewer`) →
-Logging `entries:list` into Loki. Alert rule
+Logging `entries:list` into ClickHouse `otel.otel_logs`. Alert rule
 `cloud-audit-gcp-wif-or-iam-mutation` (warning-first). Note: the estate DNS
 path intermittently NXDOMAINs `logging-alv.googleapis.com` — see
 `docs/exploration/bug-gcp-logging-dns-nxdomain.md`.

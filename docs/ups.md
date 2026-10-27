@@ -20,7 +20,7 @@ The UPS is connected to the rack switch on port 4 (VLAN 1, Gigahub network) for 
 
 ## Monitoring
 
-UPS metrics are scraped by Prometheus and displayed in Grafana:
+The central OTel Collector scrapes UPS metrics into ClickHouse; Grafana displays them using SQL (`ansible/playbooks/monitoring_stack/otel_config.yml.j2`):
 
 - Input/output voltage
 - Battery charge level

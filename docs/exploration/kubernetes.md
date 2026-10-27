@@ -1,5 +1,7 @@
 # Kubernetes Exploration
 
+> 2026-10-13: The telemetry backend topology below was superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
+
 Exploration of a 3-node Talos Kubernetes cluster as a modern application platform.
 
 ## Goal

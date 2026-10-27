@@ -73,7 +73,7 @@ blocklists, DNS zones, rewrites, and upstreams in sync from one source, so a
 change made once reaches all three.
 
 > The two home LXCs keep the hostnames `adguard` / `adguard-secondary` (and
-> their Loki stream names) from the retired AdGuard Home deployment — they run
+> their ClickHouse log `ServiceName` values) from the retired AdGuard Home deployment — they run
 > Technitium now. "Primary/Secondary" below is the **cluster** role.
 
 ### Cluster nodes
@@ -134,9 +134,9 @@ fallback if the DNAT rules are ever deleted.
 deployed by `task configure:oci-dns`. It is a rootful-podman Technitium bound
 only to its WireGuard address, joins the cluster over the fabric, and answers
 `*.home.shdr.ch → 10.0.2.2`. Like the other cloud sites it is agent-free:
-Prometheus scrapes its exporters (`site-node-exporter`,
-`site-wireguard-exporter`), its journal — including per-client query logs (Log
-Exporter → journal) — is pulled to Loki by the monitoring-stack forwarder, and
+the central OTel Collector scrapes its exporters (`site-node-exporter`,
+`site-wireguard-exporter`) into ClickHouse; its journal — including per-client
+query logs (Log Exporter → journal) — is pulled into ClickHouse by the monitoring-stack forwarder, and
 it is covered by the `Site Exporter Down` and `DNS Query Log Stream Stale`
 alerts. The `:53`/`:53443` cluster mesh is gated across the VyOS
 `MGMT-to-CLOUD`/`CLOUD-to-MGMT` zones, the hub `site_wireguard_service_forwards`,
@@ -308,7 +308,7 @@ previous entry.
 
 ### Site-fabric metrics
 
-Prometheus on `monitoring-stack` scrapes services attached to the
+The OTel Collector on `monitoring-stack` scrapes services attached to the
 `aether` fabric over routed WireGuard:
 
 | Job | Sites | Port | Service |
@@ -323,7 +323,7 @@ See [Infrastructure Naming Ontology](naming.md) for the identity contract.
 
 The exporters bind their site-fabric addresses rather than public interfaces.
 `task configure:site-metrics` reconciles the fabric, exporters, firewall paths,
-and central Prometheus scrape configuration.
+and central collector scrape configuration (`otel_config.yml.j2`).
 
 **Detection Collections**:
 
