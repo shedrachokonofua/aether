@@ -5,7 +5,7 @@
 1. Check Home dashboard, active alerts, and blackbox `probe_success`.
 2. Map hostname to Caddy/Gateway/HTTPRoute and runtime.
 3. Check workload/service endpoint readiness.
-4. Query Loki for the affected service and window.
+4. Query ClickHouse logs (`otel.otel_logs`) for the affected service and window.
 5. Check dependency metrics/logs: database, storage, DNS, identity, upstream API.
 6. Verify directly with a safe health/version/request endpoint.
 
@@ -34,8 +34,8 @@ Completion: distinguish rollout blocker from unrelated global warnings or old fa
 ## Missing Telemetry
 
 1. Check Grafana and datasource health.
-2. Check Prometheus active target health or Loki query readiness.
-3. Inspect central OTel accepted/refused/export-failure metrics.
+2. Check the `up` gauge / latest-sample freshness in ClickHouse (`otel.otel_metrics_*`) or the log query path.
+3. Inspect central OTel accepted/refused/export-failure metrics (collector `clickhouse/otel` exporter queue/send-failed, receiver refused counters).
 4. Inspect the relevant Kubernetes collector or `aether-otel-collector` journal.
 5. Verify exporter/socket/log-path configuration against IaC.
 
@@ -45,8 +45,8 @@ Completion: locate the break at producer, agent, transport, central collector, b
 
 1. Resolve the hostname through the client-intended resolver and compare public/internal answers.
 2. Map VLAN, firewall zone, route, Caddy/Gateway, and upstream endpoint.
-3. Query Prometheus for probe/proxy/network failures.
-4. Use ClickHouse for connection/DNS/IDS evidence and Loki/host logs for proxy/router services.
+3. Query ClickHouse metrics for probe/proxy/network failures.
+4. Use ClickHouse for connection/DNS/IDS evidence and `otel_logs`/host logs for proxy/router services.
 5. Check whether identity or CrowdSec symptoms are masquerading as network failure.
 
 Completion: identify the failing hop and preserve public-versus-private DNS intent.

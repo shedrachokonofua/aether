@@ -1,0 +1,256 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Journal Forwarder
+    folder: Alerts
+    interval: 1m
+    rules:
+      # No successful export from a source in 15m. Every live host logs
+      # something within 15m, so a stale source means the gatewayd is down,
+      # the mTLS/WireGuard path broke, or a cert renewal was missed.
+      - uid: journal-forwarder-poll-stale
+        title: Journal Forwarder Poll Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['source'] AS source, now() - toDateTime(argMax(Value, TimeUnix)) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'ojgf_last_success_timestamp_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY source
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [900]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: monitoring
+        annotations:
+          summary: "Journal forwarder source {{ $labels.source }} has not exported in >15m"
+          description: 'No successful OTLP export from {{ $labels.source }} for {{ $values.B.Value | printf "%.0f" }}s. Check the source gatewayd, the WireGuard/mTLS path, and cert renewal.'
+
+      # Sustained poll failures against a source (gatewayd down, TLS expiry,
+      # network path broken). TLS-expiry failures surface here by design.
+      - uid: journal-forwarder-poll-errors
+        title: Journal Forwarder Poll Errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT source, sum(delta) AS value FROM (SELECT Attributes['source'] AS source, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName = 'ojgf_poll_errors_total' AND TimeUnix > now() - INTERVAL 15 MINUTE GROUP BY source, ResourceAttributes['service.instance.id'], StartTimeUnix, Attributes) GROUP BY source
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [10]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: monitoring
+        annotations:
+          summary: "Journal forwarder poll errors for {{ $labels.source }}"
+          description: '{{ $values.B.Value | printf "%.0f" }} poll errors in 15m against {{ $labels.source }}. Check gatewayd reachability and certificate validity.'
+
+      # The forwarder metrics endpoint is entirely gone: service down or the
+      # scrape broke. absent() returns 1 only when no series exist.
+      - uid: journal-forwarder-absent
+        title: Journal Forwarder Absent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT if(count() = 0, 1, 0) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'ojgf_last_poll_timestamp_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          domain: monitoring
+        annotations:
+          summary: "Journal forwarder metrics absent"
+          description: "No ojgf_* metrics on monitoring-stack for >10m — the otel-journal-gatewayd-forwarder service is down or its scrape broke."
+
+      # Estate scanner — stale/failed coverage (Phase 2 gate before broad scans)
+      - uid: estate-scan-run-stale
+        title: Estate Scan Run Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT if(count() = 0, 999, dateDiff('hour', max(coalesce(finished_at, started_at)), now())) AS value
+                FROM estate_scan.scan_runs FINAL
+                WHERE status = 'succeeded'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [12]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Estate scanner has no successful run in >12h"
+          description: "Last successful estate_scan.scan_runs row is {{ $values.B.Value }} hours old. Check Kestra aether.estate/estate-scan-home and the estate-scanner guest."
+
+      - uid: estate-scan-run-failed
+        title: Estate Scan Run Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM estate_scan.scan_runs FINAL
+                WHERE status = 'failed'
+                  AND coalesce(finished_at, started_at) >= now() - INTERVAL 6 HOUR
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Estate scanner recorded a failed run"
+          description: "{{ $values.B.Value }} failed estate_scan.scan_runs in the last 6 hours. Inspect stage_artifacts and Kestra execution logs."
+
+  # ===========================================================================
+  # Network — end-to-end path health via the four network exporters:
+  # GigaHub fiber/WAN (gigahub-exporter), VyOS router (vyos-exporter),
+  # QNAP rack switch (qss-exporter), UniFi WiFi (unpoller).
+  # ===========================================================================

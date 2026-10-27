@@ -46,6 +46,10 @@ terraform {
       source  = "hashicorp/vault"
       version = ">= 5.0.0"
     }
+    grafana = {
+      source  = "grafana/grafana"
+      version = "4.49.0"
+    }
   }
 }
 

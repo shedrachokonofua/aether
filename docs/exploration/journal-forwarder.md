@@ -1,5 +1,7 @@
 # Journal Log Forwarding (otel-journal-gatewayd-forwarder)
 
+> 2026-10-13: The telemetry sink/query-backend assumptions below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../ansible/playbooks/monitoring_stack/otel_config.yml.j2`.
+
 Implementation plan for pull-based journal log collection from the hosts that run no local
 OTEL agent: the five Proxmox hosts and the cloud VMs (AWS public-gateway, GCP uptime-monitor). Closes the P0 gap where these
 machines expose metrics (node/SMART exporters) but ship no logs.

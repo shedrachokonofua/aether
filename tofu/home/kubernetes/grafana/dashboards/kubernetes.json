@@ -36,7 +36,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Nodes reporting Ready=1 out of total nodes in the cluster.",
       "fieldConfig": {
@@ -90,18 +91,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_node_condition_ready == 1)",
-          "legendFormat": "Ready",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Ready' AS label, toFloat64(countIf(v=1)) AS value FROM (SELECT Attributes['host_name'] AS h, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.condition_ready' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY h)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_node_condition_ready)",
-          "legendFormat": "Total",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Total' AS label, toFloat64(count()) AS value FROM (SELECT Attributes['host_name'] AS h, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.condition_ready' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY h)",
           "refId": "B"
         }
       ],
@@ -110,7 +117,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Pods in phase Running (k8s_pod_phase == 2).",
       "fieldConfig": {
@@ -156,9 +164,13 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2)",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT toFloat64(countIf(v=2)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "A"
         }
       ],
@@ -167,7 +179,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Pods in phase Pending (k8s_pod_phase == 1). Stuck scheduling, image pull, or PVC bind.",
       "fieldConfig": {
@@ -221,9 +234,13 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 1) or vector(0)",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT toFloat64(countIf(v=1)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "A"
         }
       ],
@@ -232,7 +249,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Pods in phase Failed (k8s_pod_phase == 4). Investigate restart policy / exit codes.",
       "fieldConfig": {
@@ -286,9 +304,13 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 4) or vector(0)",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT toFloat64(countIf(v=4)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "A"
         }
       ],
@@ -297,7 +319,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Cluster CPU utilization: sum(kubelet CPU usage) / sum(kube-state-metrics node allocatable CPU). Matches `kubectl top nodes` totals.",
       "fieldConfig": {
@@ -459,43 +482,58 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_node_cpu_utilization_ratio{host_name=~\"$node\"}) / sum(kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
-          "legendFormat": "% used",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT '% used' AS label, (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.cpu.utilization' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])) / nullIf((SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='cpu' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['node'])),0) AS value",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / sum(kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
-          "legendFormat": "% committed",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum(k8s_node_cpu_utilization_ratio{host_name=~\"$node\"})",
-          "legendFormat": "cores used",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'cores used' AS label, (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.cpu.utilization' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])) AS value",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1))",
-          "legendFormat": "cores committed",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'cores total' AS label, (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='cpu' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['node'])) AS value",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'cores committed' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='cpu' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) AS value",
           "refId": "D"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
-          "legendFormat": "cores total",
-          "refId": "C"
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT '% committed' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='cpu' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) / nullIf((SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='cpu' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))),0) AS value",
+          "refId": "E"
         }
       ],
       "title": "Cluster CPU",
@@ -503,7 +541,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Byte-weighted cluster memory utilization: sum(working set) / sum(working set + available). Matches `kubectl top nodes` totals.",
       "fieldConfig": {
@@ -665,43 +704,58 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"}) / sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
-          "legendFormat": "% used",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT '% used' AS label, (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.working_set' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])) / nullIf((SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.working_set' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])) + (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.available' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])),0) AS value",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / sum(kube_node_status_allocatable{resource=\"memory\",node=~\"$node\"})",
-          "legendFormat": "% committed",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"})",
-          "legendFormat": "used",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'used' AS label, (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.working_set' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])) AS value",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1))",
-          "legendFormat": "committed",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'total' AS label, (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.working_set' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])) + (SELECT sum(v) FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.available' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['host_name'])) AS value",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'committed' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='memory' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) AS value",
           "refId": "D"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
-          "legendFormat": "total",
-          "refId": "C"
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT '% committed' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='memory' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) / nullIf((SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='memory' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))),0) AS value",
+          "refId": "E"
         }
       ],
       "title": "Cluster Memory",
@@ -709,7 +763,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Average GPU utilization across all DCGM-reporting GPUs.",
       "fieldConfig": {
@@ -769,9 +824,13 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg(DCGM_FI_DEV_GPU_UTIL) or vector(0)",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT coalesce(avg(v),0) AS value FROM (SELECT Attributes['Hostname'] AS h, Attributes['gpu'] AS g, max(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE AND (ServiceName, ResourceAttributes['service.instance.id'], TimeUnix) IN (SELECT ServiceName, ResourceAttributes['service.instance.id'], max(TimeUnix) FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, ResourceAttributes['service.instance.id']) GROUP BY h, g)",
           "refId": "A"
         }
       ],
@@ -780,7 +839,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "New container restarts in the last hour (increase on k8s_container_restarts).",
       "fieldConfig": {
@@ -834,9 +894,13 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(increase(k8s_container_restarts{service_namespace=~\"$namespace\"}[1h])) or vector(0)",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT coalesce(sum(d),0) AS value FROM (SELECT TimeUnix, Attributes['service_name'] AS service_name, Attributes['service_namespace'] AS service_namespace, Attributes['host_name'] AS host_name, Value, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if(Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS d FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.restarts' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 70 MINUTE) WHERE TimeUnix > now() - INTERVAL 1 HOUR",
           "refId": "A"
         }
       ],
@@ -845,7 +909,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Sum of available deployment replicas across namespaces. Drop below desired = rollout stalled.",
       "fieldConfig": {
@@ -891,18 +956,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_deployment_available{service_namespace=~\"$namespace\"})",
-          "legendFormat": "Available",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Available' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.deployment.available' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_deployment_desired{service_namespace=~\"$namespace\"})",
-          "legendFormat": "Desired",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Desired' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.deployment.desired' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "B"
         }
       ],
@@ -911,7 +982,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "StatefulSet pods ready vs desired.",
       "fieldConfig": {
@@ -957,18 +1029,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_statefulset_ready_pods{service_namespace=~\"$namespace\"})",
-          "legendFormat": "Ready",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Ready' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.statefulset.ready_pods' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_statefulset_desired_pods{service_namespace=~\"$namespace\"})",
-          "legendFormat": "Desired",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Desired' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.statefulset.desired_pods' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "B"
         }
       ],
@@ -977,7 +1055,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "DaemonSet nodes ready vs desired. Misscheduled > 0 flags a problem.",
       "fieldConfig": {
@@ -1023,26 +1102,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_daemonset_ready_nodes{service_namespace=~\"$namespace\"})",
-          "legendFormat": "Ready",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Ready' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.daemonset.ready_nodes' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_daemonset_desired_scheduled_nodes{service_namespace=~\"$namespace\"})",
-          "legendFormat": "Desired",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Desired' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.daemonset.desired_scheduled_nodes' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_daemonset_misscheduled_nodes{service_namespace=~\"$namespace\"}) or vector(0)",
-          "legendFormat": "Misschd",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Misschd' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.daemonset.misscheduled_nodes' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "C"
         }
       ],
@@ -1051,7 +1139,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Active jobs, plus failed job pods — investigate any non-zero failure count.",
       "fieldConfig": {
@@ -1122,18 +1211,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_job_active_pods{service_namespace=~\"$namespace\"}) or vector(0)",
-          "legendFormat": "Active",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Active' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.job.active_pods' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(k8s_job_failed_pods{service_namespace=~\"$namespace\"}) or vector(0)",
-          "legendFormat": "Failed",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Failed' AS label, coalesce(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.job.failed_pods' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ServiceName, Attributes)",
           "refId": "B"
         }
       ],
@@ -1142,7 +1237,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Running pod distribution across namespaces.",
       "fieldConfig": {
@@ -1192,10 +1288,13 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2) by (service_namespace)",
-          "legendFormat": "{{service_namespace}}",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT service_namespace, toFloat64(countIf(v=2)) AS value FROM (SELECT Attributes['service_namespace'] AS service_namespace, Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY service_namespace, s) GROUP BY service_namespace",
           "refId": "A"
         }
       ],
@@ -1204,7 +1303,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "All pods grouped by lifecycle phase (Pending/Running/Succeeded/Failed/Unknown).",
       "fieldConfig": {
@@ -1329,42 +1429,57 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 1) or vector(0)",
-          "legendFormat": "Pending",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Pending' AS label, toFloat64(countIf(v=1)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2) or vector(0)",
-          "legendFormat": "Running",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Running' AS label, toFloat64(countIf(v=2)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 3) or vector(0)",
-          "legendFormat": "Succeeded",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Succeeded' AS label, toFloat64(countIf(v=3)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "C"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 4) or vector(0)",
-          "legendFormat": "Failed",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Failed' AS label, toFloat64(countIf(v=4)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "D"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 5) or vector(0)",
-          "legendFormat": "Unknown",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'Unknown' AS label, toFloat64(countIf(v=5)) AS value FROM (SELECT Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY s)",
           "refId": "E"
         }
       ],
@@ -1386,7 +1501,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Per-node health snapshot: readiness, CPU, memory, filesystem, pod density. One row per node.",
       "fieldConfig": {
@@ -1667,151 +1783,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "k8s_node_condition_ready{host_name=~\"$node\"}",
-          "format": "table",
-          "instant": true,
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT r.host_name AS host_name, r.v AS \"Ready\", cpu.v AS \"CPU (cores)\", ws.v / nullIf(ws.v + av.v,0) AS \"Memory %\", (ws.v + av.v) / 1000000000 AS \"Memory (GiB)\", fu.v / nullIf(fc.v,0) AS \"Disk %\", fc.v / 1000000000 AS \"Disk (GiB)\", toFloat64(coalesce(pods.c,0)) AS \"Pods\", toFloat64(coalesce(gpus.c,0)) AS \"GPUs\"\nFROM (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.condition_ready' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) r\nLEFT JOIN (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.cpu.utilization' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) cpu ON r.host_name=cpu.host_name\nLEFT JOIN (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.working_set' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) ws ON r.host_name=ws.host_name\nLEFT JOIN (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.available' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) av ON r.host_name=av.host_name\nLEFT JOIN (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.filesystem.usage' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) fu ON r.host_name=fu.host_name\nLEFT JOIN (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.filesystem.capacity' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) fc ON r.host_name=fc.host_name\nLEFT JOIN (SELECT host_name, countIf(v=2) AS c FROM (SELECT Attributes['host_name'] AS host_name, Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name, s) GROUP BY host_name) pods ON r.host_name=pods.host_name\nLEFT JOIN (SELECT hn AS host_name, count() AS c FROM (SELECT Attributes['Hostname'] AS hn, Attributes['gpu'] AS g, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY hn, g, Attributes['pod'], Attributes['namespace']) GROUP BY host_name) gpus ON r.host_name=gpus.host_name\nORDER BY host_name",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "k8s_node_cpu_utilization_ratio{host_name=~\"$node\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "k8s_node_memory_working_set_bytes{host_name=~\"$node\"} / (k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
-          "format": "table",
-          "instant": true,
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "k8s_node_filesystem_usage_bytes{host_name=~\"$node\"} / k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
-          "format": "table",
-          "instant": true,
-          "refId": "F"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "count by (host_name) (k8s_pod_phase{host_name=~\"$node\"} == 2)",
-          "format": "table",
-          "instant": true,
-          "refId": "G"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "count by (host_name) (label_replace(DCGM_FI_DEV_GPU_UTIL, \"host_name\", \"$1\", \"Hostname\", \"(.*)\"))",
-          "format": "table",
-          "instant": true,
-          "refId": "H"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "host_name",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "Time 4": true,
-              "Time 5": true,
-              "Time 6": true,
-              "Time 7": true,
-              "Time 8": true,
-              "instance 1": true,
-              "instance 2": true,
-              "instance 3": true,
-              "instance 4": true,
-              "instance 5": true,
-              "instance 6": true,
-              "job 1": true,
-              "job 2": true,
-              "job 3": true,
-              "job 4": true,
-              "job 5": true,
-              "job 6": true,
-              "otel_scope_name 1": true,
-              "otel_scope_name 2": true,
-              "otel_scope_name 3": true,
-              "otel_scope_name 4": true,
-              "otel_scope_name 5": true,
-              "otel_scope_name 6": true,
-              "otel_scope_version 1": true,
-              "otel_scope_version 2": true,
-              "otel_scope_version 3": true,
-              "otel_scope_version 4": true,
-              "otel_scope_version 5": true,
-              "otel_scope_version 6": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "__name__ 3": true,
-              "__name__ 4": true,
-              "__name__ 5": true,
-              "__name__ 6": true
-            },
-            "indexByName": {
-              "host_name": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5,
-              "Value #F": 6,
-              "Value #G": 7,
-              "Value #H": 8
-            },
-            "renameByName": {
-              "host_name": "Node",
-              "Value #A": "Ready",
-              "Value #B": "CPU (cores)",
-              "Value #C": "Memory %",
-              "Value #D": "Memory (GiB)",
-              "Value #E": "Disk %",
-              "Value #F": "Disk (GiB)",
-              "Value #G": "Pods",
-              "Value #H": "GPUs"
-            }
-          }
         }
       ],
       "title": "Nodes Overview",
@@ -1819,7 +1798,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Per-node CPU cores in use (kubelet CPU usage).",
       "fieldConfig": {
@@ -1900,19 +1880,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "k8s_node_cpu_utilization_ratio{host_name=~\"$node\"}",
-          "legendFormat": "{{host_name}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['host_name'] AS host_name, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.cpu.utilization' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) GROUP BY time, host_name ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Node CPU (cores used)",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Per-node memory used / total.",
       "fieldConfig": {
@@ -1994,19 +1979,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "k8s_node_memory_working_set_bytes{host_name=~\"$node\"} / (k8s_node_memory_working_set_bytes{host_name=~\"$node\"} + k8s_node_memory_available_bytes{host_name=~\"$node\"})",
-          "legendFormat": "{{host_name}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT w.time AS time, w.host_name AS host_name, w.ws / nullIf(w.ws + a.av,0) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['host_name'] AS host_name, avg(Value) AS ws FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.working_set' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, host_name) w INNER JOIN (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['host_name'] AS host_name, avg(Value) AS av FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.memory.available' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, host_name) a ON w.time=a.time AND w.host_name=a.host_name ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Node Memory Utilization",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Per-node root filesystem usage as percent of capacity.",
       "fieldConfig": {
@@ -2073,11 +2063,13 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "k8s_node_filesystem_usage_bytes{host_name=~\"$node\"} / k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
-          "instant": true,
-          "legendFormat": "{{host_name}}",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT u.host_name AS host_name, u.v / nullIf(c.v,0) AS value FROM (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.filesystem.usage' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) u INNER JOIN (SELECT Attributes['host_name'] AS host_name, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.filesystem.capacity' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name) c ON u.host_name=c.host_name",
           "refId": "A"
         }
       ],
@@ -2086,7 +2078,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Aggregate pod network throughput rolled up per node (rx + tx).",
       "fieldConfig": {
@@ -2179,22 +2172,29 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (host_name) (rate(k8s_pod_network_io_bytes_total{direction=\"receive\",host_name=~\"$node\"}[$__rate_interval]))",
-          "legendFormat": "{{host_name}} rx",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, concat(host_name, ' rx') AS host_name, value FROM (SELECT tb AS time, host_name, sum(d)/greatest($__interval_s,60) AS value FROM (SELECT tb, host_name, attrs, sum(diff) AS d FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['host_name'] AS host_name, Attributes AS attrs, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if(Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff FROM otel.otel_metrics_sum WHERE MetricName='k8s.pod.network.io' AND Attributes['direction']='receive' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime) WHERE tb >= $__fromTime GROUP BY tb, host_name, attrs) GROUP BY time, host_name ORDER BY time)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (host_name) (rate(k8s_pod_network_io_bytes_total{direction=\"transmit\",host_name=~\"$node\"}[$__rate_interval]))",
-          "legendFormat": "{{host_name}} tx",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, concat(host_name, ' tx') AS host_name, value FROM (SELECT tb AS time, host_name, sum(d)/greatest($__interval_s,60) AS value FROM (SELECT tb, host_name, attrs, sum(diff) AS d FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['host_name'] AS host_name, Attributes AS attrs, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if(Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff FROM otel.otel_metrics_sum WHERE MetricName='k8s.pod.network.io' AND Attributes['direction']='transmit' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime) WHERE tb >= $__fromTime GROUP BY tb, host_name, attrs) GROUP BY time, host_name ORDER BY time)",
           "refId": "B"
         }
       ],
       "title": "Node Network (pod aggregate)",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -2212,7 +2212,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Count of pods in each phase over time. Running should dominate; Pending/Failed spikes indicate scheduling or crash issues.",
       "fieldConfig": {
@@ -2368,51 +2369,68 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 1) or vector(0)",
-          "legendFormat": "Pending",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, 'Pending' AS phase, toFloat64(countIf(v=1)) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY tb, s) GROUP BY tb ORDER BY tb",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 2) or vector(0)",
-          "legendFormat": "Running",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, 'Running' AS phase, toFloat64(countIf(v=2)) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY tb, s) GROUP BY tb ORDER BY tb",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 3) or vector(0)",
-          "legendFormat": "Succeeded",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, 'Succeeded' AS phase, toFloat64(countIf(v=3)) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY tb, s) GROUP BY tb ORDER BY tb",
           "refId": "C"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 4) or vector(0)",
-          "legendFormat": "Failed",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, 'Failed' AS phase, toFloat64(countIf(v=4)) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY tb, s) GROUP BY tb ORDER BY tb",
           "refId": "D"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(k8s_pod_phase{service_namespace=~\"$namespace\"} == 5) or vector(0)",
-          "legendFormat": "Unknown",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, 'Unknown' AS phase, toFloat64(countIf(v=5)) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS s, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY tb, s) GROUP BY tb ORDER BY tb",
           "refId": "E"
         }
       ],
       "title": "Pods by Phase (over time)",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Containers with the most restarts in the last hour. Hot spots for crash loops and OOMs.",
       "fieldConfig": {
@@ -2526,55 +2544,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk(15, sum by (service_name, service_namespace, host_name) (increase(k8s_container_restarts{service_namespace=~\"$namespace\"}[1h])) > 0)",
-          "format": "table",
-          "instant": true,
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT service_name, service_namespace, host_name, sum(d) AS \"Restarts (1h)\", argMax(Value,TimeUnix) AS \"Total Restarts\" FROM (SELECT TimeUnix, Attributes['service_name'] AS service_name, Attributes['service_namespace'] AS service_namespace, Attributes['host_name'] AS host_name, Value, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if(Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS d FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.restarts' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 70 MINUTE) WHERE TimeUnix > now() - INTERVAL 1 HOUR GROUP BY service_name, service_namespace, host_name HAVING sum(d) > 0 ORDER BY \"Restarts (1h)\" DESC LIMIT 15",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (service_name, service_namespace, host_name) (k8s_container_restarts{service_namespace=~\"$namespace\"})",
-          "format": "table",
-          "instant": true,
-          "refId": "B"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "service_name",
-            "mode": "inner"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time 1": true,
-              "Time 2": true,
-              "service_namespace 2": true,
-              "host_name 2": true
-            },
-            "indexByName": {
-              "service_name": 0,
-              "service_namespace 1": 1,
-              "host_name 1": 2,
-              "Value #A": 3,
-              "Value #B": 4
-            },
-            "renameByName": {
-              "service_name": "Pod",
-              "service_namespace 1": "Namespace",
-              "host_name 1": "Node",
-              "Value #A": "Restarts (1h)",
-              "Value #B": "Total Restarts"
-            }
-          }
         }
       ],
       "title": "Top Restarting Containers (1h)",
@@ -2582,7 +2559,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Deployment available vs desired per namespace. Gap > 0 means at least one deployment is under-replicated.",
       "fieldConfig": {
@@ -2671,61 +2649,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (service_namespace) (k8s_deployment_desired{service_namespace=~\"$namespace\"}) - sum by (service_namespace) (k8s_deployment_available{service_namespace=~\"$namespace\"})",
-          "format": "table",
-          "instant": true,
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT d.service_namespace AS service_namespace, d.v AS Desired, a.v AS Available, d.v - a.v AS Gap FROM (SELECT service_namespace, sum(v) AS v FROM (SELECT Attributes['service_namespace'] AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.deployment.desired' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY service_namespace, ServiceName, Attributes) GROUP BY service_namespace) d LEFT JOIN (SELECT service_namespace, sum(v) AS v FROM (SELECT Attributes['service_namespace'] AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.deployment.available' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY service_namespace, ServiceName, Attributes) GROUP BY service_namespace) a ON d.service_namespace=a.service_namespace ORDER BY Gap DESC",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (service_namespace) (k8s_deployment_desired{service_namespace=~\"$namespace\"})",
-          "format": "table",
-          "instant": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (service_namespace) (k8s_deployment_available{service_namespace=~\"$namespace\"})",
-          "format": "table",
-          "instant": true,
-          "refId": "C"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "service_namespace",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true
-            },
-            "indexByName": {
-              "service_namespace": 0,
-              "Value #B": 1,
-              "Value #C": 2,
-              "Value #A": 3
-            },
-            "renameByName": {
-              "service_namespace": "Namespace",
-              "Value #A": "Gap",
-              "Value #B": "Desired",
-              "Value #C": "Available"
-            }
-          }
         }
       ],
       "title": "Deployments — Desired vs Available",
@@ -2733,7 +2664,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "HorizontalPodAutoscaler current vs desired replicas by namespace. Persistent mismatch = throttled or waiting on pods.",
       "fieldConfig": {
@@ -2812,22 +2744,29 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (service_namespace) (k8s_hpa_current_replicas{service_namespace=~\"$namespace\"})",
-          "legendFormat": "{{service_namespace}} current",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_namespace, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['service_namespace'], ' current') AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.hpa.current_replicas' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_namespace, ServiceName, ResourceAttributes['service.instance.id'], Attributes) GROUP BY time, service_namespace ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (service_namespace) (k8s_hpa_desired_replicas{service_namespace=~\"$namespace\"})",
-          "legendFormat": "{{service_namespace}} desired",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_namespace, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['service_namespace'], ' desired') AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.hpa.desired_replicas' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_namespace, ServiceName, ResourceAttributes['service.instance.id'], Attributes) GROUP BY time, service_namespace ORDER BY time",
           "refId": "B"
         }
       ],
       "title": "HPA — Current vs Desired Replicas",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -2845,7 +2784,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Top N pods by CPU usage (cores used).",
       "fieldConfig": {
@@ -2925,19 +2865,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_cpu_utilization_ratio{service_namespace=~\"$namespace\"}))",
-          "legendFormat": "{{service_name}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_name, value FROM (SELECT time, service_name, value, dense_rank() OVER (ORDER BY avgv DESC) AS rnk FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['service_name'] AS service_name, avg(Value) AS value, avg(avg(Value)) OVER (PARTITION BY Attributes['service_name']) AS avgv FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.cpu.utilization' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_name)) WHERE rnk <= $topN ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Top Pods — CPU",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Top N pods by memory usage (bytes).",
       "fieldConfig": {
@@ -3017,19 +2962,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk($topN, sum by (service_namespace, service_name) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"}))",
-          "legendFormat": "{{service_name}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_name, value FROM (SELECT time, service_name, value, dense_rank() OVER (ORDER BY avgv DESC) AS rnk FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['service_name'] AS service_name, avg(Value) AS value, avg(avg(Value)) OVER (PARTITION BY Attributes['service_name']) AS avgv FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.memory.working_set' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_name)) WHERE rnk <= $topN ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Top Pods — Memory (working set)",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Containers using >70% of their memory limit — OOMKill candidates.",
       "fieldConfig": {
@@ -3155,65 +3105,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"}) / on (service_name, service_namespace) group_left() sum by (service_name, service_namespace) (k8s_container_memory_limit_bytes{service_namespace=~\"$namespace\"}) > 0.5)",
-          "format": "table",
-          "instant": true,
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT u.service_name AS service_name, u.service_namespace AS service_namespace, u.v AS Usage, l.v AS \"Limit\", u.v / nullIf(l.v,0) AS \"Usage / Limit\" FROM (SELECT service_name, service_namespace, sum(v) AS v FROM (SELECT Attributes['service_name'] AS service_name, Attributes['service_namespace'] AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.memory.working_set' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY service_name, service_namespace, ServiceName, Attributes) GROUP BY service_name, service_namespace) u INNER JOIN (SELECT service_name, service_namespace, sum(v) AS v FROM (SELECT Attributes['service_name'] AS service_name, Attributes['service_namespace'] AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.memory_limit' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY service_name, service_namespace, ServiceName, Attributes) GROUP BY service_name, service_namespace) l ON u.service_name=l.service_name AND u.service_namespace=l.service_namespace WHERE l.v > 0 AND u.v / l.v > 0.5 ORDER BY \"Usage / Limit\" DESC LIMIT 20",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (service_name, service_namespace) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"})",
-          "format": "table",
-          "instant": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (service_name, service_namespace) (k8s_container_memory_limit_bytes{service_namespace=~\"$namespace\"})",
-          "format": "table",
-          "instant": true,
-          "refId": "C"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "service_name",
-            "mode": "inner"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "service_namespace 2": true,
-              "service_namespace 3": true
-            },
-            "indexByName": {
-              "service_name": 0,
-              "service_namespace 1": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #A": 4
-            },
-            "renameByName": {
-              "service_name": "Pod",
-              "service_namespace 1": "Namespace",
-              "Value #A": "Usage / Limit",
-              "Value #B": "Usage",
-              "Value #C": "Limit"
-            }
-          }
         }
       ],
       "title": "Memory Pressure — Pods Near Limit",
@@ -3221,7 +3120,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "CPU cores requested vs used per namespace. Large gaps = over-reserved capacity.",
       "fieldConfig": {
@@ -3300,27 +3200,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (service_namespace) (k8s_pod_cpu_utilization_ratio{service_namespace=~\"$namespace\"})",
-          "legendFormat": "{{service_namespace}} used",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_namespace, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['service_namespace'], ' used') AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.cpu.utilization' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_namespace, ServiceName, ResourceAttributes['service.instance.id'], Attributes) GROUP BY time, service_namespace ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (service_namespace) (k8s_container_cpu_request{service_namespace=~\"$namespace\"})",
-          "legendFormat": "{{service_namespace}} requested",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_namespace, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['service_namespace'], ' requested') AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.cpu_request' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_namespace, ServiceName, ResourceAttributes['service.instance.id'], Attributes) GROUP BY time, service_namespace ORDER BY time",
           "refId": "B"
         }
       ],
       "title": "CPU: Used vs Requested (per namespace)",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Memory working-set vs requested bytes per namespace.",
       "fieldConfig": {
@@ -3399,22 +3307,29 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (service_namespace) (k8s_pod_memory_working_set_bytes{service_namespace=~\"$namespace\"})",
-          "legendFormat": "{{service_namespace}} used",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_namespace, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['service_namespace'], ' used') AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.memory.working_set' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_namespace, ServiceName, ResourceAttributes['service.instance.id'], Attributes) GROUP BY time, service_namespace ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (service_namespace) (k8s_container_memory_request_bytes{service_namespace=~\"$namespace\"})",
-          "legendFormat": "{{service_namespace}} requested",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_namespace, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['service_namespace'], ' requested') AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.memory_request' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, service_namespace, ServiceName, ResourceAttributes['service.instance.id'], Attributes) GROUP BY time, service_namespace ORDER BY time",
           "refId": "B"
         }
       ],
       "title": "Memory: Used vs Requested (per namespace)",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -3432,7 +3347,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Top pods by ingress (receive) rate.",
       "fieldConfig": {
@@ -3512,19 +3428,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io_bytes_total{service_namespace=~\"$namespace\", direction=\"receive\"}[$__rate_interval])))",
-          "legendFormat": "{{service_name}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_name, value FROM (SELECT time, service_name, value, dense_rank() OVER (ORDER BY avgv DESC) AS rnk FROM (SELECT time, service_name, value, avg(value) OVER (PARTITION BY service_name) AS avgv FROM (SELECT tb AS time, service_name, sum(d)/greatest($__interval_s,60) AS value FROM (SELECT tb, service_name, attrs, sum(diff) AS d FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS service_name, Attributes AS attrs, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if((Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff FROM otel.otel_metrics_sum WHERE MetricName='k8s.pod.network.io' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND Attributes['direction']='receive' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime) WHERE tb >= $__fromTime GROUP BY tb, service_name, attrs) GROUP BY time, service_name))) WHERE rnk <= $topN ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Top Pods — Network RX",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Top pods by egress (transmit) rate.",
       "fieldConfig": {
@@ -3604,19 +3525,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk($topN, sum by (service_name) (rate(k8s_pod_network_io_bytes_total{service_namespace=~\"$namespace\", direction=\"transmit\"}[$__rate_interval])))",
-          "legendFormat": "{{service_name}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_name, value FROM (SELECT time, service_name, value, dense_rank() OVER (ORDER BY avgv DESC) AS rnk FROM (SELECT time, service_name, value, avg(value) OVER (PARTITION BY service_name) AS avgv FROM (SELECT tb AS time, service_name, sum(d)/greatest($__interval_s,60) AS value FROM (SELECT tb, service_name, attrs, sum(diff) AS d FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS service_name, Attributes AS attrs, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if((Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff FROM otel.otel_metrics_sum WHERE MetricName='k8s.pod.network.io' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND Attributes['direction']='transmit' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime) WHERE tb >= $__fromTime GROUP BY tb, service_name, attrs) GROUP BY time, service_name))) WHERE rnk <= $topN ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Top Pods — Network TX",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Pods with non-zero network error rate (rx+tx errors). Healthy baseline is 0.",
       "fieldConfig": {
@@ -3695,14 +3621,18 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk(10, sum by (service_name, direction) (rate(k8s_pod_network_errors_total{service_namespace=~\"$namespace\"}[$__rate_interval])) > 0)",
-          "legendFormat": "{{service_name}} {{direction}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, service_name, direction, value FROM (SELECT time, service_name, direction, value, dense_rank() OVER (ORDER BY avgv DESC) AS rnk FROM (SELECT time, service_name, direction, value, avg(value) OVER (PARTITION BY service_name, direction) AS avgv FROM (SELECT tb AS time, service_name, direction, sum(d)/greatest($__interval_s,60) AS value FROM (SELECT tb, service_name, direction, attrs, sum(diff) AS d FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['service_name'] AS service_name, Attributes['direction'] AS direction, Attributes AS attrs, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if((Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff FROM otel.otel_metrics_sum WHERE MetricName='k8s.pod.network.errors' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime) WHERE tb >= $__fromTime GROUP BY tb, service_name, direction, attrs) GROUP BY time, service_name, direction))) WHERE rnk <= 10 AND value > 0 ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Pod Network Errors",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -3720,7 +3650,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Top pods by ephemeral filesystem bytes used. Growing rapidly = log rot / missing rotation / leak.",
       "fieldConfig": {
@@ -3787,32 +3718,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk(20, sum by (service_name, service_namespace) (k8s_pod_filesystem_usage_bytes{service_namespace=~\"$namespace\"}))",
-          "format": "table",
-          "instant": true,
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT service_name, service_namespace, sum(v) AS Usage FROM (SELECT Attributes['service_name'] AS service_name, Attributes['service_namespace'] AS service_namespace, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.filesystem.usage' AND $__conditionalAll(Attributes['service_namespace'] IN (${namespace:singlequote}), $namespace) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY service_name, service_namespace, ServiceName, Attributes) GROUP BY service_name, service_namespace ORDER BY Usage DESC LIMIT 20",
           "refId": "A"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "indexByName": {
-              "service_name": 0,
-              "service_namespace": 1,
-              "Value": 2
-            },
-            "renameByName": {
-              "service_name": "Pod",
-              "service_namespace": "Namespace",
-              "Value": "Usage"
-            }
-          }
         }
       ],
       "title": "Top Pods — Ephemeral Filesystem",
@@ -3820,7 +3733,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Node filesystem usage trend. Trajectory matters more than the value.",
       "fieldConfig": {
@@ -3902,14 +3816,18 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "k8s_node_filesystem_usage_bytes{host_name=~\"$node\"} / k8s_node_filesystem_capacity_bytes{host_name=~\"$node\"}",
-          "legendFormat": "{{host_name}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT u.time AS time, u.host_name AS host_name, u.v / nullIf(c.v,0) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['host_name'] AS host_name, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.filesystem.usage' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, host_name) u INNER JOIN (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['host_name'] AS host_name, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.filesystem.capacity' AND $__conditionalAll(Attributes['host_name'] IN (${node:singlequote}), $node) AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, host_name) c ON u.time=c.time AND u.host_name=c.host_name ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "Node Filesystem — Trend",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -3927,7 +3845,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Per-GPU SM utilization. Sustained high means the GPU is the bottleneck; idle means capacity to schedule more work.",
       "fieldConfig": {
@@ -4009,19 +3928,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_GPU_UTIL)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['Hostname'], ' gpu', Attributes['gpu']) AS gpu, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, gpu ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "GPU Utilization",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Framebuffer memory used per GPU (MiB).",
       "fieldConfig": {
@@ -4101,27 +4025,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_FB_USED)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}} used",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['Hostname'], ' gpu', Attributes['gpu'], ' used') AS gpu, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_USED' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, gpu ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}} total",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT u.time AS time, concat(u.h, ' gpu', u.g, ' total') AS gpu, u.v + f.v AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['Hostname'] AS h, Attributes['gpu'] AS g, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_USED' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, h, g) u INNER JOIN (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['Hostname'] AS h, Attributes['gpu'] AS g, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_FREE' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, h, g) f ON u.time=f.time AND u.h=f.h AND u.g=f.g ORDER BY time",
           "refId": "B"
         }
       ],
       "title": "GPU Memory",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "GPU die temperature. NVIDIA thermal throttle typically starts ~87°C.",
       "fieldConfig": {
@@ -4209,19 +4141,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_GPU_TEMP)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['Hostname'], ' gpu', Attributes['gpu']) AS gpu, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_TEMP' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, gpu ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "GPU Temperature",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Instantaneous GPU power draw in watts.",
       "fieldConfig": {
@@ -4301,19 +4238,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_DEV_POWER_USAGE)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['Hostname'], ' gpu', Attributes['gpu']) AS gpu, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_POWER_USAGE' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, gpu ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "GPU Power",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Workload intensity: tensor-core and SM pipelines active fraction. Tensor active correlates with FP16/BF16/FP8 matmul heavy workloads.",
       "fieldConfig": {
@@ -4395,35 +4337,46 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_PROF_GR_ENGINE_ACTIVE)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}} SM",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['Hostname'], ' gpu', Attributes['gpu'], ' SM') AS gpu, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_PROF_GR_ENGINE_ACTIVE' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, gpu ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_PROF_PIPE_TENSOR_ACTIVE)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}} tensor",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['Hostname'], ' gpu', Attributes['gpu'], ' tensor') AS gpu, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_PROF_PIPE_TENSOR_ACTIVE' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, gpu ORDER BY time",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu) (DCGM_FI_PROF_DRAM_ACTIVE)",
-          "legendFormat": "{{Hostname}} gpu{{gpu}} DRAM",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['Hostname'], ' gpu', Attributes['gpu'], ' DRAM') AS gpu, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_PROF_DRAM_ACTIVE' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, gpu ORDER BY time",
           "refId": "C"
         }
       ],
       "title": "GPU Compute Pipeline Activity",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Pods currently scheduled on each GPU. Memory figures are per-GPU totals, not per-pod.",
       "fieldConfig": {
@@ -4510,58 +4463,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (Hostname, gpu, pod, namespace) (DCGM_FI_DEV_GPU_UTIL)",
-          "format": "table",
-          "instant": true,
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT u.namespace AS namespace, u.pod AS pod, u.Hostname AS Hostname, u.gpu AS gpu, u.v AS \"GPU Util %\", m.v AS \"GPU Mem (MiB)\" FROM (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['Hostname'] AS Hostname, Attributes['gpu'] AS gpu, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod, Hostname, gpu) u INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['Hostname'] AS Hostname, Attributes['gpu'] AS gpu, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_USED' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod, Hostname, gpu) m ON u.namespace=m.namespace AND u.pod=m.pod AND u.Hostname=m.Hostname AND u.gpu=m.gpu ORDER BY \"GPU Util %\" DESC",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "avg by (Hostname, gpu, pod, namespace) (DCGM_FI_DEV_FB_USED)",
-          "format": "table",
-          "instant": true,
-          "refId": "B"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "pod",
-            "mode": "inner"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time 1": true,
-              "Time 2": true,
-              "Hostname 2": true,
-              "gpu 2": true,
-              "namespace 2": true
-            },
-            "indexByName": {
-              "namespace 1": 0,
-              "pod": 1,
-              "Hostname 1": 2,
-              "gpu 1": 3,
-              "Value #A": 4,
-              "Value #B": 5
-            },
-            "renameByName": {
-              "namespace 1": "Namespace",
-              "pod": "Pod",
-              "Hostname 1": "Node",
-              "gpu 1": "GPU",
-              "Value #A": "GPU Util %",
-              "Value #B": "GPU Mem (MiB)"
-            }
-          }
         }
       ],
       "title": "Pods on GPU",
@@ -4582,7 +4491,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "xDS pushes per second by type. Sustained high = churn in config/endpoints.",
       "fieldConfig": {
@@ -4662,19 +4572,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (type) (rate(pilot_xds_pushes[$__rate_interval]))",
-          "legendFormat": "{{type}}",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, type, sum(d)/greatest($__interval_s,60) AS value FROM (SELECT tb, type, attrs, sum(diff) AS d FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, Attributes['type'] AS type, Attributes AS attrs, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if((Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff FROM otel.otel_metrics_sum WHERE MetricName='pilot_xds_pushes' AND 1=1 AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime) WHERE tb >= $__fromTime GROUP BY tb, type, attrs) GROUP BY time, type ORDER BY time",
           "refId": "A"
         }
       ],
       "title": "xDS Pushes",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "p50 / p95 / p99 proxy convergence time. Spikes mean data plane is slow to pick up config.",
       "fieldConfig": {
@@ -4754,35 +4669,46 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(pilot_proxy_convergence_time_bucket[$__rate_interval])))",
-          "legendFormat": "p50",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, 'p50' AS quantile, quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (SELECT time, idx, bound, sum(cnt) OVER (PARTITION BY time ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum FROM (SELECT time, idx, if(idx < length(bounds), bounds[idx+1], toFloat64(Inf)) AS bound, sum(d[idx+1]) AS cnt FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds AS bounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((a,b) -> greatest(toFloat64(a)-toFloat64(b), 0.), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS d FROM otel.otel_metrics_histogram WHERE MetricName='pilot_proxy_convergence_time' AND AggregationTemporality=2 AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) ARRAY JOIN range(length(d)) AS idx WHERE time >= $__fromTime GROUP BY time, idx, bounds)) GROUP BY time ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(pilot_proxy_convergence_time_bucket[$__rate_interval])))",
-          "legendFormat": "p95",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, 'p95' AS quantile, quantilePrometheusHistogram(0.95)(bound, cum) AS value FROM (SELECT time, idx, bound, sum(cnt) OVER (PARTITION BY time ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum FROM (SELECT time, idx, if(idx < length(bounds), bounds[idx+1], toFloat64(Inf)) AS bound, sum(d[idx+1]) AS cnt FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds AS bounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((a,b) -> greatest(toFloat64(a)-toFloat64(b), 0.), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS d FROM otel.otel_metrics_histogram WHERE MetricName='pilot_proxy_convergence_time' AND AggregationTemporality=2 AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) ARRAY JOIN range(length(d)) AS idx WHERE time >= $__fromTime GROUP BY time, idx, bounds)) GROUP BY time ORDER BY time",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(pilot_proxy_convergence_time_bucket[$__rate_interval])))",
-          "legendFormat": "p99",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, 'p99' AS quantile, quantilePrometheusHistogram(0.99)(bound, cum) AS value FROM (SELECT time, idx, bound, sum(cnt) OVER (PARTITION BY time ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum FROM (SELECT time, idx, if(idx < length(bounds), bounds[idx+1], toFloat64(Inf)) AS bound, sum(d[idx+1]) AS cnt FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds AS bounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((a,b) -> greatest(toFloat64(a)-toFloat64(b), 0.), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS d FROM otel.otel_metrics_histogram WHERE MetricName='pilot_proxy_convergence_time' AND AggregationTemporality=2 AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) ARRAY JOIN range(length(d)) AS idx WHERE time >= $__fromTime GROUP BY time, idx, bounds)) GROUP BY time ORDER BY time",
           "refId": "C"
         }
       ],
       "title": "Proxy Convergence Time",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Pilot discovery state: registered services, virtual services, and managed clusters.",
       "fieldConfig": {
@@ -4861,35 +4787,46 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "pilot_services",
-          "legendFormat": "services",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'services' AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='pilot_services' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "pilot_virt_services",
-          "legendFormat": "virtual services",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'virtual services' AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='pilot_virt_services' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time ORDER BY time",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "istiod_managed_clusters",
-          "legendFormat": "managed clusters",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'managed clusters' AS series, sum(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='istiod_managed_clusters' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time ORDER BY time",
           "refId": "C"
         }
       ],
       "title": "Istio Discovery",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Pilot discovery / k8s config events and any endpoint/EDS issues.",
       "fieldConfig": {
@@ -4969,38 +4906,51 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(rate(pilot_k8s_cfg_events[$__rate_interval]))",
-          "legendFormat": "k8s cfg events",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, 'k8s cfg events' AS series, d/greatest($__interval_s,60) AS value FROM (SELECT tb, sum(diff) AS d FROM (\nSELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if((Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff\nFROM otel.otel_metrics_sum WHERE MetricName='pilot_k8s_cfg_events' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\n) WHERE tb >= $__fromTime GROUP BY tb) ORDER BY time",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(rate(pilot_k8s_reg_events[$__rate_interval]))",
-          "legendFormat": "k8s reg events",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT tb AS time, 'k8s reg events' AS series, d/greatest($__interval_s,60) AS value FROM (SELECT tb, sum(diff) AS d FROM (\nSELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS tb, if(row_number() OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix) = 1, 0, if((Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) < 0, Value, Value - lagInFrame(Value, 1, Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) AS diff\nFROM otel.otel_metrics_sum WHERE MetricName='pilot_k8s_reg_events' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\n) WHERE tb >= $__fromTime GROUP BY tb) ORDER BY time",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "pilot_endpoint_not_ready",
-          "legendFormat": "endpoint not ready",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'endpoint not ready' AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='pilot_endpoint_not_ready' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time ORDER BY time",
           "refId": "C"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "pilot_eds_no_instances",
-          "legendFormat": "EDS no instances",
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'EDS no instances' AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='pilot_eds_no_instances' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time ORDER BY time",
           "refId": "D"
         }
       ],
       "title": "Istio Config / Endpoint Events",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -5018,7 +4968,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Sum of pod CPU requests divided by total allocatable CPU. >100% means the cluster is overcommitted (pods may be evicted or pending).",
       "fieldConfig": {
@@ -5124,26 +5075,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / sum(kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
-          "legendFormat": "% requested",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT '% requested' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='cpu' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) / nullIf((SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='cpu' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))),0) AS value",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1))",
-          "legendFormat": "cores requested",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'cores requested' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='cpu' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) AS value",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
-          "legendFormat": "cores allocatable",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'cores allocatable' AS label, (SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='cpu' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))) AS value",
           "refId": "C"
         }
       ],
@@ -5152,7 +5112,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Sum of pod memory requests divided by total allocatable memory. >100% means the cluster is overcommitted.",
       "fieldConfig": {
@@ -5258,26 +5219,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / sum(kube_node_status_allocatable{resource=\"memory\",node=~\"$node\"})",
-          "legendFormat": "% requested",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT '% requested' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='memory' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) / nullIf((SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='memory' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))),0) AS value",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1))",
-          "legendFormat": "requested",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'requested' AS label, (SELECT s FROM (SELECT sum(s) AS s FROM (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='memory' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) AS value",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_node_status_allocatable{resource=\"memory\",node=~\"$node\"})",
-          "legendFormat": "allocatable",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'allocatable' AS label, (SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='memory' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))) AS value",
           "refId": "C"
         }
       ],
@@ -5286,7 +5256,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Active pods (any phase except Succeeded) vs total pod capacity across all nodes. Pi nodes cap at 110, so 4 Pis = 440 max pods.",
       "fieldConfig": {
@@ -5392,26 +5363,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(kube_pod_status_phase{phase=~\"Running|Pending|Unknown\",node=~\"$node\"} == 1) / sum(kube_node_status_allocatable{resource=\"pods\",node=~\"$node\"})",
-          "legendFormat": "% used",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT '% used' AS label, toFloat64((SELECT sum(c) FROM (SELECT pn.node AS node, count() AS c FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending','Unknown')) = 1) lp INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON lp.ns=pn.ns AND lp.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) / nullIf((SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='pods' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))),0) AS value",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(kube_pod_status_phase{phase=~\"Running|Pending|Unknown\",node=~\"$node\"} == 1)",
-          "legendFormat": "active",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'active' AS label, toFloat64((SELECT sum(c) FROM (SELECT pn.node AS node, count() AS c FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending','Unknown')) = 1) lp INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON lp.ns=pn.ns AND lp.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node))) AS value",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_node_status_allocatable{resource=\"pods\",node=~\"$node\"})",
-          "legendFormat": "capacity",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'capacity' AS label, (SELECT s FROM (SELECT sum(v) AS s FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='pods' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node))) AS value",
           "refId": "C"
         }
       ],
@@ -5420,7 +5400,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "PVCs in Pending or Lost phase, and nodes cordoned. Both should normally be zero.",
       "fieldConfig": {
@@ -5470,26 +5451,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(kube_persistentvolumeclaim_status_phase{phase=~\"Pending|Lost\"} == 1) or vector(0)",
-          "legendFormat": "unbound PVCs",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'unbound PVCs' AS label, toFloat64(countIf(v=1)) AS value FROM (SELECT Attributes['namespace'] AS ns, Attributes['persistentvolumeclaim'] AS pvc, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_persistentvolumeclaim_status_phase' AND Attributes['phase'] IN ('Pending','Lost') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pvc)",
           "refId": "A"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(kube_node_spec_unschedulable{node=~\"$node\"} == 1) or vector(0)",
-          "legendFormat": "cordoned nodes",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'cordoned nodes' AS label, toFloat64(countIf(v=1)) AS value FROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_spec_unschedulable' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node)",
           "refId": "B"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(kube_node_status_condition{condition=~\"MemoryPressure|DiskPressure|PIDPressure\",status=\"true\",node=~\"$node\"} == 1) or vector(0)",
-          "legendFormat": "node pressure",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 'node pressure' AS label, toFloat64(countIf(v=1)) AS value FROM (SELECT Attributes['node'] AS node, Attributes['condition'] AS cond, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_condition' AND Attributes['condition'] IN ('MemoryPressure','DiskPressure','PIDPressure') AND Attributes['status']='true' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node, cond)",
           "refId": "C"
         }
       ],
@@ -5498,7 +5488,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Per-node capacity commit: how much of each node's allocatable resources is requested by scheduled pods. Sort by any column to find pressure.",
       "fieldConfig": {
@@ -5778,144 +5769,17 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"cpu\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / on (node) sum by (node) (kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "cpu req %",
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT a.node AS node, rq.s / nullIf(a.v,0) AS \"cpu req %\", rq.s AS \"cpu req\", a.v AS \"cpu alloc\", rm.s / nullIf(am.v,0) AS \"mem req %\", rm.s AS \"mem req\", am.v AS \"mem alloc\", toFloat64(p.c) AS pods, ap.v AS \"pod cap\", toFloat64(p.c) / nullIf(ap.v,0) AS \"pod %\"\nFROM (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='cpu' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node) a\nLEFT JOIN (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='cpu' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node) rq ON a.node=rq.node\nLEFT JOIN (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='memory' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node) am ON a.node=am.node\nLEFT JOIN (SELECT pn.node AS node, sum(r.v) AS s FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, Attributes['container'] AS c, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_resource_requests' AND Attributes['resource']='memory' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns,pod,c) r INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending')) = 1) lp ON r.ns=lp.ns AND r.pod=lp.pod INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON r.ns=pn.ns AND r.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node) rm ON a.node=rm.node\nLEFT JOIN (SELECT Attributes['node'] AS node, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_allocatable' AND Attributes['resource']='pods' AND $__conditionalAll(Attributes['node'] IN (${node:singlequote}), $node) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node) ap ON a.node=ap.node\nLEFT JOIN (SELECT pn.node AS node, count() AS c FROM (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod HAVING maxIf(Value, Attributes['phase'] IN ('Running','Pending','Unknown')) = 1) lp INNER JOIN (SELECT Attributes['namespace'] AS ns, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ns, pod) pn ON lp.ns=pn.ns AND lp.pod=pn.pod WHERE $__conditionalAll(pn.node IN (${node:singlequote}), $node) GROUP BY pn.node) p ON a.node=p.node\nORDER BY node",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"cpu\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1))",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "cpu req",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (node) (kube_node_status_allocatable{resource=\"cpu\",node=~\"$node\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "cpu alloc",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"memory\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / on (node) sum by (node) (kube_node_status_allocatable{resource=\"memory\",node=~\"$node\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "mem req %",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"memory\",node=~\"$node\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1))",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "mem req",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (node) (kube_node_status_allocatable{resource=\"memory\",node=~\"$node\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "mem alloc",
-          "refId": "F"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "count by (node) (kube_pod_status_phase{phase=~\"Running|Pending|Unknown\",node=~\"$node\"} == 1)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "pods",
-          "refId": "G"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum by (node) (kube_node_status_allocatable{resource=\"pods\",node=~\"$node\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "pod cap",
-          "refId": "H"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "count by (node) (kube_pod_status_phase{phase=~\"Running|Pending|Unknown\",node=~\"$node\"} == 1) / on (node) sum by (node) (kube_node_status_allocatable{resource=\"pods\",node=~\"$node\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "pod %",
-          "refId": "I"
         }
       ],
       "title": "Per-Node Capacity Commit",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "node",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "Time 4": true,
-              "Time 5": true,
-              "Time 6": true,
-              "Time 7": true,
-              "Time 8": true,
-              "Time 9": true
-            },
-            "indexByName": {
-              "node": 0,
-              "cpu req %": 1,
-              "cpu req": 2,
-              "cpu alloc": 3,
-              "mem req %": 4,
-              "mem req": 5,
-              "mem alloc": 6,
-              "pod %": 7,
-              "pods": 8,
-              "pod cap": 9
-            },
-            "renameByName": {
-              "Value #A": "cpu req %",
-              "Value #B": "cpu req",
-              "Value #C": "cpu alloc",
-              "Value #D": "mem req %",
-              "Value #E": "mem req",
-              "Value #F": "mem alloc",
-              "Value #G": "pods",
-              "Value #H": "pod cap",
-              "Value #I": "pod %"
-            }
-          }
-        }
-      ],
       "type": "table"
     }
   ],
@@ -5934,26 +5798,14 @@
     "list": [
       {
         "current": {
-          "text": "Prometheus",
-          "value": "Prometheus"
-        },
-        "includeAll": false,
-        "name": "datasource",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "regex": "",
-        "type": "datasource"
-      },
-      {
-        "current": {
           "text": "All",
           "value": "$__all"
         },
         "datasource": {
-          "uid": "$datasource"
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
         },
-        "definition": "label_values(k8s_pod_phase, service_namespace)",
+        "definition": "SELECT DISTINCT Attributes['service_namespace'] FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND TimeUnix > now() - INTERVAL 1 HOUR ORDER BY 1",
         "description": "Filter by Kubernetes namespace",
         "includeAll": true,
         "label": "Namespace",
@@ -5961,8 +5813,8 @@
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "label_values(k8s_pod_phase, service_namespace)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "SELECT DISTINCT Attributes['service_namespace'] FROM otel.otel_metrics_gauge WHERE MetricName='k8s.pod.phase' AND TimeUnix > now() - INTERVAL 1 HOUR ORDER BY 1",
+          "refId": "ClickHouseVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",
@@ -5975,9 +5827,10 @@
           "value": "$__all"
         },
         "datasource": {
-          "uid": "$datasource"
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
         },
-        "definition": "label_values(k8s_node_condition_ready, host_name)",
+        "definition": "SELECT DISTINCT Attributes['host_name'] FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.condition_ready' AND TimeUnix > now() - INTERVAL 1 HOUR ORDER BY 1",
         "description": "Filter by node",
         "includeAll": true,
         "label": "Node",
@@ -5985,8 +5838,8 @@
         "name": "node",
         "options": [],
         "query": {
-          "query": "label_values(k8s_node_condition_ready, host_name)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "SELECT DISTINCT Attributes['host_name'] FROM otel.otel_metrics_gauge WHERE MetricName='k8s.node.condition_ready' AND TimeUnix > now() - INTERVAL 1 HOUR ORDER BY 1",
+          "refId": "ClickHouseVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",

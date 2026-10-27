@@ -31,7 +31,7 @@ curl -fsS -H "Authorization: Bearer $TOKEN" \
 | Provisioned contact points | `GET /api/v1/provisioning/contact-points` |
 | Active alert instances | `GET /api/alertmanager/grafana/api/v2/alerts` |
 
-Never hardcode generated Prometheus or Tempo UIDs. Loki and ClickHouse currently have explicit UIDs, but discovery is still cheap and safer.
+Grafana (k8s) has a single ClickHouse datasource, uid `clickhouse`; HyperDX (`https://hyperdx.home.shdr.ch`, admin-only local accounts) is the second UI over the same ClickHouse tables. There are no Prometheus/Loki/Tempo datasources.
 
 ## Live Dashboard Entry Points
 
@@ -62,13 +62,12 @@ Summarize/group active alerts before dumping instances. `DeadMansSwitch` is inte
 Use `grafana-read.bb contact-points` to inspect receiver identity and type without
 printing receiver settings or secret-bearing webhook URLs.
 
-An alert in `Error` state (distinct from `Firing`) usually means its query failed, not that an incident is active. A Loki rule that trips `maximum number of series (500) reached` has a malformed query (e.g. a bare `count_over_time(...)` with no `sum()` wrapper) — route it to the alert owner as an authoring bug, not an outage. Likewise, a benign high-volume signal such as jellyfin's `InvalidAuthProvider` (normal `jellyfin-plugin-sso` log noise, not failed logins) is not an incident.
+An alert in `Error` state (distinct from `Firing`) usually means its ClickHouse SQL failed, not that an incident is active — route it to the alert owner as an authoring bug, not an outage. Likewise, a benign high-volume signal such as jellyfin's `InvalidAuthProvider` (normal `jellyfin-plugin-sso` log noise, not failed logins) is not an incident.
 
 If Grafana itself is unhealthy, query the backing service or the monitoring VM only after proving the Grafana path failed. A transient readiness failure should be retried before declaring an outage.
 
 ## Provisioning Sources
 
-- Datasources: `ansible/playbooks/monitoring_stack/grafana/provisioning/datasources/`
-- Dashboards: `ansible/playbooks/monitoring_stack/grafana/provisioning/dashboards/`
-- Alerts and routing: `ansible/playbooks/monitoring_stack/grafana/provisioning/alerting/`
-- Public viewer token: `grafana_sa_token` in SOPS, never `grafana_password`
+- Datasources: `tofu/home/kubernetes/grafana/` (single ClickHouse datasource, uid `clickhouse`)
+- Dashboards: `tofu/home/kubernetes/grafana/dashboards/`
+- Alerts and routing: `tofu/home/kubernetes/grafana/alerting/`

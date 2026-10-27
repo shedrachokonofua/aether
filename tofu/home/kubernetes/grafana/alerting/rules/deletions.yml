@@ -1,0 +1,14 @@
+apiVersion: 1
+
+deleteRules:
+  - orgId: 1
+    uid: thanos-component-down
+  - orgId: 1
+    uid: thanos-compactor-halted
+  - orgId: 1
+    uid: thanos-sidecar-upload-stale
+  # smith-high-system-cpu: clocksource tripwire deleted per its own comment —
+  # smith upgraded to Talos 1.13.2 (2026-08-07), current_clocksource=tsc
+  # verified WITHOUT the tsc=reliable pin.
+  - orgId: 1
+    uid: smith-high-system-cpu

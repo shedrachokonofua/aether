@@ -446,11 +446,6 @@ tasks:
   configure:monitoring:
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml {{.CLI_ARGS}}
-  configure:greptime:
-    desc: Deploy scoped Seaweed identity and GreptimeDB canary archive after tofu apply
-    cmds:
-      - task: seaweedfs:s3-identities:deploy
-      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags greptime,prometheus,otel,grafana,janus {{.CLI_ARGS}}
   configure:argos:
     desc: Stage and validate Argos contracts on monitoring-stack; service remains disabled by default
     cmds:
@@ -459,10 +454,6 @@ tasks:
     desc: Apply estate_scan ClickHouse schema + writer identity on monitoring-stack
     cmds:
       - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags estate-scan {{.CLI_ARGS}}
-  configure:estate-scan-dashboard:
-    desc: Deploy only the Estate Scan Grafana dashboard
-    cmds:
-      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags estate-scan-dashboard {{.CLI_ARGS}}
   configure:estate-scanner-credentials:
     desc: Deploy estate_scan ClickHouse writer password to the estate-scanner guest
     cmds:
@@ -493,9 +484,6 @@ tasks:
     desc: Deploy systemd-journal-gatewayd (mTLS) to the Proxmox hypervisors
     cmds:
       - ansible-playbook ansible/playbooks/setup_journal_gateways.yml {{.CLI_ARGS}}
-  configure:grafana:
-    cmds:
-      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags grafana {{.CLI_ARGS}}
   configure:ceph-exporter:
     cmds: [ansible-playbook ansible/playbooks/configure_ceph_exporter.yml]
   configure:gitlab:
@@ -535,7 +523,7 @@ tasks:
       - ansible-playbook ansible/playbooks/public_gateway_stack/site.yml --tags site-metrics
       - ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml --tags site-metrics
       - ansible-playbook ansible/playbooks/oci_dns_stack/site.yml --tags site-metrics
-      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags prometheus,journal-forwarder
+      - ansible-playbook ansible/playbooks/monitoring_stack/site.yml --tags otel,clickhouse,journal-forwarder
   configure:uptime-monitor:
     desc: Deploy the GCP uptime monitor and its routed WireGuard site connection
     cmds: [ansible-playbook ansible/playbooks/uptime_monitor_stack/site.yml]

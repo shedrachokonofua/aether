@@ -3,17 +3,28 @@
     "list": [
       {
         "datasource": {
-          "type": "loki",
-          "uid": "${loki}"
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
         },
         "enable": true,
-        "expr": "{service_namespace=\"pop\"} | json | type=~\"deploy\\..*|alias\\.updated\"",
         "hide": false,
         "iconColor": "blue",
         "name": "Deploy & alias events",
         "showIn": 0,
         "textFormat": "{{project}} {{deploy_id}}",
-        "titleFormat": "{{type}}"
+        "titleFormat": "{{type}}",
+        "target": {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 1,
+          "queryType": "sql",
+          "editorType": "sql",
+          "refId": "Anno",
+          "rawSql": "SELECT Timestamp AS time, JSONExtractString(Body, 'type') AS type, JSONExtractString(Body, 'project') AS project, JSONExtractString(Body, 'deploy_id') AS deploy_id FROM otel.otel_logs WHERE ResourceAttributes['service.namespace'] = 'pop' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime AND match(JSONExtractString(Body, 'type'), 'deploy\\..*|alias\\.updated') ORDER BY time LIMIT 100"
+        },
+        "type": "dashboard"
       }
     ]
   },
@@ -27,8 +38,8 @@
   "panels": [
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Request rate per project (metric pop.http.requests).",
       "fieldConfig": {
@@ -69,22 +80,24 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project) (rate(pop_http_requests_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "{{project}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(project) AS series, value AS value FROM (\n  SELECT time, project, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.http.requests' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Requests per project",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "404s per project: unresolvable hosts and unknown paths at the serving edge (status_class=\"4xx\").",
       "fieldConfig": {
@@ -125,22 +138,24 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project) (rate(pop_http_requests_total{project=~\"$project\",status_class=\"4xx\"}[$__rate_interval]))",
-          "legendFormat": "{{project}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(project) AS series, value AS value FROM (\n  SELECT time, project, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.http.requests' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['status_class'] = '4xx' AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "404s per project",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Request latency quantiles from the pop.http.duration histogram.",
       "fieldConfig": {
@@ -181,42 +196,46 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(pop_http_duration_seconds_bucket{project=~\"$project\"}[$__rate_interval])))",
-          "legendFormat": "p50",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'pop.http.duration' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, 'p50' AS series, value FROM (\n  SELECT time, quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (\n    SELECT time, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, idx\n    )\n  ) GROUP BY time\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(pop_http_duration_seconds_bucket{project=~\"$project\"}[$__rate_interval])))",
-          "legendFormat": "p95",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'pop.http.duration' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, 'p95' AS series, value FROM (\n  SELECT time, quantilePrometheusHistogram(0.95)(bound, cum) AS value FROM (\n    SELECT time, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, idx\n    )\n  ) GROUP BY time\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(pop_http_duration_seconds_bucket{project=~\"$project\"}[$__rate_interval])))",
-          "legendFormat": "p99",
-          "refId": "C"
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'pop.http.duration' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, 'p99' AS series, value FROM (\n  SELECT time, quantilePrometheusHistogram(0.99)(bound, cum) AS value FROM (\n    SELECT time, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, idx\n    )\n  ) GROUP BY time\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "C",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Request latency",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "RGW GET errors while serving blobs/manifests (metric pop.rgw.errors).",
       "fieldConfig": {
@@ -257,22 +276,24 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project) (rate(pop_rgw_errors_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "{{project}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(project) AS series, value AS value FROM (\n  SELECT time, project, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.rgw.errors' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "RGW errors",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Origin function-call outcomes per function (metric pop.function.calls).",
       "fieldConfig": {
@@ -313,22 +334,24 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project, fn, outcome) (rate(pop_function_calls_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "{{fn}} {{outcome}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(project, ' ', fn, ' ', outcome) AS series, value AS value FROM (\n  SELECT time, project, fn, outcome, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, Attributes['fn'] AS fn, Attributes['outcome'] AS outcome, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.function.calls' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project, fn, outcome\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Function calls",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Scheduled function run outcomes (metric pop.function.schedules; plan 06 T5).",
       "fieldConfig": {
@@ -369,22 +392,24 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project, outcome) (rate(pop_function_schedules_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "{{outcome}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(project, ' ', outcome) AS series, value AS value FROM (\n  SELECT time, project, outcome, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, Attributes['outcome'] AS outcome, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.function.schedules' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project, outcome\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Scheduled runs",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Form submissions by spam verdict (pop.form.submissions) and upload scan results (pop.upload.scans).",
       "fieldConfig": {
@@ -425,32 +450,35 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project, verdict) (rate(pop_form_submissions_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "submissions {{verdict}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat('submissions ', project, ' ', verdict) AS series, value AS value FROM (\n  SELECT time, project, verdict, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, Attributes['verdict'] AS verdict, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.form.submissions' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project, verdict\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project, verdict) (rate(pop_upload_scans_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "scans {{verdict}}",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, concat('scans ', project, ' ', verdict) AS series, value AS value FROM (\n  SELECT time, project, verdict, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, Attributes['verdict'] AS verdict, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.upload.scans' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project, verdict\n) ORDER BY time, series",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Form submissions & upload scans",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Webhook delivery attempt outcomes (metric pop.webhook.deliveries; plan 05 T2).",
       "fieldConfig": {
@@ -491,22 +519,24 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project, outcome) (rate(pop_webhook_deliveries_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "{{outcome}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(project, ' ', outcome) AS series, value AS value FROM (\n  SELECT time, project, outcome, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, Attributes['outcome'] AS outcome, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.webhook.deliveries' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project, outcome\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Webhook deliveries",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${prometheus}"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Browser OTLP relay accept/reject counts (metric pop.browser.relay; plan 05 T5).",
       "fieldConfig": {
@@ -547,16 +577,18 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "${prometheus}"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "editorMode": "code",
-          "expr": "sum by (project, outcome) (rate(pop_browser_relay_total{project=~\"$project\"}[$__rate_interval]))",
-          "legendFormat": "{{outcome}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(project, ' ', outcome) AS series, value AS value FROM (\n  SELECT time, project, outcome, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['project'] AS project, Attributes['outcome'] AS outcome, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'pop.browser.relay' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND ($__conditionalAll(Attributes['project'] IN (${project:singlequote}), $project))\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, project, outcome\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Browser relay accept/reject",
+      "interval": "1m",
       "type": "timeseries"
     }
   ],
@@ -568,35 +600,18 @@
   "templating": {
     "list": [
       {
-        "current": {},
-        "hide": 0,
-        "includeAll": false,
-        "label": "Prometheus",
-        "multi": false,
-        "name": "prometheus",
-        "options": [],
-        "query": "prometheus",
-        "queryType": "",
-        "refresh": 1,
-        "regex": "",
-        "type": "datasource"
-      },
-      {
-        "current": {},
-        "hide": 0,
-        "includeAll": false,
-        "label": "Loki",
-        "multi": false,
-        "name": "loki",
-        "options": [],
-        "query": "loki",
-        "queryType": "",
-        "refresh": 1,
-        "regex": "",
-        "type": "datasource"
-      },
-      {
-        "allValue": ".*",
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "query": "SELECT DISTINCT Attributes['project'] FROM otel.otel_metrics_sum WHERE MetricName = 'pop.http.requests' AND TimeUnix > now() - INTERVAL 1 HOUR ORDER BY 1",
+        "definition": "SELECT DISTINCT Attributes['project'] FROM otel.otel_metrics_sum WHERE MetricName = 'pop.http.requests' AND TimeUnix > now() - INTERVAL 1 HOUR ORDER BY 1",
+        "multi": true,
+        "includeAll": true,
+        "allValue": null,
         "current": {
           "selected": true,
           "text": [
@@ -606,23 +621,12 @@
             "$__all"
           ]
         },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${prometheus}"
-        },
-        "definition": "label_values(pop_http_requests_total, project)",
         "hide": 0,
-        "includeAll": true,
-        "label": "Project",
-        "multi": true,
-        "name": "project",
-        "options": [],
-        "query": "label_values(pop_http_requests_total, project)",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
-        "type": "query"
+        "options": []
       }
     ]
   },

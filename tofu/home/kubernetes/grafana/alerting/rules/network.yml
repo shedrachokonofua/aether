@@ -1,0 +1,944 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Network
+    folder: Alerts
+    interval: 1m
+    rules:
+
+      - uid: network-gpon-down
+        title: GPON Fiber Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_gpon_operational' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'GPON ONT deregistered — fiber link down at the GigaHub'
+          description: 'The ONT lost GPON registration. Check the fiber connector at the GigaHub, then Bell service status.'
+
+      - uid: network-pppoe-down
+        title: PPPoE WAN Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_ppp_up' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'PPPoE WAN session down on the GigaHub'
+          description: 'No internet. If GPON is still registered, this is a session/auth problem — the GigaHub usually re-establishes within minutes.'
+
+      - uid: network-optical-rx-low
+        title: Optical RX Power Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_rx_power_dbm' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [-25]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Optical RX power low ({{ $values.B.Value | printf "%.1f" }} dBm; baseline -22.5, B+ floor -28)'
+          description: 'RX drifting toward the GPON B+ sensitivity floor. Inspect/clean the fiber connector; compare against the 7-day trend on the Network dashboard.'
+
+      - uid: network-optical-rx-critical
+        title: Optical RX Power Critical
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_rx_power_dbm' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [-27]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Optical RX power near the GPON B+ sensitivity floor ({{ $values.B.Value | printf "%.1f" }} dBm)'
+          description: 'Link loss imminent. Check for a bent/pinched patch cable or water ingress at outdoor joints; call Bell if the drop is at the OLT side.'
+
+      - uid: network-optical-rx-drift
+        title: Optical RX Power Drift
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT recent - baseline AS value FROM (SELECT argMax(Value, TimeUnix) AS recent FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_rx_power_dbm' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0) AS r CROSS JOIN (SELECT avg(Value) AS baseline FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_rx_power_dbm' AND TimeUnix > now() - INTERVAL 7 DAY HAVING count() > 0) AS b
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [-3]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Optical RX dropped {{ $values.B.Value | printf "%.1f" }} dB below its 7-day baseline'
+          description: 'Slow drift is the fiber-degradation signature even while absolute power is in spec. Inspect connectors before it reaches the floor.'
+
+      - uid: network-exporter-scrape-down
+        title: Network Exporter Scrape Failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['exported_job'] AS exported_job, Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'up' AND Attributes['exported_job'] IN ('gigahub-exporter','qss-exporter','vyos-exporter','unifi') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY exported_job, host_name, ResourceAttributes['service.instance.id']
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Network exporter scrape failing: {{ $labels.exported_job }} on {{ $labels.host_name }}'
+          description: 'The node agent reaches the exporter''s port but the scrape fails. Check the exporter service unit on that host.'
+
+      - uid: network-exporters-absent
+        title: Network Exporters Absent
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT 4 - uniqExactIf(Attributes['exported_job'], Attributes['exported_job'] != '') AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'up' AND Attributes['exported_job'] IN ('gigahub-exporter','qss-exporter','vyos-exporter','unifi') AND TimeUnix > now() - INTERVAL 15 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $values.B.Value }} of 4 network exporter(s) absent from telemetry — node agent or pipeline down'
+          description: 'Expected exporters: gigahub-exporter, qss-exporter, vyos-exporter, unifi. Series vanished from Prometheus entirely — most likely a node agent death (systemctl
+            status aether-otel-collector on monitoring-stack; the otlp-receiver port conflict crash-looped it twice before) or the central collector pipeline.'
+
+      - uid: network-vyos-service-failed
+        title: VyOS Service Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT sum(v) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_service_failed' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id']) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'One or more expected VyOS services failed'
+          description: 'A monitored systemd unit on the router is in failed state. Check the VyOS row on the Network dashboard, then the router journal.'
+
+      - uid: network-conntrack-high
+        title: Router Conntrack High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT max(v) * 100 AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_conntrack_utilization_ratio' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id']) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [50]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Router conntrack table {{ $values.B.Value | printf "%.0f" }}% full'
+          description: 'Normal load is <1% (~2-6k flows); 50% (~130k) means a scan, a runaway client, or a P2P storm. Raise the limit only if the load is legitimate.'
+
+      - uid: network-switch-port-errors
+        title: Switch Port Errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT port, sum(delta) AS value FROM (SELECT Attributes['port'] AS port, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_gauge WHERE MetricName IN ('qss_port_fcs_errors','qss_port_receive_errors') AND TimeUnix > now() - INTERVAL 15 MINUTE GROUP BY port, MetricName, ResourceAttributes['service.instance.id'], StartTimeUnix, Attributes) GROUP BY port ORDER BY port
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [50]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Switch port {{ $labels.port }} accumulating FCS/RX errors ({{ $values.B.Value | printf "%.0f" }} in 15m)'
+          description: 'Physical-layer errors on this port — reseat/replace the cable or SFP.'
+
+      - uid: network-sfp-temp-high
+        title: Switch SFP Temperature High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT port, max(v) AS value FROM (SELECT Attributes['port'] AS port, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_sfp_temperature_celsius' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY port, Attributes, ResourceAttributes['service.instance.id']) GROUP BY port
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [75]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'SFP module on switch port {{ $labels.port }} at {{ $values.B.Value | printf "%.0f" }}°C'
+          description: 'Normal is ~55°C. Check rack airflow and the switch fans before the module throttles or dies.'
+
+      - uid: network-ap-offline
+        title: UniFi AP Offline
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT uniqExact(Attributes, ResourceAttributes['service.instance.id']) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_device_info' AND Attributes['type'] = 'uap' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'UniFi AP offline (or unpoller lost the controller)'
+          description: 'No AP visible to unpoller (single-AP estate: the U7 Pro). WiFi is down or the controller/unpoller on home-gateway-stack is broken.'
+
+      - uid: network-suricata-capture-drops
+        title: Suricata Capture Drops
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT sum(delta) AS value FROM (SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName = 'vyos_suricata_capture_drops_total' AND TimeUnix > now() - INTERVAL 15 MINUTE GROUP BY ResourceAttributes['service.instance.id'], StartTimeUnix, Attributes) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1000]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Suricata dropping capture packets ({{ $values.B.Value | printf "%.0f" }} in 15m) — IDS blind spots under load'
+          description: 'The IDS cannot keep up with traffic; alerts may be missed. Check router CPU and Suricata memory on the IDS dashboard.'
+
+      - uid: network-dns-servfail
+        title: DNS SERVFAIL Elevated
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT sum(delta) AS value FROM (SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName = 'vyos_dns_queries_total' AND Attributes['outcome'] = 'servfail' AND TimeUnix > now() - INTERVAL 15 MINUTE GROUP BY ResourceAttributes['service.instance.id'], StartTimeUnix, Attributes) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [50]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Elevated SERVFAIL rate from the VyOS DNS forwarder ({{ $values.B.Value | printf "%.0f" }} in 15m)'
+          description: 'Upstream resolver trouble — check the Technitium nodes ns1/ns2 (.236/.237) and their DoH upstreams.'
+
+      - uid: network-dhcp-pool-high
+        title: DHCP Pool Near Exhaustion
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT pool, max(v) * 100 AS value FROM (SELECT Attributes['pool'] AS pool, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_dhcp_pool_utilization_ratio' AND TimeUnix > now() - INTERVAL 15 MINUTE GROUP BY pool, Attributes, ResourceAttributes['service.instance.id']) GROUP BY pool
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'DHCP pool {{ $labels.pool }} at {{ $values.B.Value | printf "%.0f" }}% utilization'
+          description: 'New devices on that VLAN will fail to get a lease. Widen the range or evict stale leases.'
+
+      - uid: network-device-rebooted
+        title: Network Device Rebooted
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT device, v AS value FROM (SELECT 'vyos' AS device, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_uptime_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0 UNION ALL SELECT 'gigahub' AS device, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_device_uptime_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE HAVING count() > 0) WHERE v < 600
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Router or GigaHub rebooted in the last 10 minutes'
+          description: 'Unexpected reboots of the edge devices are worth a look: power blip, crash, or firmware update. Uptime series identifies which device.'
+
+
+      - uid: network-new-mac
+        title: New MAC Address On Network
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT mac, coalesce(hostname, 'unknown') AS hostname, 1 AS value
+                FROM (
+                  SELECT mac,
+                         min(first_seen) AS first_seen,
+                         anyLast(hostname) AS hostname
+                  FROM network.mac_first_seen
+                  GROUP BY mac
+                  HAVING first_seen > now() - INTERVAL 20 MINUTE
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: 'New device on the network: {{ $labels.mac }} ({{ $labels.hostname }})'
+          description: 'MAC {{ $labels.mac }} observed for the first time ever (network.mac_first_seen: router DHCP/ARP + switch FDB). If unexpected, check the Network dashboard and DHCP leases.'
+
+      - uid: network-observations-stale
+        title: Observation Pipeline Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ifNull(dateDiff('minute', max(timestamp), now()), 999) AS value
+                FROM network.observations
+                HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Observation pipeline stale — no new network.observations rows for {{ $values.B.Value }} minutes'
+          description: 'vyos_neighbor rows normally land every few minutes. Check the router collector, node agent, central ClickHouse collector, and ClickHouse.'
+
+      # Per-stream freshness: the global rule above catches total pipeline
+      # death, but a single dead source hides inside a global max(timestamp).
+      # Fast streams only - event-driven sources (vyos_firewall/router,
+      # exporter lifecycle) are legitimately quiet and excluded.
+      - uid: network-observation-stream-stale
+        title: Observation Stream Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT source_type, dateDiff('minute', max(timestamp), now()) AS value
+                FROM network.observations
+                WHERE source_type IN ('vyos_neighbor','vyos_dhcp','vyos_connectivity','qss_fdb','qss_lldp','qss_switch','gigahub_host')
+                GROUP BY source_type
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [45]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'Observation stream {{ $labels.source_type }} stale for {{ $values.B.Value | printf "%.0f" }} minutes'
+          description: 'One source stopped while others may still flow: check the exporter for that source (vyos-exporter / qss-exporter), its sealed-file directory, and the collector leg that ships it.'
+
+      # DNS query attribution stream: every resolver ships per-client query
+      # logs to ClickHouse. The NixOS home pair (adguard/adguard-secondary) tails the
+      # Log Exporter NDJSON via its local collector; the agent-free offsite node
+      # (rama) tails it into the journal, pulled by journal-gatewayd ->
+      # otel_journal_forwarder. The `|= questionName` filter isolates query
+      # lines even inside rama's shared journal stream. ns2 carries the DNAT'd
+      # estate traffic, so an hour of silence from any node means the
+      # attribution pipeline (app, file, collector/forwarder, or ClickHouse) broke -
+      # the resolver itself may still be serving.
+      - uid: dns-querylog-stale
+        title: DNS Query Log Stream Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT expected.service_name AS service_name, count(q.Timestamp) AS value FROM (SELECT 'adguard' AS service_name UNION ALL SELECT 'adguard-secondary' UNION ALL SELECT 'rama') expected LEFT JOIN (SELECT ServiceName, Timestamp FROM otel.otel_logs WHERE Timestamp > now() - INTERVAL 1 HOUR AND ((ServiceName IN ('adguard','adguard-secondary') AND ResourceAttributes['log.source'] = 'technitium_querylog') OR (ServiceName = 'rama' AND positionCaseInsensitive(Body, 'questionName') > 0))) q ON q.ServiceName = expected.service_name GROUP BY expected.service_name
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: 'DNS query log stream from {{ $labels.service_name }} silent for an hour'
+          description: 'Per-client DNS attribution stopped flowing from that resolver: check the Log Exporter app + /var/log/technitium/query.ndjson, then the shipping leg (home pair: local collector filelog; rama: technitium-querylog-journal unit -> journal-gatewayd -> otel_journal_forwarder), then ClickHouse ingest (otel.otel_logs). DNS service itself may still be up.'

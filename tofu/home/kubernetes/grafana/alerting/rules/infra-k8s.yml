@@ -1,0 +1,1130 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: Infrastructure — Kubernetes
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: k8s-replicaset-not-ready
+        title: Kubernetes Workload Not Ready
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT namespace, deployment, replicaset, tier, owner, criticality, value FROM (
+                  SELECT spec.namespace AS namespace, spec.deployment AS deployment, '' AS replicaset, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, spec.v - ifNull(ready.v, 0) AS value
+                  FROM (SELECT Attributes['namespace'] AS namespace, Attributes['deployment'] AS deployment, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_deployment_spec_replicas' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, deployment) AS spec
+                  LEFT JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['deployment'] AS deployment, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_deployment_status_replicas_ready' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, deployment) AS ready ON spec.namespace = ready.namespace AND spec.deployment = ready.deployment
+                  INNER JOIN aether.namespace_contract AS nc ON nc.namespace = spec.namespace
+                  UNION ALL
+                  SELECT spec.namespace AS namespace, '' AS deployment, spec.replicaset AS replicaset, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, spec.v - ifNull(ready.v, 0) AS value
+                  FROM (SELECT Attributes['namespace'] AS namespace, Attributes['replicaset'] AS replicaset, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_replicaset_spec_replicas' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, replicaset) AS spec
+                  LEFT JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['replicaset'] AS replicaset, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_replicaset_status_ready_replicas' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, replicaset) AS ready ON spec.namespace = ready.namespace AND spec.replicaset = ready.replicaset
+                  INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['replicaset'] AS replicaset FROM otel.otel_metrics_gauge WHERE MetricName='kube_replicaset_owner' AND Attributes['owner_kind'] != 'Deployment' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, replicaset) AS own ON spec.namespace = own.namespace AND spec.replicaset = own.replicaset
+                  INNER JOIN aether.namespace_contract AS nc ON nc.namespace = spec.namespace
+                ) WHERE value > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        missingSeriesEvalsToResolve: 5
+        labels:
+          severity: critical
+        annotations:
+          summary: Workload {{ $labels.namespace }}/{{ $labels.deployment }}{{ $labels.replicaset }} is not ready
+          description: Desired replicas exceed ready replicas for 15 minutes. Check Deployment/rollout events for admission/PSA FailedCreate errors.
+
+      - uid: k8s-node-not-ready
+        title: Kubernetes Node Not Ready
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT node, toFloat64(1) AS value FROM (SELECT Attributes['node'] AS node, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_condition' AND Attributes['condition']='Ready' AND Attributes['status']='true' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node) WHERE v = 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Kubernetes node {{ $labels.node }} is NotReady
+          description: kube-state-metrics reports Ready=false for {{ $labels.node }} for at least one minute (2026-07-31 outage class)
+
+      - uid: k8s-control-plane-quorum-risk
+        title: Kubernetes Control Plane Ready Quorum At Risk
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT value FROM (SELECT toFloat64(countIf(v = 1)) AS value FROM (SELECT Attributes['node'] AS node, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_condition' AND Attributes['condition']='Ready' AND Attributes['status']='true' AND Attributes['node'] IN ('talos-trinity','talos-neo','talos-niobe') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY node) HAVING count() > 0) WHERE value < 3
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Kubernetes control-plane Ready count below 3
+          description: Only {{ $values.B.Value | printf "%.0f" }} of 3 control-plane nodes are ready
+
+      - uid: k8s-node-readiness-flapping
+        title: Kubernetes Node Readiness Flapping
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT node, toFloat64(transitions) AS value FROM (
+                  SELECT node, sum(is_change) AS transitions FROM (
+                    SELECT Attributes['node'] AS node, if(lagInFrame(toInt64(Value)) OVER (PARTITION BY Attributes['node'] ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) IS NULL, 0, if(toInt64(Value) != lagInFrame(toInt64(Value)) OVER (PARTITION BY Attributes['node'] ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING), 1, 0)) AS is_change
+                    FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_condition' AND Attributes['condition']='Ready' AND Attributes['status']='true' AND TimeUnix > now() - INTERVAL 1 HOUR
+                  ) GROUP BY node
+                ) WHERE transitions > 2
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Kubernetes node {{ $labels.node }} readiness is flapping
+          description: Node changed Ready state more than twice in the last hour.
+
+      - uid: k8s-pod-create-blocked
+        title: Kubernetes Pod Create Blocked
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT w.namespace AS namespace, w.pod AS pod, w.reason AS reason, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, toFloat64(w.v) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['reason'] AS reason, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_status_waiting_reason' AND Attributes['reason'] IN ('CreateContainerConfigError','CreateContainerError','InvalidImageName','ErrImagePull','ImagePullBackOff') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod, reason HAVING v > 0) AS w INNER JOIN aether.namespace_contract AS nc ON nc.namespace = w.namespace
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Pod {{ $labels.namespace }}/{{ $labels.pod }} is blocked during create/start
+          description: Pod start has been blocked for 15 minutes with reason {{ $labels.reason }}. Admission/PSA FailedCreate needs event metrics; this rule only covers Pods that were created and are stuck before running.
+
+      - uid: k8s-container-restart-loop
+        title: Kubernetes Container Restart Loop
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT s.namespace AS namespace, s.pod AS pod, s.container AS container, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, toFloat64(s.inc) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['container'] AS container, sum(inc) AS inc FROM (SELECT Attributes, StartTimeUnix, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc FROM otel.otel_metrics_sum WHERE MetricName='kube_pod_container_status_restarts_total' AND TimeUnix > now() - INTERVAL 3600 SECOND GROUP BY Attributes, StartTimeUnix) GROUP BY namespace, pod, container HAVING inc >= 3) AS s INNER JOIN aether.namespace_contract AS nc ON nc.namespace = s.namespace
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} is restart-looping
+          description: '{{ $values.B.Value | printf "%.0f" }} restarts in 1h. Repeated restarts can indicate a crash loop even while the container is temporarily ready.'
+
+      - uid: talos-node-memory-psi-high
+        title: Talos Node Memory Pressure (PSI)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT node, toFloat64(100 * inc / 120) AS value FROM (SELECT Attributes['node'] AS node, sum(delta) AS inc FROM (SELECT Attributes, StartTimeUnix, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='node_pressure_memory_stalled_seconds_total' AND Attributes['exported_job']='node-exporter' AND TimeUnix > now() - INTERVAL 120 SECOND GROUP BY Attributes, StartTimeUnix) GROUP BY node) WHERE node != ''
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [6]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: Memory PSI high on {{ $labels.node }} ({{ $values.B.Value | printf "%.1f" }}% full-stall)
+          description: 'Sustained memory full-stall approaching the Talos OOM controller trigger (12% on 1.12.x). Reclaim churn, not necessarily low free RAM. Find the churn source before the controller starts killing: talosctl -n <node> get oomactions.'
+
+      - uid: talos-oom-sweep-detected
+        title: Talos OOM Sweep Detected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT node, toFloat64(count()) AS value FROM (
+                  SELECT e.namespace AS namespace, e.pod AS pod, e.container AS container, i.node AS node
+                  FROM (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['container'] AS container, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_status_last_terminated_exitcode' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod, container HAVING v = 137) AS e
+                  INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, Attributes['container'] AS container, argMax(Value, TimeUnix) AS ts FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_status_last_terminated_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod, container) AS t ON e.namespace=t.namespace AND e.pod=t.pod AND e.container=t.container AND (toUnixTimestamp(now()) - t.ts) < 900
+                  INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_info' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, pod) AS i ON e.namespace=i.namespace AND e.pod=i.pod
+                  GROUP BY e.namespace, e.pod, e.container, i.node
+                ) GROUP BY node
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'OOM kill sweep on {{ $labels.node }}: {{ $values.B.Value | printf "%.0f" }} containers SIGKILLed (exit 137) in 15m'
+          description: 'Multiple simultaneous 137 exits on one node = Talos PSI OOM sweep or node memory exhaustion. Victims are pods without a full-pod memory limit. Evidence: talosctl -n <node> get oomactions -o yaml; dmesg | grep ''OOM controller''.'
+
+      - uid: container-memcg-oom-loop
+        title: Container Memcg OOM Loop
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT namespace, pod, toFloat64(inc) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, sum(delta) AS inc FROM (SELECT Attributes, StartTimeUnix, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='container_oom_events_total' AND TimeUnix > now() - INTERVAL 1800 SECOND GROUP BY Attributes, StartTimeUnix) GROUP BY namespace, pod HAVING inc > 2) WHERE namespace != ''
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.namespace }}/{{ $labels.pod }} OOM-killed {{ $values.B.Value | printf "%.0f" }}x in 30m by its memory limit'
+          description: The pod's memory limit contradicts its workload (model too big, heap unbounded, etc.). Fix the limit or the workload in IaC — each kill also drives node PSI toward the Talos sweep trigger.
+
+      - uid: mesh-identity-signing-failure
+        title: Mesh Identity Signing Failure
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT toFloat64(count()) AS value FROM otel.otel_logs WHERE Timestamp > now() - INTERVAL 10 MINUTE AND ResourceAttributes['k8s.namespace.name']='istio-system' AND ResourceAttributes['k8s.container.name']='istio-proxy' AND positionCaseInsensitive(Body, 'identity error') > 0 HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [3]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: ztunnel cannot obtain workload identities from the mesh CA
+          description: ztunnel logs show sustained identity-signing failures. New/rescheduled pods in ambient namespaces (infra, osemu) cannot establish mTLS. Check cert-manager-istio-csr and step-issuer in cert-manager namespace.
+
+      - uid: k8s-pod-rejected-psa
+        title: Kubernetes Pod Rejected By PSA
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT k8s_namespace_name, aether_tier, aether_owner, aether_criticality, toFloat64(c) AS value FROM (
+                  SELECT ResourceAttributes['k8s.namespace.name'] AS k8s_namespace_name, ResourceAttributes['aether.tier'] AS aether_tier, ResourceAttributes['aether.owner'] AS aether_owner, ResourceAttributes['aether.criticality'] AS aether_criticality, count() AS c
+                  FROM otel.otel_logs WHERE Timestamp > now() - INTERVAL 15 MINUTE AND LogAttributes['event.domain']='k8s' AND ResourceAttributes['k8s.cluster.name']='aether-k8s' AND JSONExtractString(Body, 'object', 'reason')='FailedCreate' AND positionCaseInsensitive(JSONExtractString(Body, 'object', 'note'), 'violates PodSecurity') > 0
+                  GROUP BY k8s_namespace_name, aether_tier, aether_owner, aether_criticality
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Pods in {{ $labels.k8s_namespace_name }} are being silently rejected by PSA
+          description: Kubernetes Events show FailedCreate PodSecurity admission rejections for this namespace
+
+      - uid: k8s-namespace-unclassified
+        title: Kubernetes Namespace Unclassified
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT namespace, tier, owner, backup, criticality, exposure, toFloat64(1) AS value FROM aether.namespace_contract WHERE tier IN ('', 'unclassified')
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+          domain: governance
+        annotations:
+          summary: Namespace {{ $labels.namespace }} has no contract labels — quarantine candidate
+          description: Namespace contract labels are missing or still unclassified
+
+      - uid: k8s-metrics-pipeline-dead
+        title: Kubernetes Metrics Pipeline Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT toFloat64(1) AS value WHERE (SELECT count() FROM otel.otel_metrics_gauge WHERE MetricName='kube_namespace_labels' AND Attributes['exported_job']='kube-state-metrics' AND TimeUnix > now() - INTERVAL 5 MINUTE) = 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Kubernetes metrics pipeline is blind
+          description: ClickHouse cannot see kube-state-metrics namespace labels; ksm, otel-cluster, central OTel, or the ClickHouse ingest path may be down
+
+      - uid: otel-ingest-refused
+        title: Central OTel Ingest Refused
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT toFloat64(sum(delta) / 300) AS value FROM (SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName IN ('otelcol_receiver_refused_metric_points','otelcol_receiver_refused_log_records','otelcol_receiver_refused_spans') AND Attributes['receiver'] IN ('otlp','prometheus') AND TimeUnix > now() - INTERVAL 300 SECOND GROUP BY Attributes, StartTimeUnix, MetricName) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Central OTel collector is refusing ingest
+          description: Receiver refused counters (memory_limiter downstream) are increasing — OTLP ingest is being rejected and dashboards fed through the collector are silently gapping. Check otelcol heap/RSS on monitoring-stack.
+
+      - uid: otel-remote-write-failing
+        title: OTel ClickHouse Exporter Failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT toFloat64(sum(delta) / 300) AS value FROM (SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName IN ('otelcol_exporter_send_failed_metric_points','otelcol_exporter_send_failed_log_records','otelcol_exporter_send_failed_spans') AND Attributes['exporter']='clickhouse/otel' AND TimeUnix > now() - INTERVAL 300 SECOND GROUP BY Attributes, StartTimeUnix, MetricName) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [500]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: OTel ClickHouse exporter is dropping telemetry
+          description: The clickhouse/otel exporter is failing to deliver batches. Telemetry in ClickHouse is gapping. Check ClickHouse availability and the collector exporter send-failed/queue metrics.
+
+      - uid: k8s-cronjob-failing
+        title: Kubernetes CronJob Failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT f.namespace AS namespace, f.job_name AS job_name, o.owner_name AS owner_name, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, toFloat64(f.v) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['job_name'] AS job_name, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_job_status_failed' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, job_name HAVING v > 0) AS f INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['job_name'] AS job_name, argMax(Value, TimeUnix) AS st FROM otel.otel_metrics_gauge WHERE MetricName='kube_job_status_start_time' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, job_name) AS s ON f.namespace=s.namespace AND f.job_name=s.job_name AND (toUnixTimestamp(now()) - s.st) < 21600 INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['job_name'] AS job_name, argMax(Attributes['owner_name'], TimeUnix) AS owner_name FROM otel.otel_metrics_gauge WHERE MetricName='kube_job_owner' AND Attributes['owner_kind']='CronJob' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, job_name) AS o ON f.namespace=o.namespace AND f.job_name=o.job_name INNER JOIN aether.namespace_contract AS nc ON nc.namespace = f.namespace
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: CronJob {{ $labels.namespace }}/{{ $labels.owner_name }} is failing
+          description: A recent Job owned by CronJob {{ $labels.namespace }}/{{ $labels.owner_name }} has failed for at least one hour
+
+      - uid: backup-stale
+        title: Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT guest.id AS id, guest.name AS name, guest.node AS node, toFloat64((toUnixTimestamp(now()) - snap.mx) / 3600) AS value FROM (SELECT Attributes['vm_id'] AS vm_id, max(Value) AS mx FROM otel.otel_metrics_gauge WHERE MetricName='pbs_snapshot_vm_last_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY vm_id) AS snap INNER JOIN (SELECT Attributes['id'] AS id, argMax(Attributes['name'], TimeUnix) AS name, argMax(Attributes['node'], TimeUnix) AS node FROM otel.otel_metrics_gauge WHERE MetricName='pve_guest_info' AND Attributes['name'] != '' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY id) AS guest ON splitByChar('/', guest.id)[2] = snap.vm_id
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Stale backup for {{ $labels.name }} ({{ $labels.id }})
+          description: Last backup was {{ $values.B.Value | printf "%.0f" }} hours ago
+
+      - uid: db-backup-job-failed
+        title: DB Backup Job Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT f.namespace AS namespace, f.job_name AS job_name, o.owner_name AS owner_name, f.reason AS reason, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, toFloat64(f.v) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['job_name'] AS job_name, Attributes['reason'] AS reason, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_job_status_failed' AND Attributes['job_name'] LIKE 'db-backup-%' AND Attributes['reason'] != '' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, job_name, reason HAVING v > 0) AS f INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['job_name'] AS job_name, argMax(Attributes['owner_name'], TimeUnix) AS owner_name FROM otel.otel_metrics_gauge WHERE MetricName='kube_job_owner' AND Attributes['owner_kind']='CronJob' AND Attributes['owner_name'] LIKE 'db-backup-%' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, job_name) AS o ON f.namespace=o.namespace AND f.job_name=o.job_name LEFT ANTI JOIN (SELECT s.namespace AS namespace, s.job_name AS job_name, o2.owner_name AS owner_name FROM (SELECT Attributes['namespace'] AS namespace, Attributes['job_name'] AS job_name, argMax(Value, TimeUnix) AS st FROM otel.otel_metrics_gauge WHERE MetricName='kube_job_status_start_time' AND Attributes['job_name'] LIKE 'db-backup-%' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, job_name) AS s INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['job_name'] AS job_name, argMax(Attributes['owner_name'], TimeUnix) AS owner_name FROM otel.otel_metrics_gauge WHERE MetricName='kube_job_owner' AND Attributes['owner_kind']='CronJob' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, job_name) AS o2 ON s.namespace=o2.namespace AND s.job_name=o2.job_name INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['cronjob'] AS owner_name, argMax(Value, TimeUnix) AS lst FROM otel.otel_metrics_gauge WHERE MetricName='kube_cronjob_status_last_successful_time' AND Attributes['cronjob'] LIKE 'db-backup-%' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, owner_name) AS cj ON s.namespace=cj.namespace AND o2.owner_name=cj.owner_name WHERE s.st < cj.lst) AS newer ON f.namespace=newer.namespace AND f.job_name=newer.job_name AND o.owner_name=newer.owner_name INNER JOIN aether.namespace_contract AS nc ON nc.namespace = f.namespace
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: DB backup job failed in {{ $labels.namespace }}
+          description: 'Job {{ $labels.job_name }} failed: {{ $labels.reason }}'
+
+      - uid: db-backup-stale
+        title: DB Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT cj.namespace AS namespace, cj.cronjob AS cronjob, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, toFloat64((toUnixTimestamp(now()) - cj.lst) / 3600) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['cronjob'] AS cronjob, argMax(Value, TimeUnix) AS lst FROM otel.otel_metrics_gauge WHERE MetricName='kube_cronjob_status_last_successful_time' AND Attributes['cronjob'] LIKE 'db-backup-%' AND TimeUnix > now() - INTERVAL 2 HOUR GROUP BY namespace, cronjob) AS cj INNER JOIN aether.namespace_contract AS nc ON nc.namespace = cj.namespace
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Stale DB backup for {{ $labels.namespace }}/{{ $labels.cronjob }}
+          description: Last successful DB backup was {{ $values.B.Value | printf "%.0f" }} hours ago
+
+      - uid: db-backup-never-succeeded
+        title: DB Backup Never Succeeded
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT n.namespace AS namespace, n.cronjob AS cronjob, nc.tier AS tier, nc.owner AS owner, nc.criticality AS criticality, toFloat64(n.nxt) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['cronjob'] AS cronjob, argMax(Value, TimeUnix) AS nxt FROM otel.otel_metrics_gauge WHERE MetricName='kube_cronjob_next_schedule_time' AND Attributes['cronjob'] LIKE 'db-backup-%' AND TimeUnix > now() - INTERVAL 2 HOUR GROUP BY namespace, cronjob) AS n LEFT ANTI JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['cronjob'] AS cronjob FROM otel.otel_metrics_gauge WHERE MetricName='kube_cronjob_status_last_successful_time' AND Attributes['cronjob'] LIKE 'db-backup-%' AND TimeUnix > now() - INTERVAL 2 HOUR GROUP BY namespace, cronjob) AS s ON n.namespace=s.namespace AND n.cronjob=s.cronjob INNER JOIN aether.namespace_contract AS nc ON nc.namespace = n.namespace
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 36h
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: DB backup has never succeeded for {{ $labels.namespace }}/{{ $labels.cronjob }}
+          description: No successful DB backup has been observed for this CronJob
+
+      - uid: cnpg-wal-archiving-failing
+        title: CNPG WAL Archiving Failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT s.namespace AS namespace, s.cluster AS cluster, nc.backup AS backup, toFloat64(s.inc) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['cluster'] AS cluster, sum(delta) AS inc FROM (SELECT Attributes, StartTimeUnix, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='cnpg_pg_stat_archiver_failed_count' AND TimeUnix > now() - INTERVAL 1800 SECOND GROUP BY Attributes, StartTimeUnix) GROUP BY namespace, cluster HAVING inc > 3) AS s INNER JOIN aether.namespace_contract AS nc ON nc.namespace = s.namespace AND nc.backup IN ('critical','standard')
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: CNPG WAL archiving is failing for {{ $labels.namespace }}/{{ $labels.cluster }}
+          description: WAL archiving failures are increasing; point-in-time recovery may be at risk
+
+      - uid: cnpg-backup-stale
+        title: CNPG Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT b.namespace AS namespace, b.cluster AS cluster, nc.backup AS backup, toFloat64(toUnixTimestamp(now()) - b.mx) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['cluster'] AS cluster, max(Value) AS mx FROM otel.otel_metrics_gauge WHERE MetricName='barman_cloud_cloudnative_pg_io_last_available_backup_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, cluster HAVING (toUnixTimestamp(now()) - mx) > 93600) AS b INNER JOIN aether.namespace_contract AS nc ON nc.namespace = b.namespace AND nc.backup IN ('critical','standard')
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: CNPG backup is stale for {{ $labels.namespace }}/{{ $labels.cluster }}
+          description: Last available Barman Cloud plugin backup is older than 26 hours
+
+      - uid: cnpg-last-backup-failed
+        title: CNPG Last Backup Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT a.namespace AS namespace, a.cluster AS cluster, nc.backup AS backup, toFloat64(a.mx) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['cluster'] AS cluster, max(Value) AS mx FROM otel.otel_metrics_gauge WHERE MetricName='barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, cluster) AS a INNER JOIN (SELECT Attributes['namespace'] AS namespace, Attributes['cluster'] AS cluster, max(Value) AS mx FROM otel.otel_metrics_gauge WHERE MetricName='barman_cloud_cloudnative_pg_io_last_available_backup_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, cluster) AS b ON a.namespace=b.namespace AND a.cluster=b.cluster AND a.mx > b.mx INNER JOIN aether.namespace_contract AS nc ON nc.namespace = a.namespace AND nc.backup IN ('critical','standard')
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: Last CNPG backup failed for {{ $labels.namespace }}/{{ $labels.cluster }}
+          description: CNPG reports a failed backup newer than the last available backup
+

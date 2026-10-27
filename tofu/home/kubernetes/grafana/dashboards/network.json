@@ -26,8 +26,8 @@
       "type": "stat",
       "title": "GPON Fiber",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -90,13 +90,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_gpon_operational",
+          "format": 1,
+          "rawSql": "SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_gpon_operational' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -105,8 +106,8 @@
       "type": "stat",
       "title": "PPPoE WAN",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 3,
@@ -169,13 +170,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_ppp_up",
+          "format": 1,
+          "rawSql": "SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_ppp_up' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -184,8 +186,8 @@
       "type": "stat",
       "title": "WAN Session Age",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 6,
@@ -233,13 +235,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_ppp_uptime_seconds",
+          "format": 1,
+          "rawSql": "SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_ppp_uptime_seconds' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -248,8 +251,8 @@
       "type": "stat",
       "title": "Default Route",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 9,
@@ -312,13 +315,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "vyos_default_route_present",
+          "format": 1,
+          "rawSql": "SELECT max(v) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_default_route_present' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['family'], Attributes['table'])",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -327,8 +331,8 @@
       "type": "stat",
       "title": "Switch Ports Up",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 12,
@@ -375,13 +379,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(qss_port_link_up)",
+          "format": 1,
+          "rawSql": "SELECT sum(v) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_port_link_up' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes['port'], Attributes['kind'], ResourceAttributes['service.instance.id'])",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -390,8 +395,8 @@
       "type": "stat",
       "title": "WiFi Clients",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 15,
@@ -434,13 +439,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(unpoller_client_radio_signal_db{wired=\"false\"})",
+          "format": 1,
+          "rawSql": "SELECT toFloat64(uniqExact(tuple(Attributes, ResourceAttributes['service.instance.id']))) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_client_radio_signal_db' AND Attributes['wired'] = 'false' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -449,8 +455,8 @@
       "type": "stat",
       "title": "GigaHub LAN Hosts",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 18,
@@ -493,13 +499,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_hosts_total",
+          "format": 1,
+          "rawSql": "SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_hosts_total' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -508,8 +515,8 @@
       "type": "stat",
       "title": "Active Flows",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 21,
@@ -556,20 +563,21 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(vyos_conntrack_entries)",
+          "format": 1,
+          "rawSql": "SELECT sum(v) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_conntrack_entries' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ResourceAttributes['service.instance.id'])",
           "refId": "A",
-          "instant": true,
-          "range": false
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 10,
       "type": "row",
-      "title": "Fiber & WAN \u2014 Bell GigaHub",
+      "title": "Fiber & WAN — Bell GigaHub",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -581,11 +589,12 @@
     },
     {
       "id": 11,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Optical RX Power",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -652,24 +661,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_optical_rx_power_dbm",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'RX power' AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_rx_power_dbm' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "RX power"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 12,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Optical TX Power / Laser Bias",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 8,
@@ -726,35 +736,36 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_optical_tx_power_dbm",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'TX power' AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_tx_power_dbm' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "TX power"
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_optical_bias_current_milliamps",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'bias mA' AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_bias_current_milliamps' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time, series",
           "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "bias mA"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 13,
+      "interval": "1m",
       "type": "timeseries",
       "title": "SFP Temperature",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 16,
@@ -814,24 +825,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "gigahub_optical_temperature_celsius",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'SFP temp' AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'gigahub_optical_temperature_celsius' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "SFP temp"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 14,
+      "interval": "1m",
       "type": "timeseries",
       "title": "WAN Handoff Throughput (eth4)",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -871,24 +883,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (direction)(rate(gigahub_ethernet_bytes_total{interface=\"eth4\"}[3m]))*8",
+          "format": 0,
+          "rawSql": "SELECT time, direction, sum(d) / any(step) * 8 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, Attributes['direction'] AS direction, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName = 'gigahub_ethernet_bytes_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['interface'] = 'eth4' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, direction ORDER BY time, direction",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{direction}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 15,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Optical Errors / Discards",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 12,
@@ -928,32 +941,32 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (direction)(rate(gigahub_optical_errors_total[3m]))",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, concat('errors ', Attributes['direction']) AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName = 'gigahub_optical_errors_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "errors {{direction}}"
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (direction)(rate(gigahub_optical_discards_total[3m]))",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, concat('discards ', Attributes['reason']) AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName = 'gigahub_optical_discards_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "discards {{direction}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 16,
       "type": "row",
-      "title": "Router \u2014 VyOS",
+      "title": "Router — VyOS",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -965,11 +978,12 @@
     },
     {
       "id": 17,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Interface Throughput",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -1009,24 +1023,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (interface, direction)(rate(vyos_interface_bytes_total{interface!=\"lo\"}[3m]))*8",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) * 8 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, concat(Attributes['interface'], ' ', Attributes['direction']) AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName = 'vyos_interface_bytes_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['interface'] != 'lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{interface}} {{direction}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 18,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Conntrack",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 12,
@@ -1095,35 +1110,36 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(vyos_conntrack_entries)",
+          "format": 0,
+          "rawSql": "SELECT time, 'entries' AS series, sum(value) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ResourceAttributes['service.instance.id'] AS inst, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_conntrack_entries' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, inst) GROUP BY time, series ORDER BY time",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "entries"
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "max(vyos_conntrack_limit)",
+          "format": 0,
+          "rawSql": "SELECT time, 'limit' AS series, max(value) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ResourceAttributes['service.instance.id'] AS inst, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_conntrack_limit' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, inst) GROUP BY time, series ORDER BY time",
           "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "limit"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 19,
+      "interval": "1m",
       "type": "timeseries",
       "title": "DHCP Active Leases by Pool",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 18,
@@ -1162,24 +1178,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "vyos_dhcp_leases{state=\"active\"}",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['pool'] AS pool, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'vyos_dhcp_leases' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['state'] = 'active' GROUP BY time, pool ORDER BY time, pool",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{pool}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 20,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Firewall Drops",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -1219,24 +1236,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (family)(rate(vyos_firewall_drops_total[3m]))",
+          "format": 0,
+          "rawSql": "SELECT time, family, sum(d) / any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, Attributes['family'] AS family, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName = 'vyos_firewall_drops_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, family ORDER BY time, family",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{family}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 21,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Suricata IDS Alerts",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 8,
@@ -1276,24 +1294,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(vyos_suricata_alerts_total[3m])",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, 'alerts/s' AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName = 'vyos_suricata_alerts_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "alerts/s"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 22,
+      "interval": "1m",
       "type": "timeseries",
       "title": "DNS Queries",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 16,
@@ -1333,21 +1352,21 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (outcome)(rate(vyos_dns_queries_total[3m]))",
+          "format": 0,
+          "rawSql": "SELECT time, outcome, sum(d) / any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, Attributes['outcome'] AS outcome, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName = 'vyos_dns_queries_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, outcome ORDER BY time, outcome",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{outcome}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 23,
       "type": "row",
-      "title": "Rack Switch \u2014 QNAP QSW-M3216R",
+      "title": "Rack Switch — QNAP QSW-M3216R",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -1359,11 +1378,12 @@
     },
     {
       "id": 24,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Per-Port Throughput",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -1403,25 +1423,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (port)(rate(qss_port_receive_bytes[3m]))*8",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) * 8 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, concat('p', Attributes['port'], ' rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_port_receive_bytes' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "p{{port}} rx"
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (port)(rate(qss_port_transmit_bytes[3m]))*8",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) * 8 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, concat('p', Attributes['port'], ' tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_port_transmit_bytes' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "p{{port}} tx"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
@@ -1430,8 +1450,8 @@
       "type": "bargauge",
       "title": "Link Speed (ports up)",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 12,
@@ -1483,24 +1503,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "qss_port_speed_mbps and on(port, kind) (qss_port_link_up == 1)",
+          "format": 1,
+          "rawSql": "SELECT concat('p', s.port) AS series, s.value AS value FROM (SELECT Attributes['port'] AS port, Attributes['kind'] AS kind, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_port_speed_mbps' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY port, kind) AS s INNER JOIN (SELECT Attributes['port'] AS port, Attributes['kind'] AS kind, argMax(Value, TimeUnix) AS up FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_port_link_up' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY port, kind) AS u ON s.port = u.port AND s.kind = u.kind WHERE u.up = 1 ORDER BY toInt32(s.port)",
           "refId": "A",
-          "instant": true,
-          "range": false,
-          "legendFormat": "p{{port}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 26,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Port Errors",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 18,
@@ -1540,35 +1561,36 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (port)(rate(qss_port_fcs_errors[3m]))",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, concat('p', Attributes['port'], ' fcs') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_port_fcs_errors' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "p{{port}} fcs"
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (port)(rate(qss_port_receive_errors[3m]))",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(d) / any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, concat('p', Attributes['port'], ' rx-err') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_port_receive_errors' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
           "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "p{{port}} rx-err"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 27,
+      "interval": "1m",
       "type": "timeseries",
       "title": "SFP Temperatures",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -1628,24 +1650,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "qss_sfp_temperature_celsius",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat('p', Attributes['port']) AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_sfp_temperature_celsius' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "p{{port}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 28,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Switch Sensors",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 8,
@@ -1705,24 +1728,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "qss_temperature_celsius",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['sensor'] AS sensor, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_temperature_celsius' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, sensor ORDER BY time, sensor",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{sensor}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 29,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Fan Speed",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 16,
@@ -1762,21 +1786,21 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "qss_fan_rpm",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat('fan ', Attributes['fan']) AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'qss_fan_rpm' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "fan {{fan}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 30,
       "type": "row",
-      "title": "WiFi \u2014 UniFi (unpoller)",
+      "title": "WiFi — UniFi (unpoller)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -1788,11 +1812,12 @@
     },
     {
       "id": 31,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Wireless Clients",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -1831,24 +1856,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(unpoller_client_radio_signal_db{wired=\"false\"})",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'clients' AS series, toFloat64(uniqExact(tuple(Attributes, ResourceAttributes['service.instance.id']))) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_client_radio_signal_db' AND Attributes['wired'] = 'false' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "clients"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 32,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Client Signal",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 6,
@@ -1910,24 +1936,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "unpoller_client_radio_signal_db{wired=\"false\"}",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['name'] AS name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_client_radio_signal_db' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['wired'] = 'false' GROUP BY time, name ORDER BY time, name",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{name}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 33,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Radio Channel Utilization",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 16,
@@ -1969,24 +1996,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "unpoller_device_radio_channel_utilization_total_ratio",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['radio_name'] AS radio_desc, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_device_radio_channel_utilization_total_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, radio_desc ORDER BY time, radio_desc",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{radio_desc}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 34,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Client Data Rates",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 0,
@@ -2026,35 +2054,36 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "unpoller_client_radio_receive_rate_bps{wired=\"false\"}",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'], ' rx') AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_client_radio_receive_rate_bps' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['wired'] = 'false' GROUP BY time, series ORDER BY time, series",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{name}} rx"
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "unpoller_client_radio_transmit_rate_bps{wired=\"false\"}",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'], ' tx') AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_client_radio_transmit_rate_bps' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['wired'] = 'false' GROUP BY time, series ORDER BY time, series",
           "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{name}} tx"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     },
     {
       "id": 35,
+      "interval": "1m",
       "type": "timeseries",
       "title": "AP Health (U7 Pro)",
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "gridPos": {
         "x": 12,
@@ -2096,25 +2125,25 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "unpoller_device_cpu_utilization_ratio{type=\"uap\"}/100",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'cpu' AS series, argMax(Value, TimeUnix) / 100 AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_device_cpu_utilization_ratio' AND Attributes['type'] = 'uap' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
           "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "cpu"
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "unpoller_device_memory_utilization_ratio{type=\"uap\"}/100",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'memory' AS series, argMax(Value, TimeUnix) / 100 AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'unpoller_device_memory_utilization_ratio' AND Attributes['type'] = 'uap' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
           "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "memory"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ]
     }

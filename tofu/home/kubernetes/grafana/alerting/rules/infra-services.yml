@@ -1,0 +1,1332 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Infrastructure — Services
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: restic-metrics-exporter-down
+        title: Restic Metrics Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT if(count() = 0, 1, 1 - argMax(Value, TimeUnix)) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'up'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic metrics exporter is down"
+          description: "Prometheus cannot scrape backup-stack's restic snapshot metrics"
+
+      - uid: restic-metrics-stale
+        title: Restic Metrics Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT if(count() = 0, 1e9, (toUnixTimestamp(now()) - argMax(Value, TimeUnix)) / 3600) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'aether_restic_metrics_last_success_timestamp_seconds'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [2]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic metrics are stale"
+          description: 'Last restic metrics generation was {{ $values.B.Value | printf "%.1f" }} hours ago'
+
+      - uid: restic-plan-path-inaccessible
+        title: Restic Plan Path Inaccessible
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['host_name'] AS host_name, Attributes['plan_id'] AS plan_id, Attributes['path'] AS path, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'aether_restic_plan_path_accessible'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+                GROUP BY host_name, plan_id, path
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic source path is inaccessible for {{ $labels.plan_id }}"
+          description: "Backrest cannot stat {{ $labels.path }}"
+
+      - uid: restic-backup-never-succeeded
+        title: Restic Backup Never Succeeded
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT c.host_name AS host_name, c.plan_id AS plan_id, c.path AS path, c.value AS value
+                FROM (
+                SELECT Attributes['host_name'] AS host_name, Attributes['plan_id'] AS plan_id, Attributes['path'] AS path, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'aether_restic_plan_configured'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+                GROUP BY host_name, plan_id, path
+                ) AS c
+                LEFT JOIN (
+                SELECT Attributes['host_name'] AS host_name, Attributes['plan_id'] AS plan_id, Attributes['path'] AS path, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'aether_restic_snapshot_last_success_timestamp_seconds'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+                GROUP BY host_name, plan_id, path
+                ) AS s ON c.host_name = s.host_name AND c.plan_id = s.plan_id
+                WHERE s.plan_id = ''
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Restic backup has never succeeded for {{ $labels.plan_id }}"
+          description: "No restic snapshot exists yet for {{ $labels.path }}"
+
+      - uid: restic-backup-stale
+        title: Restic Backup Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['host_name'] AS host_name, Attributes['plan_id'] AS plan_id, Attributes['path'] AS path, (toUnixTimestamp(now()) - argMax(Value, TimeUnix)) / 3600 AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'aether_restic_snapshot_last_success_timestamp_seconds'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+                GROUP BY host_name, plan_id, path
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stale restic backup for {{ $labels.plan_id }}"
+          description: 'Last restic snapshot for {{ $labels.path }} was {{ $values.B.Value | printf "%.0f" }} hours ago'
+
+      - uid: talos-etcd-snapshot-failed
+        title: Talos Etcd Snapshot Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['cluster'] AS cluster, Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'aether_talos_etcd_snapshot_generation_success'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+                GROUP BY cluster, host_name
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Talos etcd snapshot failed for {{ $labels.cluster }}"
+          description: "The latest scheduled Talos etcd snapshot command did not complete successfully"
+
+      - uid: talos-etcd-snapshot-stale
+        title: Talos Etcd Snapshot Stale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['cluster'] AS cluster, Attributes['host_name'] AS host_name, (toUnixTimestamp(now()) - argMax(Value, TimeUnix)) / 3600 AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'aether_talos_etcd_snapshot_last_success_timestamp_seconds'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['service_name'] = 'aether-restic'
+                GROUP BY cluster, host_name
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [30]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Talos etcd snapshot is stale for {{ $labels.cluster }}"
+          description: 'Last successful Talos etcd snapshot was {{ $values.B.Value | printf "%.0f" }} hours ago'
+
+      # GPU Alerts
+      - uid: gpu-high-temp
+        title: GPU High Temperature
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['Hostname'] AS Hostname, Attributes['gpu'] AS gpu, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'DCGM_FI_DEV_GPU_TEMP'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+
+                GROUP BY Hostname, gpu
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [85]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU temperature on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
+          description: 'GPU temperature is {{ $values.B.Value | printf "%.0f" }}°C'
+
+      - uid: gpu-high-memory
+        title: GPU High Memory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT used.Hostname AS Hostname, used.gpu AS gpu, u / (u + f) * 100 AS value FROM (SELECT Attributes['Hostname'] AS Hostname, Attributes['gpu'] AS gpu, argMax(Value, TimeUnix) AS u FROM otel.otel_metrics_gauge WHERE MetricName = 'DCGM_FI_DEV_FB_USED' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Hostname, gpu) AS used INNER JOIN (SELECT Attributes['Hostname'] AS Hostname, Attributes['gpu'] AS gpu, argMax(Value, TimeUnix) AS f FROM otel.otel_metrics_gauge WHERE MetricName = 'DCGM_FI_DEV_FB_FREE' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Hostname, gpu) AS free ON used.Hostname = free.Hostname AND used.gpu = free.gpu
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [95]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU memory usage on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
+          description: 'GPU framebuffer usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: gpu-thermal-throttling
+        title: GPU XID / driver fault
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Hostname, gpu, err_code, err_msg, count() - 1 AS value
+                FROM (
+                  SELECT Attributes['Hostname'] AS Hostname, Attributes['gpu'] AS gpu, toString(argMax(Value, TimeUnix)) AS err_code, '' AS err_msg, lagInFrame(Value) OVER (PARTITION BY Attributes['Hostname'], Attributes['gpu'], Attributes['pod'] ORDER BY TimeUnix) AS prev, Value
+                  FROM otel.otel_metrics_gauge
+                  WHERE MetricName = 'DCGM_FI_DEV_XID_ERRORS' AND TimeUnix > now() - INTERVAL 15 MINUTE
+                  GROUP BY Hostname, gpu, Attributes['pod'], TimeUnix, Value
+                )
+                GROUP BY Hostname, gpu, err_code, err_msg
+                HAVING value > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU XID error on {{ $labels.Hostname }} GPU {{ $labels.gpu }}"
+          description: "New XID event (code {{ $labels.err_code }}: {{ $labels.err_msg }}) — check talosctl dmesg / GPU health"
+
+
+      # HTTP synthetic probes — public apps page on sustained failure.
+      # Targets come from synthetic_probe_targets (blackbox-http-apps job).
+      - uid: probe-failed-public
+        title: Probe Failed Public
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['probe_hostname'] AS probe_hostname, Attributes['probe_namespace'] AS probe_namespace, Attributes['probe_exposure'] AS probe_exposure, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'probe_success'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND ServiceName = 'blackbox-http-apps'
+                  AND Attributes['probe_exposure'] = 'public'
+                GROUP BY instance, probe_hostname, probe_namespace, probe_exposure
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Public app probe failed for {{ $labels.probe_hostname }}"
+          description: "blackbox http_2xx probe to {{ $labels.instance }} (namespace {{ $labels.probe_namespace }}) has been failing for 5 minutes"
+
+      - uid: probe-failed-internal
+        title: Probe Failed Internal
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['probe_hostname'] AS probe_hostname, Attributes['probe_namespace'] AS probe_namespace, Attributes['probe_exposure'] AS probe_exposure, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'probe_success'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND ServiceName = 'blackbox-http-apps'
+                  AND Attributes['probe_exposure'] IN ('internal', 'tunnel')
+                GROUP BY instance, probe_hostname, probe_namespace, probe_exposure
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Internal app probe failed for {{ $labels.probe_hostname }}"
+          description: "blackbox http_2xx probe to {{ $labels.instance }} (namespace {{ $labels.probe_namespace }}) has been failing for 10 minutes"
+
+      # TLS cert expiry — fires 14 days before a probed cert's NotAfter.
+      # Targets are scraped by blackbox-exporter via the `tls_connect` module
+      # (see ansible/playbooks/monitoring_stack/blackbox.yml + the
+      # `blackbox-tls` job in prometheus.yml.j2). Lab learned this matters in
+      # the Apr 2026 OpenBao outage: server cert silently rolled past
+      # NotAfter and every machine using openbao-agent stopped renewing.
+      - uid: tls-cert-expiring-soon
+        title: TLS cert expiring soon
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['probe_hostname'] AS probe_hostname, Attributes['probe_namespace'] AS probe_namespace, (argMax(Value, TimeUnix) - toUnixTimestamp(now())) / 86400 AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'probe_ssl_earliest_cert_expiry'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND ServiceName != 'blackbox-tls'
+                GROUP BY instance, probe_hostname, probe_namespace
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [14]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS cert on {{ $labels.instance }} expires in {{ $values.B.Value | printf \"%.1f\" }}d"
+          description: "Renew before NotAfter — see docs/bastion.md (lessons learned from the OpenBao incident)."
+
+      # Internal Aether-CA endpoints serve 24h certs that `step ca renew
+      # --daemon` replaces at ~2/3 lifetime, so a healthy cert never has less
+      # than ~8h left. Under 4h means renewal has stalled. A failed handshake
+      # yields -1 so the probe going blind fires too (blackbox-tls was blind
+      # for weeks until 2026-10-12 because noData resolved to OK).
+      - uid: tls-short-lived-cert-renewal-stalled
+        title: Internal TLS cert renewal stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT instance, probe_hostname, probe_namespace, probe_exposure, if(e.instance != '', (e.expiry - toUnixTimestamp(now())) / 3600, s.value - 1) AS value
+                FROM (
+                  SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['probe_hostname'] AS probe_hostname, Attributes['probe_namespace'] AS probe_namespace, Attributes['probe_exposure'] AS probe_exposure, argMax(Value, TimeUnix) AS expiry FROM otel.otel_metrics_gauge WHERE MetricName = 'probe_ssl_earliest_cert_expiry' AND TimeUnix > now() - INTERVAL 5 MINUTE AND ServiceName = 'blackbox-tls' GROUP BY instance, probe_hostname, probe_namespace, probe_exposure
+                ) AS e
+                FULL OUTER JOIN (
+                  SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['probe_hostname'] AS probe_hostname, Attributes['probe_namespace'] AS probe_namespace, Attributes['probe_exposure'] AS probe_exposure, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'probe_success' AND TimeUnix > now() - INTERVAL 5 MINUTE AND ServiceName = 'blackbox-tls' GROUP BY instance, probe_hostname, probe_namespace, probe_exposure
+                ) AS s ON e.instance = s.instance
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [4]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Internal TLS on {{ $labels.instance }}: {{ $values.B.Value | printf \"%.1f\" }}h left (-1 = handshake failing)"
+          description: "Aether-CA cert is not being renewed or the blackbox-tls probe cannot verify it. Check the host's step ca renew daemon (OpenBao: openbao-cert-renew.service) and the blackbox debug output: curl 'http://monitoring-stack:9115/probe?module=tls_connect&target={{ $labels.instance }}&debug=true'."
+
+      # Local file certificates are not visible to blackbox-exporter until
+      # they are presented by a live endpoint. These rules cover the files
+      # watched by the VM/NixOS certificate-monitoring paths.
+      - uid: x509-file-cert-expiring
+        title: Local X.509 certificate expiring
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT host_name, filepath, instance, serial_number, subject_CN,
+                       (na - toUnixTimestamp(now())) / greatest(na - nb, 1) AS value
+                FROM (
+                  SELECT Attributes['host_name'] AS host_name, Attributes['filepath'] AS filepath,
+                         ResourceAttributes['service.instance.id'] AS instance,
+                         Attributes['serial_number'] AS serial_number, Attributes['subject_CN'] AS subject_CN,
+                         argMaxIf(Value, TimeUnix, MetricName = 'x509_cert_not_after') AS na,
+                         argMaxIf(Value, TimeUnix, MetricName = 'x509_cert_not_before') AS nb,
+                         argMaxIf(Value, TimeUnix, MetricName = 'x509_cert_expired') AS ex
+                  FROM otel.otel_metrics_gauge
+                  WHERE MetricName IN ('x509_cert_not_after', 'x509_cert_not_before', 'x509_cert_expired')
+                    AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  -- Match the certificate's full series, not other certificates in its file.
+                  GROUP BY Attributes, ResourceAttributes, ServiceName
+                  -- PromQL vector matching excludes certificates missing any operand.
+                  HAVING countIf(MetricName = 'x509_cert_not_after') > 0
+                     AND countIf(MetricName = 'x509_cert_not_before') > 0
+                     AND countIf(MetricName = 'x509_cert_expired') > 0
+                )
+                WHERE ex = 0 AND value < 0.30
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Local certificate {{ $labels.filepath }} has less than 30% lifetime remaining"
+          description: "The watched file certificate on {{ $labels.host_name }} needs renewal before it reaches NotAfter."
+
+      - uid: x509-file-cert-expired
+        title: Local X.509 certificate expired
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['host_name'] AS host_name, Attributes['filepath'] AS filepath,
+                       ResourceAttributes['service.instance.id'] AS instance,
+                       Attributes['serial_number'] AS serial_number, Attributes['subject_CN'] AS subject_CN,
+                       argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'x509_cert_expired'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                GROUP BY Attributes, ResourceAttributes, ServiceName
+                HAVING value = 1
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Local certificate {{ $labels.filepath }} is expired"
+          description: "A certificate on {{ $labels.host_name }} has passed NotAfter; check its renewal unit and dependent service."
+
+      - uid: x509-renewal-unit-failed
+        title: Certificate renewal unit failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['host_name'] AS host_name, Attributes['name'] AS name, argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'systemd_unit_state'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['state'] = 'failed'
+                  AND match(Attributes['name'], '^(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\.(service|timer)$')
+                GROUP BY host_name, name
+                HAVING value = 1
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Certificate renewal unit {{ $labels.name }} failed on {{ $labels.host_name }}"
+          description: "The renewal unit is in systemd failed state. Investigate before the current certificate reaches NotAfter."
+
+      - uid: x509-renewal-daemon-down
+        title: Certificate renewal daemon down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['host_name'] AS host_name, Attributes['name'] AS name, 1 - argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'systemd_unit_state'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['state'] = 'active'
+                  AND match(Attributes['name'], '^(openbao-cert-renew|step-ca-cert-renew)\\.service$')
+                GROUP BY host_name, name
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Certificate renewal daemon {{ $labels.name }} is not active on {{ $labels.host_name }}"
+          description: "The long-running step-ca renewal daemon is down while its certificate may still look healthy."
+
+      - uid: x509-renewal-timer-down
+        title: Certificate renewal timer down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT Attributes['host_name'] AS host_name, Attributes['name'] AS name, 1 - argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'systemd_unit_state'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  AND Attributes['state'] = 'active'
+                  AND Attributes['name'] = 'backrest-cert-renew.timer'
+                GROUP BY host_name, name
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Certificate renewal timer is not active on {{ $labels.host_name }}"
+          description: "The timer-backed backup certificate renewal path is not scheduled."
+
+      # Kubernetes cert-manager provides its own lifecycle timestamps. Use its
+      # renewal deadline rather than a fixed 30% threshold because the cluster
+      # has both long-lived application certificates and one-hour Istio certs.
+      - uid: k8s-cert-renewal-overdue
+        title: Kubernetes certificate renewal overdue
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT namespace, name, issuer_group, issuer_kind, issuer_name, 1 AS value
+                FROM (
+                  SELECT Attributes['namespace'] AS namespace, Attributes['name'] AS name, Attributes['issuer_group'] AS issuer_group, Attributes['issuer_kind'] AS issuer_kind, Attributes['issuer_name'] AS issuer_name, argMax(Value, TimeUnix) AS ts FROM otel.otel_metrics_gauge WHERE MetricName = 'certmanager_certificate_renewal_timestamp_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, name, issuer_group, issuer_kind, issuer_name
+                ) AS t
+                INNER JOIN (
+                  SELECT Attributes['namespace'] AS namespace, Attributes['name'] AS name, Attributes['issuer_group'] AS issuer_group, Attributes['issuer_kind'] AS issuer_kind, Attributes['issuer_name'] AS issuer_name, argMax(Value, TimeUnix) AS ready FROM otel.otel_metrics_gauge WHERE MetricName = 'certmanager_certificate_ready_status' AND TimeUnix > now() - INTERVAL 5 MINUTE AND Attributes['condition'] = 'True' GROUP BY namespace, name, issuer_group, issuer_kind, issuer_name
+                ) AS r ON t.namespace = r.namespace AND t.name = r.name AND t.issuer_group = r.issuer_group AND t.issuer_kind = r.issuer_kind AND t.issuer_name = r.issuer_name
+                WHERE t.ts - toUnixTimestamp(now()) < 0 AND r.ready = 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: warning
+          channel: digest
+        annotations:
+          summary: "Kubernetes certificate {{ $labels.namespace }}/{{ $labels.name }} renewal is overdue"
+          description: "cert-manager has passed its renewal timestamp without a Ready certificate."
+
+      - uid: k8s-cert-expiring-critical
+        title: Kubernetes certificate near expiry
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT namespace, name, issuer_group, issuer_kind, issuer_name, 1 AS value
+                FROM (
+                  SELECT Attributes['namespace'] AS namespace, Attributes['name'] AS name, Attributes['issuer_group'] AS issuer_group, Attributes['issuer_kind'] AS issuer_kind, Attributes['issuer_name'] AS issuer_name, argMax(Value, TimeUnix) AS ts FROM otel.otel_metrics_gauge WHERE MetricName = 'certmanager_certificate_expiration_timestamp_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY namespace, name, issuer_group, issuer_kind, issuer_name
+                ) AS t
+                INNER JOIN (
+                  SELECT Attributes['namespace'] AS namespace, Attributes['name'] AS name, Attributes['issuer_group'] AS issuer_group, Attributes['issuer_kind'] AS issuer_kind, Attributes['issuer_name'] AS issuer_name, argMax(Value, TimeUnix) AS ready FROM otel.otel_metrics_gauge WHERE MetricName = 'certmanager_certificate_ready_status' AND TimeUnix > now() - INTERVAL 5 MINUTE AND Attributes['condition'] = 'True' GROUP BY namespace, name, issuer_group, issuer_kind, issuer_name
+                ) AS r ON t.namespace = r.namespace AND t.name = r.name AND t.issuer_group = r.issuer_group AND t.issuer_kind = r.issuer_kind AND t.issuer_name = r.issuer_name
+                WHERE t.ts - toUnixTimestamp(now()) < 3600 AND r.ready = 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+          channel: page
+        annotations:
+          summary: "Kubernetes certificate {{ $labels.namespace }}/{{ $labels.name }} expires within one hour"
+          description: "cert-manager has not produced a Ready replacement before the certificate's NotAfter."
+      # =====================================================================
+      # Jellyfin — UX / auth / debrid-link observability
+      # =====================================================================
+
+      - uid: jellyfin-gelato-stream-failures
+        title: Jellyfin Gelato Stream Resolution Failures
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT count() AS value
+                FROM otel.otel_logs
+                WHERE Timestamp > now() - INTERVAL 1 HOUR
+                  AND ResourceAttributes['k8s.namespace.name'] = 'jellyfin'
+                  AND positionCaseInsensitive(Body, 'Invalid stream, skipping') > 0
+                HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        labels:
+          severity: warning
+          domain: media
+        annotations:
+          summary: "Jellyfin Gelato debrid providers are failing"
+          description: "{{ $values.B.Value }} Invalid stream skipping events in the last hour — debrid provider rot (torrentio/mediafusion/comet/premiumize). Playback attempts fail before transcoding starts."
+
+      - uid: jellyfin-gelato-no-streams
+        title: Jellyfin Click-Play-No-Streams
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT count() AS value
+                FROM otel.otel_logs
+                WHERE Timestamp > now() - INTERVAL 1 HOUR
+                  AND ResourceAttributes['k8s.namespace.name'] = 'jellyfin'
+                  AND match(Body, 'SyncStreams finished .* streams=0')
+                HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        labels:
+          severity: warning
+          domain: media
+        annotations:
+          summary: "Jellyfin playback attempts returning zero usable streams"
+          description: "{{ $values.B.Value }} SyncStreams results returned zero streams in the last hour. Users click play and nothing happens — worst-case UX with no error surfaced."
+
+      - uid: jellyfin-down
+        title: Jellyfin Server Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              rawSql: |
+                SELECT argMax(Value, TimeUnix) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'jellyfin_up'
+                  AND TimeUnix > now() - INTERVAL 5 MINUTE
+                HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: OK
+        for: 5m
+        labels:
+          severity: critical
+          domain: media
+        annotations:
+          summary: "Jellyfin exporter reports server unreachable"
+          description: "jellyfin_up has been 0 for 5 minutes. The exporter cannot reach the Jellyfin API — either the server is down or the API key is invalid."
+
+  # ===========================================================================
+  # Matrix inbound application service (mnemo). Metrics arrive via the OTel
+  # pipeline (job=otel-metrics). See ../mnemo/docs/MATRIX_APPSERVICE_RUNBOOK.md.
+  # ===========================================================================

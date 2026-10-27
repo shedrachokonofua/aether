@@ -27,8 +27,8 @@ Use `rg --files` to inspect candidate directories. Check nested `AGENTS.md` file
 | NixOS service | matching `nix/hosts/` and `nix/modules/` | exposure in `flake.nix` plus Taskfile deploy target |
 | Identity/OIDC | Keycloak Tofu plus deployment playbook | realm/client/flow source and rendered login/API behavior |
 | Secret engine/policy | OpenBao Tofu/playbook and SOPS | consumer path; never expose decrypted values |
-| Monitoring pipeline | monitoring-stack playbook and agent/Kubernetes OTel config | live Grafana datasource and target state |
-| Alert or dashboard | Grafana provisioning under monitoring stack | live read-only Grafana state after deployment |
+| Monitoring pipeline | monitoring-stack playbook (ClickHouse/OTel) and agent/Kubernetes OTel config | live Grafana ClickHouse datasource (uid `clickhouse`) state |
+| Alert or dashboard | Grafana provisioning in `tofu/home/kubernetes/grafana/` | live read-only Grafana state after deployment |
 | Inquest alert flow or incident lifecycle | `../inquest/flows/`, `../inquest/tofu/main.tf` | Aether Kestra/Holmes/Grafana/OpenBao integration plus live Kestra flow state |
 | Backup | backup playbooks, AWS backup Tofu, K8s backup resources, Seaweed config | live operation and restore evidence |
 

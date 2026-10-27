@@ -1,5 +1,7 @@
 # ClickHouse Exploration
 
+> 2026-10-13: The telemetry design/current-state claims below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../ansible/playbooks/monitoring_stack/clickhouse/20-otel-schema.sql`.
+
 Exploration of ClickHouse as a columnar analytics database for high-volume log storage and long-term metrics retention.
 
 ## Goal

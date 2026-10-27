@@ -434,6 +434,11 @@ resource "talos_machine_configuration_apply" "this" {
               # relaxation to the GPU game-server node (smith) only, via the same
               # gpu_input flag that gates the input schematic/uinput.
               "user.max_user_namespaces" = "15000"
+              # FM26's BepInEx (Il2CppInterop InjectorHelpers) enumerates process
+              # modules through Wine, which needs ptrace-mode access; Talos' Yama
+              # default (2) makes it fail with "Access denied" and the FM bridge
+              # never loads. 1 = parent/descendant only (Oct 2026 node reboot).
+              "kernel.yama.ptrace_scope" = "1"
             } : {})
           },
           try(each.value.pool, null) != null || try(each.value.hardware, null) != null ? {
@@ -681,6 +686,7 @@ module "kubernetes" {
   nextexplorer_oauth_client_secret   = keycloak_openid_client.nextexplorer.client_secret
   miniflux_oauth_client_secret       = keycloak_openid_client.miniflux.client_secret
   matrix_oauth_client_secret         = keycloak_openid_client.matrix.client_secret
+  grafana_oauth_client_secret        = keycloak_openid_client.grafana.client_secret
   litellm_mcp_url                    = "http://litellm.litellm.svc.cluster.local:4000/mcp"
   litellm_google_maps_api_key        = var.litellm_google_maps_api_key
   litellm_google_maps_enabled        = var.litellm_google_maps_enabled

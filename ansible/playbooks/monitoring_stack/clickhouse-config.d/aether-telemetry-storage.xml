@@ -1,0 +1,23 @@
+<clickhouse>
+    <storage_configuration>
+        <disks>
+            <telemetry>
+                <path>/var/lib/telemetry/clickhouse/</path>
+            </telemetry>
+        </disks>
+        <policies>
+            <telemetry>
+                <volumes>
+                    <main>
+                        <disk>telemetry</disk>
+                    </main>
+                </volumes>
+            </telemetry>
+        </policies>
+    </storage_configuration>
+    <!-- Raise after Prometheus and Loki are decommissioned. -->
+    <max_server_memory_usage>6442450944</max_server_memory_usage>
+    <access_control_improvements>
+        <users_without_row_policies_can_read_rows>false</users_without_row_policies_can_read_rows>
+    </access_control_improvements>
+</clickhouse>

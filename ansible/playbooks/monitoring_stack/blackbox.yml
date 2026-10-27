@@ -12,8 +12,10 @@ modules:
       fail_if_not_ssl: true
       preferred_ip_protocol: ip4
 
-  # TLS handshake against host:port. Surfaces probe_ssl_earliest_cert_expiry
-  # (unix timestamp), which is the metric the cert-expiry alert rule reads.
+  # TLS handshake against host:port for internal Aether-CA endpoints.
+  # Surfaces probe_ssl_earliest_cert_expiry (unix timestamp) for the
+  # short-lived cert renewal alert. Targets are IPs with IP SANs; ca_file
+  # replaces the public roots, so public-CA endpoints belong in http_2xx.
   tls_connect:
     prober: tcp
     timeout: 5s
@@ -21,3 +23,4 @@ modules:
       tls: true
       tls_config:
         insecure_skip_verify: false
+        ca_file: /etc/blackbox_exporter/step-ca-root.crt

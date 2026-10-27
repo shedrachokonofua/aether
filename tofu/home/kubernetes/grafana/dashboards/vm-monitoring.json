@@ -36,7 +36,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -101,11 +102,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "clamp_max(count(system_cpu_time_seconds_total{exported_job=~\"$vm\",cpu=\"cpu0\"}) by (exported_job), 1)",
-          "legendFormat": "{{exported_job}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT Attributes['exported_job'] AS exported_job, 1 AS value FROM otel.otel_metrics_sum WHERE MetricName='system.cpu.time' AND Attributes['cpu']='cpu0' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY exported_job",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "VM Availability",
@@ -113,7 +117,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -168,11 +173,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_uptime_seconds{exported_job=~\"$vm\"}/86400",
-          "legendFormat": "{{exported_job}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix)/86400 AS value FROM otel.otel_metrics_gauge WHERE MetricName='system.uptime' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY exported_job",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "System Uptime",
@@ -180,7 +188,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -227,11 +236,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(count(system_cpu_time_seconds_total{exported_job=~\"$vm\"}) by (cpu,exported_job)) by (exported_job)",
-          "legendFormat": "{{exported_job}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT Attributes['exported_job'] AS exported_job, uniqExact(Attributes['cpu']) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.cpu.time' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY exported_job",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "CPU Cores",
@@ -239,7 +251,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -289,7 +302,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value #A"
+              "options": "used_bytes"
             },
             "properties": [
               {
@@ -313,7 +326,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value #B"
+              "options": "total_bytes"
             },
             "properties": [
               {
@@ -337,7 +350,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value #C"
+              "options": "real_used_percent"
             },
             "properties": [
               {
@@ -353,54 +366,15 @@
                 "value": 1
               },
               {
-                "id": "custom.cellOptions",
-                "value": {
-                  "mode": "gradient",
-                  "type": "color-background"
-                }
-              },
-              {
                 "id": "custom.width",
                 "value": 50
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 70
-                    },
-                    {
-                      "color": "red",
-                      "value": 90
-                    }
-                  ]
-                }
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Time"
-            },
-            "properties": [
-              {
-                "id": "custom.hidden",
-                "value": true
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #D"
+              "options": "total_used_percent"
             },
             "properties": [
               {
@@ -418,25 +392,6 @@
               {
                 "id": "custom.width",
                 "value": 80
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "mode": "basic",
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "text",
-                      "value": null
-                    }
-                  ]
-                }
               }
             ]
           }
@@ -466,83 +421,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}) by (exported_job)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state!=\"free\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "D"
+          "format": 1,
+          "rawSql": "SELECT exported_job, sumIf(v, state='used') AS used_bytes, sum(v) AS total_bytes, sumIf(v, state='used')/nullIf(sum(v),0)*100 AS real_used_percent, sumIf(v, state!='free')/nullIf(sum(v),0)*100 AS total_used_percent FROM (SELECT Attributes['exported_job'] AS exported_job, Attributes['state'] AS state, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName='system.memory.usage' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY exported_job, state) GROUP BY exported_job",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Overview",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "__name__": true,
-              "exported_instance": true,
-              "exported_job": true,
-              "http_scheme": true,
-              "instance": true,
-              "job": true,
-              "net_host_port": true,
-              "os_type": true,
-              "server_port": true,
-              "service_instance_id": true,
-              "service_name": true,
-              "url_scheme": true
-            },
-            "indexByName": {
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "host_name": 0
-            },
-            "renameByName": {}
-          }
-        }
-      ],
+      "transformations": [],
       "type": "table"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "datasource",
+        "uid": "grafana"
       },
       "fieldConfig": {
         "defaults": {
@@ -578,38 +474,29 @@
       },
       "id": 6,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "viewMode": "list",
+        "groupMode": "default",
+        "maxItems": 40,
+        "sortOrder": 3,
+        "dashboardAlerts": false,
+        "alertName": "",
+        "alertInstanceLabelFilter": "{host_name=~\"$vm\"}",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": false,
+          "normal": false,
+          "error": true
+        }
       },
       "pluginVersion": "11.5.2",
-      "targets": [
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "count(ALERTS{host_name=~\"$vm\",alertstate=\"firing\"})",
-          "refId": "A"
-        }
-      ],
       "title": "Active Alerts",
-      "type": "stat"
+      "type": "alertlist"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -664,11 +551,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_cpu_load_average_1m{exported_job=~\"$vm\"}",
-          "legendFormat": "{{exported_job}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='system.cpu.load_average.1m' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY exported_job",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Load Average (1m)",
@@ -689,7 +579,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -777,19 +668,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(1 - (sum by(exported_job) (rate(system_cpu_time_seconds_total{exported_job=~\"$vm\",state=\"idle\"}[5m])) / sum by(exported_job) (rate(system_cpu_time_seconds_total{exported_job=~\"$vm\"}[5m])))) * 100",
-          "legendFormat": "{{exported_job}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, exported_job, (1 - sumIf(rate, state='idle')/nullIf(sum(rate),0))*100 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['exported_job'] AS exported_job, Attributes['state'] AS state, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.cpu.time' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time > $__fromTime GROUP BY time, exported_job ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "CPU Usage",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -873,14 +769,18 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(sum by(state) (rate(system_cpu_time_seconds_total{exported_job=~\"$vm\",state=~\"user|system|nice|interrupt|softirq|steal|wait|idle\"}[5m])) / ignoring(state) group_left sum(rate(system_cpu_time_seconds_total{exported_job=~\"$vm\",state=~\"user|system|nice|interrupt|softirq|steal|wait|idle\"}[5m]))) * 100",
-          "legendFormat": "{{mode}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, state AS mode, sum(rate)/nullIf(sum(sum(rate)) OVER (PARTITION BY time),0)*100 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['exported_job'] AS exported_job, Attributes['state'] AS state, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.cpu.time' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time > $__fromTime AND state IN ('user','system','nice','interrupt','softirq','steal','wait','idle') GROUP BY time, mode ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "CPU Usage by Mode",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -898,7 +798,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -986,27 +887,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
-          "legendFormat": "{{exported_job}} - Real Used (Applications)",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, concat(exported_job, ' - Real Used (Applications)') AS exported_job, sumIf(v, state='used')/nullIf(sum(v),0)*100 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['exported_job'] AS exported_job, Attributes['state'] AS state, avg(Value) AS v FROM otel.otel_metrics_sum WHERE MetricName='system.memory.usage' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, exported_job, state) GROUP BY time, exported_job ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(sum(system_memory_usage_bytes{exported_job=~\"$vm\",state!=\"free\"}) by (exported_job) / sum(system_memory_usage_bytes{exported_job=~\"$vm\"}) by (exported_job)) * 100",
-          "legendFormat": "{{exported_job}} - Total Used (Including Cache)",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, concat(exported_job, ' - Total Used (Including Cache)') AS exported_job, sumIf(v, state!='free')/nullIf(sum(v),0)*100 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['exported_job'] AS exported_job, Attributes['state'] AS state, avg(Value) AS v FROM otel.otel_metrics_sum WHERE MetricName='system.memory.usage' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, exported_job, state) GROUP BY time, exported_job ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Usage (Real vs Total)",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1089,38 +998,51 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"used\"}",
-          "legendFormat": "{{exported_job}} - Used",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Used') AS exported_job, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.memory.usage' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['state']='used' GROUP BY time, exported_job ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"buffered\"}",
-          "legendFormat": "{{exported_job}} - Buffers",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Buffers') AS exported_job, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.memory.usage' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['state']='buffered' GROUP BY time, exported_job ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"cached\"}",
-          "legendFormat": "{{exported_job}} - Cached",
-          "refId": "C"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Cached') AS exported_job, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.memory.usage' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['state']='cached' GROUP BY time, exported_job ORDER BY time",
+          "refId": "C",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_memory_usage_bytes{exported_job=~\"$vm\",state=\"free\"}",
-          "legendFormat": "{{exported_job}} - Free",
-          "refId": "D"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Free') AS exported_job, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.memory.usage' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['state']='free' GROUP BY time, exported_job ORDER BY time",
+          "refId": "D",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Breakdown",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -1138,7 +1060,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1201,12 +1124,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(sum by(exported_job, device, mountpoint) (system_filesystem_usage_bytes{exported_job=~\"$vm\",state=\"used\",type!~\"tmpfs|squashfs\"}) / sum by(exported_job, device, mountpoint) (system_filesystem_usage_bytes{exported_job=~\"$vm\",state=~\"used|free\",type!~\"tmpfs|squashfs\"})) * 100",
-          "instant": true,
-          "legendFormat": "{{exported_job}} - {{mountpoint}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(exported_job, ' - ', mountpoint) AS series, exported_job, device, mountpoint, sumIf(v, state='used')/nullIf(sum(v),0)*100 AS value FROM (SELECT Attributes['exported_job'] AS exported_job, Attributes['device'] AS device, Attributes['mountpoint'] AS mountpoint, Attributes['state'] AS state, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName='system.filesystem.usage' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['state'] IN ('used','free') AND Attributes['type'] NOT IN ('tmpfs','squashfs') GROUP BY exported_job, device, mountpoint, state) GROUP BY exported_job, device, mountpoint",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Disk Usage",
@@ -1214,7 +1139,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1296,22 +1222,29 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_disk_io_bytes_total{exported_job=~\"$vm\",direction=\"read\",device!~\"loop.*\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - Read",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'],' - Read') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.disk.io' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='read' AND NOT match(Attributes['device'], '^loop') WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "-rate(system_disk_io_bytes_total{exported_job=~\"$vm\",direction=\"write\",device!~\"loop.*\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - Write",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, -sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'],' - Write') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.disk.io' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='write' AND NOT match(Attributes['device'], '^loop') WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Disk I/O",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -1329,7 +1262,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1411,27 +1345,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_network_io_bytes_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - RX",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'],' - RX') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.io' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='receive' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "-rate(system_network_io_bytes_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - TX",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, -sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'],' - TX') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.io' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='transmit' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Network Traffic",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1513,22 +1455,29 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_network_packets_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - RX",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'],' - RX') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.packets' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='receive' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "-rate(system_network_packets_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - TX",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, -sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'],' - TX') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.packets' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='transmit' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Network Packets",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -1546,7 +1495,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1629,35 +1579,46 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_cpu_load_average_1m{exported_job=~\"$vm\"}",
-          "legendFormat": "{{exported_job}} - 1m",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - 1m') AS exported_job, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='system.cpu.load_average.1m' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, exported_job ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_cpu_load_average_5m{exported_job=~\"$vm\"}",
-          "legendFormat": "{{exported_job}} - 5m",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - 5m') AS exported_job, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='system.cpu.load_average.5m' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, exported_job ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_cpu_load_average_15m{exported_job=~\"$vm\"}",
-          "legendFormat": "{{exported_job}} - 15m",
-          "refId": "C"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - 15m') AS exported_job, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='system.cpu.load_average.15m' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, exported_job ORDER BY time",
+          "refId": "C",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Load Average",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1740,14 +1701,18 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(sum by(exported_job, device, mountpoint) (system_filesystem_inodes_usage{exported_job=~\"$vm\",state=\"used\",type!~\"tmpfs|squashfs\"}) / sum by(exported_job, device, mountpoint) (system_filesystem_inodes_usage{exported_job=~\"$vm\",state=~\"used|free\",type!~\"tmpfs|squashfs\"})) * 100",
-          "legendFormat": "{{exported_job}} - {{mountpoint}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sumIf(v, state='used')/nullIf(sum(v),0)*100 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['mountpoint']) AS series, Attributes['state'] AS state, avg(Value) AS v FROM otel.otel_metrics_sum WHERE MetricName='system.filesystem.inodes.usage' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['state'] IN ('used','free') AND Attributes['type'] NOT IN ('tmpfs','squashfs') GROUP BY time, series, state) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Filesystem Inodes Usage",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -1765,7 +1730,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1852,27 +1818,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_paging_usage_bytes{exported_job=~\"$vm\",state=\"used\"}",
-          "legendFormat": "{{exported_job}} - {{device}} - Used",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - Used') AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.paging.usage' AND Attributes['state']='used' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_paging_usage_bytes{exported_job=~\"$vm\",state=\"free\"}",
-          "legendFormat": "{{exported_job}} - {{device}} - Free",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - Free') AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.paging.usage' AND Attributes['state']='free' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Swap Usage",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -1951,38 +1925,51 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_paging_operations_total{exported_job=~\"$vm\",direction=\"page_in\"}[5m])",
-          "legendFormat": "{{exported_job}} - Page In",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Page In') AS series, Attributes['type'] AS typ, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.paging.operations' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='page_in' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "-rate(system_paging_operations_total{exported_job=~\"$vm\",direction=\"page_out\"}[5m])",
-          "legendFormat": "{{exported_job}} - Page Out",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, -sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Page Out') AS series, Attributes['type'] AS typ, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.paging.operations' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='page_out' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_paging_faults_total{exported_job=~\"$vm\",type=\"minor\"}[5m])",
-          "legendFormat": "{{exported_job}} - Minor Faults",
-          "refId": "C"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Minor Faults') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.paging.faults' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['type']='minor' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "C",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_paging_faults_total{exported_job=~\"$vm\",type=\"major\"}[5m])",
-          "legendFormat": "{{exported_job}} - Major Faults",
-          "refId": "D"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Major Faults') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.paging.faults' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['type']='major' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "D",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Paging Operations",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -2000,7 +1987,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -2079,27 +2067,35 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_disk_operations_total{exported_job=~\"$vm\",direction=\"read\",device!~\"loop.*\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - Read",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - Read') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.disk.operations' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='read' AND NOT match(Attributes['device'], '^loop') WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "-rate(system_disk_operations_total{exported_job=~\"$vm\",direction=\"write\",device!~\"loop.*\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - Write",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, -sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - Write') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.disk.operations' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='write' AND NOT match(Attributes['device'], '^loop') WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Disk IOPS",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -2186,19 +2182,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_disk_io_time_seconds_total{exported_job=~\"$vm\",device!~\"loop.*\"}[5m]) * 1000",
-          "legendFormat": "{{exported_job}} - {{device}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate)*1000 AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device']) AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.disk.io_time' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND NOT match(Attributes['device'], '^loop') WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Disk I/O Time",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -2285,14 +2286,18 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_disk_pending_operations{exported_job=~\"$vm\",device!~\"loop.*\"}",
-          "legendFormat": "{{exported_job}} - {{device}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device']) AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.disk.pending_operations' AND NOT match(Attributes['device'], '^loop') AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Pending Disk Operations",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -2310,7 +2315,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -2389,19 +2395,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_network_connections{exported_job=~\"$vm\",protocol=\"tcp\"}",
-          "legendFormat": "{{exported_job}} - {{state}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['state']) AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.network.connections' AND Attributes['protocol']='tcp' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "TCP Connection States",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -2480,38 +2491,51 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_network_dropped_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - RX Dropped",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - RX Dropped') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.dropped' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='receive' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "-rate(system_network_dropped_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - TX Dropped",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, -sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - TX Dropped') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.dropped' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='transmit' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(system_network_errors_total{exported_job=~\"$vm\",direction=\"receive\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - RX Errors",
-          "refId": "C"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - RX Errors') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.errors' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='receive' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "C",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "-rate(system_network_errors_total{exported_job=~\"$vm\",direction=\"transmit\",device!=\"lo\"}[5m])",
-          "legendFormat": "{{exported_job}} - {{device}} - TX Errors",
-          "refId": "D"
+          "format": 0,
+          "rawSql": "SELECT time, series, -sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - ', Attributes['device'], ' - TX Errors') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='system.network.errors' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) AND Attributes['direction']='transmit' AND Attributes['device']!='lo' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "D",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Network Errors & Drops",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
@@ -2529,7 +2553,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -2608,43 +2633,57 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_processes_count{exported_job=~\"$vm\",status=\"running\"}",
-          "legendFormat": "{{exported_job}} - Running",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Running') AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.processes.count' AND Attributes['status']='running' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_processes_count{exported_job=~\"$vm\",status=\"sleeping\"}",
-          "legendFormat": "{{exported_job}} - Sleeping",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Sleeping') AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.processes.count' AND Attributes['status']='sleeping' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_processes_count{exported_job=~\"$vm\",status=\"stopped\"}",
-          "legendFormat": "{{exported_job}} - Stopped",
-          "refId": "C"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Stopped') AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.processes.count' AND Attributes['status']='stopped' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "C",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "system_processes_count{exported_job=~\"$vm\",status=\"zombies\"}",
-          "legendFormat": "{{exported_job}} - Zombies",
-          "refId": "D"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['exported_job'], ' - Zombies') AS series, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='system.processes.count' AND Attributes['status']='zombies' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "D",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Process States",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "fieldConfig": {
         "defaults": {
@@ -2670,9 +2709,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Process"
+              "options": "process_executable_name"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "Process"
+              },
               {
                 "id": "custom.width",
                 "value": 200
@@ -2682,9 +2725,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "CPU %"
+              "options": "cpu_percent"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "CPU %"
+              },
               {
                 "id": "unit",
                 "value": "percent"
@@ -2702,9 +2749,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Memory"
+              "options": "memory_bytes"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "Memory"
+              },
               {
                 "id": "unit",
                 "value": "bytes"
@@ -2745,60 +2796,18 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk(10, rate(process_cpu_time_seconds_total{exported_job=~\"$vm\"}[5m]) * 100) by (process_executable_name)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "topk(10, process_memory_usage_bytes{exported_job=~\"$vm\"}) by (process_executable_name)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "B"
+          "format": 1,
+          "rawSql": "SELECT c.process_executable_name AS process_executable_name, c.cpu_percent AS cpu_percent, m.memory_bytes AS memory_bytes FROM (SELECT process_executable_name, sum(rate)*100 AS cpu_percent FROM (SELECT Attributes['exported_job'] AS exported_job, Attributes['process_executable_name'] AS process_executable_name, Attributes['process_pid'] AS pid, Attributes['state'] AS state, TimeUnix, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/300 AS rate FROM otel.otel_metrics_sum WHERE MetricName='process.cpu.time' AND TimeUnix BETWEEN now() - INTERVAL 15 MINUTE AND now() AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY process_executable_name ORDER BY cpu_percent DESC LIMIT 10) c LEFT JOIN (SELECT process_executable_name, sum(v) AS memory_bytes FROM (SELECT Attributes['process_executable_name'] AS process_executable_name, Attributes['process_pid'] AS pid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName='process.memory.usage' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY process_executable_name, pid) GROUP BY process_executable_name) m ON m.process_executable_name=c.process_executable_name ORDER BY c.cpu_percent DESC",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Top Processes",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "exported_job": true,
-              "host_name": true,
-              "instance": true,
-              "job": true,
-              "os_type": true,
-              "os_version": true,
-              "process_create_time": true,
-              "process_executable_path": true,
-              "process_group_name": true,
-              "process_owner": true,
-              "process_parent_pid": true,
-              "process_pid": true,
-              "service_name": true
-            },
-            "indexByName": {},
-            "renameByName": {
-              "Value #A": "CPU %",
-              "Value #B": "Memory",
-              "process_executable_name": "Process"
-            }
-          }
-        }
-      ],
+      "transformations": [],
       "type": "table"
     },
     {
@@ -2863,10 +2872,38 @@
           },
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*CPU.*"
+              "id": "byName",
+              "options": "container_name"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "Container Name"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "container_image_name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Image"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cpu_percent"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "CPU %"
+              },
               {
                 "id": "unit",
                 "value": "percent"
@@ -2879,10 +2916,14 @@
           },
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*Memory %.*"
+              "id": "byName",
+              "options": "memory_percent"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "Memory %"
+              },
               {
                 "id": "unit",
                 "value": "percent"
@@ -2895,10 +2936,14 @@
           },
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*Memory Usage.*"
+              "id": "byName",
+              "options": "memory_usage"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "Memory Usage"
+              },
               {
                 "id": "unit",
                 "value": "bytes"
@@ -2940,61 +2985,22 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg by (container_name, container_image_name, container_id, service_name, exported_job) (container_cpu_percent_ratio{service_name=~\"$vm\"} or container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}*100)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "CPU %",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "avg by (container_name, container_image_name, service_name, exported_job) (container_memory_percent_ratio{service_name=~\"$vm\"} or container_memory_percent_ratio{exported_job=~\"$vm\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "Memory %",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "uid": "$datasource"
-          },
-          "expr": "avg by (container_name, container_image_name, service_name, exported_job) (container_memory_usage_total_bytes{service_name=~\"$vm\"} or container_memory_usage_total_bytes{exported_job=~\"$vm\"})",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "Memory Usage",
-          "refId": "C"
+          "format": 1,
+          "rawSql": "SELECT container_name, container_image_name, container_id, service_name, exported_job, avg(cpu_percent) AS cpu_percent, avg(memory_percent) AS memory_percent, avg(memory_usage) AS memory_usage FROM (SELECT c.container_name AS container_name, c.container_image_name AS container_image_name, c.container_id AS container_id, c.service_name AS service_name, c.exported_job AS exported_job, c.cpu_percent AS cpu_percent, mp.memory_percent AS memory_percent, mu.memory_usage AS memory_usage FROM (SELECT container_name, container_image_name, container_id, service_name, exported_job, v AS cpu_percent FROM (SELECT Attributes['container_name'] AS container_name, Attributes['container_image_name'] AS container_image_name, Attributes['container_id'] AS container_id, Attributes['service_name'] AS service_name, Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.percent' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name, container_image_name, container_id, service_name, exported_job) UNION ALL SELECT container_name, '' AS container_image_name, '' AS container_id, service_name, exported_job, v*100 AS cpu_percent FROM (SELECT Attributes['container_name'] AS container_name, Attributes['service_name'] AS service_name, Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.utilization' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name, service_name, exported_job)) c LEFT JOIN (SELECT Attributes['container_name'] AS container_name, Attributes['container_image_name'] AS container_image_name, Attributes['service_name'] AS service_name, Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix) AS memory_percent FROM otel.otel_metrics_gauge WHERE MetricName='container.memory.percent' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name, container_image_name, service_name, exported_job) mp ON mp.container_name=c.container_name AND mp.exported_job=c.exported_job LEFT JOIN (SELECT Attributes['container_name'] AS container_name, Attributes['container_image_name'] AS container_image_name, Attributes['service_name'] AS service_name, Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix) AS memory_usage FROM otel.otel_metrics_sum WHERE MetricName='container.memory.usage.total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name, container_image_name, service_name, exported_job) mu ON mu.container_name=c.container_name AND mu.exported_job=c.exported_job) GROUP BY container_name, container_image_name, container_id, service_name, exported_job ORDER BY cpu_percent DESC",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container Overview",
-      "transformations": [
-        {
-          "id": "merge"
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "renameByName": {
-              "Value #A": "CPU %",
-              "Value #B": "Memory %",
-              "Value #C": "Memory Usage",
-              "container_id": "Container ID",
-              "container_image_name": "Image",
-              "container_name": "Container Name"
-            }
-          }
-        }
-      ],
+      "transformations": [],
       "type": "table",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3085,19 +3091,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}*100",
-          "legendFormat": "{{container_name}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, container_name, avg(value) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS container_name, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.percent' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, container_name UNION ALL SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS container_name, avg(Value)*100 AS value FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.utilization' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, container_name) GROUP BY time, container_name ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container CPU Usage",
+      "interval": "1m",
       "type": "timeseries",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3210,19 +3219,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "container_memory_usage_total_bytes{exported_job=~\"$vm\"}",
-          "legendFormat": "{{container_name}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS container_name, avg(Value) AS value FROM otel.otel_metrics_sum WHERE MetricName='container.memory.usage.total' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, container_name ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container Memory Usage",
+      "interval": "1m",
       "type": "timeseries",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3328,28 +3340,33 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(container_network_io_usage_rx_bytes{exported_job=~\"$vm\"}[5m])",
-          "legendFormat": "{{container_name}} - RX",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='container.network.io.usage.rx_bytes' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(container_network_io_usage_tx_bytes{exported_job=~\"$vm\"}[5m])",
-          "legendFormat": "{{container_name}} - TX",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='container.network.io.usage.tx_bytes' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container Network I/O",
+      "interval": "1m",
       "type": "timeseries",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3455,28 +3472,33 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(container_blockio_io_service_bytes_recursive_read{exported_job=~\"$vm\"}[5m]) or rate(container_blockio_io_service_bytes_recursive{exported_job=~\"$vm\", operation=\"read\"}[5m])",
-          "legendFormat": "{{container_name}} - Read",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='container.blockio.io_service_bytes_recursive.read' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "rate(container_blockio_io_service_bytes_recursive_write{exported_job=~\"$vm\"}[5m]) or rate(container_blockio_io_service_bytes_recursive{exported_job=~\"$vm\", operation=\"write\"}[5m])",
-          "legendFormat": "{{container_name}} - Write",
-          "refId": "B"
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(rate) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/greatest($__interval_s,60) AS rate FROM otel.otel_metrics_sum WHERE MetricName='container.blockio.io_service_bytes_recursive.write' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container Block I/O",
+      "interval": "1m",
       "type": "timeseries",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3533,19 +3555,21 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(count by (container_name) (container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}))",
-          "legendFormat": "Running Containers",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT count() AS value FROM (SELECT Attributes['container_name'] AS container_name FROM otel.otel_metrics_gauge WHERE MetricName IN ('container.cpu.percent','container.cpu.utilization') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name)",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container Running Count",
       "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3602,18 +3626,21 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count(count by (container_name) (container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}))",
-          "instant": true,
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT count() AS value FROM (SELECT Attributes['container_name'] AS container_name FROM otel.otel_metrics_gauge WHERE MetricName IN ('container.cpu.percent','container.cpu.utilization') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name)",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container Count",
       "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3672,18 +3699,21 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "avg(container_cpu_percent_ratio{exported_job=~\"$vm\"} or container_cpu_utilization_ratio{exported_job=~\"$vm\"}*100)",
-          "instant": true,
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT avg(v) AS value FROM (SELECT Attributes['container_name'] AS container_name, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.percent' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name UNION ALL SELECT Attributes['container_name'] AS container_name, argMax(Value, TimeUnix)*100 AS v FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.utilization' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name)",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Avg Container CPU",
       "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3740,18 +3770,21 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(container_memory_usage_total_bytes{exported_job=~\"$vm\"})",
-          "instant": true,
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT sum(v) AS value FROM (SELECT Attributes['container_name'] AS container_name, Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName='container.memory.usage.total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY container_name, exported_job)",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Total Container Memory",
       "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3816,19 +3849,21 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(rate(container_network_io_usage_rx_bytes{exported_job=~\"$vm\"}[5m])) + sum(rate(container_network_io_usage_tx_bytes{exported_job=~\"$vm\"}[5m]))",
-          "legendFormat": "Total",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT (SELECT sum(rate) FROM (SELECT TimeUnix, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/300 AS rate FROM otel.otel_metrics_sum WHERE MetricName='container.network.io.usage.rx_bytes' AND TimeUnix BETWEEN now() - INTERVAL 15 MINUTE AND now() AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 5 MINUTE) + (SELECT sum(rate) FROM (SELECT TimeUnix, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0)/300 AS rate FROM otel.otel_metrics_sum WHERE MetricName='container.network.io.usage.tx_bytes' AND TimeUnix BETWEEN now() - INTERVAL 15 MINUTE AND now() AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 5 MINUTE) AS value",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Total Network I/O",
       "type": "stat",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3921,19 +3956,22 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "container_memory_percent_ratio{exported_job=~\"$vm\"}",
-          "legendFormat": "{{container_name}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, Attributes['container_name'] AS container_name, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='container.memory.percent' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['exported_job'] IN (${vm:singlequote}), $vm) GROUP BY time, container_name ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Container Memory Usage %",
+      "interval": "1m",
       "type": "timeseries",
       "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -3952,7 +3990,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The official product name of the GPU. This is an alphanumeric string. For all products.",
       "fieldConfig": {
@@ -4004,14 +4043,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_gpu_info{host_name=~\"$vm\"}",
-          "instant": true,
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{name}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(Attributes['host_name'], ' - ', Attributes['modelName']) AS series, Attributes['host_name'] AS host_name, Attributes['modelName'] AS name, 1 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, name",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Name",
@@ -4019,7 +4058,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The current performance state for the GPU. States range from P0 (maximum performance) to P12 (minimum performance).",
       "fieldConfig": {
@@ -4080,13 +4120,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_pstate{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(Attributes['host_name'], ' - P') AS series, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_pstate' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "P-State",
@@ -4094,7 +4135,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Percent of time over the past sample period during which one or more kernels was executing on the GPU.\nThe sample period may be between 1 second and 1/6 second depending on the product.",
       "fieldConfig": {
@@ -4153,13 +4195,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_utilization_gpu_ratio{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix)/100 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "GPU Utilization %",
@@ -4167,7 +4210,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The last measured power draw for the entire board, in watts. Only available if power management is supported. This reading is accurate to within +/- 5 watts / The software power limit in watts.",
       "fieldConfig": {
@@ -4226,13 +4270,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_power_draw_watts{host_name=~\"$vm\"} / nvidia_smi_power_default_limit_watts{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(n.host_name, ' - ', n.uuid) AS series, n.host_name AS host_name, n.uuid AS uuid, n.v/nullIf(d.v,0) AS value FROM (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_power_draw_watts' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) n INNER JOIN (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_power_default_limit_watts' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) d ON d.host_name=n.host_name AND d.uuid=n.uuid",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Power Draw %",
@@ -4240,7 +4285,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The fan speed value is the percent of the product's maximum noise tolerance fan speed that the device's fan is currently intended to run at. This value may exceed 100% in certain cases. Note: The reported speed is the intended fan speed. If the fan is physically blocked and unable to spin, this output will not match the actual fan speed. Many parts do not report fan speeds because they rely on cooling via fans in the surrounding enclosure.\n",
       "fieldConfig": {
@@ -4299,13 +4345,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_fan_speed_ratio{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_fan_speed_ratio' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Fan Speed %",
@@ -4313,7 +4360,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Core GPU temperature. in degrees C.",
       "fieldConfig": {
@@ -4372,13 +4420,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_temperature_gpu{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_TEMP' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Temperature",
@@ -4386,7 +4435,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Percent of time over the past sample period during which global (device) memory was being read or written.\nThe sample period may be between 1 second and 1/6 second depending on the product.",
       "fieldConfig": {
@@ -4474,21 +4524,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_utilization_memory_ratio{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, avg(Value)/100 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_MEM_COPY_UTIL' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Utilization %",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The version of the installed NVIDIA display driver. This is an alphanumeric string.",
       "fieldConfig": {
@@ -4540,14 +4593,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_gpu_info{host_name=~\"$vm\"}",
-          "instant": true,
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{driver_version}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(Attributes['host_name'], ' - ', Attributes['DCGM_FI_DRIVER_VERSION']) AS series, Attributes['host_name'] AS host_name, Attributes['DCGM_FI_DRIVER_VERSION'] AS driver_version, 1 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, driver_version",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Driver Version",
@@ -4555,7 +4608,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The BIOS of the GPU board.",
       "fieldConfig": {
@@ -4607,14 +4661,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_gpu_info{host_name=~\"$vm\"}",
-          "instant": true,
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{vbios_version}}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(Attributes['host_name'], ' - ', Attributes['vbios_version']) AS series, 1 AS value FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_gpu_info' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Vbios Version",
@@ -4622,7 +4676,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Information about factors that are reducing the frequency of clocks. If all throttle reasons are returned as \"Not Active\" it means that clocks are running as high as possible.",
       "fieldConfig": {
@@ -4687,80 +4742,80 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_event_reasons_gpu_idle{host_name=~\"$vm\"} or nvidia_smi_clocks_throttle_reasons_gpu_idle{host_name=~\"$vm\"}",
-          "instant": false,
-          "interval": "",
-          "legendFormat": "{{host_name}} - Idle",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName IN ('nvidia_smi_clocks_event_reasons_gpu_idle','nvidia_smi_clocks_throttle_reasons_gpu_idle') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_event_reasons_hw_thermal_slowdown{host_name=~\"$vm\"} or nvidia_smi_clocks_throttle_reasons_hw_thermal_slowdown{host_name=~\"$vm\"}",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "{{host_name}} - HW Thermal Slowdown",
-          "refId": "B"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName IN ('nvidia_smi_clocks_event_reasons_hw_thermal_slowdown','nvidia_smi_clocks_throttle_reasons_hw_thermal_slowdown') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_event_reasons_sw_power_cap{host_name=~\"$vm\"} or nvidia_smi_clocks_throttle_reasons_sw_power_cap{host_name=~\"$vm\"}",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "{{host_name}} - SW Power Cap",
-          "refId": "C"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName IN ('nvidia_smi_clocks_event_reasons_sw_power_cap','nvidia_smi_clocks_throttle_reasons_sw_power_cap') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "C",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_event_reasons_applications_clocks_setting{host_name=~\"$vm\"} or nvidia_smi_clocks_throttle_reasons_applications_clocks_setting{host_name=~\"$vm\"}",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "{{host_name}} - App Clocks Setting",
-          "refId": "D"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName IN ('nvidia_smi_clocks_event_reasons_applications_clocks_setting','nvidia_smi_clocks_throttle_reasons_applications_clocks_setting') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "D",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_event_reasons_hw_power_brake_slowdown{host_name=~\"$vm\"} or nvidia_smi_clocks_throttle_reasons_hw_power_brake_slowdown{host_name=~\"$vm\"}",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "{{host_name}} - HW Power Brake",
-          "refId": "E"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName IN ('nvidia_smi_clocks_event_reasons_hw_power_brake_slowdown','nvidia_smi_clocks_throttle_reasons_hw_power_brake_slowdown') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "E",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_event_reasons_sw_thermal_slowdown{host_name=~\"$vm\"} or nvidia_smi_clocks_throttle_reasons_sw_thermal_slowdown{host_name=~\"$vm\"}",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "{{host_name}} - SW Thermal Slowdown",
-          "refId": "F"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName IN ('nvidia_smi_clocks_event_reasons_sw_thermal_slowdown','nvidia_smi_clocks_throttle_reasons_sw_thermal_slowdown') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "F",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_event_reasons_sync_boost{host_name=~\"$vm\"} or nvidia_smi_clocks_throttle_reasons_sync_boost{host_name=~\"$vm\"}",
-          "hide": false,
-          "interval": "",
-          "legendFormat": "{{host_name}} - Sync Boost",
-          "refId": "G"
+          "format": 1,
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName IN ('nvidia_smi_clocks_event_reasons_sync_boost','nvidia_smi_clocks_throttle_reasons_sync_boost') AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name",
+          "refId": "G",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Throttle Reasons",
@@ -4768,7 +4823,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Current frequency of graphics (shader) clock\n/\nMaximum frequency of graphics (shader) clock.\n",
       "fieldConfig": {
@@ -4827,13 +4883,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_current_graphics_clock_hz{host_name=~\"$vm\"} / nvidia_smi_clocks_max_graphics_clock_hz{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(n.host_name, ' - ', n.uuid) AS series, n.host_name AS host_name, n.uuid AS uuid, n.v/nullIf(d.v,0) AS value FROM (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_clocks_current_graphics_clock_hz' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) n INNER JOIN (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_clocks_max_graphics_clock_hz' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) d ON d.host_name=n.host_name AND d.uuid=n.uuid",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "GPU Clock Speed %",
@@ -4841,7 +4898,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Current frequency of memory clock / Maximum frequency of memory clock",
       "fieldConfig": {
@@ -4900,13 +4958,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_current_memory_clock_hz{host_name=~\"$vm\"} / nvidia_smi_clocks_max_memory_clock_hz{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(n.host_name, ' - ', n.uuid) AS series, n.host_name AS host_name, n.uuid AS uuid, n.v/nullIf(d.v,0) AS value FROM (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_clocks_current_memory_clock_hz' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) n INNER JOIN (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_clocks_max_memory_clock_hz' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) d ON d.host_name=n.host_name AND d.uuid=n.uuid",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Clock Speed %",
@@ -4914,7 +4973,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Total memory allocated by active contexts / Total installed GPU memory.",
       "fieldConfig": {
@@ -4973,13 +5033,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_memory_used_bytes{host_name=~\"$vm\"} / nvidia_smi_memory_total_bytes{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(u.host_name, ' - ', u.uuid) AS series, u.host_name AS host_name, u.uuid AS uuid, u.v/nullIf(u.v+f.v+ifNull(r.v,0),0) AS value FROM (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_USED' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) u INNER JOIN (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_FREE' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) f ON f.host_name=u.host_name AND f.uuid=u.uuid LEFT JOIN (SELECT Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_RESERVED' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid) r ON r.host_name=u.host_name AND r.uuid=u.uuid",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Allocation %",
@@ -4987,7 +5048,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Percent of time over the past sample period during which global (device) memory was being read or written.\nThe sample period may be between 1 second and 1/6 second depending on the product.",
       "fieldConfig": {
@@ -5046,13 +5108,14 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_utilization_memory_ratio{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, Attributes['host_name'] AS host_name, Attributes['UUID'] AS uuid, argMax(Value, TimeUnix)/100 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_MEM_COPY_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY host_name, uuid",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Utilization %",
@@ -5060,7 +5123,8 @@
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Percent of time over the past sample period during which one or more kernels was executing on the GPU.\nThe sample period may be between 1 second and 1/6 second depending on the product.",
       "fieldConfig": {
@@ -5148,21 +5212,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_utilization_gpu_ratio{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - ",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, avg(Value)/100 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "GPU Utilization %",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Total memory allocated by active contexts.",
       "fieldConfig": {
@@ -5245,21 +5312,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_memory_used_bytes{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, avg(Value)*1048576 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_USED' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Allocation",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Core GPU temperature. in degrees C.",
       "fieldConfig": {
@@ -5347,21 +5417,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_temperature_gpu{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_TEMP' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Temperature",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The last measured power draw for the entire board, in watts. Only available if power management is supported. This reading is accurate to within +/- 5 watts",
       "fieldConfig": {
@@ -5444,21 +5517,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_power_draw_watts{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_POWER_USAGE' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Power Draw",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "The fan speed value is the percent of the product's maximum noise tolerance fan speed that the device's fan is currently intended to run at. This value may exceed 100% in certain cases. Note: The reported speed is the intended fan speed. If the fan is physically blocked and unable to spin, this output will not match the actual fan speed. Many parts do not report fan speeds because they rely on cooling via fans in the surrounding enclosure.\n",
       "fieldConfig": {
@@ -5546,21 +5622,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_fan_speed_ratio{host_name=~\"$vm\"}",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['uuid']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_fan_speed_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Fan Speed %",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Current frequency of graphics (shader) clock.",
       "fieldConfig": {
@@ -5643,22 +5722,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_current_graphics_clock_hz{host_name=~\"$vm\"}",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['uuid']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_clocks_current_graphics_clock_hz' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Graphics Clock Speed",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Current frequency of video encoder/decoder clock.",
       "fieldConfig": {
@@ -5741,22 +5822,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_current_video_clock_hz{host_name=~\"$vm\"}",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['uuid']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='nvidia_smi_clocks_current_video_clock_hz' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Video Clock Speed",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Current frequency of SM (Streaming Multiprocessor) clock.",
       "fieldConfig": {
@@ -5839,22 +5922,24 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_current_sm_clock_hz{host_name=~\"$vm\"}",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, avg(Value)*1000000 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_SM_CLOCK' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "SM Clock Speed",
+      "interval": "1m",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "uid": "$datasource"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "description": "Current frequency of memory clock.",
       "fieldConfig": {
@@ -5937,17 +6022,18 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$datasource"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "exemplar": true,
-          "expr": "nvidia_smi_clocks_current_memory_clock_hz{host_name=~\"$vm\"}",
-          "format": "time_series",
-          "interval": "",
-          "legendFormat": "{{host_name}} - {{uuid}}",
-          "refId": "A"
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s,60) SECOND) AS time, concat(Attributes['host_name'], ' - ', Attributes['UUID']) AS series, avg(Value)*1000000 AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_MEM_CLOCK' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['host_name'] IN (${vm:singlequote}), $vm) GROUP BY time, series ORDER BY time",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "title": "Memory Clock Speed",
+      "interval": "1m",
       "type": "timeseries"
     }
   ],
@@ -5967,36 +6053,21 @@
     "list": [
       {
         "current": {
-          "text": "Prometheus",
-          "value": "Prometheus"
-        },
-        "includeAll": false,
-        "name": "datasource",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "regex": "",
-        "type": "datasource"
-      },
-      {
-        "current": {
           "text": "All",
           "value": "$__all"
         },
         "datasource": {
-          "uid": "$datasource"
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
         },
-        "definition": "label_values(system_cpu_time_seconds_total, exported_job)",
+        "definition": "SELECT DISTINCT Attributes['exported_job'] FROM otel.otel_metrics_sum WHERE MetricName='system.cpu.time' AND TimeUnix > now() - INTERVAL 1 HOUR AND Attributes['exported_job'] != ''",
         "description": "Select VM(s) to monitor",
         "includeAll": true,
         "label": "VM",
         "multi": true,
         "name": "vm",
         "options": [],
-        "query": {
-          "query": "label_values(system_cpu_time_seconds_total, exported_job)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
+        "query": "SELECT DISTINCT Attributes['exported_job'] FROM otel.otel_metrics_sum WHERE MetricName='system.cpu.time' AND TimeUnix > now() - INTERVAL 1 HOUR AND Attributes['exported_job'] != ''",
         "refresh": 2,
         "regex": "",
         "sort": 1,

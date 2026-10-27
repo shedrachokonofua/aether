@@ -1,5 +1,7 @@
 # Telemetry Archive: GreptimeDB Deployment and Superseded ClickHouse Plan
 
+> 2026-10-13: The telemetry design/current-state claims below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
+
 This document records the deployed GreptimeDB archive and preserves the rejected
 ClickHouse generic-metrics cold-tier experiment below. On 2026-07-18, GreptimeDB
 replaced Thanos as the long-term metrics path and added a second sink for Loki-bound

@@ -24,7 +24,7 @@
   "panels": [
     {
       "type": "alertlist",
-      "title": "Security alerts \u2014 triage queue (domain=security)",
+      "title": "Security alerts — triage queue (domain=security)",
       "id": 1,
       "description": "Firing/pending security-domain rules. This IS the actionable queue; each routes to ntfy /security (warning) or pages (critical after soak).",
       "gridPos": {
@@ -56,7 +56,7 @@
     },
     {
       "type": "row",
-      "title": "Network IDS \u2014 Suricata / Zeek / Hubble",
+      "title": "Network IDS — Suricata / Zeek / Hubble",
       "id": 2,
       "collapsed": false,
       "gridPos": {
@@ -254,12 +254,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(rate(hubble_drop_total{reason=\"POLICY_DENIED\"}[15m]))",
+          "format": 1,
+          "rawSql": "SELECT sum(d)/900 AS value FROM (SELECT TimeUnix, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS d FROM otel.otel_metrics_sum WHERE TimeUnix > now() - INTERVAL 25 MINUTE AND TimeUnix <= now() AND MetricName='hubble_drop_total' AND Attributes['reason']='POLICY_DENIED' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 15 MINUTE",
           "refId": "A",
-          "instant": true
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -340,7 +342,7 @@
     },
     {
       "type": "row",
-      "title": "Runtime \u00b7 Image \u00b7 HIDS \u00b7 Identity \u2014 Tetragon / Trivy / Wazuh / Keycloak",
+      "title": "Runtime · Image · HIDS · Identity — Tetragon / Trivy / Wazuh / Keycloak",
       "id": 8,
       "collapsed": false,
       "gridPos": {
@@ -364,12 +366,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(count_over_time({k8s_namespace_name=\"tetragon\", k8s_container_name=\"export-stdout\"} | json | process_kprobe_policy_name=~\"tetragon-(host-runtime-socket|kernel-module-load|unprivileged-userns-create)\" [15m]))",
-          "queryType": "instant",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE Timestamp >= now() - INTERVAL 15 MINUTE AND ResourceAttributes['k8s.namespace.name']='tetragon' AND ResourceAttributes['k8s.container.name']='export-stdout' AND JSONExtractString(Body,'process_kprobe','policy_name') IN ('tetragon-host-runtime-socket','tetragon-kernel-module-load','tetragon-unprivileged-userns-create')",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -406,10 +410,6 @@
         "graphMode": "area",
         "textMode": "value_and_name",
         "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
       }
     },
     {
@@ -426,12 +426,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(count_over_time({k8s_namespace_name=\"tetragon\", k8s_container_name=\"export-stdout\"} |~ \"tetragon-(sensitive-file-access|privilege-escalation|mount-namespace-ops)\" | json [24h]))",
-          "queryType": "instant",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE Timestamp >= now() - INTERVAL 24 HOUR AND ResourceAttributes['k8s.namespace.name']='tetragon' AND ResourceAttributes['k8s.container.name']='export-stdout' AND match(Body,'tetragon-(sensitive-file-access|privilege-escalation|mount-namespace-ops)') AND isValidJSON(Body)",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -468,15 +470,11 @@
         "graphMode": "area",
         "textMode": "value_and_name",
         "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
       }
     },
     {
       "type": "stat",
-      "title": "Wazuh rule \u2265 12 (15m)",
+      "title": "Wazuh rule ≥ 12 (15m)",
       "id": 11,
       "description": "",
       "gridPos": {
@@ -488,12 +486,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(count_over_time({service_name=\"intrusion-detection-stack\"} | json | CONTAINER_NAME=\"wazuh\" | line_format \"{{.MESSAGE}}\" | json | rule_level >= 12 [15m]))",
-          "queryType": "instant",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE Timestamp >= now() - INTERVAL 15 MINUTE AND ServiceName='intrusion-detection-stack' AND JSONExtractString(Body,'CONTAINER_NAME')='wazuh' AND toFloat64OrNull(JSONExtractString(JSONExtractString(Body,'MESSAGE'),'rule','level')) >= 12",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -530,10 +530,6 @@
         "graphMode": "area",
         "textMode": "value_and_name",
         "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
       }
     },
     {
@@ -550,12 +546,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(count_over_time({service_name=\"keycloak\"} | log_file_name=\"keycloak.log\" |= \"LOGIN_ERROR\" [10m]))",
-          "queryType": "instant",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE Timestamp >= now() - INTERVAL 10 MINUTE AND ServiceName='keycloak' AND LogAttributes['log.file.name']='keycloak.log' AND position(Body,'LOGIN_ERROR')>0",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -592,15 +590,11 @@
         "graphMode": "area",
         "textMode": "value_and_name",
         "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
       }
     },
     {
       "type": "table",
-      "title": "Trivy critical vulns \u2014 backup=critical / public namespaces",
+      "title": "Trivy critical vulns — backup=critical / public namespaces",
       "id": 13,
       "description": "Critical CVEs on images in backup-critical or public-exposure namespaces.",
       "gridPos": {
@@ -612,13 +606,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "max by (namespace, image_repository) (trivy_image_vulnerabilities{severity=\"Critical\"}) * on(namespace) group_left(backup, exposure) (aether:namespace_contract:info{backup=\"critical\"} or aether:namespace_contract:info{exposure=\"public\"})",
+          "format": 1,
+          "rawSql": "SELECT t.namespace AS namespace, t.image_repository AS image_repository, c.backup AS backup, c.exposure AS exposure, t.value AS value FROM (SELECT namespace, image_repository, max(value) AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['image_repository'] AS image_repository, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='trivy_image_vulnerabilities' AND Attributes['severity']='Critical' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes, ServiceName) GROUP BY namespace, image_repository) t INNER JOIN aether.namespace_contract c ON c.namespace = t.namespace WHERE c.backup='critical' OR c.exposure='public' ORDER BY value DESC",
           "refId": "A",
-          "instant": true,
-          "format": "table"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -637,10 +632,6 @@
             "desc": true
           }
         ]
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
       }
     },
     {
@@ -707,12 +698,12 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Where these findings go & how to dig in\n\n- **Routing:** every rule here carries `domain=security` \u2192 Alertmanager route 5 \u2192 **ntfy `/security`** (digest) or **pages** when `severity=critical` (after 14-day soak).\n- **IDS drill-down:** [IDS Monitoring dashboard](/d/ids-monitoring) \u2014 Suricata signatures, Zeek conn/dns/http/ssl/ssh/files/notices.\n- **Host posture:** [Fleet](https://fleet.home.shdr.ch) \u2014 osquery policy pass/fail across 9 enrolled hosts.\n- **Alert rules & state:** [Grafana Alerting](/alerting/list?search=label:domain%3Dsecurity).\n- **Raw forensics (no alert):** Explore \u2192 ClickHouse (`zeek.*`, `suricata.*`) / Loki (tetragon, wazuh, keycloak).\n- **Soak \u2192 promote:** warning rules flip to `critical` after 14 clean days; suppress noisy Suricata SIDs in `rules.yml` (`alert_signature_id NOT IN (...)`)."
+        "content": "### Where these findings go & how to dig in\n\n- **Routing:** every rule here carries `domain=security` → Alertmanager route 5 → **ntfy `/security`** (digest) or **pages** when `severity=critical` (after 14-day soak).\n- **IDS drill-down:** [IDS Monitoring dashboard](/d/ids-monitoring) — Suricata signatures, Zeek conn/dns/http/ssl/ssh/files/notices.\n- **Host posture:** [Fleet](https://fleet.home.shdr.ch) — osquery policy pass/fail across 9 enrolled hosts.\n- **Alert rules & state:** [Grafana Alerting](/alerting/list?search=label:domain%3Dsecurity).\n- **Raw forensics (no alert):** Explore → ClickHouse (`zeek.*`, `suricata.*`, `otel.otel_logs` for tetragon/wazuh/keycloak/vigil).\n- **Soak → promote:** warning rules flip to `critical` after 14 clean days; suppress noisy Suricata SIDs in `rules.yml` (`alert_signature_id NOT IN (...)`)."
       }
     },
     {
       "type": "row",
-      "title": "Argos \u2014 incremental beacon detector (dashboard-only during A10/A11)",
+      "title": "Argos — incremental beacon detector (dashboard-only during A10/A11)",
       "id": 17,
       "collapsed": false,
       "gridPos": {
@@ -1071,7 +1062,7 @@
     },
     {
       "type": "row",
-      "title": "vigil \u2014 Cloud Audit (AWS / GCP / OCI / Tailscale / Cloudflare)",
+      "title": "vigil — Cloud Audit (AWS / GCP / OCI / Tailscale / Cloudflare)",
       "id": 24,
       "gridPos": {
         "h": 1,
@@ -1095,12 +1086,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus-local"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count by (collector) (vigil_collector_run_ok == 1)",
+          "format": 1,
+          "rawSql": "SELECT collector, count() AS value FROM (SELECT Attributes['collector'] AS collector, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='vigil_collector_run_ok' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName) WHERE v=1 GROUP BY collector ORDER BY collector",
           "refId": "A",
-          "legendFormat": "{{collector}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -1127,12 +1120,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus-local"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by (provider) (increase(vigil_collector_run_events[1h]))",
+          "format": 1,
+          "rawSql": "SELECT provider, sum(d) AS value FROM (SELECT TimeUnix, Attributes['provider'] AS provider, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS d FROM otel.otel_metrics_gauge WHERE TimeUnix > now() - INTERVAL 70 MINUTE AND TimeUnix <= now() AND MetricName='vigil_collector_run_events' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 1 HOUR GROUP BY provider ORDER BY provider",
           "refId": "A",
-          "legendFormat": "{{provider}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -1159,12 +1154,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus-local"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "time() - max by (collector) (max_over_time(vigil_collector_last_success_timestamp_seconds[26h]))",
+          "format": 1,
+          "rawSql": "SELECT Attributes['collector'] AS collector, toFloat64(now()) - max(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='vigil_collector_last_success_timestamp_seconds' AND TimeUnix > now() - INTERVAL 26 HOUR GROUP BY collector ORDER BY value DESC",
           "refId": "A",
-          "legendFormat": "{{collector}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -1192,12 +1189,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus-local"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count by (collector) (vigil_collector_run_ok == 0)",
+          "format": 1,
+          "rawSql": "SELECT collector, count() AS value FROM (SELECT Attributes['collector'] AS collector, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='vigil_collector_run_ok' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName) WHERE v=0 GROUP BY collector ORDER BY collector",
           "refId": "A",
-          "legendFormat": "{{collector}}"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -1224,11 +1223,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus-local"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "kube_deployment_status_replicas_available{namespace=\"cloud-audit\", deployment=\"vigil\"}",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='kube_deployment_status_replicas_available' AND Attributes['namespace']='cloud-audit' AND Attributes['deployment']='vigil' AND TimeUnix > now() - INTERVAL 5 MINUTE",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -1236,8 +1238,14 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           }
         },
@@ -1263,11 +1271,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus-local"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"cloud-audit\", container=\"vigil\"}[24h]))",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT sum(d) AS value FROM (SELECT TimeUnix, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS d FROM otel.otel_metrics_sum WHERE TimeUnix > now() - INTERVAL 1450 MINUTE AND TimeUnix <= now() AND MetricName='kube_pod_container_status_restarts_total' AND Attributes['namespace']='cloud-audit' AND Attributes['container']='vigil' WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 24 HOUR",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -1275,9 +1286,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "orange", "value": 1 },
-              { "color": "red", "value": 5 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
             ]
           }
         },
@@ -1303,11 +1323,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(count_over_time({service_name=~\"cloud-audit/vigil-.*\"} |= \"iteration complete\" [5m]))",
-          "refId": "A"
+          "format": 1,
+          "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE Timestamp >= now() - INTERVAL 5 MINUTE AND startsWith(ServiceName,'cloud-audit/vigil') AND positionCaseInsensitive(Body,'iteration complete')>0",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -1315,8 +1338,14 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           }
         },
@@ -1342,12 +1371,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "{service_name=\"vigil\", domain=\"security\"} |~ \"\\\"event_name\\\":\" | json | line_format \"{{.event_time}}\t{{.provider}}/{{.collector}}\t{{.event_name}}\t{{.principal}}\t{{.resource}}\t{{.outcome}}\"",
+          "format": 1,
+          "rawSql": "SELECT Timestamp AS time, ResourceAttributes['provider'] AS provider, ResourceAttributes['collector'] AS collector, JSONExtractString(Body,'event_name') AS event_name, JSONExtractString(Body,'event_time') AS event_time, JSONExtractString(Body,'principal') AS principal, JSONExtractString(Body,'resource') AS resource, JSONExtractString(Body,'outcome') AS outcome FROM otel.otel_logs WHERE Timestamp >= now() - INTERVAL 24 HOUR AND ServiceName='vigil' AND ResourceAttributes['domain']='security' AND JSONHas(Body,'event_name') ORDER BY Timestamp DESC LIMIT 100",
           "refId": "A",
-          "queryType": "range"
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {

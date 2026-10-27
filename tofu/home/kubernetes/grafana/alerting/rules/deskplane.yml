@@ -1,0 +1,355 @@
+# Deskplane (web engine) alerts, ported from
+# ../deskplane/deploy/helm/deskplane/templates/prometheusrule.yaml (chart
+# PrometheusRule; aether has no prometheus-operator, so rules live here).
+#
+# ClickHouse port of deskplane.prometheus.yml (which had no Grafana
+# delivery): same alerts/thresholds, converted to Grafana provisioning
+# with isPaused: true on every rule to preserve the non-delivering
+# behaviour. deskplane_mcp_* metrics keep their Prometheus names in
+# otel (scrape path); deskplane_mcp_jobs_total and
+# deskplane_mcp_webhook_deliveries_total are activity-driven and have
+# not been observed live yet (SQL returns empty/0 cleanly).
+
+apiVersion: 1
+groups:
+- orgId: 1
+  name: deskplane
+  folder: Deskplane
+  interval: 30s
+  rules:
+  - uid: deskplane-event-loop-lag-high
+    title: DeskplaneEventLoopLagHigh
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT toFloat64(qv) AS value\nFROM (\n  SELECT idx, le, cum, prev_le, prev_cum, total,\n    if(idx = 1, le * (0.99 * total) / nullIf(cum, 0),\n       prev_le + ((0.99 * total) - prev_cum) / nullIf(cum - prev_cum, 0) * (le - prev_le)) AS qv\n  FROM (\n    SELECT idx, le, cum, total,\n      lagInFrame(le, 1, 0.) OVER (PARTITION BY 1 ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS prev_le,\n      lagInFrame(cum, 1, 0) OVER (PARTITION BY 1 ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS prev_cum\n    FROM (\n      SELECT idx, le,\n        sum(inc) OVER (PARTITION BY 1 ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum,\n        sum(inc) OVER (PARTITION BY 1) AS total\n      FROM (\n        SELECT idx, any(le) AS le, sum(inc) AS inc\n        FROM (\n          SELECT idx, le, deltaSumTimestamp(cnt, toUnixTimestamp64Nano(t)) AS inc\n          FROM (\n            SELECT number + 1 AS idx,\n                   if(number < length(bounds),\
+          \ bounds[number + 1], inf) AS le,\n                   bc[number + 1] AS cnt, t, Attributes, ResourceAttributes, ServiceName, StartTimeUnix\n            FROM (\n              SELECT ExplicitBounds AS bounds, BucketCounts AS bc, TimeUnix AS t, Attributes, ResourceAttributes, ServiceName, StartTimeUnix, MetricName\n              FROM otel.otel_metrics_histogram\n              WHERE TimeUnix > now() - INTERVAL 5 MINUTE\n            )\n            ARRAY JOIN range(0, length(bc)) AS number\n            WHERE MetricName = 'deskplane_mcp_event_loop_lag_seconds'\n          )\n          GROUP BY idx, le, Attributes, ResourceAttributes, ServiceName, StartTimeUnix\n        )\n        GROUP BY idx\n      )\n    )\n  )\n  WHERE cum >= 0.99 * total AND (idx = 1 OR prev_cum < 0.99 * total) AND total > 0\n)"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.1
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: true
+    labels:
+      severity: warning
+    annotations:
+      summary: MCP event loop p99 lag above 100ms
+      description: The deskplane MCP event loop p99 lag has been above 100ms for 10m; async work is starving.
+  - uid: deskplane-scrape-error-ratio-high
+    title: DeskplaneScrapeErrorRatioHigh
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT op, (total - ok) / nullIf(total, 0) AS value\nFROM (\n  SELECT op, sum(if(is_err = 0, inc, 0)) + sum(if(is_err = 1, inc, 0)) AS total, sum(if(is_err = 0, inc, 0)) AS ok\n  FROM (\n    SELECT Attributes['op'] AS op,\n           if(match(Attributes['outcome'], '^(2..|404)$'), 0, 1) AS is_err,\n           deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n    FROM otel.otel_metrics_sum\n    WHERE MetricName = 'deskplane_mcp_web_requests_total' AND TimeUnix > now() - INTERVAL 5 MINUTE\n    GROUP BY op, is_err, Attributes, ResourceAttributes, ServiceName, StartTimeUnix\n  )\n  GROUP BY op\n)"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.2
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 15m
+    isPaused: true
+    labels:
+      severity: warning
+    annotations:
+      summary: Scrape error ratio above 20% (excluding blocked_by_site)
+      description: More than 20% of deskplane web requests by op are failing (non-2xx, non-404) over 15m.
+  - uid: deskplane-pool-empty
+    title: DeskplanePoolEmpty
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT if(\n  (SELECT coalesce(sum(v), 0) FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'deskplane_mcp_pool_browsers' AND Attributes['state'] = 'ready' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes, ServiceName)) = 0\n  AND (SELECT coalesce(sum(inc), 0) FROM (SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc FROM otel.otel_metrics_sum WHERE MetricName = 'deskplane_mcp_web_requests_total' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes, ServiceName, StartTimeUnix)) > 0,\n  1, 0) AS value"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: true
+    labels:
+      severity: critical
+    annotations:
+      summary: No ready browsers while requests keep arriving
+      description: The deskplane browser pool has had zero ready browsers for 5m while web requests keep arriving.
+  - uid: deskplane-job-failure-ratio-high
+    title: DeskplaneJobFailureRatioHigh
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT kind, failed / nullIf(total, 0) AS value\nFROM (\n  SELECT kind,\n    sum(if(is_failed = 0, inc, 0)) AS total,\n    sum(if(is_failed = 1, inc, 0)) AS failed\n  FROM (\n    SELECT Attributes['kind'] AS kind,\n           if(Attributes['status'] = 'failed', 1, 0) AS is_failed,\n           deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n    FROM otel.otel_metrics_sum\n    WHERE MetricName = 'deskplane_mcp_jobs_total' AND TimeUnix > now() - INTERVAL 15 MINUTE\n    GROUP BY kind, is_failed, Attributes, ResourceAttributes, ServiceName, StartTimeUnix\n  )\n  GROUP BY kind\n)"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.1
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 15m
+    isPaused: true
+    labels:
+      severity: warning
+    annotations:
+      summary: Web job failure ratio above 10%
+      description: More than 10% of deskplane web jobs of one kind have failed over 15m.
+  - uid: deskplane-llm-retries-spike
+    title: DeskplaneLLMRetriesSpike
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT sum(inc) / 300 AS value\nFROM (\n  SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n  FROM otel.otel_metrics_sum\n  WHERE MetricName = 'deskplane_mcp_llm_retries_total' AND TimeUnix > now() - INTERVAL 5 MINUTE\n  GROUP BY Attributes, ResourceAttributes, ServiceName, StartTimeUnix\n)\nHAVING count() > 0"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.5
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    isPaused: true
+    labels:
+      severity: warning
+    annotations:
+      summary: LLM retry rate spike
+      description: The deskplane MCP LLM retry rate has exceeded 0.5/s for 5m.
+  - uid: deskplane-webhooks-dropped
+    title: DeskplaneWebhooksDropped
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT sum(inc) AS value\nFROM (\n  SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n  FROM otel.otel_metrics_sum\n  WHERE MetricName = 'deskplane_mcp_webhook_deliveries_total' AND Attributes['outcome'] = 'dropped'\n    AND TimeUnix > now() - INTERVAL 10 MINUTE\n  GROUP BY Attributes, ResourceAttributes, ServiceName, StartTimeUnix\n)\nHAVING count() > 0"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 0m
+    isPaused: true
+    labels:
+      severity: warning
+    annotations:
+      summary: Webhook deliveries exhausted retries and were dropped
+      description: At least one deskplane webhook delivery exhausted its retries and was dropped in the last 10m.
+  - uid: deskplane-proc-pool-backlog
+    title: DeskplaneProcPoolBacklog
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: 'SELECT argMax(Value, TimeUnix) AS value
+
+          FROM otel.otel_metrics_gauge
+
+          WHERE MetricName = ''deskplane_mcp_procpool_queue_depth'' AND TimeUnix > now() - INTERVAL 5 MINUTE
+
+          HAVING count() > 0'
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 16
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    isPaused: true
+    labels:
+      severity: warning
+    annotations:
+      summary: Process-pool queue more than 4x the worker count
+      description: The deskplane process-pool queue depth has been above 16 for 10m.

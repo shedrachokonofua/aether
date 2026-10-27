@@ -52,18 +52,13 @@
     # the measured catch-up duration.
     argos_bootstrap_start: "2026-07-01T00:00:00Z"
     argos_service_enabled: false
-    greptime_image: docker.io/greptime/greptimedb:v1.1.3
-    greptime_config_path: "{{ playbook_dir }}/../../../tofu/home/secrets/greptime-config.toml"
-    greptime_users_path: "{{ playbook_dir }}/../../../tofu/home/secrets/greptime-users"
-    greptime_credentials_path: "{{ playbook_dir }}/../../../tofu/home/secrets/greptime-credentials.yml"
   roles:
     - common
     - vm_baseline
     - dnf
     - vm_monitoring_agent
   tasks:
-    # Keep Loki and GreptimeDB local state off the observability root disk,
-    # which still carries Prometheus and ClickHouse.
+    # Keep Loki local state on the dedicated telemetry disk alongside ClickHouse.
     - name: Install telemetry filesystem tooling
       ansible.builtin.dnf:
         name:
@@ -71,30 +66,14 @@
           - xfsprogs
         state: present
       become: true
-      tags: [greptime, loki]
+      tags: [loki, clickhouse]
 
     - name: Verify dedicated telemetry archive disk is attached
       ansible.builtin.assert:
         that:
           - ansible_devices.vdb is defined
         fail_msg: "Expected the Tofu-managed telemetry archive disk at /dev/vdb."
-      tags: [greptime, loki]
-
-    - name: Check whether the GreptimeDB quadlet exists
-      ansible.builtin.stat:
-        path: /home/aether/.config/containers/systemd/greptime.container
-      register: greptime_quadlet
-      tags: [greptime]
-
-    - name: Stop GreptimeDB before creating or replacing its storage mount
-      ansible.builtin.systemd:
-        name: greptime
-        state: stopped
-        scope: user
-      when:
-        - greptime_quadlet.stat.exists
-        - ansible_mounts | selectattr('mount', 'equalto', '/var/lib/telemetry') | selectattr('device', 'equalto', '/dev/vdb') | list | length == 0
-      tags: [greptime]
+      tags: [loki, clickhouse]
 
     - name: Format dedicated telemetry archive disk
       community.general.filesystem:
@@ -102,21 +81,21 @@
         fstype: xfs
         resizefs: true
       become: true
-      tags: [greptime, loki]
+      tags: [loki, clickhouse]
 
     - name: Remove legacy telemetry archive mount
       ansible.posix.mount:
         path: /var/lib/thanos
         state: absent
       become: true
-      tags: [greptime]
+      tags: [loki, clickhouse]
 
     - name: Remove legacy telemetry archive mountpoint
       ansible.builtin.file:
         path: /var/lib/thanos
         state: absent
       become: true
-      tags: [greptime]
+      tags: [loki, clickhouse]
 
     - name: Create telemetry archive data mountpoint
       ansible.builtin.file:
@@ -126,7 +105,7 @@
         group: root
         mode: "0755"
       become: true
-      tags: [greptime, loki]
+      tags: [loki, clickhouse]
 
     - name: Mount dedicated telemetry archive disk
       ansible.posix.mount:
@@ -136,17 +115,7 @@
         opts: defaults,noatime
         state: mounted
       become: true
-      tags: [greptime, loki]
-
-    - name: Create GreptimeDB local state directory
-      ansible.builtin.file:
-        path: /var/lib/telemetry/greptime
-        state: directory
-        owner: aether
-        group: aether
-        mode: "0755"
-      become: true
-      tags: [greptime]
+      tags: [loki, clickhouse]
 
     - name: Create Loki data directory on telemetry disk
       ansible.builtin.file:
@@ -229,16 +198,6 @@
         group: aether
       tags: [loki]
 
-    - name: Create tempo directory
-      become: true
-      file:
-        path: ./tempo
-        state: directory
-        mode: "0777"
-        owner: aether
-        group: aether
-      tags: [tempo]
-
     - name: Create otel directory
       become: true
       file:
@@ -248,26 +207,6 @@
         owner: aether
         group: aether
       tags: [otel]
-
-    - name: Create janus directory
-      become: true
-      file:
-        path: ./janus
-        state: directory
-        mode: "0777"
-        owner: aether
-        group: aether
-      tags: [janus, tenant-proxy]
-
-    - name: Create grafana directory
-      become: true
-      file:
-        path: ./grafana/provisioning
-        state: directory
-        mode: "0777"
-        owner: aether
-        group: aether
-      tags: [grafana]
 
     - name: Create pve-exporter directory
       become: true
@@ -300,16 +239,6 @@
       tags: [blackbox]
 
 
-    - name: Create GreptimeDB configuration directory
-      become: true
-      ansible.builtin.file:
-        path: ./greptime
-        state: directory
-        mode: "0700"
-        owner: aether
-        group: aether
-      tags: [greptime]
-
     - name: Create clickhouse directories
       become: true
       file:
@@ -325,35 +254,43 @@
         - ./clickhouse/users.d
       tags: [clickhouse]
 
+    - name: Check ClickHouse telemetry disk directory
+      ansible.builtin.stat:
+        path: /var/lib/telemetry/clickhouse
+      become: true
+      register: clickhouse_telemetry_directory
+      tags: [clickhouse]
+
+    - name: Create ClickHouse telemetry disk directory
+      ansible.builtin.file:
+        path: /var/lib/telemetry/clickhouse
+        state: directory
+        owner: aether
+        group: aether
+        mode: "0750"
+      become: true
+      when: not clickhouse_telemetry_directory.stat.exists
+      tags: [clickhouse]
+
+    # UID 101 in the image is a subordinate host UID with rootless Podman.
+    - name: Check ClickHouse telemetry ownership inside Podman user namespace
+      ansible.builtin.command:
+        argv: [podman, unshare, stat, -c, "%u:%g", /var/lib/telemetry/clickhouse]
+      become: true
+      become_user: aether
+      register: clickhouse_telemetry_owner
+      changed_when: false
+      tags: [clickhouse]
+
+    - name: Set ClickHouse telemetry ownership inside Podman user namespace
+      ansible.builtin.command:
+        argv: [podman, unshare, chown, -R, "101:101", /var/lib/telemetry/clickhouse]
+      become: true
+      become_user: aether
+      when: clickhouse_telemetry_owner.stdout | trim != '101:101'
+      tags: [clickhouse]
+
     # === Configuration Files ===
-    - name: Load generated GreptimeDB client credentials
-      ansible.builtin.set_fact:
-        greptime_credentials: "{{ lookup('ansible.builtin.file', greptime_credentials_path) | from_yaml }}"
-      no_log: true
-      tags:
-        [greptime, greptime-config, prometheus, prometheus-config, otel, grafana, grafana-datasources, grafana-quadlet]
-
-    - name: Install GreptimeDB object-store configuration
-      ansible.builtin.copy:
-        src: "{{ greptime_config_path }}"
-        dest: ./greptime/config.toml
-        owner: aether
-        group: aether
-        mode: "0600"
-      no_log: true
-      register: greptime_config_install
-      tags: [greptime, greptime-config]
-
-    - name: Install GreptimeDB users
-      ansible.builtin.copy:
-        src: "{{ greptime_users_path }}"
-        dest: ./greptime/users
-        owner: aether
-        group: aether
-        mode: "0600"
-      no_log: true
-      tags: [greptime]
-
     - name: Remove retired Thanos quadlet definitions
       ansible.builtin.file:
         path: "/home/aether/.config/containers/systemd/{{ item }}.container"
@@ -363,7 +300,30 @@
         - thanos-store
         - thanos-compact
         - thanos-query
-      tags: [greptime]
+      tags: [monitoring-pod]
+
+    - name: Discover retired monitoring quadlets
+      ansible.builtin.stat:
+        path: "/home/aether/.config/containers/systemd/{{ item }}.container"
+      loop: [tempo, greptime, janus, grafana]
+      register: retired_monitoring_quadlets
+      tags: [monitoring-pod]
+
+    - name: Stop retired monitoring services without deleting their data
+      ansible.builtin.systemd:
+        name: "{{ item.item }}"
+        state: stopped
+        scope: user
+      loop: "{{ retired_monitoring_quadlets.results }}"
+      when: item.stat.exists
+      tags: [monitoring-pod]
+
+    - name: Remove retired monitoring quadlet definitions
+      ansible.builtin.file:
+        path: "/home/aether/.config/containers/systemd/{{ item }}.container"
+        state: absent
+      loop: [tempo, greptime, janus, grafana]
+      tags: [monitoring-pod]
 
     - name: Template prometheus config
       template:
@@ -384,6 +344,19 @@
         src: ./blackbox.yml
         dest: ./blackbox/blackbox.yml
         mode: "0755"
+      register: blackbox_config_install
+      tags: [blackbox]
+
+    # tls_connect verifies internal Aether-CA endpoints (OpenBao, step-ca);
+    # the image only trusts public roots. Source is the step-ca root that the
+    # openbao_agent role bootstraps onto this host.
+    - name: Copy step-ca root for blackbox TLS probes
+      copy:
+        src: /etc/ssl/certs/step-ca-root.crt
+        dest: ./blackbox/step-ca-root.crt
+        remote_src: true
+        mode: "0644"
+      register: blackbox_ca_install
       tags: [blackbox]
 
     - name: Create loki config
@@ -393,86 +366,12 @@
         mode: "0755"
       tags: [loki]
 
-    - name: Create tempo config
-      copy:
-        src: ./tempo.yml
-        dest: ./tempo/tempo.yml
-        mode: "0755"
-      tags: [tempo]
-
     - name: Create otel config
       template:
         src: ./otel_config.yml.j2
         dest: ./otel/otel_config.yml
         mode: "0644"
       tags: [otel]
-
-    - name: Create Janus config
-      template:
-        src: ./janus_config.yml.j2
-        dest: ./janus/config.yml
-        mode: "0644"
-      tags: [janus, tenant-proxy]
-
-    - name: Create grafana config
-      template:
-        src: ./grafana/grafana.ini.j2
-        dest: ./grafana/grafana.ini
-        mode: "0755"
-      tags: [grafana]
-
-    - name: Create grafana provisioning directories
-      file:
-        path: "./grafana/provisioning/{{ item }}"
-        state: directory
-        mode: "0755"
-      loop:
-        - datasources
-        - dashboards
-        - alerting
-      tags: [grafana]
-
-    - name: Template grafana datasources
-      template:
-        src: ./grafana/provisioning/datasources/datasource.yml.j2
-        dest: ./grafana/provisioning/datasources/datasource.yml
-        mode: "0644"
-      register: grafana_datasources_install
-      tags: [grafana, grafana-datasources, clickhouse-grafana-reader]
-
-    - name: Copy grafana dashboards provisioning
-      copy:
-        src: ./grafana/provisioning/dashboards/
-        dest: ./grafana/provisioning/dashboards/
-        mode: "0755"
-      # grafana-dashboards: copy only; Grafana's file provider reloads them, no restart.
-      tags: [grafana, grafana-dashboards]
-
-    - name: Copy Estate Scan dashboard provisioning
-      copy:
-        src: ./grafana/provisioning/dashboards/estate-scan.json
-        dest: ./grafana/provisioning/dashboards/estate-scan.json
-        mode: "0644"
-      tags: [grafana, estate-scan-dashboard]
-
-    - name: Copy grafana alerting provisioning
-      copy:
-        src: "./grafana/provisioning/alerting/{{ item }}"
-        dest: "./grafana/provisioning/alerting/{{ item }}"
-        mode: "0644"
-      loop:
-        - rules.yml
-        - notification-policies.yml
-        - cloud-audit.yml
-        - colony.yml
-      tags: [grafana]
-
-    - name: Template grafana contact points
-      template:
-        src: ./grafana/provisioning/alerting/contact-points.yml.j2
-        dest: ./grafana/provisioning/alerting/contact-points.yml
-        mode: "0644"
-      tags: [grafana]
 
     - name: Create PVE exporter config
       copy:
@@ -580,6 +479,7 @@
         src: ./clickhouse-config.d/
         dest: ./clickhouse/config.d/
         mode: "0644"
+      register: clickhouse_config_install
       tags: [clickhouse]
 
     - name: Copy ClickHouse user profile overrides
@@ -587,6 +487,7 @@
         src: ./clickhouse-users.d/
         dest: ./clickhouse/users.d/
         mode: "0644"
+      register: clickhouse_users_install
       tags: [clickhouse]
 
     # === Pods ===
@@ -594,8 +495,6 @@
       containers.podman.podman_pod:
         name: monitoring-stack
         ports:
-          - "{{ vm.monitoring_stack.ports.grafana }}:3000"
-          - "{{ vm.monitoring_stack.ports.janus }}:8080"
           - "{{ vm.monitoring_stack.ports.prometheus }}:9090"
           - "{{ vm.monitoring_stack.ports.loki }}:3100"
           - "{{ vm.monitoring_stack.ports.loki_push }}:3500" # collector Loki push-API receiver (unpoller UniFi events)
@@ -604,7 +503,6 @@
           - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"
           - "{{ vm.monitoring_stack.ports.otel_prometheus }}:8889"
           - "{{ vm.monitoring_stack.ports.clickhouse }}:8123" # ClickHouse HTTP/Play UI
-          - "127.0.0.1:{{ vm.monitoring_stack.ports.greptime }}:4000" # GreptimeDB archive HTTP/PromQL
           - "9221:9221" # PVE Exporter
           - "10019:10019" # PBS Exporter
           - "{{ vm.monitoring_stack.ports.blackbox }}:9115" # blackbox-exporter (cert expiry probes)
@@ -619,15 +517,11 @@
         [
           prometheus,
           loki,
-          tempo,
           otel,
-          janus,
-          grafana,
           clickhouse,
           pve-exporter,
           pbs-exporter,
           blackbox,
-          greptime,
           monitoring-pod,
         ]
 
@@ -637,12 +531,6 @@
         name: prometheus_storage
         state: quadlet
       tags: [prometheus]
-
-    - name: Create grafana storage volume
-      containers.podman.podman_volume:
-        name: grafana_storage
-        state: quadlet
-      tags: [grafana]
 
     - name: Create clickhouse storage volume
       containers.podman.podman_volume:
@@ -697,6 +585,7 @@
         pod: monitoring-stack.pod
         volumes:
           - /home/aether/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:Z
+          - /home/aether/blackbox/step-ca-root.crt:/etc/blackbox_exporter/step-ca-root.crt:ro,Z
         command:
           - "--config.file=/etc/blackbox_exporter/config.yml"
         state: quadlet
@@ -706,6 +595,7 @@
             Restart=on-failure
             RestartSec=30s
             TimeoutStartSec=300s
+      register: blackbox_quadlet_definition
       tags: [blackbox]
 
     - name: Start Loki
@@ -732,25 +622,6 @@
             TimeoutStartSec=300
       tags: [loki]
 
-    - name: Start tempo
-      containers.podman.podman_container:
-        name: tempo
-        image: docker.io/grafana/tempo:2.10.1
-        pod: monitoring-stack.pod
-        pull: always
-        command:
-          - "-config.file=/etc/tempo.yaml"
-        volumes:
-          - /home/aether/tempo/tempo.yml:/etc/tempo.yaml:Z
-        state: quadlet
-        quadlet_options:
-          - |
-            [Service]
-            Restart=on-failure
-            RestartSec=30s
-            TimeoutStartSec=300s
-      tags: [tempo]
-
     - name: Start otel collector
       containers.podman.podman_container:
         name: otel_collector
@@ -772,102 +643,6 @@
             RestartSec=30s
             TimeoutStartSec=300s
       tags: [otel]
-
-
-    - name: Start GreptimeDB telemetry archive
-      containers.podman.podman_container:
-        name: greptime
-        pod: monitoring-stack.pod
-        image: "{{ greptime_image }}"
-        pull: missing
-        command:
-          - standalone
-          - start
-          - -c
-          - /etc/greptime/config.toml
-        volumes:
-          - /home/aether/greptime/config.toml:/etc/greptime/config.toml:ro,Z
-          - /home/aether/greptime/users:/etc/greptime/users:ro,Z
-          - /var/lib/telemetry/greptime:/var/lib/greptimedb:Z
-        memory: 4g
-        cpus: 2
-        state: quadlet
-        quadlet_options:
-          - |
-            [Service]
-            Restart=on-failure
-            RestartSec=30s
-            TimeoutStartSec=300s
-      tags: [greptime]
-
-    - name: Start grafana
-      containers.podman.podman_container:
-        name: grafana
-        pod: monitoring-stack.pod
-        image: docker.io/grafana/grafana:latest
-        pull: always
-        state: quadlet
-        volumes:
-          - /home/aether/grafana/grafana.ini:/etc/grafana/grafana.ini:Z
-          - /home/aether/grafana/provisioning:/etc/grafana/provisioning:Z
-          - grafana_storage.volume:/var/lib/grafana:Z
-        env:
-          GF_INSTALL_PLUGINS: "grafana-clickhouse-datasource,yesoreyeram-infinity-datasource,marcusolsson-calendar-panel,marcusolsson-dynamictext-panel,volkovlabs-image-panel,volkovlabs-form-panel,grafana-clock-panel,lework-lenav-panel"
-          GF_SECURITY_ADMIN_USER: admin
-          GF_SECURITY_ADMIN_PASSWORD: "{{ secrets.grafana_password }}"
-        quadlet_options:
-          - |
-            [Service]
-            Restart=on-failure
-            RestartSec=30s
-            TimeoutStartSec=300s
-      register: grafana_quadlet_definition
-      tags: [grafana, grafana-quadlet]
-
-    # Grafana file provisioning does not reconcile an omitted receiver from an
-    # existing contact point. Keep the DeadMansSwitch heartbeat Kuma-only.
-    - name: Remove stale Inquest DeadMansSwitch receiver
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/v1/provisioning/contact-points/inquest-deadman"
-        method: DELETE
-        user: "{{ secrets.grafana.username | default('shdrch') }}"
-        password: "{{ secrets.grafana_password }}"
-        force_basic_auth: true
-        status_code: [202, 204, 404]
-      register: stale_inquest_receiver
-      until: stale_inquest_receiver.status in [202, 204, 404]
-      retries: 30
-      delay: 2
-      no_log: true
-      tags: [grafana]
-
-    # === Tenant Query Proxy (Janus) ===
-    - name: Start Janus multi-service proxy
-      containers.podman.podman_container:
-        name: janus
-        pod: monitoring-stack.pod
-        image: registry.gitlab.home.shdr.ch/so/aether/janus/main:latest
-        pull: always
-        state: quadlet
-        env:
-          SPRING_PROFILES_ACTIVE: all
-          LOKI_URL: http://localhost:3100
-          # Janus retains the legacy variable name; the endpoint is local Prometheus.
-          THANOS_URL: http://localhost:9090
-          TEMPO_URL: http://localhost:3200
-          MANAGEMENT_SERVER_PORT: "18080"
-          LABEL_STORE_TYPE: configmap
-          LABEL_STORE_CONFIGMAP_PATH: /etc/janus/config.yml
-          OAUTH2_ISSUER_URI: https://auth.shdr.ch/realms/aether
-          OAUTH2_JWK_SET_URI: https://auth.shdr.ch/realms/aether/protocol/openid-connect/certs
-        volumes:
-          - /home/aether/janus/config.yml:/etc/janus/config.yml:Z
-        quadlet_options:
-          - |
-            [Service]
-            Restart=on-failure
-            RestartSec=30s
-      tags: [janus, tenant-proxy]
 
     - name: Start PVE exporter
       containers.podman.podman_container:
@@ -917,8 +692,10 @@
         state: quadlet
         volumes:
           - clickhouse_storage.volume:/var/lib/clickhouse:Z
+          - /var/lib/telemetry/clickhouse:/var/lib/telemetry/clickhouse:Z
           - /home/aether/clickhouse/init:/docker-entrypoint-initdb.d:Z
           - /home/aether/clickhouse/config.d/aether-system-logs.xml:/etc/clickhouse-server/config.d/aether-system-logs.xml:Z
+          - /home/aether/clickhouse/config.d/aether-telemetry-storage.xml:/etc/clickhouse-server/config.d/aether-telemetry-storage.xml:Z
           - /home/aether/clickhouse/users.d/aether-default-profile.xml:/etc/clickhouse-server/users.d/aether-default-profile.xml:Z
         env:
           CLICKHOUSE_USER: aether
@@ -930,6 +707,7 @@
             Restart=on-failure
             RestartSec=30s
             TimeoutStartSec=300s
+      register: clickhouse_quadlet_definition
       tags: [clickhouse]
 
     # === Systemd ===
@@ -942,39 +720,14 @@
           prometheus,
           prometheus-quadlet,
           loki,
-          tempo,
           otel,
-          janus,
-          grafana,
-          grafana-datasources,
-          grafana-quadlet,
           clickhouse,
           pve-exporter,
           pbs-exporter,
-          tenant-proxy,
           systemd,
-          greptime,
+          monitoring-pod,
         ]
 
-    - name: Restart GreptimeDB after focused configuration updates
-      ansible.builtin.systemd:
-        name: greptime
-        state: restarted
-        scope: user
-      when:
-        - greptime_config_install is defined
-        - greptime_config_install.changed
-      tags: [greptime-config]
-
-    - name: Restart Grafana after focused datasource or quadlet updates
-      ansible.builtin.systemd:
-        name: grafana
-        state: restarted
-        scope: user
-      when: >-
-        (grafana_datasources_install is defined and grafana_datasources_install.changed)
-        or (grafana_quadlet_definition is defined and grafana_quadlet_definition.changed)
-      tags: [grafana-datasources, grafana-quadlet]
     - name: Start monitoring stack quadlet
       systemd:
         name: monitoring-stack-pod
@@ -984,16 +737,11 @@
         [
           prometheus,
           loki,
-          tempo,
           otel,
-          janus,
-          grafana,
           clickhouse,
           pve-exporter,
           pbs-exporter,
-          tenant-proxy,
           monitoring-pod,
-          greptime,
         ]
 
 
@@ -1004,17 +752,13 @@
         - { file: prometheus, unit: prometheus }
         - { file: blackbox-exporter, unit: blackbox-exporter }
         - { file: loki, unit: loki }
-        - { file: tempo, unit: tempo }
         - { file: otel_collector, unit: otel_collector }
-        - { file: greptime, unit: greptime }
-        - { file: grafana, unit: grafana }
-        - { file: janus, unit: janus }
         - { file: pve_exporter, unit: pve_exporter }
         - { file: pbs_exporter, unit: pbs_exporter }
         - { file: clickhouse, unit: clickhouse }
       register: monitoring_component_quadlets
       tags:
-        [prometheus, blackbox, loki, tempo, otel, greptime, grafana, janus, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
+        [prometheus, blackbox, loki, otel, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
 
     - name: Ensure existing monitoring component quadlets are running
       ansible.builtin.systemd:
@@ -1024,7 +768,19 @@
       loop: "{{ monitoring_component_quadlets.results }}"
       when: item.stat.exists
       tags:
-        [prometheus, blackbox, loki, tempo, otel, greptime, grafana, janus, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
+        [prometheus, blackbox, loki, otel, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
+
+    - name: Restart blackbox-exporter after config, CA, or quadlet updates
+      ansible.builtin.systemd:
+        name: blackbox-exporter
+        state: restarted
+        scope: user
+        daemon_reload: true
+      when: >-
+        (blackbox_config_install is defined and blackbox_config_install.changed)
+        or (blackbox_ca_install is defined and blackbox_ca_install.changed)
+        or (blackbox_quadlet_definition is defined and blackbox_quadlet_definition.changed)
+      tags: [blackbox]
 
     - name: Wait for Loki after telemetry disk migration
       ansible.builtin.uri:
@@ -1045,32 +801,18 @@
       when: legacy_loki_data.stat.exists
       tags: [loki]
 
-    - name: Wait for GreptimeDB archive
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.greptime }}/health"
-        method: GET
-        status_code: 200
-      register: greptime_health
-      until: greptime_health.status == 200
-      retries: 60
-      delay: 5
-      tags: [greptime]
 
-    - name: Verify GreptimeDB PromQL endpoint
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.greptime }}/v1/prometheus/api/v1/query?query=vector%281%29"
-        method: GET
-        url_username: "{{ greptime_credentials.grafana_user }}"
-        url_password: "{{ greptime_credentials.grafana_password }}"
-        force_basic_auth: true
-        headers:
-          x-greptime-db-name: "{{ greptime_credentials.database }}"
-        return_content: true
-        status_code: 200
-      register: greptime_query_smoke
-      failed_when: greptime_query_smoke.status != 200 or greptime_query_smoke.json.status != "success"
-      no_log: true
-      tags: [greptime]
+    - name: Restart ClickHouse after configuration or quadlet changes
+      ansible.builtin.systemd:
+        name: clickhouse
+        state: restarted
+        scope: user
+        daemon_reload: true
+      when: >-
+        (clickhouse_config_install is defined and clickhouse_config_install.changed)
+        or (clickhouse_users_install is defined and clickhouse_users_install.changed)
+        or (clickhouse_quadlet_definition is defined and clickhouse_quadlet_definition.changed)
+      tags: [clickhouse]
 
     - name: Wait for ClickHouse to be ready
       uri:
@@ -1084,7 +826,36 @@
         - clickhouse_health.content | trim == "Ok."
       retries: 30
       delay: 5
-      tags: [clickhouse, grafana, clickhouse-grafana-reader, argos, estate-scan]
+      tags: [clickhouse, clickhouse-grafana-reader, argos, estate-scan]
+
+    # Init scripts are not rerun on existing volumes; reconcile after readiness.
+    - name: Copy and label ClickHouse telemetry schema
+      ansible.builtin.copy:
+        src: ./clickhouse/20-otel-schema.sql
+        dest: /home/aether/clickhouse/init/20-otel-schema.sql
+        mode: "0644"
+        setype: container_file_t
+      become: true
+      tags: [clickhouse, clickhouse-otel]
+
+    - name: Remove superseded invalid metrics init script
+      ansible.builtin.file:
+        path: /home/aether/clickhouse/init/metrics-schema.sql
+        state: absent
+      become: true
+      tags: [clickhouse, clickhouse-otel]
+
+    - name: Reconcile ClickHouse telemetry schema
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --queries-file
+          - /docker-entrypoint-initdb.d/20-otel-schema.sql
+      tags: [clickhouse, clickhouse-otel]
 
     # Init scripts run only on an empty ClickHouse volume. Reapply this
     # idempotent DDL after readiness so existing monitoring-stack deployments
@@ -1119,7 +890,7 @@
           The Grafana ClickHouse credential is unavailable or still encrypted;
           run the tagged play normally so common : Load secrets executes.
       register: clickhouse_grafana_secret_check
-      tags: [clickhouse, grafana, clickhouse-grafana-reader, estate-scan]
+      tags: [clickhouse, clickhouse-grafana-reader, estate-scan]
 
     # Exact replacement prevents out-of-band grants from accumulating on this
     # IaC-owned agent-facing identity.
@@ -1139,158 +910,73 @@
               max_memory_usage = 2000000000,
               max_threads = 4,
               max_concurrent_queries_for_user = 8,
-              max_rows_to_read = 100000000,
-              max_bytes_to_read = 5000000000,
-              max_result_rows = 10000,
+              max_rows_to_read = 2000000000,
+              max_bytes_to_read = 100000000000,
+              max_result_rows = 200000,
               result_overflow_mode = 'throw';
-            {% for database in clickhouse_grafana_databases %}
+            {% for database in clickhouse_grafana_databases + ['otel', 'aether'] %}
             GRANT SELECT ON {{ database }}.* TO {{ clickhouse_grafana_role }};
             GRANT SHOW DATABASES ON {{ database }}.* TO {{ clickhouse_grafana_role }};
             GRANT SHOW TABLES ON {{ database }}.* TO {{ clickhouse_grafana_role }};
             GRANT SHOW COLUMNS ON {{ database }}.* TO {{ clickhouse_grafana_role }};
             {% endfor %}
-            CREATE USER OR REPLACE {{ clickhouse_grafana_user }}
+            CREATE USER IF NOT EXISTS {{ clickhouse_grafana_user }}
               IDENTIFIED WITH sha256_hash BY '{{ secrets.clickhouse.grafana_readonly_password | hash("sha256") }}'
-              HOST LOCAL GRANTEES NONE;
+              HOST LOCAL, IP '10.0.2.2' GRANTEES NONE;
+            ALTER USER {{ clickhouse_grafana_user }}
+              IDENTIFIED WITH sha256_hash BY '{{ secrets.clickhouse.grafana_readonly_password | hash("sha256") }}'
+              HOST LOCAL, IP '10.0.2.2' GRANTEES NONE;
             GRANT {{ clickhouse_grafana_role }} TO {{ clickhouse_grafana_user }};
             ALTER USER {{ clickhouse_grafana_user }} DEFAULT ROLE {{ clickhouse_grafana_role }};
       no_log: true
       when:
         - clickhouse_grafana_secret_check is defined
         - clickhouse_grafana_secret_check is succeeded
-      tags: [clickhouse, grafana, clickhouse-grafana-reader, estate-scan]
+      tags: [clickhouse, clickhouse-grafana-reader, estate-scan]
 
-    - name: Restart Grafana for ClickHouse reader changes
-      systemd:
-        name: grafana
-        state: restarted
-        scope: user
-      when: "'clickhouse-grafana-reader' in ansible_run_tags"
-      tags: [clickhouse-grafana-reader]
+    - name: Load ClickHouse telemetry tenants
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../../../config/tenants.yml"
+        name: clickhouse_otel_tenants
+      tags: [clickhouse, clickhouse-otel]
 
-    - name: Wait for Grafana after ClickHouse reader changes
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/health"
-        method: GET
-        status_code: 200
-      register: clickhouse_grafana_health
-      until: clickhouse_grafana_health.status == 200
-      retries: 30
-      delay: 5
-      when: "'clickhouse-grafana-reader' in ansible_run_tags"
-      tags: [clickhouse-grafana-reader]
+    - name: Check whether ClickHouse default identity exists
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --query
+          - "SELECT count() FROM system.users WHERE name = 'default'"
+      register: clickhouse_default_user
+      changed_when: false
+      tags: [clickhouse, clickhouse-otel]
 
-    # === Grafana Tenant Orgs ===
-    - name: Wait for Grafana to be ready
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/health"
-        method: GET
-        status_code: 200
-      register: grafana_health
-      until: grafana_health.status == 200
-      retries: 30
-      delay: 5
-      tags: [grafana-tenants]
-
-    - name: Read Grafana effective settings
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/admin/settings"
-        method: GET
-        user: "{{ secrets.grafana.username | default('shdrch') }}"
-        password: "{{ secrets.grafana_password }}"
-        force_basic_auth: true
-        status_code: 200
-      register: grafana_settings
-      tags: [grafana-tenants]
-
-    - name: Assert Generic OAuth org mapping config is active
-      assert:
-        that:
-          - grafana_settings.json["auth.generic_oauth"]["org_attribute_path"] == "realm_access.roles"
-        fail_msg: >-
-          Grafana effective auth config is missing org_attribute_path=realm_access.roles.
-          Check mounted /home/aether/grafana/grafana.ini and restart Grafana.
-      tags: [grafana-tenants]
-
-    - name: Provision Grafana tenants
-      include_tasks:
-        file: grafana_tenant.yml
-        apply:
-          tags:
-            - grafana-tenants
-      loop: "{{ tenants }}"
-      loop_control:
-        loop_var: tenant
-      tags: [grafana-tenants]
-
-    - name: Switch API user context back to main org
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/user/using/1"
-        method: POST
-        user: "{{ secrets.grafana.username | default('shdrch') }}"
-        password: "{{ secrets.grafana_password }}"
-        force_basic_auth: true
-        status_code: [200]
-      tags: [grafana-tenants]
-
-    - name: Create Assay alerting Grafana service account
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts"
-        method: POST
-        user: "{{ secrets.grafana.username | default('shdrch') }}"
-        password: "{{ secrets.grafana_password }}"
-        force_basic_auth: true
-        body_format: json
-        body:
-          name: assay-alerting-admin
-          role: Admin
-        status_code: [200, 201, 400, 409]
-      tags: [grafana-tenants]
-
-    - name: Look up Assay alerting Grafana service account
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts/search?query=assay-alerting-admin"
-        method: GET
-        user: "{{ secrets.grafana.username | default('shdrch') }}"
-        password: "{{ secrets.grafana_password }}"
-        force_basic_auth: true
-        status_code: 200
-      register: assay_alerting_sa
-      tags: [grafana-tenants]
-
-    - name: Create Assay alerting Grafana token
-      uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.grafana }}/api/serviceaccounts/{{ assay_alerting_sa.json.serviceAccounts[0].id }}/tokens"
-        method: POST
-        user: "{{ secrets.grafana.username | default('shdrch') }}"
-        password: "{{ secrets.grafana_password }}"
-        force_basic_auth: true
-        body_format: json
-        body:
-          name: assay-alerting-admin-token
-        status_code: [200, 400, 409]
-      register: assay_alerting_token
-      when: assay_alerting_sa.json.serviceAccounts | length > 0
-      tags: [grafana-tenants]
-
-    - name: Write Assay alerting Grafana token to OpenBao
-      uri:
-        url: "https://bao.home.shdr.ch/v1/kv/data/assay/grafana-alerting"
-        method: POST
-        headers:
-          X-Vault-Token: "{{ lookup('file', lookup('env', 'HOME') + '/.aether-toolbox/bao/token') | trim }}"
-        body_format: json
-        body:
-          data:
-            api_token: "{{ assay_alerting_token.json.key }}"
-            org_id: 1
-            url: "https://grafana.home.shdr.ch"
-        status_code: 200
-      when: assay_alerting_token.json.key is defined
-      delegate_to: localhost
-      become: false
+    - name: Render ClickHouse telemetry access policy
+      ansible.builtin.template:
+        src: ./clickhouse-access/otel-access.sql.j2
+        dest: /home/aether/clickhouse/init/otel-access.sql
+        owner: aether
+        group: aether
+        mode: "0600"
+        setype: container_file_t
+      become: true
       no_log: true
-      tags: [grafana-tenants]
+      tags: [clickhouse, clickhouse-otel]
+
+    - name: Reconcile ClickHouse telemetry access policy
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --queries-file
+          - /docker-entrypoint-initdb.d/otel-access.sql
+      no_log: true
+      tags: [clickhouse, clickhouse-otel]
 
 - name: Deploy Fleet
   import_playbook: fleet.yml

@@ -1,0 +1,22 @@
+mongodb-operator:
+  operator:
+    watchedResources: [mongodbcommunity]
+    resources:
+      requests:
+        cpu: 50m
+        memory: 200Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+clickhouse-operator:
+  # ClickHouse is managed by Ansible on the monitoring-stack VM.
+  manager:
+    enabled: false
+  crd:
+    enabled: false
+  webhook:
+    enabled: false
+  certManager:
+    enabled: false
+  metrics:
+    enabled: false

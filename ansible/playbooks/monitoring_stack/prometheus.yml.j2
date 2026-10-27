@@ -16,55 +16,10 @@ storage:
 rule_files:
   - "/etc/prometheus/rules/*.yml"
 
-# Canary archive. Prometheus remains the authoritative hot store and alert
-# evaluator while GreptimeDB receives the same post-scrape samples. Prometheus
-# 3 accepts UTF-8 label names; normalize those names for GreptimeDB's legacy
-# Prometheus label-name validator without changing metric names or values.
-remote_write:
-  - url: http://localhost:4000/v1/prometheus/write
-    remote_timeout: 30s
-    basic_auth:
-      username: "{{ greptime_credentials.ingest_user }}"
-      password: "{{ greptime_credentials.ingest_password }}"
-    headers:
-      x-greptime-db-name: "{{ greptime_credentials.database }}"
-    write_relabel_configs:
-      # Map dotted OpenTelemetry resource labels to their underscore form.
-      # labelmap retains the source label, so labeldrop removes the originals.
-      - action: labelmap
-        regex: '^([^.]+)\.([^.]+)$'
-        replacement: '${1}_${2}'
-      - action: labelmap
-        regex: '^([^.]+)\.([^.]+)\.([^.]+)$'
-        replacement: '${1}_${2}_${3}'
-      - action: labelmap
-        regex: '^([^.]+)\.([^.]+)\.([^.]+)\.([^.]+)$'
-        replacement: '${1}_${2}_${3}_${4}'
-      - action: labelmap
-        regex: '^([^.]+)\.([^.]+)\.([^.]+)\.([^.]+)\.([^.]+)$'
-        replacement: '${1}_${2}_${3}_${4}_${5}'
-      - action: labeldrop
-        regex: '.*\..*'
-      # Drop malformed WAL label names; GreptimeDB rejects the entire batch
-      # when one series has a non-Prometheus-compatible label name.
-      - action: labelkeep
-        regex: '[a-zA-Z_][a-zA-Z0-9_]*'
-    queue_config:
-      capacity: 10000
-      min_shards: 1
-      max_shards: 8
-      max_samples_per_send: 2000
-      batch_send_deadline: 5s
-
-
 scrape_configs:
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
-
-  - job_name: "greptime"
-    static_configs:
-      - targets: ["localhost:4000"]
 
   - job_name: "otel-collector"
     # Collector self-metrics only. Fleet metrics arrive via remote-write
@@ -201,18 +156,18 @@ scrape_configs:
         labels:
           instance_type: "ceph"
 
-  # blackbox-exporter — TLS handshake probes, exports
-  # `probe_ssl_earliest_cert_expiry` so the Grafana cert-expiry alert can fire
-  # before a cert silently rolls past NotAfter (see Apr 2026 OpenBao incident).
+  # blackbox-exporter — TLS handshake probes against internal Aether-CA
+  # endpoints, exports `probe_ssl_earliest_cert_expiry` so Grafana alerts
+  # when a short-lived cert stops renewing (see Apr 2026 OpenBao incident).
+  # Public-CA endpoints (Caddy) are covered by blackbox-http-apps.
   - job_name: "blackbox-tls"
     metrics_path: /probe
     params:
       module: [tls_connect]
     static_configs:
       - targets:
-          - "10.0.2.9:8200"     # OpenBao internal TLS
-          - "192.168.2.235:443" # step-ca
-          - "10.0.2.2:443"      # home gateway Caddy
+          - "{{ vm.openbao.ip }}:{{ vm.openbao.ports.https }}" # OpenBao internal TLS
+          - "{{ vm.step_ca.ip }}:{{ vm.step_ca.ports.https }}" # step-ca
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

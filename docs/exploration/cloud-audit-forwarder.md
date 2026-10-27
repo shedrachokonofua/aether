@@ -1,5 +1,7 @@
 # Cloud provider telemetry forwarder ("vigil")
 
+> 2026-10-13: The telemetry sinks and alert-provisioning paths below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana/alerting/rules/cloud-audit.yml`.
+
 Status: implemented (2026-07). Collector binary lives in the `vigil` repo
 (~/projects/vigil, image `registry.gitlab.home.shdr.ch/so/vigil`); this document
 remains the design contract. Deployment: `cloud-audit` namespace via

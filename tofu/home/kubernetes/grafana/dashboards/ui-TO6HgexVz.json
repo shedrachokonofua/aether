@@ -1,0 +1,1173 @@
+{
+ "annotations": {
+  "list": [
+   {
+    "builtIn": 1,
+    "datasource": {
+     "type": "grafana",
+     "uid": "-- Grafana --"
+    },
+    "enable": true,
+    "hide": true,
+    "iconColor": "rgba(0, 211, 255, 1)",
+    "name": "Annotations & Alerts",
+    "target": {
+     "limit": 100,
+     "matchAny": false,
+     "tags": [],
+     "type": "dashboard"
+    },
+    "type": "dashboard"
+   }
+  ]
+ },
+ "description": "ntfy (notifications-stack VM, container ntfy) on ClickHouse. Original dashboard: every panel used ntfy_* / go_* / process_* metrics from the ntfy :9090 /metrics scrape (job=ntfy) \u2014 ClickHouse has zero ntfy_* rows (7d) and Prometheus has zero ntfy_* series and no job=ntfy (7d, checked 2026-10-13), although ansible/playbooks/notifications_stack/site.yml still configures that scrape on the VM collector; it is not reaching either store. 23 original panels (35 targets) therefore removed as dead. Replacement: ntfy Server stats log lines (published/cached/visitors/users/topics/subscribers, emails) parsed from otel_logs, plus podman container CPU/memory for the ntfy containers. Panels with no live equivalent at all: Messages published (per second), HTTP requests/errors, Attachments, Firebase, UnifiedPush, Matrix messages, Message publish duration, Go routines, File descriptors, Resident/virtual memory. Restore them ported to ntfy_* in otel_metrics_* once the scrape lands.",
+ "editable": true,
+ "fiscalYearStartMonth": 0,
+ "graphTooltip": 0,
+ "links": [],
+ "liveNow": false,
+ "panels": [
+  {
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "id": 38,
+   "panels": [],
+   "title": "Overview (live replacement \u2014 original ntfy_* /metrics panels removed, see dashboard description)",
+   "type": "row"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 4,
+    "x": 0,
+    "y": 1
+   },
+   "id": 36,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT toFloat64OrZero(extract(Body, 'messages_published=([0-9]+)')) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp > now() - INTERVAL 5 MINUTE ORDER BY Timestamp DESC LIMIT 1",
+     "refId": "A"
+    }
+   ],
+   "title": "Published (cumulative, log stats)",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 4,
+    "x": 4,
+    "y": 1
+   },
+   "id": 33,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT toFloat64OrZero(extract(Body, 'messages_cached=([0-9]+)')) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp > now() - INTERVAL 5 MINUTE ORDER BY Timestamp DESC LIMIT 1",
+     "refId": "A"
+    }
+   ],
+   "title": "Cached",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 4,
+    "x": 8,
+    "y": 1
+   },
+   "id": 31,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT toFloat64OrZero(extract(Body, 'visitors=([0-9]+)')) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp > now() - INTERVAL 5 MINUTE ORDER BY Timestamp DESC LIMIT 1",
+     "refId": "A"
+    }
+   ],
+   "title": "Visitors",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 4,
+    "x": 12,
+    "y": 1
+   },
+   "id": 32,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT toFloat64OrZero(extract(Body, 'users=([0-9]+)')) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp > now() - INTERVAL 5 MINUTE ORDER BY Timestamp DESC LIMIT 1",
+     "refId": "A"
+    }
+   ],
+   "title": "Users",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 4,
+    "x": 16,
+    "y": 1
+   },
+   "id": 34,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT toFloat64OrZero(extract(Body, 'topics_active=([0-9]+)')) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp > now() - INTERVAL 5 MINUTE ORDER BY Timestamp DESC LIMIT 1",
+     "refId": "A"
+    }
+   ],
+   "title": "Topics (active)",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 4,
+    "x": 20,
+    "y": 1
+   },
+   "id": 35,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT toFloat64OrZero(extract(Body, 'subscribers=([0-9]+)')) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp > now() - INTERVAL 5 MINUTE ORDER BY Timestamp DESC LIMIT 1",
+     "refId": "A"
+    }
+   ],
+   "title": "Subscribers",
+   "type": "stat"
+  },
+  {
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 4
+   },
+   "id": 10,
+   "panels": [],
+   "title": "Metrics",
+   "type": "row"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 8,
+    "x": 0,
+    "y": 5
+   },
+   "id": 4,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'published' AS series, avg(toFloat64OrZero(extract(Body, 'messages_published=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Messages published (cumulative)",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 8,
+    "x": 8,
+    "y": 5
+   },
+   "id": 2,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'cached' AS series, avg(toFloat64OrZero(extract(Body, 'messages_cached=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Messages cached",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 8,
+    "x": 16,
+    "y": 5
+   },
+   "id": 14,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'visitors' AS series, avg(toFloat64OrZero(extract(Body, 'visitors=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'subscribers' AS series, avg(toFloat64OrZero(extract(Body, 'subscribers=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "B"
+    },
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'topics' AS series, avg(toFloat64OrZero(extract(Body, 'topics_active=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "C"
+    },
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'users' AS series, avg(toFloat64OrZero(extract(Body, 'users=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "D"
+    }
+   ],
+   "title": "Visitors, subscribers, topics, users",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 12,
+    "x": 0,
+    "y": 12
+   },
+   "id": 15,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'sent_success' AS series, avg(toFloat64OrZero(extract(Body, 'emails_sent_success=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'sent_failure' AS series, avg(toFloat64OrZero(extract(Body, 'emails_sent_failure=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "B"
+    },
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'received_success' AS series, avg(toFloat64OrZero(extract(Body, 'emails_received_success=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "C"
+    },
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'received_failure' AS series, avg(toFloat64OrZero(extract(Body, 'emails_received_failure=([0-9]+)'))) AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Body LIKE '%Server stats%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "D"
+    }
+   ],
+   "title": "Emails sent / received (cumulative, log stats)",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "cps"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 12,
+    "x": 12,
+    "y": 12
+   },
+   "id": 16,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'ntfy logs' AS series, count() AS value FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "ntfy log rate",
+   "type": "timeseries"
+  },
+  {
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 19
+   },
+   "id": 8,
+   "panels": [],
+   "title": "Internals (podman containers on notifications-stack)",
+   "type": "row"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 12,
+    "x": 0,
+    "y": 20
+   },
+   "id": 6,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['container_name'] AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.percent' AND ServiceName='notifications-stack' AND Attributes['container_name'] IN ('ntfy','ntfy-infra') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "ntfy container CPU % (podman)",
+   "interval": "1m",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "percent"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 7,
+    "w": 12,
+    "x": 12,
+    "y": 20
+   },
+   "id": 45,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['container_name'] AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='container.memory.percent' AND ServiceName='notifications-stack' AND Attributes['container_name'] IN ('ntfy','ntfy-infra') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "ntfy container memory % (podman)",
+   "interval": "1m",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 27
+   },
+   "id": 17,
+   "options": {
+    "dedupStrategy": "none",
+    "enableLogDetails": true,
+    "prettifyJSON": false,
+    "showCommonLabels": false,
+    "showLabels": false,
+    "showTime": true,
+    "sortOrder": "Descending",
+    "wrapLogMessage": true
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT Timestamp AS time, Body AS body FROM otel.otel_logs WHERE ServiceName='notifications-stack' AND LogAttributes['container.name']='ntfy' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime ORDER BY Timestamp DESC LIMIT 500",
+     "refId": "A"
+    }
+   ],
+   "title": "ntfy logs",
+   "type": "logs"
+  }
+ ],
+ "refresh": "30s",
+ "schemaVersion": 39,
+ "tags": [
+  "ntfy",
+  "clickhouse"
+ ],
+ "templating": {
+  "list": []
+ },
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "timepicker": {},
+ "timezone": "browser",
+ "title": "ntfy",
+ "uid": "TO6HgexVz"
+}

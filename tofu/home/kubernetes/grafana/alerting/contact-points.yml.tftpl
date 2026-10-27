@@ -20,7 +20,7 @@ contactPoints:
       - uid: inquest-standard
         type: webhook
         settings:
-          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/${inquest_webhook_key}"
           httpMethod: POST
         disableResolveMessage: false
 
@@ -38,7 +38,7 @@ contactPoints:
       - uid: inquest-webhook
         type: webhook
         settings:
-          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/${inquest_webhook_key}"
           httpMethod: POST
         disableResolveMessage: false
 
@@ -54,7 +54,7 @@ contactPoints:
       - uid: inquest-digest
         type: webhook
         settings:
-          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/${inquest_webhook_key}"
           httpMethod: POST
         disableResolveMessage: false
 
@@ -70,7 +70,7 @@ contactPoints:
       - uid: inquest-security
         type: webhook
         settings:
-          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/{{ secrets.inquest.webhook_key }}"
+          url: "https://kestra.home.shdr.ch/api/v1/main/executions/webhook/aether.inquest/alert-intake/${inquest_webhook_key}"
           httpMethod: POST
         disableResolveMessage: false
 
@@ -80,6 +80,6 @@ contactPoints:
       - uid: kuma-deadman
         type: webhook
         settings:
-          url: "https://status.shdr.ch/api/push/{{ secrets.uptime_kuma_deadman_push_token }}?status=up&msg=OK"
+          url: "https://status.shdr.ch/api/push/${uptime_kuma_deadman_push_token}?status=up&msg=OK"
           httpMethod: POST
         disableResolveMessage: true
