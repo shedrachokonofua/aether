@@ -18,6 +18,7 @@
         src: gitlab.rb.j2
         dest: ./gitlab/config/gitlab.rb
         mode: "0755"
+      tags: [gitlab-config]
 
     - name: Make ports unprivileged
       sysctl:
@@ -69,10 +70,64 @@
             Restart=on-failure
             RestartSec=30
 
+    - name: Create user systemd unit directory
+      file:
+        path: ~/.config/systemd/user
+        state: directory
+        mode: "0755"
+      tags: [registry-cleanup]
+
+    - name: Copy registry cleanup policy script
+      copy:
+        src: registry-cleanup-policy.rb
+        dest: ./gitlab/registry-cleanup-policy.rb
+        mode: "0644"
+      tags: [registry-cleanup]
+
+    - name: Install registry cleanup policy service and timer
+      copy:
+        dest: "~/.config/systemd/user/{{ item.name }}"
+        mode: "0644"
+        content: "{{ item.content }}"
+      loop:
+        - name: gitlab-registry-cleanup-policy.service
+          content: |
+            [Unit]
+            Description=Apply the container registry cleanup policy to every GitLab project
+            After=gitlab.service
+            Requires=gitlab.service
+
+            [Service]
+            Type=oneshot
+            # Fed on stdin: files under the :Z mounts are only relabeled at container start.
+            ExecStart=/bin/sh -c 'exec /usr/bin/podman exec -i gitlab gitlab-rails runner - < %h/gitlab/registry-cleanup-policy.rb'
+        - name: gitlab-registry-cleanup-policy.timer
+          content: |
+            [Unit]
+            Description=Daily GitLab container registry cleanup policy enforcement
+
+            [Timer]
+            OnCalendar=*-*-* 03:00:00
+            RandomizedDelaySec=15m
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+      tags: [registry-cleanup]
+
     - name: Reload systemd
       systemd:
         daemon_reload: yes
         scope: user
+      tags: [registry-cleanup]
+
+    - name: Enable registry cleanup policy timer
+      systemd:
+        name: gitlab-registry-cleanup-policy.timer
+        state: started
+        enabled: true
+        scope: user
+      tags: [registry-cleanup]
 
     - name: Start GitLab quadlet
       systemd:
