@@ -1,0 +1,93 @@
+# Fixture LiteLLM config for the litellm_hooks contract test. Every leg talks
+# to fixtures/fake_backends.py on 127.0.0.1:9000; a leg is identified by the
+# `model` field it sends. The three hooks under test are registered exactly as
+# litellm_config.yaml.tftpl registers them.
+#
+# test/mimo-* mirror MiMo V2.6 Pro (supports_forced_tool_choice: false, small
+# output cap); test/step-* are the request fallbacks with a larger
+# max_output_tokens and NO tool_choice softening, so a preserved forced
+# tool_choice on the fallback proves the primary's adaptation never leaked
+# into the shared request. test/plain (model_info without the keys) and
+# test/noinfo (no model_info at all) must see the request untouched.
+model_list:
+  - model_name: "moira/strong"
+    litellm_params:
+      model: openai/test-moira-default
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 65536}
+  - model_name: "moira/flash"
+    litellm_params:
+      model: openai/test-moira-default
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 65536}
+  - model_name: "test/mimo-chat"
+    litellm_params:
+      model: openai/test-mimo-chat
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 8192, supports_forced_tool_choice: false}
+  - model_name: "test/step-chat"
+    litellm_params:
+      model: openai/test-step-chat
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 32768}
+  - model_name: "test/mimo-stream"
+    litellm_params:
+      model: openai/test-mimo-stream
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 8192, supports_forced_tool_choice: false}
+  - model_name: "test/step-stream"
+    litellm_params:
+      model: openai/test-step-stream
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 32768}
+  - model_name: "test/mimo-resp"
+    litellm_params:
+      model: openai/test-mimo-resp
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 8192, supports_forced_tool_choice: false}
+  - model_name: "test/step-resp"
+    litellm_params:
+      model: openai/test-step-resp
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, max_output_tokens: 32768}
+  - model_name: "test/plain"
+    litellm_params:
+      model: openai/test-plain
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat}
+  - model_name: "test/pinned-effort"
+    litellm_params:
+      model: openai/test-pinned-effort
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat, reasoning_effort_override: high}
+  - model_name: "test/noinfo"
+    litellm_params:
+      model: openai/test-noinfo
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+
+litellm_settings:
+  drop_params: true
+  json_logs: true
+  callbacks:
+    - aether_hooks.chat_reasoning_effort
+    - aether_hooks.moira_router
+    - aether_hooks.deployment_adapter
+
+router_settings:
+  # Deterministic attempt counts: no same-group retries, one fallback level.
+  num_retries: 0
+  max_fallbacks: 2
+  allowed_fails: 10
+  cooldown_time: 1
+  routing_strategy: simple-shuffle

@@ -15,6 +15,11 @@ locals {
   litellm_affine_mcp_image    = "ghcr.io/dawncr0w/affine-mcp-server:latest"
   litellm_tmdb_image          = "ghcr.io/cyanheads/tmdb-mcp-server:0.1.1"
   litellm_jellyfin_mcp_image  = "docker.io/knucklessg1/jellyfin-mcp:mcp"
+  # Official Comfy-Org comfy-mcp is stdio-only and needs mcp>=2; mcp-proxy
+  # (mcp<2) bridges it to streamable HTTP, so each gets its own venv.
+  litellm_comfy_mcp_image     = "docker.io/python:3.13-slim"
+  litellm_comfy_mcp_packages  = "comfy-mcp==0.10.0 comfy-cli==1.22.0"
+  litellm_mcp_proxy_package   = "mcp-proxy==0.13.0"
   litellm_host                = "litellm.home.shdr.ch"
   litellm_espn_mcp_host       = "espn-mcp.home.shdr.ch"
   litellm_ns                  = module.namespace["litellm"].name
@@ -27,6 +32,7 @@ locals {
   litellm_affine_mcp_port     = 8005
   litellm_tmdb_port           = 8006
   litellm_jellyfin_mcp_port   = 8007
+  litellm_comfy_mcp_port      = 8008
   litellm_espn_mcp_port       = 8080
   litellm_postgres_port       = 5432
   litellm_cnpg_cluster        = "litellm-cnpg"
@@ -38,6 +44,7 @@ locals {
     colony_mcp_client_secret   = var.colony_litellm_client_secret
     daimyo_mcp_exchange_secret = var.litellm_mcp_exchange_client_secret
     fm_mcp_token               = random_password.fm_mcp_token.result
+    hyperdx_mcp_token          = var.secrets["hyperdx.api_key"]
     google_maps_enabled        = var.litellm_google_maps_enabled
   })
   litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@${local.litellm_db_host}/litellm?sslmode=disable"
@@ -69,6 +76,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       COMMANDCODE_API_KEY   = var.secrets["litellm.commandcode_api_key"]
       OPENCODE_GO_API_KEY   = var.secrets["litellm.opencode_go_api_key"]
       OPENROUTER_API_KEY    = var.secrets["litellm.openrouter_api_key"]
+      ROUTEWAY_API_KEY      = var.secrets["litellm.routeway_api_key"]
       XIAOMI_API_KEY        = var.secrets["litellm.xiaomi_api_key"]
       CODEBUDDY_API_KEY     = var.secrets["litellm.codebuddy_api_key"]
       ANTIGRAVITY_API_KEY   = random_password.antigravity_api_key.result
@@ -357,6 +365,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "OPENROUTER_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "ROUTEWAY_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "ROUTEWAY_API_KEY"
               }
             }
           }
@@ -1032,6 +1050,79 @@ resource "kubernetes_deployment_v1" "litellm" {
             name       = "chatgpt-auth"
             mount_path = "/var/lib/litellm"
             read_only  = true
+          }
+        }
+
+        container {
+          name  = "comfy-mcp"
+          image = local.litellm_comfy_mcp_image
+          # Loopback only: the tools submit arbitrary ComfyUI workflows, so the
+          # only client is the LiteLLM container in this pod.
+          #
+          # comfy-cli refuses to read /object_info from a non-loopback host in
+          # local mode (its SSRF guard), which breaks generate_image,
+          # run_template --param, nodes, validate and the slot tools. A TCP
+          # forwarder on 127.0.0.1:8188 to the in-cluster ComfyUI makes it the
+          # default local target, so no COMFY_LOCAL_URL/COMFYUI_URL is set.
+          # COMFY_API_KEY is deliberately unset so partner (paid) nodes cannot
+          # spend.
+          command = ["sh", "-c", <<-EOT
+            set -e
+            python -m venv /opt/comfy && /opt/comfy/bin/pip install --no-cache-dir --quiet ${local.litellm_comfy_mcp_packages}
+            python -m venv /opt/proxy && /opt/proxy/bin/pip install --no-cache-dir --quiet ${local.litellm_mcp_proxy_package}
+            cat > /opt/forward.py <<'PY'
+            import asyncio
+
+            UPSTREAM = ("comfyui.${local.comfyui_ns}.svc.cluster.local", ${local.comfyui_port})
+
+            async def pipe(reader, writer):
+                try:
+                    while data := await reader.read(65536):
+                        writer.write(data)
+                        await writer.drain()
+                finally:
+                    writer.close()
+
+            async def handle(client_reader, client_writer):
+                try:
+                    up_reader, up_writer = await asyncio.open_connection(*UPSTREAM)
+                except OSError:
+                    client_writer.close()
+                    return
+                await asyncio.gather(pipe(client_reader, up_writer), pipe(up_reader, client_writer), return_exceptions=True)
+
+            async def main():
+                server = await asyncio.start_server(handle, "127.0.0.1", ${local.comfyui_port})
+                async with server:
+                    await server.serve_forever()
+
+            asyncio.run(main())
+            PY
+            python /opt/forward.py &
+            exec /opt/proxy/bin/mcp-proxy --host 127.0.0.1 --port ${local.litellm_comfy_mcp_port} --pass-environment -- /opt/comfy/bin/comfy-mcp
+          EOT
+          ]
+
+          env {
+            name  = "COMFY_BIN"
+            value = "/opt/comfy/bin/comfy"
+          }
+
+          # comfy-cli imports GitPython; the slim image has no git binary.
+          env {
+            name  = "GIT_PYTHON_REFRESH"
+            value = "quiet"
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "256Mi"
+            }
+            limits = {
+              cpu    = "1"
+              memory = "1Gi"
+            }
           }
         }
         volume {
