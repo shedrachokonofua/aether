@@ -19,7 +19,7 @@ investigation.
 | Operator contract | `../inquest/README.md`, `../inquest/docs/operator.md` |
 | Kestra runtime, credentials, and flow environment | `tofu/home/kubernetes/kestra.tf`, `tofu/home/openbao_so_ci.tf` |
 | Holmes runtime and access | `tofu/home/kubernetes/holmesgpt.tf` |
-| Grafana delivery | `ansible/playbooks/monitoring_stack/grafana/provisioning/alerting/contact-points.yml.j2` |
+| Grafana delivery | `tofu/home/kubernetes/grafana/alerting/contact-points.yml.tftpl` |
 
 The dated dependency table and future phases in `../inquest/DESIGN.md` are
 design history. Verify implemented behavior in flow code and current live state.

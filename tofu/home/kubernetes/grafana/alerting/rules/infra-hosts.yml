@@ -1,0 +1,912 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Infrastructure — Hosts & Storage
+    folder: Alerts
+    interval: 1m
+    rules:
+
+      - uid: deadman-heartbeat
+        title: DeadMansSwitch
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT 1 AS value
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        labels: {}
+        annotations:
+          summary: "Heartbeat — if Kuma stops receiving this, home monitoring is down"
+
+      # Host Alerts
+      - uid: host-high-cpu
+        title: Host High CPU
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT instance, round(value, 2) AS value FROM (SELECT instance, 100 - avg(idle_rate) * 100 AS value FROM (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['cpu'] AS cpu, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) / nullIf(toUnixTimestamp(max(TimeUnix)) - toUnixTimestamp(min(TimeUnix)), 0) AS idle_rate FROM otel.otel_metrics_sum WHERE MetricName = 'node_cpu_seconds_total' AND ServiceName = 'proxmox-hosts-node' AND Attributes['mode'] = 'idle' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance, cpu, StartTimeUnix) GROUP BY instance)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: 'CPU usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: host-high-memory
+        title: Host High Memory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT a.instance AS instance, round((1 - a.avail / nullIf(t.total, 0)) * 100, 2) AS value FROM (SELECT ResourceAttributes['service.instance.id'] AS instance, avg(Value) AS avail FROM otel.otel_metrics_gauge WHERE MetricName = 'node_memory_MemAvailable_bytes' AND ServiceName = 'proxmox-hosts-node' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance) AS a INNER JOIN (SELECT ResourceAttributes['service.instance.id'] AS instance, avg(Value) AS total FROM otel.otel_metrics_gauge WHERE MetricName = 'node_memory_MemTotal_bytes' AND ServiceName = 'proxmox-hosts-node' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance) AS t ON a.instance = t.instance
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: 'Memory usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      # VM Alerts
+      - uid: vm-high-cpu
+        title: VM High CPU
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT c.id AS id, g.name AS name, round(c.value * 100, 2) AS value FROM (SELECT Attributes['id'] AS id, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'pve_cpu_usage_ratio' AND startsWith(Attributes['id'], 'qemu/') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY id) AS c INNER JOIN (SELECT Attributes['id'] AS id, argMax(Attributes['name'], TimeUnix) AS name FROM otel.otel_metrics_gauge WHERE MetricName = 'pve_guest_info' AND Attributes['name'] != '' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY id) AS g ON c.id = g.id
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on VM {{ $labels.name }}"
+          description: 'VM CPU usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: vm-high-memory
+        title: VM High Memory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT u.host_name AS host_name, u.exported_job AS exported_job, round(u.used / nullIf(t.total, 0) * 100, 2) AS value FROM (SELECT Attributes['host_name'] AS host_name, Attributes['exported_job'] AS exported_job, argMax(Value, TimeUnix) AS used FROM otel.otel_metrics_sum WHERE MetricName = 'system.memory.usage' AND Attributes['state'] = 'used' AND Attributes['host_name'] != '' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY host_name, exported_job) AS u INNER JOIN (SELECT hn, ej, sum(v) AS total FROM (SELECT Attributes['host_name'] AS hn, Attributes['exported_job'] AS ej, Attributes['state'] AS st, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName = 'system.memory.usage' AND Attributes['host_name'] != '' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY hn, ej, st) GROUP BY hn, ej) AS t ON u.host_name = t.hn AND u.exported_job = t.ej
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on VM {{ $labels.host_name }}"
+          description: 'VM real memory usage is {{ $values.B.Value | printf "%.1f" }}%'
+
+      # Disk Alerts
+      - uid: vm-root-disk-space-low
+        title: VM Root Disk Space Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT f.host_name AS host_name, f.mountpoint AS mountpoint, round(f.free / nullIf(t.total, 0) * 100, 2) AS value FROM (SELECT Attributes['host_name'] AS host_name, Attributes['mountpoint'] AS mountpoint, argMax(Value, TimeUnix) AS free FROM otel.otel_metrics_sum WHERE MetricName = 'system.filesystem.usage' AND Attributes['state'] = 'free' AND Attributes['host_name'] != '' AND Attributes['mountpoint'] = '/' AND Attributes['type'] NOT IN ('tmpfs', 'overlay', 'squashfs') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY host_name, mountpoint) AS f INNER JOIN (SELECT host_name, mountpoint, sum(v) AS total FROM (SELECT Attributes['host_name'] AS host_name, Attributes['mountpoint'] AS mountpoint, Attributes['state'] AS state, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName = 'system.filesystem.usage' AND Attributes['state'] IN ('used', 'free', 'reserved') AND Attributes['host_name'] != '' AND Attributes['mountpoint'] = '/' AND Attributes['type'] NOT IN ('tmpfs', 'overlay', 'squashfs') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY host_name, mountpoint, state) GROUP BY host_name, mountpoint) AS t ON f.host_name = t.host_name AND f.mountpoint = t.mountpoint
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [10]
+              refId: C
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low root disk space on VM {{ $labels.host_name }}"
+          description: 'Root filesystem free space is {{ $values.B.Value | printf "%.1f" }}%'
+
+      - uid: vm-hostmetrics-missing
+        title: VM Hostmetrics Missing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT host_name, toFloat64(count) AS value FROM (SELECT Attributes['host_name'] AS host_name, count() AS count, max(TimeUnix) AS last_seen FROM otel.otel_metrics_sum WHERE MetricName = 'system.filesystem.usage' AND Attributes['state'] = 'free' AND Attributes['host_name'] != '' AND Attributes['mountpoint'] = '/' AND Attributes['type'] NOT IN ('tmpfs', 'overlay', 'squashfs') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY host_name HAVING last_seen < now() - INTERVAL 15 MINUTE)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VM hostmetrics missing for {{ $labels.host_name }}"
+          description: "Root filesystem telemetry was present in the last hour but has been absent for 15 minutes"
+
+      - uid: disk-space-low
+        title: Disk Space Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT a.instance AS instance, a.mountpoint AS mountpoint, round(a.avail / nullIf(s.size, 0) * 100, 2) AS value FROM (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['mountpoint'] AS mountpoint, Attributes['device'] AS device, Attributes['fstype'] AS fstype, argMax(Value, TimeUnix) AS avail FROM otel.otel_metrics_gauge WHERE MetricName = 'node_filesystem_avail_bytes' AND ServiceName = 'proxmox-hosts-node' AND Attributes['fstype'] NOT IN ('tmpfs', 'overlay') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance, mountpoint, device, fstype) AS a INNER JOIN (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['mountpoint'] AS mountpoint, Attributes['device'] AS device, Attributes['fstype'] AS fstype, argMax(Value, TimeUnix) AS size FROM otel.otel_metrics_gauge WHERE MetricName = 'node_filesystem_size_bytes' AND ServiceName = 'proxmox-hosts-node' AND Attributes['fstype'] NOT IN ('tmpfs', 'overlay') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance, mountpoint, device, fstype HAVING size > 0) AS s ON a.instance = s.instance AND a.mountpoint = s.mountpoint AND a.device = s.device AND a.fstype = s.fstype
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [10]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }} {{ $labels.mountpoint }}"
+          description: 'Disk space is {{ $values.B.Value | printf "%.1f" }}% free'
+
+      - uid: disk-smart-unhealthy
+        title: Disk SMART Unhealthy
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['device'] AS device, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'smartctl_device_smart_status' AND ServiceName = 'proxmox-hosts-smart' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance, device
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "SMART failure on {{ $labels.instance }} {{ $labels.device }}"
+          description: "Disk SMART status indicates failure - replace disk immediately"
+
+      - uid: proxmox-node-exporter-down
+        title: Proxmox Node Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'up' AND ServiceName = 'proxmox-hosts-node' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Proxmox node exporter is down on {{ $labels.instance }}"
+          description: "Node exporter is not being scraped; disk, NVMe, CPU, and memory alerts may be blind"
+
+      - uid: site-exporter-down
+        title: Site Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT Attributes['service'] AS service, Attributes['host'] AS host, Attributes['site'] AS site, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'up' AND ServiceName IN ('site-node-exporter', 'site-wireguard-exporter') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY service, host, site
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Site exporter down: {{ $labels.service }} on {{ $labels.host }} ({{ $labels.site }})"
+          description: "A WireGuard site-fabric exporter is not being scraped; the offsite resolver node (rama, OCI) may be down or unreachable over the tunnel."
+
+      - uid: proxmox-smart-exporter-down
+        title: Proxmox SMART Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'up' AND ServiceName = 'proxmox-hosts-smart' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SMART exporter is down on {{ $labels.instance }}"
+          description: "SMART exporter is not being scraped; disk health alerts may be blind"
+
+      - uid: ceph-exporter-down
+        title: Ceph Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'up' AND ServiceName = 'ceph' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ceph exporter is down on {{ $labels.instance }}"
+          description: "Ceph exporter is not being scraped; OSD alerts may be blind"
+
+      - uid: ceph-osd-daemon-down
+        title: Ceph OSD Daemon Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT Attributes['ceph_daemon'] AS ceph_daemon, Attributes['hostname'] AS hostname, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'ceph_daemon_socket_up' AND ServiceName = 'ceph' AND startsWith(Attributes['ceph_daemon'], 'ceph-osd.') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY ceph_daemon, hostname
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ceph OSD {{ $labels.ceph_daemon }} is down on {{ $labels.hostname }}"
+          description: "The Ceph exporter can see the OSD daemon socket, but it is not up"
+
+      - uid: ceph-osd-count-low
+        title: Ceph OSD Count Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT 6 - toFloat64(up_count) AS value FROM (SELECT sum(v) AS up_count FROM (SELECT Attributes['ceph_daemon'] AS ceph_daemon, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'ceph_daemon_socket_up' AND ServiceName = 'ceph' AND startsWith(Attributes['ceph_daemon'], 'ceph-osd.') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY ceph_daemon) HAVING count() > 0)
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ceph has fewer than 6 OSD daemons up"
+          description: '{{ $values.B.Value | printf "%.0f" }} expected Ceph OSD daemon(s) are missing or down'
+
+      - uid: ceph-nvme-controller-dead
+        title: Ceph NVMe Controller Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['serial'] AS serial, Attributes['model'] AS model, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'node_nvme_info' AND ServiceName = 'proxmox-hosts-node' AND Attributes['state'] = 'dead' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY instance, serial, model
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NVMe controller {{ $labels.serial }} is dead on {{ $labels.instance }}"
+          description: "{{ $labels.model }} reports state=dead via node_exporter"
+
+      - uid: ceph-osd-disk-missing
+        title: Ceph OSD Disk Missing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT instance, serial, toFloat64(1) AS value FROM (SELECT '192.168.2.202:9100' AS instance, '25385Z803700' AS serial UNION ALL SELECT '192.168.2.202:9100', '25385Z803747' UNION ALL SELECT '192.168.2.204:9100', 'S7U8NJ0XA18390B' UNION ALL SELECT '192.168.2.204:9100', 'S7U8NJ0XA18330N' UNION ALL SELECT '192.168.2.205:9100', '25206C801512' UNION ALL SELECT '192.168.2.205:9100', '25124J801300') AS expected LEFT ANTI JOIN (SELECT DISTINCT ResourceAttributes['service.instance.id'] AS instance, Attributes['serial'] AS serial FROM otel.otel_metrics_gauge WHERE MetricName = 'node_nvme_info' AND ServiceName = 'proxmox-hosts-node' AND Attributes['state'] = 'live' AND TimeUnix BETWEEN $__fromTime AND $__toTime) AS present ON expected.instance = present.instance AND expected.serial = present.serial
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Expected Ceph OSD disk {{ $labels.serial }} is missing on {{ $labels.instance }}"
+          description: "A Ceph OSD NVMe serial is no longer present as a live controller"
+
+      # OTel / ClickHouse ingestion health
+      - uid: otel-clickhouse-queue-high
+        title: OTel ClickHouse Queue High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT 'clickhouse/otel' AS exporter, s.data_type AS data_type, round(s.qsize / nullIf(c.qcap, 0) * 100, 2) AS value FROM (SELECT Attributes['data_type'] AS data_type, argMax(Value, TimeUnix) AS qsize FROM otel.otel_metrics_gauge WHERE MetricName = 'otelcol_exporter_queue_size' AND Attributes['exporter'] = 'clickhouse/otel' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY data_type) AS s INNER JOIN (SELECT Attributes['data_type'] AS data_type, argMax(Value, TimeUnix) AS qcap FROM otel.otel_metrics_gauge WHERE MetricName = 'otelcol_exporter_queue_capacity' AND Attributes['exporter'] = 'clickhouse/otel' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY data_type) AS c ON s.data_type = c.data_type
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [80]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OTel ClickHouse exporter queue is high"
+          description: 'ClickHouse exporter (clickhouse/otel) queue is {{ $values.B.Value | printf "%.1f" }}% full'
+
+
+      - uid: clickhouse-down
+        title: ClickHouse Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value FROM otel.otel_logs WHERE ServiceName = 'monitoring-stack' AND Timestamp >= now() - INTERVAL 5 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse telemetry store is not ingesting"
+          description: "No logs from monitoring-stack (ClickHouse host) in ClickHouse in the last 5 minutes; ClickHouse is the single telemetry store, so all observability may be blind. (Retargeted from the removed GreptimeDB archive check.)"
+
+      # Host Down Alert
+      - uid: host-down
+        title: Host Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT Attributes['id'] AS id, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'pve_up' AND startsWith(Attributes['id'], 'node/') AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY id
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Proxmox host {{ $labels.id }} is down"
+          description: "Proxmox node is not responding"

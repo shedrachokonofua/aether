@@ -194,6 +194,10 @@ terraform {
       source  = "hashicorp/local"
       version = ">= 2.5.0"
     }
+    grafana = {
+      source  = "grafana/grafana"
+      version = "4.49.0"
+    }
   }
 }
 
@@ -208,6 +212,11 @@ provider "proxmox" {
 # Requires: task bao:login (token cached), then export VAULT_TOKEN=$(cat ~/.aether-toolbox/bao/token)
 provider "vault" {
   address = "https://bao.home.shdr.ch"
+}
+
+provider "grafana" {
+  url  = "https://grafana.home.shdr.ch"
+  auth = "admin:${var.secrets["grafana_password"]}"
 }
 
 provider "kubernetes" {

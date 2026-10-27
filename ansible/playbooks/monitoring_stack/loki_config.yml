@@ -3,8 +3,10 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
-  grpc_server_max_recv_msg_size: 33554432
-  grpc_server_max_send_msg_size: 33554432
+  # 128 MiB: bulk export pages (15k lines with structured metadata) reach ~60 MiB
+  # between querier and frontend; 32 MiB rejected them.
+  grpc_server_max_recv_msg_size: 134217728
+  grpc_server_max_send_msg_size: 134217728
 
 common:
   ring:
@@ -43,6 +45,9 @@ limits_config:
   per_stream_rate_limit: 16MB
   per_stream_rate_limit_burst: 32MB
   max_line_size: 512KB
+  # Bulk export to ClickHouse (scripts/telemetry-migration) pages up to 15k
+  # lines per query (see the gRPC message limits above).
+  max_entries_limit_per_query: 50000
   # vigil envelope attributes (provider/collector/domain) must be index
   # labels, not structured metadata — LogQL alert selectors on unindexed
   # labels silently match nothing (cloud-audit rules ran blind until

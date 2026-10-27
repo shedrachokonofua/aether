@@ -14,8 +14,8 @@ Use docs to learn intent and vocabulary. Use the authoritative paths to decide w
 | Tailscale | `docs/tailscale.md` | `tofu/tailscale.tf`, gateway/public-gateway playbooks |
 | Storage and Ceph | `docs/storage.md`, `docs/ceph-implementation.md` | storage playbooks, `tofu/home/kubernetes/*ceph*`, live Ceph |
 | Backups | `docs/backups.md` | backup playbooks, `tofu/aws/offsite-backup.tf`, Kubernetes backup resources, SeaweedFS config |
-| Monitoring and security telemetry | `docs/monitoring.md` | `ansible/playbooks/monitoring_stack/`, monitoring roles, Kubernetes OTel/security resources |
-| Automated alert investigation (Inquest) | `../inquest/README.md`, `../inquest/docs/operator.md` | Flow behavior and state in `../inquest/flows/`, `../inquest/tofu/main.tf`; platform integration in `tofu/home/kubernetes/kestra.tf`, `tofu/home/kubernetes/holmesgpt.tf`, `ansible/playbooks/monitoring_stack/grafana/provisioning/alerting/contact-points.yml.j2`, and `tofu/home/openbao_so_ci.tf` |
+| Monitoring and security telemetry | `docs/monitoring.md` | `ansible/playbooks/monitoring_stack/` (ClickHouse/OTel), monitoring roles, `tofu/home/kubernetes/grafana/`, Kubernetes OTel/security resources |
+| Automated alert investigation (Inquest) | `../inquest/README.md`, `../inquest/docs/operator.md` | Flow behavior and state in `../inquest/flows/`, `../inquest/tofu/main.tf`; platform integration in `tofu/home/kubernetes/kestra.tf`, `tofu/home/kubernetes/holmesgpt.tf`, `tofu/home/kubernetes/grafana/alerting/contact-points.yml.j2`, and `tofu/home/openbao_so_ci.tf` |
 | Identity and trust | `docs/trust-model.md`, `docs/secrets.md` | Keycloak/OpenBao Tofu, step-ca/Keycloak/OpenBao playbooks, `.sops.yaml` |
 | NixOS systems | `docs/nixos.md` | `flake.nix` `nixosConfigurations`, `nix/hosts/`, `nix/modules/`, Taskfile deploy targets |
 | AWS | `docs/aws.md` | `tofu/aws/*.tf` |

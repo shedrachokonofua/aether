@@ -7,19 +7,25 @@ locals {
   pop_otel_endpoint    = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318"
   # wash (pop host group) exports only via gRPC OTLP (wasmcloud.tf).
   pop_otel_grpc_endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4317"
-  # Grafana Explore on the provisioned "Tempo" datasource (uid is Grafana's
-  # stable hash of that name). PROJECT/DEPLOY survive urlencode and become the
-  # {project}/{deploy} placeholders pop-api fills in.
+  # Grafana Explore on the ClickHouse datasource (uid clickhouse): trace-view
+  # SQL (plugin 4.21 format 3 / queryType traces, documented column aliases)
+  # over otel.otel_traces. pop.project/pop.deploy_id are RESOURCE attributes
+  # (pop functions set them via OTEL_RESOURCE_ATTRIBUTES), verified live.
+  # PROJECT/DEPLOY survive urlencode and become the {project}/{deploy}
+  # placeholders pop-api fills in; empty deploy -> LIKE '%' matches all.
   pop_grafana_explore = replace(replace(
-    "https://grafana.home.shdr.ch/explore?orgId=1&left=${urlencode(jsonencode({
-      datasource = "P214B5B846CF3925F"
+    "https://grafana.home.shdr.ch/explore?schemaVersion=1&panes=${urlencode(jsonencode({ t = {
+      datasource = "clickhouse"
       queries = [{
-        refId     = "A"
-        queryType = "traceql"
-        query     = "{span.pop.project=\"PROJECT\" && span.pop.deploy_id=~\"DEPLOY.*\"}"
+        refId      = "A"
+        datasource = { type = "grafana-clickhouse-datasource", uid = "clickhouse" }
+        editorType = "sql"
+        format     = 3
+        queryType  = "traces"
+        rawSql     = "SELECT TraceId AS traceID, SpanId AS spanID, SpanName AS operationName, ParentSpanId AS parentSpanID, ServiceName AS serviceName, Duration / 1000000 AS duration, Timestamp AS startTime, arrayMap(key -> map('key', key, 'value', SpanAttributes[key]), mapKeys(SpanAttributes)) AS tags, arrayMap(key -> map('key', key, 'value', ResourceAttributes[key]), mapKeys(ResourceAttributes)) AS serviceTags, if(StatusCode IN ('Error', 'STATUS_CODE_ERROR'), 2, 0) AS statusCode FROM otel.otel_traces WHERE Timestamp >= $__fromTime AND Timestamp <= $__toTime AND ResourceAttributes['pop.project'] = 'PROJECT' AND ResourceAttributes['pop.deploy_id'] LIKE 'DEPLOY%' ORDER BY startTime ASC"
       }]
       range = { from = "now-6h", to = "now" }
-    }))}",
+    } }))}&orgId=1",
   "PROJECT", "{project}"), "DEPLOY", "{deploy}")
   # Immutable digests emitted by the pop CI images job (image-digests.env).
   # pop-api: so/pop main f8c79e0 (OpenAPI at /v1/openapi.json, Scalar at
@@ -245,9 +251,9 @@ resource "helm_release" "pop" {
     webhookCIDRs   = local.pop_webhook_cidrs
     config = {
       webhookInternalAllow = "ntfy.home.shdr.ch"
-      # `pop telemetry` / MCP telemetry_link: Tempo traces of the project's
+      # `pop telemetry` / MCP telemetry_link: ClickHouse traces of the project's
       # origin spans; pop-api substitutes {project} and {deploy} (empty when
-      # no deploy is given, which the `=~"{deploy}.*"` match tolerates).
+      # no deploy is given, which the `LIKE "{deploy}%"` match tolerates).
       grafanaExplore = local.pop_grafana_explore
     }
     orgs           = { configMap = "pop-orgs", mountPath = "/etc/pop/orgs", fileName = "pop-orgs.json" }

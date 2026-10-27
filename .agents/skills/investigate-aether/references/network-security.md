@@ -2,19 +2,19 @@
 
 ## ClickHouse
 
-Zeek and Suricata logs are routed to ClickHouse instead of Loki. Query through
-Grafana `POST /api/ds/query`; the helper accepts one comment-free statement
+Zeek and Suricata logs are routed to ClickHouse (not `otel_logs`). Query through
+Grafana `POST /api/ds/query` (uid `clickhouse`); the helper's `sql` command accepts one comment-free statement
 starting with `SELECT`, `SHOW`, `DESCRIBE`, `DESC`, or `EXPLAIN`:
 
 ```bash
 G=.agents/skills/investigate-aether/scripts/grafana-read.bb
-nix develop -c "$G" clickhouse \
+nix develop -c "$G" sql \
   'SELECT Timestamp, note, msg, toString(src), toString(dst) FROM zeek.notice WHERE Timestamp >= now() - INTERVAL 1 HOUR ORDER BY Timestamp DESC LIMIT 50'
 ```
 
-The database is the permission boundary. Grafana uses the local-only
+The database is the permission boundary. Grafana uses the
 `grafana_readonly` ClickHouse identity, whose IaC-owned role grants only schema
-discovery and `SELECT` on `zeek.*` and `suricata.*`. The role also enforces
+discovery and `SELECT` on `zeek.*`, `suricata.*`, `otel.*`, and `aether.*`. The role also enforces
 read-only mode plus execution, concurrency, memory, scan, and result limits.
 Only `max_execution_time` is changeable in read-only mode, within a server-side
 1-60 second constraint required by the Grafana ClickHouse client. The role has
@@ -65,8 +65,8 @@ The provisioned IDS Monitoring and Security Triage dashboard JSON contains addit
 
 ## Other Security Surfaces
 
-- Prometheus: Hubble drops, Trivy reports, namespace contracts, Tetragon metrics.
-- Loki: Tetragon events, Wazuh logs, Keycloak login failures, Kubernetes audit-style application logs.
+- ClickHouse metrics (`otel.otel_metrics_*`): Hubble drops, Trivy reports, namespace contracts (`aether.namespace_contract`), Tetragon metrics.
+- ClickHouse logs (`otel.otel_logs`): Tetragon events, Wazuh logs, Keycloak login failures, Kubernetes audit-style application logs.
 - Kubernetes: Cilium policies, Kyverno/PolicyReports, Trivy reports, Tetragon pods/policies.
 - Fleet: host posture and query results, with partial enrollment caveats.
 - VyOS/AdGuard/Caddy: use repo-defined host access and bounded logs for routing, DNS, or proxy questions.

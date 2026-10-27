@@ -1,0 +1,70 @@
+fullnameOverride: hyperdx
+clickhouse:
+  enabled: false
+otel-collector:
+  enabled: false
+hyperdx:
+  # Chart 3.4.0 uses config rather than the older otelExporterEndpoint alias.
+  config:
+    FRONTEND_URL: https://hyperdx.home.shdr.ch
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318
+    HYPERDX_OTEL_EXPORTER_CLICKHOUSE_DATABASE: otel
+    USAGE_STATS_ENABLED: "false"
+  deployment:
+    replicas: 1
+    useExistingConfigSecret: true
+    existingConfigSecret: hyperdx-config
+    existingConfigConnectionsKey: connections.json
+    existingConfigSourcesKey: sources.json
+    defaultConnections: ""
+    defaultSources: ""
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+mongodb:
+  enabled: true
+  spec:
+    members: 1
+    additionalMongodConfig:
+      storage.wiredTiger.engineConfig.cacheSizeGB: 0.25
+    statefulSet:
+      spec:
+        template:
+          spec:
+            containers:
+              - name: mongod
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 512Mi
+                  limits:
+                    cpu: "1"
+                    memory: 1Gi
+              - name: mongodb-agent
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 256Mi
+        # Omit storageClassName to select the cluster default class.
+        volumeClaimTemplates:
+          - metadata:
+              name: data-volume
+            spec:
+              accessModes: [ReadWriteOnce]
+              resources:
+                requests:
+                  storage: 5Gi
+          - metadata:
+              name: logs-volume
+            spec:
+              accessModes: [ReadWriteOnce]
+              resources:
+                requests:
+                  storage: 1Gi

@@ -72,7 +72,13 @@ locals {
     }
     "grafana.home.shdr.ch" = {
       path        = "/api/health"
-      namespace   = "monitoring-stack"
+      namespace   = "grafana"
+      exposure    = "internal"
+      criticality = "high"
+    }
+    "hyperdx.home.shdr.ch" = {
+      path        = "/api/health"
+      namespace   = "hyperdx"
       exposure    = "internal"
       criticality = "high"
     }
@@ -93,12 +99,6 @@ locals {
       namespace   = "proxmox"
       exposure    = "internal"
       criticality = "normal"
-    }
-    "loki.home.shdr.ch" = {
-      path        = "/ready"
-      namespace   = "monitoring-stack"
-      exposure    = "internal"
-      criticality = "high"
     }
     "m.ha.home.shdr.ch" = {
       path        = ""
@@ -135,12 +135,6 @@ locals {
       namespace   = "network"
       exposure    = "internal"
       criticality = "normal"
-    }
-    "prometheus.home.shdr.ch" = {
-      path        = "/-/ready"
-      namespace   = "monitoring-stack"
-      exposure    = "internal"
-      criticality = "high"
     }
     "rack-switch.home.shdr.ch" = {
       path        = ""

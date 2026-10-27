@@ -15,6 +15,198 @@ receivers:
         endpoint: "0.0.0.0:{{ vm.monitoring_stack.ports.loki_push }}"
     use_incoming_timestamp: true
 
+  # Mirror prometheus.yml.j2 jobs during dual-write (including conditional probes).
+  # Escape relabel replacement dollars as $$ for collector env expansion.
+  prometheus:
+    config:
+      global:
+        scrape_interval: 30s
+      scrape_configs:
+        - job_name: "prometheus"
+          static_configs:
+            - targets: ["localhost:9090"]
+
+        - job_name: "otel-collector"
+          # Collector self-metrics only. Fleet metrics arrive via remote-write
+          # (prometheusremotewrite exporter in otel_config.yml.j2) since 2026-07-26;
+          # the old otel-metrics pull job on :8889 was the incident-prone hot path.
+          static_configs:
+            - targets: ["localhost:8888"]
+
+
+        # Physical Proxmox hosts - Node Exporter
+        - job_name: "proxmox-hosts-node"
+          static_configs:
+            - targets:
+                - "192.168.2.201:9100" # Niobe
+                - "192.168.2.202:9100" # Trinity
+                - "192.168.2.203:9100" # Oracle
+                - "192.168.2.204:9100" # Smith
+                - "192.168.2.205:9100" # Neo
+              labels:
+                instance_type: "proxmox_host"
+
+        # Aether site-fabric services. Identity is fabric → site → host → service;
+        # topology_role describes routing and is not part of identity.
+        - job_name: "site-node-exporter"
+          static_configs:
+            - targets: ["10.1.0.10:9100"]
+              labels:
+                fabric: "aether"
+                site: "aws"
+                host: "link"
+                service: "node-exporter"
+                topology_role: "hub"
+            - targets: ["10.2.0.10:9100"]
+              labels:
+                fabric: "aether"
+                site: "gcp"
+                host: "vigilant"
+                service: "node-exporter"
+                topology_role: "spoke"
+            - targets: ["10.3.0.10:9100"]
+              labels:
+                fabric: "aether"
+                site: "oci"
+                host: "rama"
+                service: "node-exporter"
+                topology_role: "spoke"
+
+        - job_name: "site-wireguard-exporter"
+          static_configs:
+            - targets: ["10.1.0.10:9586"]
+              labels:
+                fabric: "aether"
+                site: "aws"
+                host: "link"
+                service: "wireguard-exporter"
+                topology_role: "hub"
+            - targets: ["10.2.0.10:9586"]
+              labels:
+                fabric: "aether"
+                site: "gcp"
+                host: "vigilant"
+                service: "wireguard-exporter"
+                topology_role: "spoke"
+            - targets: ["10.3.0.10:9586"]
+              labels:
+                fabric: "aether"
+                site: "oci"
+                host: "rama"
+                service: "wireguard-exporter"
+                topology_role: "spoke"
+
+        - job_name: "site-crowdsec"
+          static_configs:
+            - targets: ["10.1.0.10:6060"]
+              labels:
+                fabric: "aether"
+                site: "aws"
+                host: "link"
+                service: "crowdsec"
+                topology_role: "hub"
+
+        # Physical Proxmox hosts - SMART Exporter
+        - job_name: "proxmox-hosts-smart"
+          scrape_interval: 60s # Less frequent for disk health
+          static_configs:
+            - targets:
+                - "192.168.2.201:9633" # Niobe
+                - "192.168.2.202:9633" # Trinity
+                - "192.168.2.203:9633" # Oracle
+                - "192.168.2.204:9633" # Smith
+                - "192.168.2.205:9633" # Neo
+              labels:
+                instance_type: "proxmox_host"
+
+        # Proxmox cluster via API - scrape each host for complete cluster view
+        - job_name: "proxmox-cluster"
+          static_configs:
+            - targets:
+                - 192.168.2.201 # Niobe
+                - 192.168.2.202 # Trinity
+                - 192.168.2.203 # Oracle
+                - 192.168.2.204 # Smith
+                - 192.168.2.205 # Neo
+          metrics_path: /pve
+          params:
+            module: [default]
+            cluster: ["1"]
+            node: ["1"]
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: localhost:9221 # PVE exporter in monitoring stack
+
+        # Proxmox Backup Server
+        - job_name: "proxmox-backup"
+          static_configs:
+            - targets: ["localhost:10019"]
+              labels:
+                instance_type: "pbs"
+
+        # Ceph cluster - standalone ceph-exporter daemon (one per host, port 9926).
+        # Avoids the mgr prometheus module, which crashes under Python 3.13 on
+        # Ceph 19.2/20.2. Deploy with: task configure:ceph-exporter
+        - job_name: "ceph"
+          honor_labels: true
+          static_configs:
+            - targets:
+                - "192.168.2.202:9926" # Trinity
+                - "192.168.2.204:9926" # Smith
+                - "192.168.2.205:9926" # Neo
+              labels:
+                instance_type: "ceph"
+
+        # blackbox-exporter — TLS handshake probes against internal Aether-CA
+        # endpoints, exports `probe_ssl_earliest_cert_expiry` so Grafana alerts
+        # when a short-lived cert stops renewing (see Apr 2026 OpenBao incident).
+        # Public-CA endpoints (Caddy) are covered by blackbox-http-apps.
+        - job_name: "blackbox-tls"
+          metrics_path: /probe
+          params:
+            module: [tls_connect]
+          static_configs:
+            - targets:
+                - "{{ vm.openbao.ip }}:{{ vm.openbao.ports.https }}" # OpenBao internal TLS
+                - "{{ vm.step_ca.ip }}:{{ vm.step_ca.ports.https }}" # step-ca
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: localhost:9115
+
+{% if tf_outputs.synthetic_probe_targets.value | default([]) | length > 0 %}
+        # blackbox-exporter — HTTP availability probes for namespace-contract apps.
+        # Targets are rendered from tf_outputs.synthetic_probe_targets (tofu output).
+        - job_name: "blackbox-http-apps"
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+          static_configs:
+{% for target in tf_outputs.synthetic_probe_targets.value | default([]) %}
+            - targets:
+                - "{{ target.url }}"
+              labels:
+                probe_namespace: "{{ target.namespace }}"
+                probe_exposure: "{{ target.exposure }}"
+                probe_criticality: "{{ target.criticality }}"
+                probe_hostname: "{{ target.hostname }}"
+{% endfor %}
+          relabel_configs:
+            - source_labels: [__address__]
+              target_label: __param_target
+            - source_labels: [__param_target]
+              target_label: instance
+            - target_label: __address__
+              replacement: localhost:9115
+{% endif %}
+
 processors:
   memory_limiter:
     check_interval: 5s
@@ -25,6 +217,10 @@ processors:
     # worst-case stack (prom 5G + otel ~4G + CH 3G) still fits.
     limit_mib: 4096
     spike_limit_mib: 896
+
+  # Preserve absolute cumulative counters while assigning missing start times.
+  metric_start_time:
+    strategy: true_reset_point
 
   batch:
     timeout: 10s
@@ -74,6 +270,15 @@ processors:
           - set(attributes["cronjob_name"], resource.attributes["k8s.cronjob.name"]) where resource.attributes["k8s.cronjob.name"] != nil
           - set(attributes["job_name"], resource.attributes["k8s.job.name"]) where resource.attributes["k8s.job.name"] != nil
           - set(attributes["hpa_name"], resource.attributes["k8s.hpa.name"]) where resource.attributes["k8s.hpa.name"] != nil
+          # Same collision class, per-entity receivers. hostmetrics' process
+          # scraper puts the process identity only in resource attrs, so every
+          # process on a host collapsed into one series (and vm-monitoring's
+          # top-process panels, keyed on process_executable_name, were empty);
+          # pid separates same-binary workers. kubeletstats puts the container
+          # in k8s.container.name, collapsing multi-container pods.
+          - set(attributes["process_executable_name"], resource.attributes["process.executable.name"]) where resource.attributes["process.executable.name"] != nil
+          - set(attributes["process_pid"], String(resource.attributes["process.pid"])) where resource.attributes["process.pid"] != nil
+          - set(attributes["container_name"], resource.attributes["k8s.container.name"]) where attributes["container_name"] == nil and resource.attributes["k8s.container.name"] != nil
 
   # Journal-forwarder logs arrive with service.name = the systemd unit and the
   # host in host.name. Rewrite service.name to the host so these sources match
@@ -117,18 +322,43 @@ connectors:
         pipelines: [logs/clickhouse/vyos_observations]
 
 
-  # Route traces by tenant for Tempo multi-tenancy
-  routing/traces:
-    default_pipelines: [traces/default]
-    error_mode: ignore
-    table:
-{% for tenant in tenants %}
-      - context: resource
-        condition: attributes["service.namespace"] == "{{ tenant.name }}"
-        pipelines: [traces/{{ tenant.name }}]
-{% endfor %}
-
 exporters:
+  # Dual-write general telemetry; retention and schemas are managed by our DDL.
+  clickhouse/otel:
+    endpoint: tcp://localhost:9000
+    username: aether
+    password: "{{ secrets.clickhouse.password }}"
+    database: otel
+    create_schema: false
+    async_insert: true
+    connection_params:
+      wait_for_async_insert: "1"
+    compress: lz4
+    logs_table_name: otel_logs
+    traces_table_name: otel_traces
+    metrics_tables:
+      gauge:
+        name: otel_metrics_gauge
+      sum:
+        name: otel_metrics_sum
+      histogram:
+        name: otel_metrics_histogram
+      exponential_histogram:
+        name: otel_metrics_exponential_histogram
+      summary:
+        name: otel_metrics_summary
+    ttl: 0
+    timeout: 30s
+    sending_queue:
+      enabled: true
+      num_consumers: 1
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 600s
+
   # Push metrics into Prometheus via remote-write instead of accumulating a
   # pull exposition on :8889. The pull path held every live fleet series in
   # the exporter (O(total series) heap) and re-serialized ~220k samples per
@@ -162,40 +392,6 @@ exporters:
 
   otlphttp/loki:
     endpoint: http://localhost:3100/otlp
-
-  # Secondary archive for logs that already flow to Loki. A bounded queue keeps
-  # GreptimeDB outages from changing the authoritative Loki hot path.
-  otlphttp/greptime:
-    endpoint: http://localhost:4000/v1/otlp
-    compression: gzip
-    headers:
-      x-greptime-db-name: "{{ greptime_credentials.database }}"
-      Authorization: "Basic {{ (greptime_credentials.ingest_user ~ ':' ~ greptime_credentials.ingest_password) | b64encode }}"
-    sending_queue:
-      enabled: true
-      num_consumers: 4
-      queue_size: 2000
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-
-  otlp/tempo:
-    endpoint: "localhost:24317"
-    tls:
-      insecure: true
-    headers:
-      X-Scope-OrgID: aether
-
-{% for tenant in tenants %}
-  otlp/tempo-{{ tenant.name }}:
-    endpoint: "localhost:24317"
-    tls:
-      insecure: true
-    headers:
-      X-Scope-OrgID: "{{ tenant.name }}"
-{% endfor %}
 
   clickhouse/zeek:
     endpoint: tcp://localhost:9000
@@ -268,11 +464,18 @@ service:
     logs:
       level: warn
   pipelines:
-    # Hot path: untouched by the archive — separate pipeline below.
+    # OTLP metrics retain the promoted labels for both destinations.
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      exporters: [prometheusremotewrite]
+      exporters: [prometheusremotewrite, clickhouse/otel]
+
+    # The receiver emits up/scrape_* series alongside scraped target metrics.
+    # Never remote-write these: Prometheus still scrapes them during dual-write.
+    metrics/scrape:
+      receivers: [prometheus]
+      processors: [memory_limiter, metric_start_time, batch]
+      exporters: [clickhouse/otel]
 
 
     # Ingest logs and route based on source
@@ -312,26 +515,16 @@ service:
     # All other logs -> Loki (default)
     logs/loki:
       receivers: [routing/logs]
-      exporters: [otlphttp/loki, otlphttp/greptime]
+      exporters: [otlphttp/loki, clickhouse/otel]
 
     # Non-OTLP Loki-push sources (unpoller UniFi events) -> Loki, routed through
     # the collector so they get batching, memory limiting, and the standard egress.
     logs/loki_push:
       receivers: [loki]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/loki, otlphttp/greptime]
+      exporters: [otlphttp/loki, clickhouse/otel]
 
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [routing/traces]
-
-    traces/default:
-      receivers: [routing/traces]
-      exporters: [otlp/tempo]
-
-{% for tenant in tenants %}
-    traces/{{ tenant.name }}:
-      receivers: [routing/traces]
-      exporters: [otlp/tempo-{{ tenant.name }}]
-{% endfor %}
+      exporters: [clickhouse/otel]

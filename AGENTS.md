@@ -28,8 +28,8 @@ Repo-local agent skills live under `.agents/skills/`:
   relevant docs. Use it for architecture, placement, ownership, and source
   discovery.
 - **`$investigate-aether`** performs read-only, evidence-first incident and
-  health investigations through Grafana, Prometheus, Loki, Tempo, ClickHouse,
-  Kubernetes, Fleet, Talos, SSH, and service APIs.
+  health investigations through Grafana, ClickHouse, Kubernetes, Fleet,
+  Talos, SSH, and service APIs.
 
 Use `$navigate-aether` first when placement or ownership is unclear, then
 `$investigate-aether` when the question requires current live evidence. The
@@ -71,14 +71,12 @@ Live patching means changing live infrastructure outside the declared IaC path, 
 
 ## Monitoring & observability
 
-The monitoring stack VM (`monitoring-stack`, `10.0.2.3`, deployed by `ansible/playbooks/monitoring_stack/`) is a wealth of telemetry — use it before guessing. When debugging an issue ("is the cluster slow?", "did this deploy break something?", "what's eating the GPU?"), check here first.
+The monitoring stack VM (`monitoring-stack`, `10.0.2.3`, deployed by `ansible/playbooks/monitoring_stack/`) hosts ClickHouse, the single telemetry store — use it before guessing. When debugging an issue ("is the cluster slow?", "did this deploy break something?", "what's eating the GPU?"), check here first. Grafana now runs in Kubernetes (namespace `grafana`) with ONLY a ClickHouse datasource (uid `clickhouse`); HyperDX is the admin-only second UI over the same tables. Prometheus, Loki, Tempo, Greptime, and Janus are removed.
 
 What's collected:
 
-- **Prometheus** — metrics. Scrapes Proxmox hosts (node-exporter + SMART), the PVE cluster API, PBS, Ceph (`ceph-exporter` per host on :9926), the OTel collector, and anything Proxmox VMs/k8s pods push via OTel. See `prometheus.yml` for the full target list.
-- **Loki** — logs. VMs ship via the `vm_monitoring_agent` role; k8s ships via the cluster's OTel pipeline.
-- **Tempo** — traces. Same OTel ingestion path. No public DNS — query via Grafana or Janus only.
-- **ClickHouse** — Zeek + Suricata network/security data. Init scripts in `monitoring_stack/clickhouse/` define the schemas (raw ingest tables, typed tables, materialized views, aggregations) for both. Use this for network forensics, IDS investigation, or any "who talked to what" question.
+- **ClickHouse `otel` DB** — metrics, logs, traces (ClickStack). The OTel collector writes via its `clickhouse` exporter and takes over scraping via the `prometheus` receiver; tables `otel_metrics_gauge`/`otel_metrics_sum`/`otel_metrics_histogram`, `otel_logs` (120d), `otel_traces` (30d), metrics 30d. Query with SQL, not PromQL/LogQL — see `.agents/skills/investigate-aether/references/clickhouse.md` for the label→column mapping and counter semantics.
+- **ClickHouse Zeek/Suricata DBs** — network/security data. Init scripts in `monitoring_stack/clickhouse/` define the schemas (raw ingest tables, typed tables, materialized views, aggregations) for both. Use this for network forensics, IDS investigation, or any "who talked to what" question.
 - **Fleet** — osquery fleet manager. Live host introspection for the VMs (processes, packages, file integrity, etc.).
 - **OTel collector** — central ingestion for metrics/logs/traces from VMs and the k8s cluster. Receivers on `:4317` (gRPC) and `:4318` (HTTP).
 
@@ -86,10 +84,9 @@ How to access:
 
 | Service       | URL                                  | Notes                                                              |
 | ------------- | ------------------------------------ | ------------------------------------------------------------------ |
-| Grafana       | `https://grafana.home.shdr.ch`       | Primary entry point. SSO via Keycloak. All datasources pre-wired.  |
-| Prometheus    | `https://prometheus.home.shdr.ch`    | Query API at `/api/v1/query` and `/api/v1/query_range`.            |
-| Loki          | `https://loki.home.shdr.ch`          | LogQL via `/loki/api/v1/query_range`.                              |
-| ClickHouse    | `https://clickhouse.home.shdr.ch`    | HTTP interface (port 8123). The SOPS-backed `aether` identity is reserved for ingestion/admin; investigations use Grafana's `grafana_readonly` datasource identity. |
+| Grafana       | `https://grafana.home.shdr.ch`       | Primary entry point (k8s). SSO via Keycloak. Single ClickHouse datasource (uid `clickhouse`). |
+| HyperDX       | `https://hyperdx.home.shdr.ch`       | ClickHouse UI over the `otel` DB. Admin-only, local accounts.      |
+| ClickHouse    | `https://clickhouse.home.shdr.ch`    | HTTP interface (port 8123 via Caddy). The SOPS-backed `aether` identity is reserved for ingestion/admin; investigations use Grafana's `grafana_readonly` datasource identity. |
 | Fleet         | `https://fleet.home.shdr.ch`         | osquery management UI + API.                                       |
 | OTel ingest   | `https://otel-metrics.home.shdr.ch`  | HTTP/gRPC receivers (for shipping, not querying).                  |
 
@@ -100,8 +97,8 @@ For programmatic access (CLI / scripts), use the Grafana service-account token s
 ```bash
 TOKEN=$(sops -d secrets/secrets.yml | yq '.grafana_sa_token')
 curl -H "Authorization: Bearer $TOKEN" https://grafana.home.shdr.ch/api/datasources
-# Proxy queries through Grafana to any datasource (Prometheus, Loki, Tempo, ClickHouse)
-curl -H "Authorization: Bearer $TOKEN" "https://grafana.home.shdr.ch/api/datasources/proxy/uid/<ds-uid>/api/v1/query?query=up"
+# Query ClickHouse via the Grafana datasource (uid clickhouse) with SQL
+curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -X POST https://grafana.home.shdr.ch/api/ds/query -d '{"queries":[{"datasource":{"type":"grafana-clickhouse-datasource","uid":"clickhouse"},"format":1,"rawSql":"SELECT 1","refId":"A","queryType":"sql","editorType":"sql"}]}'
 ```
 
 The token is **read-only** (Viewer role) — fine for querying datasources, listing dashboards, exporting panel data. Any mutation (creating dashboards, editing datasources, alert rules, users, orgs, etc.) must go through IaC (Ansible/Terraform), not the API. **Do not** use the `grafana_password` secret — that's the localhost basic-auth password the provisioning playbook uses on the VM (`127.0.0.1:3000`); it does not work against the public URL.

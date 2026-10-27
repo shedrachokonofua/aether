@@ -1,0 +1,76 @@
+-- Rendered mode 0600: hashes are credentials, not public configuration.
+CREATE ROLE IF NOT EXISTS staff_reader_role;
+GRANT SELECT ON otel.* TO staff_reader_role;
+GRANT SELECT ON aether.* TO staff_reader_role;
+CREATE SETTINGS PROFILE OR REPLACE staff_reader_profile SETTINGS
+    readonly = 1 READONLY,
+    max_execution_time = 60 MIN 1 MAX 60 CHANGEABLE_IN_READONLY,
+    max_memory_usage = 2000000000 READONLY,
+    max_concurrent_queries_for_user = 8 READONLY
+TO staff_reader_role;
+
+-- HyperDX sets per-query output settings (e.g. date_time_output_format), which
+-- readonly=1 forbids. readonly=2 still blocks writes/DDL; resource settings
+-- stay pinned with READONLY constraints.
+CREATE ROLE IF NOT EXISTS hyperdx_reader_role;
+GRANT SELECT ON otel.* TO hyperdx_reader_role;
+GRANT SELECT ON aether.* TO hyperdx_reader_role;
+CREATE SETTINGS PROFILE OR REPLACE hyperdx_reader_profile SETTINGS
+    readonly = 2 READONLY,
+    max_execution_time = 60 MIN 1 MAX 120,
+    max_memory_usage = 4000000000 READONLY,
+    max_threads = 4 READONLY,
+    max_concurrent_queries_for_user = 8 READONLY
+TO hyperdx_reader_role;
+
+{% for user, password_key, hosts in [('grafana_readonly', 'grafana_readonly_password', "LOCAL, IP '10.0.2.2'"), ('hyperdx_reader', 'hyperdx_password', "IP '10.0.2.2'"), ('agent_reader', 'agent_reader_password', "LOCAL, IP '10.0.2.2'")] %}
+CREATE USER IF NOT EXISTS {{ user }} IDENTIFIED WITH sha256_hash BY '{{ secrets.clickhouse[password_key] | hash("sha256") }}' HOST {{ hosts }};
+ALTER USER {{ user }} IDENTIFIED WITH sha256_hash BY '{{ secrets.clickhouse[password_key] | hash("sha256") }}' HOST {{ hosts }} GRANTEES NONE;
+{% if user == 'hyperdx_reader' %}
+REVOKE staff_reader_role FROM {{ user }};
+GRANT hyperdx_reader_role TO {{ user }};
+ALTER USER {{ user }} DEFAULT ROLE hyperdx_reader_role;
+{% elif user == 'grafana_readonly' %}
+GRANT staff_reader_role TO {{ user }};
+ALTER USER {{ user }} DEFAULT ROLE {{ clickhouse_grafana_role }}, staff_reader_role;
+{% else %}
+GRANT staff_reader_role TO {{ user }};
+ALTER USER {{ user }} DEFAULT ROLE staff_reader_role;
+{% endif %}
+{% endfor %}
+{% for database in ['zeek', 'suricata', 'network'] %}
+GRANT SELECT ON {{ database }}.* TO agent_reader;
+{% endfor %}
+
+{% set tables = ['otel_logs', 'otel_traces', 'otel_metrics_gauge', 'otel_metrics_sum', 'otel_metrics_histogram', 'otel_metrics_exponential_histogram', 'otel_metrics_summary', 'hyperdx_sessions'] %}
+{% for table in tables %}
+CREATE ROW POLICY OR REPLACE staff_rows ON otel.{{ table }}
+FOR SELECT USING 1 TO staff_reader_role, grafana_readonly, hyperdx_reader, agent_reader, {{ clickhouse_admin_user }}{% if clickhouse_default_user.stdout | trim == '1' %}, default{% endif %};
+{% endfor %}
+
+{% for tenant in clickhouse_otel_tenants.tenants %}
+{% set name = tenant.name %}
+CREATE ROLE OR REPLACE tenant_{{ name }}_role;
+GRANT SELECT ON otel.* TO tenant_{{ name }}_role;
+CREATE USER IF NOT EXISTS tenant_{{ name }} IDENTIFIED WITH sha256_hash BY '{{ secrets.clickhouse.tenant_passwords[name] | hash("sha256") }}' HOST IP '10.0.2.2';
+ALTER USER tenant_{{ name }} IDENTIFIED WITH sha256_hash BY '{{ secrets.clickhouse.tenant_passwords[name] | hash("sha256") }}' HOST IP '10.0.2.2' GRANTEES NONE;
+GRANT tenant_{{ name }}_role TO tenant_{{ name }};
+ALTER USER tenant_{{ name }} DEFAULT ROLE tenant_{{ name }}_role;
+CREATE SETTINGS PROFILE OR REPLACE tenant_{{ name }}_profile SETTINGS
+    readonly = 1 READONLY,
+    max_execution_time = 60 MIN 1 MAX 60 CHANGEABLE_IN_READONLY,
+    max_memory_usage = 2000000000 READONLY,
+    max_concurrent_queries_for_user = 4 READONLY,
+    max_result_rows = 100000 READONLY,
+    result_overflow_mode = 'throw' READONLY
+TO tenant_{{ name }}_role;
+-- Per-user hourly quota: at most one query per second and 30 execution minutes.
+CREATE QUOTA OR REPLACE tenant_{{ name }}_quota
+FOR INTERVAL 1 HOUR MAX queries = 3600, execution_time = 1800
+TO tenant_{{ name }};
+{% for table in tables %}
+CREATE ROW POLICY OR REPLACE tenant_{{ name }}_rows ON otel.{{ table }}
+FOR SELECT USING ResourceAttributes['service.namespace'] = '{{ name }}'{% if table in ['otel_logs', 'hyperdx_sessions'] %} OR startsWith(ServiceName, 'vc-{{ name }}/'){% elif table.startswith('otel_metrics_') %} OR Attributes['service_namespace'] = '{{ name }}'{% endif %}
+TO tenant_{{ name }}_role;
+{% endfor %}
+{% endfor %}

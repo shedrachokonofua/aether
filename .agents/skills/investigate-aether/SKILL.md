@@ -1,6 +1,6 @@
 ---
 name: investigate-aether
-description: Interactively investigate Aether outages, alerts, regressions, performance issues, failed deployments, missing telemetry, backup failures, authentication problems, and network/security questions using live read-only evidence, including human follow-up on an Inquest incident. Use Grafana as the primary correlation surface across Prometheus metrics, Loki logs, Tempo traces, ClickHouse Zeek/Suricata data, Kubernetes state, Fleet, Talos, SSH, and service APIs. This is not the unattended Grafana-to-Kestra-to-Holmes-to-GitLab pipeline owned by sibling ../inquest; consume its incident record when present, independently verify its RCA, and stop before remediation or live mutation.
+description: Interactively investigate Aether outages, alerts, regressions, performance issues, failed deployments, missing telemetry, backup failures, authentication problems, and network/security questions using live read-only evidence, including human follow-up on an Inquest incident. Use Grafana as the primary correlation surface across ClickHouse metrics/logs/traces (otel database) and Zeek/Suricata data, Kubernetes state, Fleet, Talos, SSH, and service APIs. This is not the unattended Grafana-to-Kestra-to-Holmes-to-GitLab pipeline owned by sibling ../inquest; consume its incident record when present, independently verify its RCA, and stop before remediation or live mutation.
 ---
 
 # Investigate Aether
@@ -13,8 +13,7 @@ Investigate from current evidence, not repository speculation. Start narrow, cor
 - Use `$navigate-aether` if runtime, placement, or ownership is unclear.
 - Read only the source reference needed for the next question:
   - [Grafana](references/grafana.md): dashboards, alerts, datasource discovery, API access.
-  - [Prometheus](references/prometheus.md): metrics, targets, labels, retention, known metric families.
-  - [Loki and Tempo](references/loki-tempo.md): logs, traces, indexed labels, coverage limits.
+  - [ClickHouse](references/clickhouse.md): metrics, logs, traces in the `otel` database — tables, label mapping, counter/rate semantics, SQL conventions.
   - [Kubernetes and hosts](references/kubernetes-hosts.md): cluster events/logs, Talos, Fleet, SSH.
   - [Network security](references/network-security.md): ClickHouse, Zeek, Suricata, Hubble, Tetragon.
   - [Inquest](references/inquest.md): automated alert intake, incident correlation, and pipeline-failure follow-up.
@@ -62,8 +61,8 @@ Check Kubernetes context only for cluster work; it must be `admin@aether-k8s`. D
 1. Check Grafana health.
 2. Search dashboards and inspect the closest existing dashboard.
 3. Summarize active alerts; identify the intentional `DeadMansSwitch` separately.
-4. Discover datasource UIDs dynamically.
-5. Query one backend selected by the symptom.
+4. Grafana has a single ClickHouse datasource (uid `clickhouse`); HyperDX is the admin-only second UI over the same tables.
+5. Query ClickHouse SQL selected by the symptom.
 
 Use the tested read-only helper from the repo root:
 
@@ -79,11 +78,11 @@ Do not fan out across every datasource before forming a hypothesis.
 
 | Question | First evidence | Corroborate with |
 | --- | --- | --- |
-| Availability or saturation | Prometheus/Grafana dashboard | Loki, Kubernetes, SSH/service API |
-| Application error | Loki | Prometheus, Tempo, Kubernetes state |
-| Cross-service latency | Tempo when instrumented | Prometheus latency plus Loki |
-| Failed Kubernetes rollout | Workload status and targeted events | Loki/pod logs, Prometheus restarts |
-| VM/LXC/host failure | Prometheus/PVE metrics | SSH journal, systemd, Podman, Fleet |
+| Availability or saturation | ClickHouse metrics/Grafana dashboard | ClickHouse logs, Kubernetes, SSH/service API |
+| Application error | ClickHouse logs (`otel_logs`) | ClickHouse metrics/traces, Kubernetes state |
+| Cross-service latency | ClickHouse traces (`otel_traces`) when instrumented | ClickHouse latency metrics plus logs |
+| Failed Kubernetes rollout | Workload status and targeted events | ClickHouse/pod logs, ClickHouse restart metrics |
+| VM/LXC/host failure | ClickHouse/PVE metrics | SSH journal, systemd, Podman, Fleet |
 | Network or IDS question | ClickHouse Zeek/Suricata | Hubble/Tetragon, DNS/proxy logs |
 | Backup failure | Operation/API and backup metrics | job logs, storage/lock state |
 | Missing data | target and collector health | exporter/agent logs and live endpoint |

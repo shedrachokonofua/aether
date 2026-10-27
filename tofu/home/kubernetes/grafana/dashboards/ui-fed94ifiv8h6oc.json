@@ -1,0 +1,2552 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Caddy HTTP server monitoring with filtering by host",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "gnetId": 24146,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 8,
+      "title": "Summary",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "The number of requests currently being handled by the server.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(value) AS value FROM (SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='caddy_http_requests_in_flight' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName)",
+          "refId": "A"
+        }
+      ],
+      "title": "Requests in flight",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Total requests handled in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(delta) AS value FROM (SELECT TimeUnix, Attributes, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime",
+          "refId": "A"
+        }
+      ],
+      "title": "Total requests",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Rate of requests handled per second in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(delta)/greatest(dateDiff('second', $__fromTime, $__toTime),1) AS value FROM (SELECT TimeUnix, Attributes, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime",
+          "refId": "A"
+        }
+      ],
+      "title": "Requests per second",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Median round-trip request duration for the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (SELECT bound, sum(n) OVER (ORDER BY bound) AS cum FROM (SELECT if(i <= length(ExplicitBounds), ExplicitBounds[i], inf) AS bound, sum(counts[i]) AS n FROM (SELECT ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime GROUP BY ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY bound))",
+          "refId": "A"
+        }
+      ],
+      "title": "Median request duration",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Median time-to-first-byte response duration for the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 20,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (SELECT bound, sum(n) OVER (ORDER BY bound) AS cum FROM (SELECT if(i <= length(ExplicitBounds), ExplicitBounds[i], inf) AS bound, sum(counts[i]) AS n FROM (SELECT ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime GROUP BY ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY bound))",
+          "refId": "A"
+        }
+      ],
+      "title": "Median response duration",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "A number of middleware errors encountered while handling requests in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "decimals": 0,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(delta) AS value FROM (SELECT TimeUnix, Attributes, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_request_errors_total' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime",
+          "refId": "A"
+        }
+      ],
+      "title": "Total middleware errors",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Median request (estimated) size in bytes in the selected time range. Includes body.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 6
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (SELECT bound, sum(n) OVER (ORDER BY bound) AS cum FROM (SELECT if(i <= length(ExplicitBounds), ExplicitBounds[i], inf) AS bound, sum(counts[i]) AS n FROM (SELECT ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime GROUP BY ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY bound))",
+          "refId": "A"
+        }
+      ],
+      "title": "Median request size",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Median returned response body size in bytes in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 6
+      },
+      "id": 21,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (SELECT bound, sum(n) OVER (ORDER BY bound) AS cum FROM (SELECT if(i <= length(ExplicitBounds), ExplicitBounds[i], inf) AS bound, sum(counts[i]) AS n FROM (SELECT ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime GROUP BY ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY bound))",
+          "refId": "A"
+        }
+      ],
+      "title": "Median response size",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Sum of the sizes of all received requests in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 6
+      },
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(delta) AS value FROM (SELECT TimeUnix, Attributes, Sum - lagInFrame(Sum, 1, Sum) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Sum, raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime",
+          "refId": "A"
+        }
+      ],
+      "title": "Total requests size",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Sum of sizes of all response bodies in the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 6
+      },
+      "id": 23,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(delta) AS value FROM (SELECT TimeUnix, Attributes, Sum - lagInFrame(Sum, 1, Sum) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Sum, raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime",
+          "refId": "A"
+        }
+      ],
+      "title": "Total responses size",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Percentage of responses with 4xx status code in all responses.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "noValue": "0%",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 6
+      },
+      "id": 24,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sumIf(delta, startsWith(Attributes['code'], '4')) / nullIf(sum(delta),0) AS value FROM (SELECT TimeUnix, Attributes, toFloat64(Count) - lagInFrame(toFloat64(Count), 1, toFloat64(Count)) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, toFloat64(Count), raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime",
+          "refId": "A"
+        }
+      ],
+      "title": "4xx response percentage",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Percentage of responses with 4xx status code in all responses.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "noValue": "0%",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 6
+      },
+      "id": 25,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sumIf(delta, startsWith(Attributes['code'], '5')) / nullIf(sum(delta),0) AS value FROM (SELECT TimeUnix, Attributes, toFloat64(Count) - lagInFrame(toFloat64(Count), 1, toFloat64(Count)) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, toFloat64(Count), raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime",
+          "refId": "A"
+        }
+      ],
+      "title": "5xx response percentage",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 11,
+      "title": "Detailed metrics",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^2\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^3\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^4\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^5\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "shades"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(delta)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['method'] AS series, delta FROM (SELECT TimeUnix, Attributes, toFloat64(Count) - lagInFrame(toFloat64(Count), 1, toFloat64(Count)) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, toFloat64(Count), raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix))) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Rate of requests by HTTP method (stacked)",
+      "interval": "1m",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^2\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^3\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^4\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^5\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "shades"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 6,
+        "x": 12,
+        "y": 12
+      },
+      "id": 15,
+      "options": {
+        "displayLabels": [],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['code'] AS code, sum(delta) AS value FROM (SELECT TimeUnix, Attributes, toFloat64(Count) - lagInFrame(toFloat64(Count), 1, toFloat64(Count)) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, toFloat64(Count), raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime GROUP BY code ORDER BY value DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP status breakdown",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "id": 16,
+      "options": {
+        "displayLabels": [],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['method'] AS method, sum(delta) AS value FROM (SELECT TimeUnix, Attributes, toFloat64(Count) - lagInFrame(toFloat64(Count), 1, toFloat64(Count)) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, toFloat64(Count), raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= $__fromTime GROUP BY method",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP method breakdown",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Request duration percentiles over the preceding five minutes. Per-series histogram deltas are summed as arrays before expanding bounds; the latest sample is shown in each display interval.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, '0.99' AS series, argMax(value, TimeUnix) AS value FROM (SELECT TimeUnix, quantilePrometheusHistogram(0.99)(if(i <= length(ExplicitBounds), ExplicitBounds[i], inf), cumulative_counts[i]) AS value FROM (SELECT TimeUnix, ExplicitBounds, arrayCumSum(sumForEach(counts) OVER (PARTITION BY ExplicitBounds ORDER BY toUnixTimestamp64Milli(TimeUnix) RANGE BETWEEN 299999 PRECEDING AND CURRENT ROW)) AS cumulative_counts FROM (SELECT TimeUnix, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND ServiceName='caddy' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) GROUP BY TimeUnix, ExplicitBounds)) ARRAY JOIN arrayEnumerate(cumulative_counts) AS i WHERE TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY TimeUnix) GROUP BY time, series ORDER BY time",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, '0.95' AS series, argMax(value, TimeUnix) AS value FROM (SELECT TimeUnix, quantilePrometheusHistogram(0.95)(if(i <= length(ExplicitBounds), ExplicitBounds[i], inf), cumulative_counts[i]) AS value FROM (SELECT TimeUnix, ExplicitBounds, arrayCumSum(sumForEach(counts) OVER (PARTITION BY ExplicitBounds ORDER BY toUnixTimestamp64Milli(TimeUnix) RANGE BETWEEN 299999 PRECEDING AND CURRENT ROW)) AS cumulative_counts FROM (SELECT TimeUnix, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND ServiceName='caddy' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) GROUP BY TimeUnix, ExplicitBounds)) ARRAY JOIN arrayEnumerate(cumulative_counts) AS i WHERE TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY TimeUnix) GROUP BY time, series ORDER BY time",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, '0.9' AS series, argMax(value, TimeUnix) AS value FROM (SELECT TimeUnix, quantilePrometheusHistogram(0.9)(if(i <= length(ExplicitBounds), ExplicitBounds[i], inf), cumulative_counts[i]) AS value FROM (SELECT TimeUnix, ExplicitBounds, arrayCumSum(sumForEach(counts) OVER (PARTITION BY ExplicitBounds ORDER BY toUnixTimestamp64Milli(TimeUnix) RANGE BETWEEN 299999 PRECEDING AND CURRENT ROW)) AS cumulative_counts FROM (SELECT TimeUnix, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND ServiceName='caddy' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) GROUP BY TimeUnix, ExplicitBounds)) ARRAY JOIN arrayEnumerate(cumulative_counts) AS i WHERE TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY TimeUnix) GROUP BY time, series ORDER BY time",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, '0.75' AS series, argMax(value, TimeUnix) AS value FROM (SELECT TimeUnix, quantilePrometheusHistogram(0.75)(if(i <= length(ExplicitBounds), ExplicitBounds[i], inf), cumulative_counts[i]) AS value FROM (SELECT TimeUnix, ExplicitBounds, arrayCumSum(sumForEach(counts) OVER (PARTITION BY ExplicitBounds ORDER BY toUnixTimestamp64Milli(TimeUnix) RANGE BETWEEN 299999 PRECEDING AND CURRENT ROW)) AS cumulative_counts FROM (SELECT TimeUnix, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND ServiceName='caddy' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) GROUP BY TimeUnix, ExplicitBounds)) ARRAY JOIN arrayEnumerate(cumulative_counts) AS i WHERE TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY TimeUnix) GROUP BY time, series ORDER BY time",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, '0.5' AS series, argMax(value, TimeUnix) AS value FROM (SELECT TimeUnix, quantilePrometheusHistogram(0.5)(if(i <= length(ExplicitBounds), ExplicitBounds[i], inf), cumulative_counts[i]) AS value FROM (SELECT TimeUnix, ExplicitBounds, arrayCumSum(sumForEach(counts) OVER (PARTITION BY ExplicitBounds ORDER BY toUnixTimestamp64Milli(TimeUnix) RANGE BETWEEN 299999 PRECEDING AND CURRENT ROW)) AS cumulative_counts FROM (SELECT TimeUnix, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND ServiceName='caddy' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) GROUP BY TimeUnix, ExplicitBounds)) ARRAY JOIN arrayEnumerate(cumulative_counts) AS i WHERE TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY TimeUnix) GROUP BY time, series ORDER BY time",
+          "refId": "E"
+        }
+      ],
+      "title": "Request duration percentiles",
+      "interval": "1m",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^2\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^3\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^4\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "shades"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^5\\d\\d$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "shades"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "id": 27,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(delta)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'request' AS series, delta FROM (SELECT TimeUnix, Attributes, Sum - lagInFrame(Sum, 1, Sum) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Sum, raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix))) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, -sum(delta)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'response' AS series, delta FROM (SELECT TimeUnix, Attributes, Sum - lagInFrame(Sum, 1, Sum) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Sum, raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix))) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "B"
+        }
+      ],
+      "title": "Data transfer rate",
+      "interval": "1m",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(delta)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['code'] AS series, delta FROM (SELECT TimeUnix, Attributes, toFloat64(Count) - lagInFrame(toFloat64(Count), 1, toFloat64(Count)) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, toFloat64(Count), raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND match(Attributes['code'],'^(4|5)') AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix))) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Rate of 4xx and 5xx responses",
+      "interval": "1m",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(delta)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'errors' AS series, delta FROM (SELECT TimeUnix, Attributes, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_request_errors_total' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Middleware error rate",
+      "interval": "1m",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "id": 19,
+      "title": "Heatmaps",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Round-trip request duration heatmap: per-bucket increases in each display interval. Per-series array deltas account for scrape boundaries and are summed before expanding histogram bounds.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "id": 12,
+      "options": {
+        "calculate": false,
+        "calculation": {
+          "xBuckets": {
+            "value": "600000"
+          },
+          "yBuckets": {
+            "value": ""
+          }
+        },
+        "cellGap": 1,
+        "cellValues": {
+          "unit": ""
+        },
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Spectral",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false,
+          "unit": "s"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, if(i <= length(ExplicitBounds), toString(ExplicitBounds[i]), '+Inf') AS le, sum(counts[i]) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_duration_seconds' AND ServiceName='caddy' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY time, le ORDER BY time, le",
+          "refId": "A"
+        }
+      ],
+      "title": "Request duration heatmap",
+      "interval": "1m",
+      "type": "heatmap"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      },
+      "id": 13,
+      "options": {
+        "calculate": false,
+        "calculation": {
+          "xBuckets": {
+            "value": "600000"
+          },
+          "yBuckets": {
+            "value": ""
+          }
+        },
+        "cellGap": 1,
+        "cellValues": {
+          "unit": ""
+        },
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Spectral",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false,
+          "unit": "bytes"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, if(i <= length(ExplicitBounds), toString(ExplicitBounds[i]), '+Inf') AS le, sum(counts[i]) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_request_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY time, le ORDER BY time, le",
+          "refId": "A"
+        }
+      ],
+      "title": "Request size heatmap",
+      "interval": "1m",
+      "type": "heatmap"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Response time-to-first-byte heatmap: per-bucket increases in each display interval. Per-series array deltas account for scrape boundaries and are summed before expanding histogram bounds.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "id": 17,
+      "options": {
+        "calculate": false,
+        "calculation": {
+          "xBuckets": {
+            "value": "600000"
+          },
+          "yBuckets": {
+            "value": ""
+          }
+        },
+        "cellGap": 1,
+        "cellValues": {
+          "unit": ""
+        },
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Spectral",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false,
+          "unit": "s"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, if(i <= length(ExplicitBounds), toString(ExplicitBounds[i]), '+Inf') AS le, sum(counts[i]) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_duration_seconds' AND ServiceName='caddy' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY time, le ORDER BY time, le",
+          "refId": "A"
+        }
+      ],
+      "title": "Response duration heatmap",
+      "interval": "1m",
+      "type": "heatmap"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "id": 18,
+      "options": {
+        "calculate": false,
+        "calculation": {
+          "xBuckets": {
+            "value": "600000"
+          },
+          "yBuckets": {
+            "value": ""
+          }
+        },
+        "cellGap": 1,
+        "cellValues": {
+          "unit": ""
+        },
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Spectral",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        },
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false,
+          "unit": "bytes"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, if(i <= length(ExplicitBounds), toString(ExplicitBounds[i]), '+Inf') AS le, sum(counts[i]) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds, sumForEach(delta) AS counts FROM (SELECT TimeUnix, ExplicitBounds, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), arrayMap((a,b) -> if(a >= b, a-b, a), arrayMap(x -> toFloat64(x), BucketCounts), arrayMap(x -> toFloat64(x), lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_size_bytes' AND $__conditionalAll(Attributes['exported_job'] IN (${job:singlequote}), $job) AND $__conditionalAll(ResourceAttributes['service.instance.id'] IN (${instance:singlequote}), $instance) AND $__conditionalAll(Attributes['host'] IN (${host:singlequote}), $host) AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, ExplicitBounds) ARRAY JOIN arrayEnumerate(counts) AS i GROUP BY time, le ORDER BY time, le",
+          "refId": "A"
+        }
+      ],
+      "title": "Response size heatmap",
+      "interval": "1m",
+      "type": "heatmap"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "id": 28,
+      "title": "Domain Stats",
+      "type": "row",
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 64
+      },
+      "id": 29,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": true,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, host, value FROM (SELECT time, host, sum(delta)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['host'] AS host, delta FROM (SELECT TimeUnix, Attributes, Sum - lagInFrame(Sum, 1, Sum) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Sum, raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_size_bytes' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix))) WHERE time >= $__fromTime GROUP BY time, host ORDER BY time LIMIT 5000) QUALIFY row_number() OVER (PARTITION BY time ORDER BY value DESC) <= 12 ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Domains Throughput (KB/s)",
+      "interval": "1m",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 50,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 18,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      },
+      "id": 30,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.8,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['host'] AS host, sum(delta) AS value FROM (SELECT TimeUnix, Attributes, Sum - lagInFrame(Sum, 1, Sum) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Sum, raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_size_bytes' AND TimeUnix BETWEEN now() - INTERVAL 7 DAY - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= now() - INTERVAL 7 DAY GROUP BY host ORDER BY value DESC",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['host'] AS host, sum(delta) AS value FROM (SELECT TimeUnix, Attributes, Sum - lagInFrame(Sum, 1, Sum) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Sum, raw_d)) AS delta FROM otel.otel_metrics_histogram WHERE MetricName='caddy_http_response_size_bytes' AND TimeUnix BETWEEN now() - INTERVAL 28 DAY - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes, ExplicitBounds ORDER BY TimeUnix)) WHERE TimeUnix >= now() - INTERVAL 28 DAY GROUP BY host ORDER BY value DESC",
+          "refId": "B"
+        }
+      ],
+      "title": "Domain Download Total",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "host",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time 1": true,
+              "Time 2": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value #A": "Sent (MB) 28d",
+              "Value #B": "Sent (MB) 7d"
+            }
+          }
+        }
+      ],
+      "interval": "1m",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(delta)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['host'] AS series, delta FROM (SELECT TimeUnix, Attributes, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix))) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Domain Request Rate",
+      "interval": "1m",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 41,
+  "tags": [
+    "http",
+    "caddy"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT Attributes['exported_job'] FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "label": "Job",
+        "name": "job",
+        "options": [],
+        "query": "SELECT DISTINCT Attributes['exported_job'] FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "refresh": 1,
+        "regex": "",
+        "type": "query",
+        "multi": true,
+        "includeAll": true
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT ResourceAttributes['service.instance.id'] FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "description": "",
+        "label": "Instance",
+        "name": "instance",
+        "options": [],
+        "query": "SELECT DISTINCT ResourceAttributes['service.instance.id'] FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "refresh": 1,
+        "regex": "",
+        "type": "query",
+        "multi": true,
+        "includeAll": true
+      },
+      {
+        "auto": false,
+        "auto_count": 300,
+        "auto_min": "10s",
+        "current": {
+          "text": "10m",
+          "value": "10m"
+        },
+        "label": "Interval",
+        "name": "interval",
+        "options": [
+          {
+            "selected": false,
+            "text": "30s",
+            "value": "30s"
+          },
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": false,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": true,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "15m",
+            "value": "15m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": false,
+            "text": "1h",
+            "value": "1h"
+          }
+        ],
+        "query": "30s,1m,5m,10m,15m,30m,1h",
+        "refresh": 2,
+        "type": "interval"
+      },
+      {
+        "allValue": ".*",
+        "current": {},
+        "definition": "SELECT DISTINCT Attributes['host'] FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "description": "",
+        "includeAll": true,
+        "label": "Host",
+        "name": "host",
+        "options": [],
+        "query": "SELECT DISTINCT Attributes['host'] FROM otel.otel_metrics_sum WHERE MetricName='caddy_http_requests_total' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "multi": true
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Reverse Proxy",
+  "uid": "fed94ifiv8h6oc",
+  "weekStart": ""
+}

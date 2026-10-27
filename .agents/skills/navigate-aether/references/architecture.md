@@ -9,7 +9,7 @@
 5. **Application layer:** Kubernetes applications, VM/LXC services, and a few cloud services share identity, DNS, storage, and observability.
 6. **Edge layer:** AdGuard and VyOS handle internal DNS/routing; home-gateway Caddy fronts internal services; Cloudflare and the public gateway front selected public services; Tailscale joins locations.
 7. **Control layer:** Keycloak, step-ca, OpenBao, SOPS, GitLab, and the Taskfile provide identity, secrets, PKI, state, and workflows.
-8. **Evidence layer:** Grafana correlates Prometheus, Loki, Tempo, and ClickHouse; Kubernetes, Fleet, SSH, and service APIs provide deeper state.
+8. **Evidence layer:** Grafana (k8s, single ClickHouse datasource uid `clickhouse`) and HyperDX correlate ClickHouse metrics/logs/traces (`otel` DB) plus Zeek/Suricata; Kubernetes, Fleet, SSH, and service APIs provide deeper state.
 
 ## OpenTofu Address Shape
 
@@ -61,12 +61,9 @@ client -> Cloudflare -> public gateway Caddy/CrowdSec -> Tailscale -> home gatew
 Telemetry:
 
 ```text
-VM agents / Kubernetes OTel / host exporters -> central OTel or Prometheus
-  -> Prometheus (metrics)
-  -> Loki (ordinary logs)
-  -> Tempo (traces)
-  -> ClickHouse (Zeek and Suricata)
-  -> Grafana (dashboards, Explore, alerts)
+VM agents / Kubernetes OTel / host exporters -> central OTel collector (prometheus receiver + OTLP)
+  -> ClickHouse `otel` DB (metrics, logs, traces) + Zeek/Suricata DBs
+  -> Grafana (k8s; dashboards, Explore, alerts) / HyperDX (admin-only)
 ```
 
 Automated incident intake:

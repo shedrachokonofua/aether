@@ -1,0 +1,1055 @@
+{
+ "annotations": {
+  "list": [
+   {
+    "builtIn": 1,
+    "datasource": {
+     "type": "grafana",
+     "uid": "-- Grafana --"
+    },
+    "enable": true,
+    "hide": true,
+    "iconColor": "rgba(0, 211, 255, 1)",
+    "name": "Annotations & Alerts",
+    "target": {
+     "limit": 100,
+     "matchAny": false,
+     "tags": [],
+     "type": "dashboard"
+    },
+    "type": "dashboard"
+   }
+  ]
+ },
+ "description": "Synapse (Matrix, namespace matrix, container synapse) on ClickHouse. Original upstream Synapse dashboard: every panel used synapse_* / python_* / process_* metrics from a Synapse /metrics scrape (job=synapse) that does not exist here \u2014 ClickHouse has zero synapse_* rows (7d) and Prometheus has zero synapse_* series (7d, checked 2026-10-13); the k8s otel collector has no synapse scrape job and the notifications-stack VM collector no longer hosts Synapse. 138 original panels (192 targets) therefore removed as dead. Replacement panels use only live ClickHouse data: kubeletstats container metrics for the synapse container and Synapse access logs in otel_logs (request rate / status / duration quantiles). If a synapse scrape is added later, restore the upstream panels ported to synapse_* in otel_metrics_*.",
+ "editable": true,
+ "fiscalYearStartMonth": 0,
+ "graphTooltip": 0,
+ "links": [],
+ "liveNow": false,
+ "panels": [
+  {
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "id": 73,
+   "panels": [],
+   "title": "Overview (live replacement \u2014 original synapse_* /metrics panels removed, see dashboard description)",
+   "type": "row"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 6,
+    "x": 0,
+    "y": 1
+   },
+   "id": 1,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT ifNull(sum(v),0) AS value FROM (SELECT argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.ready' AND ResourceAttributes['k8s.namespace.name']='matrix' AND ResourceAttributes['k8s.container.name']='synapse' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY ResourceAttributes['k8s.pod.name'], ResourceAttributes['k8s.container.name'])",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse containers ready",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 6,
+    "x": 6,
+    "y": 1
+   },
+   "id": 2,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT ifNull(sum(d),0) AS value FROM (SELECT TimeUnix, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w=1, 0, if(raw_d<0, Value, raw_d)) AS d FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.restarts' AND ResourceAttributes['k8s.namespace.name']='matrix' AND ResourceAttributes['k8s.container.name']='synapse' AND TimeUnix BETWEEN now() - INTERVAL 70 MINUTE AND now() WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 1 HOUR",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse container restarts (1h)",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 6,
+    "x": 12,
+    "y": 1
+   },
+   "id": 3,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE ServiceName LIKE 'matrix/%' AND ResourceAttributes['k8s.container.name']='synapse' AND Body LIKE '%Processed request:%' AND Timestamp > now() - INTERVAL 1 HOUR",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse requests (1h, access log)",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 3,
+    "w": 6,
+    "x": 18,
+    "y": 1
+   },
+   "id": 4,
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "auto"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE ServiceName LIKE 'matrix/%' AND ResourceAttributes['k8s.container.name']='synapse' AND (Body LIKE '% - ERROR - %' OR Body LIKE '% - CRITICAL - %') AND Timestamp > now() - INTERVAL 1 HOUR",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse log errors (1h)",
+   "type": "stat"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "reqps"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 4
+   },
+   "id": 5,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'requests' AS series, count() AS value FROM otel.otel_logs WHERE ServiceName LIKE 'matrix/%' AND ResourceAttributes['k8s.container.name']='synapse' AND Body LIKE '%Processed request:%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse request rate (access log)",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "reqps"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 4
+   },
+   "id": 6,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, extract(Body, ' ([0-9]{3}) \"') AS series, count() AS value FROM otel.otel_logs WHERE ServiceName LIKE 'matrix/%' AND ResourceAttributes['k8s.container.name']='synapse' AND Body LIKE '%Processed request:%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse requests by HTTP status",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 12
+   },
+   "id": 7,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'mean duration' AS series, avg(toFloat64OrZero(extract(Body, 'Processed request: ([0-9.]+)sec'))) AS value FROM otel.otel_logs WHERE ServiceName LIKE 'matrix/%' AND ResourceAttributes['k8s.container.name']='synapse' AND Body LIKE '%Processed request:%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse mean request duration (access log)",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 12
+   },
+   "id": 8,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT $__timeInterval(Timestamp) AS time, 'p95 duration' AS series, quantile(0.95)(toFloat64OrZero(extract(Body, 'Processed request: ([0-9.]+)sec'))) AS value FROM otel.otel_logs WHERE ServiceName LIKE 'matrix/%' AND ResourceAttributes['k8s.container.name']='synapse' AND Body LIKE '%Processed request:%' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse p95 request duration (access log)",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "percentunit"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 20
+   },
+   "id": 9,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'cpu' AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='container.cpu.utilization' AND ResourceAttributes['k8s.namespace.name']='matrix' AND ResourceAttributes['k8s.container.name']='synapse' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse container CPU utilisation",
+   "interval": "1m",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "unit": "bytes"
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 20
+   },
+   "id": 10,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'working_set' AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='container.memory.working_set' AND ResourceAttributes['k8s.namespace.name']='matrix' AND ResourceAttributes['k8s.container.name']='synapse' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse container memory working set",
+   "interval": "1m",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 28
+   },
+   "id": 11,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ResourceAttributes['k8s.container.name'] AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.ready' AND ResourceAttributes['k8s.namespace.name']='matrix' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Matrix pod containers ready",
+   "interval": "1m",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "palette-classic"
+     },
+     "custom": {
+      "axisCenteredZero": false,
+      "axisColorMode": "text",
+      "axisLabel": "",
+      "axisPlacement": "auto",
+      "barAlignment": 0,
+      "drawStyle": "line",
+      "fillOpacity": 10,
+      "gradientMode": "none",
+      "hideFrom": {
+       "legend": false,
+       "tooltip": false,
+       "viz": false
+      },
+      "lineInterpolation": "linear",
+      "lineWidth": 1,
+      "pointSize": 5,
+      "scaleDistribution": {
+       "type": "linear"
+      },
+      "showPoints": "never",
+      "spanNulls": false,
+      "stacking": {
+       "group": "A",
+       "mode": "none"
+      },
+      "thresholdsStyle": {
+       "mode": "off"
+      }
+     },
+     "mappings": [],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 28
+   },
+   "id": 12,
+   "options": {
+    "legend": {
+     "calcs": [],
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "none"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 0,
+     "queryType": "sql",
+     "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ResourceAttributes['k8s.container.name'] AS series, max(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='k8s.container.restarts' AND ResourceAttributes['k8s.namespace.name']='matrix' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, series ORDER BY time",
+     "refId": "A"
+    }
+   ],
+   "title": "Matrix container restarts",
+   "interval": "1m",
+   "type": "timeseries"
+  },
+  {
+   "datasource": {
+    "type": "grafana-clickhouse-datasource",
+    "uid": "clickhouse"
+   },
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 36
+   },
+   "id": 13,
+   "options": {
+    "dedupStrategy": "none",
+    "enableLogDetails": true,
+    "prettifyJSON": false,
+    "showCommonLabels": false,
+    "showLabels": false,
+    "showTime": true,
+    "sortOrder": "Descending",
+    "wrapLogMessage": true
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "grafana-clickhouse-datasource",
+      "uid": "clickhouse"
+     },
+     "editorType": "sql",
+     "format": 1,
+     "queryType": "sql",
+     "rawSql": "SELECT Timestamp AS time, Body AS body FROM otel.otel_logs WHERE ServiceName LIKE 'matrix/%' AND ResourceAttributes['k8s.container.name']='synapse' AND Timestamp >= $__fromTime AND Timestamp <= $__toTime ORDER BY Timestamp DESC LIMIT 500",
+     "refId": "A"
+    }
+   ],
+   "title": "Synapse logs",
+   "type": "logs"
+  }
+ ],
+ "refresh": "30s",
+ "schemaVersion": 39,
+ "tags": [
+  "matrix",
+  "synapse",
+  "clickhouse"
+ ],
+ "templating": {
+  "list": []
+ },
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "timepicker": {},
+ "timezone": "browser",
+ "title": "Synapse",
+ "uid": "000000012"
+}

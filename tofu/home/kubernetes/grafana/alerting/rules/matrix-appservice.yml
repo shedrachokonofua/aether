@@ -1,0 +1,245 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Matrix Appservice
+    folder: Alerts
+    interval: 1m
+    rules:
+      # Feed liveness: no transaction received in 24h while the feed was
+      # previously active (guards the fresh-deploy zero case).
+      - uid: mnemo-matrix-as-no-receipt
+        title: Mnemo Matrix Appservice — no transactions received (24h)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT now() - toDateTime(v) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'mnemo_matrix_appservice_last_received_timestamp_seconds' AND TimeUnix > now() - INTERVAL 10 MINUTE) WHERE v > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [86400]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 30m
+        labels:
+          severity: warning
+          domain: messaging
+        annotations:
+          summary: "mnemo has received no Matrix appservice transaction in 24h"
+          description: "Synapse push feed may be down. Check the mnemo receiver (:4001), the Synapse registration, and docs/MATRIX_APPSERVICE_RUNBOOK.md."
+
+      # Backlog: transactions accepted/processing but not processed for 5m.
+      - uid: mnemo-matrix-as-backlog
+        title: Mnemo Matrix Appservice — processing backlog
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'mnemo_matrix_appservice_backlog_transactions' AND TimeUnix > now() - INTERVAL 10 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        labels:
+          severity: warning
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice projection backlog for 5m"
+          description: "Transactions are accepted but not processed. The matrix_appservice Oban worker (concurrency 1) may be stuck. See docs/MATRIX_APPSERVICE_RUNBOOK.md."
+
+      # Terminal failure: status=failed is set only on the last Oban attempt.
+      - uid: mnemo-matrix-as-failed
+        title: Mnemo Matrix Appservice — terminal transaction failure
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'mnemo_matrix_appservice_failed_transactions' AND TimeUnix > now() - INTERVAL 10 MINUTE HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 1m
+        labels:
+          severity: critical
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice has a terminally failed transaction"
+          description: "A transaction exhausted all Oban attempts. Inspect last_error and replay per docs/MATRIX_APPSERVICE_RUNBOOK.md."
+
+      # Repeated authentication failures (bad/rotated hs_token or probing).
+      - uid: mnemo-matrix-as-auth-failures
+        title: Mnemo Matrix Appservice — repeated auth failures
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT sum(delta) AS value FROM (SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName = 'mnemo_matrix_appservice_auth_failures_total' AND TimeUnix > now() - INTERVAL 15 MINUTE GROUP BY ResourceAttributes['service.instance.id'], StartTimeUnix, Attributes) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0m
+        labels:
+          severity: warning
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice authentication failures"
+          description: "More than 5 bearer-auth rejections in 15m. Check for an hs_token mismatch (rotation drift) or unauthorized probing."
+
+      # Transaction ID reused with a different body hash — delivery-contract violation.
+      - uid: mnemo-matrix-as-conflict
+        title: Mnemo Matrix Appservice — transaction/body-hash conflict
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT sum(v) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName = 'mnemo_matrix_appservice_transactions_total' AND Attributes['result'] = 'conflict' AND TimeUnix > now() - INTERVAL 1 HOUR GROUP BY ResourceAttributes['service.instance.id'], StartTimeUnix, Attributes) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0m
+        labels:
+          severity: critical
+          domain: messaging
+        annotations:
+          summary: "mnemo Matrix appservice transaction ID/body-hash conflict"
+          description: "A transaction ID was reused with different content — a delivery-contract violation. Investigate Synapse retry behavior immediately."
+
+  # ===========================================================================

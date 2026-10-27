@@ -1,199 +1,296 @@
 apiVersion: 1
-
 groups:
-  - orgId: 1
-    name: Colony Agent Factory
-    folder: Colony
-    interval: 1m
-    rules:
-      - uid: colony-worker-telemetry-absent
-        title: Colony colonyd telemetry absent
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 900, to: 0 }
-            datasourceUid: prometheus-local
-            model:
-              expr: 'absent(colony_process_uptime_seconds{service_name="colonyd"})'
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model: { type: reduce, expression: A, reducer: last, refId: B }
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator: { type: gt, params: [0] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 10m
-        labels:
-          severity: critical
-          channel: page
-          service: colony
-        annotations:
-          summary: Colony colonyd stopped exporting telemetry
-          description: No colonyd process uptime series has reached Prometheus for 10 minutes. Check the colonyd pod, OTLP endpoint, central collector, and remote-write pipeline.
-
-      - uid: colony-agent-failure-ratio
-        title: Colony agent failure ratio high
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 900, to: 0 }
-            datasourceUid: prometheus-local
-            model:
-              expr: '(sum(increase(colony_agent_runs_total{status=~"failed|canceled|envelope_rejected"}[15m])) / clamp_min(sum(increase(colony_agent_runs_total[15m])), 1)) and on() (sum(increase(colony_agent_runs_total[15m])) >= 5)'
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model: { type: reduce, expression: A, reducer: last, refId: B }
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator: { type: gt, params: [0.2] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 5m
-        labels:
-          severity: critical
-          channel: page
-          service: colony
-        annotations:
-          summary: More than 20% of Colony agent runs are failing
-          description: At least five agent runs completed in 15 minutes and more than 20% failed, were canceled, or produced a rejected envelope. Inspect the dashboard by role/model and worker logs.
-
-      - uid: colony-agent-progress-stalled
-        title: Colony active agent has no progress
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 1200, to: 0 }
-            datasourceUid: prometheus-local
-            model:
-              expr: '(sum(colony_agent_active_runs) > 0) and on() (time() - max(colony_agent_last_progress_timestamp_seconds) > 600)'
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model: { type: reduce, expression: A, reducer: last, refId: B }
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator: { type: gt, params: [0] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 5m
-        labels:
-          severity: critical
-          channel: page
-          service: colony
-        annotations:
-          summary: Active Colony agent has made no progress for 10 minutes
-          description: Colony reports an active agent run but no assistant message or tool completion for at least 10 minutes. Inspect worker logs, sandbox state, model availability, and Temporal activity heartbeat.
-
-      - uid: colony-agent-p95-slow
-        title: Colony agent p95 runtime high
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 3600, to: 0 }
-            datasourceUid: prometheus-local
-            model:
-              expr: 'histogram_quantile(0.95, sum by (le, role) (rate(colony_agent_run_duration_seconds_bucket[30m])))'
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model: { type: reduce, expression: A, reducer: last, refId: B }
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator: { type: gt, params: [1200] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 15m
-        labels:
-          severity: warning
-          channel: digest
-          service: colony
-        annotations:
-          summary: 'Colony {{ $labels.role }} agent p95 exceeds 20 minutes'
-          description: 'The 30-minute p95 end-to-end agent duration is {{ $values.B.Value | printf "%.0f" }} seconds. Check model latency, serial review loops, tool-call volume, and sandbox startup.'
-
-      - uid: colony-agent-limit-exceeded
-        title: Colony agent run hit a safety limit
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 900, to: 0 }
-            datasourceUid: prometheus-local
-            model:
-              expr: 'sum by (role, reason) (increase(colony_agent_limit_exceeded_total[15m]))'
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model: { type: reduce, expression: A, reducer: last, refId: B }
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator: { type: gt, params: [0] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 0s
-        labels:
-          severity: warning
-          channel: digest
-          service: colony
-        annotations:
-          summary: 'Colony {{ $labels.role }} run hit {{ $labels.reason }}'
-          description: An agent exhausted a turn, cost, timeout, cancellation, or envelope boundary. This should fail closed; inspect the matching worker run before retrying.
-
-      - uid: colony-http-server-errors
-        title: Colony HTTP 5xx ratio high
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 900, to: 0 }
-            datasourceUid: prometheus-local
-            model:
-              expr: '(sum by (service) (increase(colony_http_server_requests_total{http_response_status_code=~"5.."}[10m])) / clamp_min(sum by (service) (increase(colony_http_server_requests_total[10m])), 1)) and (sum by (service) (increase(colony_http_server_requests_total[10m])) >= 20)'
-              refId: A
-          - refId: B
-            datasourceUid: __expr__
-            model: { type: reduce, expression: A, reducer: last, refId: B }
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: B
-              conditions:
-                - evaluator: { type: gt, params: [0.05] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 5m
-        labels:
-          severity: warning
-          channel: digest
-          service: colony
-        annotations:
-          summary: 'Colony {{ $labels.service }} HTTP 5xx ratio exceeds 5%'
-          description: At least 20 requests were served in 10 minutes and more than 5% returned 5xx. Inspect route/status breakdown and service logs.
+- orgId: 1
+  name: Colony Agent Factory
+  folder: Colony
+  interval: 1m
+  rules:
+  - uid: colony-worker-telemetry-absent
+    title: Colony colonyd telemetry absent
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT if(count() = 0, 1, 0) AS value\nFROM otel.otel_metrics_gauge\nWHERE MetricName = 'colony.process.uptime'\n  AND ServiceName = 'colonyd'\n  AND TimeUnix > now() - INTERVAL 5 MINUTE"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    labels:
+      severity: critical
+      channel: page
+      service: colony
+    annotations:
+      summary: Colony colonyd stopped exporting telemetry
+      description: No colonyd process uptime series has reached ClickHouse for 10 minutes. Check the colonyd pod, OTLP endpoint, and central collector.
+  - uid: colony-agent-failure-ratio
+    title: Colony agent failure ratio high
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT if(total < 5, 0, coalesce(failed, 0) / greatest(total, 1)) AS value\nFROM (\n  SELECT sum(inc) AS total FROM (\n    SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n    FROM otel.otel_metrics_sum\n    WHERE MetricName = 'colony.agent.runs' AND TimeUnix > now() - INTERVAL 15 MINUTE\n    GROUP BY Attributes, ResourceAttributes, ServiceName\n  )\n) t\nCROSS JOIN (\n  SELECT sum(inc) AS failed FROM (\n    SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n    FROM otel.otel_metrics_sum\n    WHERE MetricName = 'colony.agent.runs'\n      AND Attributes['status'] IN ('failed', 'canceled', 'envelope_rejected')\n      AND TimeUnix > now() - INTERVAL 15 MINUTE\n    GROUP BY Attributes, ResourceAttributes, ServiceName\n  )\n) f"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.2
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: critical
+      channel: page
+      service: colony
+    annotations:
+      summary: More than 20% of Colony agent runs are failing
+      description: At least five agent runs completed in 15 minutes and more than 20% failed, were canceled, or produced a rejected envelope. Inspect the dashboard by role/model and worker logs.
+  - uid: colony-agent-progress-stalled
+    title: Colony active agent has no progress
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 1200
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT if(\n  (SELECT coalesce(sum(v), 0) FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName = 'colony.agent.active_runs' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes, ServiceName)) > 0\n  AND (SELECT coalesce(max(v), 0) FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'colony.agent.last_progress_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes, ServiceName)) > 0\n  AND toUnixTimestamp(now()) - (SELECT max(v) FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'colony.agent.last_progress_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes, ServiceName)) > 600,\n  1, 0) AS value"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: critical
+      channel: page
+      service: colony
+    annotations:
+      summary: Active Colony agent has made no progress for 10 minutes
+      description: Colony reports an active agent run but no assistant message or tool completion for at least 10 minutes. Inspect worker logs, sandbox state, model availability, and Temporal activity heartbeat.
+  - uid: colony-agent-p95-slow
+    title: Colony agent p95 runtime high
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 3600
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT role, toFloat64(qv) AS value\nFROM (\n  SELECT role, idx, le, cum, prev_le, prev_cum, total,\n    if(isInfinite(le), prev_le, if(idx = 1, le * (0.95 * total) / nullIf(cum, 0),\n       prev_le + ((0.95 * total) - prev_cum) / nullIf(cum - prev_cum, 0) * (le - prev_le))) AS qv\n  FROM (\n    SELECT role, idx, le, cum, total,\n      lagInFrame(le, 1, 0.) OVER (PARTITION BY role ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS prev_le,\n      lagInFrame(cum, 1, 0) OVER (PARTITION BY role ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS prev_cum\n    FROM (\n      SELECT role, idx, le,\n        sum(inc) OVER (PARTITION BY role ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum,\n        sum(inc) OVER (PARTITION BY role) AS total\n      FROM (\n        SELECT role, idx, any(le) AS le, sum(inc) AS inc\n        FROM (\n          SELECT role, idx, le, deltaSumTimestamp(cnt, toUnixTimestamp64Nano(t)) AS inc\n          FROM (\n            SELECT Attributes['role']\
+          \ AS role, number + 1 AS idx,\n                   if(number < length(bounds), bounds[number + 1], inf) AS le,\n                   bc[number + 1] AS cnt, t, Attributes, ResourceAttributes, ServiceName\n            FROM (\n              SELECT ExplicitBounds AS bounds, BucketCounts AS bc, TimeUnix AS t, Attributes, ResourceAttributes, ServiceName, MetricName\n              FROM otel.otel_metrics_histogram\n              WHERE TimeUnix > now() - INTERVAL 30 MINUTE\n            )\n            ARRAY JOIN range(0, length(bc)) AS number\n            WHERE MetricName = 'colony.agent.run.duration'\n          )\n          GROUP BY role, idx, le, Attributes, ResourceAttributes, ServiceName\n        )\n        GROUP BY role, idx\n      )\n    )\n  )\n  WHERE cum >= 0.95 * total AND (idx = 1 OR prev_cum < 0.95 * total) AND total > 0\n)"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 1200
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 15m
+    labels:
+      severity: warning
+      channel: digest
+      service: colony
+    annotations:
+      summary: Colony {{ $labels.role }} agent p95 exceeds 20 minutes
+      description: The 30-minute p95 end-to-end agent duration is {{ $values.B.Value | printf "%.0f" }} seconds. Check model latency, serial review loops, tool-call volume, and sandbox startup.
+  - uid: colony-agent-limit-exceeded
+    title: Colony agent run hit a safety limit
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT role, reason, sum(inc) AS value\nFROM (\n  SELECT Attributes['role'] AS role, Attributes['reason'] AS reason,\n         deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n  FROM otel.otel_metrics_sum\n  WHERE MetricName = 'colony.agent.limit_exceeded'\n    AND TimeUnix > now() - INTERVAL 15 MINUTE\n  GROUP BY role, reason, Attributes, ResourceAttributes, ServiceName\n)\nGROUP BY role, reason\nHAVING count() > 0"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 0s
+    labels:
+      severity: warning
+      channel: digest
+      service: colony
+    annotations:
+      summary: Colony {{ $labels.role }} run hit {{ $labels.reason }}
+      description: An agent exhausted a turn, cost, timeout, cancellation, or envelope boundary. This should fail closed; inspect the matching worker run before retrying.
+  - uid: colony-http-server-errors
+    title: Colony HTTP 5xx ratio high
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: clickhouse
+      model:
+        datasource:
+          type: grafana-clickhouse-datasource
+          uid: clickhouse
+        format: 1
+        intervalMs: 1000
+        maxDataPoints: 43200
+        rawSql: "SELECT service, if(total < 20, 0, err / greatest(total, 1)) AS value\nFROM (\n  SELECT service,\n    sum(inc) AS total,\n    sum(if(is_err = 1, inc, 0)) AS err\n  FROM (\n    SELECT Attributes['service'] AS service,\n           if(match(Attributes['http.response.status_code'], '^5[0-9]{2}$'), 1, 0) AS is_err,\n           deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS inc\n    FROM otel.otel_metrics_sum\n    WHERE MetricName = 'colony.http.server.requests' AND TimeUnix > now() - INTERVAL 10 MINUTE\n    GROUP BY service, is_err, Attributes, ResourceAttributes, ServiceName\n  )\n  GROUP BY service\n)"
+        queryType: sql
+        editorType: sql
+        refId: A
+    - refId: B
+      datasourceUid: __expr__
+      model:
+        type: reduce
+        expression: A
+        reducer: last
+        refId: B
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        expression: B
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.05
+        refId: C
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+      channel: digest
+      service: colony
+    annotations:
+      summary: Colony {{ $labels.service }} HTTP 5xx ratio exceeds 5%
+      description: At least 20 requests were served in 10 minutes and more than 5% returned 5xx. Inspect route/status breakdown and service logs.

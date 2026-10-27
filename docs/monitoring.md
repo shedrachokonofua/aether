@@ -1,58 +1,36 @@
 # Monitoring
 
-OpenTelemetry-native observability stack running on Niobe. VM agents push OTLP telemetry; the central collector routes it to the query backends and Prometheus scrapes host and service exporters.
+OpenTelemetry-native observability: ClickHouse on `monitoring-stack` (`10.0.2.3`, Niobe) stores metrics, logs, and traces; Grafana and HyperDX run in Kubernetes. The central OTel Collector receives OTLP and scrapes exporters itself.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Hosts["Hosts and VMs"]
-        Agent["OTel agents"]
-        Exporters["Prometheus exporters"]
-    end
-
-    subgraph Niobe["Monitoring Stack"]
-        Collector["OTel Collector"]
-        Prometheus[(Prometheus)]
-        Loki[(Loki)]
-        Tempo[(Tempo)]
-        ClickHouse[(ClickHouse)]
-        Greptime[(GreptimeDB)]
-        Grafana[Grafana]
-        TelemetryDisk[("1 TiB telemetry disk")]
-    end
-
-    SeaweedFS[(SeaweedFS S3)]
-
-    Agent -->|OTLP| Collector
-    Exporters -->|scrape| Prometheus
-    Collector -->|metrics remote-write| Prometheus
-    Collector -->|Loki-bound logs| Loki
-    Collector -->|archive copy of Loki-bound logs| Greptime
-    Collector -->|traces| Tempo
-    Collector -->|Zeek, Suricata, network observations| ClickHouse
-    Prometheus -->|remote write| Greptime
-    Greptime -->|Parquet and metadata| SeaweedFS
-    Loki --> TelemetryDisk
-    Greptime -->|WAL and cache| TelemetryDisk
-    Prometheus -->|live PromQL and alerts| Grafana
-    Loki -->|LogQL| Grafana
-    Tempo --> Grafana
-    ClickHouse --> Grafana
-    Greptime -->|archive PromQL and SQL| Grafana
+    Agent["Host and cluster OTel agents"] -->|OTLP| Collector["Central OTel Collector"]
+    Exporters["Prometheus-format exporters"] -->|scrape| Collector
+    Collector -->|logs, metrics, traces| ClickHouse[(ClickHouse)]
+    Collector -->|specialized network logs| Typed[("Zeek / Suricata / network tables")]
+    ClickHouse --> Disk[("2 TiB telemetry disk")]
+    ClickHouse --> Grafana["Grafana in Kubernetes"]
+    Typed --> Grafana
+    ClickHouse --> HyperDX["HyperDX in Kubernetes"]
+    Collector -->|temporary dual-write| Legacy[("Prometheus / Loki")]
+    Legacy -->|historical backfill| ClickHouse
 ```
 
 ## Central Stack
 
 | Component | Purpose |
 | --- | --- |
-| OTEL Collector | Central receiver and router for metrics, logs, traces, and network observations |
-| Prometheus | Live PromQL, Grafana-managed alert evaluation, and 30-day local metrics TSDB |
-| GreptimeDB | Long-term metrics and Loki-bound log archive in scoped SeaweedFS object storage |
-| Loki | Primary LogQL backend |
-| Tempo | Distributed trace storage |
-| ClickHouse | Network/IDS logs and replay-idempotent VyOS, QSS, and GigaHub observations with SQL analytics |
-| Grafana | Visualization and alerting across live and archive datasources |
+| OTel Collector | Contrib 0.156.0; OTLP ingestion and Prometheus-format scraping with `metric_start_time`; exports all three signals to ClickHouse |
+| ClickHouse | 26.6; unified `otel` telemetry database plus existing network/IDS SQL analytics |
+| Grafana | Kubernetes-hosted dashboards and SQL alert evaluation, using only datasource UID `clickhouse` |
+| HyperDX | Admin-only ClickStack exploration UI over ClickHouse, with local accounts |
+| Prometheus / Loki | Temporary dual-write copies and historical backfill sources; no dashboard or alert queries |
+
+Image pins and deployment lifecycle are declared in
+`ansible/playbooks/monitoring_stack/site.yml`; collector routing and scrape jobs
+are in `otel_config.yml.j2` in that directory.
 
 ### Data Retention
 
@@ -71,16 +49,49 @@ the archive contains 40,386,780 samples in 854 gzip objects (117,373,223 bytes).
 
 | Backend | Retention | Notes |
 | --- | --- | --- |
-| Prometheus | 30 days raw | Authoritative live PromQL and alert-evaluation source; remote-writes the post-scrape series to GreptimeDB |
-| GreptimeDB | No age TTL configured | Metrics and Loki-bound logs are retained in the scoped `greptime-telemetry` SeaweedFS bucket until an explicit lifecycle policy is added |
-| Loki | 120 days | Primary LogQL path; compactor retention is enabled with a two-hour deletion delay |
-| Tempo | 7 days | Local block retention in the compactor |
-| ClickHouse | Per table | Network/IDS raw tables retain 14-90d; selected hourly aggregates retain 90-365d (see ClickHouse SQL) |
+| `otel.otel_logs` | 120 days | General logs |
+| `otel.otel_traces` | 30 days | Distributed traces |
+| `otel.otel_metrics_*` | 30 days | Gauge, sum, histogram, exponential histogram, and summary tables |
+| `otel.hyperdx_sessions` | 30 days | Session replay |
+| Network/IDS tables | Per table | Existing raw and aggregate TTLs remain separate from `otel` |
 
-Loki data and GreptimeDB local state live on the 1 TiB `local-fast` disk mounted at
-`/var/lib/telemetry`; the GreptimeDB object store remains the durable archive. Thanos
-query, sidecar, store, and compactor services were retired on 2026-07-18. The old
-`thanos-metrics` bucket is retained until its historical data is explicitly destroyed.
+The `otel` tables use storage policy `telemetry`, rooted at
+`/var/lib/telemetry/clickhouse`; `config/vm.yml` declares a 2 TiB telemetry disk.
+DDL and storage configuration live in
+`ansible/playbooks/monitoring_stack/clickhouse/20-otel-schema.sql` and
+`clickhouse-config.d/aether-telemetry-storage.xml` in the same playbook directory.
+
+Tempo, GreptimeDB, Janus, and VM Grafana have been removed. GreptimeDB's archive
+bucket is retained, not an active telemetry archive; `tofu/home/kubernetes/db_backups.tf`
+retires its credential-generation resources with `destroy = false`. Prometheus and Loki still receive a dual-written copy while
+historical backfills run from `scripts/telemetry-migration`; nothing queries them
+for dashboards or alerts. Remove them only after backfill completion.
+
+### Grafana, HyperDX, and tenancy
+
+`tofu/home/kubernetes/grafana.tf` declares Grafana 13.2.3, pinned plugins,
+CloudNativePG Postgres state, and provisioning from `grafana/dashboards` and
+`grafana/alerting` beneath that directory. The single datasource UID `clickhouse`
+uses `https://clickhouse.home.shdr.ch` with `queryTimeout = 30`.
+
+Grafana org 1 uses `grafana_readonly`; HyperDX uses `hyperdx_reader`; Holmes,
+orion, and investigation scripts use `agent_reader`. Tenant organizations,
+datasources, and service accounts are declared from `config/tenants.yml` in
+`grafana.tf`; each datasource uses its `tenant_<name>` ClickHouse identity.
+`clickhouse-access/otel-access.sql.j2` creates row policies on every `otel` table:
+`service.namespace` scopes all signals, `vc-<tenant>/` ServiceName prefixes also
+scope logs/session replay, and `service_namespace` metric attributes also scope
+metrics. The server is fail-closed for users without row policies.
+
+Grafana service-account tokens are written to OpenBao at `<tenant>/grafana`,
+`assay/grafana-alerting`, and `aether/grafana-automation`; SOPS `grafana_sa_token`
+holds the automation Viewer token.
+
+`tofu/home/kubernetes/hyperdx.tf` declares the ClickStack chart in namespace
+`hyperdx`, exposed at `https://hyperdx.home.shdr.ch`. HyperDX uses local accounts
+only: keep its team admin-only, not a tenant access surface. Admin credentials
+are in SOPS `hyperdx.admin_email` / `hyperdx.admin_password`. Its HTTPRoute sets
+`X-Forwarded-Proto: https` for secure login cookies.
 
 ### Network observations
 
@@ -155,7 +166,7 @@ Certificate coverage is split by the component that owns the certificate:
 | --- | --- | --- |
 | Ansible-managed VMs | Explicit step-ca leaf files, plus selected renewal services/timers | `certificate_monitoring` role → local OTEL Prometheus receiver |
 | NixOS machine-cert users | `/etc/ssl/certs/machine.crt` and `step-ca-cert-renew.service` | `nix/modules/step-ca-cert.nix` → local OTEL Prometheus receiver |
-| Kubernetes | cert-manager controller `certmanager_certificate_*` metrics | cluster OTel collector → central Prometheus |
+| Kubernetes | cert-manager controller `certmanager_certificate_*` metrics | cluster OTel collector → central collector → ClickHouse |
 
 The local file exporter watches only paths declared by the owning playbook or
 Nix module; it does not scan directories or private keys. Grafana rules alert
@@ -185,7 +196,7 @@ The agent-free hosts (five Proxmox hypervisors + the AWS/GCP cloud VMs) run no
 local OTel agent, so their logs are collected pull-based by
 `otel-journal-gatewayd-forwarder` on `monitoring-stack`. It polls each host's
 `systemd-journal-gatewayd` (`:19531`) and ships OTLP logs to the local central
-collector, which routes them to Loki. Deploy with `task configure:journal-gateways`
+collector, which writes them to ClickHouse. Deploy with `task configure:journal-gateways`
 (the gateways) and `task configure:journal-forwarder` (the collector side).
 
 | Hop | Transport / authn |
@@ -200,15 +211,14 @@ role) from `pki-journal-client/issue/forwarder` via the dedicated
 never the shared `aether-machine` role). Renewal restarts the forwarder; the
 gatewayd server certs (step-ca `machine-bootstrap`) renew and restart ghostunnel.
 
-Logs land in Loki keyed by **`service_name` = the source host** (matching the
-fleet convention: VM agents set `service.name` = hostname). The forwarder itself
-emits `service.name` = the systemd unit, so the central collector rewrites it to
-the host (`transform/journal_forwarder_identity`, scoped by `instance_type`); the
-unit is preserved as `journald_unit_name`. `host_name`, `instance_type`
-(`proxmox_host`/`vps`), and `os_type` are structured metadata — e.g.
-`{service_name="niobe"}` or `{service_name="niobe"} | journald_unit_name=`pvedaemon.service``.
-On a fresh deploy each source's cursor is seeded to the current journal tail, so
-long-uptime hosts do not backfill weeks of stale entries Loki would reject.
+Logs land in `otel.otel_logs` with **`ServiceName` = the source host** (matching
+the fleet convention: VM agents set `service.name` = hostname). The forwarder
+itself emits `service.name` = the systemd unit, so the central collector rewrites
+it to the host (`transform/journal_forwarder_identity`, scoped by
+`instance_type`); the unit is preserved as `journald_unit_name`. Host and unit
+attributes can be queried through the ClickHouse resource/log attribute maps.
+On a fresh deploy each source's cursor is seeded to the current journal tail,
+so long-uptime hosts do not automatically backfill weeks of stale entries.
 
 Metrics on `127.0.0.1:9091` (`ojgf_*`) are scraped by the VM agent; the
 `Journal Forwarder` Grafana group alerts on poll-stale, poll-errors, and absent
@@ -222,8 +232,8 @@ forwarder (sibling repo `~/projects/vigil`) deployed as a single-replica
 `serve` Deployment in the `cloud-audit` namespace. It polls provider audit
 APIs on a per-collector cadence (5 min mutation feeds, daily posture
 snapshots), normalizes into the contract in vigil `docs/schema.md`, and
-ships OTLP logs (Loki, `{service_name="vigil", domain="security"}`) and
-OTLP gauges (Prometheus `vigil_*`). Auth is keyless: pod SA token →
+ships OTLP logs and OTLP gauges (`vigil_*`) to ClickHouse through the collector.
+Auth is keyless: pod SA token →
 Keycloak federated-jwt (`aud=cloud-audit`) → per-provider read-only
 federation; the two static tokens (Tailscale/Cloudflare) are read from
 OpenBao per iteration. Heartbeat is the `vigil_collector_*` gauge triple
@@ -254,15 +264,10 @@ Collected by VM agents via prometheus receiver, pushed to central stack:
 
 ## Dashboards
 
-The repository currently provisions thirteen dashboard JSON files: Home,
-Certificates, Virtual Machines, Ceph, Kubernetes, Security Triage, IDS
-Monitoring, Site Fabric, Colony, Estate Scan, Network, Network Address
-History, and Deskplane v2 (`grafana/provisioning/dashboards/`). The live
-Grafana API also retains the other dashboards listed below, but they are not all
-represented in `grafana/provisioning/dashboards/`; they are useful live surfaces,
-not fully reproducible IaC. Conversely, the declared Virtual Machines dashboard
-was not returned by live search on 2026-07-09. Reconcile that drift before
-describing the complete dashboard set as code-owned.
+Dashboard JSON is provisioned from `tofu/home/kubernetes/grafana/dashboards/`.
+Dashboards query ClickHouse SQL, including metrics, logs, traces, and the
+existing network/IDS tables. The table below describes dashboard purposes;
+the provisioning directory is authoritative for the declared inventory.
 
 | Dashboard       | Purpose                                       |
 | --------------- | --------------------------------------------- |
@@ -285,15 +290,14 @@ describing the complete dashboard set as code-owned.
 | Security Triage | **Single actionable security surface** — firing security-alert queue (`domain=security`) + per-head signal stats & recent-event tables (Suricata, Zeek, Hubble, Tetragon, Trivy, Wazuh, Keycloak) + drill-down links (uid `security-triage`) |
 | Home            | Cross-cutting triage: firing alerts, certificate issues, namespace-contract risk map, saturation/headroom, signal-path health (uid `home`) |
 | Site Fabric   | Aether site-fabric target health, WireGuard peer age and traffic, and CrowdSec decisions (uid `site-fabric`) |
-| Deskplane v2  | Deskplane web data platform: scrape ops, cache, escalations, browser pool, event-loop lag, jobs, sessions, webhooks (uid `deskplane-v2`, alerts in `prometheus-rules/deskplane.yml`) |
+| Deskplane v2 | Deskplane web data platform: scrape ops, cache, escalations, browser pool, event-loop lag, jobs, sessions, webhooks; SQL rules in `tofu/home/kubernetes/grafana/alerting/rules/deskplane.yml` are paused |
 
 ## Agent Investigations
 
 The supported interactive investigation workflow is the repo-local
 [`$investigate-aether`](../.agents/skills/investigate-aether/SKILL.md) skill. It
-uses Grafana as the read-only correlation surface, then selects Prometheus,
-Loki, Tempo, ClickHouse, Kubernetes, Fleet, Talos, SSH, or a service API based
-on the symptom. Use
+uses Grafana as the read-only correlation surface, then selects ClickHouse,
+Kubernetes, Fleet, Talos, SSH, or a service API based on the symptom. Use
 [`$navigate-aether`](../.agents/skills/navigate-aether/SKILL.md) first when the
 component's placement or ownership is unclear.
 
@@ -306,16 +310,14 @@ nix develop -c "$G" alerts        # active instances; omits DeadMansSwitch
 nix develop -c "$G" alerts --all  # includes the intentional heartbeat
 nix develop -c "$G" rules         # provisioned rule definitions
 nix develop -c "$G" contact-points # receiver metadata; URLs are omitted
-nix develop -c "$G" prom 'count by (job) (up)'
-nix develop -c "$G" loki-labels
-nix develop -c "$G" tempo-services
+nix develop -c "$G" sql 'SELECT count() FROM otel.otel_logs WHERE Timestamp > now() - INTERVAL 1 HOUR'
 ```
 
-The helper discovers datasource UIDs dynamically and obtains the Viewer token
-from SOPS without printing it. Grafana's ClickHouse datasource uses a separate
-local-only `grafana_readonly` identity with server-enforced schema grants and
-resource limits; the writable `aether` identity remains limited to ingestion
-and administration. Investigation remains read-only. IaC remediation and any
+The helper uses datasource UID `clickhouse` and obtains the automation Viewer
+token from SOPS without printing it. Grafana's datasource uses the
+`grafana_readonly` identity with server-enforced grants, row policies, and
+resource limits; direct agent queries use `agent_reader`. Investigation remains
+read-only. IaC remediation and any
 explicitly approved live patch follow `AGENTS.md`.
 
 The automated path is implemented by sibling
@@ -363,31 +365,23 @@ always-firing Uptime Kuma heartbeat; it is not an incident source.
 
 ### App-level alert rules
 
-App-specific LogQL/PromQL rules are provisioned alongside the infrastructure
-rules in the same `Infrastructure` group
-(`ansible/playbooks/monitoring_stack/grafana/provisioning/alerting/rules.yml`).
+App-specific SQL rules are provisioned alongside infrastructure rules from
+`tofu/home/kubernetes/grafana/alerting/rules/`.
 They carry `domain=media` (or their app domain) and route via the default
 catch-all to `apprise-standard` unless they carry `channel`/`domain=security`
 overrides. Current app rules:
 
 | Alert | Severity | Condition | Source |
 | --- | --- | --- | --- |
-| Jellyfin SSO Auth Provider Broken | critical | `InvalidAuthProvider` in jellyfin ns [30m] > 0 | Loki |
-| Jellyfin Gelato Stream Resolution Failures | warning | `Invalid stream, skipping` [1h] > 5 | Loki |
-| Jellyfin Click-Play-No-Streams | warning | `SyncStreams finished … streams=0` [1h] > 0 | Loki |
-| Jellyfin strm Link Resolution Rot | warning | `Unable to find linked item` [1h] > 200 | Loki |
-| Jellyfin Server Down | critical | `jellyfin_up == 0` for 5m | Prometheus (rebelcore/jellyfin_exporter) |
+| Jellyfin SSO Auth Provider Broken | critical | `InvalidAuthProvider` in jellyfin ns [30m] > 0 | ClickHouse logs |
+| Jellyfin Gelato Stream Resolution Failures | warning | `Invalid stream, skipping` [1h] > 5 | ClickHouse logs |
+| Jellyfin Click-Play-No-Streams | warning | `SyncStreams finished … streams=0` [1h] > 0 | ClickHouse logs |
+| Jellyfin strm Link Resolution Rot | warning | `Unable to find linked item` [1h] > 200 | ClickHouse logs |
+| Jellyfin Server Down | critical | `jellyfin_up == 0` for 5m | ClickHouse metrics (rebelcore/jellyfin_exporter) |
 
-**Authoring Loki alert rules — two gotchas (learned the hard way):**
-
-1. **Wrap `count_over_time(...)` in `sum(...)`.** A bare range query returns one series *per log stream*, trips Loki's 500-series cap, and puts the rule in `Error` state (which pages via `execErrState: Error`) — not `NoData`. Always `sum(count_over_time({...} |= "..." [30m]))`.
-2. **Grafana file-provisioning is upsert-only for `groups`.** Removing a rule from a `groups` block does **not** delete it from Grafana (even on restart) — it orphans, stuck in `error`/`firing`. The clean IaC fix is a top-level **`deleteRules`** block in the provisioning file (sibling of `groups`):
-   ```yaml
-   deleteRules:
-     - orgId: 1
-       uid: <rule-uid>
-   ```
-   Re-provision + restart Grafana; the rule is removed with no admin auth or DB access. Remove the `deleteRules` tombstone afterward once confirmed. (Note: Grafana admin here is Keycloak-OIDC only — there is no working static admin credential in SOPS, so API/CLI/basic-auth deletion paths are dead ends; `deleteRules` is the way.)
+Author rules against datasource UID `clickhouse` with SQL; PromQL/LogQL are no
+longer dashboard or alert query languages in this deployment. Provisioning is
+owned by the Kubernetes Grafana release, not the former VM provisioning tree.
 
 
 
@@ -396,20 +390,15 @@ overrides. Current app rules:
 Alerts are routed by label, not by hard-coded receiver. Every rule carries
 `severity` (`warning|critical`) and MAY carry `channel` (`page|digest` — an
 explicit override), `domain` (`security|governance`), and — for
-namespace-scoped Prometheus rules — the contract labels `tier`, `owner`,
-`criticality` inherited from the namespace contract via a PromQL join:
+namespace-scoped SQL rules — contract labels `tier`, `owner`, and `criticality`
+joined from the ClickHouse view `aether.namespace_contract`.
 
-```
-(<base expr>) * on(namespace) group_left(tier, owner, criticality) aether:namespace_contract:info
-```
+The view replaces the Prometheus recording rule and selects the latest
+`kube_namespace_labels` attributes over a five-minute lookback from
+`otel.otel_metrics_gauge` (DDL: `20-otel-schema.sql`). kube-state-metrics remains
+the source of the namespace contract labels.
 
-The recording rule `aether:namespace_contract:info` is produced from
-kube-state-metrics `kube_namespace_labels` (KSM is configured to expose the
-`aether.shdr.ch/*` labels via its metric-labels-allowlist). Both sides share
-that KSM lifeline, so if KSM dies the join is empty and the metrics-pipeline
-dead-man alert pages instead of the rule silently disappearing.
-
-First-match routing tree (`provisioning/alerting/notification-policies.yml`):
+First-match routing tree (`tofu/home/kubernetes/grafana/alerting/notification-policies.yml`):
 
 | Order | Match | Receiver | Cadence | Meaning |
 |---|---|---|---|---|
@@ -552,6 +541,6 @@ A namespace's `hostnames` + contract labels (`tier`, `owner`, `backup`,
 automatically (a) mints a blackbox HTTP synthetic probe for `internal`,
 `public`, and `tunnel` apps (wildcard `*.` hostnames are excluded — they are routing policy, not
 probeable endpoints) via the `synthetic_probe_targets` output consumed by
-`prometheus.yml.j2`, and (b) feeds the `probe_criticality`/`probe_exposure`
+`otel_config.yml.j2`, and (b) feeds the `probe_criticality`/`probe_exposure`
 labels that decide whether a probe failure pages (`probe-failed-public`) or
 digests (`probe-failed-internal`). No alert or scrape edit is needed per app.

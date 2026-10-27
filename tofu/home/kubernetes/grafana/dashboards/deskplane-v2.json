@@ -1,5 +1,5 @@
 {
-  "title": "Deskplane v2 — Web Data Platform",
+  "title": "Deskplane v2 \u2014 Web Data Platform",
   "uid": "deskplane-v2",
   "schemaVersion": 39,
   "refresh": "30s",
@@ -10,6 +10,7 @@
   "panels": [
     {
       "id": 1,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Request rate by op + engine",
       "gridPos": {
@@ -20,21 +21,25 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(deskplane_mcp_web_requests_total[5m])) by (op, engine)",
-          "legendFormat": "{{op}} {{engine}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat(op, ' ', engine) AS series, value AS value FROM (\n  SELECT time, op, engine, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['op'] AS op, Attributes['engine'] AS engine, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'deskplane_mcp_web_requests_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, op, engine\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 2,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Latency p50/p95 by op",
       "gridPos": {
@@ -45,29 +50,36 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(deskplane_mcp_web_seconds_bucket[5m])) by (le, op))",
-          "legendFormat": "p50 {{op}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'deskplane_mcp_web_seconds' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, concat('p50', ' ', op) AS series, value FROM (\n  SELECT time, op, quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (\n    SELECT time, op, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time, op ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, op, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['op'] AS op, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, op, idx\n    )\n  ) GROUP BY time, op\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(deskplane_mcp_web_seconds_bucket[5m])) by (le, op))",
-          "legendFormat": "p95 {{op}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'deskplane_mcp_web_seconds' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, concat('p95', ' ', op) AS series, value FROM (\n  SELECT time, op, quantilePrometheusHistogram(0.95)(bound, cum) AS value FROM (\n    SELECT time, op, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time, op ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, op, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['op'] AS op, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, op, idx\n    )\n  ) GROUP BY time, op\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 3,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Stage breakdown (stacked p50)",
       "gridPos": {
@@ -78,12 +90,15 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(deskplane_mcp_web_stage_seconds_bucket[5m])) by (le, stage))",
-          "legendFormat": "{{stage}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'deskplane_mcp_web_stage_seconds' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, concat('p50', ' ', stage) AS series, value FROM (\n  SELECT time, stage, quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (\n    SELECT time, stage, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time, stage ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, stage, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['stage'] AS stage, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, stage, idx\n    )\n  ) GROUP BY time, stage\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "fieldConfig": {
@@ -96,12 +111,13 @@
         }
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 4,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Cache hit ratio",
       "gridPos": {
@@ -112,21 +128,25 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(deskplane_mcp_web_cache_total{result=\"hit\"}[5m])) / sum(rate(deskplane_mcp_web_cache_total[5m]))",
-          "legendFormat": "hit ratio",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, 'hit ratio' AS series, if(sum(d) > 0, sumIf(d, Attributes['result'] = 'hit') / sum(d), 0) AS value\nFROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes, d FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'deskplane_mcp_web_cache_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)) WHERE time >= $__fromTime GROUP BY time ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 5,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Escalations by vendor",
       "gridPos": {
@@ -137,21 +157,25 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(deskplane_mcp_web_escalations_total[5m])) by (from, to, vendor)",
-          "legendFormat": "{{from}}→{{to}} {{vendor}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat(frm, ' ', dst, ' ', vendor) AS series, value AS value FROM (\n  SELECT time, frm, dst, vendor, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['from'] AS frm, Attributes['to'] AS dst, Attributes['vendor'] AS vendor, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'deskplane_mcp_web_escalations_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, frm, dst, vendor\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 6,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Pool utilization",
       "gridPos": {
@@ -162,29 +186,36 @@
       },
       "targets": [
         {
-          "expr": "deskplane_mcp_pool_browsers",
-          "legendFormat": "browsers {{engine}} {{state}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat('browsers ', engine, ' ', state) AS series, value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['engine'] AS engine, Attributes['state'] AS state, argMax(Value, TimeUnix) AS value\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'deskplane_mcp_pool_browsers' AND TimeUnix BETWEEN $__fromTime AND $__toTime\n  GROUP BY time, Attributes, Attributes['engine'], Attributes['state']\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
-          "expr": "deskplane_mcp_pool_contexts_in_use",
-          "legendFormat": "contexts {{engine}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat('contexts ', engine) AS series, value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['engine'] AS engine, argMax(Value, TimeUnix) AS value\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'deskplane_mcp_pool_contexts_in_use' AND TimeUnix BETWEEN $__fromTime AND $__toTime\n  GROUP BY time, Attributes, Attributes['engine']\n) ORDER BY time, series",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 7,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Event-loop lag",
       "gridPos": {
@@ -195,21 +226,25 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(deskplane_mcp_event_loop_lag_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p99",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'deskplane_mcp_event_loop_lag_seconds' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, 'p99' AS series, value FROM (\n  SELECT time, quantilePrometheusHistogram(0.99)(bound, cum) AS value FROM (\n    SELECT time, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, idx\n    )\n  ) GROUP BY time\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 8,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Process-pool queue depth",
       "gridPos": {
@@ -220,21 +255,25 @@
       },
       "targets": [
         {
-          "expr": "deskplane_mcp_procpool_queue_depth",
-          "legendFormat": "queued",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, 'queued' AS series, value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, argMax(Value, TimeUnix) AS value\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'deskplane_mcp_procpool_queue_depth' AND TimeUnix BETWEEN $__fromTime AND $__toTime\n  GROUP BY time, Attributes\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 9,
+      "interval": "1m",
       "type": "timeseries",
       "title": "LLM tokens by purpose",
       "gridPos": {
@@ -245,21 +284,25 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(deskplane_mcp_llm_tokens_total[5m])) by (purpose, kind)",
-          "legendFormat": "{{purpose}} {{kind}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat(purpose, ' ', kind) AS series, value AS value FROM (\n  SELECT time, purpose, kind, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['purpose'] AS purpose, Attributes['kind'] AS kind, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'deskplane_mcp_llm_tokens_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, purpose, kind\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 10,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Agent context chars per turn",
       "gridPos": {
@@ -270,21 +313,25 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(deskplane_mcp_agent_context_chars_bucket[5m])) by (le, loop))",
-          "legendFormat": "p50 {{loop}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "WITH samples AS (\nSELECT *, if(row_number() OVER w = 1, arrayMap(x -> toFloat64(0), BucketCounts), if(Count < lagInFrame(Count, 1, Count) OVER w, arrayMap(x -> toFloat64(x), BucketCounts), arrayMap((c, p) -> if(c >= p, toFloat64(c) - toFloat64(p), toFloat64(c)), BucketCounts, lagInFrame(BucketCounts, 1, BucketCounts) OVER w))) AS deltas\nFROM otel.otel_metrics_histogram\nWHERE MetricName = 'deskplane_mcp_agent_context_chars' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n)\nSELECT time, concat('p50', ' ', loop) AS series, value FROM (\n  SELECT time, loop, quantilePrometheusHistogram(0.5)(bound, cum) AS value FROM (\n    SELECT time, loop, idx, if(idx <= length(anyb), anyb[idx], inf) AS bound,\n           toFloat64(sum(delta) OVER (PARTITION BY time, loop ORDER BY idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum\n    FROM (\n      SELECT time, bounds AS anyb, loop, idx, sum(deltas[idx]) AS delta FROM (\n        SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['loop'] AS loop, ExplicitBounds AS bounds,\n               deltas, arrayJoin(range(1, length(deltas) + 1)) AS idx FROM samples WHERE TimeUnix >= $__fromTime\n      ) GROUP BY time, anyb, loop, idx\n    )\n  ) GROUP BY time, loop\n) WHERE isFinite(value) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 11,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Jobs active / pages",
       "gridPos": {
@@ -295,29 +342,36 @@
       },
       "targets": [
         {
-          "expr": "deskplane_mcp_jobs_active",
-          "legendFormat": "active {{kind}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat('active ', kind) AS series, value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['kind'] AS kind, argMax(Value, TimeUnix) AS value\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'deskplane_mcp_jobs_active' AND TimeUnix BETWEEN $__fromTime AND $__toTime\n  GROUP BY time, Attributes, Attributes['kind']\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         },
         {
-          "expr": "sum(rate(deskplane_mcp_job_pages_total[5m])) by (kind, outcome)",
-          "legendFormat": "pages {{kind}} {{outcome}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat('pages ', kind, ' ', outcome) AS series, value AS value FROM (\n  SELECT time, kind, outcome, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['kind'] AS kind, Attributes['outcome'] AS outcome, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'deskplane_mcp_job_pages_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, kind, outcome\n) ORDER BY time, series",
+          "refId": "B",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 12,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Sessions by state",
       "gridPos": {
@@ -328,21 +382,25 @@
       },
       "targets": [
         {
-          "expr": "deskplane_mcp_sessions",
-          "legendFormat": "{{image}} {{state}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat(image, ' ', state) AS series, value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['image'] AS image, Attributes['state'] AS state, argMax(Value, TimeUnix) AS value\n  FROM otel.otel_metrics_gauge\n  WHERE MetricName = 'deskplane_mcp_sessions' AND TimeUnix BETWEEN $__fromTime AND $__toTime\n  GROUP BY time, Attributes, Attributes['image'], Attributes['state']\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "id": 13,
+      "interval": "1m",
       "type": "timeseries",
       "title": "Webhook deliveries",
       "gridPos": {
@@ -353,17 +411,20 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(deskplane_mcp_webhook_deliveries_total[5m])) by (outcome)",
-          "legendFormat": "{{outcome}}",
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          }
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "format": 0,
+          "rawSql": "SELECT time, concat(outcome) AS series, value AS value FROM (\n  SELECT time, outcome, sum(d) / greatest($__interval_s, 60) AS value FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['outcome'] AS outcome, d\n    FROM (\nSELECT *, if(row_number() OVER w = 1, 0, if(Value < lagInFrame(Value, 1, Value) OVER w, Value, Value - lagInFrame(Value, 1, Value) OVER w)) AS d\nFROM otel.otel_metrics_sum\nWHERE MetricName = 'deskplane_mcp_webhook_deliveries_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime\nWINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n  ) WHERE time >= $__fromTime GROUP BY time, outcome\n) ORDER BY time, series",
+          "refId": "A",
+          "queryType": "sql",
+          "editorType": "sql"
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     }
   ],

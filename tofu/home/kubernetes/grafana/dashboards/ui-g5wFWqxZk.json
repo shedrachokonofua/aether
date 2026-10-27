@@ -1,0 +1,4761 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "$$hashKey": "object:69",
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "UniFi Poller v2.0.1 Displays detailed information for wireless access points in a UniFi network using Prometheus.",
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [
+        "unifi-poller",
+        "unifi"
+      ],
+      "title": "UniFi Poller",
+      "type": "dashboards"
+    },
+    {
+      "icon": "question",
+      "tags": [],
+      "title": "Help",
+      "type": "link",
+      "url": "https://golift.io/unifi-poller/issues"
+    },
+    {
+      "icon": "doc",
+      "tags": [],
+      "title": "Wiki",
+      "type": "link",
+      "url": "https://golift.io/unifi-poller/wiki"
+    },
+    {
+      "icon": "bolt",
+      "tags": [],
+      "title": "Discord",
+      "type": "link",
+      "url": "https://discord.gg/KnyKYt2"
+    }
+  ],
+  "panels": [
+    {
+      "content": "<br>\n<br>\n<center><b><font size=\"6px\">Unifi UAP</font></b></center>\n",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "id": 34,
+      "links": [],
+      "mode": "html",
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "aliasColors": {
+        "Channel 11": "#37872D",
+        "Channel 36": "#1F60C4",
+        "Channel 44": "#8F3BB8"
+      },
+      "breakPoint": "50%",
+      "cacheTimeout": null,
+      "combine": {
+        "label": "Others",
+        "threshold": 0
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "Visualize wireless channel usage w/ wired client counts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "fontSize": "70%",
+      "format": "short",
+      "gridPos": {
+        "h": 10,
+        "w": 6,
+        "x": 4,
+        "y": 0
+      },
+      "hideTimeOverride": false,
+      "id": 52,
+      "interval": null,
+      "legend": {
+        "header": "",
+        "percentage": true,
+        "percentageDecimals": 0,
+        "show": true,
+        "values": false
+      },
+      "legendType": "Right side",
+      "links": [],
+      "maxDataPoints": 3,
+      "nullPointMode": "connected",
+      "pieType": "pie",
+      "strokeWidth": "3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT concat('Ch ', grp) AS channel, value FROM (SELECT grp, count() AS value FROM (SELECT Attributes['mac'] AS mac, Attributes['channel'] AS grp, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_client_uptime_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['ap_name'] IN (${AP:singlequote}), $AP) GROUP BY mac, grp) GROUP BY grp ORDER BY value DESC)",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "title": "Clients / Channel",
+      "transparent": true,
+      "type": "piechart",
+      "valueName": "current",
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "aliasColors": {
+        "ac": "#37872D",
+        "g": "#E0B400",
+        "na": "#1F60C4",
+        "ng": "#8F3BB8"
+      },
+      "breakPoint": "25%",
+      "cacheTimeout": null,
+      "combine": {
+        "label": "Others",
+        "threshold": 0
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "Visualize how many clients are connected to which radios/APs.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "fontSize": "70%",
+      "format": "short",
+      "gridPos": {
+        "h": 10,
+        "w": 7,
+        "x": 10,
+        "y": 0
+      },
+      "hideTimeOverride": false,
+      "id": 54,
+      "interval": null,
+      "legend": {
+        "header": "",
+        "percentage": true,
+        "show": true,
+        "sort": "current",
+        "sortDesc": true,
+        "values": true
+      },
+      "legendType": "Right side",
+      "links": [],
+      "maxDataPoints": 3,
+      "nullPointMode": "connected",
+      "pieType": "pie",
+      "strokeWidth": "3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT grp, count() AS value FROM (SELECT Attributes['mac'] AS mac, Attributes['radio_desc'] AS grp, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_client_uptime_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['ap_name'] IN (${AP:singlequote}), $AP) GROUP BY mac, grp) GROUP BY grp ORDER BY value DESC",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "title": "Clients / AP Radio",
+      "transparent": true,
+      "type": "piechart",
+      "valueName": "current",
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "aliasColors": {},
+      "breakPoint": "50%",
+      "cacheTimeout": null,
+      "combine": {
+        "label": "Others",
+        "threshold": "0.01"
+      },
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "This shows an OUI breakdown from Unifi's perspective.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "fontSize": "70%",
+      "format": "short",
+      "gridPos": {
+        "h": 10,
+        "w": 7,
+        "x": 17,
+        "y": 0
+      },
+      "hideTimeOverride": false,
+      "id": 56,
+      "interval": null,
+      "legend": {
+        "header": "Count",
+        "percentage": true,
+        "percentageDecimals": 0,
+        "show": true,
+        "sortDesc": false,
+        "values": true
+      },
+      "legendType": "Right side",
+      "links": [],
+      "maxDataPoints": 3,
+      "nullPointMode": "connected",
+      "pieType": "pie",
+      "strokeWidth": 1,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT grp, count() AS value FROM (SELECT Attributes['mac'] AS mac, Attributes['oui'] AS grp, argMax(Value,TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_client_uptime_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['ap_name'] IN (${AP:singlequote}), $AP) GROUP BY mac, grp) GROUP BY grp ORDER BY value DESC",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "title": "Client / MAC OUI",
+      "transparent": true,
+      "type": "piechart",
+      "valueName": "current",
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "cacheTimeout": null,
+      "colorBackground": false,
+      "colorValue": false,
+      "colors": [
+        "rgba(245, 54, 54, 0.9)",
+        "rgba(237, 129, 40, 0.89)",
+        "rgba(50, 172, 45, 0.97)"
+      ],
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "format": "none",
+      "gauge": {
+        "maxValue": 100,
+        "minValue": 0,
+        "show": false,
+        "thresholdLabels": false,
+        "thresholdMarkers": true
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 0,
+        "y": 3
+      },
+      "id": 48,
+      "interval": null,
+      "isNew": true,
+      "links": [],
+      "mappingType": 1,
+      "mappingTypes": [
+        {
+          "name": "value to text",
+          "value": 1
+        },
+        {
+          "name": "range to text",
+          "value": 2
+        }
+      ],
+      "maxDataPoints": 100,
+      "nullPointMode": "connected",
+      "nullText": null,
+      "postfix": "",
+      "postfixFontSize": "80%",
+      "prefix": "",
+      "prefixFontSize": "50%",
+      "rangeMaps": [
+        {
+          "from": "null",
+          "text": "N/A",
+          "to": "null"
+        }
+      ],
+      "sparkline": {
+        "fillColor": "rgba(31, 118, 189, 0.18)",
+        "full": false,
+        "lineColor": "rgb(31, 120, 193)",
+        "show": false
+      },
+      "tableColumn": "",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(v) AS value FROM (SELECT Attributes['name'] AS name, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_stations' AND Attributes['station_type']='user' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY name)",
+          "refId": "A"
+        }
+      ],
+      "thresholds": "",
+      "timeFrom": null,
+      "title": "Users",
+      "type": "stat",
+      "valueFontSize": "110%",
+      "valueMaps": [],
+      "valueName": "current",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "cacheTimeout": null,
+      "colorBackground": false,
+      "colorValue": false,
+      "colors": [
+        "rgba(245, 54, 54, 0.9)",
+        "rgba(237, 129, 40, 0.89)",
+        "rgba(50, 172, 45, 0.97)"
+      ],
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "format": "none",
+      "gauge": {
+        "maxValue": 100,
+        "minValue": 0,
+        "show": false,
+        "thresholdLabels": false,
+        "thresholdMarkers": true
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 2,
+        "y": 3
+      },
+      "id": 60,
+      "interval": null,
+      "isNew": true,
+      "links": [],
+      "mappingType": 1,
+      "mappingTypes": [
+        {
+          "name": "value to text",
+          "value": 1
+        },
+        {
+          "name": "range to text",
+          "value": 2
+        }
+      ],
+      "maxDataPoints": 100,
+      "nullPointMode": "connected",
+      "nullText": null,
+      "postfix": "",
+      "postfixFontSize": "80%",
+      "prefix": "",
+      "prefixFontSize": "50%",
+      "rangeMaps": [
+        {
+          "from": "null",
+          "text": "N/A",
+          "to": "null"
+        }
+      ],
+      "sparkline": {
+        "fillColor": "rgba(31, 118, 189, 0.18)",
+        "full": false,
+        "lineColor": "rgb(31, 120, 193)",
+        "show": false
+      },
+      "tableColumn": "",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT sum(v) AS value FROM (SELECT Attributes['name'] AS name, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_stations' AND Attributes['station_type']='guest' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY name)",
+          "refId": "A"
+        }
+      ],
+      "thresholds": "",
+      "timeFrom": null,
+      "title": "Guests",
+      "type": "stat",
+      "valueFontSize": "110%",
+      "valueMaps": [],
+      "valueName": "current",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "bgColor": "#3f2b5b",
+      "clockType": "12 hour",
+      "countdownSettings": {
+        "customFormat": null,
+        "endCountdownTime": "2018-04-29T21:47:00.000Z",
+        "endText": "00:00:00"
+      },
+      "dateSettings": {
+        "dateFormat": "YYYY-MM-DD",
+        "fontSize": "12px",
+        "fontWeight": "bold",
+        "showDate": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 7
+      },
+      "id": 32,
+      "links": [],
+      "mode": "time",
+      "offsetFromUtc": null,
+      "offsetFromUtcMinutes": null,
+      "options": {
+        "bgColor": "",
+        "clockType": "24 hour",
+        "countdownSettings": {
+          "endCountdownTime": "2020-06-14T00:36:42-07:00",
+          "endText": "00:00:00"
+        },
+        "dateSettings": {
+          "dateFormat": "YYYY-MM-DD",
+          "fontSize": "20px",
+          "fontWeight": "normal",
+          "showDate": false
+        },
+        "mode": "time",
+        "timeSettings": {
+          "fontSize": "12px",
+          "fontWeight": "normal"
+        },
+        "timezone": "",
+        "timezoneSettings": {
+          "fontSize": "12px",
+          "fontWeight": "normal",
+          "showTimezone": false,
+          "zoneFormat": "offsetAbbv"
+        }
+      },
+      "refreshSettings": {
+        "syncWithDashboard": false
+      },
+      "timeSettings": {
+        "customFormat": "HH:mm:ss",
+        "fontSize": "30px",
+        "fontWeight": "normal"
+      },
+      "timezone": null,
+      "timezoneSettings": {
+        "fontSize": "12px",
+        "fontWeight": "normal",
+        "showTimezone": false,
+        "zoneFormat": "offsetAbbv"
+      },
+      "title": "Now",
+      "type": "grafana-clock-panel"
+    },
+    {
+      "columns": [],
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fontSize": "100%",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 1,
+      "isNew": true,
+      "links": [],
+      "pageSize": null,
+      "scroll": false,
+      "showHeader": true,
+      "sort": {
+        "col": 11,
+        "desc": true
+      },
+      "styles": [
+        {
+          "$$hashKey": "object:9911",
+          "alias": "",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "Time",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9912",
+          "alias": "Uptime",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "Value #A",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "dtdurations"
+        },
+        {
+          "$$hashKey": "object:9913",
+          "alias": "Name",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "link": false,
+          "linkTargetBlank": true,
+          "linkUrl": "http:",
+          "pattern": "name",
+          "preserveFormat": false,
+          "sanitize": false,
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9915",
+          "alias": "Model",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "model",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9916",
+          "alias": "Device MAC",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "mac",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9917",
+          "alias": "Unifi Serial #",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "serial",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9918",
+          "alias": "Site",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "site_name",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9919",
+          "alias": "Version",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "version",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9923",
+          "alias": "Address",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "ip",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9924",
+          "alias": "Type",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "type",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "$$hashKey": "object:9925",
+          "alias": "Type",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "type",
+          "thresholds": [],
+          "type": "string",
+          "unit": "decbytes"
+        },
+        {
+          "$$hashKey": "object:9926",
+          "alias": "Uptime",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "Value #B",
+          "thresholds": [],
+          "type": "number",
+          "unit": "s"
+        },
+        {
+          "$$hashKey": "object:9928",
+          "alias": "Bytes",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 1,
+          "mappingType": 1,
+          "pattern": "Value #C",
+          "thresholds": [],
+          "type": "number",
+          "unit": "bytes"
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['ip'] AS ip, Attributes['mac'] AS mac, Attributes['model'] AS model, Attributes['name'] AS name, Attributes['serial'] AS serial, Attributes['site_name'] AS site_name, Attributes['type'] AS type, Attributes['version'] AS version, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_info' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY ip, mac, model, name, serial, site_name, type, version",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['name'] AS name, argMax(Value, TimeUnix) AS uptime_seconds FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_uptime_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY name",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['name'] AS name, argMax(Value, TimeUnix) AS bytes_total FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_bytes_total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY name",
+          "refId": "C"
+        }
+      ],
+      "timeFrom": null,
+      "title": "Access Point Details",
+      "transform": "table",
+      "type": "table",
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "columns": [],
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "The counters in this table represent uptime totals and do not change with the time range selector. ",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fontSize": "100%",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 49,
+      "isNew": true,
+      "links": [],
+      "pageSize": null,
+      "scroll": false,
+      "showHeader": true,
+      "sort": {
+        "col": 15,
+        "desc": true
+      },
+      "styles": [
+        {
+          "alias": "",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "pattern": "Time",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "short"
+        },
+        {
+          "alias": "BSSID",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "link": false,
+          "linkTargetBlank": true,
+          "linkUrl": "http:",
+          "pattern": "bssid",
+          "preserveFormat": false,
+          "sanitize": false,
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "ESSID",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "essid",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "job",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "short"
+        },
+        {
+          "alias": "",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "__name__",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "short"
+        },
+        {
+          "alias": "Serial",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "serial",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "type",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "short"
+        },
+        {
+          "alias": "MAC",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "mac",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "Site",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "site_name",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "VAP",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "vap_name",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "Version",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "version",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "CCQ",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "Value #A",
+          "thresholds": [],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "alias": "Model",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "model",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "Name",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "radio_name",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "instance",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "short"
+        },
+        {
+          "alias": "AP Name",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "name",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "Usage",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "usage",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "Radio",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "radio",
+          "thresholds": [],
+          "type": "string",
+          "unit": "short"
+        },
+        {
+          "alias": "Avg Client Sig",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 0,
+          "mappingType": 1,
+          "pattern": "Value #B",
+          "thresholds": [],
+          "type": "number",
+          "unit": "dBm"
+        },
+        {
+          "alias": "Rx Drops",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": null,
+          "mappingType": 1,
+          "pattern": "Value #C",
+          "thresholds": [],
+          "type": "number",
+          "unit": "short"
+        },
+        {
+          "alias": "Controller",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "source",
+          "thresholds": [],
+          "type": "hidden",
+          "unit": "short"
+        },
+        {
+          "alias": "Tx Drops",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": null,
+          "mappingType": 1,
+          "pattern": "Value #E",
+          "thresholds": [],
+          "type": "number",
+          "unit": "short"
+        },
+        {
+          "alias": "Bytes Rx",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": null,
+          "mappingType": 1,
+          "pattern": "Value #G",
+          "thresholds": [],
+          "type": "number",
+          "unit": "decbytes"
+        },
+        {
+          "alias": "Bytes Tx",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": null,
+          "mappingType": 1,
+          "pattern": "Value #F",
+          "thresholds": [],
+          "type": "number",
+          "unit": "decbytes"
+        },
+        {
+          "alias": "Rx Packets",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "Value #H",
+          "thresholds": [],
+          "type": "number",
+          "unit": "short"
+        },
+        {
+          "alias": "Tx Packets",
+          "align": "auto",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "Value #I",
+          "thresholds": [],
+          "type": "number",
+          "unit": "short"
+        }
+      ],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS ccq_ratio FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_vap_ccq_ratio' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS average_client_signal FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_vap_average_client_signal' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS receive_dropped FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_dropped_total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS transmit_dropped FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_dropped_total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS transmit_bytes FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_bytes_total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS receive_bytes FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_bytes_total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS receive_packets FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_packets_total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['bssid'] AS bssid, Attributes['essid'] AS essid, Attributes['name'] AS name, Attributes['radio'] AS radio, Attributes['radio_name'] AS radio_name, Attributes['vap_name'] AS vap_name, Attributes['site_name'] AS site_name, Attributes['usage'] AS usage, Attributes['source'] AS source, argMax(Value, TimeUnix) AS transmit_packets FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_packets_total' AND TimeUnix > now() - INTERVAL 5 MINUTE AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY bssid, essid, name, radio, radio_name, vap_name, site_name, usage, source",
+          "refId": "H"
+        }
+      ],
+      "timeFrom": null,
+      "title": "Networks / UAP",
+      "transform": "table",
+      "transparent": true,
+      "type": "table",
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "aliasColors": {
+        "wap-lower": "dark-green",
+        "wap-upper": "dark-purple"
+      },
+      "bars": false,
+      "cacheTimeout": null,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "hiddenSeries": false,
+      "hideTimeOverride": true,
+      "id": 30,
+      "interval": "",
+      "legend": {
+        "avg": false,
+        "current": false,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['name'] AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_cpu_utilization_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "UAP CPU Usage",
+      "tooltip": {
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "percentunit",
+          "label": "CPU Utilization",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {
+        "wap-lower": "dark-green",
+        "wap-upper": "dark-purple"
+      },
+      "bars": false,
+      "cacheTimeout": null,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "hiddenSeries": false,
+      "hideTimeOverride": true,
+      "id": 47,
+      "interval": "",
+      "legend": {
+        "avg": false,
+        "current": false,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['name'] AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_memory_utilization_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "UAP Memory Usage",
+      "tooltip": {
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "percentunit",
+          "label": "Memory Utilization",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {
+        "wap-lower load1": "dark-green",
+        "wap-lower load15": "dark-blue",
+        "wap-upper load1": "dark-purple",
+        "wap-upper load15": "dark-yellow"
+      },
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "hiddenSeries": false,
+      "id": 3,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": false,
+        "avg": false,
+        "current": false,
+        "hideEmpty": true,
+        "hideZero": true,
+        "max": true,
+        "min": false,
+        "show": true,
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/load15$/",
+          "fill": 0,
+          "lines": true,
+          "linewidth": 6
+        },
+        {}
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' load1') AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_load_average_1' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' load5') AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_load_average_5' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' load15') AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_load_average_15' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "UAP Load Average",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "none",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "hiddenSeries": false,
+      "id": 46,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "hideZero": false,
+        "max": true,
+        "min": true,
+        "rightSide": true,
+        "show": true,
+        "sort": "current",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 3,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": true,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['name'] AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_stations' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Clients / UAP",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "none",
+          "label": "",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "Devices TX / RX bytes per second grouped by OUI. RX on negative axis.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "hiddenSeries": false,
+      "id": 42,
+      "legend": {
+        "alignAsTable": true,
+        "avg": true,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "sort": "current",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/Rx$/",
+          "transform": "negative-Y"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['oui'],' Rx') AS series, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_client_receive_rate_bytes' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['ap_name'] IN (${AP:singlequote}), $AP) GROUP BY time, series, ServiceName, ResourceAttributes, Attributes) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['oui'],' Tx') AS series, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_client_transmit_rate_bytes' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['ap_name'] IN (${AP:singlequote}), $AP) GROUP BY time, series, ServiceName, ResourceAttributes, Attributes) GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Wireless Traffic / Vendor",
+      "tooltip": {
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "bps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "hiddenSeries": false,
+      "id": 19,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "hideZero": true,
+        "max": true,
+        "min": true,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": true,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Guests 2,4GHz') AS series, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_stations' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='ng' AND Attributes['station_type']='guest' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series, ServiceName, ResourceAttributes, Attributes) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Users 2.4GHz') AS series, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_stations' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='ng' AND Attributes['station_type']='user' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series, ServiceName, ResourceAttributes, Attributes) GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Users 5GHz') AS series, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_stations' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='na' AND Attributes['station_type']='user' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series, ServiceName, ResourceAttributes, Attributes) GROUP BY time, series ORDER BY time, series",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Guests 5GHz') AS series, avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_stations' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='na' AND Attributes['station_type']='guest' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series, ServiceName, ResourceAttributes, Attributes) GROUP BY time, series ORDER BY time, series",
+          "refId": "D"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Users & Guests / Radio Band",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "none",
+          "label": "",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "hiddenSeries": false,
+      "id": 59,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "hideZero": true,
+        "max": true,
+        "min": true,
+        "rightSide": true,
+        "show": true,
+        "sort": "current",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' ',Attributes['vap_name'],' ',Attributes['radio']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_vap_average_client_signal' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Average AP Client Signal",
+      "tooltip": {
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": 0,
+          "format": "dBm",
+          "label": "Average Client Signal",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "hiddenSeries": false,
+      "id": 44,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "hideZero": true,
+        "max": true,
+        "min": true,
+        "rightSide": true,
+        "show": true,
+        "sort": "current",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['ap_name'],' ',Attributes['radio_name']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_client_rssi_db' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND $__conditionalAll(Attributes['ap_name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Average AP Client RSSI",
+      "tooltip": {
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": 0,
+          "format": "dBm",
+          "label": "Average Client RSSI",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "hiddenSeries": false,
+      "id": 18,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "hideZero": true,
+        "max": true,
+        "min": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' ',Attributes['vap_name']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_vap_ccq_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "5 GHz Client Connection Quality",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "percentunit",
+          "label": "Average CCQ % / VAP",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "hiddenSeries": false,
+      "id": 58,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "hideZero": true,
+        "max": true,
+        "min": true,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' ',Attributes['vap_name']) AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_vap_ccq_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "2.4 GHz Client Connection Quality",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "percentunit",
+          "label": "Average CCQ % / VAP",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 64
+      },
+      "hiddenSeries": false,
+      "id": 8,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "sort": "max",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 3,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": ""
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Rx') AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_channel_utilization_receive_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Tx') AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_channel_utilization_transmit_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "5 GHz Channel Utilization",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": 1,
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "Displays 2.4GHz usage.",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      },
+      "hiddenSeries": false,
+      "id": 27,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 3,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": ""
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Rx') AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_channel_utilization_receive_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Tx') AS series, avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_radio_channel_utilization_transmit_ratio' AND TimeUnix BETWEEN $__fromTime AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) GROUP BY time, series ORDER BY time, series",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "2.4 GHz Channel Utilization",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": null,
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "RX is on the negative Axis.",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "hiddenSeries": false,
+      "id": 20,
+      "interval": "",
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "hideZero": false,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "sort": "current",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/Rx$/",
+          "transform": "negative-Y"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_bytes_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_bytes_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "5 GHz Traffic",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "bps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "pps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "description": "RX is on the negative Axis.",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "hiddenSeries": false,
+      "id": 24,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "sort": "current",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/Rx$/",
+          "transform": "negative-Y"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_bytes_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_bytes_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "2.4 GHz Traffic",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "bps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "pps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "PPS on the na band. In is on the negative Axis.",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 79
+      },
+      "hiddenSeries": false,
+      "id": 22,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/In$/",
+          "transform": "negative-Y"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Out') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_packets_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' In') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_packets_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "5 GHz Packets",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": 1,
+          "format": "pps",
+          "label": "PPS",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "pps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "PPS on the ng band calculated in 30 second buckets. In is on the negative Axis.",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      },
+      "hiddenSeries": false,
+      "id": 25,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "sort": "max",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/In$/",
+          "transform": "negative-Y"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Out') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_packets_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' In') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_packets_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "2.4 GHz Packets",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": 1,
+          "format": "pps",
+          "label": "PPS",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "pps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "Visualize packet errors (several types)  per second in the 5GHz band.",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 86
+      },
+      "hiddenSeries": false,
+      "id": 57,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "sort": "max",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "connected",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/In$/",
+          "transform": "negative-Y"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Drops Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_dropped_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Drops Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_dropped_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Errors Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_errors_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Errors Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_errors_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Crypts Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_crypts_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Frags Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_frags_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Nwids Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_nwids_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Retries Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_retries_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='na' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "H"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "5 GHz Drops/Errors",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": 1,
+          "format": "pps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "decimals": 0,
+      "description": "In is on the negative axis.",
+      "editable": true,
+      "error": false,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 86
+      },
+      "hiddenSeries": false,
+      "id": 26,
+      "isNew": true,
+      "legend": {
+        "alignAsTable": true,
+        "avg": false,
+        "current": true,
+        "hideEmpty": true,
+        "max": true,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "sort": "max",
+        "sortDesc": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "percentage": false,
+      "pointradius": 5,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "/In$/",
+          "transform": "negative-Y"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Drops Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_dropped_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Drops Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_dropped_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Errors Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_errors_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Errors Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_errors_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Crypts Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_crypts_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Frags Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_frags_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Nwids Rx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_receive_nwids_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, series, sum(d)/greatest($__interval_s, 60) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, concat(Attributes['name'],' Retries Tx') AS series, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(raw_d < 0, Value, raw_d) AS d0, if(row_number() OVER w = 1, 0, d0) AS d FROM otel.otel_metrics_sum WHERE MetricName='unpoller_device_vap_transmit_retries_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime AND Attributes['radio']='ng' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND $__conditionalAll(Attributes['name'] IN (${AP:singlequote}), $AP) WINDOW w AS (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, series ORDER BY time, series",
+          "refId": "H"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "2.4 GHz Drops/Errors",
+      "tooltip": {
+        "msResolution": false,
+        "shared": true,
+        "sort": 2,
+        "value_type": "cumulative"
+      },
+      "transparent": true,
+      "interval": "1m",
+      "type": "timeseries",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": 1,
+          "format": "pps",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": false
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 25,
+  "tags": [
+    "unifi",
+    "uap",
+    "unifi-poller"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT Attributes['source'] FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_info' AND Attributes['type']='uap' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "Controller",
+        "options": [],
+        "query": "SELECT DISTINCT Attributes['source'] FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_info' AND Attributes['type']='uap' AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT Attributes['site_name'] FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_info' AND Attributes['type']='uap' AND $__conditionalAll(Attributes['source'] IN (${Controller:singlequote}), $Controller) AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "Site",
+        "options": [],
+        "query": "SELECT DISTINCT Attributes['site_name'] FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_info' AND Attributes['type']='uap' AND $__conditionalAll(Attributes['source'] IN (${Controller:singlequote}), $Controller) AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT Attributes['name'] FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_info' AND Attributes['type'] IN ('uap','udm') AND Attributes['model'] != 'UDMPRO' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "AP",
+        "options": [],
+        "query": "SELECT DISTINCT Attributes['name'] FROM otel.otel_metrics_gauge WHERE MetricName='unpoller_device_info' AND Attributes['type'] IN ('uap','udm') AND Attributes['model'] != 'UDMPRO' AND $__conditionalAll(Attributes['site_name'] IN (${Site:singlequote}), $Site) AND TimeUnix > now() - INTERVAL 1 HOUR",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "2m",
+          "value": "2m"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Smooth",
+        "multi": false,
+        "name": "Smooth",
+        "options": [
+          {
+            "selected": false,
+            "text": "30s",
+            "value": "30s"
+          },
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": true,
+            "text": "2m",
+            "value": "2m"
+          },
+          {
+            "selected": false,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "15m",
+            "value": "15m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": false,
+            "text": "1h",
+            "value": "1h"
+          }
+        ],
+        "query": "30s,1m,2m,5m,10m,15m,30m,1h",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {
+    "nowDelay": "",
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Access Point",
+  "uid": "g5wFWqxZk"
+}

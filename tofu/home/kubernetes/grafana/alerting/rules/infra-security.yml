@@ -1,0 +1,1101 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Infrastructure — Security
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: ids-suricata-severity1
+        title: IDS Suricata Severity 1
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM suricata.alert
+                WHERE Timestamp >= now() - INTERVAL 15 MINUTE
+                  AND alert_severity = 1
+                  AND alert_signature_id NOT IN (0)
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Suricata severity-1 IDS alert observed"
+          description: "ClickHouse saw one or more unsuppressed Suricata severity-1 alerts in the last 15 minutes"
+
+      - uid: ids-suricata-daily-review
+        title: IDS Suricata Daily Review
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM suricata.alert
+                WHERE Timestamp >= now() - INTERVAL 24 HOUR
+                  AND alert_severity IN (1, 2)
+                  AND alert_signature_id NOT IN (0)
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Suricata severity 1/2 alerts need daily review"
+          description: "ClickHouse saw {{ $values.B.Value }} unsuppressed Suricata severity 1/2 alerts in the last 24 hours"
+
+      - uid: ids-zeek-notice
+        title: IDS Zeek Notice
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM zeek.notice
+                WHERE Timestamp >= now() - INTERVAL 1 HOUR
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Zeek notices require security review"
+          description: "ClickHouse saw {{ $values.B.Value }} Zeek notices in the last hour"
+
+      - uid: ids-suricata-pipeline-stalled
+        title: IDS Suricata Pipeline Stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT if(count() = 0, 999999, dateDiff('minute', max(Timestamp), now())) AS value
+                FROM suricata.flow
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [60]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Suricata ClickHouse pipeline is stale"
+          description: "No Suricata flow rows have landed in ClickHouse for more than 60 minutes"
+
+      - uid: ids-zeek-pipeline-stalled
+        title: IDS Zeek Pipeline Stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT if(count() = 0, 999999, dateDiff('minute', max(Timestamp), now())) AS value
+                FROM zeek.conn
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [60]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Zeek ClickHouse pipeline is stale"
+          description: "No Zeek conn rows have landed in ClickHouse for more than 60 minutes"
+
+      # A10 ships Argos alerts paused. A11 removes isPaused only after the
+      # dashboard-only bootstrap and restart-recovery observations are reviewed.
+      - uid: argos-failed-cycles
+        title: Argos Failed Cycles
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM argos.detector_runs_current
+                WHERE detector_id = 'network-beacon'
+                  AND status = 'failed'
+                  AND finished_at >= now() - INTERVAL 24 HOUR
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos has failed detector cycles"
+          description: "Argos recorded {{ $values.B.Value }} failed network-beacon cycles in the last 24 hours. See Security Triage panel 18."
+
+      - uid: argos-checkpoint-stale
+        title: Argos Checkpoint Stale
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT if(count() = 0, 999999, dateDiff('minute', max(ingestion_watermark), now())) AS value
+                FROM argos.detector_checkpoint_history
+                WHERE detector_id = 'network-beacon'
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [120]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos network-beacon checkpoint is stale"
+          description: "Argos has not advanced its ingestion watermark for {{ $values.B.Value }} minutes. See Security Triage panel 18."
+
+      - uid: argos-retention-headroom-low
+        title: Argos Retention Headroom Low
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT if(count() = 0, 0, dateDiff('hour', now(), max(ingestion_watermark) + INTERVAL 14 DAY)) AS value
+                FROM argos.detector_checkpoint_history
+                WHERE detector_id = 'network-beacon'
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [24]
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos is within 24 hours of Zeek retention loss"
+          description: "Only {{ $values.B.Value }} hours of declared Zeek retention remain before the Argos checkpoint expires. See Security Triage panel 19."
+
+      - uid: argos-source-retention-gap
+        title: Argos Source Retention Gap
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM argos.detector_checkpoint_history
+                WHERE detector_id = 'network-beacon'
+                  AND advancement_reason = 'source_retention_gap'
+                  AND completed_at >= now() - INTERVAL 24 HOUR
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos recorded a Zeek source-retention gap"
+          description: "Argos advanced across {{ $values.B.Value }} explicit source-retention gaps in the last 24 hours. See Security Triage panel 21."
+
+      - uid: argos-candidate-finding-digest
+        title: Argos Candidate Finding
+        condition: C
+        isPaused: true
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 7200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT
+                  finding_id,
+                  detector_version,
+                  concat('https://grafana.home.shdr.ch/d/security-triage?viewPanel=22') AS evidence_link,
+                  1 AS value
+                FROM argos.findings_current
+                WHERE detector_id = 'network-beacon'
+                  AND domain = 'security'
+                  AND disposition = 'candidate'
+                  AND last_evaluated_at >= now() - INTERVAL 2 HOUR
+                LIMIT 100
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+          channel: digest
+        annotations:
+          summary: "Argos candidate finding {{ $labels.finding_id }}"
+          description: "Argos {{ $labels.detector_version }} created a candidate finding {{ $labels.finding_id }}. Evidence: {{ $labels.evidence_link }}"
+          evidence_link: "{{ $labels.evidence_link }}"
+          detector_version: "{{ $labels.detector_version }}"
+          finding_id: "{{ $labels.finding_id }}"
+
+      - uid: wazuh-high-severity
+        title: Wazuh High Severity
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM otel.otel_logs
+                WHERE ServiceName = 'intrusion-detection-stack'
+                  AND Timestamp > now() - INTERVAL 15 MINUTE
+                  AND JSONExtractString(Body, 'CONTAINER_NAME') = 'wazuh'
+                  AND toFloat64OrZero(JSONExtractString(JSONExtractString(Body, 'MESSAGE'), 'rule_level')) >= 12
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Wazuh high-severity event observed"
+          description: "Wazuh emitted one or more rule level >= 12 events in the last 15 minutes"
+
+      - uid: tetragon-escape-signal
+        title: Tetragon Escape Signal
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT policy, namespace, pod, sum(delta) AS value
+                FROM (
+                  SELECT Attributes['policy'] AS policy, Attributes['namespace'] AS namespace, Attributes['pod'] AS pod, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                  FROM otel.otel_metrics_sum
+                  WHERE MetricName = 'tetragon_policy_events_total'
+                    AND TimeUnix > now() - INTERVAL 15 MINUTE
+                    AND Attributes['policy'] IN ('tetragon-host-runtime-socket', 'tetragon-kernel-module-load', 'tetragon-unprivileged-userns-create')
+                  GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                )
+                GROUP BY policy, namespace, pod
+                HAVING value > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Tetragon escape-class policy {{ $labels.policy }} fired"
+          description: "Policy fired in {{ $labels.namespace }}/{{ $labels.pod }}"
+
+      - uid: tetragon-untrusted-activity
+        title: Tetragon Untrusted Activity
+        condition: C
+        data:
+          - refId: A
+            # Short query range on purpose: the 12h window lives in the SQL.
+            # A 12h range plus "> 0" and reducer "last" kept the alert firing up to
+            # 24h after the last event (last positive point, not the value now).
+            relativeTimeRange:
+              from: 43200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT policy, namespace, sum(delta) AS value
+                FROM (
+                  SELECT Attributes['policy'] AS policy, Attributes['namespace'] AS namespace, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                  FROM otel.otel_metrics_sum
+                  WHERE MetricName = 'tetragon_policy_events_total'
+                    AND TimeUnix > now() - INTERVAL 12 HOUR
+                    AND Attributes['policy'] IN ('tetragon-sensitive-file-access', 'tetragon-privilege-escalation', 'tetragon-mount-namespace-ops')
+                  GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                )
+                GROUP BY policy, namespace
+                HAVING value > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Tetragon untrusted-tier activity {{ $labels.policy }} observed"
+          description: "Policy fired in {{ $labels.namespace }} in the last 12 hours"
+
+      - uid: tetragon-pipeline-dead
+        title: Tetragon Pipeline Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT if(count() = 0 OR max(TimeUnix) < now() - INTERVAL 15 MINUTE, 1, 0) AS value
+                FROM otel.otel_metrics_sum
+                WHERE MetricName = 'tetragon_events_total'
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tetragon metrics pipeline is dead"
+          description: "ClickHouse has no tetragon_events_total samples in the last 15 minutes"
+
+      - uid: trivy-scanner-dead
+        title: Trivy Scanner Dead
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT if(count() = 0 OR max(TimeUnix) < now() - INTERVAL 24 HOUR, 1, 0) AS value
+                FROM otel.otel_metrics_gauge
+                WHERE MetricName = 'trivy_image_vulnerabilities'
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Trivy vulnerability scanner metrics are absent"
+          description: "ClickHouse has not seen trivy_image_vulnerabilities samples for 24 hours"
+
+      - uid: trivy-critical-vulns-exposed
+        title: Trivy Critical Vulns Exposed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT v.namespace AS namespace, v.image_repository AS image_repository, c.backup AS backup, c.exposure AS exposure, count() AS value
+                FROM (
+                  SELECT Attributes['namespace'] AS namespace, Attributes['image_repository'] AS image_repository, Attributes['resource_kind'] AS resource_kind, Attributes['resource_name'] AS resource_name
+                  FROM otel.otel_metrics_gauge
+                  WHERE MetricName = 'trivy_vulnerability_id'
+                    AND Attributes['severity'] = 'Critical'
+                    AND Attributes['fixed_version'] != ''
+                    AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName
+                  HAVING argMax(Value, TimeUnix) > 0
+                ) AS v
+                LEFT JOIN (
+                  SELECT Attributes['namespace'] AS namespace, Attributes['replicaset'] AS resource_name
+                  FROM otel.otel_metrics_gauge
+                  WHERE MetricName = 'kube_replicaset_spec_replicas'
+                    AND TimeUnix > now() - INTERVAL 5 MINUTE
+                  GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName
+                  HAVING argMax(Value, TimeUnix) > 0
+                ) AS r ON v.namespace = r.namespace AND v.resource_name = r.resource_name
+                INNER JOIN aether.namespace_contract AS c ON c.namespace = v.namespace
+                WHERE (c.backup = 'critical' OR c.exposure = 'public')
+                  AND (v.resource_kind NOT IN ('ReplicaSet', 'Job') OR (v.resource_kind = 'ReplicaSet' AND r.resource_name != ''))
+                GROUP BY namespace, image_repository, backup, exposure
+                HAVING value > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        # Tolerate report rotation gaps without resolving persistent CVE findings.
+        missingSeriesEvalsToResolve: 10
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Fixable critical image CVEs in {{ $labels.namespace }}/{{ $labels.image_repository }}"
+          description: "Trivy reports critical vulnerabilities WITH an available fix in a backup-critical or public namespace. Bump the image; unfixed-upstream criticals are excluded by design."
+
+      - uid: keycloak-login-failure-burst
+        title: Keycloak Login Failure Burst
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM otel.otel_logs
+                WHERE ServiceName = 'keycloak'
+                  AND LogAttributes['log.file.name'] = 'keycloak.log'
+                  AND position(Body, 'LOGIN_ERROR') > 0
+                  AND Timestamp > now() - INTERVAL 10 MINUTE
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [20]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Keycloak login failures exceed threshold"
+          description: "More than 20 LOGIN_ERROR events were logged by Keycloak in the last 10 minutes"
+      - uid: netpol-denials
+        title: Network Policy Denials
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT source_namespace, destination_namespace, tier, criticality, owner, value
+                FROM (
+                  SELECT d.source_namespace AS source_namespace, '' AS destination_namespace, c.tier AS tier, c.criticality AS criticality, c.owner AS owner, sum(d.delta) / 900 AS value
+                  FROM (
+                    SELECT Attributes['source_namespace'] AS source_namespace, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                    FROM otel.otel_metrics_sum
+                    WHERE MetricName = 'hubble_drop_total' AND Attributes['reason'] = 'POLICY_DENIED' AND Attributes['source_namespace'] != '' AND TimeUnix > now() - INTERVAL 15 MINUTE
+                    GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                  ) AS d
+                  INNER JOIN aether.namespace_contract AS c ON c.namespace = d.source_namespace
+                  GROUP BY source_namespace, destination_namespace, tier, criticality, owner
+                  HAVING value > 0.1
+                  UNION ALL
+                  SELECT d.source_namespace AS source_namespace, '' AS destination_namespace, '' AS tier, '' AS criticality, '' AS owner, sum(d.delta) / 900 AS value
+                  FROM (
+                    SELECT Attributes['source_namespace'] AS source_namespace, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                    FROM otel.otel_metrics_sum
+                    WHERE MetricName = 'hubble_drop_total' AND Attributes['reason'] = 'POLICY_DENIED' AND Attributes['source_namespace'] != '' AND TimeUnix > now() - INTERVAL 15 MINUTE
+                    GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                  ) AS d
+                  LEFT ANTI JOIN aether.namespace_contract AS c ON c.namespace = d.source_namespace
+                  GROUP BY source_namespace, destination_namespace, tier, criticality, owner
+                  HAVING value > 0.1
+                  UNION ALL
+                  SELECT '' AS source_namespace, d.destination_namespace AS destination_namespace, '' AS tier, '' AS criticality, '' AS owner, sum(d.delta) / 900 AS value
+                  FROM (
+                    SELECT Attributes['destination_namespace'] AS destination_namespace, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                    FROM otel.otel_metrics_sum
+                    WHERE MetricName = 'hubble_drop_total' AND Attributes['reason'] = 'POLICY_DENIED' AND Attributes['source_namespace'] = '' AND Attributes['destination_namespace'] != '' AND TimeUnix > now() - INTERVAL 15 MINUTE
+                    GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                  ) AS d
+                  GROUP BY source_namespace, destination_namespace, tier, criticality, owner
+                  HAVING value > 0.1
+                  UNION ALL
+                  SELECT '' AS source_namespace, '' AS destination_namespace, '' AS tier, '' AS criticality, '' AS owner, sum(delta) / 900 AS value
+                  FROM (
+                    SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                    FROM otel.otel_metrics_sum
+                    WHERE MetricName = 'hubble_drop_total' AND Attributes['reason'] = 'POLICY_DENIED' AND Attributes['source_namespace'] = '' AND Attributes['destination_namespace'] = '' AND TimeUnix > now() - INTERVAL 15 MINUTE
+                    GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                  )
+                  HAVING value > 0.1
+                  UNION ALL
+                  SELECT '' AS source_namespace, '' AS destination_namespace, '' AS tier, '' AS criticality, '' AS owner, sum(delta) / 900 AS value
+                  FROM (
+                    SELECT deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                    FROM otel.otel_metrics_sum
+                    WHERE MetricName = 'hubble_drop_total' AND Attributes['reason'] = 'POLICY_DENIED' AND TimeUnix > now() - INTERVAL 15 MINUTE
+                    GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                  )
+                  HAVING value > 0.1 AND (
+                    SELECT max(rate)
+                    FROM (
+                      SELECT sum(delta) / 900 AS rate
+                      FROM (
+                        SELECT Attributes['source_namespace'] AS source_namespace, Attributes['destination_namespace'] AS destination_namespace, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta
+                        FROM otel.otel_metrics_sum
+                        WHERE MetricName = 'hubble_drop_total' AND Attributes['reason'] = 'POLICY_DENIED' AND TimeUnix > now() - INTERVAL 15 MINUTE
+                        GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
+                      )
+                      GROUP BY if(source_namespace != '', concat('s:', source_namespace), if(destination_namespace != '', concat('d:', destination_namespace), 'none'))
+                    )
+                  ) <= 0.1
+                )
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Network policy denial rate exceeds 0.1/s"
+          description: "Cilium reports POLICY_DENIED drops above threshold for source namespace {{ $labels.source_namespace }}, destination namespace {{ $labels.destination_namespace }}, or a diffuse cluster-wide aggregate. Contract metadata when present: tier={{ $labels.tier }}, criticality={{ $labels.criticality }}, owner={{ $labels.owner }}. Drill down via Hubble flows in Grafana."
+
+      - uid: fleet-server-errors
+        title: Fleet Server Errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT count() AS value
+                FROM otel.otel_logs
+                WHERE ServiceName = 'monitoring-stack'
+                  AND LogAttributes['container.name'] = 'fleet'
+                  AND positionCaseInsensitive(Body, 'error') > 0
+                  AND Timestamp > now() - INTERVAL 30 MINUTE
+                HAVING count() > 0
+              queryType: sql
+              editorType: sql
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [10]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+          domain: security
+        annotations:
+          summary: "Fleet server is logging repeated errors"
+          description: "Fleet emitted more than 10 error-like log lines in the last 30 minutes on monitoring-stack"

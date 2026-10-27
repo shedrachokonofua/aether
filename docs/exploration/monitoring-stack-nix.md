@@ -1,5 +1,7 @@
 # Monitoring Stack: Hardening + NixOS Migration
 
+> 2026-10-13: The telemetry topology, Janus routing, and VM Grafana assumptions below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
+
 Two-track plan for the `monitoring-stack` VM (10.0.2.3, Fedora, Niobe). After the
 [journal forwarder](journal-forwarder.md) lands, this box holds a journal-read credential
 for every hypervisor, 90 days of fleet logs, tailnet membership, and a vault-agent identity —

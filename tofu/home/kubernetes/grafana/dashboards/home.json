@@ -38,7 +38,7 @@
       "type": "stat",
       "title": "Targets Up %",
       "id": 2,
-      "description": "Central Prometheus's own scrape targets reporting up (node, PVE, Ceph, PBS, blackbox, OTel endpoint, self). Excludes k8s metrics re-exported through the OTel collector (exported_job=*) whose count churns with pod lifecycle \u2014 see the Kubernetes dashboard for those. Not the Fleet/osquery server.",
+      "description": "Central Prometheus's own scrape targets reporting up (node, PVE, Ceph, PBS, blackbox, OTel endpoint, self). Excludes k8s metrics re-exported through the OTel collector (exported_job=*) whose count churns with pod lifecycle — see the Kubernetes dashboard for those. Not the Fleet/osquery server.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -48,13 +48,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "100*count(up{exported_job=\"\"}==1)/count(up{exported_job=\"\"})",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 100*countIf(v=1)/greatest(count(),1) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='up' AND Attributes['exported_job']='' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName)",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -102,7 +103,7 @@
       "type": "stat",
       "title": "App Avail 24h",
       "id": 3,
-      "description": "Rolling 24h blackbox success \u2014 SLO proxy.",
+      "description": "Rolling 24h blackbox success — SLO proxy.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -112,13 +113,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "100*avg(avg_over_time(probe_success{job=\"blackbox-http-apps\"}[24h]))",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 100*avg(v) AS value FROM (SELECT avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='probe_success' AND ServiceName='blackbox-http-apps' AND TimeUnix > now() - INTERVAL 24 HOUR GROUP BY Attributes, ResourceAttributes['service.instance.id'])",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -176,13 +178,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT coalesce(sum(v),0) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='kube_node_status_condition' AND Attributes['condition']='Ready' AND Attributes['status']='true' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -236,13 +239,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "count( (max by(namespace,pod)(kube_pod_status_phase{phase=~\"Failed|Unknown|Pending\"}==1)) or (max by(namespace,pod)(kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\"}==1)) ) or vector(0)",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT count() AS value FROM (SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_status_phase' AND Attributes['phase'] IN ('Failed','Unknown','Pending') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'] HAVING argMax(Value, TimeUnix)=1 UNION ALL SELECT Attributes['namespace'] AS namespace, Attributes['pod'] AS pod FROM otel.otel_metrics_gauge WHERE MetricName='kube_pod_container_status_waiting_reason' AND Attributes['reason']='CrashLoopBackOff' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'] HAVING argMax(Value, TimeUnix)=1)",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -300,13 +304,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(time()-min(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp))/3600",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT (toUnixTimestamp(now())-min(v))/3600 AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='barman_cloud_cloudnative_pg_io_last_available_backup_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -364,13 +369,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "max(network_ups_tools_ups_load) * 10",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT max(v)*10 AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='network_ups_tools_ups_load' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -410,7 +416,7 @@
       "type": "stat",
       "title": "Security Alerts 24h",
       "id": 8,
-      "description": "Suricata sev-1/2 (24h). Detail \u2192 Security Triage.",
+      "description": "Suricata sev-1/2 (24h). Detail → Security Triage.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -483,13 +489,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "max(DCGM_FI_DEV_GPU_TEMP) or vector(0)",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT coalesce(max(v),0) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_TEMP' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -535,7 +542,7 @@
     },
     {
       "type": "row",
-      "title": "What's on fire \u2014 alert triage",
+      "title": "What's on fire — alert triage",
       "id": 10,
       "collapsed": false,
       "gridPos": {
@@ -547,7 +554,7 @@
     },
     {
       "type": "alertlist",
-      "title": "\ud83d\udd34 Critical \u2014 pages",
+      "title": "🔴 Critical — pages",
       "id": 11,
       "datasource": {
         "type": "datasource",
@@ -578,7 +585,7 @@
     },
     {
       "type": "alertlist",
-      "title": "\ud83d\udfe0 Warning \u2014 review / digest",
+      "title": "🟠 Warning — review / digest",
       "id": 12,
       "datasource": {
         "type": "datasource",
@@ -609,7 +616,7 @@
     },
     {
       "type": "row",
-      "title": "Needs a human \u2014 degraded, owner-attributed",
+      "title": "Needs a human — degraded, owner-attributed",
       "id": 13,
       "collapsed": false,
       "gridPos": {
@@ -633,13 +640,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "probe_success{job=\"blackbox-http-apps\"}==0",
-          "refId": "A",
-          "instant": true,
-          "format": "table"
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT instance, probe_hostname, probe_namespace, v AS value FROM (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['probe_hostname'] AS probe_hostname, Attributes['probe_namespace'] AS probe_namespace, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='probe_success' AND ServiceName='blackbox-http-apps' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id']) WHERE v=0 ORDER BY probe_hostname",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -692,13 +700,13 @@
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "type": "table",
-      "title": "Disks needing attention (SMART spare \u2264 threshold)",
+      "title": "Disks needing attention (SMART spare ≤ threshold)",
       "id": 15,
       "description": "Empty = all NVMe/SSD wear-spare healthy.",
       "gridPos": {
@@ -710,13 +718,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "smartctl_device_available_spare <= smartctl_device_available_spare_threshold",
-          "refId": "A",
-          "instant": true,
-          "format": "table"
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT s.instance AS instance, s.device AS device, s.v AS value, t.v AS threshold FROM (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['device'] AS device, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName='smartctl_device_available_spare' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY instance, device, Attributes, ServiceName, StartTimeUnix) s INNER JOIN (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['device'] AS device, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_sum WHERE MetricName='smartctl_device_available_spare_threshold' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY instance, device, Attributes, ServiceName, StartTimeUnix) t ON s.instance=t.instance AND s.device=t.device WHERE s.v <= t.v",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -775,13 +784,14 @@
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
+      "interval": "1m",
       "type": "timeseries",
-      "title": "App availability \u2014 instant vs rolling 24h",
+      "title": "App availability — instant vs rolling 24h",
       "id": 33,
       "description": "Minute-by-minute fleet probe success shows active outages; rolling 24h matches the App Avail 24h stat and shows historical drag.",
       "gridPos": {
@@ -791,31 +801,31 @@
         "y": 32
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "100*avg(probe_success{job=\"blackbox-http-apps\"})",
-          "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "instant availability"
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'instant availability' AS series, 100*avg(Value) AS value FROM otel.otel_metrics_gauge WHERE MetricName='probe_success' AND ServiceName='blackbox-http-apps' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time ORDER BY time",
+          "refId": "A"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "100*avg(avg_over_time(probe_success{job=\"blackbox-http-apps\"}[24h]))",
-          "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "rolling 24h"
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, 'rolling 24h' AS series, 100*avg(v) AS value FROM (SELECT time, ServiceName, instance, Attributes, argMax(rolling, TimeUnix) AS v FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, TimeUnix, ServiceName, ResourceAttributes['service.instance.id'] AS instance, Attributes, avg(Value) OVER (PARTITION BY ServiceName, ResourceAttributes, Attributes ORDER BY toUnixTimestamp(TimeUnix) RANGE BETWEEN 86400 PRECEDING AND CURRENT ROW) AS rolling FROM otel.otel_metrics_gauge WHERE MetricName='probe_success' AND ServiceName='blackbox-http-apps' AND TimeUnix BETWEEN $__fromTime - INTERVAL 24 HOUR AND $__toTime) WHERE time >= $__fromTime GROUP BY time, ServiceName, instance, Attributes) GROUP BY time ORDER BY time",
+          "refId": "B"
         }
       ],
       "fieldConfig": {
@@ -930,7 +940,7 @@
     },
     {
       "type": "row",
-      "title": "What's degrading \u2014 capacity headroom & network",
+      "title": "What's degrading — capacity headroom & network",
       "id": 16,
       "collapsed": false,
       "gridPos": {
@@ -952,19 +962,20 @@
         "y": 41
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "100 - avg by(instance)(rate(node_cpu_seconds_total{mode=\"idle\",instance_type=\"proxmox_host\"}[5m]))*100",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT instance, 100*(1-avg(idle)) AS value FROM (SELECT instance, ServiceName, Attributes, sum(delta)/300 AS idle FROM (SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, ServiceName, Attributes, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='node_cpu_seconds_total' AND Attributes['mode']='idle' AND Attributes['instance_type']='proxmox_host' AND TimeUnix BETWEEN now() - INTERVAL 900 SECOND AND now() WINDOW w AS (PARTITION BY MetricName, ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE TimeUnix > now() - INTERVAL 300 SECOND GROUP BY instance, ServiceName, Attributes) GROUP BY instance ORDER BY value DESC",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1020,19 +1031,20 @@
         "y": 41
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "100*(1 - node_memory_MemAvailable_bytes{instance_type=\"proxmox_host\"}/node_memory_MemTotal_bytes{instance_type=\"proxmox_host\"})",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT instance, 100*(1-a.v/nullIf(t.v,0)) AS value FROM (SELECT ResourceAttributes['service.instance.id'] AS instance, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='node_memory_MemAvailable_bytes' AND Attributes['instance_type']='proxmox_host' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY instance, Attributes, ServiceName) a INNER JOIN (SELECT ResourceAttributes['service.instance.id'] AS instance, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='node_memory_MemTotal_bytes' AND Attributes['instance_type']='proxmox_host' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY instance, Attributes, ServiceName) t ON a.instance=t.instance ORDER BY value DESC",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1077,6 +1089,7 @@
       }
     },
     {
+      "interval": "1m",
       "type": "timeseries",
       "title": "Cilium drops/s by reason",
       "id": 19,
@@ -1088,20 +1101,20 @@
         "y": 41
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by(reason)(rate(hubble_drop_total[5m]))",
-          "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{reason}}"
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, reason, sum(delta)/any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, Attributes['reason'] AS reason, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='hubble_drop_total' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY MetricName, ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, reason ORDER BY time",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1133,7 +1146,7 @@
     },
     {
       "type": "row",
-      "title": "Data protection \u2014 backup freshness",
+      "title": "Data protection — backup freshness",
       "id": 20,
       "collapsed": false,
       "gridPos": {
@@ -1145,7 +1158,7 @@
     },
     {
       "type": "table",
-      "title": "CNPG Postgres \u2014 hours since last backup",
+      "title": "CNPG Postgres — hours since last backup",
       "id": 21,
       "description": "Plugin backup age per cluster (worst first).",
       "gridPos": {
@@ -1157,13 +1170,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(time()-barman_cloud_cloudnative_pg_io_last_available_backup_timestamp)/3600",
-          "refId": "A",
-          "instant": true,
-          "format": "table"
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['namespace'] AS namespace, Attributes['cluster'] AS cluster, (toUnixTimestamp(now())-v)/3600 AS value FROM (SELECT Attributes, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='barman_cloud_cloudnative_pg_io_last_available_backup_timestamp' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id']) ORDER BY value DESC",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1221,13 +1235,13 @@
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
       "type": "table",
-      "title": "Restic / Talos snapshots \u2014 hours since last success",
+      "title": "Restic / Talos snapshots — hours since last success",
       "id": 22,
       "description": "",
       "gridPos": {
@@ -1239,13 +1253,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(time()-aether_restic_snapshot_last_success_timestamp_seconds)/3600",
-          "refId": "A",
-          "instant": true,
-          "format": "table"
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['host_name'] AS host_name, Attributes['plan_id'] AS plan_id, Attributes['path'] AS path, (toUnixTimestamp(now())-v)/3600 AS value FROM (SELECT Attributes, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='aether_restic_snapshot_last_success_timestamp_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id']) ORDER BY value DESC",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1304,8 +1319,8 @@
         }
       ],
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       }
     },
     {
@@ -1321,8 +1336,9 @@
       }
     },
     {
+      "interval": "1m",
       "type": "timeseries",
-      "title": "Power draw (W) \u2014 measured",
+      "title": "Power draw (W) — measured",
       "id": 24,
       "description": "Red line = whole-rack wall draw (UPS). Stacked areas = measured CPU package power (RAPL) per Proxmox host + GPU power (DCGM). Excludes ARM SBCs, drives, and PSU losses, so stacked total < UPS.",
       "gridPos": {
@@ -1332,42 +1348,42 @@
         "y": 59
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by(instance)(rate(node_rapl_package_joules_total{job=\"proxmox-hosts-node\"}[5m]))",
-          "refId": "A",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{instance}} CPU"
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, concat(instance, ' CPU') AS series, sum(delta)/any(step) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, greatest($__interval_s, 60) AS step, ResourceAttributes['service.instance.id'] AS instance, Value - lagInFrame(Value, 1, Value) OVER w AS raw_d, if(row_number() OVER w = 1, 0, if(raw_d < 0, Value, raw_d)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='node_rapl_package_joules_total' AND ServiceName='proxmox-hosts-node' AND TimeUnix BETWEEN $__fromTime - INTERVAL 10 MINUTE AND $__toTime WINDOW w AS (PARTITION BY MetricName, ServiceName, ResourceAttributes, Attributes ORDER BY TimeUnix)) WHERE time >= $__fromTime GROUP BY time, instance ORDER BY time",
+          "refId": "A"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "sum by(Hostname)(DCGM_FI_DEV_POWER_USAGE)",
-          "refId": "B",
-          "instant": false,
-          "range": true,
-          "legendFormat": "{{Hostname}} GPU"
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT time, concat(host, ' GPU') AS series, sum(v) AS value FROM (SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, Attributes['Hostname'] AS host, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_POWER_USAGE' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time, host, ServiceName, ResourceAttributes['service.instance.id'], Attributes) GROUP BY time, host ORDER BY time",
+          "refId": "B"
         },
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "max(network_ups_tools_ups_load) * 10",
-          "refId": "C",
-          "instant": false,
-          "range": true,
-          "legendFormat": "UPS total (wall)"
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "sql",
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL greatest($__interval_s, 60) SECOND) AS time, 'UPS total (wall)' AS series, max(Value)*10 AS value FROM otel.otel_metrics_gauge WHERE MetricName='network_ups_tools_ups_load' AND TimeUnix BETWEEN $__fromTime AND $__toTime GROUP BY time ORDER BY time",
+          "refId": "C"
         }
       ],
       "fieldConfig": {
@@ -1431,7 +1447,7 @@
       "type": "bargauge",
       "title": "Filesystem used % (top 12)",
       "id": 25,
-      "description": "Fullest mounts \u2014 capacity runway.",
+      "description": "Fullest mounts — capacity runway.",
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -1439,19 +1455,20 @@
         "y": 59
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "topk(12, 100*(1-node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs|ramfs\"}/node_filesystem_size_bytes))",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT concat(instance, ' ', mountpoint) AS series, 100*(1-a.v/nullIf(t.v,0)) AS value FROM (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['mountpoint'] AS mountpoint, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='node_filesystem_avail_bytes' AND Attributes['fstype'] NOT IN ('tmpfs','overlay','squashfs','ramfs') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY instance, mountpoint, Attributes, ServiceName) a INNER JOIN (SELECT ResourceAttributes['service.instance.id'] AS instance, Attributes['mountpoint'] AS mountpoint, argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='node_filesystem_size_bytes' AND Attributes['fstype'] NOT IN ('tmpfs','overlay','squashfs','ramfs') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY instance, mountpoint, Attributes, ServiceName) t ON a.instance=t.instance AND a.mountpoint=t.mountpoint ORDER BY value DESC LIMIT 12",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1507,19 +1524,20 @@
         "y": 59
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
       },
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "DCGM_FI_DEV_GPU_UTIL",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT Attributes['Hostname'] AS Hostname, Attributes['gpu'] AS gpu, argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_GPU_UTIL' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Hostname, gpu",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1583,7 +1601,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Drill-down\n\n**Security:** [Security Triage](/d/security-triage) \u00b7 [IDS Monitoring](/d/ids-monitoring) \u00b7 [Fleet](https://fleet.home.shdr.ch)\n\n**Platform:** [Kubernetes](/d/kubernetes-main) \u00b7 [Ceph](/d/ceph-monitoring-main) \u00b7 [Proxmox](/d/Dp7Cd57Zza) \u00b7 [Hosts](/d/rYdddlPWk) \u00b7 [Disk Health](/d/ce8j0dmrrej9cc) \u00b7 [PBS](/d/f0814b49-4e9a-4efa-89c0-061221f25af5) \u00b7 [Certificates](/d/certificates/certificates)\n\n**Edge/apps:** [Reverse Proxy](/d/fed94ifiv8h6oc) \u00b7 [DNS](/d/network) \u00b7 [HAProxy](/d/rEqu1u5ue) \u00b7 [UPS](/d/j4a-DMWRk)\n\n**Alerting:** [all rules](/alerting/list) \u00b7 `channel`/`domain`/`criticality` \u2192 Apprise (ntfy+Matrix); `DeadMansSwitch` firing = BY DESIGN (Kuma heartbeat). Ceph OSD-down = dead NVMe on neo (hardware)."
+        "content": "### Drill-down\n\n**Security:** [Security Triage](/d/security-triage) · [IDS Monitoring](/d/ids-monitoring) · [Fleet](https://fleet.home.shdr.ch)\n\n**Platform:** [Kubernetes](/d/kubernetes-main) · [Ceph](/d/ceph-monitoring-main) · [Proxmox](/d/Dp7Cd57Zza) · [Hosts](/d/rYdddlPWk) · [Disk Health](/d/ce8j0dmrrej9cc) · [PBS](/d/f0814b49-4e9a-4efa-89c0-061221f25af5) · [Certificates](/d/certificates/certificates)\n\n**Edge/apps:** [Reverse Proxy](/d/fed94ifiv8h6oc) · [DNS](/d/network) · [HAProxy](/d/rEqu1u5ue) · [UPS](/d/j4a-DMWRk)\n\n**Alerting:** [all rules](/alerting/list) · `channel`/`domain`/`criticality` → Apprise (ntfy+Matrix); `DeadMansSwitch` firing = BY DESIGN (Kuma heartbeat). Ceph OSD-down = dead NVMe on neo (hardware)."
       }
     },
     {
@@ -1600,13 +1618,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "(time()-min(aether_restic_snapshot_last_success_timestamp_seconds))/3600",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT (toUnixTimestamp(now())-min(v))/3600 AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='aether_restic_snapshot_last_success_timestamp_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1652,9 +1671,9 @@
     },
     {
       "type": "stat",
-  "title": "Certificate Issues",
+      "title": "Certificate Issues",
       "id": 30,
-  "description": "Expired local certificates, failed renewal units, or Kubernetes certificates near expiry and not Ready. Zero is healthy.",
+      "description": "Expired local certificates, failed renewal units, or Kubernetes certificates near expiry and not Ready. Zero is healthy.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -1664,26 +1683,33 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-      "expr": "(count(x509_cert_expired == 1) or vector(0)) + (count(systemd_unit_state{state=\"failed\",name=~\"(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\\\.(service|timer)\"} == 1) or vector(0)) + (count((certmanager_certificate_expiration_timestamp_seconds-time() < 3600) and on(namespace,name,issuer_group,issuer_kind,issuer_name) (max by(namespace,name,issuer_group,issuer_kind,issuer_name) (certmanager_certificate_ready_status{condition=\"True\"}) == 0)) or vector(0))",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT (SELECT countIf(v=1) FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='x509_cert_expired' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])) + (SELECT countIf(v=1) FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='systemd_unit_state' AND Attributes['state']='failed' AND match(Attributes['name'], '(backrest-cert-renew|openbao-cert-renew|step-ca-cert-renew)\\\\.(service|timer)') AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])) + (SELECT count() FROM (SELECT Attributes['namespace'] AS namespace, Attributes['name'] AS name FROM otel.otel_metrics_gauge WHERE MetricName='certmanager_certificate_expiration_timestamp_seconds' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'] HAVING argMax(Value, TimeUnix)-toUnixTimestamp(now()) < 3600 INTERSECT SELECT Attributes['namespace'] AS namespace, Attributes['name'] AS name FROM otel.otel_metrics_gauge WHERE MetricName='certmanager_certificate_ready_status' AND Attributes['condition']='True' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'] HAVING argMax(Value, TimeUnix)=0)) AS value",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-      "unit": "short",
+          "unit": "short",
           "color": {
             "mode": "thresholds"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-          { "color": "green", "value": null },
-          { "color": "red", "value": 1 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           }
         },
@@ -1718,13 +1744,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "max(avg_over_time(network_ups_tools_ups_load[24h])) * 0.24",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT max(v)*0.24 AS value FROM (SELECT avg(Value) AS v FROM otel.otel_metrics_gauge WHERE MetricName='network_ups_tools_ups_load' AND TimeUnix > now() - INTERVAL 24 HOUR GROUP BY Attributes, ResourceAttributes['service.instance.id'])",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
@@ -1774,13 +1801,14 @@
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
           },
-          "expr": "100*sum(DCGM_FI_DEV_FB_USED)/(sum(DCGM_FI_DEV_FB_USED)+sum(DCGM_FI_DEV_FB_FREE))",
-          "refId": "A",
-          "instant": true,
-          "range": false
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "sql",
+          "rawSql": "SELECT 100*su/(su+sf) AS value FROM (SELECT coalesce(sum(v),0) AS su FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_USED' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])) AS used, (SELECT coalesce(sum(v),0) AS sf FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName='DCGM_FI_DEV_FB_FREE' AND TimeUnix > now() - INTERVAL 5 MINUTE GROUP BY Attributes, ResourceAttributes['service.instance.id'])) AS free",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
