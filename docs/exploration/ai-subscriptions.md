@@ -131,9 +131,11 @@ Using a plan key behind a bridge is **[UNVERIFIED]** against Xiaomi's terms.
   prices **[UNVERIFIED]**.
 - **SuperGrok Plus/Heavy** ($100 / ~$300 **[UNVERIFIED]**): the only
   economical Grok 4.7 route; quotas unpublished.
-- **Gemini 4 Argon** (AA 53, frontier): not generally available; Ultra
-  subscribers and paid API first
-  (<https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon/>).
+- **Gemini 4 Argon** (AA 53, frontier): the current Google AI Pro plan
+  already serves it through Antigravity (`antigravity/gemini-4-argon`, since
+  2026-10-15) from a separate weekly-only Pro quota. Ultra includes higher
+  Argon quota in the larger Gemini pool, according to the quota-summary RPC's
+  group description.
 
 ## Not worth it for this load
 

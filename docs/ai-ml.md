@@ -129,10 +129,13 @@ Clinepass also exposes `clinepass/qwen3.8-max` and
 `clinepass/muse-spark-1.3-contributor` as standalone provider pins.
 
 Google Antigravity is exposed through the single-tenant bridge as
-`antigravity/gemini-3.8-flash`. The bridge translates OpenAI chat-completions
-requests to the subscription API; clients retain ownership of tool execution
-and follow-up results. OMP and Colony virtual keys include this model. Colony
-uses it in the developer and architect fallback chains, not as a primary.
+`antigravity/gemini-3.8-flash` and `antigravity/gemini-4-argon`. The bridge
+translates OpenAI chat-completions requests to the subscription API; clients
+retain ownership of tool execution and follow-up results. OMP and Colony
+virtual keys include Flash; Colony uses it in the developer and architect
+fallback chains, not as a primary. Argon is on the OMP keys only. It draws a
+separate weekly-only Argon quota on the Pro plan. The bridge's `/usage` does
+not report that quota, so Moira does not rank Argon.
 
 SuperGrok is exposed only as the subscription-backed
 `supergrok/grok-4.7` pin. Stock LiteLLM uses the bridge's
@@ -230,7 +233,11 @@ serves only while the subscription is failing or cooling down. Hy4 pools
 Command Code and OpenCode Go.
 
 `router/deepseek-v4-pro` and `router/minimax-m3` each have one Ollama Cloud
-backend. Their `router/*` names remain canonical.
+backend. Their `router/*` names remain canonical. DeepSeek V4.1 Flash 1017,
+the newest DeepSeek (V4.1 Pro has not shipped), is the standalone pin
+`ollama-cloud/deepseek-v4.1-flash`: it has one backend, so it has no `router/*`
+pool. Moira scores it at AA 45 (Max, the only effort AA measures), which puts
+it in `moira/strong` at `reasoning_effort: max`, drawing Ollama Cloud quota.
 
 `router/mimo-v2.6-pro` and `router/mimo-v2.6-flash` are priority pools, not
 shuffles: the Xiaomi MiMo token-plan leg (`order: 1`,
@@ -295,7 +302,8 @@ an effort level only when that list names it.
 Command Code was never tested with it: its weekly limit (reset 2026-10-01)
 prevented testing. Ollama legs map it to `think` natively. Z.AI's provider drops it, and
 GLM reasons by default. For `reasoning_effort: "none"`, the Antigravity bridge
-selects Gemini's thinking-off route. The Muse bridge raises it to `minimal`,
+selects Gemini Flash's thinking-off route; Argon has none and runs at `low`.
+The Muse bridge raises it to `minimal`,
 because Meta rejects `none`. ChatGPT returns reasoning text only when a summary
 is requested, for example `reasoning_effort: {effort: high, summary: auto}`.
 
@@ -319,7 +327,7 @@ thinking sampling (temperature 1.0, top_p 0.95, top_k 20, presence_penalty 0).
 The declared retirement removes Kimi K2.x, pre-5.3 GLM, DeepSeek V4 Flash,
 MiMo V2.5 Pro, pre-3.8 Gemini chat models, direct OpenAI API-key models, and
 all OpenRouter model routes and their retired aliases. DeepSeek V4 Pro
-remains; no V4.1 route is configured. The OpenAI provider key was
+remains. The OpenAI provider key was
 removed from SOPS and the LiteLLM Secret/environment declarations.
 
 Since 2026-10-06 one OpenRouter route exists, for a $0 model only:
@@ -333,6 +341,17 @@ LiteLLM for this route only. OpenCode Zen also lists the model free, but its
 free tier rejects non-OpenCode clients (`FreeTierError`), so it is not wired.
 Moira tracks no quota for either leg (`quota: none`), so they rank after
 providers with known quota.
+
+Routeway (`https://api.routeway.ai/v1`, pay-per-token, SOPS
+`litellm.routeway_api_key`) backs one route,
+`routeway/glm-5.3-flash-uncensored`: a community fine-tune of GLM 5.3 Flash
+without the stock model's political censorship, at $0.35 in / $1.40 out per 1M
+tokens. Unless a request names an effort other than `none`, Routeway returns
+the reasoning concatenated onto `content`. The deployment's
+`reasoning_effort_override: high` makes `deployment_adapter`
+(`litellm_hooks.py`) replace any client effort with `high` on every attempt;
+the hook contract test covers it. It is on the OMP keys only and has no Moira
+provider rule, so Moira never ranks it.
 
 All 19 `aether/*` routes matched llama-swap's advertised catalog in the
 pre-maintenance inventory on 2026-09-24, so none was removed. Unloaded
@@ -418,13 +437,14 @@ flowchart LR
         DP[Deskplane]
         GMAPS[Google Maps]
         TMDB[TMDB]
+        COMFY[ComfyUI<br/><i>comfy-mcp sidecar</i>]
         POP[pop<br/><i>user token passthrough</i>]
     end
 
     OWUI & API --> LLM
     LLM --> LS & RR
     LLM --> OAI & ZAI & QWEN & OCGO & STEP
-    LLM --> TIME & DP & GMAPS & TMDB & POP
+    LLM --> TIME & DP & GMAPS & TMDB & COMFY & POP
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0
     style Cloud fill:#f0e4d4,stroke:#c4a06a
@@ -507,6 +527,26 @@ expiry remains covered by regression tests. Daimyo task-terminal live acceptance
 is pending its separately coordinated server deployment, not claimed by these
 Deskplane-only observations. Reserved pools still have a four-hour absolute TTL;
 reservations bypass idle expiry, not maximum lifetime.
+
+ComfyUI is on the gateway as MCP server `comfyui`: Comfy-Org's official
+[`comfy-mcp`](https://github.com/Comfy-Org/comfy-mcp) (0.10.0, with comfy-cli
+1.22.0) in the `comfy-mcp` sidecar of the LiteLLM pod (`litellm.tf`). It is
+stdio-only and needs `mcp>=2`, so `mcp-proxy` (`mcp<2`, separate venv) serves it
+over streamable HTTP on `127.0.0.1:8008`. comfy-cli refuses to read
+`/object_info` from a non-loopback host in local mode, so the sidecar runs a
+small TCP forwarder from `127.0.0.1:8188` to the in-cluster ComfyUI Service and
+leaves comfy-cli on its default target. `allowed_tools` in the registry exposes
+18 of the 39 tools — generation (`generate_image`, `run_template`,
+`run_workflow`), jobs and outputs (`job`, `fetch_outputs` with
+`inline_images`), templates, workflow slots and validation, `nodes`,
+`search_models`, `system_stats`, `free_memory`. Blocked tools return 403;
+blocked are install/update/version switching, model downloads,
+launch/stop/restart, logs, partner/auth/billing (no `COMFY_API_KEY` is set, so
+partner nodes cannot spend), and `upload_file`, which uploads any file the
+sidecar can read into ComfyUI's `input/`. Without `upload_file`, editing an
+existing image is not possible through the gateway. Verified 2026-10-19 through
+`/mcp-rest`: `generate_image` (Z-Image Turbo template) completed in 5.5 s and
+`fetch_outputs` returned the PNG inline; `install_node` returned 403.
 
 The `openwebui` virtual key has MCP tool search on
 (`object_permission.mcp_tool_search_enabled`, set by
@@ -649,9 +689,9 @@ carry as `metadata->>'litellm_call_id'`.
 
 Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (Docling + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
 
-Pinned to `v0.12.0` (fixes earlier tool calls being re-sent after an `ask_user`
-answer, which strict providers such as Muse reject as duplicate tool
-responses). Its pod-template annotation hashes LiteLLM's model
+Pinned to `v0.12.3` (2026-10-19). `v0.12.0` fixed earlier tool calls being
+re-sent after an `ask_user` answer, which strict providers such as Muse reject
+as duplicate tool responses. Its pod-template annotation hashes LiteLLM's model
 configuration; include the OpenWebUI deployment when applying model-route
 changes so its startup catalog refreshes through IaC rather than an
 imperative restart.

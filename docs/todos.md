@@ -6,16 +6,16 @@
   - [x] P0 identities/trusts (federated-jwt, AWS/GCP/OCI/TS/Bao legs, negatives verified)
   - [x] P2 on-cluster (cloud-audit ns, Kyverno pin, CNP, PVC, serve Deployment; all collectors green)
   - [x] P3 synthetic-event checks (aws/gcp/oci landed; tailscale differ bug found+fixed)
-  - [x] P4 alert rules authored warning-first (`grafana/provisioning/alerting/cloud-audit.yml`)
-  - [x] Deploy monitoring_stack (grafana tag) to provision the rules; verify they evaluate
+  - [x] P4 alert rules authored warning-first (now `tofu/home/kubernetes/grafana/alerting/rules/cloud-audit.yml`)
+  - [x] Rules provisioned by Kubernetes Grafana (`tofu/home/kubernetes/grafana.tf`)
   - [x] Security Triage: vigil signal-stats panel + recent-events table per provider
-  - [ ] Soak review ~2026-08-09 (14 days): flip page-class rules to critical in one commit. NOTE: Loki-based rules only started seeing data 2026-07-26 (provider/collector/domain were structured metadata, not index labels — selectors matched nothing until the loki_config otlp_config fix); the soak clock for those starts then.
+  - [ ] Soak review: page-class promotion still needs review. The 2026-07 Loki selector incident is historical; current rules evaluate ClickHouse SQL, so use the current signal path when reviewing coverage.
   - [x] Cloudflare token decision (dashboard route: shared DNS token gained Account Settings Read) — cloudflare.audit live + DNS/zone rule shipped
   - [ ] GCP DNS flake: fix logging-alv NXDOMAIN ([bug report](exploration/bug-gcp-logging-dns-nxdomain.md)); vigil release tag after soak
   - [ ] Podman runtime-cgroup nesting wedges restarted units ([bug report](exploration/bug-podman-runtime-cgroup-nesting.md)); workaround documented, root cause open
 - [ ] Monitoring pre-migration hardening — survivable subset ([exploration](exploration/monitoring-stack-nix.md))
   - [ ] Pin all 13 container images (10 floating tags) — Track B prerequisite
-  - [ ] Re-point Caddy route consumers (Goldilocks/Holmes/Orion) through Janus; drop raw routes
+  - [x] Retire Janus and move Holmes/Orion to ClickHouse; Goldilocks uses VPA checkpoints (`holmesgpt.tf`, `orion.tf`, `goldilocks.tf`)
   - [ ] OTLP ingest bearer-token authn + direct receiver TLS (drop Caddy from ingest path; AdGuard rewrite, vcluster netpol, producers-first incl. vcluster + agent self-telemetry)
   - [ ] VyOS OTel producer -> https://otel.home.shdr.ch
   - [ ] Decommission Fleet only after compensating-control proof
@@ -40,7 +40,7 @@
   - [ ] Configure cert renewal hook (systemd reload)
   - [ ] Remove Caddy proxy route for auth.shdr.ch
   - [ ] Update AdGuard DNS to point directly at Keycloak
-- [ ] Codify existing Grafana dashboards in Ansible (currently manual: Access Point, Disk Health, DNS, HAProxy, Hosts, IoT, ntfy, Postfix, PBS, Proxmox Cluster, qBittorrent, Reverse Proxy, Synapse, UPS)
+- [x] Codify Grafana dashboards in Kubernetes provisioning (`tofu/home/kubernetes/grafana/dashboards/`)
 - [ ] Enable SSH certificate auth for GitLab git push
   - [ ] Configure gitlab_sshd to trust step-ca user CA
     - [ ] Copy ssh_user_ca_key.pub to GitLab config
@@ -64,12 +64,8 @@
   - [ ] Phase 3: calibrate rates on controlled, server, IoT, Gigahub, home, AWS, and GCP targets
   - [ ] Phase 4: enable six-hour discovery, daily critical/cloud, weekly known-host, and monthly blind-estate coverage progressively
   - [ ] Phase 5: correlate scanner findings with the P1-delivered Wazuh coverage and GCP OS Config; do not make Fleet retirement wait on scanner rollout
-- [ ] ClickHouse cold tier on SeaweedFS ([exploration](exploration/telemetry-archive.md))
-  - [x] Phase 0: metrics archive live (2026-07-11, third attempt: dedicated 50k-batch pipeline, pinned collector, repo-owned schema, benchmark-gated; soak criteria all green)
-  - [ ] Measure steady-state metrics ingest rate (1 week)
-  - [ ] Phase 1: s3 disk + `tiered` policy; metrics tables first, then zeek/suricata
-  - [ ] Phase 2: logs fan-out to archive (Loki stays 90d hot path)
-  - [ ] Phase 3 (optional): clickhouse-cold bucket into restic offsite sync
+- [ ] Finish telemetry historical backfills (`scripts/telemetry-migration`), then remove Prometheus and Loki dual-write copies.
+  - The former GreptimeDB / ClickHouse cold-tier plan is superseded by the ClickStack migration. Current TTLs are logs 120d and metrics/traces 30d on the 2 TiB telemetry disk; no active SeaweedFS cold tier is declared. Retained archive buckets are not active query stores (see [Monitoring](monitoring.md)).
 - [ ] Remove east-west NAT masquerade — real source identity on mgmt net ([exploration](exploration/east-west-nat-removal.md))
   - [ ] Phase 0: live verification (pve-firewall, existing routes, conntrack snapshot)
   - [ ] Phase 1: consolidate return routes into one templated mechanism; add backup-stack, bazzite-builder, nfs

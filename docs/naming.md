@@ -61,8 +61,8 @@ host, or peer identity.
 
 ## Metrics naming
 
-Prometheus job names describe the scrape scope and service, not a host or a
-routing role:
+Job names in the OTel Collector's Prometheus receiver describe the scrape
+scope and service, not a host or routing role:
 
 | Job | Service coverage |
 | --- | --- |
@@ -103,7 +103,7 @@ Do not use these as identities:
   oci-dns playbooks.
 - Site-fabric behavior: `ansible/roles/site_wireguard/`.
 - Attached metric services: `ansible/roles/site_metrics_exporters/`.
-- Prometheus labels and jobs:
-  `ansible/playbooks/monitoring_stack/prometheus.yml.j2`.
+- Collector scrape labels and jobs:
+  `ansible/playbooks/monitoring_stack/otel_config.yml.j2`.
 - Reconciliation: `task configure:site-fabric` and
   `task configure:site-metrics`.

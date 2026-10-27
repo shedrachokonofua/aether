@@ -114,5 +114,5 @@ Tailscale has no audit log, so **vigil** diffs state instead
 read-only OAuth client (tofu/tailscale.tf `cloud_audit`, secret in Bao
 `kv/aether/cloud-audit`), emitting synthetic `device.added/removed/tagged`,
 `device.key_expiry_disabled`, `route.approved`, and `acl.changed` events into
-Loki. Alert rules `cloud-audit-tailscale-device-or-route` and
+ClickHouse `otel.otel_logs`. Alert rules `cloud-audit-tailscale-device-or-route` and
 `cloud-audit-tailscale-acl-drift` (warning-first).

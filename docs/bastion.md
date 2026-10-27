@@ -68,9 +68,14 @@ has something to render.
 ## Cert expiry monitoring
 
 The Apr 2026 outage is the reason `blackbox-exporter` is now in the monitoring
-pod and the `tls-cert-expiring-soon` Grafana alert exists. It probes
-`10.0.2.9:8200`, `192.168.2.235:443`, and the gateway, and fires 14 days
-before any of them roll past `NotAfter`. To add a new endpoint, edit the
-`blackbox-tls` scrape targets in
-`ansible/playbooks/monitoring_stack/prometheus.yml` and `task
-configure:monitoring`.
+pod. The `blackbox-tls` job probes OpenBao (`vm.openbao`) and step-ca
+(`vm.step_ca`) with the `tls_connect` module, which trusts only the Aether
+step-ca root (copied from `/etc/ssl/certs/step-ca-root.crt` on
+monitoring-stack). Their certs live 24h and renew at ~2/3 lifetime, so the
+`tls-short-lived-cert-renewal-stalled` alert fires below 4h remaining or when
+the handshake fails. Public-CA endpoints (the Caddy gateway) are covered by
+`blackbox-http-apps` and the 14-day `tls-cert-expiring-soon` alert. To add an
+internal endpoint, edit the `blackbox-tls` targets in
+`ansible/playbooks/monitoring_stack/otel_config.yml.j2` and run
+`task configure:monitoring -- --tags otel`. Keep the temporary backfill copy in
+`prometheus.yml.j2` aligned until Prometheus is removed.

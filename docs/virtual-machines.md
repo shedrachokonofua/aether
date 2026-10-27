@@ -4,7 +4,7 @@
 placement, sizing, addresses, and ports. This document summarizes those
 declarations; it does not claim that every guest is currently running.
 
-Verify live status through Proxmox/Prometheus and applied ownership through Tofu
+Verify live status through Proxmox/ClickHouse metrics and applied ownership through Tofu
 state or the relevant provisioning playbook.
 
 ## Service Guests
@@ -33,11 +33,13 @@ services may have additional passthrough devices, datasets, or mount points.
 | `nix_builder` | `nix-builder` | Neo | VM | 8 | 8 GiB | 128 GB | OpenTofu provision, NixOS configure |
 | `estate_scanner` | `estate-scanner` | Neo | LXC | 2 | 4 GiB | 32 GB | Ansible provision (gated), NixOS configure; live at `10.0.2.13` |
 
-`monitoring_stack` also declares a 1,024 GB `local-fast` data disk at
-`virtio1`. The guest mounts it as XFS at `/var/lib/telemetry` for Loki data and
-GreptimeDB local state; Prometheus and ClickHouse remain on the 256 GB root
-disk. See `ansible/playbooks/monitoring_stack/README.md` for the operational
-layout and checks.
+`monitoring_stack` also declares a 2,048 GB `local-fast` data disk at
+`virtio1` (`config/vm.yml`). The guest mounts it as XFS at `/var/lib/telemetry`;
+ClickHouse's `telemetry` storage policy uses `/var/lib/telemetry/clickhouse`
+(`ansible/playbooks/monitoring_stack/clickhouse-config.d/aether-telemetry-storage.xml`).
+Loki's temporary backfill data also remains on that disk. Grafana and HyperDX
+run in Kubernetes, not on this VM. See `docs/monitoring.md` for retention and
+the remaining Prometheus/Loki backfill lifecycle.
 
 ## Talos VMs
 

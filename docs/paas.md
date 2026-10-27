@@ -25,15 +25,15 @@ Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and 
 | Hubble UI      | Cilium network observability UI                       |
 | GitLab Agent   | CI/CD deploys via GitLab KAS tunnel                   |
 | Kestra OSS     | YAML automation plane and Inquest flow runtime         |
-| HolmesGPT      | Read-only Kubernetes/Prometheus/Loki investigation agent |
+| HolmesGPT      | Read-only Kubernetes/ClickHouse investigation agent |
 | Keel           | Auto-updates our GitLab `:latest` app images on new digests |
 | wasmCloud      | WebAssembly component runtime (WorkloadDeployment CRs on shared hosts) |
 
 Goldilocks is advisory only: it creates VPA objects with `updateMode: Off` in
 namespaces labeled `goldilocks.fairwinds.com/enabled=true`. Resource changes
 stay manual and flow back through OpenTofu. VPA reads live resource metrics from
-metrics-server and uses Prometheus-backed cAdvisor history for restart/backfill
-context.
+metrics-server and persists history through VPA checkpoints rather than a
+Prometheus history provider (`tofu/home/kubernetes/goldilocks.tf`).
 
 Knative Serving and its operator were removed on 2026-10-14: no Knative
 Service had existed since at least 2026-07-10, while 25 control-plane pods

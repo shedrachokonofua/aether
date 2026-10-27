@@ -81,10 +81,10 @@ Domain identity for `shdr.ch` providing outbound email capability for the home n
 
 CloudTrail is collected by **vigil** (`cloud-audit` namespace, sibling repo
 `~/projects/vigil`): `aws.cloudtrail` tails `LookupEvents` every 5 min into
-Loki (`{service_name="vigil", provider="aws"}`), and daily snapshot gauges
-(`vigil_aws_access_analyzer_findings`, `vigil_aws_ses_*`) land in Prometheus.
+ClickHouse `otel.otel_logs`, and daily snapshot gauges
+(`vigil_aws_access_analyzer_findings`, `vigil_aws_ses_*`) land in `otel.otel_metrics_gauge`.
 Auth is keyless: pod SA token → Keycloak federated-jwt (`aud=cloud-audit`) →
 `AssumeRoleWithWebIdentity` on `aether-cloud-audit` (read-only inline policy,
 tofu/aws/cloud-audit.tf). Alert rules are in
-`grafana/provisioning/alerting/cloud-audit.yml` (warning-first,
+`tofu/home/kubernetes/grafana/alerting/rules/cloud-audit.yml` (warning-first,
 soak-then-promote); the emitted-data contract is vigil `docs/schema.md`.

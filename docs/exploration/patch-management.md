@@ -1,5 +1,7 @@
 # Patch Management Exploration
 
+> 2026-10-13: The telemetry backend/current-state assumptions below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
+
 Exploration of centralized update visibility and controlled patch deployment.
 
 ## Goal

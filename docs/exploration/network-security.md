@@ -1,5 +1,7 @@
 # IDS Stack Exploration
 
+> 2026-10-13: The telemetry routing and query-backend assumptions below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../ansible/playbooks/monitoring_stack/otel_config.yml.j2`.
+
 Exploration of intrusion detection (network + host) and vulnerability scanning for internal security visibility.
 
 > **Current scanning plan:** [`estate-scanning.md`](estate-scanning.md) supersedes

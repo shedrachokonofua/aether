@@ -1,5 +1,7 @@
 # Estate Discovery and Vulnerability Scanning
 
+> 2026-10-13: The execution-log sink and Prometheus alerting assumptions below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
+
 Plan for active asset discovery, service fingerprinting, and vulnerability validation across the Aether home, cloud, and routed-site estate.
 
 **Status (honest, 2026-07-28):** Inventory + L7 validation + Kestra schedules are
