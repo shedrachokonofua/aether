@@ -6,6 +6,22 @@
   vars:
     backup_storage_id: "pbs-backups-vm"
     backup_job_id: "pbs-backup"
+    # Fleecing: without it, every guest write to a not-yet-copied block waits
+    # for that block's upload to PBS (copy-before-write). monitoring-stack's
+    # ~1h nightly backup saturated its disk (load 117, Grafana SQLite locks,
+    # OTel ingest refused; 2026-10-12). Fleecing parks the old blocks in a
+    # temporary image instead. ceph-vm-disks: shared by every node and TBs
+    # free; node-local thin pools (niobe local-lvm ~88G free) risk filling and
+    # pausing every guest on them.
+    backup_job_options:
+      storage: "{{ backup_storage_id }}"
+      schedule: "02:00"
+      all: 1
+      # Mapping because pvesh returns it parsed; rendered as k=v,... for the CLI.
+      fleecing: { enabled: 1, storage: ceph-vm-disks }
+    backup_job_args: >-
+      {% for key, value in backup_job_options.items() %} --{{ key }}
+      "{{ value.items() | map('join', '=') | join(',') if value is mapping else value }}"{% endfor %}
     # Talos VMs run the QEMU guest agent, so vzdump issues fs-freeze/fs-thaw
     # during snapshot backups. Freezing the filesystem under etcd blocks its
     # fsyncs (2026-07-31 outage); Talos gains nothing from quiesce, so disable
@@ -50,22 +66,22 @@
         --fingerprint {{pbs_fingerprint}}
       when: storage_status.rc != 0
 
-    - name: Check if vm backup job exists
-      command: pvesh get /cluster/backup/{{backup_job_id}}
-      register: check_backup_job
+    - name: Read vm backup job
+      command: pvesh get /cluster/backup/{{ backup_job_id }} --output-format json
+      register: backup_job
       changed_when: false
       failed_when: false
+      check_mode: false
 
     - name: Create backup job
-      command: >
-        pvesh create /cluster/backup/
-        --id {{backup_job_id}}
-        --storage {{backup_storage_id}}
-        --schedule "02:00"
-        --all 1
-      when: check_backup_job.rc != 0
-      register: create_backup_result
-      changed_when: create_backup_result.rc == 0
+      command: pvesh create /cluster/backup/ --id {{ backup_job_id }} {{ backup_job_args }}
+      when: backup_job.rc != 0
+
+    - name: Converge backup job options
+      command: pvesh set /cluster/backup/{{ backup_job_id }} {{ backup_job_args }}
+      when:
+        - backup_job.rc == 0
+        - (backup_job.stdout | from_json | combine(backup_job_options)) != (backup_job.stdout | from_json)
 
 
     - name: Read Talos VM agent configuration

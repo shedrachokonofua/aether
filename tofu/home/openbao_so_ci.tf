@@ -58,9 +58,9 @@ resource "vault_kv_secret_v2" "inquest" {
   name  = "aether/inquest"
 
   data_json = jsonencode({
-    webhook_key  = var.secrets["inquest.webhook_key"]
-    gitlab_token = var.secrets["inquest.gitlab_token"]
-    gitlab_url   = "https://gitlab.home.shdr.ch"
+    webhook_key    = var.secrets["inquest.webhook_key"]
+    gitlab_token   = var.secrets["inquest.gitlab_token"]
+    gitlab_url     = "https://gitlab.home.shdr.ch"
     gitlab_project = "so/aether/incidents"
   })
 }

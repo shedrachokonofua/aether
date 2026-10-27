@@ -10,10 +10,9 @@ locals {
   db_backup_s3_endpoint = "https://s3.seaweed.home.shdr.ch"
   # Historical Thanos blocks and their scoped read/write identity remain until
   # destructive archive removal is explicitly approved.
-  thanos_metrics_bucket     = "thanos-metrics"
-  greptime_telemetry_bucket = "greptime-telemetry"
-  db_backup_pg_image        = "postgres:18-alpine"
-  db_backup_aws_image       = "amazon/aws-cli:2.22.35"
+  thanos_metrics_bucket = "thanos-metrics"
+  db_backup_pg_image    = "postgres:18-alpine"
+  db_backup_aws_image   = "amazon/aws-cli:2.22.35"
 
   db_backup_postgres_targets = {
     affine = {
@@ -113,16 +112,16 @@ locals {
   }
 
   db_backup_postgres_passwords = {
-    affine     = random_password.affine_db_password.result
-    coder      = random_password.coder_postgres_password.result
-    dawarich   = random_password.dawarich_postgres_password.result
-    immich     = random_password.immich_postgres_password.result
-    litellm    = var.secrets["litellm.database_password"]
-    matrix     = var.secrets["matrix.database_password"]
-    miniflux   = random_password.miniflux_postgres_password.result
-    nextcloud  = random_password.nextcloud_postgres_password.result
-    openwebui  = random_password.openwebui_postgres_password.result
-    temporal   = random_password.temporal_postgres_password.result
+    affine    = random_password.affine_db_password.result
+    coder     = random_password.coder_postgres_password.result
+    dawarich  = random_password.dawarich_postgres_password.result
+    immich    = random_password.immich_postgres_password.result
+    litellm   = var.secrets["litellm.database_password"]
+    matrix    = var.secrets["matrix.database_password"]
+    miniflux  = random_password.miniflux_postgres_password.result
+    nextcloud = random_password.nextcloud_postgres_password.result
+    openwebui = random_password.openwebui_postgres_password.result
+    temporal  = random_password.temporal_postgres_password.result
   }
 
   db_backup_sidecar_postgres_services = {
@@ -182,24 +181,33 @@ resource "random_password" "thanos_s3_secret_key" {
   special = false
 }
 
-resource "random_password" "greptime_s3_access_key" {
-  length  = 20
-  special = false
+# Stop generating archive credentials; existing generated secrets remain on disk.
+removed {
+  from = random_password.greptime_s3_access_key
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "random_password" "greptime_s3_secret_key" {
-  length  = 40
-  special = false
+removed {
+  from = random_password.greptime_s3_secret_key
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "random_password" "greptime_ingest_password" {
-  length  = 32
-  special = false
+removed {
+  from = random_password.greptime_ingest_password
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "random_password" "greptime_grafana_password" {
-  length  = 32
-  special = false
+removed {
+  from = random_password.greptime_grafana_password
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "local_sensitive_file" "seaweedfs_s3_config" {
@@ -345,25 +353,6 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
               "Tagging:${bucket}/*",
             ]
           ])
-        }
-      ],
-      [
-        {
-          name = "greptime-telemetry"
-          credentials = [{
-            accessKey = random_password.greptime_s3_access_key.result
-            secretKey = random_password.greptime_s3_secret_key.result
-          }]
-          actions = [
-            "Read:${local.greptime_telemetry_bucket}",
-            "Write:${local.greptime_telemetry_bucket}",
-            "List:${local.greptime_telemetry_bucket}",
-            "Tagging:${local.greptime_telemetry_bucket}",
-            "Read:${local.greptime_telemetry_bucket}/*",
-            "Write:${local.greptime_telemetry_bucket}/*",
-            "List:${local.greptime_telemetry_bucket}/*",
-            "Tagging:${local.greptime_telemetry_bucket}/*",
-          ]
         }
       ],
     )
@@ -551,69 +540,26 @@ resource "local_sensitive_file" "thanos_objstore_config" {
   })
 }
 
-resource "local_sensitive_file" "greptime_config" {
-  filename        = "${path.module}/../secrets/greptime-config.toml"
-  file_permission = "0600"
-
-  content = <<-EOT
-    default_timezone = "UTC"
-    user_provider = "static_user_provider:file:/etc/greptime/users"
-    max_in_flight_write_bytes = "512MB"
-    write_bytes_exhausted_policy = "wait(30s)"
-    enable_telemetry = false
-
-    [http]
-    addr = "0.0.0.0:4000"
-    body_limit = "64MB"
-
-    [grpc]
-    bind_addr = "0.0.0.0:4001"
-    runtime_size = 4
-
-    [mysql]
-    enable = true
-    addr = "127.0.0.1:4002"
-
-    [postgres]
-    enable = false
-
-    [query]
-    parallelism = 2
-    memory_pool_size = "1GB"
-
-    [storage]
-    data_home = "/var/lib/greptimedb"
-    type = "S3"
-    bucket = "${local.greptime_telemetry_bucket}"
-    root = "aether"
-    access_key_id = "${random_password.greptime_s3_access_key.result}"
-    secret_access_key = "${random_password.greptime_s3_secret_key.result}"
-    endpoint = "${local.db_backup_s3_endpoint}"
-    region = "us-east-1"
-  EOT
+# Leave generated secrets on disk for recovery; stop managing their generation.
+removed {
+  from = local_sensitive_file.greptime_config
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "local_sensitive_file" "greptime_users" {
-  filename        = "${path.module}/../secrets/greptime-users"
-  file_permission = "0600"
-
-  content = <<-EOT
-    greptime_ingest:writeonly=plain:${random_password.greptime_ingest_password.result}
-    greptime_grafana:readonly=plain:${random_password.greptime_grafana_password.result}
-  EOT
+removed {
+  from = local_sensitive_file.greptime_users
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "local_sensitive_file" "greptime_credentials" {
-  filename        = "${path.module}/../secrets/greptime-credentials.yml"
-  file_permission = "0600"
-
-  content = yamlencode({
-    database         = "public"
-    ingest_user      = "greptime_ingest"
-    ingest_password  = random_password.greptime_ingest_password.result
-    grafana_user     = "greptime_grafana"
-    grafana_password = random_password.greptime_grafana_password.result
-  })
+removed {
+  from = local_sensitive_file.greptime_credentials
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "kubernetes_secret_v1" "db_backup_s3" {

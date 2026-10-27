@@ -156,7 +156,7 @@ resource "kubernetes_secret_v1" "kestra_router_drift" {
   data = {
     # Read-only Grafana SA token — the router-drift flow queries ClickHouse
     # (live + declared config snapshots) through the Grafana datasource proxy.
-    SECRET_GRAFANA_SA_TOKEN = base64encode(var.secrets["grafana_sa_token"])
+    SECRET_GRAFANA_SA_TOKEN = base64encode(grafana_service_account_token.automation.key)
   }
 }
 

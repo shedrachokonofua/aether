@@ -23,7 +23,7 @@ resource "kubernetes_secret_v1" "frame_gallery_env" {
   }
 
   data = {
-    IMMICH_API_KEY = var.secrets["immich.frame_api_key"]
+    IMMICH_API_KEY  = var.secrets["immich.frame_api_key"]
     LITELLM_API_KEY = var.secrets["litellm.virtual_keys.frame_gallery"]
   }
 

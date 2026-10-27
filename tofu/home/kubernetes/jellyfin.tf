@@ -452,10 +452,10 @@ resource "kubernetes_deployment_v1" "jellyfin" {
           name  = "exporter"
           image = local.jellyfin_exporter_image
 
-                    port {
-                      container_port = local.jellyfin_exporter_port
-                      name           = "metrics"
-                    }
+          port {
+            container_port = local.jellyfin_exporter_port
+            name           = "metrics"
+          }
 
           args = [
             "--jellyfin.address=http://localhost:${local.jellyfin_port}",

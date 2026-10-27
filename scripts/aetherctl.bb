@@ -5,10 +5,9 @@
             [cheshire.core :as json]
             [clojure.string :as str]
             [clojure.java.io :as io])
-  (:import [java.net URI URLEncoder]
+  (:import [java.net URI]
            [java.net.http HttpClient HttpClient$Redirect
-            HttpRequest HttpRequest$BodyPublishers HttpResponse$BodyHandlers]
-           [java.nio.charset StandardCharsets]))
+            HttpRequest HttpRequest$BodyPublishers HttpResponse$BodyHandlers]))
 
 (def http-client
   (-> (HttpClient/newBuilder)
@@ -68,36 +67,49 @@
         (println (ansi red (str "✗ Error reading token: " (ex-message t)))))
       nil)))
 
-(defn get-datasources [token]
+(def clickhouse-ds {:type "grafana-clickhouse-datasource" :uid "clickhouse"})
+
+(defn query-clickhouse [token sql]
+  ;; ClickHouse SQL via Grafana /api/ds/query on the fixed uid `clickhouse`
+  ;; (same pattern as scripts/router-drift.py); returns decoded row maps.
+  (let [now-sec (quot (System/currentTimeMillis) 1000)
+        payload (json/generate-string
+                 {:from (str (* (- now-sec 3600) 1000))
+                  :to (str (* now-sec 1000))
+                  :queries [{:datasource clickhouse-ds
+                             :format 1
+                             :rawSql sql
+                             :refId "A"
+                             :queryType "sql"
+                             :editorType "sql"}]})
+        res (http-request! {:method :post
+                            :url (str grafana-url "/api/ds/query")
+                            :headers {"Authorization" (str "Bearer " token)
+                                      "Content-Type" "application/json"}
+                            :body payload})]
+    (when (= 200 (:status res))
+      (try
+        (let [parsed (json/parse-string (:body res) true)
+              result (get-in parsed [:results :A])]
+          (when (str/blank? (str (:error result)))
+            (let [frame (first (:frames result))
+                  names (mapv (comp keyword :name) (get-in frame [:schema :fields]))
+                  columns (get-in frame [:data :values])]
+              (mapv (fn [row] (zipmap names row))
+                    (apply map vector columns)))))
+        (catch Throwable _
+          nil)))))
+
+(defn query-grafana-alerts [token]
+  ;; ALERTS has no ClickHouse equivalent; use Grafana's own alert API.
   (let [res (http-request! {:method :get
-                            :url (str grafana-url "/api/datasources")
+                            :url (str grafana-url "/api/prometheus/grafana/api/v1/alerts")
                             :headers {"Authorization" (str "Bearer " token)}})]
-    (if (= 200 (:status res))
+    (when (= 200 (:status res))
       (try
-        (json/parse-string (:body res) true)
+        (get-in (json/parse-string (:body res) true) [:data :alerts])
         (catch Throwable _
-          nil))
-      nil)))
-
-(defn find-prometheus-datasource [datasources]
-  (some (fn [ds]
-          (when (and (= (:type ds) "prometheus")
-                     (:uid ds))
-            (:uid ds)))
-        datasources))
-
-(defn query-prometheus [token ds-uid query]
-  (let [encoded-query (URLEncoder/encode query StandardCharsets/UTF_8)
-        url (str grafana-url "/api/datasources/proxy/uid/" ds-uid "/api/v1/query?query=" encoded-query)
-        res (http-request! {:method :get
-                           :url url
-                           :headers {"Authorization" (str "Bearer " token)}})]
-    (if (= 200 (:status res))
-      (try
-        (json/parse-string (:body res) true)
-        (catch Throwable _
-          nil))
-      nil)))
+          nil)))))
 
 (defn format-target-status [target status]
   (if (= (str status) "1")
@@ -114,41 +126,33 @@
   (println (ansi blue "=== Cluster Status ==="))
   (println)
 
-  (let [datasources (get-datasources token)]
-    (if-not datasources
-      (do
-        (println (ansi red "✗ Failed to fetch datasources"))
-        (System/exit 1))
-      (let [prom-uid (find-prometheus-datasource datasources)]
-        (if-not prom-uid
-          (do
-            (println (ansi red "✗ Prometheus datasource not found"))
-            (System/exit 1))
-          (do
-            ;; Query up metric
-            (println (ansi blue "Target Status:"))
-            (when-let [up-result (query-prometheus token prom-uid "up == 0")]
-              (let [results (get-in up-result [:data :result] [])]
-                (if (seq results)
-                  (doseq [result results]
-                    (let [labels (:metric result)
-                          target-name (or (:job labels) (str labels))]
-                      (println (format-target-status target-name 0))))
-                  (println (ansi green "✓ All targets up")))))
+  ;; up == 0 → latest `up` gauge per series (5-minute lookback) in ClickHouse.
+  (println (ansi blue "Target Status:"))
+  (let [down (query-clickhouse
+              token
+              (str "SELECT ServiceName AS job, ResourceAttributes['service.instance.id'] AS instance, "
+                   "argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge "
+                   "WHERE MetricName = 'up' AND TimeUnix > now() - INTERVAL 5 MINUTE "
+                   "GROUP BY job, instance HAVING value = 0 ORDER BY job, instance"))]
+    (cond
+      (nil? down) (println (ansi red "✗ ClickHouse query failed (datasource uid clickhouse)"))
+      (seq down) (doseq [{:keys [job instance]} down]
+                   (println (format-target-status (str job " " instance) 0)))
+      :else (println (ansi green "✓ All targets up"))))
 
-            (println)
-            (println (ansi blue "Firing Alerts:"))
-            (when-let [alerts-result (query-prometheus token prom-uid "ALERTS{alertstate=\"firing\"}")]
-              (let [results (get-in alerts-result [:data :result] [])]
-                (if (seq results)
-                  (doseq [result results]
-                    (let [labels (:metric result)
-                          alert-name (:__name__ labels)
-                          severity (or (:severity labels) "unknown")]
-                      (println (str "  " (ansi yellow "⚠") " " alert-name " [" severity "]"))))
-                  (println (ansi green "✓ No firing alerts")))))
-
-            (println))))))
+  (println)
+  (println (ansi blue "Firing Alerts:"))
+  (let [alerts (query-grafana-alerts token)
+        firing (filter #(= "Alerting" (:state %)) alerts)]
+    (cond
+      (nil? alerts) (println (ansi red "✗ Failed to fetch Grafana alerts"))
+      (seq firing) (doseq [alert firing]
+                     (let [labels (:labels alert)
+                           alert-name (or (:alertname labels) "unknown")
+                           severity (or (:severity labels) "unknown")]
+                       (println (str "  " (ansi yellow "⚠") " " alert-name " [" severity "]"))))
+      :else (println (ansi green "✓ No firing alerts"))))
+  (println)
   (System/exit 0))
 
 (defn backups-command [token]
@@ -162,59 +166,39 @@
   (println (ansi blue "=== Backup Health ==="))
   (println)
 
-  (let [datasources (get-datasources token)]
-    (if-not datasources
+  ;; Backup metrics in ClickHouse: aether_restic_* gauges (otel.otel_metrics_gauge).
+  (println (ansi blue "Searching for backup metrics..."))
+  (let [found (query-clickhouse
+               token
+               (str "SELECT DISTINCT MetricName AS metric FROM otel.otel_metrics_gauge "
+                    "WHERE (MetricName LIKE 'aether_restic%' OR MetricName LIKE 'backrest%' "
+                    "OR MetricName LIKE 'restic%') AND TimeUnix > now() - INTERVAL 1 HOUR "
+                    "ORDER BY metric"))]
+    (cond
+      (nil? found) (println (ansi red "✗ ClickHouse query failed (datasource uid clickhouse)"))
+      (empty? found) (println (ansi yellow "⚠ No backup metrics found (searched: aether_restic.*, backrest.*, restic.*)"))
+      :else
       (do
-        (println (ansi red "✗ Failed to fetch datasources"))
-        (System/exit 1))
-      (let [prom-uid (find-prometheus-datasource datasources)]
-        (if-not prom-uid
-          (do
-            (println (ansi red "✗ Prometheus datasource not found"))
-            (System/exit 1))
-          (do
-            ;; First, discover what backup metrics exist
-            (println (ansi blue "Searching for backup metrics..."))
-            (when-let [metrics-result (query-prometheus token prom-uid "{__name__=~\"backrest.*|restic.*\"}")]
-              (let [results (get-in metrics-result [:data :result] [])]
-                (if (empty? results)
-                  (println (ansi yellow "⚠ No backup metrics found (searched: backrest.*, restic.*)"))
-                  (do
-                    (println (ansi green "✓ Found backup metrics:"))
-                    (doseq [result results]
-                      (let [labels (:metric result)
-                            metric-name (:__name__ labels)]
-                        ;; Find unique metric names
-                        (println (str "  - " metric-name))))
-
-                    ;; Now query for recent successful backups
-                    (println)
-                    (println (ansi blue "Recent Backup Operations:"))
-
-                    ;; Try backrest snapshot operations
-                    (when-let [snapshot-result (query-prometheus token prom-uid "backrest_backup_total")]
-                      (let [results (get-in snapshot-result [:data :result] [])]
-                        (if (seq results)
-                          (do
-                            (println "  Backrest Snapshots:")
-                            (doseq [result results]
-                              (println (str "    " (first (vals (:metric result))) " backups completed"))))
-                          (println "    No backrest snapshot data"))))
-
-                    ;; Try backrest forget operations
-                    (when-let [forget-result (query-prometheus token prom-uid "backrest_backup_restore_delta")]
-                      (let [results (get-in forget-result [:data :result] [])]
-                        (if (seq results)
-                          (do
-                            (println "  Backrest Forget Operations:")
-                            (doseq [result results]
-                              (println (str "    " result))))
-                          nil)))
-
-                    (println)
-                    (println (ansi yellow "Note: Check Grafana dashboards for detailed backup metrics"))))))
-
-            (println))))))
+        (println (ansi green "✓ Found backup metrics:"))
+        (doseq [{:keys [metric]} found]
+          (println (str "  - " metric)))
+        (println)
+        (println (ansi blue "Recent Backup Operations:"))
+        (let [rows (query-clickhouse
+                    token
+                    (str "SELECT Attributes['host_name'] AS host, MetricName AS metric, "
+                         "argMax(Value, TimeUnix) AS value FROM otel.otel_metrics_gauge "
+                         "WHERE MetricName IN ('aether_restic_snapshot_last_success_timestamp_seconds', "
+                         "'aether_restic_metrics_last_success_timestamp_seconds', "
+                         "'aether_restic_metrics_generation_success', 'aether_restic_plan_check_success') "
+                         "AND TimeUnix > now() - INTERVAL 1 HOUR GROUP BY host, metric ORDER BY host, metric"))]
+          (if (seq rows)
+            (doseq [{:keys [host metric value]} rows]
+              (println (str "    " host " " metric " = " value)))
+            (println "    No recent backup data")))
+        (println)
+        (println (ansi yellow "Note: Check Grafana dashboards for detailed backup metrics")))))
+  (println)
   (System/exit 0))
 
 (defn help-text []

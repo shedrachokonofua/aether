@@ -834,6 +834,13 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
               --exclude=/custom_apps/ --exclude=/themes/ \
               /usr/src/nextcloud/ /var/www/html/
             install -d -o www-data -g www-data /var/www/html/themes
+            # The OnlyOffice connector stores the first failed availability
+            # check as settings_error and hides the editors; its own cron job
+            # skips while that is set, so the error never clears. Re-run the
+            # check so the editors come back after a Caddy or Document Server
+            # blip.
+            echo '*/15 * * * * php /var/www/html/occ onlyoffice:documentserver --check >/dev/null 2>&1' \
+              >> /var/spool/cron/crontabs/www-data
             exec /cron.sh
           EOT
           ]

@@ -32,10 +32,10 @@
       }
     seaweedfs_s3_config_content: "{{ (seaweedfs_s3_generated_config | trim | length > 0) | ternary(seaweedfs_s3_generated_config, seaweedfs_s3_admin_config) }}"
     seaweedfs_s3_endpoint: https://s3.seaweed.home.shdr.ch
+    # Greptime's historical bucket remains in SeaweedFS; this list only creates buckets.
     seaweedfs_s3_buckets:
       - aether-db-dumps
       - thanos-metrics
-      - greptime-telemetry
       - deskplane-traces
 
   pre_tasks:

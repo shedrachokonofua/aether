@@ -96,9 +96,9 @@ resource "kubernetes_secret_v1" "mnemo_env" {
     MATRIX_APPSERVICE_PORT     = "4001"
 
     # Gmail source (OAuth refresh token)
-    GMAIL_CLIENT_ID     = var.secrets["gmail.client_id"]
-    GMAIL_CLIENT_SECRET = var.secrets["gmail.client_secret"]
-    GMAIL_REFRESH_TOKEN = var.secrets["gmail.refresh_token"]
+    GMAIL_CLIENT_ID             = var.secrets["gmail.client_id"]
+    GMAIL_CLIENT_SECRET         = var.secrets["gmail.client_secret"]
+    GMAIL_REFRESH_TOKEN         = var.secrets["gmail.refresh_token"]
     GMAIL_SYNC_INTERVAL_SECONDS = "10"
 
     # OTEL (Aether in-cluster collector)

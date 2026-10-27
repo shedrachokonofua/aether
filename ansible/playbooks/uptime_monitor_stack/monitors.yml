@@ -49,26 +49,9 @@ monitors:
 
   # Internal monitoring-stack health probes. Probed by direct IP:port over the
   # WireGuard link because *.home.shdr.ch resolves to the public gateway from the
-  # GCP vigilant, not home Caddy. These catch a PARTIAL monitoring death
-  # (e.g. Prometheus down while Grafana stays up) that the Grafana-emitted
-  # DeadMansSwitch heartbeat structurally cannot. public:false keeps them off the
-  # public status.shdr.ch page; maxretries tolerates a deploy-time pod restart.
-  - name: "Prometheus (home)"
-    url: "http://{{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.prometheus }}/-/ready"
-    type: "http"
-    interval: 60
-    maxretries: 3
-    retry_interval: 60
-    public: false
-
-  - name: "Loki (home)"
-    url: "http://{{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}/ready"
-    type: "http"
-    interval: 60
-    maxretries: 3
-    retry_interval: 60
-    public: false
-
+  # GCP vigilant, not home Caddy. ClickHouse is the only telemetry store left
+  # on the VM; Grafana now runs in k8s, so it is probed via its public
+  # https://grafana.home.shdr.ch URL instead of the VM port.
   - name: "ClickHouse (home)"
     url: "http://{{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.clickhouse }}/ping"
     type: "http"
@@ -78,7 +61,7 @@ monitors:
     public: false
 
   - name: "Grafana (home)"
-    url: "http://{{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.grafana }}/api/health"
+    url: "https://grafana.home.shdr.ch/api/health"
     type: "http"
     interval: 60
     maxretries: 3

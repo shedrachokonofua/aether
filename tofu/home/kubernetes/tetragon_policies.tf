@@ -272,11 +272,11 @@ resource "kubectl_manifest" "tetragon_mount_namespace_ops" {
           selectors = [{ matchActions = [{ action = "Post" }] }]
         },
         {
-          call      = "sys_setns"
-          syscall   = true
-          message   = "setns() - joining a namespace"
-          tags      = ["security.namespace-ops"]
-          args      = [{ index = 0, type = "int" }, { index = 1, type = "int" }]
+          call    = "sys_setns"
+          syscall = true
+          message = "setns() - joining a namespace"
+          tags    = ["security.namespace-ops"]
+          args    = [{ index = 0, type = "int" }, { index = 1, type = "int" }]
           selectors = [{
             matchBinaries = [{ operator = "NotIn", values = local.tetragon_container_runtime_binaries }]
             matchActions  = [{ action = "Post" }]

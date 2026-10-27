@@ -703,7 +703,6 @@ resource "kubectl_manifest" "daimyo_rogue_agent" {
   })
 }
 
-
 removed {
   from = kubectl_manifest.daimyo_coordinator_agent
   lifecycle { destroy = false }
