@@ -17,6 +17,19 @@ import urllib.parse
 import urllib.request
 
 NS = 1_000_000_000
+# First live (collector) TimeUnix per metrics table, measured 2026-10-13 when
+# dual-write began, truncated to 10 ms so the bound never exceeds the true
+# value. The backfill never emits a row at or after these. Querying
+# min(TimeUnix) at runtime instead breaks resumes: once any backfilled row
+# exists, the minimum is that row, and later chunks of the same window are
+# silently skipped.
+LIVE_T0 = {'otel_metrics_gauge': '2026-10-13T11:07:45.34Z', 'otel_metrics_sum': '2026-10-13T11:07:52.42Z',
+           'otel_metrics_histogram': '2026-10-13T11:08:00.85Z', 'otel_metrics_summary': '2026-10-13T11:08:00.85Z'}
+# Rows per Prometheus INSERT. One (chunk, metric) can be millions of rows (a
+# 6 h chunk of kube_pod_status_phase or a Caddy bucket family); building it as
+# one batch drove the backfill into the VM's OOM killer on 2026-10-29. Batches
+# cut only at series boundaries, so StartTimeUnix/reset segments are unchanged.
+PROM_BATCH_ROWS = 100_000
 SEMCONV = '''service.name service.namespace service.instance.id service.version
 host.name host.id host.arch host.type os.type os.version os.description
 k8s.cluster.name k8s.namespace.name k8s.pod.name k8s.pod.uid k8s.pod.ip
@@ -247,20 +260,18 @@ class Migration:
         Built from ClickHouse's current distinct (MetricName, table, unit,
         IsMonotonic) plus Prometheus /api/v1/metadata (type/unit/help) and the
         live Prometheus name list. No name is invented: a Prometheus series
-        whose name matches no candidate is skipped and counted. The map and
-        per-table T0 (earliest TimeUnix already present) are cached on self.
+        whose name matches no candidate is skipped and counted. The map is
+        cached on self.
         """
         if hasattr(self, '_prom_map'):
             return self._prom_map
         window = getattr(self.a, 'map_hours', 24)
         specs = [('gauge', 'MetricUnit', '0', 'any(MetricDescription)'), ('sum', 'MetricUnit', 'max(toUInt8(IsMonotonic))', 'any(MetricDescription)'),
                  ('histogram', 'MetricUnit', '2', 'any(MetricDescription)'), ('summary', 'MetricUnit', '0', 'any(MetricDescription)')]
-        targets, self._t0 = [], {}
+        targets = []
         for table, unit, mono, desc in specs:
             full = 'otel_metrics_' + table
             rows = self.clickhouse(f"SELECT MetricName, {unit} AS unit, {mono} AS mono, {desc} AS descr, any(ScopeName) AS scope, any(ScopeVersion) AS scopever FROM otel.{full} WHERE TimeUnix > now() - INTERVAL {window} HOUR GROUP BY MetricName, unit")
-            t0 = self.clickhouse(f'SELECT min(TimeUnix) AS t0 FROM otel.{full}')
-            self._t0[full] = timestamp(str(t0[0]['t0']).replace(' ', 'T') + 'Z') if t0 and t0[0].get('t0') else self.a.cutoff_ns
             for row in rows:
                 targets.append({'table': full, 'name': row['MetricName'], 'unit': row.get('unit') or '',
                                 'mono': bool(row.get('mono')), 'descr': row.get('descr') or '',
@@ -299,10 +310,6 @@ class Migration:
         print(f'prometheus map: {len(targets)} ClickHouse metrics, {len(mapping)} Prometheus names claimed, '
               f'{len(unmatched)} ClickHouse metrics without a Prometheus counterpart (sample: {unmatched[:10]})', file=sys.stderr)
         return mapping
-
-    def prom_t0(self, table):
-        self.prom_map()
-        return self._t0[table]
 
     def emit(self, rows, key, table):
         if self.a.dry_run:
@@ -470,9 +477,9 @@ class Migration:
     def prometheus(self, start, end, key):
         """Backfill one chunk [start, end) for every mapped metric.
 
-        Cutoff per destination table is min(--cutoff, earliest TimeUnix
-        already in that table, queried at runtime): nothing >= T0 is ever
-        emitted. Chunks are per (metric, window); the SQLite journal keys
+        Cutoff per destination table is min(--cutoff, LIVE_T0[table]): no row
+        at or after the table's first live write is ever emitted. Chunks are
+        per (metric, window); the SQLite journal keys
         them exactly like the logs path, so a restart skips done chunks.
         Series without a ClickHouse counterpart are counted, not guessed.
         """
@@ -495,25 +502,39 @@ class Migration:
             target, prom_names = groups[_group_key]
             ch_name = target['name']
             table = target['table']
-            stop = min(end, self._t0[table], self.a.cutoff_ns)
+            stop = min(end, timestamp(LIVE_T0[table]), self.a.cutoff_ns)
             if start >= stop:
                 continue
             subkey = f'{key}/{table}/{ch_name}'
             if self.done(subkey):
                 continue
-            rows = self.prom_rows(target, sorted(prom_names), start, stop)
-            self.emit(rows, subkey, table)
+            # Each batch is journaled as its own key; the metric key is marked
+            # done only after every batch landed, so a restart re-derives the
+            # same series-ordered batches and skips the finished ones.
+            for index, rows in enumerate(self.prom_batches(target, sorted(prom_names), start, stop)):
+                self.emit(rows, f'{subkey}/{index}', table)
+            self.emit([], subkey, table)
         self.emit([], key, 'otel_metrics_gauge')
 
-    def prom_rows(self, target, prom_names, start, end):
+    def prom_batches(self, target, prom_names, start, end):
+        """Yield row batches of about PROM_BATCH_ROWS, cut between series.
+
+        Series are visited in a stable label order so a resumed run yields the
+        same batches as the run that was interrupted.
+        """
         table = target['table']
         if table == 'otel_metrics_histogram':
-            return self.prom_histogram(target, prom_names, start, end)
+            yield from self.prom_histogram(target, prom_names, start, end)
+            return
         if table == 'otel_metrics_summary':
-            return self.prom_summary(target, prom_names, start, end)
+            yield from self.prom_summary(target, prom_names, start, end)
+            return
         rows = []
         for prom_name in prom_names:
-            for series in self.prom_range(prom_name, start, end):
+            for series in sorted(self.prom_range(prom_name, start, end), key=lambda s: sorted(s['metric'].items())):
+                if len(rows) >= PROM_BATCH_ROWS:
+                    yield rows
+                    rows = []
                 labels = series['metric']
                 base = self.prom_base(labels, target)
                 samples = [(int(ts) * NS, float(val)) for ts, val in series['values']]
@@ -541,7 +562,8 @@ class Migration:
                         row = dict(base, StartTimeUnix=date(samples[0][0] if samples else ts), TimeUnix=date(ts), Value=val, Flags=0)
                         row.update({'Exemplars.FilteredAttributes': [], 'Exemplars.TimeUnix': [], 'Exemplars.Value': [], 'Exemplars.SpanId': [], 'Exemplars.TraceId': []})
                         rows.append(row)
-        return rows
+        if rows:
+            yield rows
 
     def prom_histogram(self, target, prom_names, start, end):
         buckets = [n for n in prom_names if n.endswith('_bucket')]
@@ -570,7 +592,11 @@ class Migration:
                 for ts, val in series['values']:
                     grouped[group_key][1].setdefault(int(ts), {})[le] = float(val)
         rows = []
-        for group_key, (labels, by_ts) in grouped.items():
+        for group_key in sorted(grouped):
+            labels, by_ts = grouped[group_key]
+            if len(rows) >= PROM_BATCH_ROWS:
+                yield rows
+                rows = []
             base = self.prom_base(labels, target)
             seg_start, prev_count = None, None
             for ts in sorted(by_ts):
@@ -579,11 +605,17 @@ class Migration:
                     continue
                 finite = sorted(((float(k), v) for k, v in cum.items() if k != '+Inf'))
                 bounds = [bound for bound, _ in finite]
+                # Exporters can expose a cumulative bucket below the bucket
+                # before it (Caddy histograms, off by 1, seen 2026-10-09..12),
+                # which makes a per-bucket count negative and ClickHouse reject
+                # the whole UInt64 BucketCounts batch. Enforce monotonic
+                # cumulative counts first, as Prometheus's histogram_quantile does.
                 per_bucket, prev = [], 0.0
                 for bound, cumulative in finite:
+                    cumulative = max(cumulative, prev)
                     per_bucket.append(int(round(cumulative - prev)))
                     prev = cumulative
-                per_bucket.append(int(round(cum['+Inf'] - prev)))
+                per_bucket.append(int(round(max(cum['+Inf'], prev) - prev)))
                 total = count_by.get((group_key, ts), cum['+Inf'])
                 if seg_start is None or total < (prev_count if prev_count is not None else total):
                     seg_start = ts * NS
@@ -593,7 +625,8 @@ class Migration:
                            BucketCounts=per_bucket, ExplicitBounds=bounds, Flags=0, Min=0.0, Max=0.0, AggregationTemporality=2)
                 row.update({'Exemplars.FilteredAttributes': [], 'Exemplars.TimeUnix': [], 'Exemplars.Value': [], 'Exemplars.SpanId': [], 'Exemplars.TraceId': []})
                 rows.append(row)
-        return rows
+        if rows:
+            yield rows
 
     def prom_summary(self, target, prom_names, start, end):
         # Prometheus summaries: quantile series share the base name; _count/_sum are separate names.
@@ -621,7 +654,11 @@ class Migration:
                 for ts, val in series['values']:
                     grouped[group_key][1].setdefault(int(ts), {})[float(quantile)] = float(val)
         rows = []
-        for group_key, (labels, by_ts) in grouped.items():
+        for group_key in sorted(grouped):
+            labels, by_ts = grouped[group_key]
+            if len(rows) >= PROM_BATCH_ROWS:
+                yield rows
+                rows = []
             base = self.prom_base(labels, target)
             for ts in sorted(by_ts):
                 quantiles = by_ts[ts]
@@ -631,7 +668,8 @@ class Migration:
                 row['ValueAtQuantiles.Quantile'] = ordered
                 row['ValueAtQuantiles.Value'] = [quantiles[q] for q in ordered]
                 rows.append(row)
-        return rows
+        if rows:
+            yield rows
 
     def chunk(self, start, end, key):
         if self.done(key):

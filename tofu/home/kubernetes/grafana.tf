@@ -315,6 +315,20 @@ resource "grafana_service_account_token" "holmes" {
   service_account_id = grafana_service_account.holmes.id
 }
 
+# Orion's Home alerts card and feed `alerts` tool read firing alerts from
+# /api/prometheus/grafana/api/v1/alerts (Viewer is enough).
+resource "grafana_service_account" "orion" {
+  depends_on = [helm_release.grafana, kubectl_manifest.grafana_route]
+  org_id     = "1"
+  name       = "orion"
+  role       = "Viewer"
+}
+
+resource "grafana_service_account_token" "orion" {
+  name               = "orion-tofu"
+  service_account_id = grafana_service_account.orion.id
+}
+
 resource "grafana_service_account" "automation" {
   depends_on = [helm_release.grafana, kubectl_manifest.grafana_route]
   org_id     = "1"

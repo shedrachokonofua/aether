@@ -154,9 +154,9 @@ locals {
     CLICKHOUSE_URL      = "https://clickhouse.home.shdr.ch"
     CLICKHOUSE_USER     = "agent_reader"
     CLICKHOUSE_PASSWORD = var.secrets["clickhouse.agent_reader_password"]
-    # Still read by the deployed image's Home fetchers (alerts, quotas, platform
-    # health) until they move to ClickHouse; drop once nothing reads it.
-    PROMETHEUS_URL = "https://prometheus.home.shdr.ch"
+    # Home alerts card + feed `alerts` tool: Grafana-managed alert rules.
+    GRAFANA_URL   = "https://${local.grafana_host}"
+    GRAFANA_TOKEN = grafana_service_account_token.orion.key
   }
 }
 
@@ -419,8 +419,8 @@ resource "kubernetes_manifest" "orion_route" {
 }
 
 # Declared egress for the answer engine's in-cluster flows (orion → litellm,
-# searxng, deskplane) plus ClickHouse via the home Caddy front (10.0.2.2:443,
-# clickhouse.home.shdr.ch — same pattern as grafana.tf). Additive-only:
+# searxng, deskplane) plus ClickHouse and Grafana via the home Caddy front
+# (10.0.2.2:443, clickhouse/grafana.home.shdr.ch). Additive-only:
 # enableDefaultDeny=false mirrors the cluster-baseline pattern — these rules
 # pre-authorize the flows for the namespace-strategy default-deny flip
 # without changing behavior today.
@@ -478,7 +478,8 @@ resource "kubernetes_manifest" "orion_answer_egress" {
           }]
         },
         {
-          # ClickHouse HTTPS via the home Caddy front (10.0.2.2 → 10.0.2.3:8123).
+          # ClickHouse (→ 10.0.2.3:8123) and Grafana HTTPS via the home Caddy
+          # front (10.0.2.2).
           toCIDR = ["10.0.2.2/32"]
           toPorts = [{
             ports = [{ port = "443", protocol = "TCP" }]
