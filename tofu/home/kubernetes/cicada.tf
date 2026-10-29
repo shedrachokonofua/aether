@@ -11,11 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main ded5f99 (build-image, image.digest): with a planner, goal
-  # acceptance waits for the planner to see that nothing is left (decision 64).
-  # On top of ff3b9cd (decision 63), 7278ce0 (decision 62), b3fb0b7 (decision
-  # 61) and 2ee3cee (workload-kind token subs, decision 60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:6f8db0699e3079ce518b896aece467bcf692eda2acc6ab2c3261f4ab279a32cf"
+  # so/cicada main 0dd0633 (build-image, image.digest): agent pods reserve
+  # 250m/1Gi under 1 CPU/2Gi limits (decision 65). On top of ded5f99
+  # (decision 64), ff3b9cd (63), 7278ce0 (62), b3fb0b7 (61) and 2ee3cee
+  # (workload-kind token subs, 60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:e65cf4014a4aabf3ac6087af881ed5a128010dfe2482ffcde2e0c8b841928f9f"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
