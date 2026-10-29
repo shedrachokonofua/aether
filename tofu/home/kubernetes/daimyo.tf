@@ -1508,16 +1508,18 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
 locals {
   daimyo_cicada_sandbox_classes = {
     # so/molecule: wasmtime and the component recipes are heavy builds.
-    # workspace is daimyo's 20Gi maximum. A sandbox requests its whole
-    # cpu/memory (daimyo G13), and the amd64 nodes run at ~90% of their CPU
-    # requests (2026-10-22: neo had 3.6 CPU free, the rest less), so a class
-    # asking 4-6 CPU never scheduled. 3 CPU fits; the quota is not the limit.
+    # workspace is daimyo's 20Gi maximum. A sandbox reserves `requests` and
+    # bursts to the limits: measured 2026-10-29 with `kubectl top`, a building
+    # sandbox used ~1.5 CPU and ~0.5Gi and sat near zero between ci_exec
+    # calls, while reserving its whole 3 CPU / 6-8Gi blocked CI runner pods on
+    # the amd64 nodes (60-90% of CPU requested). Limits stay at 3 CPU: the
+    # cicada-tasks quota caps limits.cpu at 32.
     molecule = {
-      resources = { cpu = "3", memory = "8Gi", workspace = "20Gi" }
+      resources = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "3Gi" } }
     }
     # so/turmeric: cargo, Go, bun, Chromium, NATS and ClickHouse in one pod.
     turmeric = {
-      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi" }
+      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
     }
   }
 }
