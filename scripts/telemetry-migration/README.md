@@ -207,12 +207,15 @@ bb scripts/telemetry-migration/migrate.bb prometheus \
 
 How it works:
 
-- **Cutoff T0 is per table and queried at runtime**: the earliest `TimeUnix`
-  already present in each of `otel_metrics_{gauge,sum,histogram,summary}`
-  (measured 2026-10-13: gauge 11:07:45.34Z, sum 11:07:52.42Z, histogram/summary
-  11:08:00.85Z). Effective end per table is `min(--cutoff, that table's T0)`;
-  no row `>= T0` is ever emitted. `--cutoff` stays required as the operator's
-  ceiling.
+- **Cutoff T0 is per table**: the first live `TimeUnix` in each of
+  `otel_metrics_{gauge,sum,histogram,summary}`, measured 2026-10-13 (gauge
+  11:07:45.34Z, sum 11:07:52.42Z, histogram/summary 11:08:00.85Z) and pinned
+  as `LIVE_T0` in `migrate.py`. Effective end per table is
+  `min(--cutoff, LIVE_T0[table])`; no row `>= T0` is ever emitted. It used to
+  be `min(TimeUnix)` queried at runtime, which broke resumes: after the first
+  backfilled chunk landed, a restarted window saw that chunk as T0 and skipped
+  its remaining chunks (2026-10-09..12 kept only 6 h per day). `--cutoff`
+  stays required as the operator's ceiling.
 - **Reverse map is built at runtime**, never hard-coded: ClickHouse's current
   distinct `(MetricName, MetricUnit, IsMonotonic)` per table over
   `--map-hours` (default 24h) is translated back to Prometheus names with the
@@ -233,8 +236,11 @@ How it works:
   `node_cpu_seconds_total` 1d 2.7s, the 11,616-series
   `caddy_http_request_duration_seconds_bucket` family 1d 21s — about
   **1.5M samples/s** sustained. Checkpoint keys are per (chunk, table, metric),
-  journaled exactly like the logs path (pending-payload ambiguity rules in the
-  next section apply unchanged).
+  and each metric is inserted in batches of `PROM_BATCH_ROWS` (100k) rows cut
+  between series in stable label order, each journaled as
+  `(chunk, table, metric, batch)` exactly like the logs path (pending-payload
+  ambiguity rules in the next section apply unchanged). The metric key is
+  marked done only after its last batch.
 - **Labels**: `job` -> `ServiceName` + `ResourceAttributes['service.name']`
   (the part after `/` for `<namespace>/<name>` push jobs; `service_name` label
   wins when present), `instance` -> `ResourceAttributes['service.instance.id']`,
