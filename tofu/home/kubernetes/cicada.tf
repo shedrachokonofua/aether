@@ -11,11 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 0dd0633 (build-image, image.digest): agent pods reserve
-  # 250m/1Gi under 1 CPU/2Gi limits (decision 65). On top of ded5f99
-  # (decision 64), ff3b9cd (63), 7278ce0 (62), b3fb0b7 (61) and 2ee3cee
-  # (workload-kind token subs, 60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:e65cf4014a4aabf3ac6087af881ed5a128010dfe2482ffcde2e0c8b841928f9f"
+  # so/cicada main f265b9d (build-image, image.digest): default review lenses
+  # from [review], per-project lens agents and a built-in security method
+  # (decision 66). On top of 0dd0633 (65), ded5f99 (64), ff3b9cd (63),
+  # 7278ce0 (62), b3fb0b7 (61) and 2ee3cee (workload-kind token subs, 60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:3a791e3d4f96b1aa87d635d5b8ac515265eb607dbcfe48f95aad1647354b60af"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
@@ -50,6 +50,17 @@ locals {
     [agents]
     # As pods in cicada-tasks reach this Service.
     mcp_url = "http://cicada.cicada.svc.cluster.local:8080/mcp"
+
+    [review]
+    # Every repository's default review lenses (Cicada decision 66). A repo's
+    # own [[lenses]] entry with the same name replaces one; new names add to them.
+    lenses = [
+      { name = "spec", model = "moira/strong" },
+      { name = "diff", model = "moira/strong" },
+      { name = "security", model = "moira/cyber" },
+      { name = "performance", model = "moira/strong" },
+      { name = "integration", model = "moira/strong" },
+    ]
 
     [otel]
     endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces"
