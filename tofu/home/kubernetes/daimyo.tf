@@ -1472,7 +1472,7 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
         tools = {}
       }
       grants = [
-        { name = "models", model = { models = ["moira/frontier", "moira/strong", "moira/flash"], budgetUsd = 1 } },
+        { name = "models", model = { models = ["moira/frontier", "moira/strong", "moira/flash", "moira/cyber"], budgetUsd = 1 } },
       ]
     }
   })
