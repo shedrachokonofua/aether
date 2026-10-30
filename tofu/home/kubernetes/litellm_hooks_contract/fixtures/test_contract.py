@@ -237,6 +237,100 @@ def scenario_logs():
           "log: each adaptation line names the deployment")
 
 
+def reports():
+    with urllib.request.urlopen(FAKE + "/reports", timeout=10) as response:
+        return json.load(response)
+
+
+def sse_events(body_text):
+    events = []
+    for line in body_text.splitlines():
+        if line.startswith("data: ") and line != "data: [DONE]":
+            try:
+                events.append(json.loads(line[len("data: "):]))
+            except ValueError:
+                pass
+    return events
+
+
+def finishes(events):
+    return [c.get("finish_reason") for e in events for c in e.get("choices") or [] if c.get("finish_reason")]
+
+
+def answer_text(events):
+    return "".join((c.get("delta") or {}).get("content") or "" for e in events for c in e.get("choices") or [])
+
+
+def called_models():
+    return [c["body"].get("model") for c in backend_calls() if c["path"].endswith("chat/completions")]
+
+
+def scenario_filter_early():
+    print("content_filter before any answer: served by the next fallback that answers, each refusal reported")
+    fake_post("/reset")
+    status, _, body_text = post("/v1/chat/completions", {
+        "model": "moira/frontier", "user": "s-early", "stream": True,
+        "messages": [{"role": "user", "content": "hi"}],
+    })
+    events = sse_events(body_text)
+    check(status == 200, f"filter early: request succeeded, got {status}: {body_text[:300]}")
+    check("content_filter" not in finishes(events), f"filter early: client never sees content_filter, got {finishes(events)}")
+    check(finishes(events)[-1:] == ["stop"], f"filter early: the answer finishes with stop, got {finishes(events)}")
+    check(answer_text(events) == "ok", f"filter early: the fallback's answer is served, got {answer_text(events)!r}")
+    check(called_models() == ["test-filter-early", "test-filter-early-b", "test-step-stream"],
+          f"filter early: primary, filtered fallback, then the answering one, got {called_models()}")
+    check(reports() == [
+        {"model": "test/filter-early", "reason": "content_filter", "session_id": "s-early"},
+        {"model": "test/filter-early-b", "reason": "content_filter", "session_id": "s-early"},
+    ], f"filter early: both refusals reported with the session, got {reports()}")
+
+
+def scenario_filter_late():
+    print("content_filter after answer text: the stream errors instead of truncating, reported")
+    fake_post("/reset")
+    status, _, body_text = post("/v1/chat/completions", {
+        "model": "moira/balanced", "user": "s-late", "stream": True,
+        "messages": [{"role": "user", "content": "hi"}],
+    })
+    events = sse_events(body_text)
+    check(any("error" in e for e in events) or status >= 500,
+          f"filter late: the client sees an error, got {status}: {body_text[:300]}")
+    check("content_filter" not in finishes(events), f"filter late: no silent content_filter finish, got {finishes(events)}")
+    check(called_models() == ["test-filter-late"], f"filter late: no second answer spliced in, got {called_models()}")
+    check(reports() == [{"model": "test/filter-late", "reason": "content_filter", "session_id": "s-late"}],
+          f"filter late: refusal reported, got {reports()}")
+
+
+def scenario_filter_nonstream():
+    print("content_filter on a non-streaming answer: replaced by the fallback's answer, reported")
+    fake_post("/reset")
+    status, _, body_text = post("/v1/chat/completions", {
+        "model": "moira/cyber", "user": "s-chat",
+        "messages": [{"role": "user", "content": "hi"}],
+    })
+    body = json.loads(body_text) if status == 200 else {}
+    choice = (body.get("choices") or [{}])[0]
+    check(status == 200, f"filter non-stream: request succeeded, got {status}: {body_text[:300]}")
+    check(choice.get("finish_reason") == "stop" and (choice.get("message") or {}).get("content") == "ok",
+          f"filter non-stream: the fallback's answer is returned, got {choice}")
+    check(reports() == [{"model": "test/filter-early", "reason": "content_filter", "session_id": "s-chat"}],
+          f"filter non-stream: refusal reported, got {reports()}")
+
+
+def scenario_filter_unrouted():
+    print("content_filter on a request Moira did not route: passed through untouched, not reported")
+    fake_post("/reset")
+    status, _, body_text = post("/v1/chat/completions", {
+        "model": "test/filter-early", "user": "s-direct", "stream": True,
+        "messages": [{"role": "user", "content": "hi"}],
+    })
+    events = sse_events(body_text)
+    check(status == 200 and finishes(events) == ["content_filter"],
+          f"filter unrouted: upstream finish passes through, got {status} {finishes(events)}")
+    check(called_models() == ["test-filter-early"], f"filter unrouted: no failover, got {called_models()}")
+    check(reports() == [], f"filter unrouted: nothing reported, got {reports()}")
+
+
 def main():
     scenario_chat()
     scenario_stream()
@@ -245,6 +339,10 @@ def main():
     scenario_noop()
     scenario_pinned_effort()
     scenario_logs()
+    scenario_filter_early()
+    scenario_filter_late()
+    scenario_filter_nonstream()
+    scenario_filter_unrouted()
     if failures:
         print(f"\n{len(failures)} assertion(s) FAILED", file=sys.stderr)
         return 1

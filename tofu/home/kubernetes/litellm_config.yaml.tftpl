@@ -1086,6 +1086,10 @@ litellm_settings:
   # - spend_log_response_id makes logged response ids unique for deployments
   #   with model_info `unique_response_ids: false` (Ollama Cloud's 3-digit
   #   `chatcmpl-NNN` ids collided and their spend rows were dropped).
+  # - content_filter_failover serves a Moira-routed chat answer that an
+  #   upstream ended with finish_reason content_filter from the next fallback
+  #   (Claude's subscription refuses ~2.5% of agent turns that way, 2026-10-30)
+  #   and reports it to Moira, which keeps that model off the session.
   # - importing the module also clears empty legacy `function_call` deltas
   #   from every stream (CodeBuddy sends one per tool call; LiteLLM's chunk
   #   builder then fails and /v1/responses clients get an error at the end).
@@ -1096,6 +1100,7 @@ litellm_settings:
     - aether_hooks.tool_description_sanitizer
     - aether_hooks.tool_call_content_normalizer
     - aether_hooks.spend_log_response_id
+    - aether_hooks.content_filter_failover
   turn_off_message_logging: false
   set_verbose: false
   json_logs: true
