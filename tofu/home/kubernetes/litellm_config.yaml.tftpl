@@ -942,15 +942,16 @@ model_list:
       allowed_openai_params: ["reasoning_effort"]
       reasoning_effort: max
     model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
-  # Defensive security work, ranked by the AA Cyber Index with zero refusals
-  # (moira/tiers.yaml `cyber`). Fail-open default: GLM-5.3 Flash (49.9, 0%).
+  # Defensive security work: AA Cyber Index >=40, zero refusals, one model per pool.
+  # Fail-open default matches the curated Ollama representative: DeepSeek 1017 max.
   - model_name: "moira/cyber"
     litellm_params:
-      model: "openai/glm-5.3-flash"
+      model: "openai/deepseek-v4.1-flash:1017"
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {unique_response_ids: false}
+      reasoning_effort: max
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 272000, max_output_tokens: 128000, supports_forced_tool_choice: false, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Moira group for Deskplane's browser/desktop agent (moira/tiers.yaml,
   # preference order terra -> gemini-3.8-flash -> qwen3.8-flash-next). Like the

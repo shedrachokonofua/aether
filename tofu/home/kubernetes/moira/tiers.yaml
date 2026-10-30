@@ -52,9 +52,21 @@ tiers:
       xiaomi/mimo-v2.6-flash: default
       commandcode/mimo-v2.6-flash: default
       opencode-go/mimo-v2.6-flash: default
-  # AA Cyber Index (defensive vuln finding/patching); refusal = max refusal
-  # rate across its three evals. Only models that never refused qualify.
-  cyber:     { index: cyber, min: 40, max_refusal: 0 }
+  # AA Cyber Index v1, checked 2026-10-30: one representative per quota pool.
+  # Zero safety blocks across all three evaluations; Step's failed route stays out.
+  cyber:
+    index: cyber
+    min: 40
+    max_refusal: 0
+    members:
+      kimi/k3.1-pro: max
+      ollama-cloud/deepseek-v4.1-flash: max
+      supergrok/grok-4.7: xhigh
+      xiaomi/mimo-v2.6-pro: default
+      commandcode/mimo-v2.6-pro: default
+      opencode-go/mimo-v2.6-pro: default
+      chatgpt/gpt-6-luna: max
+      zai/glm-5.3-flash: max
 
 exclude:
   upstream_ids: [gpt-6-astra]          # never in tiers
