@@ -60,7 +60,7 @@ locals {
       { name = "diff", model = "moira/balanced" },
       { name = "security", model = "moira/cyber" },
       { name = "performance", model = "moira/strong" },
-      { name = "integration", model = "moira/strong" },
+      { name = "integration", model = "moira/frontier" },
     ]
 
     [otel]
