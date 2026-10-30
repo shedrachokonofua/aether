@@ -11,6 +11,7 @@ from collections import OrderedDict
 from typing import Any
 
 import httpx
+import litellm
 from fastapi import HTTPException
 from litellm.integrations.custom_logger import CustomLogger
 
@@ -415,6 +416,135 @@ class MoiraRouter(CustomLogger):
 
 
 moira_router = MoiraRouter()
+
+
+def _moira_routed(data: dict[str, Any]) -> bool:
+    """Whether MoiraRouter routed this request (it leaves moira_efforts in metadata)."""
+    for bucket in ("metadata", "litellm_metadata"):
+        meta = data.get(bucket)
+        if isinstance(meta, dict) and isinstance(meta.get("moira_efforts"), dict):
+            return True
+    return False
+
+
+def _finish_reason(obj: Any) -> str | None:
+    choices = getattr(obj, "choices", None)
+    if not choices:
+        return None
+    reason = getattr(choices[0], "finish_reason", None)
+    return reason if isinstance(reason, str) else None
+
+
+def _answers(chunk: Any) -> bool:
+    """Whether a stream chunk carries answer text or a tool call (reasoning does not count)."""
+    choices = getattr(chunk, "choices", None)
+    delta = getattr(choices[0], "delta", None) if choices else None
+    if delta is None:
+        return False
+    return bool(getattr(delta, "content", None) or getattr(delta, "tool_calls", None)
+                or getattr(delta, "function_call", None))
+
+
+class ContentFilterFailover(CustomLogger):
+    """Fail a content-filtered answer over to the next model Moira ranked.
+
+    Claude through the operator's subscription ends ~2.5% of agent answers
+    with a successful response whose finish_reason is content_filter (its
+    safety classifiers, content-specific: one review agent hit it 6 of 6 times
+    on the same context, 2026-10-30). That is no exception, so LiteLLM never
+    ran the request's fallbacks and the agent died with
+    "Provider finish_reason: content_filter".
+
+    For a Moira-routed chat completion this reports each such finish to
+    Moira's /report (which keeps that model out of the session's routing for a
+    while) and, when no answer text or tool call has reached the client yet,
+    re-issues the same request to the next of the request's `fallbacks` and
+    serves that answer instead; reasoning already streamed stays streamed. A
+    filtered fallback hands on to the one after it. Once answer text went out
+    a second answer cannot be spliced in, so the stream ends with an error
+    rather than a silently truncated answer; the client's retry then routes
+    elsewhere. With no fallback left the upstream's finish passes through.
+    """
+
+    @staticmethod
+    def _next(data: dict[str, Any]) -> dict[str, Any] | None:
+        fallbacks = [f for f in data.get("fallbacks") or [] if isinstance(f, str) and f]
+        if not fallbacks:
+            return None
+        retry = {k: v for k, v in data.items() if k not in ("fallbacks", "litellm_call_id", "litellm_logging_obj")}
+        retry["model"] = fallbacks[0]
+        if fallbacks[1:]:
+            retry["fallbacks"] = fallbacks[1:]
+        return retry
+
+    @staticmethod
+    async def _report(data: dict[str, Any]) -> None:
+        model = data.get("model")
+        if not isinstance(model, str) or not model:
+            return
+        url = (os.environ.get("MOIRA_DECIDE_URL") or "").removesuffix("/decide") + "/report"
+        token = os.environ.get("MOIRA_DECIDE_TOKEN")
+        try:
+            await _moira_client.post(
+                url,
+                json={"model": model, "reason": "content_filter", "session_id": extract_session_id(data)},
+                headers={"Authorization": f"Bearer {token}"} if token else {},
+            )
+        except Exception as exc:  # reporting is best effort
+            logger.warning("Moira content_filter report failed (%s: %s)", type(exc).__name__, exc)
+
+    async def _guard(self, stream: Any, data: dict[str, Any]) -> Any:
+        from litellm.proxy.proxy_server import llm_router
+
+        answered = False
+        async for chunk in stream:
+            if _finish_reason(chunk) != "content_filter":
+                answered = answered or _answers(chunk)
+                yield chunk
+                continue
+            await self._report(data)
+            retry = self._next(data)
+            if answered:
+                raise litellm.InternalServerError(
+                    message=f"{data.get('model')} stopped its answer with finish_reason content_filter",
+                    llm_provider="moira",
+                    model=str(data.get("model")),
+                )
+            if retry is None or llm_router is None:
+                yield chunk
+                return
+            logger.warning("content_filter from %s before any answer; failing over to %s",
+                           data.get("model"), retry["model"])
+            async for again in self._guard(await llm_router.acompletion(**retry), retry):
+                yield again
+            return
+
+    async def async_post_call_streaming_iterator_hook(
+        self, user_api_key_dict: Any, response: Any, request_data: dict
+    ) -> Any:
+        if not _moira_routed(request_data):
+            async for chunk in response:
+                yield chunk
+            return
+        async for chunk in self._guard(response, request_data):
+            yield chunk
+
+    async def async_post_call_success_hook(self, data: dict, user_api_key_dict: Any, response: Any) -> Any:
+        if not _moira_routed(data) or _finish_reason(response) != "content_filter":
+            return None
+        from litellm.proxy.proxy_server import llm_router
+
+        while _finish_reason(response) == "content_filter":
+            await self._report(data)
+            retry = self._next(data)
+            if retry is None or llm_router is None:
+                return response
+            logger.warning("content_filter from %s; failing over to %s", data.get("model"), retry["model"])
+            data, response = retry, await llm_router.acompletion(**retry)
+        return response
+
+
+content_filter_failover = ContentFilterFailover()
 
 
 class DeploymentAdapter(CustomLogger):

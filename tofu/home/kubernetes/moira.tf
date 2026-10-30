@@ -11,9 +11,10 @@
 # the LiteLLM model_list).
 
 locals {
-  # 487b2fb: refreshed AA Cyber Index v1 scores and explicit-member refusal guard.
-  # CI pipeline 9114 passed before this immutable image was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:4985fe544b807525bcbd8a4632c2c753a90f3ae3718080224eede2b65e801d96"
+  # 9c120aa: POST /report {reason: content_filter} keeps the model off that
+  # session for content_refusal_minutes. CI pipeline 9125 passed before this
+  # immutable image was selected.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:ee545a88cc249f06b08526c36ac88786f08e8e3f626813fd6b63f743e78521fd"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }

@@ -22,6 +22,44 @@ model_list:
       api_base: http://127.0.0.1:9000/v1
       api_key: test-key
     model_info: {mode: chat, max_output_tokens: 65536}
+  # Content-filter scenarios: Moira routes these tiers to legs that end with
+  # finish_reason content_filter (fake_backends.py FILTER_ROUTES).
+  - model_name: "moira/frontier"
+    litellm_params:
+      model: openai/test-moira-default
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat}
+  - model_name: "moira/balanced"
+    litellm_params:
+      model: openai/test-moira-default
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat}
+  - model_name: "moira/cyber"
+    litellm_params:
+      model: openai/test-moira-default
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat}
+  - model_name: "test/filter-early"
+    litellm_params:
+      model: openai/test-filter-early
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat}
+  - model_name: "test/filter-early-b"
+    litellm_params:
+      model: openai/test-filter-early-b
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat}
+  - model_name: "test/filter-late"
+    litellm_params:
+      model: openai/test-filter-late
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: chat}
   - model_name: "test/mimo-chat"
     litellm_params:
       model: openai/test-mimo-chat
@@ -83,6 +121,7 @@ litellm_settings:
     - aether_hooks.chat_reasoning_effort
     - aether_hooks.moira_router
     - aether_hooks.deployment_adapter
+    - aether_hooks.content_filter_failover
 
 router_settings:
   # Deterministic attempt counts: no same-group retries, one fallback level.
