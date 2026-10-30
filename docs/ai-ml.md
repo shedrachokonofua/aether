@@ -395,6 +395,8 @@ gates and planning on stronger tiers:
 
 Cicada reads writer/planner models from each repository's
 `.cicada/workflow.toml`; its server-level default lenses are in `cicada.tf`.
+Writer Agent projections refresh immediately before a new writer session is
+created. Idle projections can show the previous model until the next dispatch.
 Orion owns its main/coordinator/runner/feed Agent declarations in its chart.
 Explicit thread Agent choices and local-model specialists are not rewritten.
 Existing Orion sessions upgrade to the selected Agent's stable revision at
