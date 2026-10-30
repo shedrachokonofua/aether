@@ -54,9 +54,10 @@ locals {
     [review]
     # Every repository's default review lenses (Cicada decision 66). A repo's
     # own [[lenses]] entry with the same name replaces one; new names add to them.
+    # spec and diff judge one change against its item and surroundings: balanced.
     lenses = [
-      { name = "spec", model = "moira/strong" },
-      { name = "diff", model = "moira/strong" },
+      { name = "spec", model = "moira/balanced" },
+      { name = "diff", model = "moira/balanced" },
       { name = "security", model = "moira/cyber" },
       { name = "performance", model = "moira/strong" },
       { name = "integration", model = "moira/strong" },
