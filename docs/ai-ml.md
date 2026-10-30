@@ -63,11 +63,6 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 Unified OpenAI-compatible API: local models via **llama-swap**, embeddings +
 reranker on the same credential, cloud providers, and MCP tools.
 
-**Maintenance hold (2026-09-24):** The model retirements, alias removal,
-SuperGrok upgrade, and Cursor integration removal are staged changes.
-Their rollout and virtual-key synchronization have not been performed;
-do not apply them during server maintenance.
-
 Cursor/Composer is gone: it was dropped from LiteLLM first, and the standalone
 Composer deployment (`composer.home.shdr.ch`, a Grok bridge over Cursor) was
 removed on 2026-10-15. The `composer-api` GitLab project stays because its
@@ -92,6 +87,11 @@ Step Plan exposes only `step/step-5-preview` through the OpenAI-compatible
 virtual keys can select this model; their defaults are unchanged. The route
 has no PAYG or OpenRouter fallback.
 
+Kimi Coding exposes `kimi/k3` and `kimi/k3.1-pro` through the existing coding
+subscription credential. K3.1 Pro advertises a 1,048,576-token context and
+always thinks; accepted efforts are `low`, `high`, and `max`. Vision and a
+function call at `max`, with `max_tokens: 131072`, passed on 2026-10-30.
+
 ChatGPT subscription OAuth uses LiteLLM's native `chatgpt/` provider. Run
 `nix develop --command task litellm:login:chatgpt` and complete the displayed
 OpenAI device authorization. The dedicated `litellm-chatgpt-auth` Ceph RBD PVC
@@ -101,13 +101,24 @@ refresh. The login task restricts the directory to `0700` and the file to
 token with desktop Codex or OMP. Direct OpenAI API-key access is no longer
 configured in LiteLLM.
 
-The subscription routes are `chatgpt/gpt-6-astra`, `chatgpt/gpt-6.1-sol`, and
-`chatgpt/gpt-6-luna`, available to OMP and Colony without changing their
-defaults; Deskplane's MCP uses `chatgpt/gpt-6.1-sol`. They declare Responses
-mode, native streaming and a 272000-token input limit explicitly; LiteLLM
-1.106's bundled catalog lists GPT-6 with a larger limit than the Codex backend
-accepts. GPT-6.1 Sol replaced GPT-6 Sol on 2026-09-29 and rejects
-`reasoning_effort` `none`/`minimal`.
+The subscription catalog exposes `chatgpt/gpt-6-astra`, `chatgpt/gpt-6.1-sol`,
+`chatgpt/gpt-6.1-terra`, and `chatgpt/gpt-6-luna`. Deskplane's MCP uses
+`moira/computer-use`, which prefers
+`chatgpt/gpt-6.1-terra`, then `antigravity/gemini-3.8-flash`, then local
+`aether/qwen3.8-flash-next`, skipping exhausted providers. Its fail-open
+deployment also uses Terra. The ChatGPT routes declare Responses mode, native
+streaming and a conservative 272000-token input cap; LiteLLM 1.106's bundled
+catalog lists GPT-6 with a larger limit than the Codex backend accepts.
+Terra's subscription vision and function calling were verified 2026-10-29.
+GPT-6.1 Sol replaced GPT-6 Sol on 2026-09-29 and rejects `reasoning_effort`
+`none`/`minimal`.
+
+The Deskplane virtual key permits the computer-use alias and each concrete
+group member. Synchronize only that key's model grants with:
+
+```bash
+nix develop --command task ansible:playbook -- register_litellm_virtual_keys.yml --tags deskplane-models
+```
 
 Use list-form `input` for `/v1/responses`. Streaming and non-streaming Chat
 Completions both work on LiteLLM 1.106 (verified 2026-10-13, including a
@@ -116,14 +127,16 @@ non-streaming tool call): 1.99 failed non-streaming calls with
 mark `chatgpt/` `chat_requires_stream`. No paid API-key or OpenRouter fallback
 is configured.
 
-OpenWebUI's single household model is `moira/frontier` ("Family Assistant"):
-`DEFAULT_MODELS` points OpenWebUI at it, and it is the only model entry
-non-admin users can read (OpenWebUI's `model` row and its read grant to every
-user live in OpenWebUI's database). It replaced the `router/family` priority
-pool (GPT-6 Astra, Muse Spark 1.3 Standard, MiMo V2.6 Pro) on 2026-10-13, when
-Standard Muse was removed for every caller; household chats now follow Moira's
-frontier ranking, which includes Muse Wonder Full Contributor, so Meta may
-train on the chats routed there.
+OpenWebUI's household model is `moira/strong` ("Family Assistant").
+`DEFAULT_MODELS` selects it; the declared `openwebui_household_policy` Job
+reconciles the existing persona, its read grants, the stored default, and
+explicit old household selections in user preferences. The Job's SQL hash
+changes its immutable name when the policy changes. It fails closed on an
+ambiguous persona or conflicting model rather than replacing an unrelated
+model. Chats, other models, capabilities and unrelated preferences remain
+untouched. Its PostgreSQL role is the existing non-superuser `openwebui`.
+The strong pool includes Muse Wonder Contributor, so Meta may train on
+household chats routed there, as it could with the former frontier default.
 
 Clinepass also exposes `clinepass/qwen3.8-max` and
 `clinepass/muse-spark-1.3-contributor` as standalone provider pins.
@@ -131,10 +144,10 @@ Clinepass also exposes `clinepass/qwen3.8-max` and
 Google Antigravity is exposed through the single-tenant bridge as
 `antigravity/gemini-3.8-flash` and `antigravity/gemini-4-argon`. The bridge
 translates OpenAI chat-completions requests to the subscription API; clients
-retain ownership of tool execution and follow-up results. OMP and Colony
-virtual keys include Flash; Colony uses it in the developer and architect
-fallback chains, not as a primary. Argon is on the OMP keys only. It draws a
-separate weekly-only Argon quota on the Pro plan. The bridge's `/usage` does
+retain ownership of tool execution and follow-up results. Gemini Flash is
+the balanced tier's Antigravity representative and a computer-use fallback.
+Argon remains available only on the OMP keys, outside automatic tier routing.
+It draws a separate weekly-only Argon quota on the Pro plan. The bridge's `/usage` does
 not report that quota, so Moira does not rank Argon.
 
 SuperGrok is exposed only as the subscription-backed
@@ -150,9 +163,9 @@ owned by [`tofu/home/kubernetes/grok.tf`](../tofu/home/kubernetes/grok.tf);
 bridge source is the private `so/grok-bridge` GitLab project. `/usage` is
 best-effort and is not a readiness gate.
 
-Claude is exposed through the pi-ai-backed single-tenant bridge as
-`claude/sonnet-5-5`, `claude/opus-5-5`, and `claude/fable-5-1`. The bridge
-speaks native Anthropic `/v1/messages`; LiteLLM's `anthropic/` provider owns
+Claude subscription pins are `claude/sonnet-5-5`, `claude/opus-5-5`,
+`claude/haiku-5-5`, and `claude/fable-5-1`. The bridge speaks native
+Anthropic `/v1/messages`; LiteLLM's `anthropic/` provider owns
 Chat Completions translation at its boundary. Its credential base URL is
 `https://claude.home.shdr.ch` without `/v1`: LiteLLM appends `/v1/messages`.
 All Anthropic connectivity —
@@ -168,8 +181,8 @@ sanctioned by Anthropic. There is no PAYG/Console fallback and no `/usage`
 endpoint. Credentials persist at `kv/aether/claude-bridge/credentials`;
 runtime infrastructure is owned by
 [`tofu/home/kubernetes/claude.tf`](../tofu/home/kubernetes/claude.tf);
-bridge source is the private `so/claude-bridge` GitLab project. Only the OMP
-virtual key may select these pins. In-cluster egress is limited to
+bridge source is the private `so/claude-bridge` GitLab project. Model access
+is controlled by virtual-key grants and tier membership. In-cluster egress is limited to
 `bao.home.shdr.ch`, `platform.claude.com` (refresh), and
 `api.anthropic.com` (inference and catalog); `claude.ai` is used only by the
 workstation login. The bridge preserves native custom-tool controls, cache
@@ -204,10 +217,9 @@ no Standard Muse route for any caller (2026-10-13, after `seven30-foundry`'s
 direct `meta/muse-spark-1.3` calls took the Power plan's weekly quota from 1% to
 21% in four hours). LiteLLM serves `meta/muse-spark-1.3-contributor`,
 `meta/muse-wonder-1.0-contributor` and `meta/muse-wonder-full-1.0-contributor`.
-Moira routes Wonder Full at max (AA 56, frontier) and Wonder at xhigh only
-(strong, ahead of Spark Contributor on the shared quota). Wonder's xhigh score
-(49) is inferred, not measured: AA scores Wonder only at max (52.4), and Meta's
-one measured effort step, Spark 1.3 max to xhigh, costs 3.0 points.
+Moira selects Wonder Full at max for frontier (AA v5 50) and Wonder at max
+for strong (AA v5 43). The old v4-derived Wonder xhigh estimate is removed;
+the general score table contains measured v5 rows only.
 All draw on the same subscription quota at different per-token rates (Meta
 publishes none for the subscription); on 2026-09-26 both Spark tiers returned
 `Subscription quota exhausted` with the same reset time.
@@ -236,8 +248,8 @@ Command Code and OpenCode Go.
 backend. Their `router/*` names remain canonical. DeepSeek V4.1 Flash 1017,
 the newest DeepSeek (V4.1 Pro has not shipped), is the standalone pin
 `ollama-cloud/deepseek-v4.1-flash`: it has one backend, so it has no `router/*`
-pool. Moira scores it at AA 45 (Max, the only effort AA measures), which puts
-it in `moira/strong` at `reasoning_effort: max`, drawing Ollama Cloud quota.
+pool. Its measured AA v5 score is 32 at max, so it represents Ollama Cloud
+in `moira/balanced`.
 
 `router/mimo-v2.6-pro` and `router/mimo-v2.6-flash` are priority pools, not
 shuffles: the Xiaomi MiMo token-plan leg (`order: 1`,
@@ -331,8 +343,8 @@ remains. The OpenAI provider key was
 removed from SOPS and the LiteLLM Secret/environment declarations.
 
 Since 2026-10-06 one OpenRouter route exists, for a $0 model only:
-`router/ling-3.1-flash` (Ling 3.1 Flash, AA Intelligence 41, in `moira/flash`)
-pools `openrouter/ling-3.1-flash` (`order: 1`) and Command Code's free variant
+`router/ling-3.1-flash` pools the free Ling model on
+`openrouter/ling-3.1-flash` (`order: 1`) and Command Code's free variant
 `commandcode-free/ling-3.1-flash` (`order: 2`; its upstream 429s
 intermittently). The OpenRouter leg sends `provider.max_price` 0 with
 `allow_fallbacks: false`, so OpenRouter rejects the request instead of billing
@@ -341,6 +353,7 @@ LiteLLM for this route only. OpenCode Zen also lists the model free, but its
 free tier rejects non-OpenCode clients (`FreeTierError`), so it is not wired.
 Moira tracks no quota for either leg (`quota: none`), so they rank after
 providers with known quota.
+This router group remains addressable, but is not a selected AA v5 general-tier member.
 
 Routeway (`https://api.routeway.ai/v1`, pay-per-token, SOPS
 `litellm.routeway_api_key`) backs one route,
@@ -359,56 +372,39 @@ on-demand models were retained; their cached weight files were not all
 verified. `gemini-embedding-001` and `text-embedding-3-large` remain local Qwen
 embedding compatibility IDs, not Gemini/OpenAI cloud integrations.
 
-Colony's production and example configs are owned by sibling `so/colony`.
-Its role chains were re-picked on 2026-09-25 from Colony's run history (45
-days to 2026-09-09), AA Intelligence Index v4.3.2 (plus AA-LCR where exposed),
-and a 98-session role-suitability run through LiteLLM that submitted via
-Colony's real envelope validators with the steer-then-force finalizer:
+Colony's production and example configurations are owned by sibling
+`so/colony` and baked into its image. Editing YAML alone does not update the
+daemon; the verified CI image must be pinned in
+[`colony.tf`](../tofu/home/kubernetes/colony.tf) and applied after quiescing
+active scopes. Existing review requirements, SAST, budgets and sandbox
+controls are retained.
 
-| Role | Lead | Fallbacks, in order |
-| --- | --- | --- |
-| architect | Muse Spark Contributor | GLM 5.3, Grok 4.7, Kimi K3, MiMo 2.6 Pro, DeepSeek V4 Pro |
-| plan reviewer | GPT-6.1 Sol | Kimi K3, GLM 5.3, MiMo 2.6 Pro, Step 5 Preview |
-| code reviewer | Grok 4.7 | Kimi K3, GLM 5.3, MiMo 2.6 Pro, DeepSeek V4 Pro, Muse Spark 1.3 |
-| developer | Muse Spark Contributor | MiMo 2.6 Pro, Gemini 3.8 Flash, GLM 5.3 Flash, DeepSeek V4 Pro |
+The model-policy cutover assigns ordinary work to balanced and keeps quality
+gates and planning on stronger tiers:
 
-No Muse model reviews plans because Muse writes them, and Muse Spark 1.3 is the
-last code-review fallback because Muse writes the code. Qwen 3.8 Max (9-11
-minute sessions, rejects a forced `tool_choice`), Qwen 3.8 Flash (0/2 as
-developer), and Hy4 (no longer free; its launch promotion ended) left Colony.
-Models with good Artificial Analysis unit economics get four concurrent runs
-once their pool passes a burst of six concurrent agent turns without errors:
-MiMo 2.6 Pro ($0.13 per AA Intelligence Index task, all on the Xiaomi priority
-leg), GLM 5.3 Flash ($0.25), DeepSeek V4 Pro ($0.67), Step 5 ($0.72), and
-Muse Contributor ($0.10/$0.20 per million tokens on Command Code). Grok 4.7
-keeps four on its flat subscription; Kimi K3 and GLM 5.3 stay at two for their
-weekly usage windows, and Gemini 3.8 Flash at two. Sol shares the household ChatGPT
-subscription behind OpenWebUI, so Colony caps it at one run with an
-operational 272,000-token context cap because the subscription route's limit is
-unverified. MiMo and Step do not honour a named forced `tool_choice`, so their
-Colony entries set `supportsForcedToolChoice: false` and finalizers steer them;
-Step also carries a 32,768-token output cap against its verbose prose reasoning.
-Muse Spark's 33-49 s first-token wait on open-ended prose is hidden reasoning
-(4.7k-9.9k unstreamed reasoning tokens) on every leg, including the subscription
-bridge; its agent-shaped tool turns at `xhigh` answer in 1.2-2.8 s.
-The configuration is baked into Colony's image, so editing the source YAML
-alone does not update a running daemon.
+| Consumers | Tier |
+| --- | --- |
+| Household/OpenWebUI, Orion main, dev specialist | `moira/strong` |
+| Orion coordinator, standing-work runner, briefing/news/markets feeds | `moira/balanced` |
+| Researcher, trip planner, frontend agent, memory dreamer | `moira/balanced` |
+| Colony developer and memory consolidator; Cicada writers | `moira/balanced` |
+| Colony reviewer and Cicada general review lenses | `moira/strong` |
+| Colony architect/plan reviewer and Cicada planners | `moira/frontier` |
+| Cicada defensive-security lens | `moira/cyber` |
+| Narrow echo and QA smoke agents | `moira/flash` |
 
-A verified `linux/amd64` SuperGrok bridge image is published under
-`source-grok47-20260925` and pinned by digest in
-[`grok.tf`](../tofu/home/kubernetes/grok.tf). Colony runs the CI-built image
-of `so/colony` commit `b010fca`, pinned by digest in
-[`colony.tf`](../tofu/home/kubernetes/colony.tf). Three rollouts on 2026-09-25
-(14:01Z, 14:22Z, 14:35Z) ran during planning scopes: the new daemon adopted
-and resumed three in-flight architect runs (audit `run.adopted`) but
-crash-reaped a fourth, which restarted from scratch; in-flight plan reviews
-were reaped and requeued within two seconds. Adoption is not guaranteed.
+Cicada reads writer/planner models from each repository's
+`.cicada/workflow.toml`; its server-level default lenses are in `cicada.tf`.
+Orion owns its main/coordinator/runner/feed Agent declarations in its chart.
+Explicit thread Agent choices and local-model specialists are not rewritten.
+Existing Orion sessions upgrade to the selected Agent's stable revision at
+their next cold start after message admission or coordinator warm-up.
 
-After maintenance, quiesce Colony scopes and coordinate the updated SuperGrok
-and Colony images, LiteLLM configuration, virtual-key synchronization,
-Holmes/Kestra model changes, and OpenWebUI catalog refresh before resuming
-traffic. Update saved client selections that still use removed aliases or
-the retired SuperGrok 4.6 name; no compatibility redirects are configured.
+Colony's tier catalogs retain conservative operating limits: balanced and
+flash use 262144 context / 32768 output; strong and frontier use 272000 /
+65536. Its production roles have no client-side model fallback chains:
+Moira owns pool selection and fallback efforts. Tier exhaustion remains a
+429; it does not silently escalate a balanced task to strong or frontier.
 
 ```mermaid
 flowchart LR
@@ -593,56 +589,69 @@ before deployment selection.
 ### Moira
 
 Moira ([`tofu/home/kubernetes/moira.tf`](../tofu/home/kubernetes/moira.tf),
-source `so/moira`) is a quota-aware decision service behind LiteLLM. It is not
-in the request path and never proxies: clients call LiteLLM as always, and the
+source `so/moira`) is a quota-aware decision service called by LiteLLM.
+It does not proxy completions: clients still call LiteLLM, whose
 `moira_router` pre-call hook
 ([`tofu/home/kubernetes/litellm_hooks.py`](../tofu/home/kubernetes/litellm_hooks.py),
 mounted as `aether_hooks.py`) asks Moira's `POST /decide` (bearer
 `MOIRA_DECIDE_TOKEN`, 0.3 s timeout) which concrete model a `moira/<tier>` or
 `router/*` request should use. Moira answers from an in-memory quota cache
 refreshed from Postgres every 30 s: the chosen model rewrites the request,
-anything else passes through unchanged. Its tiers are Artificial Analysis
-Intelligence Index bands (score table in the Moira repo's `data/aa_scores.yaml`,
-refreshed from [artificialanalysis.ai](https://www.artificialanalysis.ai/leaderboards/models)):
+anything else passes through unchanged. General tiers use integer-rounded
+[Artificial Analysis Intelligence Index v5](https://artificialanalysis.ai/leaderboards/models)
+measurements from `so/moira/data/aa_scores.yaml`, with explicit pool-aware
+membership in [`moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
 
-| Tier           | AA score band |
-| -------------- | ------------- |
-| `moira/frontier` | 48 and up   |
-| `moira/strong`   | 43–47       |
-| `moira/flash`   | 36–42       |
-| `moira/cyber`   | Cyber Index 40 and up, 0% refusals |
+| Tier | AA v5 band | Distinct configured quota pools | Representatives |
+| --- | --- | --- | --- |
+| `moira/frontier` | 50 and up | 3 | Opus 5.5 max; GPT-6.1 Sol max; Muse Wonder Full max |
+| `moira/strong` | 40–49 | 4 | Kimi K3.1 Pro max; GPT-6.1 Terra xhigh; Muse Wonder max; Sonnet 5.5 high |
+| `moira/balanced` | 30–39 | 9 | Grok 4.7 high; Haiku 5.5 xhigh; Qwen3.8 Max xhigh; DeepSeek V4.1 Flash 1017 max; GLM-5.3 max; Gemini 3.8 Flash high; MiMo V2.6 Pro on Xiaomi, Command Code and OpenCode Go |
+| `moira/flash` | 25–29 | 6 | GLM-5.3 Flash max on Z.AI and Ollama Cloud; GPT-6 Luna max; MiMo V2.6 Flash on Xiaomi, Command Code and OpenCode Go |
 
-`moira/cyber` ranks by the AA [Cyber Index](https://artificialanalysis.ai/evaluations/artificial-analysis-cyber-index)
-(defensive vulnerability finding and patching) instead of the Intelligence
-Index, using the `cyber:` table in `data/aa_scores.yaml`. Each entry carries the
+Each general tier has one concrete model/effort representative per shared
+provider quota. ChatGPT, Claude and Muse each remain one globally shared pool
+across tiers, not new allowance per alias. Xiaomi, Command Code and OpenCode
+Go are separate purchased pools. Gemini 4 Argon high scores 50 but remains
+gated until its distinct quota is reported. GLM-5.3 Flash now has a measured
+v5 score of 28, replacing the provisional estimate.
+
+`moira/cyber` retains its separate AA [Cyber Index](https://artificialanalysis.ai/evaluations/artificial-analysis-cyber-index)
+policy: score at least 40, with zero refusals. Defensive vulnerability finding
+and patching uses the unchanged `cyber:` table in `data/aa_scores.yaml`. Each entry carries the
 model's highest refusal rate across the index's three evals, and the tier's
 `max_refusal: 0` drops any model that declined a task on safety grounds (GPT-6
 Sol and Astra, Gemini 3.8 Flash, Qwen3.8). Qualifying models as of 2026-10-05:
 Grok 4.7, MiMo V2.6 Pro, GPT-6 Luna, GLM-5.3 Flash, Muse Spark 1.3 and Kimi K3.
 
-`gpt-6-astra` and the `ollama-cloud`/`aether` providers never enter a tier;
-unlisted (unscored) models never do either.
+`gpt-6-astra` and the `aether`, expired `step`, and disabled `clinepass`
+providers are excluded from score-based tiers. Unscored models are not tier
+candidates. Named groups have their own explicit membership; this preserves
+the unscored local computer-use fallback.
 
-Effort semantics: a model with a single `default` score qualifies at any
-effort and the request's effort passes through. A model with per-effort scores
-qualifies only at efforts whose score is in the band; when the request carries
-no effort, Moira picks the lowest qualifying effort and the hook sets it on
-the rewritten request. Ranking orders candidates by quota freshness (fresh >
-stale > unknown), then urgency (remaining quota per hour until reset), then
-score. Sessions stick: `x-session-id`, `metadata.session_id`, or `user` pins
-the chosen model (30 min idle). A route decision returns the chosen model, its
-effort, and up to two same-effort fallbacks, which the hook hands to LiteLLM
-as request fallbacks. With no candidate left Moira refuses with
-`429 {"error":{"type":"tier_exhausted",...}}` including `earliest_reset` —
-the hook raises it to the caller with `Retry-After`; unknown tiers return
-`400 {"error":{"type":"unknown_tier",...}}`.
+General-tier `members` pin both the concrete model and its reasoning effort.
+A request cannot substitute another effort from the same pool. Native
+`default` rows retain capped caller effort; a selected effort may use a
+native-only score without inventing a separate benchmark measurement.
+Score bands still guard eligibility. Generic score-only tiers, including
+cyber, retain their existing effort-selection semantics.
+
+Ranking uses quota freshness (fresh > stale > unknown), urgency (remaining
+quota per hour until reset), then score. Sessions stick while the pinned
+model remains eligible (30 minutes idle). A decision returns up to two
+fallbacks, each with its own selected effort; the deployment adapter applies
+the effort for each actual attempt. Exhaustion returns
+`429 {"error":{"type":"tier_exhausted",...}}` with `earliest_reset` and
+`Retry-After`; unknown tiers return `400 unknown_tier`.
 
 The hook fails open: Moira unreachable, timing out, or answering anything
 unexpected leaves the request unchanged and logs one warning line, so the
-`moira/<tier>` aliases in LiteLLM's model list — real deployments copying
-`meta/muse-spark-1.3-contributor`, `kimi/k3` and `zai/glm-5.3-flash` — serve their static
-default models (`moira/frontier`, `moira/strong`, `moira/flash` respectively;
-`moira/cyber` also defaults to `zai/glm-5.3-flash`).
+real `moira/<tier>` deployments serve their static defaults: Wonder Full max
+for frontier, Wonder max for strong, Ollama DeepSeek Flash 1017 max for
+balanced, and Ollama GLM Flash max for flash. Cyber retains Ollama GLM Flash;
+computer-use retains Terra. Discovery advertises conservative pooled operating
+caps: 272000 input / 128000 output for frontier, strong and flash; 500000 /
+65536 for balanced. Standalone pins retain their provider-specific limits.
 Because routing happens inside LiteLLM, every caller gets it regardless of
 entry point (gateway or in-cluster Service DNS).
 
@@ -655,11 +664,14 @@ and `max_output_tokens` to the deployment's cap. Each change logs one INFO
 line; a fallback attempt still sees the client's original request. Proved by
 `tofu/home/kubernetes/litellm_hooks_contract/run.sh` against the pinned image.
 
-Keys that call `moira/*` need the `moira/<tier>` aliases in their model
-allowlist (the `colony` and `omp` keys have all four),
-and Moira only chooses among the key's allowed models: the hook passes the
-allowlist to `/decide`, because LiteLLM does not re-check the rewritten model
-against the key allowlist after the hook replaces `data["model"]`.
+Keys calling `moira/*` need the requested alias in their model allowlist.
+An allowed alias authorizes its configured members; concrete-only allowlists
+are filtered against those concrete models. The hook passes the allowlist
+to `/decide`, because LiteLLM does not re-check the rewritten model after
+the hook replaces `data["model"]`. Synchronize existing OMP, Coder and Colony
+grants without creating/deleting keys through
+`task ansible:playbook -- register_litellm_virtual_keys.yml --tags moira-models`
+inside the Aether Nix shell.
 
 Quota sources per provider: Z.AI, Kimi, Command Code, OpenCode Go, Clinepass
 and Ollama Cloud are polled at their quota endpoints by `moira-poller`; Muse,
@@ -672,15 +684,13 @@ Passive signals (response headers, 429 bodies, Muse usage events, CodeBuddy
 credits) refine the same windows.
 
 Quota plans in [`tofu/home/kubernetes/moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
-Xiaomi's Lite annual credit pool (anniversary-anchored cycle, calibrated from
-the console reading), Step's Flash Mini monthly credits, and Qwen Cloud's
-180k credits per 30-day cycle (usage unknown — Alibaba publishes no per-model
-rates) are counted from LiteLLM spend logs against each plan's `total_credits`
-and `cycle`; Ollama Cloud has no plan and is polled at its quota endpoint.
-CodeBuddy's plan still needs the operator's tier (`total_credits`) and renewal
-date (`cycle.anchor`) before local credit counting is meaningful. Moira's state
-lives in the `moira` database on `litellm-cnpg` (managed role `moira`, which
-also reads the `litellm` database read-only for the ledger). `moira.decision`
+Xiaomi's Lite annual pool, Qwen Cloud's 180k-credit 30-day cycle and CodeBuddy
+Pro's 1000-credit monthly cycle are configured and calibrated from their
+provider readings. Qwen and CodeBuddy rates are recorded in `tiers.yaml`;
+they are not unknown placeholders. Step's paid plan remains excluded after
+its subscription ended. Ollama Cloud is polled at its own quota endpoint.
+Moira's state lives in the `moira` database on `litellm-cnpg` (managed role
+`moira`, which also reads LiteLLM spend data for local credit accounting). `moira.decision`
 logs each routed or refused request for 7 days (chosen model, fallbacks, pin,
 ranked candidates, exclusions), keyed by LiteLLM's call id, which spend logs
 carry as `metadata->>'litellm_call_id'`.

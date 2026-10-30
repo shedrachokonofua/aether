@@ -11,10 +11,9 @@
 # the LiteLLM model_list).
 
 locals {
-  # PENDING_CI_DIGEST: the GitLab CI image build publishes the real digest;
-  # this sentinel is replaced with it before the first Moira apply.
-  # 2e390d8: group_order (preference-ordered groups, for moira/computer-use).
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:2e79aa22df670d91c917696e9bb86f503e198a2f3e4d43042cef56c6c11f84bb"
+  # a93f11c: AA v5 scores and explicit model/effort representatives per tier.
+  # CI pipeline 9085 passed before this immutable image was selected.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:3bed13d7a331e5f7238abc345edc45ea2ab3d3ad4ade5f0ad2738a76bd73b123"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }

@@ -601,10 +601,10 @@ resource "helm_release" "daimyo" {
       }
       # Memory search embeds through LiteLLM; the server default alias
       # (text-embedding-3-small) is not served here (litellm_config.yaml.tftpl).
-      # The built-in dreamer (§11c.3) runs on the cheap alias.
+      # The built-in dreamer (§11c.3) consolidates memory on the balanced tier.
       memory = {
         embeddingModel   = "aether/qwen3-embedding:0.6b"
-        dreamerModel     = "moira/flash"
+        dreamerModel     = "moira/balanced"
         dreamerBudgetUsd = 0.25
       }
       database = {
@@ -1472,7 +1472,7 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
         tools = {}
       }
       grants = [
-        { name = "models", model = { models = ["moira/frontier", "moira/strong", "moira/flash", "moira/cyber"], budgetUsd = 1 } },
+        { name = "models", model = { models = ["moira/frontier", "moira/strong", "moira/balanced", "moira/flash", "moira/cyber"], budgetUsd = 1 } },
       ]
     }
   })
@@ -1591,7 +1591,7 @@ resource "kubectl_manifest" "daimyo_orion_service_policy" {
 # `researcher`: a declarative claude-code harness agent (no image of its own;
 # compiles onto config.harness.images["claude-code"], and harness revisions
 # skip attestation). Models through the sidecar's LiteLLM grant on
-# moira/strong; web research through Deskplane's MCP server (the `web` grant,
+# moira/balanced; web research through Deskplane's MCP server (the `web` grant,
 # bearer token from OpenBao orgs/personal/deskplane, openbao_daimyo.tf; the
 # network path is daimyo_tasks_egress and deskplane_mcp_daimyo_ingress).
 # Claude Code's own WebSearch is an Anthropic server tool a LiteLLM alias
@@ -1612,7 +1612,7 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
       description = "Researches topics on the web and writes cited reports."
       harness = {
         kind         = "claude-code"
-        model        = "moira/strong"
+        model        = "moira/balanced"
         systemPrompt = <<-EOT
           You research topics and write cited reports. Find sources with the
           search_web tool, then read the most relevant ones in full with
@@ -1627,7 +1627,7 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
       resources  = { cpu = "1", memory = "2Gi", workspace = "2Gi" }
       operations = [{ name = "ask", deadline = "2h" }]
       grants = [
-        { name = "models", model = { models = ["moira/strong"], budgetUsd = 5 } },
+        { name = "models", model = { models = ["moira/balanced"], budgetUsd = 5 } },
         {
           name = "web"
           mcp = {
@@ -1699,7 +1699,7 @@ resource "kubectl_manifest" "daimyo_frontend_agent" {
       description = "Builds web apps and checks them in a real browser while it works."
       harness = {
         kind         = "claude-code"
-        model        = "moira/strong"
+        model        = "moira/balanced"
         systemPrompt = <<-EOT
           You build web front ends. Work in $DAIMYO_WORKSPACE. Run the dev
           server in the background on localhost (for Vite: npx vite --port
@@ -1717,7 +1717,7 @@ resource "kubectl_manifest" "daimyo_frontend_agent" {
       resources  = { cpu = "2", memory = "4Gi", workspace = "4Gi" }
       operations = [{ name = "ask", deadline = "2h" }]
       grants = [
-        { name = "models", model = { models = ["moira/strong"], budgetUsd = 5 } },
+        { name = "models", model = { models = ["moira/balanced"], budgetUsd = 5 } },
         {
           name = "browser"
           mcp = {

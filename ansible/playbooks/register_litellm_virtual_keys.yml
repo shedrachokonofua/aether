@@ -27,6 +27,7 @@
         - step/step-5-preview
         - chatgpt/gpt-6-astra
         - chatgpt/gpt-6.1-sol
+        - chatgpt/gpt-6.1-terra
         - chatgpt/gpt-6-luna
         - router/glm-5.3
         - zai/glm-5.3
@@ -73,12 +74,14 @@
         - qwen-cloud/qwen3.8-max
         - qwen-cloud/qwen3.8-flash
         - kimi/k3
+        - kimi/k3.1-pro
         - router/deepseek-v4-pro
         - ollama-cloud/deepseek-v4-pro
         - ollama-cloud/deepseek-v4.1-flash
         - router/minimax-m3
         - moira/frontier
         - moira/strong
+        - moira/balanced
         - claude/sonnet-5-5
         - claude/opus-5-5
         - claude/fable-5-1
@@ -98,6 +101,7 @@
         - step/step-5-preview
         - chatgpt/gpt-6-astra
         - chatgpt/gpt-6.1-sol
+        - chatgpt/gpt-6.1-terra
         - chatgpt/gpt-6-luna
         - router/glm-5.3
         - zai/glm-5.3
@@ -128,6 +132,7 @@
         - commandcode/mimo-v2.6-flash
         - opencode-go/mimo-v2.6-flash
         - kimi/k3
+        - kimi/k3.1-pro
         - router/deepseek-v4-pro
         - ollama-cloud/deepseek-v4-pro
         - ollama-cloud/deepseek-v4.1-flash
@@ -138,6 +143,7 @@
         - aether/qwen3.8-27b
         - moira/frontier
         - moira/strong
+        - moira/balanced
         - moira/flash
         - moira/cyber
         - router/ling-3.1-flash
@@ -150,9 +156,9 @@
         - aether/qwen3.8-27b
 
       deskplane_mcp:
-        # Moira group (tiers.yaml): sol -> gemini-3.8-flash -> qwen3.8-flash-next.
+        # Moira group (tiers.yaml): terra -> gemini-3.8-flash -> qwen3.8-flash-next.
         - moira/computer-use
-        - chatgpt/gpt-6.1-sol
+        - chatgpt/gpt-6.1-terra
         - antigravity/gemini-3.8-flash
         - aether/qwen3.8-flash-next
         - aether/qwen3.8-27b
@@ -215,13 +221,13 @@
 
   tasks:
     - name: Load secrets
-      tags: [orion-mcp]
+      tags: [orion-mcp, deskplane-models, moira-models]
       community.sops.load_vars:
         file: "{{ aether_root }}/secrets/secrets.yml"
         name: secrets
 
     - name: Check LiteLLM key inputs
-      tags: [orion-mcp]
+      tags: [orion-mcp, deskplane-models, moira-models]
       ansible.builtin.assert:
         that:
           - secrets.litellm.master_key is defined
@@ -230,7 +236,7 @@
         fail_msg: "secrets.litellm.master_key and secrets.litellm.virtual_keys are required"
 
     - name: Wait for LiteLLM API
-      tags: [orion-mcp]
+      tags: [orion-mcp, deskplane-models, moira-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/health/liveliness"
         method: GET
@@ -305,6 +311,7 @@
       no_log: true
 
     - name: Synchronize omp virtual-key model allowlist
+      tags: [moira-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/update"
         method: POST
@@ -319,6 +326,7 @@
       no_log: true
 
     - name: Synchronize omp_coder virtual-key model allowlist
+      tags: [moira-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/update"
         method: POST
@@ -333,6 +341,7 @@
       no_log: true
 
     - name: Synchronize deskplane_mcp virtual-key model allowlist
+      tags: [deskplane-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/update"
         method: POST
@@ -347,6 +356,7 @@
       no_log: true
 
     - name: Synchronize colony virtual-key model allowlist
+      tags: [moira-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/update"
         method: POST

@@ -218,6 +218,15 @@ model_list:
       litellm_credential_name: kimi_credential
       allowed_openai_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Kimi K3.1 Pro, same coding subscription. /models advertises 1M context;
+  # vision + tools at max effort and max_tokens=131072 verified 2026-10-30.
+  # The provider always thinks; supported efforts are low/high/max.
+  - model_name: "kimi/k3.1-pro"
+    litellm_params:
+      model: "openai/k3.1-pro"
+      litellm_credential_name: kimi_credential
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Qwen Cloud models (https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1)
   # Limits: models.dev `alibaba-token-plan`.
@@ -654,6 +663,13 @@ model_list:
       model: "chatgpt/gpt-6.1-sol"
       allowed_openai_params: ["reasoning_effort"]
     model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
+  # Terra is the computer-use primary. Keep the existing conservative gateway
+  # token caps; subscription vision and function calling verified 2026-10-29.
+  - model_name: "chatgpt/gpt-6.1-terra"
+    litellm_params:
+      model: "chatgpt/gpt-6.1-terra"
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
   - model_name: "chatgpt/gpt-6-luna"
     litellm_params:
       model: "chatgpt/gpt-6-luna"
@@ -846,7 +862,7 @@ model_list:
       supports_reasoning: true
       supports_vision: true
       supported_openai_params: *openai_reasoning_params
-  # Haiku 5.5 (2026-10-07): moira/flash at high/xhigh (AA 37.8 / 41.2).
+  # Haiku 5.5 is the balanced tier's Claude-pool representative at xhigh.
   - model_name: "claude/haiku-5-5"
     litellm_params:
       model: "anthropic/claude-haiku-5-5"
@@ -880,45 +896,52 @@ model_list:
       supports_vision: true
       supported_openai_params: *openai_reasoning_params
 
-  # Moira tier aliases. Each copies the exact litellm_params + model_info of
-  # its tier's default model (muse-spark-1.3-contributor / k3 / glm-5.3-flash)
-  # and is a real deployment: it serves the static default when the
-  # moira_router hook leaves a moira/<tier> request unchanged (Moira
-  # passthrough or down). Moira never routes to Standard Muse, only Contributor.
+  # AA v5 aliases are real fail-open deployments when Moira is unavailable:
+  # Wonder Full max / Wonder max / DeepSeek Flash 1017 max / GLM Flash max.
+  # Discovery limits are conservative common-tier operating caps; standalone
+  # pins retain their own limits. Muse routes use Contributor, never Standard.
   - model_name: "moira/frontier"
     litellm_params:
-      model: "openai/muse-subscription/muse-spark-1.3-contributor"
+      model: "openai/muse-subscription/muse-wonder-full-1.0-contributor"
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+      reasoning_effort: max
       # Muse reasons silently on large agent contexts: the global 120 s cut
       # aborted in-progress turns (0 bytes relayed) and the timeout then
       # cooled the subscription (col-a06fd636, 2026-09-28). Match Grok.
       timeout: 900
       stream_timeout: 900
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
-  # Fail-open default when Moira is unreachable: Muse Contributor, the largest
-  # strong pool (~1.5B tokens/week). Kimi (the old default) has the smallest
-  # pool and was serving these while exhausted (2026-10-08).
+    model_info: {mode: chat, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Keep unmetered fail-open traffic off the smallest subscription pools.
   - model_name: "moira/strong"
     litellm_params:
-      model: "openai/muse-subscription/muse-spark-1.3-contributor"
+      model: "openai/muse-subscription/muse-wonder-1.0-contributor"
       litellm_credential_name: muse_bridge_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
+      reasoning_effort: max
       timeout: 900
       stream_timeout: 900
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
-  # Fail-open defaults for flash and cyber: GLM-5.3 Flash on Ollama Cloud
-  # (/v1). Z.AI's Lite plan has the smaller 5h window, so the default that
-  # runs unmetered (Moira unreachable) stays off it.
+    model_info: {mode: chat, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Balanced defaults to the existing Ollama Cloud DeepSeek 1017 pin.
+  - model_name: "moira/balanced"
+    litellm_params:
+      model: "openai/deepseek-v4.1-flash:1017"
+      litellm_credential_name: ollama_cloud_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+      reasoning_effort: max
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 500000, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Flash defaults to GLM Flash on Ollama rather than Z.AI's smaller 5h pool.
   - model_name: "moira/flash"
     litellm_params:
       model: "openai/glm-5.3-flash"
       litellm_credential_name: ollama_cloud_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {unique_response_ids: false}
+      reasoning_effort: max
+    model_info: {unique_response_ids: false, mode: chat, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   # Defensive security work, ranked by the AA Cyber Index with zero refusals
   # (moira/tiers.yaml `cyber`). Fail-open default: GLM-5.3 Flash (49.9, 0%).
   - model_name: "moira/cyber"
@@ -930,12 +953,12 @@ model_list:
     model_info: {unique_response_ids: false}
 
   # Moira group for Deskplane's browser/desktop agent (moira/tiers.yaml,
-  # preference order sol -> gemini-3.8-flash -> qwen3.8-flash-next). Like the
-  # tier aliases this is a real deployment: its static default (sol) serves the
+  # preference order terra -> gemini-3.8-flash -> qwen3.8-flash-next). Like the
+  # tier aliases this is a real deployment: its static default (terra) serves the
   # request when Moira is down or passes it through.
   - model_name: "moira/computer-use"
     litellm_params:
-      model: "chatgpt/gpt-6.1-sol"
+      model: "chatgpt/gpt-6.1-terra"
       allowed_openai_params: ["reasoning_effort"]
     model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
 

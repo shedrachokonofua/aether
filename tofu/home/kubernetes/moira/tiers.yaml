@@ -10,14 +10,48 @@ effort_caps:
 # purchased tier (total_credits) and renewal date (cycle.anchor); a plan with
 # either null produces no window.
 
-tiers:                      # inclusive AA score bands (data/aa_scores.yaml)
-  # Bands moved 2026-10-10 (were 48+ / 43-47 / 36-42): Sol at medium (AA 47.8,
-  # $0.21 per AA task) and Muse at max (48) now serve strong, the tier that
-  # ran dry first; frontier starts at Sol high (50). Gemini 4 Argon (AA 52.6,
-  # not public yet) lands in frontier.
-  frontier: { min: 50 }
-  strong:   { min: 44, max: 49 }
-  flash:     { min: 36, max: 43 }
+# AA Intelligence Index v5, integer-rounded scores. Each general tier selects
+# one model/effort per shared quota pool; pools remain shared across tiers.
+tiers:
+  frontier:
+    min: 50
+    members:
+      claude/opus-5-5: max
+      chatgpt/gpt-6.1-sol: max
+      meta/muse-wonder-full-1.0-contributor: max
+      # Gemini 4 Argon high scores 50, but stays gated until its distinct
+      # subscription quota is covered by the Antigravity usage bridge.
+  strong:
+    min: 40
+    max: 49
+    members:
+      kimi/k3.1-pro: max
+      chatgpt/gpt-6.1-terra: xhigh
+      meta/muse-wonder-1.0-contributor: max
+      claude/sonnet-5-5: high
+  balanced:
+    min: 30
+    max: 39
+    members:
+      supergrok/grok-4.7: high
+      claude/haiku-5-5: xhigh
+      qwen-cloud/qwen3.8-max: xhigh
+      ollama-cloud/deepseek-v4.1-flash: max
+      zai/glm-5.3: max
+      antigravity/gemini-3.8-flash: high
+      xiaomi/mimo-v2.6-pro: default
+      commandcode/mimo-v2.6-pro: default
+      opencode-go/mimo-v2.6-pro: default
+  flash:
+    min: 25
+    max: 29
+    members:
+      zai/glm-5.3-flash: max
+      ollama-cloud/glm-5.3-flash: max
+      chatgpt/gpt-6-luna: max
+      xiaomi/mimo-v2.6-flash: default
+      commandcode/mimo-v2.6-flash: default
+      opencode-go/mimo-v2.6-flash: default
   # AA Cyber Index (defensive vuln finding/patching); refusal = max refusal
   # rate across its three evals. Only models that never refused qualify.
   cyber:     { index: cyber, min: 40, max_refusal: 0 }
@@ -41,8 +75,8 @@ exclude:
 providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "chatgpt/",      id: chatgpt,      quota: { kind: sidecar } }
   - { prefix: "meta/",         id: muse,         quota: { kind: bridge, bridge: muse } }
-  # Claude subscription via claude-bridge; shares the operator's interactive
-  # Claude allowance. Scored: Opus (frontier efforts), Haiku 5.5 (flash efforts).
+  # All Claude subscription variants share the operator's interactive allowance:
+  # Opus serves frontier, Sonnet strong, and Haiku balanced.
   - { prefix: "claude/",       id: claude,       quota: { kind: bridge, bridge: claude } }
   # One Cline account, two meters: `cline-pass/*` upstreams draw on the Pass
   # plan (usage-limits windows); every other upstream bills Cline credits
@@ -86,10 +120,9 @@ groups:
   router/deepseek-v4-pro: [ollama-cloud/deepseek-v4-pro]
   router/ling-3.1-flash: [openrouter/ling-3.1-flash, commandcode-free/ling-3.1-flash]
   # Deskplane's browser/desktop agent (DESKPLANE_MCP_MODEL). Members need tool
-  # calling and vision; order = benchmark preference (deskplane
-  # mcp/bench/results/): sol most reliable, gemini fastest but made confident
-  # false claims, self-hosted qwen never runs out of quota.
-  moira/computer-use: [chatgpt/gpt-6.1-sol, antigravity/gemini-3.8-flash, aether/qwen3.8-flash-next]
+  # calling and vision. Terra is the operator-selected primary; the benchmarked
+  # fallbacks remain Gemini Flash, then self-hosted Qwen with no cloud quota.
+  moira/computer-use: [chatgpt/gpt-6.1-terra, antigravity/gemini-3.8-flash, aether/qwen3.8-flash-next]
 
 # Groups ranked by member order instead of quota urgency. Exhausted members are
 # still skipped; the next ones become the LiteLLM fallbacks.
