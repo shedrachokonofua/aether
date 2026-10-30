@@ -618,25 +618,31 @@ Go are separate purchased pools. Gemini 4 Argon high scores 50 but remains
 gated until its distinct quota is reported. GLM-5.3 Flash now has a measured
 v5 score of 28, replacing the provisional estimate.
 
-`moira/cyber` retains its separate AA [Cyber Index](https://artificialanalysis.ai/evaluations/artificial-analysis-cyber-index)
-policy: score at least 40, with zero refusals. Defensive vulnerability finding
-and patching uses the unchanged `cyber:` table in `data/aa_scores.yaml`. Each entry carries the
-model's highest refusal rate across the index's three evals, and the tier's
-`max_refusal: 0` drops any model that declined a task on safety grounds (GPT-6
-Sol and Astra, Gemini 3.8 Flash, Qwen3.8). Qualifying models as of 2026-10-05:
-Grok 4.7, MiMo V2.6 Pro, GPT-6 Luna, GLM-5.3 Flash, Muse Spark 1.3 and Kimi K3.
+`moira/cyber` uses the separate AA [Cyber Index v1](https://artificialanalysis.ai/evaluations/artificial-analysis-cyber-index):
+score at least 40 and zero safety blocks in all three evaluations. Its
+`cyber:` measurements in `data/aa_scores.yaml` were checked on 2026-10-30.
+The curated `members` select eight independent quota pools: Kimi K3.1 Pro;
+DeepSeek V4.1 Flash 1017 on Ollama; Grok 4.7; MiMo V2.6 Pro on Xiaomi,
+Command Code and OpenCode Go; GPT-6 Luna; and GLM-5.3 Flash on Z.AI.
+Kimi and GLM Flash use the verified max operating profiles, without claiming
+separate max-effort cyber measurements for their native/default AA rows.
+Historical K3/Spark rows and the invalid GPT-6 Sol → GPT-6.1 Sol score mapping
+are removed. Step 5 Preview passes the benchmark gate but remains outside
+membership after its free gateway route failed the probe. Unverified
+Sol/Terra, Muse Wonder and Gemini 4 cyber results are not borrowed from their
+general intelligence scores.
 
 `gpt-6-astra` and the `aether`, expired `step`, and disabled `clinepass`
 providers are excluded from score-based tiers. Unscored models are not tier
 candidates. Named groups have their own explicit membership; this preserves
 the unscored local computer-use fallback.
 
-General-tier `members` pin both the concrete model and its reasoning effort.
+Tier `members` pin both the concrete model and its reasoning effort.
 A request cannot substitute another effort from the same pool. Native
-`default` rows retain capped caller effort; a selected effort may use a
+`default` members retain capped caller effort; a selected effort may use a
 native-only score without inventing a separate benchmark measurement.
-Score bands still guard eligibility. Generic score-only tiers, including
-cyber, retain their existing effort-selection semantics.
+Score bands and the cyber refusal ceiling still guard eligibility, including
+explicit members. Tiers without `members` retain score-only effort selection.
 
 Ranking uses quota freshness (fresh > stale > unknown), urgency (remaining
 quota per hour until reset), then score. Sessions stick while the pinned
@@ -650,10 +656,11 @@ The hook fails open: Moira unreachable, timing out, or answering anything
 unexpected leaves the request unchanged and logs one warning line, so the
 real `moira/<tier>` deployments serve their static defaults: Wonder Full max
 for frontier, Wonder max for strong, Ollama DeepSeek Flash 1017 max for
-balanced, and Ollama GLM Flash max for flash. Cyber retains Ollama GLM Flash;
-computer-use retains Terra. Discovery advertises conservative pooled operating
-caps: 272000 input / 128000 output for frontier, strong and flash; 500000 /
-65536 for balanced. Standalone pins retain their provider-specific limits.
+balanced, and Ollama GLM Flash max for flash. Cyber uses Ollama DeepSeek Flash
+1017 max; computer-use retains Terra. Discovery advertises conservative pooled
+operating caps: 272000 input / 128000 output for frontier, strong, flash and
+cyber; 500000 / 65536 for balanced. Cyber does not advertise named forced
+tool choice across its mixed pool. Standalone pins retain their provider-specific limits.
 Because routing happens inside LiteLLM, every caller gets it regardless of
 entry point (gateway or in-cluster Service DNS).
 

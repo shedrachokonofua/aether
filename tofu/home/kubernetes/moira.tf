@@ -11,9 +11,9 @@
 # the LiteLLM model_list).
 
 locals {
-  # a93f11c: AA v5 scores and explicit model/effort representatives per tier.
-  # CI pipeline 9085 passed before this immutable image was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:3bed13d7a331e5f7238abc345edc45ea2ab3d3ad4ade5f0ad2738a76bd73b123"
+  # 487b2fb: refreshed AA Cyber Index v1 scores and explicit-member refusal guard.
+  # CI pipeline 9114 passed before this immutable image was selected.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:4985fe544b807525bcbd8a4632c2c753a90f3ae3718080224eede2b65e801d96"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }
