@@ -11,11 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 85026bd (build-image, image.digest): the planner gets a
-  # turn with the answer to its question (69). On top of 1a95244 (68),
-  # 97ece8c (67), f265b9d (default review lenses, 66), 0dd0633 (65),
-  # ded5f99 (64), ff3b9cd (63), 7278ce0 (62), b3fb0b7 (61), 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:ed30f9ae99e1b03245ac8e50c117f2c7e43f5306855133999bbbbd2d4d24b760"
+  # so/cicada main b9473e9 (build-image, image.digest): writers load skills
+  # from a daimyo bundle; the planner adds a security audit at each
+  # milestone's end (70). On top of 85026bd (69), 1a95244 (68), 97ece8c (67),
+  # f265b9d (default review lenses, 66) and 0dd0633 (65) back to 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:3474739c34172d67497c0928c49592e807853b05d0cdaafa2bb5779d8129fa86"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
@@ -50,6 +50,10 @@ locals {
     [agents]
     # As pods in cicada-tasks reach this Service.
     mcp_url = "http://cicada.cicada.svc.cluster.local:8080/mcp"
+    # Writers load these from daimyo.tf's cicada-skills ConfigBundle (Cicada
+    # decision 70): Cloudflare's security-audit skill, for the milestone audits
+    # the planner creates.
+    skills = { bundle = "cicada-skills", version = 1, names = ["security-audit"] }
 
     [review]
     # Every repository's default review lenses (Cicada decision 66). A repo's

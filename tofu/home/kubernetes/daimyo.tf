@@ -1478,6 +1478,39 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
   })
 }
 
+# Skills Cicada's API-managed writers load (cicada.tf `[agents] skills`).
+# security-audit is Cloudflare's skill, vendored unmodified at
+# c1c8a8c1471069fb0e188eeaff69b8e8db6564a8 under cicada-skills/ (MIT; the
+# validators' own tests left out). Versions are append-only (daimyo P2): to
+# change the files, add version 2 next to 1 and bump the version Cicada pins.
+resource "kubectl_manifest" "daimyo_cicada_skills" {
+  depends_on = [kubectl_manifest.daimyo_project]
+  # ~300 KB: over the 256 KB last-applied annotation client-side apply keeps.
+  server_side_apply = true
+  force_conflicts   = true
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "ConfigBundle"
+    metadata = {
+      name      = "cicada-skills"
+      namespace = "org-cicada"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      versions = [{
+        version = 1
+        contents = {
+          files = {
+            for f in fileset("${path.module}/cicada-skills", "**") :
+            "skills/${f}" => file("${path.module}/cicada-skills/${f}")
+          }
+        }
+      }]
+    }
+  })
+}
+
 # Cicada's ci_exec sandboxes, one class per repository (its workflow's
 # `[ci] sandbox_class`). Each repository owns its image: its pipeline
 # publishes `<repo>/ci:<commit sha>`, and Cicada names the digest per sandbox
