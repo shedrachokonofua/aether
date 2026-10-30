@@ -11,11 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 97ece8c (build-image, image.digest): a fresh writer session
-  # gets its own no-push reminder (decision 67). On top of f265b9d (default
-  # review lenses, 66), 0dd0633 (65), ded5f99 (64), ff3b9cd (63), 7278ce0
-  # (62), b3fb0b7 (61) and 2ee3cee (workload-kind token subs, 60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:7ef2e70a1ae10b52ed72738ea40938699cf271c16c1c7bd1b83d368d4ce0bc8a"
+  # so/cicada main 1a95244 (build-image, image.digest): lens prompts follow
+  # published review practice; every spec-blind lens sees rebuttals (68). On
+  # top of 97ece8c (67), f265b9d (default review lenses, 66), 0dd0633 (65),
+  # ded5f99 (64), ff3b9cd (63), 7278ce0 (62), b3fb0b7 (61), 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:976f02d000085f7d0820aab0f563f02fc262017564c45410735f0ee05e6f4a97"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
