@@ -125,11 +125,15 @@ locals {
   # ca63eb8 (pipeline 8359, fix 573042b): tool_result content blocks are
   # progress events, not terminal result payloads; session replay can advance.
   daimyo_server_tag = "sha256:a2c144ebe6a8cbb4d83c176f3d677b30497508af347394f56a3b5bdaa99852fe"
-  # Sidecar 7f40da5: the kubernetes grant's kubeconfig projection and the
-  # per-task git identity env. Includes 9d1cfe8 (grants.json `workload`,
-  # session tool-approval routes) and ed78a29 (journal archives leave Unix
-  # sockets out, G20).
-  daimyo_sidecar_tag = "sha256:e5404509b1d14930bd24d5d3d062ab201188975c78209b2ef78959c30fbe24f8"
+  # Sidecar sidecar-1030a (dd1abce = 7f40da5 + ac0aaf3, tag pipeline 9132):
+  # model calls carry x-session-id = the task or session id, so Moira's
+  # session pin and content-refusal exclusion apply to daimyo agents. Built
+  # on 7f40da5 deliberately: main's later sidecar changes are not released.
+  # 7f40da5: the kubernetes grant's kubeconfig projection and the per-task
+  # git identity env. Includes 9d1cfe8 (grants.json `workload`, session
+  # tool-approval routes) and ed78a29 (journal archives leave Unix sockets
+  # out, G20).
+  daimyo_sidecar_tag = "sha256:e611dbf0d0d86c087cb7d5b336038892fbcafd2a505aad92fc87b6b4844c7733"
   # Claude-code and omp 8a300c3 (pipeline 8160): the coding harness images
   # carry pinned, checksum-verified kubectl v1.36.5 (the cluster minor) so a
   # kubernetes grant is usable - the grant hands the agent a kubeconfig for
