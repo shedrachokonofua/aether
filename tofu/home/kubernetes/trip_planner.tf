@@ -199,7 +199,7 @@ resource "kubectl_manifest" "daimyo_trip_planner_agent" {
       config      = { bundle = "trip-planner", version = local.trip_planner_bundle_version }
       harness = {
         kind         = "claude-code"
-        model        = "moira/strong"
+        model        = "moira/balanced"
         systemPrompt = <<-EOT
           You plan trips and price them with live, date-specific quotes.
           For every trip request, follow the trip-planning skill; it points
@@ -216,7 +216,7 @@ resource "kubectl_manifest" "daimyo_trip_planner_agent" {
       resources  = { cpu = "1", memory = "2Gi", workspace = "2Gi" }
       operations = [{ name = "ask", deadline = "2h" }]
       grants = [
-        { name = "models", model = { models = ["moira/strong"], budgetUsd = 10 } },
+        { name = "models", model = { models = ["moira/balanced"], budgetUsd = 10 } },
         {
           # Same Deskplane grant as `researcher` (token in OpenBao
           # orgs/personal/deskplane).

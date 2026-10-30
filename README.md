@@ -254,6 +254,38 @@ rollback SHA in Aether before the next apply; Helm rollback alone does not
 update the declared release pin. First-install failure is not a rollback to
 legacy Tofu owners and must never be handled by uninstall/reinstall.
 
+#### Moira Consumer Models
+
+Household OpenWebUI chats use `moira/strong`; its title, tag, follow-up and
+search-query background tasks stay on local `aether/qwen3.8-flash-next`.
+The declared `kubernetes_job_v1.openwebui_household_policy` migrates the
+existing "Family Assistant" database persona and its grants to strong,
+aligns `ui.default_models`, and replaces only explicit old household model
+selections in user preferences. It preserves historical chats, other model
+rows, capabilities and unrelated settings. A SQL hash in the Job name
+recreates the immutable Job when policy changes; it fails rather than
+overwriting an ambiguous persona or another model already using the ID.
+
+Daimyo's memory dreamer, researcher, frontend and trip planner use
+`moira/balanced`, with the three agents granted only that model alias.
+Dev retains `moira/strong`; narrow echo and QA agents retain `moira/flash`.
+Cicada review lenses use `moira/strong`, except the separate security lens
+on `moira/cyber`. Its org model ceiling includes balanced for writer grants.
+
+Deploy the balanced Moira tier and LiteLLM model catalog before switching
+consumers. Update only the existing `omp`, `omp_coder` and `colony` key
+allowlists, without generating credentials or touching other keys:
+
+```bash
+nix develop --command task ansible:playbook -- register_litellm_virtual_keys.yml --tags moira-models
+```
+
+This includes `moira/balanced`, `kimi/k3.1-pro` and `chatgpt/gpt-6.1-terra`
+alongside the keys' retained permissions. Deskplane's separate Terra-first
+computer-use policy and targeted `deskplane-models` tag remain unchanged.
+Use fresh Daimyo sessions to receive changed model grants; existing sessions
+remain pinned to their revision.
+
 #### Instacart MCP Access
 
 `litellm_config.yaml.tftpl` registers the in-cluster Instacart MCP; the

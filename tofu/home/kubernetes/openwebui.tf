@@ -611,13 +611,12 @@ resource "kubernetes_deployment_v1" "openwebui" {
             })
           }
 
-          # Default chat model for new chats. Family members only have access
-          # to this model (OpenWebUI's model row "Family Assistant" and its
-          # read grant to every user live in OpenWebUI's DB). Moira's frontier
-          # tier since 2026-10-13, replacing the router/family pool.
+          # Default chat model for new chats. Keep the household "Family
+          # Assistant" model row and read grant in OpenWebUI's DB in sync
+          # through the declarative family-access policy reconciler.
           env {
             name  = "DEFAULT_MODELS"
-            value = "moira/frontier"
+            value = "moira/strong"
           }
 
           # Background tasks (titles, tags, follow-ups, search queries) use
@@ -894,5 +893,141 @@ resource "kubernetes_manifest" "openwebui_route" {
         }]
       }]
     }
+  }
+}
+
+# OpenWebUI stores model visibility independently of environment defaults.
+# Rename only the household persona; historical chat payloads stay untouched.
+locals {
+  openwebui_household_policy_sql = <<-SQL
+    BEGIN;
+    LOCK TABLE model, access_grant IN SHARE ROW EXCLUSIVE MODE;
+    -- Tagged quotes survive Kubernetes command-argument expansion.
+    DO $household_policy$
+    BEGIN
+      IF (SELECT count(*) FROM model WHERE name = 'Family Assistant'
+          AND id IN ('moira/frontier', 'moira/strong')) <> 1 THEN
+        RAISE EXCEPTION 'Expected exactly one known Family Assistant model';
+      END IF;
+      IF EXISTS (SELECT 1 FROM model WHERE id = 'moira/strong'
+                 AND name <> 'Family Assistant') THEN
+        RAISE EXCEPTION 'moira/strong already belongs to another model';
+      END IF;
+    END $household_policy$;
+
+    -- Preserve the persona owner, capabilities, parameters and other metadata.
+    INSERT INTO access_grant
+      (id, resource_type, resource_id, principal_type, principal_id, permission, created_at)
+    SELECT gen_random_uuid()::text, resource_type, 'moira/strong', principal_type,
+           principal_id, permission, created_at
+    FROM access_grant
+    WHERE resource_type = 'model'
+      AND resource_id IN (SELECT id FROM model WHERE name = 'Family Assistant'
+                         AND id = 'moira/frontier')
+    ON CONFLICT (resource_type, resource_id, principal_type, principal_id, permission)
+      DO NOTHING;
+    DELETE FROM access_grant WHERE resource_type = 'model'
+      AND resource_id IN (SELECT id FROM model WHERE name = 'Family Assistant'
+                         AND id = 'moira/frontier');
+    UPDATE model
+    SET id = 'moira/strong', base_model_id = NULL,
+        meta = jsonb_set(meta::jsonb, '{description}',
+          to_jsonb('Everyday assistant for study, health, writing, and questions about photos or documents. Routed through Moira strong.'::text))::text,
+        updated_at = extract(epoch FROM now())::bigint
+    WHERE name = 'Family Assistant'
+      AND id IN ('moira/frontier', 'moira/strong');
+    INSERT INTO access_grant
+      (id, resource_type, resource_id, principal_type, principal_id, permission, created_at)
+    VALUES (gen_random_uuid()::text, 'model', 'moira/strong', 'user', '*', 'read',
+            extract(epoch FROM now())::bigint)
+    ON CONFLICT (resource_type, resource_id, principal_type, principal_id, permission)
+      DO NOTHING;
+
+    -- Persistent config is disabled, but keep its stored default aligned too.
+    INSERT INTO config (key, value, updated_at)
+    VALUES ('ui.default_models', '"moira/strong"'::json, extract(epoch FROM now())::bigint)
+    ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
+    -- Only replace explicit household selections; keep all other preferences.
+    UPDATE public."user" SET settings = jsonb_set(settings::jsonb, '{ui,models}',
+      (SELECT jsonb_agg(CASE WHEN selected = '"moira/frontier"'::jsonb
+                            THEN '"moira/strong"'::jsonb ELSE selected END ORDER BY position)
+       FROM jsonb_array_elements(settings::jsonb->'ui'->'models') WITH ORDINALITY AS models(selected, position)))::json
+    WHERE jsonb_typeof(settings::jsonb->'ui'->'models') = 'array'
+      AND settings::jsonb->'ui'->'models' ? 'moira/frontier';
+    COMMIT;
+  SQL
+}
+
+resource "kubernetes_job_v1" "openwebui_household_policy" {
+  depends_on = [kubernetes_deployment_v1.openwebui, kubernetes_secret_v1.openwebui_postgres]
+
+  metadata {
+    # A changed policy creates a new immutable Job instead of patching its pod.
+    name      = "openwebui-household-${substr(sha256(local.openwebui_household_policy_sql), 0, 12)}"
+    namespace = local.openwebui_namespace
+  }
+
+  spec {
+    backoff_limit           = 3
+    active_deadline_seconds = 300
+
+    template {
+      metadata {
+        labels = { app = "openwebui-household-policy", job = "household-policy" }
+      }
+      spec {
+        restart_policy                  = "OnFailure"
+        enable_service_links            = false
+        automount_service_account_token = false
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 999
+          run_as_group    = 999
+          seccomp_profile { type = "RuntimeDefault" }
+        }
+        container {
+          name    = "reconcile"
+          image   = local.postgres_image
+          command = ["psql", "--no-psqlrc", "--set=ON_ERROR_STOP=1", "--command", local.openwebui_household_policy_sql]
+          env {
+            name  = "PGHOST"
+            value = local.postgres_host
+          }
+          env {
+            name  = "PGDATABASE"
+            value = local.postgres_db
+          }
+          env {
+            name  = "PGUSER"
+            value = local.postgres_user
+          }
+          env {
+            name = "PGPASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.openwebui_postgres.metadata[0].name
+                key  = "POSTGRES_PASSWORD"
+              }
+            }
+          }
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            capabilities { drop = ["ALL"] }
+          }
+          resources {
+            requests = { cpu = "25m", memory = "32Mi" }
+            limits   = { cpu = "100m", memory = "64Mi" }
+          }
+        }
+      }
+    }
+  }
+
+  wait_for_completion = true
+  timeouts { create = "6m" }
+  lifecycle {
+    ignore_changes = [spec[0].template[0].spec[0].priority_class_name]
   }
 }
