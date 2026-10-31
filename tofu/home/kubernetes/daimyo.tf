@@ -134,6 +134,13 @@ locals {
   # tool-approval routes) and ed78a29 (journal archives leave Unix sockets
   # out, G20).
   daimyo_sidecar_tag = "sha256:e611dbf0d0d86c087cb7d5b336038892fbcafd2a505aad92fc87b6b4844c7733"
+  # omp be78340 (tag harness-1030a, branch harness-omp-18.14.1 on 8a300c3):
+  # omp 18.14.1 on Bun 1.4.4, run from its lockfile-pinned source with one
+  # reviewed snapcompact patch - `daimyo` provider readers get reasoning-free
+  # archives (gateway aliases such as moira/strong may reach Claude, whose
+  # reasoning_extraction classifier refused archived reasoning; existing
+  # archives re-render on the next request). Built amd64 locally (runner
+  # queue), verify stage 53 tests + reader smoke green.
   # Claude-code and omp 8a300c3 (pipeline 8160): the coding harness images
   # carry pinned, checksum-verified kubectl v1.36.5 (the cluster minor) so a
   # kubernetes grant is usable - the grant hands the agent a kubeconfig for
@@ -151,11 +158,14 @@ locals {
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
   daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:03926379fd6367c6e2b8ffdb10eac90a9e9e34c5d18af25c1c50e250919828e8"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:7514e19b8567974a5e36fe104d340c41ecb6e8da4178038dc5eb30ba0cb658d4"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:548eb77d5598ac21320090945a6b13db5b11ad8e5ad8033a76afa4749d96efcd"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
-  # omp-dev (pipeline 8342): coding toolchain image, attested v1 in
-  # org personal before applying the dev Agent image override.
-  daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:b43173b9c12ea7184c44b05992057cd2940532a22913b7c55e2180c65e70a077"
+  # omp-dev be78340 (tag harness-1030a): the dev toolchains layered on the
+  # omp 18.14.1 harness above (built amd64 locally). Attested v1 in org
+  # personal by hand (01M67YCHTT4ZK65ZFBPR32TZ4H): the in-cluster kit cannot
+  # reach the API servers from personal-tasks, the laptop kit cannot exec into
+  # sandboxed pods. Before that pipeline 8342 (omp 18.8.7).
+  daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:aaabe27bd7959eed069eb8005199f7ce743eedc9b13a98648f7457275c56f088"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   # 7eaeb9c echo (pipeline 6741, current Python SDK: prompt cancel, no null
