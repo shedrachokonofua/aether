@@ -335,8 +335,8 @@ ALTER TABLE otel.otel_metrics_histogram MODIFY TTL toDateTime(TimeUnix) + INTERV
 ALTER TABLE otel.otel_metrics_exponential_histogram MODIFY TTL toDateTime(TimeUnix) + INTERVAL 30 DAY;
 ALTER TABLE otel.otel_metrics_summary MODIFY TTL toDateTime(TimeUnix) + INTERVAL 30 DAY;
 
--- Verify these Attributes keys against live kube_namespace_labels after dual-write.
--- Mirrors prometheus-rules/namespace-contract.yml at HEAD; retain Prometheus lookback.
+-- Namespace contract labels from kube_namespace_labels; replaces the retired
+-- Prometheus recording rules (prometheus-rules/namespace-contract.yml).
 CREATE OR REPLACE VIEW aether.namespace_contract
 SQL SECURITY INVOKER
 AS SELECT

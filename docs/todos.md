@@ -64,7 +64,7 @@
   - [ ] Phase 3: calibrate rates on controlled, server, IoT, Gigahub, home, AWS, and GCP targets
   - [ ] Phase 4: enable six-hour discovery, daily critical/cloud, weekly known-host, and monthly blind-estate coverage progressively
   - [ ] Phase 5: correlate scanner findings with the P1-delivered Wazuh coverage and GCP OS Config; do not make Fleet retirement wait on scanner rollout
-- [ ] Finish telemetry historical backfills (`scripts/telemetry-migration`), then remove Prometheus and Loki dual-write copies.
+- [x] Finish telemetry historical backfills (`scripts/telemetry-migration`), then remove Prometheus and Loki dual-write copies (done 2026-10-30; their data volumes are retained on monitoring-stack).
   - The former GreptimeDB / ClickHouse cold-tier plan is superseded by the ClickStack migration. Current TTLs are logs 120d and metrics/traces 30d on the 2 TiB telemetry disk; no active SeaweedFS cold tier is declared. Retained archive buckets are not active query stores (see [Monitoring](monitoring.md)).
 - [ ] Remove east-west NAT masquerade — real source identity on mgmt net ([exploration](exploration/east-west-nat-removal.md))
   - [ ] Phase 0: live verification (pve-firewall, existing routes, conntrack snapshot)

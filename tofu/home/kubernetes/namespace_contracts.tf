@@ -1432,7 +1432,7 @@ locals {
   ns = { for name, mod in module.namespace : name => mod.name }
 
   # HTTP synthetic probes for concrete internal/public/tunnel app hostnames —
-  # consumed by blackbox-exporter via ansible/playbooks/monitoring_stack/prometheus.yml.j2.
+  # consumed by blackbox-exporter via ansible/playbooks/monitoring_stack/otel_config.yml.j2.
   # Wildcard HTTPRoutes are routing policy, not probeable endpoints.
   synthetic_probe_path_overrides = {
     # GET / is not a route; /ui/config.json is the public sign-in config.

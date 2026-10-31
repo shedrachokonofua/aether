@@ -59,11 +59,9 @@ monitoring_stack:
   ports:
     otel_grpc: 4317
     otel_http: 4318
-    loki: 3100
     loki_push: 3500
     otel_metrics: 8888
     otel_prometheus: 8889
-    prometheus: 9090
     clickhouse: 8123
     fleet: 8084
     blackbox: 9115

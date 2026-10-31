@@ -77,5 +77,4 @@ the handshake fails. Public-CA endpoints (the Caddy gateway) are covered by
 `blackbox-http-apps` and the 14-day `tls-cert-expiring-soon` alert. To add an
 internal endpoint, edit the `blackbox-tls` targets in
 `ansible/playbooks/monitoring_stack/otel_config.yml.j2` and run
-`task configure:monitoring -- --tags otel`. Keep the temporary backfill copy in
-`prometheus.yml.j2` aligned until Prometheus is removed.
+`task configure:monitoring -- --tags otel`.

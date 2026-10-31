@@ -5,7 +5,7 @@ locals {
   grafana_host         = "grafana.home.shdr.ch"
   grafana_tenants      = { for tenant in yamldecode(file("${path.module}/../../../config/tenants.yml")).tenants : tenant.name => tenant }
   grafana_dashboards   = fileset("${path.module}/grafana/dashboards", "*.json")
-  grafana_alert_rules  = toset([for filename in fileset("${path.module}/grafana/alerting/rules", "*.yml") : filename if !endswith(filename, ".prometheus.yml")])
+  grafana_alert_rules  = fileset("${path.module}/grafana/alerting/rules", "*.yml")
   grafana_clickhouse_json = {
     host            = "clickhouse.home.shdr.ch", port = 443, protocol = "http", secure = true
     defaultDatabase = "otel"

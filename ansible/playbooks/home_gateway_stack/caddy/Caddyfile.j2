@@ -291,18 +291,6 @@ otel-metrics.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.otel_metrics }}
 }
 
-prometheus.home.shdr.ch {
-  import home_acme_dns
-  import access_logs
-  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.prometheus }}
-}
-
-loki.home.shdr.ch {
-  import home_acme_dns
-  import access_logs
-  reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.loki }}
-}
-
 clickhouse.home.shdr.ch {
   import home_acme_dns
   import access_logs

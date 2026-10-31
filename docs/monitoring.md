@@ -14,8 +14,6 @@ flowchart TB
     ClickHouse --> Grafana["Grafana in Kubernetes"]
     Typed --> Grafana
     ClickHouse --> HyperDX["HyperDX in Kubernetes"]
-    Collector -->|temporary dual-write| Legacy[("Prometheus / Loki")]
-    Legacy -->|historical backfill| ClickHouse
 ```
 
 ## Central Stack
@@ -26,7 +24,6 @@ flowchart TB
 | ClickHouse | 26.6; unified `otel` telemetry database plus existing network/IDS SQL analytics |
 | Grafana | Kubernetes-hosted dashboards and SQL alert evaluation, using only datasource UID `clickhouse` |
 | HyperDX | Admin-only ClickStack exploration UI over ClickHouse, with local accounts |
-| Prometheus / Loki | Temporary dual-write copies and historical backfill sources; no dashboard or alert queries |
 
 Image pins and deployment lifecycle are declared in
 `ansible/playbooks/monitoring_stack/site.yml`; collector routing and scrape jobs
@@ -61,11 +58,16 @@ DDL and storage configuration live in
 `ansible/playbooks/monitoring_stack/clickhouse/20-otel-schema.sql` and
 `clickhouse-config.d/aether-telemetry-storage.xml` in the same playbook directory.
 
-Tempo, GreptimeDB, Janus, and VM Grafana have been removed. GreptimeDB's archive
-bucket is retained, not an active telemetry archive; `tofu/home/kubernetes/db_backups.tf`
-retires its credential-generation resources with `destroy = false`. Prometheus and Loki still receive a dual-written copy while
-historical backfills run from `scripts/telemetry-migration`; nothing queries them
-for dashboards or alerts. Remove them only after backfill completion.
+Tempo, GreptimeDB, Janus, VM Grafana, Prometheus, and Loki have been removed.
+GreptimeDB's archive bucket is retained, not an active telemetry archive;
+`tofu/home/kubernetes/db_backups.tf` retires its credential-generation resources
+with `destroy = false`. Prometheus and Loki were retired on 2026-10-30 after
+`scripts/telemetry-migration` backfilled their history into ClickHouse: logs from
+2026-09-29 11:09 UTC and metrics from 2026-09-30 17:09 UTC (older Prometheus data
+had passed its 30-day retention; Prometheus itself has no samples for
+2026-10-03 03:00–13:00 UTC). Their units and quadlets are gone; the
+`prometheus_storage` volume and `/var/lib/telemetry/loki` remain on the VM until
+deleted deliberately.
 
 ### Grafana, HyperDX, and tenancy
 

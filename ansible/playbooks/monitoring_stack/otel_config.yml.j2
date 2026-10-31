@@ -7,29 +7,25 @@ receivers:
         endpoint: "0.0.0.0:4318"
 
   # Generic Loki push-API receiver: a non-OTLP bridge for tools that cannot emit
-  # OTLP (currently unpoller UniFi events from home-gateway-stack). Any Loki-push
-  # client that reaches the port is accepted — an ACL restricts it to the pusher.
+  # OTLP (currently unpoller UniFi events from home-gateway-stack); lands in
+  # ClickHouse. Any Loki-push client that reaches the port is accepted — an ACL
+  # restricts it to the pusher.
   loki:
     protocols:
       http:
         endpoint: "0.0.0.0:{{ vm.monitoring_stack.ports.loki_push }}"
     use_incoming_timestamp: true
 
-  # Mirror prometheus.yml.j2 jobs during dual-write (including conditional probes).
+  # Every scrape job (Prometheus itself was retired 2026-10-30; ClickHouse is the
+  # only metrics store), including conditional probes.
   # Escape relabel replacement dollars as $$ for collector env expansion.
   prometheus:
     config:
       global:
         scrape_interval: 30s
       scrape_configs:
-        - job_name: "prometheus"
-          static_configs:
-            - targets: ["localhost:9090"]
-
         - job_name: "otel-collector"
-          # Collector self-metrics only. Fleet metrics arrive via remote-write
-          # (prometheusremotewrite exporter in otel_config.yml.j2) since 2026-07-26;
-          # the old otel-metrics pull job on :8889 was the incident-prone hot path.
+          # Collector self-metrics only. Fleet metrics arrive over OTLP.
           static_configs:
             - targets: ["localhost:8888"]
 
@@ -295,7 +291,7 @@ processors:
 connectors:
   # Route logs based on source - single decision point
   routing/logs:
-    default_pipelines: [logs/loki]
+    default_pipelines: [logs/default]
     error_mode: ignore
     table:
       - context: resource
@@ -323,7 +319,7 @@ connectors:
 
 
 exporters:
-  # Dual-write general telemetry; retention and schemas are managed by our DDL.
+  # General telemetry; retention and schemas are managed by our DDL.
   clickhouse/otel:
     endpoint: tcp://localhost:9000
     username: aether
@@ -358,40 +354,6 @@ exporters:
       initial_interval: 5s
       max_interval: 30s
       max_elapsed_time: 600s
-
-  # Push metrics into Prometheus via remote-write instead of accumulating a
-  # pull exposition on :8889. The pull path held every live fleet series in
-  # the exporter (O(total series) heap) and re-serialized ~220k samples per
-  # 30s scrape under a 25s deadline — the 2026-07-26 memory_limiter blackout
-  # started exactly there. Remote-write heap scales with in-flight batches.
-  prometheusremotewrite:
-    endpoint: http://localhost:9090/api/v1/write
-    # WithSuffixes matches the old :8889 names: the pull exporter appended
-    # _total/_bucket/_count/_sum type suffixes even with add_metric_suffixes:
-    # false (that flag only governed unit suffixes). WithoutSuffixes silently
-    # renamed every counter (DCGM_*_total, cnpg_*_total, ...) out from under
-    # rules.yml during the 2026-07-26 cutover.
-    translation_strategy: UnderscoreEscapingWithSuffixes
-    resource_to_telemetry_conversion:
-      enabled: false
-    # No target_info clutter; transform/metrics already promotes what we use.
-    target_info:
-      enabled: false
-    # Single consumer + no split parallelism: vanilla Prometheus rejects
-    # out-of-order samples, and multiple queue workers reorder writes.
-    remote_write_queue:
-      enabled: true
-      num_consumers: 1
-      queue_size: 50000 # data points; ~6s of buffer at current rate, bounded (2026-07-11 lesson)
-    max_batch_request_parallelism: 1
-    retry_on_failure:
-      enabled: true
-      initial_interval: 1s
-      max_interval: 30s
-      max_elapsed_time: 120s # bounded: past this the batch drops and enqueue/send-failed counters fire the alert
-
-  otlphttp/loki:
-    endpoint: http://localhost:3100/otlp
 
   clickhouse/zeek:
     endpoint: tcp://localhost:9000
@@ -464,14 +426,12 @@ service:
     logs:
       level: warn
   pipelines:
-    # OTLP metrics retain the promoted labels for both destinations.
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/metrics, batch]
-      exporters: [prometheusremotewrite, clickhouse/otel]
+      exporters: [clickhouse/otel]
 
     # The receiver emits up/scrape_* series alongside scraped target metrics.
-    # Never remote-write these: Prometheus still scrapes them during dual-write.
     metrics/scrape:
       receivers: [prometheus]
       processors: [memory_limiter, metric_start_time, batch]
@@ -512,17 +472,17 @@ service:
       processors: [batch/vyos_observations]
       exporters: [clickhouse/network_observations]
 
-    # All other logs -> Loki (default)
-    logs/loki:
+    # All other logs -> ClickHouse otel.otel_logs (default)
+    logs/default:
       receivers: [routing/logs]
-      exporters: [otlphttp/loki, clickhouse/otel]
+      exporters: [clickhouse/otel]
 
-    # Non-OTLP Loki-push sources (unpoller UniFi events) -> Loki, routed through
-    # the collector so they get batching, memory limiting, and the standard egress.
+    # Non-OTLP Loki-push sources (unpoller UniFi events), routed through the
+    # collector so they get batching, memory limiting, and the standard egress.
     logs/loki_push:
       receivers: [loki]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/loki, clickhouse/otel]
+      exporters: [clickhouse/otel]
 
     traces:
       receivers: [otlp]
