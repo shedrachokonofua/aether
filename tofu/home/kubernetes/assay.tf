@@ -7,8 +7,10 @@
 locals {
   assay_namespace            = module.namespace["assay"].name
   assay_host                 = "assay.home.shdr.ch"
-  assay_chart_version        = "0.2.34" # 0.2.34 = clickhouseUid values API; publish the assay chart before applying
-  assay_image_tag            = "v0.2.33"
+  assay_chart_version        = "0.2.34" # 0.2.34 = clickhouseUid values API
+  # v0.2.34 = v0.2.33 app code plus the ClickHouse chart port; GitLab registry
+  # cleanup already deleted the v0.2.33 images (the migrate hook could not pull).
+  assay_image_tag            = "v0.2.34"
   assay_registry_host        = "registry.gitlab.home.shdr.ch"
   assay_registry_repository  = "${local.assay_registry_host}/so/assay"
   assay_cnpg                 = "assay-cnpg"
