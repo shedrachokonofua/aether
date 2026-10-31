@@ -150,13 +150,15 @@ locals {
   # permission-prompt server is renamed `daimyo_permission`; ships with the
   # claude-code harness below, which uses the new name. Before that c151904.
   daimyo_sidecar_tag = "sha256:fcec03a1577e50597ba2a2f77dccb9149a1978834bc8ba384cfe5bf00696b407"
-  # omp f7241c6 (tag harness-1031-ask, pipeline 9208, verify stage 94 tests
-  # green): harness-omp-18.14.1's recipe (stock omp 18.14.1, bundled bin) and
-  # its 65,536-token driver fix, on main's SDK runner a2a43f4, whose runner
-  # turns an accepted ask_user into blocked/awaiting_input. No background-jobs
-  # module, like 177e319. Before that 177e319 (harness-1031b) below.
-  # Claude-code a2a43f4 (main pipeline 9184): 1c24a22 plus ask_user and the
-  # `daimyo_permission` server name (needs the sidecar above).
+  # omp and claude-code c2fb823 (main pipeline 9257, verify stages green:
+  # omp 93 tests + jobs/origin smokes, claude-code real-CLI suite): main's omp
+  # harness is now omp 18.14.1 with the background-jobs patch and the
+  # 65,536-token driver fix, so omp agents may enable sessions.backgroundJobs.
+  # Claude-code default sessions hold a native task-notification auto-turn's
+  # model call until the next admitted prompt (the idle interrupt alone had
+  # started losing that race). Before that omp f7241c6 (harness-1031-ask,
+  # stock 18.14.1, no job module) and claude-code a2a43f4 (main pipeline
+  # 9184): 1c24a22 plus ask_user and the `daimyo_permission` server name.
   # omp 177e319 (tag harness-1031b, branch harness-omp-18.14.1 on 8a300c3):
   # stock omp 18.14.1 on Bun 1.4.4 (published package, bundled bin, no omp
   # patch); the omp driver asks for 65,536 output tokens per alias instead of
@@ -184,8 +186,8 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:383a2a9f607dea5e27087377f677a43e0c98e6cb4e0a88cc5ea1794d7422974d"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:0fb14f462d729859760d5625c2f2aa7aecb774c6b2b892b4eb56a369365ad66f"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:97170efbf12ad93b0ab7a90da5dbe507fe325491728ac165349f2736340c6992"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:e7fb9a91f830b260e920a4e81599aef0635a1f8d7f3eddfd51cb7e2f394127ab"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
