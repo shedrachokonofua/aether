@@ -10,8 +10,8 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-c1ecf1a1"
-  deskplane_image_tag     = "c1ecf1a1"
+  deskplane_chart_version = "0.1.0-67c8d38e"
+  deskplane_image_tag     = "67c8d38e"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
@@ -63,6 +63,13 @@ locals {
       url  = "socks5://${var.rotating_proxy_addr}"
     },
   ]
+  # Shedrach's own machines, each running deskplane-device (Deskplane
+  # docs/design/devices.md). The daemon dials serve outbound with its token;
+  # read it from the deskplane-device-<name> Secret when installing.
+  deskplane_devices = {
+    "mac-mini"    = "Mac mini"
+    "macbook-air" = "MacBook Air"
+  }
 }
 
 
@@ -163,6 +170,25 @@ resource "kubernetes_secret_v1" "deskplane_mcp_llm_key" {
   }
   data = {
     api-key = local.deskplane_mcp_llm_key
+  }
+  type = "Opaque"
+}
+
+resource "random_password" "deskplane_device_token" {
+  for_each = local.deskplane_devices
+  length   = 48
+  special  = false
+}
+
+resource "kubernetes_secret_v1" "deskplane_device" {
+  for_each   = local.deskplane_devices
+  depends_on = [module.namespace["deskplane"]]
+  metadata {
+    name      = "deskplane-device-${each.key}"
+    namespace = local.deskplane_namespace
+  }
+  data = {
+    token = random_password.deskplane_device_token[each.key].result
   }
   type = "Opaque"
 }
@@ -457,6 +483,15 @@ resource "helm_release" "deskplane" {
     # can never drift from the actual user id.
     adminSubjects = [var.operator_oidc_subject]
 
+    # Devices are usable by their owner and by agents acting for the owner
+    # (Daimyo delegation tokens through deskplane-mcp's device_* tools).
+    devices = [for name, display in local.deskplane_devices : {
+      name           = name
+      displayName    = display
+      owner          = "user:shdrch"
+      tokenSecretRef = { name = kubernetes_secret_v1.deskplane_device[name].metadata[0].name, key = "token" }
+    }]
+
     mcp = {
       enabled = true
       resources = {
@@ -468,7 +503,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "42120098"
+        tag        = "67c8d38e"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
