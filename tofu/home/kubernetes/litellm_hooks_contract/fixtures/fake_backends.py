@@ -35,6 +35,9 @@ FAILING = {"test-mimo-chat", "test-mimo-stream", "test-mimo-resp"}
 # text (reasoning only) or after some.
 FILTER_EARLY = {"test-filter-early", "test-filter-early-b"}
 FILTER_LATE = {"test-filter-late"}
+# Responses leg streaming parallel tool calls with arguments only on the
+# function_call_arguments.done event (the ChatGPT/Codex backend's shape).
+PARALLEL_ARGS = "test-parallel-args"
 
 SCENARIOS = {
     "chat": ("test/mimo-chat", ["test/step-chat"]),
@@ -120,6 +123,8 @@ class Handler(BaseHTTPRequestHandler):
                 "message": f"{model} quota exhausted",
                 "type": "rate_limit_error", "code": 429,
             }})
+        if path.endswith("/responses") and model == PARALLEL_ARGS and body.get("stream"):
+            return self._parallel_args_stream(model)
         if path.endswith("/responses"):
             return self._json(200, {
                 "id": "resp_test", "object": "response", "created_at": 1,
@@ -166,6 +171,39 @@ class Handler(BaseHTTPRequestHandler):
             "usage": {"prompt_tokens": 1, "completion_tokens": 1,
                       "total_tokens": 2},
         })
+
+    def _parallel_args_stream(self, model):
+        """Three parallel calls the way the ChatGPT backend streams them: each
+        added -> arguments.done -> item.done, arguments only on the done event,
+        except call 1, which also streams deltas (must not arrive twice)."""
+        calls = [(0, "/a", None), (1, "/b", ['{"path"', ': "/b"}']), (2, "/c", None)]
+        items = []
+        events = [{"type": "response.created", "response": {
+            "id": "resp_parallel", "object": "response", "created_at": 1,
+            "model": model, "status": "in_progress", "output": []}}]
+        for index, path, deltas in calls:
+            arguments = json.dumps({"path": path})
+            item = {"id": f"fc_{index}", "type": "function_call", "status": "in_progress",
+                    "call_id": f"call_{index}", "name": "read", "arguments": ""}
+            events.append({"type": "response.output_item.added", "output_index": index, "item": item})
+            for delta in deltas or []:
+                events.append({"type": "response.function_call_arguments.delta",
+                               "output_index": index, "item_id": item["id"], "delta": delta})
+            events.append({"type": "response.function_call_arguments.done",
+                           "output_index": index, "item_id": item["id"], "arguments": arguments})
+            done = {**item, "status": "completed", "arguments": arguments}
+            events.append({"type": "response.output_item.done", "output_index": index, "item": done})
+            items.append(done)
+        events.append({"type": "response.completed", "response": {
+            "id": "resp_parallel", "object": "response", "created_at": 1,
+            "model": model, "status": "completed", "output": items,
+            "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}}})
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        for event in events:
+            self.wfile.write(b"data: " + json.dumps(event).encode() + b"\n\n")
+        return None
 
 
 if __name__ == "__main__":

@@ -113,6 +113,15 @@ model_list:
       model: openai/test-noinfo
       api_base: http://127.0.0.1:9000/v1
       api_key: test-key
+  # Chat completions bridged to a Responses backend that sends parallel tool
+  # call arguments only on function_call_arguments.done (ChatGPT/Codex shape).
+  # Mirrors the chatgpt/* entries in litellm_config.yaml.tftpl (mode: responses).
+  - model_name: "test/parallel-args"
+    litellm_params:
+      model: openai/test-parallel-args
+      api_base: http://127.0.0.1:9000/v1
+      api_key: test-key
+    model_info: {mode: responses}
 
 litellm_settings:
   drop_params: true
