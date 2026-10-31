@@ -135,7 +135,12 @@ locals {
   # needs_review state events carry the stored `blocked` report, and every
   # task's DAIMYO_MCP_SERVERS names the sidecar's built-in `daimyo` server.
   # No migrations. Before that c151904 above.
-  daimyo_server_tag = "sha256:c26f92a70e003166182de9ab71c5e152dbde0a30864d9389d97c1253c613713b"
+  # 19ae53c (main pipeline 9215, all tests green): kata finish waits until a
+  # deleted pod leaves the apiserver (5b3fdf7), so an upgrade/relaunch no
+  # longer reads a journal manifest the old sidecar's shutdown sync is still
+  # rewriting ("no --object URL names .../inc-N-M"). No migrations. Sidecar
+  # unchanged. Before that a2a43f4 above.
+  daimyo_server_tag = "sha256:a3f7fca696ddecdd383f7eeff39f2283eafb8e99df08a7e1dddba8976b26dc55"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -618,9 +623,12 @@ resource "helm_release" "daimyo" {
     }
     # Pre-pull only where agent pods can run: the kata RuntimeClass schedules
     # on kubernetes.io/arch=amd64, and the images are amd64 (the arm pool
-    # would only spend disk on them).
+    # would only spend disk on them). `images` adds the per-agent
+    # harness.image overrides config.harness.images does not list: without
+    # it dev's first pod on a node pulled the ~1 GB omp-dev image (66 s).
     prepull = {
       nodeSelector = { "kubernetes.io/arch" = "amd64" }
+      images       = { "omp-dev" = local.daimyo_harness_omp_dev_image }
     }
     config = {
       publicBaseUrl       = "https://daimyo.home.shdr.ch"
