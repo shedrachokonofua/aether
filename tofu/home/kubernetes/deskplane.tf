@@ -67,8 +67,7 @@ locals {
   # docs/design/devices.md). The daemon dials serve outbound with its token;
   # read it from the deskplane-device-<name> Secret when installing.
   deskplane_devices = {
-    "mac-mini"    = "Mac mini"
-    "macbook-air" = "MacBook Air"
+    "mac-mini" = "Mac mini"
   }
 }
 
