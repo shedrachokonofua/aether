@@ -552,6 +552,17 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
   force_conflicts   = true
 }
 
+# Molecule runner pool (daimyo docs/ops/molecule-runners.md): `harness.kind:
+# molecule` agents run as wasm components in daimyo-molecule runners, not Kata
+# pods. First cluster use, for Orion's orion-molecule test agent. The runner is
+# 19ae53c (main pipeline 9215, build:daimyo-molecule), the same commit as
+# daimyo_server_tag; the component pin is that image's
+# /opt/molecule/components/agents/molecule-agent.sha256. Bump both together.
+locals {
+  daimyo_molecule_tag             = "sha256:475be234ace00801b47c4d9b06e96148c79d9ba1e3151875221e2b835fe9f2df"
+  daimyo_molecule_agent_component = "molecule-agent@sha256:75863b75f40c74f55cf4b59ad03a4febec514d222714f07029d42e90c84f1625"
+}
+
 resource "helm_release" "daimyo" {
   depends_on = [
     terraform_data.daimyo_chart_present,
@@ -598,6 +609,14 @@ resource "helm_release" "daimyo" {
     sidecarImage = {
       repository = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-sidecar"
       tag        = local.daimyo_sidecar_tag
+    }
+    # One runner while orion-molecule is a test; the image is amd64-only.
+    molecule = {
+      enabled        = true
+      replicas       = 1
+      image          = { tag = local.daimyo_molecule_tag }
+      agentComponent = local.daimyo_molecule_agent_component
+      nodeSelector   = { "kubernetes.io/arch" = "amd64" }
     }
     secrets = {
       postgres       = kubernetes_secret_v1.daimyo_postgres.metadata[0].name
