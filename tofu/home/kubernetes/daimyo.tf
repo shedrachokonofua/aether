@@ -140,7 +140,13 @@ locals {
   # longer reads a journal manifest the old sidecar's shutdown sync is still
   # rewriting ("no --object URL names .../inc-N-M"). No migrations. Sidecar
   # unchanged. Before that a2a43f4 above.
-  daimyo_server_tag = "sha256:a3f7fca696ddecdd383f7eeff39f2283eafb8e99df08a7e1dddba8976b26dc55"
+  # 6943756 (branch fix/pool-hold-and-wait on 19ae53c, MR !18, pipelines
+  # 9271/9272): task and session lists no longer hold one engine connection
+  # while waiting for a second (the 2026-10-31 pool deadlock), file-input
+  # checks reuse the admission transaction, /readyz pings a dedicated health
+  # connection, and API/engine pool acquires fail after 5 s. No migrations.
+  # Sidecar unchanged. Before that 19ae53c above.
+  daimyo_server_tag = "sha256:9ad0791acb6c60df00aed7dbcae32c2f6bca5fef69c8be6911ac72d06de31b58"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -1135,10 +1141,16 @@ resource "kubectl_manifest" "daimyo_org" {
           ),
         ] : []
         namespaces = { config = "org-${each.key}", tasks = "${each.key}-tasks" }
-        quotas     = { concurrentTasks = 10 }
-        budget     = { monthlyUsd = 500 }
-        storage    = { bucket = "daimyo-${each.key}" }
-        secrets    = { openbaoPath = "orgs/${each.key}" }
+        # personal: 20 hot sessions (default 5). Orion threads, coordinators,
+        # dev, trip-planner, rogue and Orion's spare session share the cap; at
+        # 5 the LRU eviction put threads idle 1-4 min cold.
+        quotas = merge(
+          { concurrentTasks = 10 },
+          each.key == "personal" ? { concurrentSessions = 20 } : {},
+        )
+        budget  = { monthlyUsd = 500 }
+        storage = { bucket = "daimyo-${each.key}" }
+        secrets = { openbaoPath = "orgs/${each.key}" }
       },
       each.key == "seven30" ? {
         issuers = [
@@ -1208,9 +1220,10 @@ resource "kubectl_manifest" "daimyo_org" {
             allowedRepos = ["so/*", "seven30/*"]
           }
           kubernetes = { serviceAccounts = ["dev"] }
-          # Rogue keeps external trust: only public web tools through Deskplane.
+          # Rogue keeps external trust: public web tools through Deskplane and
+          # its qbittorrent grant through the LiteLLM gateway (orion.tf).
           externalAgents = {
-            allowedHosts = ["deskplane-mcp.deskplane.svc"]
+            allowedHosts = ["deskplane-mcp.deskplane.svc", "litellm.litellm.svc.cluster.local"]
           }
         }
       } : name => extra if name == each.key })...
