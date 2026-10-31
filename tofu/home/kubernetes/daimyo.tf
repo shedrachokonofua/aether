@@ -141,9 +141,10 @@ locals {
   # stock omp 18.14.1 on Bun 1.4.4, the published package and its bundled bin,
   # no omp patch (harness-1030a's snapcompact patch is withdrawn). Built amd64
   # locally (runner queue), verify stage 53 tests green.
-  # Claude-code c151904 (main pipeline 9177 tag-unchanged; built in 9171 at
-  # ecb42b3): the SDK harness with session background jobs and agent-call
-  # delivery, on the checksum-pinned Claude 2.1.123 native patch. omp stays
+  # Claude-code 1c24a22 (main pipeline 9181): the SDK harness with session
+  # background jobs and agent-call delivery, on the checksum-pinned Claude
+  # 2.1.123 native patch; job-origin completion turns skip the user-input
+  # schema (c151904's image refused them). omp stays
   # on harness-1031a above (main's omp harness is 18.13.0). Before that
   # claude-code and omp 8a300c3 (pipeline 8160): the coding harness images
   # carry pinned, checksum-verified kubectl v1.36.5 (the cluster minor) so a
@@ -161,7 +162,7 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:37ed041ed8093f3e953284fa0ffe6c42175762a9dbb7ff246e5386a31520278f"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:4f08e9a36b5f898d4d175d580cacf9c30454a5a6802d4ab6b56aae5d3503381e"
   daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:32ee9557a2da9c54653897ade016ac2ac5e7fc91354d9f7c326d524da25ce4b8"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 013a8dd (tag harness-1031a): the dev toolchains layered on the
