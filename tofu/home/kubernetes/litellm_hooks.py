@@ -891,3 +891,88 @@ def _install_empty_function_call_filter() -> None:
 
 
 _install_empty_function_call_filter()
+
+
+# Responses argument events -> the delta event carrying the same payload, and
+# the field holding that payload on the done event.
+_ARGUMENT_DONE_AS_DELTA = {
+    "response.function_call_arguments.done": ("response.function_call_arguments.delta", "arguments"),
+    "response.custom_tool_call_input.done": ("response.custom_tool_call_input.delta", "input"),
+}
+_ARGUMENT_DELTAS = frozenset(delta for delta, _field in _ARGUMENT_DONE_AS_DELTA.values())
+_TOOL_CALL_ITEMS = frozenset({"function_call", "custom_tool_call"})
+
+
+def _event_type(chunk: dict) -> str:
+    value = chunk.get("type")
+    return str(getattr(value, "value", value))
+
+
+def _done_as_delta(chunk: dict, streamed: set) -> dict:
+    """Rewrite an arguments `.done` event as a `.delta` when the call has no arguments yet.
+
+    Records every output_index whose arguments reached the client (a non-empty
+    delta, or arguments already on output_item.added), so a call that did
+    stream deltas never gets its arguments a second time.
+    """
+    event = _event_type(chunk)
+    output_index = chunk.get("output_index", 0)
+    if event in _ARGUMENT_DELTAS:
+        if chunk.get("delta"):
+            streamed.add(output_index)
+        return chunk
+    if event == "response.output_item.added":
+        item = chunk.get("item") or {}
+        if item.get("type") in _TOOL_CALL_ITEMS and (item.get("arguments") or item.get("input")):
+            streamed.add(output_index)
+        return chunk
+    rewrite = _ARGUMENT_DONE_AS_DELTA.get(event)
+    if rewrite is None or output_index in streamed:
+        return chunk
+    delta_event, field = rewrite
+    arguments = chunk.get(field)
+    if not isinstance(arguments, str) or not arguments:
+        return chunk
+    streamed.add(output_index)
+    return {**chunk, "type": delta_event, "delta": arguments}
+
+
+def _install_done_only_tool_arguments() -> None:
+    """Stream tool-call arguments that arrive only on the `.done` event.
+
+    For parallel tool calls the ChatGPT (Codex) backend sends each call as
+    output_item.added (empty arguments) -> function_call_arguments.done (full
+    arguments) -> output_item.done, with no function_call_arguments.delta.
+    LiteLLM's Responses -> chat-completions stream bridge (still in 1.106)
+    forwards only deltas and drops both done events, so chat clients got every
+    parallel call with empty arguments: agent tool calls failed validation with
+    `Received arguments: {}` (daimyo: ~100-240 a day from 2026-10-23). Upstream
+    BerriAI/litellm#45348; fix PR #45356 was closed unmerged.
+
+    This wraps the per-stream chunk_parser and turns such a done event into the
+    equivalent delta, so LiteLLM's own delta branch emits it with the stream's
+    sequential tool-call index and no id. The ChatGPT provider's
+    ChatGPTToolCallNormalizer assigns id-less chunks to the last opened call,
+    which is this one because the backend finishes each call before opening the
+    next. Re-check this patch point when bumping the LiteLLM image; drop it once
+    upstream handles the done events.
+    """
+    from litellm.completion_extras.litellm_responses_transformation.transformation import (
+        OpenAiResponsesToChatCompletionStreamIterator,
+    )
+
+    parse = OpenAiResponsesToChatCompletionStreamIterator.chunk_parser
+    if getattr(parse, "_aether_streams_done_only_arguments", False):
+        return
+
+    def chunk_parser(self: Any, chunk: Any) -> Any:
+        if isinstance(chunk, dict):
+            streamed = self.__dict__.setdefault("_aether_streamed_argument_indexes", set())
+            chunk = _done_as_delta(chunk, streamed)
+        return parse(self, chunk)
+
+    chunk_parser._aether_streams_done_only_arguments = True  # type: ignore[attr-defined]
+    OpenAiResponsesToChatCompletionStreamIterator.chunk_parser = chunk_parser  # type: ignore[method-assign]
+
+
+_install_done_only_tool_arguments()

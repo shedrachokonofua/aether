@@ -12,7 +12,10 @@ real litellm_hooks.py and fake backends:
 3. a no-op (original request untouched) when model_info lacks the keys
    or is absent;
 4. every adaptation is visible in the proxy log at INFO with the deployment
-   name and what changed (no prompt content).
+   name and what changed (no prompt content);
+5. parallel tool calls bridged from a Responses backend that sends arguments
+   only on function_call_arguments.done reach the chat client with their
+   arguments, exactly once each.
 
 Exit 0 = all assertions passed; 1 = at least one failed.
 """
@@ -331,6 +334,38 @@ def scenario_filter_unrouted():
     check(reports() == [], f"filter unrouted: nothing reported, got {reports()}")
 
 
+def streamed_tool_calls(events):
+    """Accumulate streamed tool calls by index, as a chat-completions client does."""
+    calls = {}
+    for event in events:
+        for choice in event.get("choices") or []:
+            for call in (choice.get("delta") or {}).get("tool_calls") or []:
+                entry = calls.setdefault(call.get("index"), {"id": None, "name": None, "arguments": ""})
+                function = call.get("function") or {}
+                entry["id"] = entry["id"] or call.get("id")
+                entry["name"] = entry["name"] or function.get("name")
+                entry["arguments"] += function.get("arguments") or ""
+    return calls
+
+
+def scenario_parallel_done_only_arguments():
+    print("parallel tool calls whose arguments arrive only on .done: every call streams its arguments once")
+    fake_post("/reset")
+    status, _, body_text = post("/v1/chat/completions", {
+        "model": "test/parallel-args", "stream": True,
+        "messages": [{"role": "user", "content": "read /a, /b and /c"}],
+        "tools": [{"type": "function", "function": {
+            "name": "read", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}}],
+    })
+    calls = streamed_tool_calls(sse_events(body_text))
+    check(status == 200, f"parallel args: request succeeded, got {status}: {body_text[:300]}")
+    check([(index, c["name"]) for index, c in sorted(calls.items())] == [(0, "read"), (1, "read"), (2, "read")],
+          f"parallel args: three calls at indexes 0-2, got {calls}")
+    check([c["arguments"] for _, c in sorted(calls.items())] == [
+        '{"path": "/a"}', '{"path": "/b"}', '{"path": "/c"}'],
+        f"parallel args: done-only calls get their arguments, the delta-streamed one exactly once, got {calls}")
+
+
 def main():
     scenario_chat()
     scenario_stream()
@@ -343,6 +378,7 @@ def main():
     scenario_filter_late()
     scenario_filter_nonstream()
     scenario_filter_unrouted()
+    scenario_parallel_done_only_arguments()
     if failures:
         print(f"\n{len(failures)} assertion(s) FAILED", file=sys.stderr)
         return 1
