@@ -10,8 +10,8 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-67c8d38e"
-  deskplane_image_tag     = "67c8d38e"
+  deskplane_chart_version = "0.1.0-cb9887e9"
+  deskplane_image_tag     = "cb9887e9"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
@@ -502,7 +502,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "67c8d38e"
+        tag        = "cb9887e9"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
@@ -524,9 +524,9 @@ resource "helm_release" "deskplane" {
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # The web engine's LLM calls (json/summary/extract) use it too.
-        # moira/computer-use (moira/tiers.yaml): sol, then gemini-3.8-flash, then
-        # self-hosted qwen3.8-flash-next, skipping any member out of quota. The
-        # order follows deskplane mcp/bench/results/.
+        # moira/computer-use (moira/tiers.yaml): terra, then gemini-3.8-flash,
+        # then self-hosted qwen3.8-flash-next, skipping any member out of quota.
+        # Terra is operator-selected; the benchmarked fallbacks are unchanged.
         DESKPLANE_MCP_MODEL           = "moira/computer-use"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"
