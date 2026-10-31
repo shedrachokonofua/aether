@@ -131,12 +131,27 @@ locals {
   # warms a cold parent). Migrations 0051-0057; Agent CRD (sessions
   # .backgroundJobs/.budgetUsd) applied server-side before Helm. Before that
   # ca63eb8 (pipeline 8359, fix 573042b).
-  daimyo_server_tag = "sha256:303d5b0290eea7b35e24dd37aadf1fa5e6646d564f6791f9f2dcce650b2422df"
+  # a2a43f4 (main pipeline 9184, all tests green): ask_user (Needs you) -
+  # needs_review state events carry the stored `blocked` report, and every
+  # task's DAIMYO_MCP_SERVERS names the sidecar's built-in `daimyo` server.
+  # No migrations. Before that c151904 above.
+  daimyo_server_tag = "sha256:c26f92a70e003166182de9ab71c5e152dbde0a30864d9389d97c1253c613713b"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
   # Before that sidecar-1030a (dd1abce = 7f40da5 + ac0aaf3, pipeline 9132).
-  daimyo_sidecar_tag = "sha256:005090d347ac87cc4d2013b68943358442e21a9567c406198c8e89234ab02425"
+  # Sidecar a2a43f4 (main pipeline 9184): the built-in `daimyo` MCP endpoint
+  # serves ask_user on every task (one accepted ask per turn) and Claude's
+  # permission-prompt server is renamed `daimyo_permission`; ships with the
+  # claude-code harness below, which uses the new name. Before that c151904.
+  daimyo_sidecar_tag = "sha256:fcec03a1577e50597ba2a2f77dccb9149a1978834bc8ba384cfe5bf00696b407"
+  # omp f7241c6 (tag harness-1031-ask, pipeline 9208, verify stage 94 tests
+  # green): harness-omp-18.14.1's recipe (stock omp 18.14.1, bundled bin) and
+  # its 65,536-token driver fix, on main's SDK runner a2a43f4, whose runner
+  # turns an accepted ask_user into blocked/awaiting_input. No background-jobs
+  # module, like 177e319. Before that 177e319 (harness-1031b) below.
+  # Claude-code a2a43f4 (main pipeline 9184): 1c24a22 plus ask_user and the
+  # `daimyo_permission` server name (needs the sidecar above).
   # omp 177e319 (tag harness-1031b, branch harness-omp-18.14.1 on 8a300c3):
   # stock omp 18.14.1 on Bun 1.4.4 (published package, bundled bin, no omp
   # patch); the omp driver asks for 65,536 output tokens per alias instead of
@@ -164,9 +179,12 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:4f08e9a36b5f898d4d175d580cacf9c30454a5a6802d4ab6b56aae5d3503381e"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:206bc1c5a306279793307fd2a18c6bb316c8ec7c474200e629e50eaa276accc0"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:383a2a9f607dea5e27087377f677a43e0c98e6cb4e0a88cc5ea1794d7422974d"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:0fb14f462d729859760d5625c2f2aa7aecb774c6b2b892b4eb56a369365ad66f"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
+  # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
+  # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
+  # but is not attested in org personal; dev sees ask_user but cannot block.
   # omp-dev 177e319 (tag harness-1031b): the dev toolchains layered on the
   # omp harness above (built amd64 locally). Attested v1 in org personal by
   # hand (01M68NEQWDYYD1YNFBX9M71P5G): the in-cluster kit cannot reach the
