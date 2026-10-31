@@ -14,7 +14,13 @@ locals {
   litellm_google_maps_package = "@cablate/mcp-google-map@0.0.52"
   litellm_affine_mcp_image    = "ghcr.io/dawncr0w/affine-mcp-server:latest"
   litellm_tmdb_image          = "ghcr.io/cyanheads/tmdb-mcp-server:0.1.1"
-  litellm_jellyfin_mcp_image  = "docker.io/knucklessg1/jellyfin-mcp:mcp"
+  # Pinned: the mutable `mcp` tag moved to a build whose MCP SDK refuses a
+  # 0.0.0.0 listener without MCP_ALLOWED_HOSTS/TLS, and a crashlooping
+  # sidecar keeps the whole LiteLLM pod unready (2026-10-31 outage).
+  litellm_jellyfin_mcp_image = "docker.io/knucklessg1/jellyfin-mcp:mcp@sha256:fc371dc6578e12eaba31710bfb447915ab1f4a12fd9005cc89dee77b745e43a2"
+  # qbittorrent-mcp-rs: granular tools (per-tool gateway and grant policy),
+  # distroless multi-arch image. HTTP mode is SSE only, port 3000 hardcoded.
+  litellm_qbit_mcp_image = "docker.io/nicholaswilde/qbittorrent-mcp-rs:0.3.9@sha256:f800f77f03d4ee3bcd98ff5cc07a8938197e8bdb1dde2f753af11e8459d8b1e3"
   # Official Comfy-Org comfy-mcp is stdio-only and needs mcp>=2; mcp-proxy
   # (mcp<2) bridges it to streamable HTTP, so each gets its own venv.
   litellm_comfy_mcp_image     = "docker.io/python:3.13-slim"
@@ -33,6 +39,7 @@ locals {
   litellm_tmdb_port           = 8006
   litellm_jellyfin_mcp_port   = 8007
   litellm_comfy_mcp_port      = 8008
+  litellm_qbit_mcp_port       = 3000
   litellm_espn_mcp_port       = 8080
   litellm_postgres_port       = 5432
   litellm_cnpg_cluster        = "litellm-cnpg"
@@ -46,6 +53,7 @@ locals {
     fm_mcp_token               = random_password.fm_mcp_token.result
     hyperdx_mcp_token          = var.secrets["hyperdx.api_key"]
     google_maps_enabled        = var.litellm_google_maps_enabled
+    qbittorrent_mcp_token      = random_password.litellm_qbit_mcp.result
   })
   litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@${local.litellm_db_host}/litellm?sslmode=disable"
   litellm_registry_host = "registry.gitlab.home.shdr.ch"
@@ -89,6 +97,9 @@ resource "kubernetes_secret_v1" "litellm_env" {
       JELLYFIN_API_KEY      = var.secrets["jellyfin.beryl_api_key"]
       AFFINE_API_TOKEN      = var.secrets["litellm.affine_api_token"]
       AFFINE_MCP_HTTP_TOKEN = random_password.litellm_affine_mcp_http.result
+      QBIT_MCP_USERNAME     = var.secrets["qbittorrent.username"]
+      QBIT_MCP_PASSWORD     = var.secrets["qbittorrent.password"]
+      QBIT_MCP_HTTP_TOKEN   = random_password.litellm_qbit_mcp.result
       LITELLM_CONFIG_SHA    = sha256(local.litellm_config_yaml)
     },
     var.litellm_google_maps_enabled ? {
@@ -100,6 +111,13 @@ resource "kubernetes_secret_v1" "litellm_env" {
 }
 
 resource "random_password" "litellm_affine_mcp_http" {
+  length  = 48
+  special = false
+}
+
+# Bearer token LiteLLM presents to the qbittorrent-mcp sidecar, which listens
+# on the pod IP (0.0.0.0:3000 is hardcoded upstream).
+resource "random_password" "litellm_qbit_mcp" {
   length  = 48
   special = false
 }
@@ -976,6 +994,105 @@ resource "kubernetes_deployment_v1" "litellm" {
             limits = {
               cpu    = "500m"
               memory = "1Gi"
+            }
+          }
+        }
+        container {
+          name  = "qbittorrent-mcp"
+          image = local.litellm_qbit_mcp_image
+          # SSE MCP on 0.0.0.0:3000 (hardcoded), bearer-token gated; logs in to
+          # the WebUI with the exporter's credentials. Env keys are
+          # QBITTORRENT_ + config key, so the instance fields carry a second
+          # QBITTORRENT_ (upstream README's QBITTORRENT_HOST is ignored).
+
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = true
+            run_as_user                = 65532
+            run_as_group               = 65532
+            capabilities { drop = ["ALL"] }
+          }
+
+          port {
+            container_port = local.litellm_qbit_mcp_port
+            name           = "qbit-mcp"
+          }
+
+          env {
+            name  = "QBITTORRENT_SERVER_MODE"
+            value = "http"
+          }
+
+          env {
+            name  = "QBITTORRENT_QBITTORRENT_HOST"
+            value = "http://qbittorrent.${local.qbittorrent_ns}.svc.cluster.local:${local.qbittorrent_port}"
+          }
+
+          # Re-login only happens in this sync poll, so it bounds recovery
+          # after a qBittorrent restart; it also keeps the WebUI session warm.
+          env {
+            name  = "QBITTORRENT_POLLING_INTERVAL_MS"
+            value = "10000"
+          }
+
+          env {
+            name = "QBITTORRENT_QBITTORRENT_USERNAME"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "QBIT_MCP_USERNAME"
+              }
+            }
+          }
+
+          env {
+            name = "QBITTORRENT_QBITTORRENT_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "QBIT_MCP_PASSWORD"
+              }
+            }
+          }
+
+          env {
+            name = "QBITTORRENT_HTTP_AUTH_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "QBIT_MCP_HTTP_TOKEN"
+              }
+            }
+          }
+
+          # No health endpoint and /sse needs the token: probe the socket.
+          readiness_probe {
+            tcp_socket {
+              port = local.litellm_qbit_mcp_port
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 10
+            failure_threshold     = 6
+          }
+
+          liveness_probe {
+            tcp_socket {
+              port = local.litellm_qbit_mcp_port
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 30
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "16Mi"
+            }
+            limits = {
+              cpu    = "200m"
+              memory = "128Mi"
             }
           }
         }
