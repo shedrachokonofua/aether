@@ -650,7 +650,7 @@ groups:
       # TLS cert expiry — fires 14 days before a probed cert's NotAfter.
       # Targets are scraped by blackbox-exporter via the `tls_connect` module
       # (see ansible/playbooks/monitoring_stack/blackbox.yml + the
-      # `blackbox-tls` job in prometheus.yml.j2). Lab learned this matters in
+      # `blackbox-tls` job in otel_config.yml.j2). Lab learned this matters in
       # the Apr 2026 OpenBao outage: server cert silently rolled past
       # NotAfter and every machine using openbao-agent stopped renewing.
       - uid: tls-cert-expiring-soon

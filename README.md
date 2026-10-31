@@ -42,10 +42,10 @@ Details in [Hosts](docs/hosts.md); VM placement in
 | Cloud | AWS, Google Cloud, Cloudflare — public ingress, SES, identity federation, uptime monitoring, budgets, offsite backup |
 | Automation | OpenTofu, Ansible, NixOS, Talos, go-task, GitLab CI/CD |
 
-ClickHouse is the telemetry query store; Grafana dashboards and alerts use SQL.
-Prometheus and Loki still receive dual-written copies and supply historical
-backfills only; they are scheduled for removal after backfill completion. See
-[Monitoring](docs/monitoring.md) for storage, retention, and tenant isolation.
+ClickHouse is the telemetry store; Grafana dashboards and alerts use SQL.
+Prometheus and Loki were retired on 2026-10-30 after their history was
+backfilled into ClickHouse. See [Monitoring](docs/monitoring.md) for storage,
+retention, and tenant isolation.
 
 ## Getting Started
 

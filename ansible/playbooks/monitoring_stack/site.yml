@@ -58,22 +58,21 @@
     - dnf
     - vm_monitoring_agent
   tasks:
-    # Keep Loki local state on the dedicated telemetry disk alongside ClickHouse.
+    # ClickHouse telemetry tables live on the dedicated telemetry disk.
     - name: Install telemetry filesystem tooling
       ansible.builtin.dnf:
         name:
-          - rsync
           - xfsprogs
         state: present
       become: true
-      tags: [loki, clickhouse]
+      tags: [clickhouse]
 
     - name: Verify dedicated telemetry archive disk is attached
       ansible.builtin.assert:
         that:
           - ansible_devices.vdb is defined
         fail_msg: "Expected the Tofu-managed telemetry archive disk at /dev/vdb."
-      tags: [loki, clickhouse]
+      tags: [clickhouse]
 
     - name: Format dedicated telemetry archive disk
       community.general.filesystem:
@@ -81,21 +80,21 @@
         fstype: xfs
         resizefs: true
       become: true
-      tags: [loki, clickhouse]
+      tags: [clickhouse]
 
     - name: Remove legacy telemetry archive mount
       ansible.posix.mount:
         path: /var/lib/thanos
         state: absent
       become: true
-      tags: [loki, clickhouse]
+      tags: [clickhouse]
 
     - name: Remove legacy telemetry archive mountpoint
       ansible.builtin.file:
         path: /var/lib/thanos
         state: absent
       become: true
-      tags: [loki, clickhouse]
+      tags: [clickhouse]
 
     - name: Create telemetry archive data mountpoint
       ansible.builtin.file:
@@ -105,7 +104,7 @@
         group: root
         mode: "0755"
       become: true
-      tags: [loki, clickhouse]
+      tags: [clickhouse]
 
     - name: Mount dedicated telemetry archive disk
       ansible.posix.mount:
@@ -115,88 +114,9 @@
         opts: defaults,noatime
         state: mounted
       become: true
-      tags: [loki, clickhouse]
-
-    - name: Create Loki data directory on telemetry disk
-      ansible.builtin.file:
-        path: /var/lib/telemetry/loki
-        state: directory
-        owner: aether
-        group: aether
-        mode: "0777"
-      become: true
-      tags: [loki]
-
-    - name: Check for legacy Loki data on the root disk
-      ansible.builtin.stat:
-        path: /home/aether/loki/data
-      register: legacy_loki_data
-      tags: [loki]
-
-    - name: Seed Loki data on the telemetry disk
-      ansible.builtin.command:
-        argv:
-          - rsync
-          - -aHAX
-          - --numeric-ids
-          - /home/aether/loki/data/
-          - /var/lib/telemetry/loki/
-      become: true
-      when: legacy_loki_data.stat.exists
-      tags: [loki]
-
-    - name: Check whether the Loki quadlet exists
-      ansible.builtin.stat:
-        path: /home/aether/.config/containers/systemd/loki.container
-      register: loki_quadlet
-      tags: [loki]
-
-    - name: Stop Loki for the final data sync
-      ansible.builtin.systemd:
-        name: loki
-        state: stopped
-        scope: user
-      when:
-        - legacy_loki_data.stat.exists
-        - loki_quadlet.stat.exists
-      tags: [loki]
-
-    - name: Finalize Loki data on the telemetry disk
-      ansible.builtin.command:
-        argv:
-          - rsync
-          - -aHAX
-          - --delete
-          - --numeric-ids
-          - /home/aether/loki/data/
-          - /var/lib/telemetry/loki/
-      become: true
-      when: legacy_loki_data.stat.exists
-      tags: [loki]
+      tags: [clickhouse]
 
     # === Directory Setup ===
-    - name: Create prometheus directories
-      become: true
-      file:
-        path: "{{ item }}"
-        state: directory
-        mode: "0777"
-        owner: aether
-        group: aether
-      loop:
-        - ./prometheus/data
-        - ./prometheus/rules
-      tags: [prometheus]
-
-    - name: Create Loki configuration directory
-      become: true
-      ansible.builtin.file:
-        path: ./loki
-        state: directory
-        mode: "0777"
-        owner: aether
-        group: aether
-      tags: [loki]
 
     - name: Create otel directory
       become: true
@@ -305,7 +225,7 @@
     - name: Discover retired monitoring quadlets
       ansible.builtin.stat:
         path: "/home/aether/.config/containers/systemd/{{ item }}.container"
-      loop: [tempo, greptime, janus, grafana]
+      loop: [tempo, greptime, janus, grafana, prometheus, loki, prom_proxy_seven30, loki_proxy_seven30]
       register: retired_monitoring_quadlets
       tags: [monitoring-pod]
 
@@ -322,22 +242,8 @@
       ansible.builtin.file:
         path: "/home/aether/.config/containers/systemd/{{ item }}.container"
         state: absent
-      loop: [tempo, greptime, janus, grafana]
+      loop: [tempo, greptime, janus, grafana, prometheus, loki, prom_proxy_seven30, loki_proxy_seven30]
       tags: [monitoring-pod]
-
-    - name: Template prometheus config
-      template:
-        src: ./prometheus.yml.j2
-        dest: ./prometheus/prometheus.yml
-        mode: "0644"
-      tags: [prometheus, prometheus-config]
-
-    - name: Copy prometheus rules
-      copy:
-        src: ./prometheus-rules/
-        dest: ./prometheus/rules/
-        mode: "0644"
-      tags: [prometheus]
 
     - name: Copy blackbox-exporter config
       copy:
@@ -358,13 +264,6 @@
         mode: "0644"
       register: blackbox_ca_install
       tags: [blackbox]
-
-    - name: Create loki config
-      copy:
-        src: ./loki_config.yml
-        dest: ./loki/loki_config.yml
-        mode: "0755"
-      tags: [loki]
 
     - name: Create otel config
       template:
@@ -495,8 +394,6 @@
       containers.podman.podman_pod:
         name: monitoring-stack
         ports:
-          - "{{ vm.monitoring_stack.ports.prometheus }}:9090"
-          - "{{ vm.monitoring_stack.ports.loki }}:3100"
           - "{{ vm.monitoring_stack.ports.loki_push }}:3500" # collector Loki push-API receiver (unpoller UniFi events)
           - "{{ vm.monitoring_stack.ports.otel_grpc }}:4317"
           - "{{ vm.monitoring_stack.ports.otel_http }}:4318"
@@ -513,25 +410,9 @@
           - |
             [Install]
             WantedBy=default.target
-      tags:
-        [
-          prometheus,
-          loki,
-          otel,
-          clickhouse,
-          pve-exporter,
-          pbs-exporter,
-          blackbox,
-          monitoring-pod,
-        ]
+      tags: [otel, clickhouse, pve-exporter, pbs-exporter, blackbox, monitoring-pod]
 
     # === Volumes ===
-    - name: Create prometheus storage volume
-      containers.podman.podman_volume:
-        name: prometheus_storage
-        state: quadlet
-      tags: [prometheus]
-
     - name: Create clickhouse storage volume
       containers.podman.podman_volume:
         name: clickhouse_storage
@@ -539,45 +420,6 @@
       tags: [clickhouse]
 
     # === Containers ===
-    - name: Start prometheus
-      containers.podman.podman_container:
-        name: prometheus
-        image: docker.io/prom/prometheus:latest
-        pod: monitoring-stack.pod
-        volumes:
-          - prometheus_storage.volume:/prometheus
-          - /home/aether/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
-          - /home/aether/prometheus/rules:/etc/prometheus/rules:Z
-        command:
-          - "--config.file=/etc/prometheus/prometheus.yml"
-          - "--storage.tsdb.path=/prometheus"
-          # 30d (was 15d default): the 14d security-rule soak window barely fit inside
-          # default retention, so promotion reviews lost the pre-soak context. 30d covers
-          # soak + prior fortnight and widens Argos's feature-extraction window.
-          # Disk: ~15-22GB extra at current series counts.
-          - "--storage.tsdb.retention.time=30d"
-          - "--web.console.libraries=/etc/prometheus/console_libraries"
-          - "--web.console.templates=/etc/prometheus/consoles"
-          - "--web.enable-lifecycle"
-          # Central OTel collector pushes fleet metrics here (prometheusremotewrite
-          # exporter -> localhost:9090/api/v1/write) since the 2026-07-26 cutover.
-          - "--web.enable-remote-write-receiver"
-        env:
-          # GOGC=200: verified ~0.15 core less GC CPU (16% vs ~20% VM). Costs ~2GB RSS (prom ~4.8GB);
-          # box has 7GB+ free so it's a good RAM-for-CPU trade on this power-optimized stack.
-          GOGC: "200"
-          GOMEMLIMIT: "5GiB" # soft cap: runtime tightens GC (not OOM) if heap spikes on WAL-replay/compaction/heavy query
-        stop_timeout: 120
-        state: quadlet
-        quadlet_options:
-          - |
-            [Service]
-            Restart=on-failure
-            RestartSec=30s
-            TimeoutStartSec=300s
-            TimeoutStopSec=120s
-      tags: [prometheus, prometheus-quadlet]
-
     - name: Start blackbox-exporter
       containers.podman.podman_container:
         name: blackbox-exporter
@@ -597,30 +439,6 @@
             TimeoutStartSec=300s
       register: blackbox_quadlet_definition
       tags: [blackbox]
-
-    - name: Start Loki
-      containers.podman.podman_container:
-        name: loki
-        # Pinned (was :latest) 2026-07-11: a fresh :latest pull on a pod restart
-        # start-timed-out and killed the log sink, cascading to k8s-metrics-dead.
-        # Renovate bumps this.
-        image: docker.io/grafana/loki:3.7.3
-        pod: monitoring-stack.pod
-        pull: missing
-        command:
-          - "-config.file=/etc/loki/config.yml"
-        volumes:
-          - /home/aether/loki/loki_config.yml:/etc/loki/config.yml:Z
-          - /var/lib/telemetry/loki:/var/lib/loki:Z
-        state: quadlet
-        # WAL replay under mass-restart contention needs headroom past the default.
-        quadlet_options:
-          - |
-            [Service]
-            Restart=on-failure
-            RestartSec=30s
-            TimeoutStartSec=300
-      tags: [loki]
 
     - name: Start otel collector
       containers.podman.podman_container:
@@ -715,50 +533,28 @@
       systemd:
         daemon_reload: yes
         scope: user
-      tags:
-        [
-          prometheus,
-          prometheus-quadlet,
-          loki,
-          otel,
-          clickhouse,
-          pve-exporter,
-          pbs-exporter,
-          systemd,
-          monitoring-pod,
-        ]
+      tags: [otel, clickhouse, pve-exporter, pbs-exporter, systemd, monitoring-pod]
 
     - name: Start monitoring stack quadlet
       systemd:
         name: monitoring-stack-pod
         state: restarted
         scope: user
-      tags:
-        [
-          prometheus,
-          loki,
-          otel,
-          clickhouse,
-          pve-exporter,
-          pbs-exporter,
-          monitoring-pod,
-        ]
+      tags: [otel, clickhouse, pve-exporter, pbs-exporter, monitoring-pod]
 
 
     - name: Discover monitoring component quadlets
       ansible.builtin.stat:
         path: "/home/aether/.config/containers/systemd/{{ item.file }}.container"
       loop:
-        - { file: prometheus, unit: prometheus }
         - { file: blackbox-exporter, unit: blackbox-exporter }
-        - { file: loki, unit: loki }
         - { file: otel_collector, unit: otel_collector }
         - { file: pve_exporter, unit: pve_exporter }
         - { file: pbs_exporter, unit: pbs_exporter }
         - { file: clickhouse, unit: clickhouse }
       register: monitoring_component_quadlets
       tags:
-        [prometheus, blackbox, loki, otel, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
+        [blackbox, otel, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
 
     - name: Ensure existing monitoring component quadlets are running
       ansible.builtin.systemd:
@@ -768,7 +564,7 @@
       loop: "{{ monitoring_component_quadlets.results }}"
       when: item.stat.exists
       tags:
-        [prometheus, blackbox, loki, otel, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
+        [blackbox, otel, pve-exporter, pbs-exporter, clickhouse, monitoring-pod]
 
     - name: Restart blackbox-exporter after config, CA, or quadlet updates
       ansible.builtin.systemd:
@@ -781,25 +577,6 @@
         or (blackbox_ca_install is defined and blackbox_ca_install.changed)
         or (blackbox_quadlet_definition is defined and blackbox_quadlet_definition.changed)
       tags: [blackbox]
-
-    - name: Wait for Loki after telemetry disk migration
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ vm.monitoring_stack.ports.loki }}/ready"
-        method: GET
-        status_code: 200
-      register: loki_health
-      until: loki_health.status == 200
-      retries: 60
-      delay: 5
-      tags: [loki]
-
-    - name: Remove migrated Loki data from the root disk
-      ansible.builtin.file:
-        path: /home/aether/loki/data
-        state: absent
-      become: true
-      when: legacy_loki_data.stat.exists
-      tags: [loki]
 
 
     - name: Restart ClickHouse after configuration or quadlet changes

@@ -37,9 +37,9 @@ services may have additional passthrough devices, datasets, or mount points.
 `virtio1` (`config/vm.yml`). The guest mounts it as XFS at `/var/lib/telemetry`;
 ClickHouse's `telemetry` storage policy uses `/var/lib/telemetry/clickhouse`
 (`ansible/playbooks/monitoring_stack/clickhouse-config.d/aether-telemetry-storage.xml`).
-Loki's temporary backfill data also remains on that disk. Grafana and HyperDX
-run in Kubernetes, not on this VM. See `docs/monitoring.md` for retention and
-the remaining Prometheus/Loki backfill lifecycle.
+Retired Loki data also remains on that disk until deleted deliberately. Grafana
+and HyperDX run in Kubernetes, not on this VM. See `docs/monitoring.md` for
+retention and the Prometheus/Loki retirement.
 
 ## Talos VMs
 

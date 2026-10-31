@@ -3,15 +3,15 @@
 This playbook configures the Fedora monitoring-stack VM and its Podman Quadlet services:
 
 - Otel Collector
-- Prometheus
-- Loki
 - ClickHouse
 - Fleet (osquery management)
 
-Grafana and HyperDX now run in Kubernetes. Prometheus and Loki remain on the VM
-while multi-day historical backfills read their data. Tempo, GreptimeDB, Janus,
-and VM Grafana are retired; the playbook stops their units and removes only
-their container quadlet definitions, not their volumes or data directories.
+Grafana and HyperDX now run in Kubernetes. Tempo, GreptimeDB, Janus, VM
+Grafana, Prometheus, and Loki are retired (Prometheus and Loki on 2026-10-30,
+after their history was backfilled into ClickHouse); the playbook stops their
+units and removes only their container quadlet definitions, not their volumes
+or data directories. The `prometheus_storage` volume (root disk) and
+`/var/lib/telemetry/loki` are retained until deleted deliberately.
 
 ## Usage
 
@@ -26,30 +26,29 @@ largest telemetry tables:
 
 | Guest storage | Proxmox storage | Filesystem and mount | Data |
 | --- | --- | --- | --- |
-| 256 GiB `virtio0` root disk | `local-lvm` | Btrfs `/` and `/home` | OS, Prometheus, ClickHouse network/security databases and access metadata, service configuration |
-| 1 TiB `virtio1` telemetry disk | `local-fast` | XFS `/var/lib/telemetry` | ClickHouse `otel` tables, Loki data and retained GreptimeDB local metadata, WAL, and cache |
+| 256 GiB `virtio0` root disk | `local-lvm` | Btrfs `/` and `/home` | OS, ClickHouse network/security databases and access metadata, service configuration, retained `prometheus_storage` volume |
+| 1 TiB `virtio1` telemetry disk | `local-fast` | XFS `/var/lib/telemetry` | ClickHouse `otel` tables, retained Loki data and GreptimeDB local metadata, WAL, and cache |
 | Retained SeaweedFS `greptime-telemetry` bucket | `hdd/seaweedfs` on Smith | S3 | Archived GreptimeDB historical telemetry objects; no longer provisioned |
 
 The telemetry disk is declared by `config/vm.yml` and
 `tofu/home/monitoring_stack.tf`; `site.yml` formats and mounts it before the
-ClickHouse and Loki Quadlets start. ClickHouse telemetry tables use
+ClickHouse Quadlet starts. ClickHouse telemetry tables use
 the `telemetry` storage policy: one volume on the `telemetry` disk at
 `/var/lib/telemetry/clickhouse/`, bind-mounted at the same path with SELinux
 labeling and image UID/GID 101 ownership (translated to subordinate host IDs
 with `podman unshare chown`, not literal host UID 101). The default policy and named volume
 on the root disk retain existing network/security databases and ClickHouse
 metadata; this change does not move their parts. Capacity or filesystem failure
-on the telemetry disk now affects telemetry queries and alerting. Account for
-dual-write storage growth before decommissioning the older stores. ClickHouse
-server memory is capped at 6 GiB while those stores share the 16 GiB VM; raise
-that cap only after Prometheus and Loki are decommissioned.
+on the telemetry disk now affects telemetry queries and alerting. ClickHouse
+server memory is capped at 6 GiB on the 16 GiB VM; Prometheus and Loki no longer
+share it, so the cap can be raised if dashboards hit memory limits.
 
 Check the live layout from the guest:
 
 ```bash
 findmnt -T /var/lib/telemetry
 df -hT / /var/lib/telemetry
-systemctl --user is-active prometheus clickhouse loki
+systemctl --user is-active clickhouse otel_collector
 ```
 
 The retired Greptime archive bucket and local state, Tempo data, and VM Grafana
