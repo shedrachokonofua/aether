@@ -124,16 +124,19 @@ locals {
   # migration 0050 task-parent lineage. Agent/Org CRDs applied before Helm.
   # ca63eb8 (pipeline 8359, fix 573042b): tool_result content blocks are
   # progress events, not terminal result payloads; session replay can advance.
-  daimyo_server_tag = "sha256:a2c144ebe6a8cbb4d83c176f3d677b30497508af347394f56a3b5bdaa99852fe"
-  # Sidecar sidecar-1030a (dd1abce = 7f40da5 + ac0aaf3, tag pipeline 9132):
-  # model calls carry x-session-id = the task or session id, so Moira's
-  # session pin and content-refusal exclusion apply to daimyo agents. Built
-  # on 7f40da5 deliberately: main's later sidecar changes are not released.
-  # 7f40da5: the kubernetes grant's kubeconfig projection and the per-task
-  # git identity env. Includes 9d1cfe8 (grants.json `workload`, session
-  # tool-approval routes) and ed78a29 (journal archives leave Unix sockets
-  # out, G20).
-  daimyo_sidecar_tag = "sha256:e611dbf0d0d86c087cb7d5b336038892fbcafd2a505aad92fc87b6b4844c7733"
+  # c151904 (main pipeline 9177, all tests green): session background jobs
+  # (d5dfb4f; opt-in per agent with sessions.backgroundJobs + budgetUsd) and
+  # background agent calls (ecb42b3: an agent tool's `background: true`
+  # returns at once; the child's answer arrives as a job-completion turn and
+  # warms a cold parent). Migrations 0051-0057; Agent CRD (sessions
+  # .backgroundJobs/.budgetUsd) applied server-side before Helm. Before that
+  # ca63eb8 (pipeline 8359, fix 573042b).
+  daimyo_server_tag = "sha256:303d5b0290eea7b35e24dd37aadf1fa5e6646d564f6791f9f2dcce650b2422df"
+  # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
+  # (ac0aaf3, previously released alone as sidecar-1030a), background-job
+  # origin identities, and the `agents` server's `background` argument.
+  # Before that sidecar-1030a (dd1abce = 7f40da5 + ac0aaf3, pipeline 9132).
+  daimyo_sidecar_tag = "sha256:005090d347ac87cc4d2013b68943358442e21a9567c406198c8e89234ab02425"
   # omp be78340 (tag harness-1030a, branch harness-omp-18.14.1 on 8a300c3):
   # omp 18.14.1 on Bun 1.4.4, run from its lockfile-pinned source with one
   # reviewed snapcompact patch - `daimyo` provider readers get reasoning-free
@@ -141,7 +144,12 @@ locals {
   # reasoning_extraction classifier refused archived reasoning; existing
   # archives re-render on the next request). Built amd64 locally (runner
   # queue), verify stage 53 tests + reader smoke green.
-  # Claude-code and omp 8a300c3 (pipeline 8160): the coding harness images
+  # Claude-code c151904 (main pipeline 9177 tag-unchanged; built in 9171 at
+  # ecb42b3): the SDK harness with session background jobs and agent-call
+  # delivery, on the checksum-pinned Claude 2.1.123 native patch. omp stays
+  # on harness-1030a above (main's omp harness is 18.13.0, without the
+  # snapcompact patch). Before that
+  # claude-code and omp 8a300c3 (pipeline 8160): the coding harness images
   # carry pinned, checksum-verified kubectl v1.36.5 (the cluster minor) so a
   # kubernetes grant is usable - the grant hands the agent a kubeconfig for
   # the sidecar's API-server proxy and expects the real client. Before that
@@ -157,7 +165,7 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:03926379fd6367c6e2b8ffdb10eac90a9e9e34c5d18af25c1c50e250919828e8"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:37ed041ed8093f3e953284fa0ffe6c42175762a9dbb7ff246e5386a31520278f"
   daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:548eb77d5598ac21320090945a6b13db5b11ad8e5ad8033a76afa4749d96efcd"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev be78340 (tag harness-1030a): the dev toolchains layered on the
