@@ -363,6 +363,14 @@ disk (no Ceph dependency), two legs: `vmbr0` on the Gigahub segment
 construction; it is itself patched by `nixos-lock` like any NixOS host, but
 never by its own conductor mid-run (self-update only between runs).
 
+No CI runner runs on the control host. GitLab CI (runners on the `gitlab` VM
+and in k8s) only validates and publishes: policy lint, `estate-declared`,
+Renovate, `tofu plan`. The conductor is **pull-based**: it reads the status
+view and fetches `main` itself, pins each plan to a commit, and copies every
+artifact it needs (repo checkout, images, packages where possible) to local
+disk before the run starts. That way a run never depends on GitLab, which sits
+behind the router and is itself a wave-6 migration and gated update target.
+
 ### 9.2 Identity and credentials
 
 ```mermaid
@@ -478,6 +486,9 @@ Agent-drafted plans pass the same validator as compiled plans.
 - The approval binds to the plan hash; any plan change invalidates it.
 - The control host has no inbound exposure beyond the approval UI behind
   Keycloak on the LAN; it is a tier-0 asset in `docs/trust-model.md`.
+- No pipeline code executes on the control host: a runner there would let any
+  branch, including Renovate and Colony MRs, run next to the conductor's
+  standing credentials.
 - Probes are read-only and resource-capped; their envelopes contain versions
   and counts only (no package lists with paths, no config content).
 
