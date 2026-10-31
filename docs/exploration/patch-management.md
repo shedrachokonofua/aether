@@ -1,6 +1,6 @@
 # Patch Management Exploration
 
-> 2026-10-30: Superseded by [estate-updates.md](estate-updates.md) (Cadence). Kept for history.
+> 2026-10-30: Superseded by [estate-updates.md](estate-updates.md) (Custos). Kept for history.
 
 > 2026-10-13: The telemetry backend/current-state assumptions below were superseded by the ClickStack migration; see [current monitoring](../monitoring.md) and `../../tofu/home/kubernetes/grafana.tf`.
 

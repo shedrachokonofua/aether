@@ -1,599 +1,525 @@
-# Estate Updates (Cadence) — Design Spec
+# Estate Updates (Custos) — Design Spec v2
 
 Status: **design, awaiting review** (2026-10-30). Supersedes
-[patch-management.md](patch-management.md).
+[patch-management.md](patch-management.md) and v1 of this document (Cadence,
+commits `ec76c86`, `1fd87cf`).
 
-Cadence is the estate-wide update system: it **observes** what every host and
-workload is actually running, **proposes** version changes as merge requests,
-and **applies** them inside maintenance windows with deterministic health
-gates and rollback. Agents research and plan; code executes and verifies.
+Custos (Latin *custos*, "keeper") keeps every host and workload in the estate
+current and keeps vulnerabilities fixed. It works the GitOps way:
+
+> **Rule 0 — versions change only in git.** Renovate, Colony or a human change
+> a version by committing a pin. Platforms reconcile running state to git.
+> Custos observes running state and proves that it matches git.
 
 ## 1. Why — evidence from 2026-10-30
 
-One evening of looking found every failure class this system must prevent:
-
-| Finding | Class | Would have been caught by |
+| Finding | Failure class | Caught by |
 | --- | --- | --- |
-| VyOS running `2025.08.02-rolling`; repo pin bumped to `2026.07.28` on 2026-08-15 (cf3e381) and never applied | declared ≠ running | Observer `DECLARED_NOT_APPLIED` |
-| NixOS hosts built from `nixos-25.11` locked 2026-01-03; the release is past support | EOL / stale lock | Observer `EOL`, `BEHIND` |
-| AWS gateway on AL2023 `2023.11.20260413`, 26 weeks uptime, no update mechanism, SSH open to the internet | unmanaged OS | Observer `BEHIND` + policy gap |
-| OCI box: security updates installed but running kernel 6.17.0-1011 with six newer kernels installed (15 weeks) | installed ≠ running | Observer `PENDING_ACTIVATION` |
-| GCP box: same, five kernels behind | installed ≠ running | Observer `PENDING_ACTIVATION` |
-| `dnf --releasever=latest check-update` OOM-wedged the 1 GB AWS box twice (~26 min public outage) | unsafe operation on a constrained host | Conductor resource guard; probe never refreshes metadata |
-| `task provision:router` from a laptop on VLAN 4 would delete the router the laptop routes through, mid-playbook, with SOPS needing OpenBao behind that router | controller cuts its own path | Conductor path invariant + credential pre-mint |
+| VyOS running `2025.08.02-rolling`; pin bumped to `2026.07.28` on 2026-08-15 (cf3e381) and never applied | pin in git, never applied | Observer `DECLARED_NOT_APPLIED` |
+| NixOS hosts built from `nixos-25.11` locked 2026-01-03; the release is past support | nobody bumps pins | Supply (Renovate, EOL dossiers) + `EOL` |
+| AWS gateway on AL2023 `2023.11.20260413`, 26 weeks uptime, no update mechanism, SSH open to the internet | unmanaged host | Policy in IaC + `BEHIND` |
+| OCI box: security updates installed, kernel six versions behind for 15 weeks | installed ≠ running | `PENDING_ACTIVATION` |
+| GCP box: same, five kernels behind | installed ≠ running | `PENDING_ACTIVATION` |
+| `dnf --releasever=latest check-update` OOM-wedged the 1 GB AWS box twice (~26 min public outage) | unsafe operation on a small host | Probe reads cached metadata only; resource guard in jobs |
+| `task provision:router` from a laptop on VLAN 4 deletes the router the laptop routes through | controller cuts its own path | Apply runner on the Bell network (§9) |
 
 ## 2. Goals and non-goals
 
 Goals:
 
-1. Every update-bearing **subject** in the estate has an observed running
-   version, a declared version (where one exists), the latest version on its
-   track, and an EOL date — in ClickHouse, alertable in Grafana.
-2. Routine version bumps arrive as merge requests without anyone remembering
-   to look. Hard bumps arrive with a researched dossier.
-3. Approved changes are applied in windows by a conductor that cannot cut its
-   own path, snapshots before mutating, gates on real health, and rolls back
-   on failure.
-4. Low-risk classes run unattended; single points of failure and stateful or
-   cross-version changes always require a human approval that mints the
-   credentials for that one run.
-5. Long-lived Fedora VMs/LXCs converge on NixOS, so OS updates collapse into
-   one declarative, generation-rollback class (`nixos-lock` / `nixos-release`).
+1. Every update-bearing subject has an observed running version, a declared
+   version, the latest version on its track, an EOL date and its open
+   vulnerabilities — in ClickHouse, alertable in Grafana.
+2. New versions arrive as commits without anyone remembering to look; safe
+   classes merge themselves after CI passes.
+3. Merged versions reach running state through a small number of boring apply
+   paths, none of which depend on a laptop or on the router being up.
+4. Vulnerabilities are prioritized by exploitability and exposure and fixed
+   within SLAs.
+5. Long-lived Fedora guests converge on NixOS, where the whole system is one pin.
+6. The supply pipeline itself is monitored: if updates stop arriving, it pages.
 
 Non-goals:
 
-- General infrastructure CD (new services, topology changes). Those keep the
-  existing `task` workflow. Cadence owns **version changes** of things that
-  already exist.
-- Replacing Trivy for in-cluster CVE scanning. Cadence consumes its signal.
-- Image-level vulnerability scanning of VM/LXC root filesystems (deferred;
-  pending-security-update counts from package managers are the Phase 1 signal).
+- General infrastructure CD for new services or topology changes (the existing
+  `task` workflow keeps them).
+- Replacing Trivy, Inquest, Colony or Kestra; Custos uses them.
+- A custom orchestration engine. Deferred as an optional reconcile-only
+  extension (§15), built only if evidence demands it.
 
 ## 3. Design invariants
 
-These are hard rules, enforced in code (plan validator, probe, conductor), not
-conventions:
-
-1. **Running beats declared.** A merged MR is not an applied change. Status is
-   always computed from observed state.
-2. **Installed is not running.** Kernel, VyOS image, NixOS generation and
-   container digest are compared at the running level.
-3. **Observation is cheap and safe.** Probes read cached package metadata only
-   (`dnf -C`, apt's existing lists, `dnf check-release-update`), run under
-   `MemoryMax=128M`, `CPUQuota=20%`, `Nice=19`, and never trigger a metadata
-   refresh. Distro timers own refresh.
-4. **No mutation without a snapshot or a declared reason why none is needed.**
-5. **Every mutating step has a gate and an undo.** A step without an automatic
-   undo (e.g. restoring from snapshot) is escalation-only and must be marked so.
-6. **The conductor never cuts its own path.** For each step that disrupts a
-   subject, every host the conductor must reach afterwards (including for
-   rollback) must be reachable by a path that does not traverse that subject.
-7. **All credentials and secrets for a run are minted before the first
-   disruptive step.** Nothing is fetched after the point of disruption.
+1. **Rule 0.** No component installs a version that is not declared in git, except
+   the explicit mutable-host exception (§10.3), where git declares the policy and
+   the Observer records the versions.
+2. **Running beats declared.** A merged MR is not an applied change; status is
+   computed from observed state.
+3. **Installed is not running.** Kernel, VyOS image, NixOS generation and image
+   digest are compared at the running level.
+4. **Observation is cheap and safe.** Probes read cached package metadata only,
+   run under `MemoryMax=128M`, `CPUQuota=20%`, `Nice=19`, and never refresh
+   metadata.
+5. **Applies never cut their own path.** Anything that disrupts the router,
+   GitLab, k8s or a Proxmox node runs from the Bell-network runner (§9) and does
+   not need the disrupted thing to finish or roll back.
+6. **Credentials exist only for the job you started.** Apply credentials are
+   minted per job from the job's identity and your user; the runner holds none.
+7. **Disruptive jobs: snapshot first, gate after, undo on failure.**
 8. **Resource guard.** Package operations on hosts with < 2 GiB RAM run with
-   temporary swap and a memory ceiling on the package manager.
-9. **One disruptive operation per failure domain at a time.** Redundant pairs
-   (e.g. both AdGuards) are never in flight together.
-10. **Missing data is not health.** A subject with no fresh observation is
-    `STALE`, never `CURRENT`.
+   temporary swap and a memory ceiling.
+9. **One disruption per failure domain** (e.g. never both AdGuards).
+10. **Missing data is not health.** No fresh observation = `STALE`.
 
 ## 4. Architecture
 
 ```mermaid
-flowchart TB
-  subgraph Estate
-    P[estate-probe<br/>every host/LXC/VyOS/PVE/cloud] -->|journald or NDJSON| A[existing OTel agents<br/>+ journal forwarder]
-    KO[estate-observer CronJob<br/>k8s · Talos · Helm · PVE API · cloud APIs] -->|OTLP| C
+flowchart LR
+  subgraph Supply["Supply — what keeps updates coming"]
+    REN[Renovate daily<br/>+ nix manager]
+    NU[nix-update job]
+    COL[Colony dossiers]
   end
-  A --> C[central OTel collector]
-  C --> OBS[(estate_updates.observations)]
-  CI[GitLab CI on main<br/>estate-declared] --> DEC[(estate_updates.declared)]
-  CAT[estate-catalog CronJob<br/>upstream + EOL] --> UP[(estate_updates.upstream)]
-  OBS & DEC & UP --> ST[(estate_updates.status view)]
-  ST --> GF[Grafana: Estate Freshness<br/>+ alert rules]
-  GF -->|alerts| INQ[Inquest / ntfy]
-  ST --> PR[Proposer<br/>Renovate + Colony dossiers]
-  PR --> MR[Merge requests]
-  MR -->|merged → declared changes| DEC
-  ST --> CD[Conductor cadenced<br/>on control host]
-  CD -->|gated plans| APP[Approval UI<br/>Keycloak login → OpenBao mint]
-  APP --> CD
-  CD -->|actions over SSH/APIs| Estate
-  CD -->|run events| RUNS[(estate_updates.runs)]
+  subgraph Git["git: so/aether main"]
+    PIN[(pins)]
+  end
+  subgraph Apply["Apply — three paths"]
+    PULL[NixOS pull<br/>prebuilt closures + canary]
+    PIPE[pipeline apply<br/>Bell runner, you press play]
+    POL[distro policy<br/>declared in IaC]
+  end
+  subgraph Observe["Observe"]
+    OBS[(estate_updates<br/>ClickHouse)]
+    GF[Grafana alerts<br/>+ weekly digest]
+  end
+  REN & NU & COL -->|MRs; safe classes automerge| PIN
+  PIN --> PULL & PIPE
+  POL --> HOSTS[hosts]
+  PULL --> HOSTS
+  PIPE --> HOSTS
+  HOSTS -->|probes| OBS
+  PIN -->|declared publisher| OBS
+  OBS --> GF
+  OBS -->|EOL soon, CVE, behind| COL
+  GF -->|pipeline stalled| You((you))
 ```
 
-Four components, built in order, each independently useful:
-
-| # | Component | Runs where | Agentic? |
+| Part | What | Runs where | Custom code |
 | --- | --- | --- | --- |
-| 1 | Observer | probes on hosts; CronJobs in k8s; CI publisher | No |
-| 2 | Proposer | Renovate (GitLab CI schedule); Colony scopes | Hard bumps only |
-| 3 | Conductor | `cadenced` on a dedicated control host | Plan drafting only |
-| 4 | Policy | `config/updates.yml` in this repo | No |
+| Observe | probes, platform observer, declared publisher, catalog, CVE ingest, status view, alerts | hosts; k8s CronJobs; CI | `so/custos` Rust workspace |
+| Supply | Renovate, `nix-update` job, Colony dossiers, weekly digest | GitLab CI schedules; Colony; Kestra | config + one flow |
+| Apply | NixOS pull, pipeline jobs on the Bell runner, distro policy | hosts; `custos` VM; existing playbooks | `custos-pull` NixOS module, CI jobs |
+| Policy | `config/updates.yml` | this repo | policy crate (validation) |
 
-Code lives in a new Rust workspace `so/cadence` following the in-house
-conventions (`crates/*` + `bins/*`, edition 2024, pinned toolchain, released as
-versioned GitLab generic packages with sha256, consumed by aether under the
-existing pinned-release contract — see `ansible/roles/vyos_exporter/tasks/main.yml`).
-Aether owns deployment, schemas, policy, alerting and credentials.
+`so/custos` follows the in-house Rust conventions (`crates/*` + `bins/*`,
+edition 2024, pinned toolchain, versioned GitLab generic packages with sha256,
+consumed under the pinned-release contract of
+`ansible/roles/vyos_exporter/tasks/main.yml`). Aether owns deployment,
+schemas, policy, alerting, CI and credentials.
 
-## 5. Subject model
+## 5. Subjects
 
-A **subject** is one versioned thing on one target:
+A **subject** is one versioned thing on one target: `"<target>/<kind>[/<name>]"`,
+e.g. `link/os`, `rama/kernel`, `router/vyos-image`, `adguard/nixos-generation`,
+`k8s/immich/image/server`, `k8s/chart/cilium`, `talos/os`, `talos/kubernetes`.
 
-```
-subject_id  = "<target>/<kind>[/<name>]"
-              e.g. "link/os", "link/kernel", "router/vyos-image",
-                   "adguard/nixos-generation", "k8s/immich/image/server",
-                   "k8s/chart/cilium", "talos/os", "talos/kubernetes"
-```
-
-| Kind | Observed from | Declared in | Upstream track source |
-| --- | --- | --- | --- |
-| `os` (release) | probe: `/etc/os-release`, AL2023 release, PVE `pveversion` | tofu image/blueprint, `ansible/roles/dnf` releasever | endoflife.date; AL2023 `dnf check-release-update` |
-| `kernel` | probe: running vs newest installed | — | distro (pending count) |
-| `packages` | probe: pending / pending-security counts (cached metadata) | — | distro |
-| `vyos-image` | probe on router: `show version` | `pack_vyos.yml` ISO URL | GitHub `vyos/vyos-nightly-build` releases |
-| `nixos-generation` | probe: running `configurationRevision`, nixpkgs rev, booted vs current system | `flake.lock` | channel head (`channels.nixos.org/<ch>/git-revision`), endoflife.date |
-| `talos-os`, `kubernetes` | Talos/k8s API | `cloud_images.tf`, `talos_cluster.tf` | GitHub releases; `dl.k8s.io/release/stable.txt` |
-| `chart` | Helm release metadata | `helm_release.version` | chart repo `index.yaml` |
-| `image` | k8s pod status / `podman ps` digests | tofu/ansible image refs | registry tag → digest |
-| `binary` | probe: in-house binary `--version` | role defaults (`vyos_exporter_version` etc.) | GitLab package registry |
-| `firmware`/`appliance` (Gigahub, JetKVM) | out of scope until an API exists | — | — |
-| `platform` | probe: OS family (`fedora`, `nixos`, …) | policy `platform_target` | — |
-
-Each subject resolves, via policy, to a **class** (`os-patch`, `os-release`,
-`kernel-activation`, `nixos-lock`, `nixos-release`, `vyos`, `talos`,
-`kubernetes`, `chart`, `image-stateless`, `image-stateful`, `binary`), a
-**tier** (`auto` | `gated`), a **track**, a **window**, and **staleness SLOs**.
+| Kind | Observed from | Declared in git | Upstream / track | Apply path |
+| --- | --- | --- | --- | --- |
+| `nixos-generation` | probe: running `configurationRevision`, booted vs current system | `flake.lock` | channel head; endoflife.date | NixOS pull |
+| `vyos-image` | probe on router: `show version` | `pack_vyos.yml` ISO URL | GitHub `vyos/vyos-nightly-build` | pipeline job |
+| `talos-os`, `kubernetes` | Talos/k8s API | `cloud_images.tf`, `talos_cluster.tf` | GitHub releases, `dl.k8s.io/release/stable.txt` | pipeline job |
+| `chart`, `image` | Helm release, pod image digest | `tofu/home/kubernetes/*.tf` | chart `index.yaml`, registry tag → digest | pipeline job (`tofu apply`) |
+| `binary` | probe: `--version` | role defaults (`vyos_exporter_version`, …) | GitLab package registry | pipeline job (ansible) |
+| `os` release | probe: `/etc/os-release`, AL2023 release, `pveversion` | AL2023 `releasever`, Fedora `releasever` (`ansible/roles/dnf`), tofu image | endoflife.date; AL2023 releases | pipeline job |
+| `kernel`, `packages` | probe: running vs installed, pending / pending-security counts | policy only (§10.3) | distro | distro policy |
+| `platform` | probe: OS family | policy `platform_target` | — | NixOS migration (§13) |
+| `vulnerability` | Trivy, vulnix, SBOM scans, distro advisories (§12) | — | OSV/NVD, CISA KEV, EPSS | via the subject it belongs to |
 
 ## 6. Policy — `config/updates.yml`
 
-Single declarative source read by all components. Example (abridged):
+One declarative file read by the Observer, CI and the apply jobs:
 
 ```yaml
-windows:
+target_defaults:
+  platform_target: nixos           # guests excluded in §13 override this
+
+windows:                           # when pull/pipeline reboots may happen
   nightly: { cron: "0 4 * * *", duration: 2h, tz: America/Toronto }
-  weekly:  { cron: "0 22 * * SAT", duration: 3h, tz: America/Toronto }
 blackouts:
   - { name: pbs-nightly, cron: "0 2 * * *", duration: 90m }
 
-failure_domains:          # invariant 9
+failure_domains:
   dns-lan: [adguard, adguard-secondary]
 
-topology:                 # invariant 6: what each target's traffic transits
-  router:   { carries: [vlan2, vlan3, vlan4, wan] }
-  link:     { carries: [wg-hub, public-ingress] }
-  conductor_paths:        # how cadenced reaches each target
-    default: [vlan2]
-    gigahub_side: [router, proxmox-hosts, pbs, cloud]
-
 classes:
-  os-patch:
-    tier: auto
-    window: nightly
-    slo: { security_pending_max_age: 7d }
-    gates: [ssh, systemd-units, http-probes]
-  kernel-activation:
-    tier: auto
-    window: nightly
-    slo: { pending_activation_max_age: 7d }
-  nixos-lock:
-    tier: auto            # same channel only; canary first
-    canary: nix-builder
-    window: nightly
-    slo: { behind_channel_max_age: 30d }
-  nixos-release: { tier: gated, slo: { eol_warning: 60d } }
-  vyos:          { tier: gated, track: rolling, slo: { behind_max_age: 60d } }
-  talos:         { tier: gated, track: patch }
-  kubernetes:    { tier: gated, track: patch }
-  image-stateless: { tier: auto, window: nightly }
-  image-stateful:  { tier: gated }
+  nixos-lock:     { merge: auto, apply: pull, canary: [nix-builder, adguard-secondary], soak: 24h }
+  nixos-release:  { merge: review, dossier: true, eol_warning: 60d }
+  image-stateless: { merge: auto, apply: pipeline }
+  image-stateful: { merge: review, apply: pipeline }
+  chart:          { merge: review, apply: pipeline }
+  provider:       { merge: auto-patch, apply: pipeline }
+  vyos:           { merge: review, dossier: true, apply: pipeline, behind_max_age: 60d }
+  talos:          { merge: review, dossier: true, apply: pipeline }
+  kubernetes:     { merge: review, dossier: true, apply: pipeline }
+  al2023-release: { merge: review, apply: pipeline }
+  distro-patch:   { apply: policy, security_pending_max_age: 7d, pending_activation_max_age: 7d }
 
-target_defaults:
-  platform_target: nixos   # guests excluded in §14 override this
+cve_sla:                           # §12
+  kev_or_critical_exposed: 72h
+  high: 14d
+  default: next-update
 
 targets:
-  link:            { class_overrides: { os-patch: gated }, spof: true, ram_mib: 1024 }
-  vigilant:        { ram_mib: 969 }
-  rama:            {}
-  router:          { spof: true }
-  home-gateway-stack: { spof: true, class_overrides: { os-patch: gated } }
-  keycloak:        { spof: true, class_overrides: { os-patch: gated } }
-  step-ca:         { spof: true, class_overrides: { os-patch: gated } }
-  openbao:         { spof: true, class_overrides: { os-patch: gated } }
-  monitoring-stack: { spof: true, class_overrides: { os-patch: gated } }
+  link:     { spof: true, ram_mib: 1024, exposed: [22/tcp, 443/tcp, 51820/udp] }
+  vigilant: { ram_mib: 969 }
+  router:   { spof: true }
+  keycloak: { spof: true }
+  openbao:  { spof: true }
+  step-ca:  { spof: true }
+  home-gateway-stack: { spof: true }
+  monitoring-stack:   { spof: true }
+  bazzite-builder:    { platform_target: fedora }
 
-declared:                 # extractors for the declared publisher
+declared:                          # extractors for the declared publisher
   router/vyos-image: { file: ansible/playbooks/home_router/pack_vyos.yml, regex: 'vyos-(?P<v>[0-9.]+-[0-9]+-rolling)-generic' }
   talos/os:          { file: tofu/home/cloud_images.tf, hcl_local: talos_version }
   talos/kubernetes:  { file: tofu/home/talos_cluster.tf, hcl_local: kubernetes_version }
   "*/nixos-generation": { file: flake.lock, json: .nodes.nixpkgs.locked.rev }
 ```
 
-Validation: a CI job loads the file with the `cadence-policy` crate and fails
-on unknown classes/targets, targets missing from `ansible/inventory/hosts.yml`
-/ tofu, overlapping failure domains, and windows that intersect blackouts.
+CI validates the file (unknown classes/targets, targets missing from inventory
+or tofu, overlapping failure domains, windows crossing blackouts).
 
-## 7. Component 1 — Observer
+## 7. Observe
 
-### 7.1 `estate-probe` (host side)
+### 7.1 `custos-probe` (host side)
 
-Static Rust binary, one run per timer tick (hourly), emits one JSON envelope
-per subject. Collectors per platform:
+Static Rust binary on an hourly timer; one JSON envelope per subject.
 
 | Platform | Facts |
 | --- | --- |
-| Fedora (dnf) | os-release, running vs newest `kernel`, `needs-restarting -r`, `dnf -C updateinfo --security` count, `dnf -C check-update` count, last transaction time |
-| Debian/Ubuntu (apt) | os-release, running vs newest `linux-image-*`, `/var/run/reboot-required(.pkgs)`, `apt-get -s upgrade` counts split by `-security` origin (existing lists only), last `history.log` upgrade |
-| AL2023 | release, `dnf check-release-update` (no `--releasever=latest`), kernel running vs installed |
-| NixOS | `nixos-version --json` (`configurationRevision`, nixpkgs rev), `/run/booted-system` vs `/run/current-system` |
-| Proxmox VE | `pveversion -v` (pve-manager, kernel), apt facts as Debian |
+| Fedora | os-release, running vs newest kernel, `needs-restarting -r`, `dnf -C updateinfo --security` (with CVE ids), pending count, last transaction |
+| Debian / Ubuntu / Proxmox | os-release, `pveversion -v` on PVE, running vs newest kernel, `/var/run/reboot-required(.pkgs)`, `apt-get -s upgrade` split by `-security` origin (existing lists only), last upgrade |
+| AL2023 | release, `dnf check-release-update` (never `--releasever=latest`), kernel running vs installed |
+| NixOS | `nixos-version --json`, `/run/booted-system` vs `/run/current-system`, `custos-pull` state |
 | VyOS | `show version`, installed images, default boot image |
-| any | podman container image digests, in-house binary versions |
-
-Envelope (shared crate `cadence-envelope`):
+| any | podman image digests, in-house binary versions |
 
 ```json
 {"v":1,"observed_at":"2026-10-30T23:40:00Z","target":"rama","subject":"rama/kernel",
  "kind":"kernel","running":"7.0.0-1013-oracle","installed":"7.0.0-1013-oracle",
- "pending":0,"pending_security":0,"reboot_required":false,"probe_version":"0.1.0",
- "facts":{"os":"ubuntu-24.04"}}
+ "pending":0,"pending_security":0,"reboot_required":false,"probe_version":"0.1.0"}
 ```
 
-Transport reuses existing pipes, no new agents:
+Transport reuses existing pipes: structured journald entries
+(`SYSLOG_IDENTIFIER=custos-probe`) shipped by `vm_monitoring_agent`,
+`otel-agent.nix` and the journal forwarder (Proxmox hosts, cloud boxes —
+`monitoring_stack/journal_forwarder.yml`); on VyOS, NDJSON tailed by the
+router's collector like `router-drift`. Deployed by ansible role
+`custos_probe` (pinned + sha256), NixOS module `nix/modules/custos-probe.nix`,
+and a VyOS task-scheduler entry.
 
-- Default: write each envelope as one structured journald entry with
-  `SYSLOG_IDENTIFIER=estate-probe`. Already shipped by
-  `vm_monitoring_agent` (VMs/LXCs), `otel-agent.nix` (NixOS), the journal
-  forwarder (Proxmox hosts and cloud boxes — `monitoring_stack/journal_forwarder.yml`).
-- VyOS: NDJSON under `/config/estate-probe/observations/`, tailed by the
-  router's collector exactly like `router-drift` (`home_router/templates/otel-collector-config.yml.j2`).
+### 7.2 `custos-observer` (platform side)
 
-Deployment: ansible role `estate_probe` (pinned version + sha256 assert),
-NixOS module `nix/modules/estate-probe.nix`, VyOS task-scheduler entry in
-`configure_router.yml`. Probe coverage itself is observed: the status view
-lists inventory targets with no observation as `STALE`.
+k8s CronJob, every 30 min: Talos and k8s versions, every pod's image + digest,
+Helm chart versions, Proxmox guest list (PVE API, `PVEAuditor`) to catch
+undeclared guests, cloud instance metadata. Emits the same envelope via OTLP.
 
-### 7.2 `estate-observer` (platform side)
+### 7.3 `custos-declared` (repo side)
 
-k8s CronJob (every 30 min), same envelope via OTLP to the central collector:
-Talos node versions (Talos API, read-only role), k8s version, every pod's
-image ref + resolved digest, Helm release chart versions, Proxmox guest list
-(PVE API token, `PVEAuditor`) to detect undeclared guests, cloud instance
-metadata (Lightsail blueprint/bundle, GCE image, OCI image).
+CI job on every merge to `main` (and `task publish:estate-declared`, mirroring
+`publish:router-declared`): applies the `declared:` extractors plus generic
+extraction of chart versions and image refs; writes rows keyed by commit.
 
-### 7.3 `estate-declared` (repo side)
+### 7.4 `custos-catalog` (upstream side)
 
-Runs in GitLab CI on every merge to `main` and via `task publish:estate-declared`
-(mirrors `publish:router-declared`). Applies the `declared:` extractors in
-policy plus generic extraction of `helm_release.version` and image refs from
-`tofu/home/kubernetes/*.tf`, writes rows with the commit SHA.
+k8s CronJob, every 6 h: latest per track, EOL dates (endoflife.date, else
+policy `eol:`), registry tag → digest resolution, CISA KEV and EPSS feeds.
 
-### 7.4 `estate-catalog` (upstream side)
-
-k8s CronJob (every 6 h): latest version per track and EOL dates. Sources in
-the table in §5. Products not on endoflife.date take `eol:` from policy.
-Registry lookups resolve tags → digests so `:latest` workloads become
-comparable.
-
-### 7.5 ClickHouse schema
+### 7.5 ClickHouse — `estate_updates`
 
 New file `ansible/playbooks/monitoring_stack/clickhouse/20-estate-updates.sql`,
 same reconcile pattern as `09-vyos-observations.sql`:
 
-| Table | Engine / key | Retention |
+| Table | Key | Retention |
 | --- | --- | --- |
-| `estate_updates.observations` | MergeTree, `(subject, observed_at)` | 180 d |
-| `estate_updates.declared` | ReplacingMergeTree(`published_at`), `(subject)` + history table | forever (small) |
-| `estate_updates.upstream` | ReplacingMergeTree(`fetched_at`), `(track_id)` | 365 d |
-| `estate_updates.runs`, `run_events` | MergeTree, `(run_id, ts)` | 730 d |
-| `estate_updates.status` | view: latest observation ⨝ declared ⨝ upstream ⨝ policy dictionary | — |
+| `observations` | `(subject, observed_at)` | 180 d |
+| `declared` (+ history) | `(subject)` / `(subject, commit)` | forever |
+| `upstream` | `(track_id)` | 365 d |
+| `vulnerabilities` | `(subject, vuln_id, observed_at)` | 365 d |
+| `pipeline_events` | `(source, ts)` — Renovate runs, merges, promotions, apply jobs | 730 d |
+| `status` (view) | latest observation ⨝ declared ⨝ upstream ⨝ vulnerabilities ⨝ policy | — |
 
-`grafana_readonly` gets SELECT on `estate_updates`; writers are the central
-collector identity and the CI/CronJob identities.
+`grafana_readonly` gets SELECT; writers are the central collector, CI and
+CronJob identities.
 
-### 7.6 Status states
-
-Computed per subject, most severe wins:
+### 7.6 Status states (most severe wins)
 
 | State | Condition |
 | --- | --- |
-| `STALE` | no observation within 2 × expected interval |
+| `STALE` | no observation within 2 × interval |
+| `CVE_SLA_BREACH` | a fixable vulnerability older than its SLA |
 | `EOL` / `EOL_SOON` | track EOL passed / within `eol_warning` |
-| `DECLARED_NOT_APPLIED` | declared ≠ running for > 24 h after the declared row |
-| `PENDING_ACTIVATION` | installed ≠ running (kernel, image, generation) for > SLO |
-| `SECURITY_PENDING` | `pending_security > 0` for > SLO |
-| `BEHIND` | upstream newer on track for > SLO |
+| `DECLARED_NOT_APPLIED` | declared ≠ running > 24 h after the declared row |
+| `PENDING_ACTIVATION` | installed ≠ running > SLO |
+| `CVE_FIXABLE` | fixable vulnerability within SLA |
+| `SECURITY_PENDING` | distro security updates pending > SLO |
+| `BEHIND` | upstream newer on track > SLO |
 | `UNMANAGED` | observed subject or guest with no policy entry |
-| `MIGRATION_PENDING` | informational: observed `platform` ≠ policy `platform_target` (§14) |
+| `MIGRATION_PENDING` | informational: `platform` ≠ `platform_target` |
 | `CURRENT` | none of the above |
 
-### 7.7 Alerting and dashboard
+### 7.7 Alerts, dashboard, digest
 
-Grafana rules in `tofu/home/kubernetes/grafana/alerting/rules/estate-updates.yml`
-(one rule per state family, labels `target`, `class`, `tier`, `spof`), routed
-via existing contact points; `spof=true` + `EOL|SECURITY_PENDING` routes to
-Inquest. Dashboard **Estate Freshness**: estate grid (target × class coloured
-by state), age-behind histogram, EOL timeline, pending-activation list, probe
-coverage.
+Rules in `tofu/home/kubernetes/grafana/alerting/rules/estate-updates.yml`;
+`spof=true` or `CVE_SLA_BREACH` routes to Inquest. **Supply health** rules
+(§8.6) live in the same file. Dashboard **Estate Freshness**: target × kind
+grid coloured by state, EOL timeline, CVE SLA board, pipeline health,
+migration burn-down. A weekly Kestra flow posts a digest to ntfy: open MRs,
+due runbooks, upcoming EOLs, SLA risks.
 
-## 8. Component 2 — Proposer
+## 8. Supply — what keeps the updates coming
 
-### 8.1 Mechanical bumps — Renovate
+### 8.1 Renovate
 
-Self-hosted Renovate as a scheduled GitLab CI job on `so/aether` (Renovate and
-diun were decommissioned earlier — `docs/namespace-strategy.md` Appendix A;
-the reason is not recorded, so this reintroduction is deliberately narrow):
+Self-hosted Renovate as a daily GitLab CI schedule on `so/aether`, running
+inside the repo's `nix develop` shell (the Nix manager shells out to `nix`).
+Renovate and diun were decommissioned before (`docs/namespace-strategy.md`
+Appendix A, reason unrecorded), so noise control is part of the design:
+one daily run, MRs grouped by class, the dependency-dashboard issue, automerge
+for safe classes.
 
-- Managers: `terraform` (providers, `helm_release`), `ansible-galaxy`
-  (`ansible/requirements.yml`), `nix` (`flake.lock`, same-channel only),
-  custom regex managers for `pack_vyos.yml`, `talos_version`,
-  `kubernetes_version`, in-house binary pins, image refs in `*.tf`/quadlets.
-- Noise control: weekly schedule, grouped MRs per class, `minor`/`major`
-  disabled for `gated` classes (handed to 8.2), dependency dashboard issue.
-- Every Renovate MR carries labels `cadence/class:*`, `cadence/tier:*`.
+| Manager | Covers |
+| --- | --- |
+| `nix` (beta, opt-in `"nix": {"enabled": true}`) | `flake.lock` input updates on the same branch (`nixpkgs` on `nixos-25.11`, `sops-nix`, `quadlet-nix`, `disko`, …) and `lockFileMaintenance` |
+| `terraform` | providers, `helm_release.version` |
+| `ansible-galaxy` | `ansible/requirements.yml` |
+| custom regex managers | VyOS ISO URL (`github-releases` on `vyos/vyos-nightly-build`), `talos_version`, `kubernetes_version`, in-house binary pins (GitLab packages), image refs in `*.tf` and quadlet templates, AL2023 `releasever` (custom datasource; verify in Phase 2) |
 
-### 8.2 Hard bumps — Colony dossiers
+Vulnerability fast-track: Renovate's vulnerability alerts (OSV-based where the
+manager supports it) open security MRs immediately, outside the schedule.
 
-Triggered when the status view shows `BEHIND`/`EOL_SOON` for a `gated` class
-or a minor/major jump: a Kestra flow opens a Colony scope (approvals manual)
-whose goal is a single MR containing the pin change plus
-`docs/updates/<date>-<subject>.md`:
+Not covered by Renovate, by design:
 
-- changelog digest between running and target (primary sources only),
-- each breaking change checked against **live** config evidence
-  (e.g. `show configuration commands` for VyOS, rendered tofu for charts),
-- applicability of announced CVEs to this estate's configuration,
-- the draft conductor plan (§9.4) and rollback,
-- open risks requiring a human decision.
+- **NixOS release jumps** (`nixos-25.11` → `nixos-26.05` in `flake.nix`): the
+  `nix` manager's only datasource is `git-refs` and new release branches are not
+  documented as detectable; release jumps go through a dossier (8.3).
+- **Pinned sources inside Nix code** (overlays such as `seaweedfs` 4.38 and
+  `nuclei` 3.11.0 in `flake.nix:84-121`): Renovate cannot recompute Nix hashes
+  (8.2).
 
-This is the 2026-10-30 VyOS analysis, made repeatable.
+### 8.2 `nix-update` job
 
-## 9. Component 3 — Conductor
+Weekly CI schedule: runs `nix-update` per overlay package declared in policy,
+which updates version and source hash together, builds, and opens one grouped
+MR. Fallback if the Renovate `nix` manager misbehaves: the same job runs
+`nix flake update` and opens a grouped lock MR through the GitLab API.
 
-### 9.1 Control host
+### 8.3 Colony dossiers
 
-`cadence` — NixOS VM on **niobe** (not oracle, which hosts the router), local
-disk (no Ceph dependency), two legs: `vmbr0` on the Gigahub segment
-(`192.168.2.0/24`, internet via the Gigahub's own uplink) and a VLAN 2 leg
-(L2-adjacent to OpenBao/step-ca without transiting VyOS). Declared in
-`config/vm.yml` + `tofu/home/cadence.tf`, NixOS config in
-`nix/hosts/niobe/cadence/`. It survives router, k8s and Ceph outages by
-construction; it is itself patched by `nixos-lock` like any NixOS host, but
-never by its own conductor mid-run (self-update only between runs).
+Triggered by the Observer for `dossier: true` classes on `BEHIND` / `EOL_SOON`,
+and for any `CVE_FIXABLE` that needs an applicability judgement. A Kestra flow
+opens a Colony scope (manual approval) whose output is one MR with the pin
+change plus `docs/updates/<date>-<subject>.md`: changelog digest, breaking
+changes checked against live config, CVE applicability, and the runbook for
+the pipeline job. This is the 2026-10-30 VyOS analysis, made repeatable.
 
-No CI runner runs on the control host. GitLab CI (runners on the `gitlab` VM
-and in k8s) only validates and publishes: policy lint, `estate-declared`,
-Renovate, `tofu plan`. The conductor is **pull-based**: it reads the status
-view and fetches `main` itself, pins each plan to a commit, and copies every
-artifact it needs (repo checkout, images, packages where possible) to local
-disk before the run starts. That way a run never depends on GitLab, which sits
-behind the router and is itself a wave-6 migration and gated update target.
+### 8.4 Merge policy
 
-### 9.2 Identity and credentials
+| `merge:` | Meaning |
+| --- | --- |
+| `auto` | Automerge when CI is green and the CI vulnerability diff introduces no critical |
+| `auto-patch` | Automerge patch updates only |
+| `review` | MR for you; never automerged |
+
+### 8.5 CI validation (every MR)
+
+`nix build` of every `nixosConfigurations` host (on `nix-builder`), `tofu plan`
+per stack, `ansible-playbook --syntax-check`, policy validation, and a
+vulnerability diff: `vulnix` on each built NixOS closure, Trivy on changed
+images, Trivy on the VyOS SBOM for VyOS bumps. The MR is annotated with
+"fixes N / introduces M".
+
+### 8.6 Supply health
+
+The pipeline is a subject too. Alerts when: Renovate's last successful run is
+older than 2 d; an update MR is open longer than 14 d; `nixos-canary` is held
+longer than 3 d; `nixos-stable` lags `main` more than 7 d; any
+`DECLARED_NOT_APPLIED` exceeds its grace; the weekly digest failed to send.
+
+## 9. The Bell-network runner (`custos` VM)
+
+A NixOS VM on **niobe** (not oracle, which hosts the router), local disk, two
+legs: the Gigahub segment `192.168.2.0/24` (own internet uplink; reaches the
+Proxmox hosts, the router at `.231`, PBS `.233`, step-ca `.235`, both AdGuards)
+and VLAN 2 (L2-adjacent to OpenBao `10.0.2.9`, the home gateway `10.0.2.2` and
+ClickHouse `10.0.2.3` without transiting VyOS). Addresses are allocated in
+`config/vm.yml`; tofu `tofu/home/custos.tf`; NixOS `nix/hosts/niobe/custos/`.
+
+It runs one GitLab runner. Four rules make that safe:
+
+| Rule | Mechanism |
+| --- | --- |
+| Only `main` pipelines | runner marked **protected**, locked to `so/aether`, tag `bell` |
+| Only apply jobs | validation/plan/build jobs stay on the existing k8s and `gitlab` VM runners; only `when: manual` apply jobs carry `tags: [bell]` |
+| Credentials only for a job you started | the job's `id_token` logs into OpenBao JWT auth; roles bind `project_path=so/aether`, `ref_protected=true`, `environment=<stack>`, `user_login=shdrch`; tokens live for the job |
+| No dependency on GitLab mid-run | GitLab is `10.0.3.7` on VLAN 3, behind the router. Disruptive jobs stage everything, then hand off to a local systemd unit that runs snapshot → change → gates → undo; the CI job reconnects and reports; results also go to ClickHouse over VLAN 2 |
+
+Its own node: niobe's reboot in a Proxmox rolling job migrates `custos` first
+(`--with-local-disks`) or is done last by hand. The VM updates itself through
+NixOS pull, never while a job is running.
+
+## 10. Apply — three paths
 
 ```mermaid
-sequenceDiagram
-  participant H as Human
-  participant UI as Approval UI (cadence)
-  participant KC as Keycloak
-  participant B as OpenBao
-  participant C as cadenced
-  C->>UI: plan P (hash h) needs approval
-  H->>UI: open link (ntfy)
-  UI->>KC: OIDC login (step-up)
-  KC-->>UI: id_token(approver)
-  UI->>B: jwt login role cadence-gated-<class>, bound to approver + h
-  B-->>UI: token T (TTL = window + 30m, limited uses)
-  UI->>C: T (response-wrapped)
-  C->>B: pre-mint SSH certs, cloud creds, secrets for P
-  Note over C: invariant 7 — nothing fetched after first disruptive step
+flowchart TB
+  M[main] --> B[CI builds every host closure<br/>on nix-builder → binary cache]
+  B --> PC[pointers: nixos-canary/<host>]
+  PC --> CAN[canary hosts pull + switch in window]
+  CAN --> G{Observer: canaries on new<br/>generation and healthy for soak?}
+  G -->|yes| PS[CI promotes pointers: nixos-stable/<host>]
+  G -->|no| HOLD[hold + alert]
+  PS --> FLEET[NixOS fleet pulls + switches in window]
 ```
 
-- **Standing (auto tier):** machine cert auth (existing
-  `tofu/home/openbao_machine_auth.tf` pattern) → policy `cadence-auto`:
-  SSH cert signing for principal `cadence-auto` only; hosts in auto tier list
-  that principal in `AuthorizedPrincipals` with a forced command allowlist;
-  read-only APIs; PBS snapshot trigger.
-- **Gated:** per-run tokens as above, policy per class
-  (`cadence-gated-vyos`, `-os-spof`, `-talos`, `-pve`, `-cloud`, `-tofu`).
-  The control host holds no standing rights over gated targets.
-- Every token accessor and SSH cert serial is recorded in `run_events`.
+### 10.1 NixOS pull (no runner, no central credentials)
 
-### 9.3 Action library
+- CI on `main` builds every host closure on `nix-builder` and serves them from a
+  new binary cache there (harmonia, signed; public key in `nix/modules/base.nix`).
+  No cache exists today.
+- CI publishes a pointer per host and channel (`nixos-canary/<host>`,
+  `nixos-stable/<host>`): the store path of that host's system.
+- Module `nix/modules/custos-pull.nix` on every host: in its window, fetch the
+  pointer, verify the closure is signed and names this host, `nix copy` from the
+  cache, set the system profile, `switch-to-configuration` (or `boot` + reboot
+  when the kernel changed). Hosts never evaluate nixpkgs themselves: step-ca and
+  openbao have 512 MiB.
+- Promotion: a scheduled CI job fast-forwards `nixos-stable` pointers only when
+  the Observer reports every canary on the new generation and healthy for
+  `soak`. Rollback = revert commit, or the previous generation on the host.
+- Prior art: Cachix Deploy agent, `comin`, `system.autoUpgrade`; the custom
+  module exists only because hosts must not evaluate locally.
 
-Typed actions, each with `precheck`, `apply`, `verify`, `undo`
-(or `undo: escalate`):
+### 10.2 Pipeline apply on the Bell runner (you press play)
 
-| Action | Undo |
+Manual jobs on `main`, one per stack or job type:
+
+| Job | Does |
 | --- | --- |
-| `snapshot.{pbs,lightsail,gce,oci}` | — (enables restore) |
-| `pkg.upgrade.{dnf,apt,al2023}` (resource guard built in) | `escalate` → restore runbook |
-| `host.reboot` | boot previous kernel where supported, else `escalate` |
-| `nixos.switch` / `nixos.boot` | `nixos-rebuild switch --rollback` |
-| `vyos.add_image` + `vyos.set_default_boot` | `set system image default-boot <previous>` + reboot |
-| `talos.upgrade_node` | `talosctl rollback` |
-| `k8s.cordon_drain` / `uncordon` | `uncordon` |
-| `pve.migrate_guests` / `pve.reboot_host` | migrate back |
-| `tofu.apply_scoped` (plan JSON must touch only the expected addresses) | apply previous commit |
-| `container.update` (podman/quadlet) | previous digest |
+| `apply:tofu:<stack>` | `tofu apply` of the plan artifact from the validated pipeline (`home`, `aws`, `google`, `oci`, `kestra-flows`) |
+| `apply:ansible:<playbook>` | non-disruptive playbooks (in-house binaries, quadlet image bumps) |
+| `apply:router` | detached unit: `add system image` from the pinned ISO URL → `set default-boot` → reboot → gates (WAN, VLANs, WireGuard, DNS, probes) → on failure `set default-boot <previous>` + reboot |
+| `apply:pve-rolling` | per node: migrate guests → apt full-upgrade → reboot → gates → migrate back; one node at a time |
+| `apply:talos` / `apply:kubernetes` | `talosctl upgrade` per node / `upgrade-k8s`, then the pin already matches |
+| `apply:link-release` | Lightsail snapshot → swap guard → `dnf upgrade --releasever=<pinned>` → reboot → gates (units, WireGuard peers, SNI checks from two vantages) |
 
-### 9.4 Plans
+Every disruptive job: snapshot first, gates after, undo on failure,
+`pipeline_events` rows throughout. Colony dossiers write the runbook these
+jobs encode; new job types are added through review like any code.
 
-A plan is YAML compiled from policy + subject, or drafted by an agent and
-then validated. Example (the AWS upgrade done correctly):
+### 10.3 Distro policy (the mutable-host exception)
 
-```yaml
-plan: link-al2023-2023.12.20261102
-class: os-release
-tier: gated
-target: link
-steps:
-  - snapshot.lightsail: { name: "link-pre-{run_id}" }
-  - pkg.upgrade.al2023: { releasever: "2023.12.20261102", guard: { swap: 2G, memory_high: 450M } }
-  - host.reboot: {}
-  - gate.ssh: { timeout: 5m }
-  - gate.systemd: { units: [caddy, crowdsec, crowdsec-firewall-bouncer] }
-  - gate.wireguard: { iface: wg-site, peers: 3, max_handshake_age: 3m }
-  - gate.http: { from: [cadence, vigilant], checks: [{ sni: shdr.ch, expect: 200 }, { sni: nextcloud.shdr.ch, expect: 302 }] }
-on_gate_failure: escalate      # undo for pkg.upgrade is restore-from-snapshot
-```
+For hosts whose package versions cannot be pinned in git, IaC declares the
+policy and the Observer records the outcome:
 
-Validator (pure, property-tested) rejects plans that: use unknown actions;
-mutate without a preceding snapshot or `snapshot_exempt` reason; lack a gate
-after a disruptive step; violate the path invariant against `topology`;
-overlap a blackout; put two members of a failure domain in flight; or touch a
-target whose tier is above the credentials available.
+| Hosts | Policy (declared in IaC) |
+| --- | --- |
+| Fedora non-SPOF (until migrated) | `ansible/roles/dnf`: `dnf-automatic` security updates; staggered reboot windows |
+| Fedora SPOF: keycloak, step-ca, openbao, home-gateway, monitoring | `dnf-automatic` download-only; installed and rebooted by an `apply:ansible:patch-spof` job, one per window. Ends today's unattended 05:00 self-reboots of identity and ingress |
+| `vigilant` (Debian), `rama` (Ubuntu) | new role `unattended_upgrades`: security origin, automatic reboot in staggered windows |
+| Proxmox hosts | `unattended_upgrades` download-only; installed by `apply:pve-rolling` |
+| `link` (AL2023) | `releasever` pinned in git; patches within the release via `dnf-automatic` security; release jumps via `apply:link-release` |
 
-### 9.5 Execution
+The exception shrinks as guests move to NixOS (§13).
 
-- Picks work from the status view: `DECLARED_NOT_APPLIED`,
-  `SECURITY_PENDING`, `PENDING_ACTIVATION` (and `BEHIND` for auto classes with
-  a track). Auto-tier plans run in their window; gated plans wait for approval
-  then run in the approver-chosen window slot.
-- Global lock per failure domain; canary-first for multi-target classes
-  (`nixos-lock`: `nix-builder` → one AdGuard → the other → rest).
-- Gate failure → `undo` in reverse step order → if any undo is `escalate`,
-  stop the run, keep the snapshot, page via Inquest with the run timeline.
-- Every step emits a `run_events` row (OTLP logs → ClickHouse); the run ends
-  by waiting for the probe to report the new running version (invariant 1).
-
-### 9.6 Migrating today's self-updaters
-
-- `ansible/roles/dnf`: hosts marked `spof` switch `dnf-automatic` to
-  download-only; the conductor applies and reboots them in gated windows.
-  Non-SPOF Fedora hosts move to conductor `os-patch` in Phase 3.
-- Distro `unattended-upgrades` on cloud boxes: kept for download/security
-  install; activation (reboot) moves to conductor `kernel-activation`.
-- Keel keeps its four CI-built images.
-
-## 10. Agent boundaries
+## 11. Agents
 
 | Agents do | Agents never do |
 | --- | --- |
-| Changelog research, breaking-change and CVE applicability analysis (Colony) | Execute actions |
-| Draft plans for novel changes | Approve plans or mint credentials |
-| Triage failed runs (Inquest/Holmes) | Decide whether to roll back |
-| Summarize estate freshness for humans | Write to `estate_updates` tables |
+| Research changelogs; check breaking changes and CVE applicability against live config (Colony dossiers) | Merge, apply, or hold credentials |
+| Write runbooks for new pipeline job types | Decide rollback |
+| Triage failed jobs (Inquest / Holmes) | Write to `estate_updates` |
 
-Agent-drafted plans pass the same validator as compiled plans.
+## 12. Vulnerabilities
 
-## 11. Security
+| Class | Source | When |
+| --- | --- | --- |
+| k8s images | Trivy operator (deployed; fix the churn and failing scans recorded in `docs/namespace-strategy.md` Appendix A) | running |
+| NixOS hosts | `vulnix` on each built closure | CI, before deploy |
+| VyOS | the `.cdx.json` / `.spdx.json` SBOM published with each rolling build, scanned with `trivy sbom` | running build vs candidate |
+| AL2023, Debian, Ubuntu | `trivy rootfs` from the probe host (Trivy's OS coverage lists these; its docs list Debian up to 12, so Debian 13-based PVE 9 uses `debsecan`) | probe |
+| Fedora (until migrated) | `dnf updateinfo` advisories with CVE ids from cached metadata (Trivy has no Fedora support) | probe |
+| In-house Rust | `cargo-deny` in their CI; Trivy on their images | their CI |
 
-- Auto-tier SSH principal is restricted by forced command to the action
-  allowlist; gated principals are per-target and live only for the run.
-- The approval binds to the plan hash; any plan change invalidates it.
-- The control host has no inbound exposure beyond the approval UI behind
-  Keycloak on the LAN; it is a tier-0 asset in `docs/trust-model.md`.
-- No pipeline code executes on the control host: a runner there would let any
-  branch, including Renovate and Colony MRs, run next to the conductor's
-  standing credentials.
-- Probes are read-only and resource-capped; their envelopes contain versions
-  and counts only (no package lists with paths, no config content).
+Prioritization: severity × CISA KEV × EPSS × exposure (policy `exposed:`,
+cross-checked with `estate_scan` results) × applicability (Colony, for gated
+classes). Fixable + high priority → Renovate vulnerability MR now, or a Colony
+dossier with a due date; unfixable → tracked and alerted, no MR. SLAs from
+policy `cve_sla`; breaches page. Automerge is blocked when the CI
+vulnerability diff introduces a critical.
 
-## 12. Failure modes
+## 13. Fedora → NixOS convergence
 
-| Failure | Behaviour |
-| --- | --- |
-| Probe missing/broken | subject `STALE` → alert; no plans generated for it |
-| ClickHouse down | conductor refuses to start runs (no gate data); probes keep logging to journald (agents buffer) |
-| Control host down | no runs; observer/alerts unaffected |
-| Window ends mid-run | finish current step, run its gate, stop; resume next window |
-| Approval token expires mid-run | impossible by invariant 7 (pre-minted); TTL covers window |
-| Snapshot fails | run aborts before any mutation |
-| Gate flaps | gate requires N consecutive passes; failure after N retries = fail |
+Direction and Definition of Done: [docs/nixos.md](../nixos.md). Order by blast
+radius, one guest per window:
 
-## 13. Testing
+| Wave | Guests | Notes |
+| --- | --- | --- |
+| 1 | `vyos-packer` → **retire** (build the VyOS image on `nix-builder`); `notifications-stack` | small state |
+| 2 | `iot-management-stack`; `nfs` | USB hand-over; storage needs its own case-by-case plan first |
+| 3 | `step-ca`, `openbao`, `keycloak` | tier-0, one per window, state copy + tested restore |
+| 4 | `home-gateway-stack` | ingress SPOF; keep-IP cutover pattern |
+| 5 | `monitoring-stack` | Track B in [monitoring-stack-nix.md](monitoring-stack-nix.md) |
+| 6 | `gitlab` | largest state; last so CI stays stable |
 
-- Probe: golden tests per platform from captured command output fixtures
-  (including the 2026-10-30 hosts).
-- Status view: SQL tests against a local ClickHouse with fixture rows that
-  reproduce every §1 finding; each must yield the expected state.
-- Plan validator: property tests over generated plans + the §1 router-rebuild
-  plan as a must-reject case.
-- Conductor: action fakes for unit tests; integration tests against
-  throwaway targets (a Proxmox test VM, a Lightsail nano instance) including
-  forced gate failure → undo.
-- Game day before Phase 4: simulate router outage with the control host
-  driving a VyOS test VM on an isolated bridge.
-
-## 14. Fedora → NixOS convergence
-
-Direction and Definition of Done already exist in [docs/nixos.md](../nixos.md)
-(§ Direction, § Migration Definition of Done). Cadence makes the migration
-measurable and shrinks what the conductor has to know.
-
-**Scope.** Every long-lived Fedora guest moves; purpose-built platforms stay
-(`docs/nixos.md` § Migration Candidates):
-
-| Guest | Kind / node (`config/vm.yml`) | Wave | Notes |
-| --- | --- | --- | --- |
-| vyos-packer | VM, oracle (ephemeral) | 1 | Retire instead of migrate: build the VyOS cloud image on `nix-builder` (packer runs on NixOS) |
-| notifications-stack | VM | 1 | apprise / ntfy / postfix quadlets; small state |
-| iot-management-stack | VM | 2 | USB passthrough + Home Assistant state; blue-green with device hand-over |
-| nfs | VM | 2 | Storage-sensitive: case-by-case plan required by `docs/nixos.md` before scheduling |
-| step-ca | LXC, oracle | 3 | Tier-0; PKI state copy; one identity service per window |
-| openbao | LXC, oracle | 3 | Tier-0; raft snapshot → restore on blue; unseal path tested first |
-| keycloak | LXC, oracle | 3 | Tier-0; DB + realm export; last of the trio |
-| home-gateway-stack | VM, oracle | 4 | Ingress SPOF; keep-IP cutover pattern from `monitoring-stack-nix.md` |
-| monitoring-stack | VM, niobe | 5 | Already specced as Track B in [monitoring-stack-nix.md](monitoring-stack-nix.md) |
-| gitlab | VM | 6 | Largest stateful guest; last so CI is stable throughout |
-| bazzite-builder | VM | — | Stays (Bazzite workflow) |
-
-Cloud boxes (`link`, `vigilant`, `rama`) are out of this table: GCE and OCI
+Stays: `bazzite-builder`, router, Talos, Proxmox. Cloud boxes: GCE and OCI
 accept custom images, so `vigilant` and `rama` are later candidates; whether
-Lightsail can run NixOS must be verified before `link` is considered. Until
-then they stay on `os-patch`/`os-release` classes.
+Lightsail can run NixOS must be verified before `link` is considered.
 
-**Recipe** (per guest, blue-green, the ids-stack / Track B pattern): new
-`nix/hosts/<node>/<guest>` + `nixosConfigurations` entry + Taskfile path →
-provision blue guest in tofu beside green → two-phase state copy → gates on
-blue (same gate types as §9.4) → cutover by `config/vm.yml` IP/vmid swap →
-soak → decommission green only after the DoD checklist. Waves 1-2 run on the
-existing manual `task` workflow; from Phase 4 the conductor may run the
-cutover step as a gated plan.
+Recipe per guest (ids-stack / Track B pattern): host config + flake entry +
+Taskfile path → blue guest beside green in tofu → two-phase state copy → gates
+→ `config/vm.yml` IP/vmid swap → soak → remove green after the DoD.
+Prerequisite: `nixpkgs` on the current stable release before wave 1. Each
+migrated guest leaves the §10.3 exception for NixOS pull; `MIGRATION_PENDING`
+is the burn-down.
 
-**Prerequisites.** `nixpkgs` moves to the current stable release before wave 1
-(no migration onto an out-of-support channel); `estate-probe` ships in
-`nix/modules/` from Phase 1 so blue guests are observed from first boot.
-
-**Effect on Cadence.** Each migrated guest drops the `dnf` role and the
-`os-patch` / `kernel-activation` / `os-release` classes, gaining `nixos-lock`
-(auto, canary-first) and `nixos-release` (gated). Rollback becomes a
-generation switch instead of a snapshot restore. The status view's
-`MIGRATION_PENDING` count is the migration burn-down.
-
-## 15. Rollout
+## 14. Rollout
 
 | Phase | Delivers | Acceptance |
 | --- | --- | --- |
-| 0 — backlog (manual) | Router to current rolling; `nixpkgs` → current stable (prerequisite for §14); Proxmox host patching | status of these subjects `CURRENT` once Phase 1 lands |
-| 1 — Observer | probe + observer + declared + catalog + schema + status + alerts + dashboard | every inventory target and k8s workload observed; replayed §1 fixtures produce the right states; one real alert fires and routes |
-| 2 — Proposer | Renovate (narrow) + Colony dossier flow | one week of grouped MRs; one VyOS dossier comparable to the 2026-10-30 analysis |
-| 3 — Control host + auto tier | `cadence` host, standing creds, `os-patch`, `kernel-activation`, `nixos-lock`, `image-stateless` | survives simulated router outage; auto-patches `vigilant`, `rama`, AdGuard pair in sequence; forced gate failure rolls back |
-| 4 — Gated tier | approval UI + minted creds; `os-release` on `link`, VyOS in-place, PVE rolling reboots, Talos/k8s patch | the §9.4 plan runs end to end with approval; router upgrade with automatic fall back to previous image on gate failure |
-| 5 — Agentic plans | Colony-drafted plans for novel changes | an agent-drafted plan passes the validator and runs under approval |
-| M — NixOS waves (parallel, from Phase 1) | §14 waves 1–6, one guest per change window | each guest meets the `docs/nixos.md` DoD; `MIGRATION_PENDING` reaches 0 for in-scope guests |
+| 0 — backlog (manual) | router to current rolling; `nixpkgs` → current stable; Proxmox host patching | these subjects `CURRENT` once Phase 1 lands |
+| 1 — Observe | probe, observer, declared, catalog, schema, status, alerts, dashboard; vulnerability ingest from Trivy operator and probe advisories | every inventory target and k8s workload observed; replayed §1 fixtures produce the right states; one real alert routes |
+| 2 — Supply | Renovate (+ `nix`, custom managers, vulnerability alerts), `nix-update` job, merge policy, CI validation + vulnerability diff, Colony dossier flow, supply-health alerts, weekly digest | a week of grouped MRs with automerge on safe classes; one VyOS dossier comparable to 2026-10-30 |
+| 3 — Apply foundation | `custos` VM + protected runner + OpenBao JWT roles; `apply:tofu:*`, `apply:ansible:*`; binary cache + pointers + `custos-pull` + canary promotion; §10.3 policies in IaC | a Renovate `flake.lock` MR reaches every NixOS host via canary without a human; a tofu stack applies from the Bell runner with job-scoped creds |
+| 4 — Disruptive jobs | `apply:router`, `apply:pve-rolling`, `apply:talos`, `apply:kubernetes`, `apply:link-release` | router upgrade with automatic fallback on gate failure; a PVE rolling reboot across 5 nodes; game day with the router down |
+| 5 — CVE prioritization | KEV/EPSS/exposure scoring, SLAs, automerge blocking, SBOM and `trivy rootfs` scans | SLA board live; a seeded critical blocks automerge |
+| M — NixOS waves (parallel from Phase 1) | §13 waves 1–6 | each guest meets the DoD; `MIGRATION_PENDING` reaches 0 in scope |
+
+## 15. Deferred extension — reconcile-only conductor
+
+If, after Phase 4, pressing play is the bottleneck (most likely monthly Proxmox
+rolling reboots and SPOF patching), add a reconcile-only daemon on the `custos`
+VM that starts the same pipeline jobs for `auto` classes inside windows. It may
+only bring running state to what git declares (Rule 0); it never picks versions.
+Design notes from v1 that carry over: typed actions with undo, plan validator
+with the path invariant, gates against ClickHouse. Build only with evidence.
 
 ## 16. Alternatives considered
 
 | Option | Why not |
 | --- | --- |
-| "Just better IaC CI/CD" (Renovate + apply on merge) | Covers declared pins only; blind to running state, OS packages, `:latest`, activation; CI runners live inside the estate they would update |
-| Kestra as the conductor | Runs in k8s behind the router; cannot drive router/Talos/Proxmox disruption safely (invariant 6). Kept as the scheduler for catalog and dossier flows |
-| AWX / Semaphore / Rundeck | Runbook launchers without typed undo, path invariants or approval-minted credentials; would wrap the same Ansible with weaker gates |
-| Fleet/osquery for observation | Being decommissioned (`monitoring-stack-nix.md` A9); journald/OTel transport already covers every host class |
-| Fully agentic operator | Rollback decisions and credential scope must be deterministic; agents stay on the research/plan side (§10) |
+| Custom conductor + approval UI + minted credentials (v1) | Largest build and security surface for a few dozen gated events a year; protected runner + JWT binding gives the same approval and scoping with stock GitLab/OpenBao |
+| Apply on merge with standing CI credentials | Merged code (including automerged) would get privileged credentials without a human; runners sit behind the router |
+| Kestra as the apply engine | Runs in k8s behind the router; kept as scheduler for catalog, dossier and digest flows |
+| AWX / Semaphore / Rundeck | Another UI and credential store wrapping the same Ansible; GitLab already provides jobs, logs and approval-by-play |
+| Hosts run `system.autoUpgrade` | Evaluates nixpkgs on the host (OOM on 512 MiB guests) and has no canary gate |
+| Fleet/osquery for observation | Being decommissioned (`monitoring-stack-nix.md` A9); journald/OTel already covers every host class |
 
-## 17. Decisions taken (conservative defaults)
+## 17. Decisions (conservative defaults)
 
-- Name `cadence`; repo `so/cadence`; Rust.
-- Control host on niobe, NixOS, local disk.
-- SPOF OS patches are `gated` (overrides in policy) even though they are
-  patch-level; revisit after 3 months of clean gated runs.
-- Renovate scoped to patch/minor within gated limits; majors via dossiers.
-- endoflife.date is the default EOL source; policy `eol:` overrides.
-- Fedora → NixOS order is by blast radius (§14 waves); identity services
-  migrate one per window, never together.
+- Name `custos`; repo `so/custos`; Rust; ClickHouse database `estate_updates`.
+- Bell runner VM `custos` on niobe, NixOS, local disk, Gigahub + VLAN 2 legs.
+- SPOF hosts never patch or reboot themselves; they patch through jobs.
+- Renovate `nix` manager is beta: Phase 2 keeps the `nix flake update` fallback job ready.
+- NixOS release jumps and VyOS/Talos/k8s bumps always go through dossiers.
+- Fedora → NixOS by blast radius; identity services one per window.
 - `vyos-packer` is retired, not migrated.
