@@ -1285,7 +1285,7 @@ resource "kubectl_manifest" "daimyo_ivy_model_allowlist" {
 # default: the repository path's last segment). so/cicada uses `cicada`
 # above. The org's policies and model allowlist are project-independent.
 resource "kubectl_manifest" "daimyo_cicada_repo_project" {
-  for_each   = toset(["molecule", "turmeric"])
+  for_each   = local.daimyo_cicada_repos
   depends_on = [kubectl_manifest.daimyo_org]
 
   yaml_body = yamlencode({
@@ -1297,7 +1297,7 @@ resource "kubectl_manifest" "daimyo_cicada_repo_project" {
       labels    = local.daimyo_cr_labels
     }
     spec = {
-      description = "Cicada agents for so/${each.key}."
+      description = "Cicada agents for ${each.value.repo}."
     }
   })
 }
@@ -1565,7 +1565,7 @@ resource "kubectl_manifest" "daimyo_cicada_skills" {
 # the allowed repository and the size, against cicada-tasks' sandbox-tier
 # quota.
 resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
-  for_each   = local.daimyo_cicada_sandbox_classes
+  for_each   = local.daimyo_cicada_repos
   depends_on = [kubectl_manifest.daimyo_project, kubectl_manifest.daimyo_sandboxclass_crd]
 
   yaml_body = yamlencode({
@@ -1577,7 +1577,7 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
       labels    = local.daimyo_cr_labels
     }
     spec = {
-      imageRepository = "registry.gitlab.home.shdr.ch/so/${each.key}/ci"
+      imageRepository = "registry.gitlab.home.shdr.ch/${each.value.repo}/ci"
       resources       = each.value.resources
       defaultTtl      = "8h"
       maxTtl          = "24h"
@@ -1586,7 +1586,11 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
 }
 
 locals {
-  daimyo_cicada_sandbox_classes = {
+  # Every repository Cicada runs, keyed by its daimyo project and SandboxClass
+  # name (the repository path's last segment). Repositories outside group `so`
+  # are shared with `so` as Maintainer, so its cicada-lander and cicada-writer
+  # group tokens reach them.
+  daimyo_cicada_repos = {
     # so/molecule: wasmtime and the component recipes are heavy builds.
     # workspace is daimyo's 20Gi maximum. A sandbox reserves `requests` and
     # bursts to the limits: measured 2026-10-29 with `kubectl top`, a building
@@ -1595,10 +1599,17 @@ locals {
     # the amd64 nodes (60-90% of CPU requested). Limits stay at 3 CPU: the
     # cicada-tasks quota caps limits.cpu at 32.
     molecule = {
+      repo      = "so/molecule"
       resources = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "3Gi" } }
     }
     # so/turmeric: cargo, Go, bun, Chromium, NATS and ClickHouse in one pod.
     turmeric = {
+      repo      = "so/turmeric"
+      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
+    }
+    # seven30/buyerfact: SvelteKit on bun, with Playwright Chromium for e2e.
+    buyerfact = {
+      repo      = "seven30/buyerfact"
       resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
     }
   }

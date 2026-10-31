@@ -96,8 +96,10 @@ locals {
 # writers' git grants from it.
 # `webhook_token` is the secret of every Cicada repository's project hook
 # (https://cicada.home.shdr.ch/hooks/gitlab; merge request, pipeline, push
-# and note events: so/cicada hook 10, so/molecule, so/turmeric); GitLab sends
-# it as X-Gitlab-Token.
+# and note events: so/cicada hook 10, so/molecule, so/turmeric,
+# seven30/buyerfact hook 13); GitLab sends it as X-Gitlab-Token. Repositories
+# outside `so` are shared with group `so` as Maintainer so both group tokens
+# reach them (seven30/buyerfact).
 data "vault_kv_secret_v2" "cicada_gitlab" {
   mount = "kv"
   name  = "cicada/gitlab"
