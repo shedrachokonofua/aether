@@ -8,9 +8,11 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  # b10423+ for Muse Glimmer (ggml-org/llama.cpp#26841). b11223 removed
-  # --no-mmap: use --load-mode none.
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:v260-cuda-b11223"
+  # unified-cuda13 (2026-10-15) bundles llama-server, sd-server (sd.cpp image
+  # models below) and audiocpp_server (/usr/local/share/audiocpp). Pinned by
+  # digest: the tag is a rolling date build. Codified from the live sd.cpp
+  # spike (docs/exploration/image-generation-engines.md) on 2026-11-01.
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:unified-cuda13-2026-10-15@sha256:8195bebf265ba6e6dd280859a7afe9a8251d992cb7fc78550f5d3e58ed26b88f"
   llama_swap_host    = "llama-swap.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = module.namespace["ai-serving"].name
@@ -40,13 +42,15 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
       logToStdout: both
       globalTTL: 300
 
-      # Warm the pinned pair at boot; both are members of the llm matrix set
-      # (chat & emb), so they co-reside instead of swapping each other out.
+      # Warm the always-on models at boot; all are members of the llm matrix
+      # set (chat & emb & asr), so they co-reside instead of swapping each
+      # other out.
       hooks:
         on_startup:
           preload:
             - "qwen3.8-flash-next"
             - "qwen3-embedding-0.6b"
+            - "qwen3-asr-0.6b"
 
       models:
         "qwen3.8-27b":
@@ -370,23 +374,54 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # cold-swap on AFFiNE/mnemo/Vane embedding calls.
           ttl: 0
 
-        # Speech via audio.cpp (binaries on the PV, see install-audiocpp).
+        # Speech via audio.cpp, bundled in the unified image.
         # audiocpp_server serves /v1/audio/speech + /v1/audio/transcriptions
         # and takes --port, so llama-swap manages it like any llama-server.
-        # Must run FROM the bin dir: the server resolves model_specs/ against
-        # CWD (the model_spec_override config key does not take effect).
+        # Must run FROM its install dir: the server resolves model_specs/
+        # against CWD (the model_spec_override config key does not take effect).
         "qwen3-asr-0.6b":
-          cmd: >
-            sh -c "cd /models/audiocpp/bin && exec env LD_LIBRARY_PATH=.
-            ./audiocpp_server --config /config/audiocpp-asr.json
-            --host 127.0.0.1 --port $${PORT}"
-          ttl: 600
+          cmd: >-
+            sh -c "cd /usr/local/share/audiocpp && exec audiocpp_server
+            --config /config/audiocpp-asr.json --host 127.0.0.1 --port $${PORT}"
+          # Always on (2026-11-01): Orion's voice input must not pay the ~4 s
+          # cold load. 2.1 GiB VRAM + ~0.7 GB RSS, co-resident via the `asr`
+          # matrix member, so it never evicts the chat model.
+          ttl: 0
 
         "qwen3-tts-0.6b":
-          cmd: >
-            sh -c "cd /models/audiocpp/bin && exec env LD_LIBRARY_PATH=.
-            ./audiocpp_server --config /config/audiocpp-tts.json
-            --host 127.0.0.1 --port $${PORT}"
+          cmd: >-
+            sh -c "cd /usr/local/share/audiocpp && exec audiocpp_server
+            --config /config/audiocpp-tts.json --host 127.0.0.1 --port $${PORT}"
+          ttl: 600
+
+        # sd.cpp image models (sd-server, bundled in the unified image), reading
+        # ComfyUI's checkpoints from the shared PV mounted at /comfy-models.
+        "z-image-turbo":
+          cmd: >-
+            sd-server --listen-ip 127.0.0.1 --listen-port $${PORT}
+            --diffusion-model /comfy-models/diffusion_models/z_image_turbo_bf16.safetensors
+            --llm /comfy-models/text_encoders/qwen_3_4b.safetensors
+            --vae /comfy-models/vae/ae.safetensors
+            --cfg-scale 1 --steps 8 --seed -1
+          ttl: 600
+          checkEndpoint: /
+
+        "qwen-image-edit-rapid-nsfw":
+          cmd: >-
+            sd-server --listen-ip 127.0.0.1 --listen-port $${PORT} --seed -1
+            -m /comfy-models/checkpoints/Qwen-Rapid-AIO-NSFW-v23.safetensors
+            --llm /comfy-models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+            --model-args qwen_image_zero_cond_t=true
+            --cfg-scale 1 --steps 6 --sampling-method euler_a --scheduler beta
+          checkEndpoint: /
+          ttl: 600
+
+        "cyberrealistic-pony":
+          cmd: >-
+            sd-server --listen-ip 127.0.0.1 --listen-port $${PORT} --seed -1
+            -m /comfy-models/checkpoints/CyberRealisticPony_V18.0_F16.safetensors
+            --clip-skip 2 --cfg-scale 5 --steps 30 --sampling-method dpm++2m --scheduler karras
+          checkEndpoint: /
           ttl: 600
 
       matrix:
@@ -408,6 +443,9 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # set membership their first request would evict the pinned chat model.
           asr: "qwen3-asr-0.6b"
           tts: "qwen3-tts-0.6b"
+          zit: "z-image-turbo"
+          qie: "qwen-image-edit-rapid-nsfw"
+          pony: "cyberrealistic-pony"
         evict_costs:
           q3827: 25
           qfn: 25
@@ -421,11 +459,17 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           qrr: 4
           asr: 2
           tts: 2
+          zit: 10
+          qie: 10
+          pony: 10
         sets:
           # One chat model + embedding + a reranker — either reranker may be
           # co-resident so mnemo RAG / AFFiNE calls never evict the chat model.
           # muse-glimmer-30b stays outside the group (exclusive swap-in).
           llm: "(q3827 | qfn | q36 | g31 | g26 | q35) & emb & (rr | qrr) & asr & tts"
+          # One image model instead of a chat model, keeping embedding, reranker
+          # and speech resident.
+          img: "(zit | qie | pony) & emb & (rr | qrr) & asr & tts"
     YAML
 
     "audiocpp-asr.json" = jsonencode({
@@ -561,16 +605,33 @@ resource "kubernetes_deployment_v1" "llama_swap" {
         container {
           name  = "llama-swap"
           image = local.llama_swap_image
-          args  = ["-config", "/config/config.yaml"]
+          # -watch-config: llama-swap reloads config.yaml when the ConfigMap
+          # volume updates.
+          args = ["-config", "/config/config.yaml", "-watch-config"]
 
           port {
             container_port = local.llama_swap_port
             name           = "http"
           }
 
+          # Carried over from the live sd.cpp spike: skips the NVIDIA container
+          # toolkit's NVIDIA_REQUIRE_* CUDA version check for the CUDA 13 image.
+          env {
+            name  = "NVIDIA_DISABLE_REQUIRE"
+            value = "true"
+          }
+
           env {
             name  = "LLAMA_CACHE"
             value = "/models"
+          }
+
+          # ComfyUI's model tree on the shared PV, for the sd.cpp image models.
+          volume_mount {
+            name       = "models"
+            mount_path = "/comfy-models"
+            sub_path   = "comfyui/root/ComfyUI/models"
+            read_only  = true
           }
 
           volume_mount {
