@@ -824,6 +824,13 @@ resource "helm_release" "daimyo" {
           requests = { cpu = "300m", memory = "384Mi" }
           limits   = { memory = "1Gi" }
         }
+        # Commits stalled for seconds on WAL fsync over Ceph RBD (2026-11-01:
+        # IO:WalSync waits up to 0.85 s, engine pool timeouts). Timing feeds
+        # cnpg_collector_wal_{write,sync}_time before deciding on walStorage.
+        # Reloadable: no instance restart.
+        postgresql = {
+          parameters = { track_wal_io_timing = "on" }
+        }
       }
     }
     devPostgres = { enabled = false }
