@@ -11,11 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main b9473e9 (build-image, image.digest): writers load skills
-  # from a daimyo bundle; the planner adds a security audit at each
-  # milestone's end (70). On top of 85026bd (69), 1a95244 (68), 97ece8c (67),
+  # so/cicada main 6bee51d (build-image, image.digest): an item parked on an
+  # open Question holds no writer slot and gives back its ci_exec sandbox
+  # (71). On top of b9473e9 (70), 85026bd (69), 1a95244 (68), 97ece8c (67),
   # f265b9d (default review lenses, 66) and 0dd0633 (65) back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:3474739c34172d67497c0928c49592e807853b05d0cdaafa2bb5779d8129fa86"
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:2a7d75ce355bed9f4c055dea70e800f8f3e67dbf5849ed17e5e3421601492d1a"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
