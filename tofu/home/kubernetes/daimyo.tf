@@ -641,12 +641,16 @@ resource "helm_release" "daimyo" {
       tag        = local.daimyo_sidecar_tag
     }
     # One runner while orion-molecule is a test; the image is amd64-only.
+    # Under kata (daimyo a621bca): the runner process holds every run's
+    # grants, isolated by the wasm sandbox, so a VM also stands between it
+    # and the node, as for task pods. One VM for the pool, not per run.
     molecule = {
-      enabled        = true
-      replicas       = 1
-      image          = { tag = local.daimyo_molecule_tag }
-      agentComponent = local.daimyo_molecule_agent_component
-      nodeSelector   = { "kubernetes.io/arch" = "amd64" }
+      enabled          = true
+      replicas         = 1
+      image            = { tag = local.daimyo_molecule_tag }
+      agentComponent   = local.daimyo_molecule_agent_component
+      nodeSelector     = { "kubernetes.io/arch" = "amd64" }
+      runtimeClassName = "kata"
     }
     secrets = {
       postgres       = kubernetes_secret_v1.daimyo_postgres.metadata[0].name
