@@ -11,12 +11,10 @@
 # the LiteLLM model_list).
 
 locals {
-  # 4b9c45b (MR !1): decide() sets aside models whose max_input_tokens cannot
-  # hold the hook's input_tokens estimate plus the requested output (last
-  # resort, largest window first) and logs input_tokens per decision; on top of
-  # 9c120aa (content_filter reports keep the model off that session). CI
-  # pipeline 9443 passed before this immutable image was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:128867a45f6f54d8de3ef5ce4c1965d780e71fbc95a6e5389532208792e67692"
+  # 9c120aa: POST /report {reason: content_filter} keeps the model off that
+  # session for content_refusal_minutes. CI pipeline 9125 passed before this
+  # immutable image was selected.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:ee545a88cc249f06b08526c36ac88786f08e8e3f626813fd6b63f743e78521fd"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }
