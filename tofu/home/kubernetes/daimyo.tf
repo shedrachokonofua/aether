@@ -586,9 +586,13 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
 
 # Molecule runner pool (daimyo docs/ops/molecule-runners.md): `harness.kind:
 # molecule` agents run as wasm components in daimyo-molecule runners, not Kata
-# pods, for Orion's orion-molecule test agent. The runner is f171c95: MCP tools
-# on demand (mcp_search + mcp_call; the model no longer gets all 488 granted
-# tool schemas, ~190K tokens, with every call). Built on Coder with cargo
+# pods, for Orion's orion-molecule test agent. The runner is 5edd331: Claude
+# Code tool names on the wire (Read/Write/Edit/TodoWrite, meta-tools
+# mcp__daimyo__search_tools/call_tool); f171c95's mcp_search/mcp_call made
+# Anthropic bill claude-bridge traffic as third-party extra usage, and the
+# bridge failed closed. f171c95: MCP tools on demand (the model no longer gets
+# all 488 granted tool schemas, ~190K tokens, with every call). Built on
+# Coder with cargo
 # zigbuild (glibc 2.36) and appended as one layer onto the c8b2f5c image
 # (main pipeline 9451, build:daimyo-molecule), so the components and their
 # pin are c8b2f5c's. c8b2f5c: MCP tool lists shared across the runner's
@@ -601,7 +605,7 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
 # Before that 0911756 (pipeline 9329; per-session tool cache), and 19ae53c
 # (pipeline 9215; serial MCP listing, ~10-47 s per turn).
 locals {
-  daimyo_molecule_tag             = "sha256:571163f66910ede1e5b59745f493e3f48d244df302da8505eaeb924aa38b1690"
+  daimyo_molecule_tag             = "sha256:d743329c668aeea991cf3ea7c1886891ed19c6f8eba73bfcdc91acbed6cc6fd4"
   daimyo_molecule_agent_component = "molecule-agent@sha256:0dc6c52744e5273c236e72a13e8abf0a96ad31d294158c05e2fb152612be756b"
 }
 
