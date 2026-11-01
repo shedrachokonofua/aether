@@ -167,6 +167,14 @@ locals {
   # stream" and keeps the server. Only change since a2a43f4. Applies to task
   # pods started after the release. Before that a2a43f4 above.
   daimyo_sidecar_tag = "sha256:a95adc1afcf67e5e61e217dea72a1090781c18d686e7acf352d0e8fb2c7a4d54"
+  # omp and claude-code 1b73524 (main pipeline 9491, ts-test + harness builds
+  # green; rust-test-engine red on untouched engine tests): session jobs carry
+  # the engine's scoped id, so a nested subagent's parentJobId resolves
+  # (every nested omp registration was 409 "parent job is not registered",
+  # failing the turn and every later turn of the session); a refused job no
+  # longer fails later turns; a spent budget fails as `budget`, not "session
+  # CLI is not running". Applies to task pods started after the release.
+  # Before that omp 4737651 and claude-code c2fb823:
   # omp 4737651 (main pipeline 9445, ts-test + harness image verify green; MR
   # !19): the omp driver reads GET /models through the sidecar at pod start
   # and writes each granted alias's contextWindow, maxTokens min(65,536, the
@@ -210,8 +218,8 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:97170efbf12ad93b0ab7a90da5dbe507fe325491728ac165349f2736340c6992"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:595e569217f918fb62da905342d178936bd7cc993cdc17228fa961696e76177d"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:dd2e133caf8ffe6e6be5a9ed2db83d6b46c09bdfe6658f4ae2809902f3fc627e"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:b17f623cc7816fd23b192901d28bcc3403ec75cf9ea89a081b665618fda7acbe"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
