@@ -58,10 +58,12 @@ locals {
     [review]
     # Every repository's default review lenses (Cicada decision 66). A repo's
     # own [[lenses]] entry with the same name replaces one; new names add to them.
-    # spec and diff judge one change against its item and surroundings: balanced.
+    # spec and diff judge one change against its item and surroundings:
+    # strong. On balanced they kept failing review (Grok answering in prose
+    # instead of the verdict schema, DeepSeek running out the 1 h deadline).
     lenses = [
-      { name = "spec", model = "moira/balanced" },
-      { name = "diff", model = "moira/balanced" },
+      { name = "spec", model = "moira/strong" },
+      { name = "diff", model = "moira/strong" },
       { name = "security", model = "moira/cyber" },
       { name = "performance", model = "moira/strong" },
       { name = "integration", model = "moira/frontier" },
