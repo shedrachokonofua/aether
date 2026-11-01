@@ -1662,9 +1662,10 @@ resource "kubectl_manifest" "daimyo_cicada_skills" {
 # publishes `<repo>/ci:<commit sha>`, and Cicada names the digest per sandbox
 # (daimyo 8ecf6f4 `imageRepository`; Cicada decision 57). A class holds only
 # the allowed repository and the size, against cicada-tasks' sandbox-tier
-# quota.
+# quota. so/cicada runs in project `cicada` (daimyo_project above), so it has
+# a class here but no entry in daimyo_cicada_repos, which also makes projects.
 resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
-  for_each   = local.daimyo_cicada_repos
+  for_each   = merge(local.daimyo_cicada_repos, local.daimyo_cicada_self_sandbox)
   depends_on = [kubectl_manifest.daimyo_project, kubectl_manifest.daimyo_sandboxclass_crd]
 
   yaml_body = yamlencode({
@@ -1710,6 +1711,14 @@ locals {
     buyerfact = {
       repo      = "seven30/buyerfact"
       resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
+    }
+  }
+  # so/cicada itself: cargo, bun, Postgres 17 and NATS JetStream in one pod;
+  # its goal acceptance runs `task lint`, `task test` and `bun test ui` here.
+  daimyo_cicada_self_sandbox = {
+    cicada = {
+      repo      = "so/cicada"
+      resources = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "3Gi" } }
     }
   }
 }
