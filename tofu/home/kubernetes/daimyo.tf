@@ -159,7 +159,14 @@ locals {
   # serves ask_user on every task (one accepted ask per turn) and Claude's
   # permission-prompt server is renamed `daimyo_permission`; ships with the
   # claude-code harness below, which uses the new name. Before that c151904.
-  daimyo_sidecar_tag = "sha256:fcec03a1577e50597ba2a2f77dccb9149a1978834bc8ba384cfe5bf00696b407"
+  # Sidecar c8b2f5c (main pipeline 9451): a proxied MCP grant's standalone
+  # notification stream (GET /mcp) is answered 405 locally. The LiteLLM MCP
+  # gateway caps one caller (the org's shared key) at 100 live sessions and
+  # counts a held stream as in flight, so sessions were never evicted and new
+  # pods lost every gateway server to 429s. omp 18.14.1 treats the 405 as "no
+  # stream" and keeps the server. Only change since a2a43f4. Applies to task
+  # pods started after the release. Before that a2a43f4 above.
+  daimyo_sidecar_tag = "sha256:a95adc1afcf67e5e61e217dea72a1090781c18d686e7acf352d0e8fb2c7a4d54"
   # omp 4737651 (main pipeline 9445, ts-test + harness image verify green; MR
   # !19): the omp driver reads GET /models through the sidecar at pod start
   # and writes each granted alias's contextWindow, maxTokens min(65,536, the
@@ -571,15 +578,18 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
 
 # Molecule runner pool (daimyo docs/ops/molecule-runners.md): `harness.kind:
 # molecule` agents run as wasm components in daimyo-molecule runners, not Kata
-# pods, for Orion's orion-molecule test agent. The runner is 0911756 (main
-# pipeline 9329, build:daimyo-molecule): MCP grants listed concurrently and
-# cached per session, and the agent lists its tools once per run. The engine
-# side is unchanged since 19ae53c, so it runs against any server from there on.
+# pods, for Orion's orion-molecule test agent. The runner is c8b2f5c (main
+# pipeline 9451, build:daimyo-molecule): MCP tool lists shared across the
+# runner's sessions (same org/project/agent, 10 min stale-while-revalidate),
+# no standing MCP notification streams, and a session's MCP client released
+# after 60 s unused (its gateway session ends with a DELETE). The engine side
+# is unchanged since 19ae53c, so it runs against any server from there on.
 # The component pin is that image's
 # /opt/molecule/components/agents/molecule-agent.sha256. Bump both together.
-# Before that 19ae53c (pipeline 9215; serial MCP listing, ~10-47 s per turn).
+# Before that 0911756 (pipeline 9329; per-session tool cache), and 19ae53c
+# (pipeline 9215; serial MCP listing, ~10-47 s per turn).
 locals {
-  daimyo_molecule_tag             = "sha256:a9dda3c20d3252b63b3565d239419499d1578d76aa88e1f9ce6e9514579adbb8"
+  daimyo_molecule_tag             = "sha256:c5eed332b1d302af7e8f9ae06b182c638275dbdb4fe4654a9e124d85fbdd8acd"
   daimyo_molecule_agent_component = "molecule-agent@sha256:0dc6c52744e5273c236e72a13e8abf0a96ad31d294158c05e2fb152612be756b"
 }
 
