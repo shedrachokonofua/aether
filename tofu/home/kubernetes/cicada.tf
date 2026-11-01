@@ -11,11 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 9ab5ae6 (build-image, image.digest): a server default
-  # gardens every repository (72). On top of 6bee51d (71), b9473e9 (70),
-  # 85026bd (69), 1a95244 (68), 97ece8c (67), f265b9d (default review
-  # lenses, 66) and 0dd0633 (65) back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:01b59036edf3b86e238def2f35bba7fae5f14ecb5ddd2ffdc050e4a3335f1661"
+  # so/cicada main a70b47c (build-image, image.digest): a branch with no
+  # commit of its own is a turn that pushed nothing (73). On top of 9ab5ae6
+  # (gardener default, 72), 6bee51d (71), b9473e9 (70), 85026bd (69),
+  # 1a95244 (68), 97ece8c (67), f265b9d (66) back to 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:b2ecebd129cdca2cb2d46d22ee9c1dd68f00758a3c1ce76642a83f4b492c192d"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
