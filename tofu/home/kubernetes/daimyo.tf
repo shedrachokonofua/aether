@@ -578,10 +578,14 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
 
 # Molecule runner pool (daimyo docs/ops/molecule-runners.md): `harness.kind:
 # molecule` agents run as wasm components in daimyo-molecule runners, not Kata
-# pods, for Orion's orion-molecule test agent. The runner is c8b2f5c (main
-# pipeline 9451, build:daimyo-molecule): MCP tool lists shared across the
-# runner's sessions (same org/project/agent, 10 min stale-while-revalidate),
-# no standing MCP notification streams, and a session's MCP client released
+# pods, for Orion's orion-molecule test agent. The runner is f171c95: MCP tools
+# on demand (mcp_search + mcp_call; the model no longer gets all 488 granted
+# tool schemas, ~190K tokens, with every call). Built on Coder with cargo
+# zigbuild (glibc 2.36) and appended as one layer onto the c8b2f5c image
+# (main pipeline 9451, build:daimyo-molecule), so the components and their
+# pin are c8b2f5c's. c8b2f5c: MCP tool lists shared across the runner's
+# sessions (same org/project/agent, 10 min stale-while-revalidate), no
+# standing MCP notification streams, and a session's MCP client released
 # after 60 s unused (its gateway session ends with a DELETE). The engine side
 # is unchanged since 19ae53c, so it runs against any server from there on.
 # The component pin is that image's
@@ -589,7 +593,7 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
 # Before that 0911756 (pipeline 9329; per-session tool cache), and 19ae53c
 # (pipeline 9215; serial MCP listing, ~10-47 s per turn).
 locals {
-  daimyo_molecule_tag             = "sha256:c5eed332b1d302af7e8f9ae06b182c638275dbdb4fe4654a9e124d85fbdd8acd"
+  daimyo_molecule_tag             = "sha256:571163f66910ede1e5b59745f493e3f48d244df302da8505eaeb924aa38b1690"
   daimyo_molecule_agent_component = "molecule-agent@sha256:0dc6c52744e5273c236e72a13e8abf0a96ad31d294158c05e2fb152612be756b"
 }
 
