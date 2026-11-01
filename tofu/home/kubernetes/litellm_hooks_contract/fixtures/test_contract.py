@@ -179,6 +179,41 @@ def scenario_refuse():
     check(backend_calls() == [], "refuse: no backend attempt after a refuse")
 
 
+def decides():
+    with urllib.request.urlopen(FAKE + "/decides", timeout=10) as response:
+        return json.load(response)
+
+
+def scenario_input_tokens():
+    print("decide payload: input_tokens estimates the prompt (chars // 3) for chat and Responses")
+    fake_post("/reset")
+    text = "x" * 30000
+    post("/v1/chat/completions", {
+        "model": "moira/strong",
+        "messages": [{"role": "user", "content": text}],
+        "tools": TOOLS,
+        "max_tokens": 1000,
+    })
+    post("/v1/responses", {
+        "model": "moira/strong",
+        "input": [{"role": "user", "content": text}],
+        "max_output_tokens": 1000,
+    })
+    post("/v1/chat/completions", {"model": "moira/strong", "messages": [], "max_tokens": 1000})
+    sent = decides()
+    check(len(sent) == 3, f"input_tokens: Moira saw three decides, got {len(sent)}")
+    if len(sent) != 3:
+        return
+    chat, resp, empty = sent
+    # 30000 chars of content plus message/tool JSON overhead, // 3.
+    check(10000 < (chat.get("input_tokens") or 0) < 11000,
+          f"input_tokens: chat ~10k (30k chars + tools), got {chat.get('input_tokens')!r}")
+    check(10000 < (resp.get("input_tokens") or 0) < 10500,
+          f"input_tokens: Responses input ~10k, got {resp.get('input_tokens')!r}")
+    check("input_tokens" in empty and empty["input_tokens"] is None,
+          f"input_tokens: null when there is nothing to measure, got {empty.get('input_tokens', 'MISSING')!r}")
+
+
 def scenario_noop():
     print("no-op: model_info lacking the keys (or absent) leaves the request alone")
     for model in ("test/plain", "test/noinfo"):
@@ -371,6 +406,7 @@ def main():
     scenario_stream()
     scenario_responses()
     scenario_refuse()
+    scenario_input_tokens()
     scenario_noop()
     scenario_pinned_effort()
     scenario_logs()

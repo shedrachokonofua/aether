@@ -160,6 +160,13 @@ locals {
   # permission-prompt server is renamed `daimyo_permission`; ships with the
   # claude-code harness below, which uses the new name. Before that c151904.
   daimyo_sidecar_tag = "sha256:fcec03a1577e50597ba2a2f77dccb9149a1978834bc8ba384cfe5bf00696b407"
+  # omp 4737651 (main pipeline 9445, ts-test + harness image verify green; MR
+  # !19): the omp driver reads GET /models through the sidecar at pod start
+  # and writes each granted alias's contextWindow, maxTokens min(65,536, the
+  # model's cap) and an exact compaction trigger (window - maxTokens - 24,576).
+  # Rogue (routeway/glm-5.3-flash-uncensored, 262,144) had sent 199,817 in +
+  # 65,536 out with no window known (2026-11-01). Claude-code stays at c2fb823.
+  # Before that omp c2fb823:
   # omp and claude-code c2fb823 (main pipeline 9257, verify stages green:
   # omp 93 tests + jobs/origin smokes, claude-code real-CLI suite): main's omp
   # harness is now omp 18.14.1 with the background-jobs patch and the
@@ -197,7 +204,7 @@ locals {
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
   daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:97170efbf12ad93b0ab7a90da5dbe507fe325491728ac165349f2736340c6992"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:e7fb9a91f830b260e920a4e81599aef0635a1f8d7f3eddfd51cb7e2f394127ab"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:595e569217f918fb62da905342d178936bd7cc993cdc17228fa961696e76177d"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)

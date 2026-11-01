@@ -10,6 +10,7 @@ sends (litellm_params.model minus the provider prefix):
                               Step leg as request fallback; moira/frontier,
                               moira/balanced and moira/cyber route to
                               content-filtered legs (see FILTER_ROUTES).
+                              Each envelope is recorded (GET /decides).
 - POST /report                records Moira reports (GET /reports lists them).
 - POST /v1/chat/completions   records the body; MiMo legs answer 429 so the
                               router falls back, filter legs end with
@@ -28,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PORT = 9000
 REQUESTS = []
 REPORTS = []
+DECIDES = []
 
 # Legs that answer 429 so the router falls back to the paired step-* leg.
 FAILING = {"test-mimo-chat", "test-mimo-stream", "test-mimo-resp"}
@@ -70,6 +72,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, REQUESTS)
         if self.path == "/reports":
             return self._json(200, REPORTS)
+        if self.path == "/decides":
+            return self._json(200, DECIDES)
         self._json(404, {"error": {"message": "not found"}})
 
     def do_POST(self):
@@ -86,6 +90,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/reset":
             REQUESTS.clear()
             REPORTS.clear()
+            DECIDES.clear()
             return self._json(200, {"ok": True})
         if self.path in ("/v1/chat/completions", "/chat/completions",
                          "/v1/responses", "/responses"):
@@ -93,6 +98,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"error": {"message": "not found"}})
 
     def _decide(self, body):
+        DECIDES.append(body)
         if body.get("model") == "moira/flash":
             return self._json(200, {
                 "action": "refuse",
