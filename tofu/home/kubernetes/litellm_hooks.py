@@ -107,35 +107,6 @@ class ChatReasoningEffort(CustomLogger):
 chat_reasoning_effort = ChatReasoningEffort()
 
 
-# Request fields that make up the prompt: chat/messages carry `messages`, the
-# Responses API `input` (+ `instructions`), Anthropic a top-level `system`.
-_PROMPT_FIELDS = ("messages", "input", "instructions", "system", "tools")
-
-
-def _estimate_input_tokens(data: dict[str, Any]) -> int | None:
-    """Prompt size in tokens, estimated as JSON chars // 3; None if nothing to measure.
-
-    No tokenizer: /decide has a 1.5 s cap and this runs on every request. The
-    divisor is 3, not the usual ~4 chars/token of English prose, because the
-    error is asymmetric: Moira only sets a too-small model aside as a last
-    resort, so overestimating costs at most a worse route, while
-    underestimating sends a prompt that does not fit and the upstream answers
-    400 (omp "Rogue", 199,817 in + 65,536 out against a 262,144 window). Tool
-    schemas, code and JSON-escaped text tokenize at ~2.5-3.5 chars/token, and
-    ensure_ascii escaping (6 chars per CJK character, ~1-2 tokens) keeps
-    non-Latin text on the high side too. Inline base64 images are the known
-    gross overestimate.
-    """
-    parts = [data[k] for k in _PROMPT_FIELDS if data.get(k)]
-    if not parts:
-        return None
-    try:
-        chars = len(json.dumps(parts, default=str))
-    except (TypeError, ValueError):
-        return None
-    return chars // 3 or None
-
-
 def _nonempty_str(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
@@ -278,9 +249,6 @@ class MoiraRouter(CustomLogger):
                  if isinstance(v := data.get(k), int) and not isinstance(v, bool) and v > 0),
                 None,
             ),
-            # Moira sets aside models whose context window cannot hold this plus
-            # max_output_tokens, unless nothing larger is left.
-            "input_tokens": _estimate_input_tokens(data),
             "allowed_models": _effective_allowed_models(user_api_key_dict),
             # Keys Moira's decision log (moira.decision.request_id); LiteLLM sets it
             # before pre-call hooks and logs it as metadata.litellm_call_id in
