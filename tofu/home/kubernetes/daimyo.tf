@@ -146,7 +146,11 @@ locals {
   # checks reuse the admission transaction, /readyz pings a dedicated health
   # connection, and API/engine pool acquires fail after 5 s. No migrations.
   # Sidecar unchanged. Before that 19ae53c above.
-  daimyo_server_tag = "sha256:9ad0791acb6c60df00aed7dbcae32c2f6bca5fef69c8be6911ac72d06de31b58"
+  # 4ca4a4d (main pipeline 9309, all tests green): MR !18 merged into main,
+  # so the pool fix above plus main's c2fb823 (Claude's unadmitted
+  # notification turn is held; deadlines count from admission start). No
+  # migrations. Sidecar unchanged. Before that 6943756 above.
+  daimyo_server_tag = "sha256:668aa0d051f412eabef5910727ca0801b7e1bec97908309899f9dbf17cc638a0"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
