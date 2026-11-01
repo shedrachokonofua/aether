@@ -11,11 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 6bee51d (build-image, image.digest): an item parked on an
-  # open Question holds no writer slot and gives back its ci_exec sandbox
-  # (71). On top of b9473e9 (70), 85026bd (69), 1a95244 (68), 97ece8c (67),
-  # f265b9d (default review lenses, 66) and 0dd0633 (65) back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:2a7d75ce355bed9f4c055dea70e800f8f3e67dbf5849ed17e5e3421601492d1a"
+  # so/cicada main 9ab5ae6 (build-image, image.digest): a server default
+  # gardens every repository (72). On top of 6bee51d (71), b9473e9 (70),
+  # 85026bd (69), 1a95244 (68), 97ece8c (67), f265b9d (default review
+  # lenses, 66) and 0dd0633 (65) back to 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:01b59036edf3b86e238def2f35bba7fae5f14ecb5ddd2ffdc050e4a3335f1661"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
@@ -68,6 +68,13 @@ locals {
       { name = "performance", model = "moira/strong" },
       { name = "integration", model = "moira/frontier" },
     ]
+
+    [gardener]
+    # Every repository gets a gardening goal after 20 landings (Cicada decision
+    # 72): the lens notes since the last one, turned into cleanup, lints, tests
+    # and field-guide entries. A repo's own [gardener] every_landed replaces it;
+    # 0 turns it off.
+    every_landed = 20
 
     [otel]
     endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces"
