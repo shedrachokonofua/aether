@@ -158,7 +158,14 @@ locals {
   # (2026-11-01: multi-second COMMITs, engine pool timeouts). Migration 0058
   # (triggers mark, the pool publishes on release). Only server change since
   # 4ca4a4d. Before that 4ca4a4d above.
-  daimyo_server_tag = "sha256:13ff8fa2f02ef8113ac562c0b1c00dcc603d98d8f0059a98d01aafeabe47722b"
+  # c4b32a0 (main pipeline 9666, build green; MR !20 CI green after a
+  # retried flaky engine job): an idle session whose pod vanished while a
+  # turn was queued (a rewind racing the pod watch) relaunches before
+  # driving it, instead of sending it to the dead pod's URL and stranding it
+  # in `starting` with no pod handle, ignoring cancel (2026-11-01, Orion
+  # thread 01M69KHYH1V5Z4DJ041W21FYRK). No migrations. Sidecar unchanged.
+  # Before that 900a38e above.
+  daimyo_server_tag = "sha256:82e1a122fab3162067460922ac14047d2c5ae7511cdffea9fcaef97a14265138"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -175,6 +182,11 @@ locals {
   # stream" and keeps the server. Only change since a2a43f4. Applies to task
   # pods started after the release. Before that a2a43f4 above.
   daimyo_sidecar_tag = "sha256:a95adc1afcf67e5e61e217dea72a1090781c18d686e7acf352d0e8fb2c7a4d54"
+  # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
+  # MR !21 CI green): a reply whose last model call failed with nothing
+  # after it (omp gives up on a revoked key's 401) fails the turn with that
+  # error instead of succeeding with empty text. Applies to task pods
+  # started after the release. Before that 900a38e:
   # omp and claude-code 900a38e (main pipeline 9578, harness builds green;
   # SDK suite 352/353 locally, the one failure also red on main): a session
   # whose CLI died (budget stop, crash) answers the engine's job inventory
@@ -232,8 +244,8 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:65c63fce98defed4071b56dd2b7365b2e2fe5fdf2c08304bebefb52817d3176d"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:3e01f89364d1aeea07e98953ecf8769aab2a58d4e1c674ef8a1aeac59f658869"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:cc0abbcd25db92652c73a1f7c75409947b0e83ffe94fd6b6ddaf8176fc5abe6f"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:c1a995862b3359be943c8fe8a40a4ae246eba50d7ecdb1cdeb6db977d02402e9"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
