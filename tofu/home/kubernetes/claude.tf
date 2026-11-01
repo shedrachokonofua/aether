@@ -6,7 +6,10 @@
 # with an independent random bearer token. There is no API-key or PAYG fallback.
 # In-cluster egress is limited to OpenBao, platform.claude.com (token refresh),
 locals {
-  claude_image         = "registry.gitlab.home.shdr.ch/so/claude-bridge@sha256:6f5d9c3012e30a1f4ad8c68a4694cb12f7884fa164b485537ed5b6defe7f55e7"
+  # 159a775 (pipeline 9551): an extra-usage classification pauses the bridge
+  # (403 permission_error, so LiteLLM falls back at once and Moira cools
+  # Claude) for 15 min doubling to 4 h, instead of latching it until a restart.
+  claude_image         = "registry.gitlab.home.shdr.ch/so/claude-bridge@sha256:7a57479c6f2e3e521a0d992b699ce997771eea289d2e3b9720fcde3e22605082"
   claude_host          = "claude.home.shdr.ch"
   claude_port          = 8080
   claude_ns            = module.namespace["claude"].name
