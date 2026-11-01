@@ -150,7 +150,15 @@ locals {
   # so the pool fix above plus main's c2fb823 (Claude's unadmitted
   # notification turn is held; deadlines count from admission start). No
   # migrations. Sidecar unchanged. Before that 6943756 above.
-  daimyo_server_tag = "sha256:668aa0d051f412eabef5910727ca0801b7e1bec97908309899f9dbf17cc638a0"
+  # 900a38e (main pipeline 9578: images, clippy, fmt green; its tests were
+  # auto-cancelled by d561c04's pipeline, the full workspace suite ran green
+  # on the dev cluster): wake hints leave PostgreSQL after commit over core
+  # NATS (daimyo.wake.<db hash>) instead of NOTIFY, whose commit-time
+  # database lock queued notifying commits behind each other's WAL fsync
+  # (2026-11-01: multi-second COMMITs, engine pool timeouts). Migration 0058
+  # (triggers mark, the pool publishes on release). Only server change since
+  # 4ca4a4d. Before that 4ca4a4d above.
+  daimyo_server_tag = "sha256:13ff8fa2f02ef8113ac562c0b1c00dcc603d98d8f0059a98d01aafeabe47722b"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -167,6 +175,12 @@ locals {
   # stream" and keeps the server. Only change since a2a43f4. Applies to task
   # pods started after the release. Before that a2a43f4 above.
   daimyo_sidecar_tag = "sha256:a95adc1afcf67e5e61e217dea72a1090781c18d686e7acf352d0e8fb2c7a4d54"
+  # omp and claude-code 900a38e (main pipeline 9578, harness builds green;
+  # SDK suite 352/353 locally, the one failure also red on main): a session
+  # whose CLI died (budget stop, crash) answers the engine's job inventory
+  # empty instead of "session CLI is not running", so the next turn is
+  # dispatched and respawns the CLI rather than staying pending forever.
+  # Applies to task pods started after the release. Before that 1b73524:
   # omp and claude-code 1b73524 (main pipeline 9491, ts-test + harness builds
   # green; rust-test-engine red on untouched engine tests): session jobs carry
   # the engine's scoped id, so a nested subagent's parentJobId resolves
@@ -218,8 +232,8 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:dd2e133caf8ffe6e6be5a9ed2db83d6b46c09bdfe6658f4ae2809902f3fc627e"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:b17f623cc7816fd23b192901d28bcc3403ec75cf9ea89a081b665618fda7acbe"
+  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:65c63fce98defed4071b56dd2b7365b2e2fe5fdf2c08304bebefb52817d3176d"
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:3e01f89364d1aeea07e98953ecf8769aab2a58d4e1c674ef8a1aeac59f658869"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
