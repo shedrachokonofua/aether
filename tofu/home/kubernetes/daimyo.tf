@@ -1931,6 +1931,8 @@ resource "kubectl_manifest" "daimyo_notes_agent" {
 # mcp.ingressFrom) admits only serve, LiteLLM and the collector to MCP :8100.
 # NetworkPolicies are additive: this admits the task pods of
 # local.daimyo_deskplane_orgs (the researcher's `web` grant, the qa campaign)
+# and Daimyo's molecule runners, which serve MCP grants of `harness.kind:
+# molecule` agents (orion-molecule's `web`/`devices`) from daimyo-system,
 # without rolling the Deskplane release. No
 # depends_on: the release already exists, and referencing it would pull its
 # dependency chain into every targeted plan of this policy.
@@ -1952,9 +1954,18 @@ resource "kubernetes_manifest" "deskplane_mcp_daimyo_ingress" {
       }
       policyTypes = ["Ingress"]
       ingress = [{
-        from = [for org in local.daimyo_deskplane_orgs : {
-          namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = "${org}-tasks" } }
-        }]
+        from = concat(
+          [for org in local.daimyo_deskplane_orgs : {
+            namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = "${org}-tasks" } }
+          }],
+          [{
+            namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = local.daimyo_ns } }
+            podSelector = { matchLabels = {
+              "app.kubernetes.io/name"      = "daimyo"
+              "app.kubernetes.io/component" = "molecule"
+            } }
+          }],
+        )
         ports = [{ protocol = "TCP", port = 8100 }]
       }]
     }
