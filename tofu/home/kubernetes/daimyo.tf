@@ -564,13 +564,16 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
 
 # Molecule runner pool (daimyo docs/ops/molecule-runners.md): `harness.kind:
 # molecule` agents run as wasm components in daimyo-molecule runners, not Kata
-# pods. First cluster use, for Orion's orion-molecule test agent. The runner is
-# 19ae53c (main pipeline 9215, build:daimyo-molecule), the same commit as
-# daimyo_server_tag; the component pin is that image's
+# pods, for Orion's orion-molecule test agent. The runner is 0911756 (main
+# pipeline 9329, build:daimyo-molecule): MCP grants listed concurrently and
+# cached per session, and the agent lists its tools once per run. The engine
+# side is unchanged since 19ae53c, so it runs against any server from there on.
+# The component pin is that image's
 # /opt/molecule/components/agents/molecule-agent.sha256. Bump both together.
+# Before that 19ae53c (pipeline 9215; serial MCP listing, ~10-47 s per turn).
 locals {
-  daimyo_molecule_tag             = "sha256:475be234ace00801b47c4d9b06e96148c79d9ba1e3151875221e2b835fe9f2df"
-  daimyo_molecule_agent_component = "molecule-agent@sha256:75863b75f40c74f55cf4b59ad03a4febec514d222714f07029d42e90c84f1625"
+  daimyo_molecule_tag             = "sha256:a9dda3c20d3252b63b3565d239419499d1578d76aa88e1f9ce6e9514579adbb8"
+  daimyo_molecule_agent_component = "molecule-agent@sha256:0dc6c52744e5273c236e72a13e8abf0a96ad31d294158c05e2fb152612be756b"
 }
 
 resource "helm_release" "daimyo" {
