@@ -38,7 +38,6 @@ tiers:
       qwen-cloud/qwen3.8-max: xhigh
       ollama-cloud/deepseek-v4.1-flash: max
       zai/glm-5.3: max
-      antigravity/gemini-3.8-flash: high
       xiaomi/mimo-v2.6-pro: default
       commandcode/mimo-v2.6-pro: default
       opencode-go/mimo-v2.6-pro: default
@@ -52,6 +51,11 @@ tiers:
       xiaomi/mimo-v2.6-flash: default
       commandcode/mimo-v2.6-flash: default
       opencode-go/mimo-v2.6-flash: default
+      # AA scores it 31 (high), but as a coding agent it kept ending turns
+      # after one sentence of intent: 17% of turmeric's writer turns produced
+      # a push or a note, against 83-100% for the other balanced members
+      # (Cicada ledger + LiteLLM logs, 2026-10-30..11-02). Forced into flash.
+      antigravity/gemini-3.8-flash: { effort: high, force: true }
   # AA Cyber Index v1, checked 2026-10-30: one representative per quota pool.
   # Zero safety blocks across all three evaluations; Step's failed route stays out.
   cyber:

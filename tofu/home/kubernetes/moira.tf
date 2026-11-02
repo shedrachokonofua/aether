@@ -11,10 +11,11 @@
 # the LiteLLM model_list).
 
 locals {
-  # 9c120aa: POST /report {reason: content_filter} keeps the model off that
-  # session for content_refusal_minutes. CI pipeline 9125 passed before this
+  # f673e24: a tier member written { effort, force: true } routes in that
+  # tier whatever its AA score (Gemini 3.8 Flash forced into flash). On top
+  # of 9c120aa (content_filter reports). CI pipeline 9792 passed before this
   # immutable image was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:ee545a88cc249f06b08526c36ac88786f08e8e3f626813fd6b63f743e78521fd"
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:c6fc7729be40ed8797121dfe091b483c85eb1e26037d0c0223940154e600a3ea"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }
