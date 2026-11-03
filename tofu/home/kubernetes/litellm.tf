@@ -267,6 +267,14 @@ resource "kubernetes_deployment_v1" "litellm" {
             name           = "http"
           }
 
+          # Public origin for MCP OAuth (withings): the upstream redirects to
+          # <origin>/callback, and the authorize endpoint's same-origin
+          # redirect check otherwise resolves to the pod address.
+          env {
+            name  = "PROXY_BASE_URL"
+            value = "https://${local.litellm_host}"
+          }
+
           env {
             name = "LITELLM_MASTER_KEY"
             value_from {
