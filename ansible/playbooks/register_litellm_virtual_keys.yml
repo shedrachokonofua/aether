@@ -204,12 +204,14 @@
     # Orion chart values agents.orion.spec.grants (deploy/helm/orion), plus
     # dev's retained ClickStack grant in tofu/home/kubernetes/orion_agent_tools.tf.
     litellm_daimyo_orion_alias: daimyo-orion
+    litellm_daimyo_orion_user_id: orion
     litellm_daimyo_orion_mcp_servers:
       - colony
       - clickstack
       - affine
       - siren
       - jellyfin
+      - withings
       - comfyui
       - espn
       - finviz
@@ -451,6 +453,40 @@
           - litellm_daimyo_orion_key.json['keys'] | length == 1
         fail_msg: "expected exactly one LiteLLM key with alias {{ litellm_daimyo_orion_alias }}"
 
+    # Per-user OAuth servers (withings) store the upstream login under the
+    # calling key's user_id; a key without one gets 401. `orion` is a machine
+    # user owned only by this key, so no other key shares that login.
+    - name: Look up the orion machine user
+      tags: [orion-mcp]
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/user/info?user_id={{ litellm_daimyo_orion_user_id }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+        status_code: [200, 400, 404]
+        return_content: true
+      register: litellm_daimyo_orion_user
+      no_log: true
+
+    - name: Create the orion machine user
+      tags: [orion-mcp]
+      when: >-
+        litellm_daimyo_orion_user.status != 200 or
+        (litellm_daimyo_orion_user.json.user_info | default(none)) is none
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/user/new"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          user_id: "{{ litellm_daimyo_orion_user_id }}"
+          user_role: internal_user
+          auto_create_key: false
+        status_code: [200]
+      no_log: true
+
     - name: Scope the daimyo-orion virtual key to its MCP servers, without models
       tags: [orion-mcp]
       ansible.builtin.uri:
@@ -462,6 +498,7 @@
         body_format: json
         body:
           key: "{{ litellm_daimyo_orion_key.json['keys'][0].token }}"
+          user_id: "{{ litellm_daimyo_orion_user_id }}"
           models: ["no-default-models"]
           object_permission:
             mcp_servers: "{{ litellm_daimyo_orion_mcp_servers }}"
