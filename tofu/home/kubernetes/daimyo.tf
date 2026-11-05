@@ -245,7 +245,12 @@ locals {
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
   daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:cc0abbcd25db92652c73a1f7c75409947b0e83ffe94fd6b6ddaf8176fc5abe6f"
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:c1a995862b3359be943c8fe8a40a4ae246eba50d7ecdb1cdeb6db977d02402e9"
+  # omp b78f555 (MR !22, main pipeline 11821 build:harness-omp): a structured
+  # answer that misses its output schema gets one repair turn before the
+  # engine fails it with `schema` (Cicada G25: 13 lens tasks in 14 h ended in
+  # prose, broken JSON or wrong keys). Before that d561c04 (c1a99586…).
+  # claude-code stays at d561c04: it enforces the schema natively.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:2a55db1ae34645f11e039e185162e65786bc8eef99024dc3304cd404597376a4"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
