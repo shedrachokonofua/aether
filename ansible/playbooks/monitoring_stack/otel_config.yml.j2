@@ -16,6 +16,44 @@ receivers:
         endpoint: "0.0.0.0:{{ vm.monitoring_stack.ports.loki_push }}"
     use_incoming_timestamp: true
 
+  # Talos kernel logs (KmsgLogConfig, tofu/home/talos_cluster.tf): json_lines
+  # over TCP. The payload has no hostname, so the node is resolved from the
+  # peer address against inventory. Reachable only from Talos node IPs
+  # (router rule SERVICES-to-TRUSTED 27, source group TALOS-NODES).
+  tcp_log/talos_kmsg:
+    listen_address: "0.0.0.0:{{ vm.monitoring_stack.ports.talos_kmsg }}"
+    add_attributes: true
+    operators:
+      - type: json_parser
+        timestamp:
+          parse_from: attributes["talos-time"]
+          layout_type: gotime
+          layout: "2006-01-02T15:04:05.999999999Z07:00"
+        severity:
+          parse_from: attributes["talos-level"]
+      - type: move
+        from: attributes.msg
+        to: body
+{% for key, node in vm.items() if key.startswith('talos_') %}
+      - type: add
+        if: 'attributes["net.peer.ip"] == "{{ node.ip }}"'
+        field: resource["host.name"]
+        value: "{{ node.name }}"
+{% endfor %}
+      - type: add
+        if: 'resource["host.name"] == nil'
+        field: resource["host.name"]
+        value: EXPR(attributes["net.peer.ip"])
+      - type: copy
+        from: resource["host.name"]
+        to: resource["service.name"]
+      - type: copy
+        from: resource["host.name"]
+        to: resource["k8s.node.name"]
+      - type: add
+        field: resource["log.stream"]
+        value: talos-kmsg
+
   # Every scrape job (Prometheus itself was retired 2026-10-30; ClickHouse is the
   # only metrics store), including conditional probes.
   # Escape relabel replacement dollars as $$ for collector env expansion.
@@ -481,6 +519,12 @@ service:
     # collector so they get batching, memory limiting, and the standard egress.
     logs/loki_push:
       receivers: [loki]
+      processors: [memory_limiter, batch]
+      exporters: [clickhouse/otel]
+
+    # Talos kernel logs -> otel.otel_logs (ServiceName = node name).
+    logs/talos_kmsg:
+      receivers: [tcp_log/talos_kmsg]
       processors: [memory_limiter, batch]
       exporters: [clickhouse/otel]
 

@@ -115,6 +115,11 @@ locals {
   # input = base + siderolabs/uinput. Build-verified 2026-06-27 (installer 200);
   # d952c982… (base + joydev + uhid + uinput) 400s — joydev/uhid unpublished for v1.12.1.
   talos_nvidia_schematic = "88dfed3cc7c944b6c235188339abc08fc0d507b127a45d3c3130f54315b557a4"
+  # input + kernel console on ttyS0 (customization.extraKernelArgs:
+  # console=ttyS0,115200n8 console=tty0). Nodes booted from a UKI take kernel
+  # args only from the image, so serial_console nodes need their own schematic.
+  # Selected by serial_console: true (talos-neo, panic capture).
+  talos_nvidia_serial_schematic = "80b29f97e7205fa0b62f49d61ce0002aa2d540610395b9a3bf1939b560cba660"
 }
 
 # Talos ISOs (nocloud platform) on each Talos host's own `local` storage, one

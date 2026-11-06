@@ -1,0 +1,8 @@
+---
+# Serial-console recorders for VMs with serial_console: true (config/vm.yml).
+- name: Record VM serial consoles on Proxmox hosts
+  hosts: machines
+  become: true
+  gather_facts: false
+  roles:
+    - vm_serial_console

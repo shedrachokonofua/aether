@@ -60,6 +60,7 @@ monitoring_stack:
     otel_grpc: 4317
     otel_http: 4318
     loki_push: 3500
+    talos_kmsg: 5140 # collector tcplog receiver for Talos kernel logs (KmsgLogConfig)
     otel_metrics: 8888
     otel_prometheus: 8889
     clickhouse: 8123
@@ -353,6 +354,16 @@ talos_neo:
   gpu_class: "rtx-pro-6000-blackwell"
   gpu_hostpci_id: "0000:01:00.0"
   gpu_rom_file: "rtx6000.rom"
+  # Kernel console on a VM serial port, recorded to the host journal by
+  # ansible role vm_serial_console. Captures panic output that kmsg shipping
+  # cannot (the userspace sender dies with the kernel). Selects the
+  # serial-console installer schematic (cloud_images.tf).
+  serial_console: true
+  # No Kata (nested VMs) here: on this Zen 5 host, nested KVM leaks the Kata
+  # guest's exception state into this VM's kernel (panics jump to Kata-guest
+  # kernel addresses: asm_exc_page_fault, do_error_trap), and each panic risks
+  # the Blackwell FLR wedge. Drops the aether.sh/kata label (talos_cluster.tf).
+  kata: false
   # Local NVMe (local-lvm on neo) for GPU model/state storage. Mounted on the
   # Talos node at /var/mnt/gpu-storage and exposed to k8s via a static local PV.
   gpu_storage_disk_gb: 500
