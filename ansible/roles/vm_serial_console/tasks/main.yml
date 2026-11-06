@@ -1,0 +1,59 @@
+---
+# Record the serial console of every VM on this Proxmox host that declares
+# serial_console: true in config/vm.yml. The kernel console (console=ttyS0)
+# carries panic output that in-guest log shipping cannot send; the host journal
+# keeps it, and the journal forwarder ships it to ClickHouse
+# (ServiceName = host, syslog.identifier = vm-console-<vmid>).
+- name: Select serial-console VMs on this host
+  ansible.builtin.set_fact:
+    vm_serial_console_vmids: >-
+      {{ vm | dict2items
+         | selectattr('value.serial_console', 'defined')
+         | selectattr('value.serial_console')
+         | selectattr('value.node', 'equalto', inventory_hostname)
+         | map(attribute='value.id') | map('string') | list }}
+
+- name: Configure serial console recorders
+  when: vm_serial_console_vmids | length > 0
+  block:
+    - name: Install socat
+      ansible.builtin.apt:
+        name: socat
+        state: present
+
+    - name: Install serial console recorder unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/aether-vm-console@.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Record serial console of Proxmox VM %i to the journal
+          After=pve-guests.service
+
+          [Service]
+          # QEMU creates the socket when the VM starts; wait instead of failing.
+          ExecStartPre=/bin/sh -c 'until [ -S /var/run/qemu-server/%i.serial0 ]; do sleep 5; done'
+          TimeoutStartSec=infinity
+          # Read-only client. The socket takes one client: stop this unit before
+          # using `qm terminal %i`.
+          ExecStart=/usr/bin/socat -u UNIX-CONNECT:/var/run/qemu-server/%i.serial0 STDOUT
+          Restart=always
+          RestartSec=5
+          StandardOutput=journal
+          SyslogIdentifier=vm-console-%i
+
+          [Install]
+          WantedBy=multi-user.target
+      register: vm_serial_console_unit
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: vm_serial_console_unit is changed
+
+    - name: Enable and start recorders
+      ansible.builtin.systemd:
+        name: "aether-vm-console@{{ item }}.service"
+        enabled: true
+        state: "{{ 'restarted' if vm_serial_console_unit is changed else 'started' }}"
+      loop: "{{ vm_serial_console_vmids }}"

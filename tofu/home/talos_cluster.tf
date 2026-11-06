@@ -74,6 +74,17 @@ locals {
     }]
   })
 
+  # Stream every node's kernel log (kmsg) off-node to the monitoring-stack
+  # collector. Talos keeps no kernel log across reboots, so this is the only
+  # record of the lead-up to a guest crash; shipping off-node means lines sent
+  # before a panic survive it. KmsgLogConfig applies to a running node.
+  talos_kmsg_log_config = yamlencode({
+    apiVersion = "v1alpha1"
+    kind       = "KmsgLogConfig"
+    name       = "monitoring-stack"
+    url        = "tcp://${local.vm.monitoring_stack.ip}:${local.vm.monitoring_stack.ports.talos_kmsg}/"
+  })
+
   # Keep the 4GB Raspberry Pi worker pool from being packed to the edge. These
   # values reduce pod-request allocatable memory to roughly 2.4-2.6Gi per node,
   # which is about 75% of the current ARM node allocatable capacity.
@@ -279,6 +290,15 @@ resource "proxmox_virtual_environment_vm" "talos" {
     }
   }
 
+  # VM serial port for serial_console nodes; the kernel console is on ttyS0 and
+  # ansible role vm_serial_console records the socket to the host journal.
+  dynamic "serial_device" {
+    for_each = try(each.value.serial_console, false) ? [1] : []
+    content {
+      device = "socket"
+    }
+  }
+
   dynamic "efi_disk" {
     for_each = try(each.value.gpu, false) ? [1] : []
     content {
@@ -334,6 +354,7 @@ resource "talos_machine_configuration_apply" "this" {
       "\n"
     )),
     local.talos_lldpd_extension_service_config,
+    local.talos_kmsg_log_config,
   ])
   endpoint = try(each.value.bootstrap_ip, each.value.ip)
   node     = try(each.value.bootstrap_ip, each.value.ip)
@@ -391,7 +412,7 @@ resource "talos_machine_configuration_apply" "this" {
               disk = try(each.value.install_disk, "/dev/vda")
               image = try(
                 each.value.install_image,
-                try(each.value.hardware, "") == "rpi" ? "factory.talos.dev/metal-installer/${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_schematic : local.talos_rpi_schematic}:${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_version : local.talos_rpi_version}" : try(each.value.gpu, false) ? "factory.talos.dev/metal-installer/${try(each.value.gpu_input, false) ? local.talos_nvidia_schematic : local.talos_nvidia_base_schematic}:${local.talos_version}" : "factory.talos.dev/metal-installer/${local.talos_schematic}:${local.talos_version}"
+                try(each.value.hardware, "") == "rpi" ? "factory.talos.dev/metal-installer/${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_schematic : local.talos_rpi_schematic}:${try(each.value.model, "") == "raspberry-pi-5" ? local.talos_rpi5_version : local.talos_rpi_version}" : try(each.value.gpu, false) ? "factory.talos.dev/metal-installer/${try(each.value.serial_console, false) ? local.talos_nvidia_serial_schematic : try(each.value.gpu_input, false) ? local.talos_nvidia_schematic : local.talos_nvidia_base_schematic}:${local.talos_version}" : "factory.talos.dev/metal-installer/${local.talos_schematic}:${local.talos_version}"
               )
             }
             # Pin a stable, human-readable hostname instead of Talos's default
@@ -639,6 +660,31 @@ resource "kubernetes_labels" "talos_node_hardware_model" {
 
   labels = {
     "aether.sh/hardware-model" = each.value.model
+  }
+
+  field_manager = "opentofu-aether-node-labels"
+}
+
+# Nodes that may run Kata (nested VM) pods; the kata RuntimeClass selects on
+# this label. Proxmox VMs only (Pi schematics ship no kata); a node opts out
+# with kata: false in config/vm.yml.
+resource "kubernetes_labels" "talos_node_kata" {
+  for_each = {
+    for k, v in local.talos_vm_nodes : k => v
+    if try(v.kata, true)
+  }
+
+  depends_on = [talos_cluster_kubeconfig.this]
+
+  api_version = "v1"
+  kind        = "Node"
+
+  metadata {
+    name = each.value.name
+  }
+
+  labels = {
+    "aether.sh/kata" = "true"
   }
 
   field_manager = "opentofu-aether-node-labels"

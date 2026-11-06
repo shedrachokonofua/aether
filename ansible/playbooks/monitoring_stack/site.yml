@@ -395,6 +395,7 @@
         name: monitoring-stack
         ports:
           - "{{ vm.monitoring_stack.ports.loki_push }}:3500" # collector Loki push-API receiver (unpoller UniFi events)
+          - "{{ vm.monitoring_stack.ports.talos_kmsg }}:{{ vm.monitoring_stack.ports.talos_kmsg }}" # collector tcplog receiver (Talos kernel logs)
           - "{{ vm.monitoring_stack.ports.otel_grpc }}:4317"
           - "{{ vm.monitoring_stack.ports.otel_http }}:4318"
           - "{{ vm.monitoring_stack.ports.otel_metrics }}:8888"

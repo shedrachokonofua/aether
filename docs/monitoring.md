@@ -226,6 +226,45 @@ Metrics on `127.0.0.1:9091` (`ojgf_*`) are scraped by the VM agent; the
 `Journal Forwarder` Grafana group alerts on poll-stale, poll-errors, and absent
 (all `severity: warning`).
 
+### Talos kernel logs
+
+Every Talos node streams its kernel log (kmsg) off-node through a
+`KmsgLogConfig` document (`local.talos_kmsg_log_config` in
+`tofu/home/talos_cluster.tf`). It sends `json_lines` over TCP to the central
+collector's `tcp_log/talos_kmsg` receiver on `monitoring-stack:5140`
+(`monitoring_stack.ports.talos_kmsg`). VyOS rule `SERVICES-to-TRUSTED 27` opens
+that port only to the `TALOS-NODES` address group (surgical deploy:
+`task configure:router-talos-kmsg`). Talos keeps no kernel log across
+reboots, so this is the only record of what led up to a node crash. Because the
+logs leave the node as they're written, they survive the crash.
+
+The payload has no hostname, so the receiver maps the TCP peer IP to the
+inventory node name. Rows land in `otel.otel_logs` with `ServiceName` =
+`host.name` = `k8s.node.name` = the node (e.g. `talos-neo`) and
+`ResourceAttributes['log.stream'] = 'talos-kmsg'`. The timestamp comes from
+`talos-time` and severity from `talos-level`. `facility`, `priority` and `seq`
+are kept as log attributes. Pod logs for the same node use `ServiceName` =
+`<namespace>/<pod>`, so the two don't collide.
+
+### VM serial consoles (panic capture)
+
+kmsg shipping can't capture a kernel panic, because the userspace sender dies
+with the kernel. A VM with `serial_console: true` in `config/vm.yml` gets a fix
+in three parts:
+
+- a `socket` serial port (`serial_device` on `proxmox_virtual_environment_vm.talos`);
+- the kernel console on `ttyS0`. UKI-booted Talos takes kernel args only from
+  its image, so these nodes install `local.talos_nvidia_serial_schematic`, whose
+  schematic adds `console=ttyS0,115200n8 console=tty0`;
+- `aether-vm-console@<vmid>.service` on the Proxmox host (ansible role
+  `vm_serial_console`, `task configure:vm-serial-consoles`). It copies
+  `/var/run/qemu-server/<vmid>.serial0` into the host journal.
+
+The journal forwarder ships those lines to ClickHouse as `ServiceName` = the
+host, with `LogAttributes['syslog.identifier'] = 'vm-console-<vmid>'`. Only
+`talos-neo` (VM 1031, host `neo`) uses this. The socket accepts one client, so
+stop the unit before running `qm terminal <vmid>`.
+
 ### vigil (cloud control-plane audit)
 
 The control-plane audit layer (CloudTrail, GCP Cloud Audit, OCI Audit,

@@ -1,0 +1,30 @@
+---
+# Surgical: SERVICES-to-TRUSTED rule 27 for Talos node kernel logs →
+# monitoring-stack tcp_log receiver only. Declared identically in
+# configure_router.yml; this avoids a full router apply. TALOS-NODES is the
+# existing group from rule 26.
+- name: Allow Talos kernel logs to monitoring-stack
+  hosts: router
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    ansible_persistent_connect_timeout: 0
+  tasks:
+    - name: Assert monitoring-stack facts are present
+      ansible.builtin.assert:
+        that:
+          - vm.monitoring_stack.ip == "10.0.2.3"
+          - vm.monitoring_stack.ports.talos_kmsg | int > 0
+        fail_msg: Refusing to open firewall without verified monitoring_stack facts.
+
+    - name: Add SERVICES-to-TRUSTED rule 27 only
+      vyos.vyos.vyos_config:
+        lines:
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 destination port {{ vm.monitoring_stack.ports.talos_kmsg }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 destination address {{ vm.monitoring_stack.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 source group address-group TALOS-NODES
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 description 'Allow Talos kernel logs to Monitoring Stack'
+        save: true

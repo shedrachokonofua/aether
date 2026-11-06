@@ -421,6 +421,10 @@ tasks:
     desc: Surgical SERVICES-to-TRUSTED rule 26 — Talos→estate-scanner:22 only
     cmds:
       - ansible-playbook ansible/playbooks/home_router/allow_estate_scanner_dispatch.yml
+  configure:router-talos-kmsg:
+    desc: Surgical SERVICES-to-TRUSTED rule 27 — Talos→monitoring-stack kmsg port only
+    cmds:
+      - ansible-playbook ansible/playbooks/home_router/allow_talos_kmsg.yml
   configure:vyos-exporter:
     desc: Deploy pinned VyOS exporter release to the home router
     cmds:
@@ -496,6 +500,9 @@ tasks:
     cmds: [ansible-playbook ansible/playbooks/setup_vm_monitoring_agents.yml]
   configure:host-agents:
     cmds: [ansible-playbook ansible/playbooks/setup_host_monitoring_agents.yml]
+  configure:vm-serial-consoles:
+    desc: Record serial consoles of serial_console VMs to the Proxmox host journal
+    cmds: [ansible-playbook ansible/playbooks/setup_vm_serial_consoles.yml]
   configure:litellm-keys:
     desc: Register SOPS-backed LiteLLM virtual keys by alias
     cmds: [ansible-playbook ansible/playbooks/register_litellm_virtual_keys.yml]

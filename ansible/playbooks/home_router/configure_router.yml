@@ -800,6 +800,14 @@
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 destination address {{ vm.estate_scanner.ip }}
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 source group address-group TALOS-NODES
           - set firewall ipv4 name SERVICES-to-TRUSTED rule 26 description 'Allow Kestra SSH dispatch to estate-scanner'
+          # Talos kernel logs (KmsgLogConfig) -> monitoring-stack tcp_log receiver.
+          # Source = TALOS-NODES: kmsg is sent by the node itself, never a pod.
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 action accept
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 protocol tcp
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 destination port {{ vm.monitoring_stack.ports.talos_kmsg }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 destination address {{ vm.monitoring_stack.ip }}
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 source group address-group TALOS-NODES
+          - set firewall ipv4 name SERVICES-to-TRUSTED rule 27 description 'Allow Talos kernel logs to Monitoring Stack'
           # Kestra reconciles the home WAN CrowdSec allowlist through the AWS
           # gateway's forced-command account; no other cloud destination/port.
           - set firewall ipv4 name SERVICES-to-CLOUD default-action drop

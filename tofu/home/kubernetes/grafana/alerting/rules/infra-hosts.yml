@@ -773,6 +773,56 @@ groups:
           summary: "Expected Ceph OSD disk {{ $labels.serial }} is missing on {{ $labels.instance }}"
           description: "A Ceph OSD NVMe serial is no longer present as a live controller"
 
+      # Passthrough GPU wedge. Blackwell cards (RTX PRO 6000 on neo) can fail the
+      # vfio-pci FLR after an unclean guest reset and stay dead until the host is
+      # cold power-cycled; the guest then never finishes booting (Talos reboots it
+      # every 70 min) or QEMU freezes it. Fires while the last wedge line is newer
+      # than the host's last boot, so it holds until the power cycle, not 10 min.
+      - uid: proxmox-passthrough-gpu-wedged
+        title: Proxmox Passthrough GPU Wedged
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 604800
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              rawSql: |
+                SELECT ServiceName AS host, toFloat64(1) AS value FROM otel.otel_logs WHERE ResourceAttributes['instance_type'] = 'proxmox_host' AND Timestamp BETWEEN $__fromTime AND $__toTime AND (position(Body, 'after FLR; giving up') > 0 OR position(Body, 'Unable to power on device, stuck in D3') > 0 OR position(Body, 'KVM internal error') > 0 OR startsWith(Body, 'Linux version ')) GROUP BY host HAVING maxIf(Timestamp, NOT startsWith(Body, 'Linux version ')) > maxIf(Timestamp, startsWith(Body, 'Linux version '))
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Passthrough GPU on Proxmox host {{ $labels.host }} is wedged"
+          description: "vfio-pci FLR gave up, the device is stuck in D3, or QEMU hit a KVM internal error since the host last booted. A VM reset cannot recover it: cold power-cycle the host (power off ~30 s). Check: journalctl -k | grep -E 'after FLR|stuck in D3|broken device'"
+
       # OTel / ClickHouse ingestion health
       - uid: otel-clickhouse-queue-high
         title: OTel ClickHouse Queue High
