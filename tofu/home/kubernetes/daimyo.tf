@@ -165,7 +165,14 @@ locals {
   # in `starting` with no pod handle, ignoring cancel (2026-11-01, Orion
   # thread 01M69KHYH1V5Z4DJ041W21FYRK). No migrations. Sidecar unchanged.
   # Before that 900a38e above.
-  daimyo_server_tag = "sha256:82e1a122fab3162067460922ac14047d2c5ae7511cdffea9fcaef97a14265138"
+  # 0674804 (MR !23 CI green after retried runner-failure jobs; main pipeline
+  # 12176 server image rebuilt after a talos-neo reboot killed it): a session
+  # upgrade may raise its background budget (mode still fixed, decreases still
+  # conflict); the next key minted on the new revision raises the shared
+  # LiteLLM user to the new cap and keeps its spend (2026-11-05: orion moved
+  # to $200 and its older sessions could not upgrade). No migrations. Sidecar
+  # unchanged. Before that c4b32a0 above.
+  daimyo_server_tag = "sha256:c12bf445969f53b968089c91dfe429fd357832fdd4f6401113f37fa34d434fa0"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
