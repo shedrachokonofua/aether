@@ -11,13 +11,13 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main fa6c7f1 (build-image, image.digest): a lens or writer
-  # failure the infrastructure caused is retried with backoff (5 min
-  # doubling to 1 h) and asks only after 2 h of them (99). Also ships goal
-  # 39's UI v2 items since f434af1 (94-98; no migrations). Before that
-  # f434af1 (93), f7eeb65 (74), a70b47c (73), 9ab5ae6 (gardener default, 72)
-  # back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:16d949bc0537c9d2596d2dcd4537906f8c83a9ede2e58ff5e2d5bb75bc929a65"
+  # so/cicada main d73cfbd (build-image, image.digest): recover closed
+  # planners, hold unchanged rebase conflicts with their writer, reset
+  # lens failure windows on an answer, and back off org-limit admission
+  # rejections (100-103; no migrations). Includes 48392d0 and fa6c7f1
+  # (94-99). Before that f434af1 (93), f7eeb65 (74), a70b47c (73),
+  # 9ab5ae6 (gardener default, 72), back to 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:08fa9c33b4882c3269f02c5427480c92b5def9817b2d62d8b6c9b8b45da19726"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
