@@ -27,8 +27,10 @@ resource "random_password" "karakeep_meili_master_key" {
 }
 
 locals {
-  karakeep_image        = "ghcr.io/karakeep-app/karakeep:release"
-  karakeep_chrome_image = "zenika/alpine-chrome:123" # gcr.io/zenika-hub copy now 401s
+  karakeep_image = "ghcr.io/karakeep-app/karakeep:0.34.1@sha256:69ae5315c618b7c14c1af3e34c6e211acdb231793af424ecd1cab0b70691d987"
+  # Karakeep's own Chrome image (the `release` tag at 0.34.1): Google Chrome on
+  # amd64, Debian Chromium on arm64, DevTools forwarded to :9222 by socat.
+  karakeep_chrome_image = "ghcr.io/karakeep-app/karakeep-chrome:156.0.8078.47-r2@sha256:49b5eaf63cac3b6ad6a28b2ce0cd421486f440a49db41221af6c1b3229d139bd"
   karakeep_meili_image  = "getmeili/meilisearch:v1.13.3"
 
   karakeep_host = "karakeep.home.shdr.ch"
@@ -162,16 +164,20 @@ resource "kubernetes_deployment_v1" "karakeep_chrome" {
       metadata { labels = local.karakeep_chrome_labels }
       spec {
         enable_service_links = false
+        # Compose's `init: true`: the pause container reaps the entrypoint's
+        # socat children, since Chrome runs as PID 1 of its container.
+        share_process_namespace = true
         container {
           name  = "chrome"
           image = local.karakeep_chrome_image
+          # The entrypoint supplies --no-sandbox and the DevTools address/port;
+          # overriding the port breaks its 9222 forwarder.
           args = [
-            "--no-sandbox",
             "--disable-gpu",
             "--disable-dev-shm-usage",
-            "--remote-debugging-address=0.0.0.0",
-            "--remote-debugging-port=${local.karakeep_chrome_port}",
             "--hide-scrollbars",
+            "--disable-blink-features=AutomationControlled",
+            "--window-size=1440,900",
           ]
           port { container_port = local.karakeep_chrome_port }
           resources {
@@ -336,9 +342,11 @@ resource "kubernetes_deployment_v1" "karakeep" {
             mount_path = "/data"
           }
 
+          # 4Gi (was 2): 0.34.1 OOMKilled at 2Gi within 20 minutes of the
+          # upgrade (2026-11-02) while draining the crawl/parse/archive queue.
           resources {
             requests = { cpu = "100m", memory = "1.5Gi" }
-            limits   = { cpu = "2", memory = "2Gi" }
+            limits   = { cpu = "2", memory = "4Gi" }
           }
 
           readiness_probe {
