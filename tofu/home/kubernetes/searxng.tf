@@ -107,26 +107,52 @@ resource "kubernetes_secret_v1" "searxng_settings" {
         social media:
 
       engines:
-        - name: kagi
+        # Brave Search API: the paid default for general web search. Deskplane
+        # agents send nearly all of this instance's searches, often with
+        # site:/OR/quoted operators, which Brave's API honours.
+        # Routed through json_engine because the built-in `braveapi` engine
+        # gets HTTP 422 on every call: its Chrome impersonation sends
+        # Cache-Control: max-age=0 and Brave accepts only no-cache
+        # (searxng/searxng#6891). Explicit headers here override that; switch
+        # back to `engine: braveapi` once the image carries the upstream fix.
+        - name: brave api
           engine: json_engine
-          shortcut: kag
-          categories: general
+          shortcut: bra
+          categories: [general, web]
           paging: true
-          search_url: https://kagi.com/api/v0/search?q={query}
+          page_size: 1
+          first_page_num: 0
+          search_url: https://api.search.brave.com/res/v1/web/search?q={query}&count=20&offset={pageno}&safesearch=off&text_decorations=false
           headers:
-            Authorization: "Bot ${var.secrets["searxng.kagi_api_key"]}"
-          results_query: data
+            X-Subscription-Token: "${var.secrets["searxng.brave_api_key"]}"
+            Accept: application/json
+            Cache-Control: no-cache
+          results_query: web/results
           url_query: url
           title_query: title
-          content_query: snippet
-          timeout: 5
-          disabled: false
+          content_query: description
+          title_html_to_text: true
+          content_html_to_text: true
           about:
-            website: https://www.kagi.com/
-            official_api_documentation: https://help.kagi.com/kagi/api/search.html
+            website: https://brave.com/search/api/
+            official_api_documentation: https://api-dashboard.search.brave.com/documentation
             use_official_api: true
             require_api_key: true
             results: JSON
+        # The scraping engine is rate-limited from this egress and would
+        # duplicate the API results; `!br` still reaches it.
+        - name: brave
+          disabled: true
+        # Kagi v1 Search API (POST /api/v1/search, Bearer auth, postpaid,
+        # $12/1k). Off by default so only explicit `!kag` searches bill it.
+        - name: kagi
+          engine: kagi
+          kagi_categ: search
+          shortcut: kag
+          categories: [general, web]
+          api_key: "${var.secrets["searxng.kagi_api_key"]}"
+          timeout: 5
+          disabled: true
     EOT
   }
 
@@ -156,6 +182,10 @@ resource "kubernetes_deployment_v1" "searxng" {
     template {
       metadata {
         labels = local.searxng_labels
+        # SearXNG reads settings.yml only at startup; roll the pod when it changes.
+        annotations = {
+          "checksum/settings" = nonsensitive(sha256(kubernetes_secret_v1.searxng_settings.data["settings.yml"]))
+        }
       }
 
       spec {
