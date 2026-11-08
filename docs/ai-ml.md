@@ -226,6 +226,42 @@ publishes none for the subscription); on 2026-09-26 both Spark tiers returned
 Rotated OAuth and subscription credentials persist in a dedicated OpenBao
 record; the bridge never falls back to a PAYG Meta key.
 
+The 2026-11-03 Muse account transport update follows omp 18.16.0: `/usage`
+reads account `subs_usage` via
+`POST /muse-code/key` instead of generating a probe completion. Successful
+readings cache for ten minutes; failed reads back off five minutes and retain
+the old observation timestamp. Partial account data cannot erase known,
+unexpired limits or overwrite a stream/429 observed during the read.
+The subscription-backed LiteLLM declarations use native Responses, including
+Moira's fail-open aliases; LiteLLM converts Chat callers. With the same real
+subscription key, Chat Completions returned `client_attestation_denied`, while
+Responses completed. The 2026-11-03 scoped OpenTofu apply pinned the bridge
+to digest `a3051cda507763d7f9f1fe3fb9698579dd3bd40dc81050cc3b87e7c329254f66`.
+Muse, LiteLLM, Moira and its poller completed their rollouts. Public LiteLLM
+Responses (JSON and streaming) and Chat-to-Responses conversion returned `OK`;
+the deployed `/usage` endpoint returned 0% rolling and weekly usage. Moira's
+next scheduled poll persisted both fresh windows with `ok=true`.
+
+On 2026-11-06 the bridge inference implementation switched to pinned
+omp `pi-ai`/`pi-catalog` 18.17.0. Both public protocols now use the SDK's Muse
+Responses transport, tool-name normalization, history replay, and protocol
+encoders rather than a handwritten relay. A direct request declaring `bash`
+returned 403 `client_attestation_denied`; the SDK bridge completed tool-call
+and tool-result turns on both Wonder Contributor and Wonder Full Contributor
+with the same 115,288-character context (about 20k tokens), preserving the
+caller's tool name. Responses SSE and Chat Completions SSE also returned the
+same tool on both models. This is evidence for tool-name compatibility, not
+a request-size cap. The runtime uses Bun 1.4.4 with the native SDK addon
+external to the bundle. The scoped OpenTofu rollout deployed digest
+`7b31fad1d2379d00195b917df5d796d42f2b58a221a8ca5e79bf29dd045566c6`.
+The production check also caught LiteLLM emitting `strict: null` during
+Chat-to-Responses translation; the bridge normalizes that optional field to
+omission before SDK validation. Both Wonder models passed live bridge JSON
+tool-call/result cycles with 109,887 characters of synthetic context and
+public LiteLLM Responses SSE and Chat Completions SSE tool calls. The pod
+became ready with zero restarts; `/health`, `/ready`, `/v1/models`, and `/usage`
+all succeeded. The account snapshot reported 0% rolling and weekly usage.
+
 `router/glm-5.3` uses weighted shuffle across Z.AI and Ollama Cloud with
 weights 4:1. Holmes primary uses this canonical group.
 `router/glm-5.3-flash` is a separate pool across Z.AI, Command Code,
