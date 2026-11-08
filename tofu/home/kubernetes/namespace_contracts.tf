@@ -371,6 +371,12 @@ locals {
         # (4 CPU limits) share this namespace with orion's sessions.
         "aether.shdr.ch/quota-profile" = "sandbox-dev"
       }
+      extra_annotations = {
+        # Mirrors namespace_resourcequota_sandbox_dev (kyverno.tf). The CEL
+        # GeneratingPolicy only re-evaluates on namespace CREATE/UPDATE, so
+        # bump this alongside any quota change to force the sync.
+        "aether.shdr.ch/quota-rev" = "cpu8-64.mem24-80.pods30.r1"
+      }
     }
     "seven30-tasks" = {
       tier                    = "sandbox",

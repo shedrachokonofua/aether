@@ -1348,13 +1348,18 @@ locals {
     "pods"                   = "20"
   }
 
-  # personal-tasks runs dev-agent sessions (4 CPU limits, spec §18.1) beside
-  # orion's long-lived ones. The sandbox cap of 16 CPU rejected their pods
-  # (measured 2026-10-25: 15500m of 16000m used by seven session pods). Only
-  # the overcommit cap moves: requests stay at the sandbox profile, which is
-  # what constrains scheduling.
+  # personal-tasks runs dev-agent sessions (4 CPU / 8Gi limits, spec §18.1)
+  # beside orion's, coordinator and trip-planner sessions (2 CPU / 2Gi), each
+  # plus a 500m / 256Mi sidecar. Sized for the personal org's 20 hot sessions
+  # (daimyo.tf concurrentSessions) plus one-shot tasks: ~17 x 2.5 CPU / 2.25Gi
+  # and ~3 x 4.5 CPU / 8.25Gi limits, ~0.85Gi request each. Measured
+  # 2026-10-31: idle session pods use ~300Mi; limits are overcommit only.
+  # Bump personal-tasks' aether.shdr.ch/quota-rev with any change here.
   namespace_resourcequota_sandbox_dev = merge(local.namespace_resourcequota_sandbox, {
-    "limits.cpu" = "32"
+    "requests.memory" = "24Gi"
+    "limits.cpu"      = "64"
+    "limits.memory"   = "80Gi"
+    "pods"            = "30"
   })
 
   # Sandbox namespaces that run builds, selected by the namespace label
