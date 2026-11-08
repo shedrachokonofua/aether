@@ -81,16 +81,22 @@ locals {
   nextcloud_nfs_share = "/mnt/hdd/data/nextcloud"
 
   nextcloud_oidc_provider_id = "keycloak"
+  nextcloud_oidc_scope       = "openid email profile roles"
+  # 8.11.0 resolves existing users by (provider_id, sub), preserving their
+  # account IDs when unique-uid is disabled to keep group IDs literal.
+  nextcloud_oidc_min_version = "8.11.0"
   nextcloud_oidc_bootstrap_hash = nonsensitive(substr(sha256(join("|", [
     local.nextcloud_oidc_provider_id,
     var.oidc_issuer_url,
     "nextcloud",
     var.nextcloud_oauth_client_secret,
-    "openid email profile",
+    local.nextcloud_oidc_scope,
     "preferred_username",
     "roles",
     "^(admin|nextcloud-user)$",
     "0",
+    local.nextcloud_oidc_min_version,
+    "literal-groups-bootstrap-v2",
   ])), 0, 12))
 
   nextcloud_ai_litellm_url   = "http://litellm.litellm.svc.cluster.local:4000/v1"
@@ -217,7 +223,7 @@ resource "kubernetes_secret_v1" "nextcloud_install_state" {
 }
 
 # OIDC provider config consumed by the post-install Job.
-# Re-runs of the Job are idempotent: it only registers the provider if absent.
+# Re-runs upsert the existing provider without changing its ID or UID claim.
 resource "kubernetes_secret_v1" "nextcloud_oidc" {
   depends_on = [module.namespace["nextcloud"]]
 
@@ -232,7 +238,7 @@ resource "kubernetes_secret_v1" "nextcloud_oidc" {
     CLIENT_ID       = "nextcloud"
     CLIENT_SECRET   = var.nextcloud_oauth_client_secret
     DISCOVERY_URL   = "${var.oidc_issuer_url}/.well-known/openid-configuration"
-    SCOPE           = "openid email profile"
+    SCOPE           = local.nextcloud_oidc_scope
     UNIQUE_UID_ATTR = "preferred_username"
   }
 
@@ -1193,12 +1199,22 @@ resource "kubernetes_job_v1" "nextcloud_oidc_bootstrap" {
             runuser -u www-data -- php occ status
 
             runuser -u www-data -- php occ app:install user_oidc || runuser -u www-data -- php occ app:enable user_oidc
+            # Older user_oidc versions can fork existing accounts when UID
+            # generation changes; require the identity-preserving lookup.
+            runuser -u www-data -- php -r '
+              define("OC_CONSOLE", true);
+              require "lib/base.php";
+              if (version_compare(\OCP\Server::get(\OCP\App\IAppManager::class)->getAppVersion("user_oidc"), "${local.nextcloud_oidc_min_version}", "<")) {
+                fwrite(STDERR, "user_oidc ${local.nextcloud_oidc_min_version}+ is required to preserve existing account IDs\n");
+                exit(1);
+              }
+            '
             runuser -u www-data -- php occ user_oidc:provider \
               --clientid="$${CLIENT_ID}" \
               --clientsecret="$${CLIENT_SECRET}" \
               --discoveryuri="$${DISCOVERY_URL}" \
               --scope="$${SCOPE}" \
-              --unique-uid="$${UNIQUE_UID_ATTR}" \
+              --unique-uid=0 \
               --mapping-display-name=name \
               --mapping-email=email \
               --mapping-uid="$${UNIQUE_UID_ATTR}" \
