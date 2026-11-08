@@ -400,6 +400,13 @@ talos_smith:
   cores: 16
   memory: 65536
   disk_gb: 128
+  # CI scratch for GitLab Runner jobs (/var/mnt/ci). The root disk is on Ceph;
+  # CI goes on host-local thin LVM (111 GiB free on 2026-10-31), sized at 64 GiB
+  # so a full CI disk cannot exhaust the thin pool shared with other VMs.
+  ci_disk_gb: 64
+  ci_disk_datastore: "local-lvm"
+  # Same host io_uring leak as talos_trinity; applies to the host-local CI disk.
+  local_disk_aio: "native"
   gpu: true
   gpu_input: true # uinput extension + module for the Sunshine game-server (kept as a fallback; primary host is now neo)
   gpu_pool: "turing"

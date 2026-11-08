@@ -1380,14 +1380,12 @@ locals {
   }
 
   namespace_resourcequota_gitlab_runner = {
-    # 4 managers plus 4 job pods. Requests are the binding constraint: neo
-    # is the only node with room and it has about 5 CPU free, so the jobs
-    # stay at the default 2 CPU and the request cap only needs to clear
-    # 4 x 2.1 plus the managers. Limits are not binding on the nodes (they
-    # run overcommitted), but the quota counts them and a service container
-    # now limits at 2 CPU instead of 500m. Measured 2026-10-14: limits.cpu
-    # reached 38 and the next pod, which asked for 4, was rejected against
-    # the cap of 40. 56 covers that peak plus one more job.
+    # 4 managers plus 4 job pods, each job requesting 1.1 CPU (build +
+    # helper). Limits are not binding on the nodes (they run overcommitted),
+    # but the quota counts them and a service container limits at 2 CPU.
+    # Measured 2026-10-14: limits.cpu reached 38 and the next pod, which asked
+    # for 4, was rejected against the cap of 40. 56 covers that peak plus one
+    # more job.
     "requests.cpu"               = "26"
     "requests.memory"            = "40Gi"
     "requests.ephemeral-storage" = "96Gi"

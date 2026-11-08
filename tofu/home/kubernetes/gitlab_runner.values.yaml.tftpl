@@ -26,6 +26,7 @@ affinity:
                 - talos-trinity
                 - talos-neo
                 - talos-niobe
+                - talos-smith
 
 rbac:
   create: true
@@ -58,13 +59,24 @@ runners:
       # where etcd lives, inflating the 2026-07-31 vzdump dirty set to 108 GiB.
       # Create it through the hostPath so it stays on the CI disk with no
       # node-side prerequisite.
-      pre_build_script = "mkdir -p /ci/tmp"
+      # /ci is a shared hostPath, so nothing removes TMPDIR leftovers from
+      # canceled or killed jobs (post_build_script never runs for those).
+      # 2026-10-31: ~44k stale buildah/container-storage dirs filled neo's
+      # CI disk to 96% and failed image builds with ENOSPC. Every job prunes
+      # entries untouched for 24h; no job runs that long. Missing `find`
+      # or a concurrent prune must not fail the job.
+      pre_build_script = """
+      mkdir -p /ci/tmp
+      find /ci/tmp -mindepth 1 -maxdepth 1 -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+      """
 
       [runners.kubernetes]
         namespace = "${namespace}"
         image = "alpine:3.20"
         privileged = true
-        cpu_request = "2"
+        # neo ran at 95% CPU requested but 27% used (2026-10-31): a 2 CPU
+        # request reserved cores jobs left idle. Request 1, keep the 2 CPU limit.
+        cpu_request = "1"
         memory_request = "2Gi"
         ephemeral_storage_request = "8Gi"
         cpu_limit = "2"
@@ -82,14 +94,12 @@ runners:
         # Test services (postgres:17, rustfs) were capped at half a core and
         # 512Mi, so cargo test spent its time waiting on the database. 2 CPU /
         # 2Gi lets them run; requests stay small so they still pack next to
-        # the build container. Only neo (32 alloc CPU, ~94 GiB RAM) has room
-        # for a job this size: trinity and niobe sit at 99%/95% CPU requests.
+        # the build container.
         service_cpu_limit = "2"
         service_memory_limit = "2Gi"
         service_ephemeral_storage_limit = "1Gi"
         # A rust-test job asks for 6 CPU / 12Gi. 8 / 16Gi is the largest
-        # overwrite that still fits neo (~4.4 CPU and ~35 GiB free) and the
-        # namespace quota.
+        # overwrite that still fits the namespace quota.
         cpu_request_overwrite_max_allowed = "8"
         memory_request_overwrite_max_allowed = "16Gi"
         ephemeral_storage_request_overwrite_max_allowed = "16Gi"
@@ -123,7 +133,7 @@ runners:
                 [[runners.kubernetes.affinity.node_affinity.required_during_scheduling_ignored_during_execution.node_selector_terms.match_expressions]]
                   key = "kubernetes.io/hostname"
                   operator = "In"
-                  values = ["talos-trinity", "talos-neo", "talos-niobe"]
+                  values = ["talos-trinity", "talos-neo", "talos-niobe", "talos-smith"]
 
         [[runners.kubernetes.volumes.host_path]]
           name = "ci"
