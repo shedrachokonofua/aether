@@ -70,6 +70,25 @@ All systems either use step-ca certificates directly or sit behind TLS-terminati
 
 Note: Keycloak currently runs HTTP behind Caddy (TLS terminated at proxy). Direct step-ca TLS for Keycloak is planned.
 
+## Nextcloud SSO authorization
+
+`tofu/home/kubernetes/nextcloud.tf` bootstraps the `user_oidc` provider;
+`tofu/home/keycloak.tf` supplies its `roles` claim. The UID claim remains
+`preferred_username`, and only `admin` and `nextcloud-user` are synchronized
+as Nextcloud groups.
+
+The provider must use `--unique-uid=0`: the enabled setting hashes group IDs
+as well as user IDs, so a group displayed as `admin` does not grant Nextcloud
+administration. Nextcloud requires the literal group ID `admin`, and SSO
+synchronization removes manual membership when that ID is absent from the
+mapped claims.
+
+The bootstrap requires `user_oidc` 8.11.0 or newer. Its existing-user lookup
+uses `(provider_id, sub)` before generating an ID, so disabling hashing keeps
+already-provisioned accounts and their file ownership intact. Do not change
+the provider ID or UID claim during this correction. Group membership is
+refreshed on the next SSO login; the local `admin` account is unaffected.
+
 ## Machine Identity
 
 Machines authenticate using X.509 certificates issued by step-ca. Certificates are scoped by Common Name (CN) and Subject Alternative Names (SANs).
