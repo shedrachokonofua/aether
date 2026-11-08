@@ -424,6 +424,16 @@ Author rules against datasource UID `clickhouse` with SQL; PromQL/LogQL are no
 longer dashboard or alert query languages in this deployment. Provisioning is
 owned by the Kubernetes Grafana release, not the former VM provisioning tree.
 
+Gelato search can fail independently of stream resolution. On 2026-11-07,
+Jellyfin's loaded Gelato 0.26.24.0 reported `Movie/Series has no search catalog`
+although the configured AIOStreams manifest advertised both and direct search
+worked. The pod still loaded the old assembly despite 0.26.29.0 being staged.
+An OpenTofu-managed deployment annotation in `jellyfin.tf` triggered startup
+reconciliation, removed the superseded copy, and loaded 0.26.29.0. An authenticated
+`/Items` search for `perfect days` then returned three addon results. Check the
+loaded assembly and `Gelato.Filters.SearchActionFilter` logs, not just the plugin
+directories or an HTTP 200 response, when verifying search recovery.
+
 
 
 ## Alert routing contract

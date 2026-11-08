@@ -315,8 +315,9 @@ resource "kubernetes_deployment_v1" "jellyfin" {
       metadata {
         labels = local.jellyfin_labels
         annotations = {
-          "checksum/logging-config" = local.jellyfin_logging_sha
-          "checksum/reconcile"      = sha256(local.jellyfin_reconcile_script)
+          "checksum/logging-config"       = local.jellyfin_logging_sha
+          "checksum/reconcile"            = sha256(local.jellyfin_reconcile_script)
+          "aether.shdr.ch/gelato-refresh" = "2026-11-07"
         }
       }
 
