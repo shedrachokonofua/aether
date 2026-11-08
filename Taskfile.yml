@@ -737,7 +737,7 @@ tasks:
   configure:nix-builder-cert:
     desc: Reissue and install the Nix builder step-ca machine certificate
     cmds:
-      - ansible-playbook ansible/playbooks/nix_builder/reissue_machine_cert.yml {{.CLI_ARGS}}
+      - ansible-playbook ansible/playbooks/reissue_nixos_vm_machine_cert.yml -e vm_key=nix_builder {{.CLI_ARGS}}
 
   configure:nix-builder:
     desc: Deploy the generic NixOS remote builder on Neo
@@ -853,6 +853,10 @@ tasks:
       - task: tofu:apply
         vars: { CLI_ARGS: "-target=proxmox_virtual_environment_vm.ids_stack" }
       - task: configure:ids-stack
+  configure:ids-stack-cert:
+    desc: Reissue and install the IDS Stack step-ca machine certificate (restores vault-agent secrets)
+    cmds:
+      - ansible-playbook ansible/playbooks/reissue_nixos_vm_machine_cert.yml -e vm_key=ids_stack {{.CLI_ARGS}}
   provision:openbao:
     cmds: [ansible-playbook ansible/playbooks/openbao/site.yml]
   provision:openbao-kms:

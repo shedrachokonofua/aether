@@ -186,7 +186,9 @@ API_PASSWORD={{ .Data.data.api_password }}{{ end }}
       podmanArgs = [
         "--network=wazuh"
         "--hostname=wazuh.indexer"
-        "--env=OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+        # Upstream single-node default. 512m tripped the parent circuit breaker
+        # (95% of heap) once the manager streamed its backlog (2026-10-31).
+        "--env=OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
         "--ulimit=memlock=-1:-1"
         "--ulimit=nofile=65536:65536"
       ];
