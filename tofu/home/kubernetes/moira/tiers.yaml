@@ -147,14 +147,14 @@ group_order:
 
 plans:                      # local-count providers
   xiaomi:
-    # Lite annual: one 49.2B pool (12 x 4.1B) valid until 2027-05-04 23:59:59 UTC.
-    cycle: { anchor: "2026-05-05T00:00:00Z", period: year }
-    total_credits: 49200000000
+    # Standard annual: one 132B pool valid until 2027-11-03 23:59:59 UTC.
+    cycle: { anchor: "2026-11-04T00:00:00Z", period: year }
+    total_credits: 132000000000
     offpeak: { utc_from: 16, utc_to: 24, factor: 0.8 }
     rates:   # credits per token
       mimo-v2.6-pro:   { cached: 2.5, input: 300, output: 600 }
       mimo-v2.6-flash: { cached: 2,   input: 100, output: 200 }
-    calibration: { used: 40242395003, at: "2026-10-09T18:54:39Z" }   # console reading
+    calibration: { used: 36742997, at: "2026-11-07T00:44:29Z" }   # operator console screenshot
   step:
     # Flash Mini: 400M credits/month, valid until 2026-10-09 (end of day taken
     # as UTC). Credits = PAYG USD x 7M (platform.stepfun.ai step-plan overview);

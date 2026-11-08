@@ -438,6 +438,30 @@ Explicit thread Agent choices and local-model specialists are not rewritten.
 Existing Orion sessions upgrade to the selected Agent's stable revision at
 their next cold start after message admission or coordinator warm-up.
 
+Household OpenWebUI chats use `moira/strong`; its title, tag, follow-up and
+search-query background tasks stay on local `aether/qwen3.8-flash-next`.
+The declared `kubernetes_job_v1.openwebui_household_policy` migrates the
+existing "Family Assistant" database persona and its grants to strong,
+aligns `ui.default_models`, and replaces only explicit old household model
+selections in user preferences. It preserves historical chats, other model
+rows, capabilities and unrelated settings. A SQL hash in the Job name
+recreates the immutable Job when policy changes; it fails rather than
+overwriting an ambiguous persona or another model already using the ID.
+
+Deploy the balanced Moira tier and LiteLLM model catalog before switching
+consumers. Update only the existing `omp`, `omp_coder` and `colony` key
+allowlists, without generating credentials or touching other keys:
+
+```bash
+nix develop --command task ansible:playbook -- register_litellm_virtual_keys.yml --tags moira-models
+```
+
+This includes `moira/balanced`, `kimi/k3.1-pro` and `chatgpt/gpt-6.1-terra`
+alongside the keys' retained permissions. Deskplane's separate Terra-first
+computer-use policy and targeted `deskplane-models` tag remain unchanged.
+Use fresh Daimyo sessions to receive changed model grants; existing sessions
+remain pinned to their revision.
+
 Colony's tier catalogs retain conservative operating limits: balanced and
 flash use 262144 context / 32768 output; strong and frontier use 272000 /
 65536. Its production roles have no client-side model fallback chains:
@@ -743,11 +767,14 @@ Passive signals (response headers, 429 bodies, Muse usage events, CodeBuddy
 credits) refine the same windows.
 
 Quota plans in [`tofu/home/kubernetes/moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
-Xiaomi's Lite annual pool, Qwen Cloud's 180k-credit 30-day cycle and CodeBuddy
-Pro's 1000-credit monthly cycle are configured and calibrated from their
-provider readings. Qwen and CodeBuddy rates are recorded in `tiers.yaml`;
-they are not unknown placeholders. Step's paid plan remains excluded after
-its subscription ended. Ollama Cloud is polled at its own quota endpoint.
+Xiaomi's Standard annual pool is 132B credits, valid through 2027-11-03
+23:59:59 UTC. Its 2026-11-06 operator console screenshot calibrates usage to
+36,742,997 credits at 2026-11-07 00:44:29 UTC; subsequent usage is counted locally.
+Qwen Cloud's 180k-credit 30-day cycle and CodeBuddy Pro's 1000-credit monthly
+cycle are configured and calibrated from their provider readings. Qwen and
+CodeBuddy rates are recorded in `tiers.yaml`; they are not unknown placeholders.
+Step's paid plan remains excluded after its subscription ended. Ollama Cloud
+is polled at its own quota endpoint.
 Moira's state lives in the `moira` database on `litellm-cnpg` (managed role
 `moira`, which also reads LiteLLM spend data for local credit accounting). `moira.decision`
 logs each routed or refused request for 7 days (chosen model, fallbacks, pin,
