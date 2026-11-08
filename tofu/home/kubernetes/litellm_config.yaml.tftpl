@@ -1251,6 +1251,17 @@ mcp_servers:
     url: "http://localhost:8006/mcp"
   jellyfin:
     url: "http://localhost:8007/mcp"
+  # Home Assistant (litellm.tf ha-mcp sidecar, homeassistant-ai/ha-mcp):
+  # loopback-only, admin token. All tools are exposed; only the daimyo-orion
+  # key's scope includes it, and Orion's grant asks before admin calls.
+  homeassistant:
+    url: "http://localhost:8009/mcp"
+  # Karakeep (litellm.tf karakeep-mcp sidecar: @karakeep/mcp behind
+  # supergateway, loopback). Acts as Shedrach's Karakeep account; only the
+  # daimyo-orion key's scope includes it, and Orion's grant asks before
+  # deletes and list updates (which can publish a list).
+  karakeep:
+    url: "http://localhost:8010/mcp"
   # Withings (hosted, OAuth 2.1 authorization code + PKCE, dynamic client
   # registration). LiteLLM stores and refreshes the login per LiteLLM user;
   # only the daimyo-orion key (machine user `orion`) is granted it.
@@ -1261,6 +1272,48 @@ mcp_servers:
     # Public OAuth client registered for this login. Pin it so token refresh
     # still identifies the client after a LiteLLM restart; no client secret.
     client_id: "mcp_899a546eb01c1da7e4f3b7f4e1840747"
+  # qBittorrent (litellm.tf qbittorrent-mcp sidecar, qbittorrent-mcp-rs): SSE
+  # only. Granted to the `rogue` agent through the daimyo-orion key
+  # (register_litellm_virtual_keys.yml, orion_agent_tools.tf); not in the
+  # OpenWebUI key's list (multi-user). Not exposed: shutdown_app,
+  # set_app_preferences (autorun programs, WebUI auth, save paths) and
+  # install_search_plugin (runs downloaded Python inside the qBittorrent pod).
+  qbittorrent:
+    url: "http://localhost:3000/sse"
+    transport: sse
+    auth_type: bearer_token
+    auth_value: "${qbittorrent_mcp_token}"
+    allowed_tools:
+      - list_torrents
+      - manage_torrents
+      - add_torrent
+      - delete_torrent
+      - get_torrent_files
+      - inspect_torrent
+      - get_categories
+      - wait_for_torrent_status
+      - cleanup_completed
+      - mass_rename
+      - find_duplicates
+      - add_trackers
+      - edit_tracker
+      - remove_trackers
+      - rename_folder
+      - set_file_priority
+      - search_torrents
+      - uninstall_search_plugin
+      - enable_search_plugin
+      - update_search_plugins
+      - get_search_plugins
+      - ban_peers
+      - add_rss_feed
+      - get_rss_feeds
+      - set_rss_rule
+      - get_rss_rules
+      - move_rss_item
+      - get_main_log
+      - get_peer_log
+      - get_system_info
   # Instacart.ca shopping (instacart_mcp.tf): one logged-in browser session on
   # Shedrach's account; place_order spends real money. Granted to the `orion`
   # agent (daimyo-orion key scope, register_litellm_virtual_keys.yml), whose

@@ -202,7 +202,8 @@
     # (orgs/personal/litellm-mcp, tofu/home/openbao_daimyo.tf), not SOPS, so it
     # is found by alias. MCP only (no models); the server list must track
     # Orion chart values agents.orion.spec.grants (deploy/helm/orion), plus
-    # dev's retained ClickStack grant in tofu/home/kubernetes/orion_agent_tools.tf.
+    # the dev (clickstack) and rogue (qbittorrent) grants that reuse the key in
+    # tofu/home/kubernetes/orion.tf and orion_agent_tools.tf.
     litellm_daimyo_orion_alias: daimyo-orion
     litellm_daimyo_orion_user_id: orion
     litellm_daimyo_orion_mcp_servers:
@@ -211,6 +212,8 @@
       - affine
       - siren
       - jellyfin
+      - homeassistant
+      - karakeep
       - withings
       - comfyui
       - espn
@@ -220,6 +223,7 @@
       - time
       - tmdb
       - instacart
+      - qbittorrent
 
   tasks:
     - name: Load secrets

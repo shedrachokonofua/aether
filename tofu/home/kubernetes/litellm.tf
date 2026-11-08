@@ -18,9 +18,17 @@ locals {
   # 0.0.0.0 listener without MCP_ALLOWED_HOSTS/TLS, and a crashlooping
   # sidecar keeps the whole LiteLLM pod unready (2026-10-31 outage).
   litellm_jellyfin_mcp_image = "docker.io/knucklessg1/jellyfin-mcp:mcp@sha256:fc371dc6578e12eaba31710bfb447915ab1f4a12fd9005cc89dee77b745e43a2"
+  # homeassistant-ai/ha-mcp 9.0.0 (ha-mcp-web, streamable HTTP). Admin token:
+  # its 77 default tools include automation, dashboard, registry and system
+  # edits; Orion's grant asks before those.
+  litellm_ha_mcp_image = "ghcr.io/homeassistant-ai/ha-mcp:9.0.0@sha256:0298113732140c9d725171dc3f1dc5b6a53b03815482536ee2236e17e8cd1bdd"
   # qbittorrent-mcp-rs: granular tools (per-tool gateway and grant policy),
   # distroless multi-arch image. HTTP mode is SSE only, port 3000 hardcoded.
   litellm_qbit_mcp_image = "docker.io/nicholaswilde/qbittorrent-mcp-rs:0.3.9@sha256:f800f77f03d4ee3bcd98ff5cc07a8938197e8bdb1dde2f753af11e8459d8b1e3"
+  # Karakeep's official MCP (@karakeep/mcp) is stdio-only; supergateway serves
+  # it as stateless streamable HTTP, one karakeep-mcp process per request.
+  litellm_karakeep_mcp_image    = "docker.io/node:22-slim"
+  litellm_karakeep_mcp_packages = "@karakeep/mcp@0.34.0 supergateway@4.2.1"
   # Official Comfy-Org comfy-mcp is stdio-only and needs mcp>=2; mcp-proxy
   # (mcp<2) bridges it to streamable HTTP, so each gets its own venv.
   litellm_comfy_mcp_image     = "docker.io/python:3.13-slim"
@@ -39,6 +47,8 @@ locals {
   litellm_tmdb_port           = 8006
   litellm_jellyfin_mcp_port   = 8007
   litellm_comfy_mcp_port      = 8008
+  litellm_ha_mcp_port         = 8009
+  litellm_karakeep_mcp_port   = 8010
   litellm_qbit_mcp_port       = 3000
   litellm_espn_mcp_port       = 8080
   litellm_postgres_port       = 5432
@@ -95,6 +105,10 @@ resource "kubernetes_secret_v1" "litellm_env" {
       COINGECKO_API_KEY     = var.secrets["coingecko_api_key"]
       TMDB_API_KEY          = var.secrets["tmdb_read_access_token"]
       JELLYFIN_API_KEY      = var.secrets["jellyfin.beryl_api_key"]
+      # Reuses the Prometheus scrape token (owner account): ha-mcp's edits
+      # log under that user, and rotating it breaks both consumers.
+      HOMEASSISTANT_TOKEN   = var.secrets["homeassistant.telemetry_token"]
+      KARAKEEP_API_KEY      = var.secrets["karakeep.mcp_api_key"]
       AFFINE_API_TOKEN      = var.secrets["litellm.affine_api_token"]
       AFFINE_MCP_HTTP_TOKEN = random_password.litellm_affine_mcp_http.result
       QBIT_MCP_USERNAME     = var.secrets["qbittorrent.username"]
@@ -1006,6 +1020,183 @@ resource "kubernetes_deployment_v1" "litellm" {
           }
         }
         container {
+          name  = "ha-mcp"
+          image = local.litellm_ha_mcp_image
+          # Loopback only, like comfy-mcp: standard-mode HTTP has no auth
+          # beyond the URL path, and the only client is the LiteLLM
+          # container in this pod. Home Assistant's API goes through the home
+          # Caddy (ha.home.shdr.ch), so the admin token never crosses the LAN
+          # in plaintext.
+          command = ["ha-mcp-web"]
+
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = true
+            run_as_user                = 999
+            run_as_group               = 999
+            capabilities { drop = ["ALL"] }
+          }
+
+          env {
+            name  = "HOMEASSISTANT_URL"
+            value = "https://ha.home.shdr.ch"
+          }
+
+          env {
+            name = "HOMEASSISTANT_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "HOMEASSISTANT_TOKEN"
+              }
+            }
+          }
+
+          env {
+            name  = "MCP_HOST"
+            value = "127.0.0.1"
+          }
+
+          env {
+            name  = "MCP_PORT"
+            value = tostring(local.litellm_ha_mcp_port)
+          }
+
+          # Unauthenticated {"status":"ok"} for the exec probes below.
+          env {
+            name  = "MCP_HEALTHZ"
+            value = "true"
+          }
+
+          # The settings UI can re-enable tools and flip safety flags; this
+          # file is the only configuration.
+          env {
+            name  = "HA_MCP_DISABLE_SETTINGS_UI"
+            value = "true"
+          }
+
+          env {
+            name  = "HA_MCP_DISABLE_UPDATE_CHECK"
+            value = "true"
+          }
+
+          # Otherwise a startup pass can opt itself in and ask HACS to refresh
+          # repositories on every restart.
+          env {
+            name  = "HAMCP_HACS_REFRESH_AFTER_UPDATE"
+            value = "false"
+          }
+
+          # Tool config and the pre-edit auto-backups (ha_manage_backup
+          # restores them). emptyDir: they last for the pod's lifetime only.
+          env {
+            name  = "HA_MCP_CONFIG_DIR"
+            value = "/data"
+          }
+
+          volume_mount {
+            name       = "ha-mcp-data"
+            mount_path = "/data"
+          }
+
+          volume_mount {
+            name       = "ha-mcp-tmp"
+            mount_path = "/tmp"
+          }
+
+          # Loopback bind: httpGet probes dial the pod IP, so probe from inside.
+          readiness_probe {
+            exec {
+              command = ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${local.litellm_ha_mcp_port}/healthz', timeout=5)"]
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 6
+            failure_threshold     = 12
+          }
+
+          liveness_probe {
+            exec {
+              command = ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${local.litellm_ha_mcp_port}/healthz', timeout=5)"]
+            }
+            initial_delay_seconds = 45
+            period_seconds        = 30
+            timeout_seconds       = 6
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "192Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "768Mi"
+            }
+          }
+        }
+        container {
+          name  = "karakeep-mcp"
+          image = local.litellm_karakeep_mcp_image
+          # Loopback only: supergateway has no auth here, and the API key
+          # acts as Shedrach's Karakeep account. Only LiteLLM calls it.
+          command = ["sh", "-c", <<-EOT
+            set -e
+            npm install -g --no-fund --no-audit --loglevel=error ${local.litellm_karakeep_mcp_packages}
+            exec supergateway --stdio karakeep-mcp --outputTransport streamableHttp --host 127.0.0.1 --port ${local.litellm_karakeep_mcp_port} --healthEndpoint /healthz
+          EOT
+          ]
+
+          env {
+            name  = "KARAKEEP_API_ADDR"
+            value = "http://karakeep.${local.karakeep_ns}.svc.cluster.local:${local.karakeep_port}"
+          }
+
+          env {
+            name = "KARAKEEP_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "KARAKEEP_API_KEY"
+              }
+            }
+          }
+
+          # Loopback bind: httpGet probes dial the pod IP, so probe from inside.
+          readiness_probe {
+            exec {
+              command = ["node", "-e", "fetch('http://127.0.0.1:${local.litellm_karakeep_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 18
+          }
+
+          liveness_probe {
+            exec {
+              command = ["node", "-e", "fetch('http://127.0.0.1:${local.litellm_karakeep_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 120
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+        }
+        container {
           name  = "qbittorrent-mcp"
           image = local.litellm_qbit_mcp_image
           # SSE MCP on 0.0.0.0:3000 (hardcoded), bearer-token gated; logs in to
@@ -1260,6 +1451,18 @@ resource "kubernetes_deployment_v1" "litellm" {
           name = "chatgpt-auth"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.litellm_chatgpt_auth.metadata[0].name
+          }
+        }
+        volume {
+          name = "ha-mcp-data"
+          empty_dir {
+            size_limit = "256Mi"
+          }
+        }
+        volume {
+          name = "ha-mcp-tmp"
+          empty_dir {
+            size_limit = "64Mi"
           }
         }
       }
