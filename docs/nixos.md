@@ -121,6 +121,23 @@ task configure:ids-stack
 Use `task deploy:<target>` only when both provisioning and configuration are
 intended. Check `task --list-all` for the current supported targets.
 
+## Machine Certificates
+
+VMs seeded by `tofu/home/modules/nixos_cloud_config` (`ids-stack`,
+`nix-builder`) get a 24-hour step-ca machine certificate through cloud-init.
+`step-ca-cert-renew` keeps a valid certificate renewed but cannot recover an
+expired one. cloud-init rewrites the seed certificate whenever the VM's
+cloud-init instance-id changes, so such a boot can install an already-expired
+certificate. Without a valid certificate, vault-agent cannot authenticate and
+`/run/secrets` (tmpfs) stays empty after a reboot; on `ids-stack` that stops
+Wazuh. Reissue with the per-host target:
+
+```bash
+task configure:ids-stack-cert
+task configure:nix-builder-cert
+task configure:bastion-cert
+```
+
 ## Migration Definition of Done
 
 - Guest provisioning is reproducible from the current checkout.

@@ -1,0 +1,143 @@
+---
+# Reissue the step-ca machine certificate of a NixOS VM seeded by
+# tofu/home/modules/nixos_cloud_config. `step ca renew` (nix/modules/step-ca-cert.nix)
+# cannot recover once the certificate has expired, and cloud-init can reinstall
+# the stale seed certificate when the VM's instance-id changes.
+#
+# Usage: ansible-playbook ansible/playbooks/reissue_nixos_vm_machine_cert.yml -e vm_key=<config/vm.yml key>
+- name: Reissue a NixOS VM machine certificate
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - common
+  vars:
+    target_vm: "{{ vm[vm_key] }}"
+    target_host: "{{ target_vm.ip }}"
+    step_ca_url: "https://{{ vm.step_ca.ip }}:{{ vm.step_ca.ports.https }}"
+    step_ca_provisioner: machine-bootstrap
+    step_ca_provisioner_password: "{{ secrets.step_ca.provisioner_password }}"
+    cert_hostname: "{{ target_vm.name }}.home.shdr.ch"
+    cert_local_dir: "/tmp/{{ target_vm.name }}-cert-reissue"
+    ssh_argv: ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "root@{{ target_host }}"]
+
+  tasks:
+    - name: Require a known VM key
+      ansible.builtin.assert:
+        that:
+          - vm_key is defined
+          - vm_key in vm
+        fail_msg: "Pass -e vm_key=<key from config/vm.yml>"
+
+    - name: Reissue and install the machine identity
+      block:
+        - name: Prepare local certificate directory
+          ansible.builtin.file:
+            path: "{{ cert_local_dir }}"
+            state: directory
+            mode: "0700"
+
+        - name: Fetch the current step-ca root
+          ansible.builtin.get_url:
+            url: "{{ step_ca_url }}/roots.pem"
+            dest: "{{ cert_local_dir }}/step-ca-root.crt"
+            validate_certs: false
+            mode: "0644"
+            force: true
+
+        - name: Write the provisioner password locally
+          ansible.builtin.copy:
+            content: "{{ step_ca_provisioner_password }}"
+            dest: "{{ cert_local_dir }}/provisioner-password.txt"
+            mode: "0600"
+          no_log: true
+
+        - name: Issue a fresh machine certificate
+          ansible.builtin.command:
+            argv:
+              - step
+              - ca
+              - certificate
+              - "{{ cert_hostname }}"
+              - "{{ cert_local_dir }}/machine.crt"
+              - "{{ cert_local_dir }}/machine.key"
+              - "--ca-url={{ step_ca_url }}"
+              - "--root={{ cert_local_dir }}/step-ca-root.crt"
+              - "--san={{ cert_hostname }}"
+              - "--san={{ target_host }}"
+              - "--san={{ target_vm.name }}"
+              - --san=localhost
+              - --san=127.0.0.1
+              - "--provisioner={{ step_ca_provisioner }}"
+              - "--provisioner-password-file={{ cert_local_dir }}/provisioner-password.txt"
+              - --force
+          changed_when: true
+          no_log: true
+
+        - name: Stage the fresh machine identity on the VM
+          ansible.builtin.command:
+            argv:
+              - scp
+              - -o
+              - BatchMode=yes
+              - -o
+              - StrictHostKeyChecking=accept-new
+              - "{{ cert_local_dir }}/{{ item }}"
+              - "root@{{ target_host }}:/tmp/{{ item }}"
+          loop:
+            - machine.crt
+            - machine.key
+            - step-ca-root.crt
+          changed_when: true
+          no_log: true
+
+        # vault-agent only exists on VMs with aether.openbao-agent; it reads the
+        # client certificate at startup, so it must restart after the swap.
+        - name: Install the fresh machine identity
+          ansible.builtin.command:
+            argv: "{{ ssh_argv + [install_script] }}"
+          vars:
+            install_script: >-
+              set -e;
+              systemctl stop step-ca-cert-renew.service;
+              install -o root -g root -m 0644 /tmp/machine.crt /etc/ssl/certs/machine.crt;
+              install -o root -g root -m 0600 /tmp/machine.key /etc/ssl/private/machine.key;
+              install -o root -g root -m 0644 /tmp/step-ca-root.crt /etc/ssl/certs/step-ca-root.crt;
+              rm -f /tmp/machine.crt /tmp/machine.key /tmp/step-ca-root.crt;
+              systemctl restart step-ca-cert-renew.service aether-x509-certificate-exporter.service opentelemetry-collector.service;
+              if systemctl cat vault-agent.service >/dev/null 2>&1; then systemctl restart vault-agent.service; fi
+          changed_when: true
+          no_log: true
+
+        - name: Verify certificate services are active
+          ansible.builtin.command:
+            argv: "{{ ssh_argv + ['systemctl is-active step-ca-cert-renew.service aether-x509-certificate-exporter.service opentelemetry-collector.service'] }}"
+          register: cert_services
+          changed_when: false
+          failed_when: cert_services.stdout_lines | reject('equalto', 'active') | list | length > 0
+
+        - name: Wait for vault-agent to authenticate with the new certificate
+          ansible.builtin.command:
+            argv: "{{ ssh_argv + [auth_check] }}"
+          vars:
+            auth_check: >-
+              if ! systemctl cat vault-agent.service >/dev/null 2>&1; then exit 0; fi;
+              test /run/vault-agent/token -nt /etc/ssl/certs/machine.crt
+          register: vault_agent_auth
+          until: vault_agent_auth.rc == 0
+          retries: 12
+          delay: 5
+          changed_when: false
+
+      always:
+        - name: Remove staged certificate files from the VM
+          ansible.builtin.command:
+            argv: "{{ ssh_argv + ['rm -f /tmp/machine.crt /tmp/machine.key /tmp/step-ca-root.crt'] }}"
+          changed_when: false
+          failed_when: false
+          no_log: true
+
+        - name: Remove the local certificate working directory
+          ansible.builtin.file:
+            path: "{{ cert_local_dir }}"
+            state: absent
