@@ -206,9 +206,9 @@ resource "kubectl_manifest" "litellm_cnpg_cluster" {
       enablePDB            = !local.cnpg_node_maintenance
       imageName            = "ghcr.io/cloudnative-pg/postgresql:18.4"
       storage = {
-        # 40Gi filled up 2026-08-14 (WAL growth from proxy traffic); ceph-rbd
-        # expands online, postgres recovers once the resize lands.
-        size         = "80Gi"
+        # Expanded after WAL-space exhaustion on 2026-11-08 while S3 archiving
+        # was failing. Headroom does not repair the archive destination.
+        size         = "200Gi"
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["litellm"]
@@ -445,7 +445,7 @@ resource "kubectl_manifest" "matrix_cnpg_cluster" {
       enablePDB            = !local.cnpg_node_maintenance
       imageName            = "ghcr.io/cloudnative-pg/postgresql:17.10"
       storage = {
-        size         = "10Gi"
+        size         = "20Gi"
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["matrix"]

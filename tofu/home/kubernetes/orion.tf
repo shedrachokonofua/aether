@@ -299,7 +299,7 @@ resource "kubectl_manifest" "orion_cnpg_cluster" {
         limits   = { cpu = "1000m", memory = "1Gi" }
       }
       storage = {
-        size         = "5Gi"
+        size         = "50Gi"
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["orion"]

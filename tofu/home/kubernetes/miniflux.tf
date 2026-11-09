@@ -138,7 +138,7 @@ resource "kubectl_manifest" "miniflux_cnpg_cluster" {
       enablePDB            = !local.cnpg_node_maintenance
       imageName            = "ghcr.io/cloudnative-pg/postgresql:17.9"
       storage = {
-        size         = "5Gi"
+        size         = "10Gi"
         storageClass = local.cnpg_storage_class
       }
       plugins = local.cnpg_plugin_specs["miniflux"]

@@ -168,6 +168,44 @@ Current deployment:
   `buzz-media` bucket (relay media blobs + git object storage). Same pattern:
   no admin identity, no database-backup identity reuse.
 
+The declared volume-server configuration in
+`nix/hosts/smith/seaweedfs/default.nix` allows 360 volume slots and retains
+the `-minFreeSpace=10` safeguard (10% of the backing filesystem). Slot
+availability and physical disk space are different limits: on 2026-11-09,
+the live server had used all 296 automatically sized slots while 25.6%
+(2.14 TiB) of the disk remained free. Collection `aether-db-dumps` had no
+writable volumes, and both WAL uploads and logical dump uploads failed
+with S3 `PutObject InternalError`. At 06:05 UTC, the declared 360-slot NixOS
+generation was activated through Smith's Proxmox container console because
+certificate-based SSH was unavailable. Build review showed the same
+SeaweedFS 4.38 binary and only `-max=0` changing to `-max=360`; dry activation
+restarted only the volume service. Verification showed 57 free slots and
+seven writable backup volumes. WAL archiving resumed for 14 of the 16
+affected clusters; Matrix and Miniflux remained down with full database
+volumes. Scheduled backup failures/staleness are not cleared merely by
+restoring WAL uploads. Normal subsequent deployments use
+`task configure:seaweedfs`.
+
+Subsequent approved recovery expanded Matrix's database volume from 10 to
+20 GiB and Miniflux's from 5 to 10 GiB through OpenTofu, with matching PVC
+resizes when CNPG did not propagate the requested sizes. Both databases
+became Ready, SQL queries succeeded, WAL uploads resumed, and the Matrix
+client API and Miniflux healthcheck returned HTTP 200.
+
+The approved `db-backup-affine-recovery-20261109` verification job completed
+at 2026-11-09 06:17:40 UTC. Filer metadata confirmed a new 10,506,764-byte
+dump and a 112-byte checksum object under
+`aether-db-dumps/postgres/affine/affine-postgres/`, timestamped
+`20261109T061700Z`. This proves the logical dump/upload path, not a restore
+test or verification of the offsite copy. Other failed/stale scheduled
+backup records can remain until their own subsequent successful runs.
+
+Read-only checks are `http://<seaweedfs-ip>:9333/dir/status` for
+`Topology.Free` and per-collection `writables`, and
+`http://<seaweedfs-ip>:8080/status` for `DiskStatuses`. Resolve the address
+from `config/vm.yml`. Increasing the slot limit provides headroom, not
+retention or an independent backup.
+
 Current DB dump flow:
 
 - Kubernetes CronJobs write logical dumps to bucket `aether-db-dumps`
@@ -176,6 +214,10 @@ Current DB dump flow:
   LiteLLM are CNPG-backed and their dump jobs target the matching `*-cnpg-rw` writer services
 - Other Postgres jobs still target their current app Postgres services until they are migrated
 - Jobs run between 01:03 and 02:07, before the offsite Backrest window
+- The logical dump upload scripts do not prune old objects. CNPG's 14-day
+  policy below does not apply to these dumps; LiteLLM dump payloads dating
+  back to July were still present in November. Any pruning policy and
+  deletion of existing backups require explicit operator approval.
 - `backup-stack` runs `seaweed-db-dumps-sync.timer` daily at 02:35
 - The sync mirrors `aether-db-dumps` to `/mnt/hdd/data/backups/seaweed-db-dumps/aether-db-dumps`
 - Backrest carries that mirror offsite through its existing `/mnt/hdd/data` plan

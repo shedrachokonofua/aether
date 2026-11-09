@@ -1160,7 +1160,15 @@ general_settings:
   # Raw prompts/responses make SpendLogs large (~19 GiB after 592k rows).
   # Daily aggregate tables retain cost history; bound the raw audit detail.
   maximum_spend_logs_retention_period: "7d"
-  maximum_spend_logs_retention_interval: "1d"
+  # 1,000-row cleanup batches timed out without progress. An approved
+  # 100-row probe deleted in 1.69 s and committed in another 1.13 s.
+  # Smaller hourly batches bound each transaction while catching up on the
+  # expired backlog; aggregates and keys are outside this cleanup policy.
+  maximum_spend_logs_retention_interval: "1h"
+  maximum_spend_logs_cleanup_batch_size: 100
+  maximum_spend_logs_cleanup_max_batches: 100
+  maximum_spend_logs_cleanup_run_budget: "5m"
+  maximum_spend_logs_cleanup_batch_timeout: "15s"
   # LiteLLM 1.106 otherwise GETs every openai-compatible deployment's
   # /v1/models at boot and every 300 s with its credentials (subscription
   # bridges and quota plans included). model_info here is curated by hand.
