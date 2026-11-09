@@ -91,7 +91,7 @@ locals {
   TOML
 }
 
-# Operator-written, read at plan time the way colony.tf reads kv/colony/*.
+# Operator-written runtime credentials in OpenBao, read at plan time.
 # The kubernetes module cannot reference keycloak_openid_client.cicada (that
 # resource lives in tofu/home, and threading a new module variable means
 # editing main.tf and talos_cluster.tf, both of which have unrelated

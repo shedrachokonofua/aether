@@ -175,7 +175,6 @@
       - finviz
       - affine
       - comfyui
-      - colony
       # oauth_delegate: tools run as the OpenWebUI user's forwarded token.
       - pop
       # oauth2_token_exchange: tools run as the user via a Keycloak-exchanged
@@ -207,7 +206,6 @@
     litellm_daimyo_orion_alias: daimyo-orion
     litellm_daimyo_orion_user_id: orion
     litellm_daimyo_orion_mcp_servers:
-      - colony
       - clickstack
       - affine
       - siren
@@ -227,13 +225,13 @@
 
   tasks:
     - name: Load secrets
-      tags: [orion-mcp, deskplane-models, moira-models]
+      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models]
       community.sops.load_vars:
         file: "{{ aether_root }}/secrets/secrets.yml"
         name: secrets
 
     - name: Check LiteLLM key inputs
-      tags: [orion-mcp, deskplane-models, moira-models]
+      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models]
       ansible.builtin.assert:
         that:
           - secrets.litellm.master_key is defined
@@ -242,7 +240,7 @@
         fail_msg: "secrets.litellm.master_key and secrets.litellm.virtual_keys are required"
 
     - name: Wait for LiteLLM API
-      tags: [orion-mcp, deskplane-models, moira-models]
+      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/health/liveliness"
         method: GET
@@ -391,6 +389,7 @@
       no_log: true
 
     - name: Enable MCP tool search on the openwebui virtual key
+      tags: [openwebui-mcp]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/update"
         method: POST

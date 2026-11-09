@@ -7,6 +7,11 @@ UTC: three calendar months, or 92 days. Recovering the retired Greptime archive
 extends the analysis beyond ClickHouse's live 30-day retention. The earlier
 seven-day proposals are superseded by the measurements below.
 
+After this measurement, Colony was undeployed on 2026-11-09 because Cicada
+replaced it. Its row is historical: no daemon request remains to resize.
+Runtime retirement releases a further 100m CPU and 2 GiB memory requests;
+the SQLite PVCs and backups are retained.
+
 | Workload | Current main-container memory request | Three-month-window p99 | Largest raw observation | Proposed request | History qualification |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Orion QA browser | 2 GiB | 1.201 GiB | 1.934 GiB | Keep 2 GiB | Only October 24-November 9 observed; not a three-month measurement |

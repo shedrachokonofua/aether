@@ -448,12 +448,18 @@ on-demand models were retained; their cached weight files were not all
 verified. `gemini-embedding-001` and `text-embedding-3-large` remain local Qwen
 embedding compatibility IDs, not Gemini/OpenAI cloud integrations.
 
-Colony's production and example configurations are owned by sibling
-`so/colony` and baked into its image. Editing YAML alone does not update the
-daemon; the verified CI image must be pinned in
-[`colony.tf`](../tofu/home/kubernetes/colony.tf) and applied after quiescing
-active scopes. Existing review requirements, SAST, budgets and sandbox
-controls are retained.
+Colony was undeployed on 2026-11-09 after Cicada replaced it. Its daemon,
+service, HTTPRoute, runtime secret, service account, sandbox-launcher RBAC,
+LiteLLM MCP registration and client grants, uptime probe, and six Grafana
+alerts are removed. Cicada remains available at `cicada.home.shdr.ch`.
+[`colony.tf`](../tofu/home/kubernetes/colony.tf) retains only the protected
+5 GiB `colony/colonyd-data` PVC. The four Colony namespaces, the legacy
+`colony-dev/colonyd-data` PVC, snapshots and backup schedules, OpenBao/SOPS
+credentials, and Keycloak clients remain; deleting data or credentials is a
+separate decision. The historical Grafana dashboard and `so/colony` source
+remain available. Both unfinished Colony scopes were already paused, with
+no live runs or sandbox pods at shutdown. This releases the daemon's
+100m CPU and 2 GiB memory requests; it does not delete storage.
 
 The model-policy cutover assigns ordinary work to balanced and keeps quality
 gates and planning on stronger tiers:
@@ -463,9 +469,9 @@ gates and planning on stronger tiers:
 | Household/OpenWebUI, Orion main, dev specialist | `moira/strong` |
 | Orion coordinator, standing-work runner, briefing/news/markets feeds | `moira/balanced` |
 | Researcher, trip planner, frontend agent, memory dreamer | `moira/balanced` |
-| Colony developer and memory consolidator; Cicada writers | `moira/balanced` |
-| Colony reviewer and Cicada general review lenses | `moira/strong` |
-| Colony architect/plan reviewer and Cicada planners | `moira/frontier` |
+| Cicada writers | `moira/balanced` |
+| Cicada general review lenses | `moira/strong` |
+| Cicada planners | `moira/frontier` |
 | Cicada defensive-security lens | `moira/cyber` |
 | Narrow echo and QA smoke agents | `moira/flash` |
 

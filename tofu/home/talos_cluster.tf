@@ -716,7 +716,6 @@ module "kubernetes" {
   assay_oauth_client_secret          = keycloak_openid_client.assay_cockpit.client_secret
   assay_allowed_email                = var.keycloak_shdrch_email
   openwebui_oauth_client_secret      = keycloak_openid_client.openwebui.client_secret
-  colony_litellm_client_secret       = keycloak_openid_client.colony_litellm.client_secret
   litellm_mcp_exchange_client_secret = keycloak_openid_client.litellm_mcp_exchange.client_secret
   immich_oauth_client_secret         = keycloak_openid_client.immich.client_secret
   nextcloud_oauth_client_secret      = keycloak_openid_client.nextcloud.client_secret
