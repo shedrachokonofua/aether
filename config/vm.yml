@@ -208,7 +208,7 @@ openbao:
   node: "oracle"
   admin: "root"
   cores: 2
-  memory: 512
+  memory: 1024
   disk_gb: 32
   ip: "10.0.2.9"
   gateway: "10.0.2.1"

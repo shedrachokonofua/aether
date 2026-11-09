@@ -135,6 +135,12 @@ receivers:
 {% endif %}
 
 processors:
+{% if otel_memory_limit_mib | int > 0 %}
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: {{ otel_memory_limit_mib }}
+    spike_limit_mib: {{ otel_memory_spike_limit_mib }}
+{% endif %}
   batch:
     send_batch_size: 1000
     timeout: 10s
@@ -224,27 +230,27 @@ service:
   pipelines:
     metrics:
       receivers: [{% if otlp_receiver_enabled | default(true) %}otlp, {% endif %}hostmetrics{% if has_podman_socket | default(false) %}, podman_stats{% endif %}{% if has_docker_socket | default(false) %}, docker_stats{% endif %}{% if prometheus_scrape_configs | default([]) | length > 0 %}, prometheus{% endif %}]
-      processors: [batch, resource]
+      processors: [{% if otel_memory_limit_mib | int > 0 %}memory_limiter, {% endif %}batch, resource]
       exporters: [otlphttp]
     logs:
       receivers: [{% if otlp_receiver_enabled | default(true) %}otlp, {% endif %}journald, filelog]
-      processors: [batch, resource]
+      processors: [{% if otel_memory_limit_mib | int > 0 %}memory_limiter, {% endif %}batch, resource]
       exporters: [otlphttp]
 {% if qss_observations_enabled | default(false) %}
     logs/qss_observations:
       receivers: [filelog/qss_observations]
-      processors: [batch, resource/qss_observations]
+      processors: [{% if otel_memory_limit_mib | int > 0 %}memory_limiter, {% endif %}batch, resource/qss_observations]
       exporters: [otlphttp]
 {% endif %}
 {% if gigahub_observations_enabled | default(false) %}
     logs/gigahub_observations:
       receivers: [filelog/gigahub_observations]
-      processors: [batch, resource/gigahub_observations]
+      processors: [{% if otel_memory_limit_mib | int > 0 %}memory_limiter, {% endif %}batch, resource/gigahub_observations]
       exporters: [otlphttp]
 {% endif %}
 {% if otlp_receiver_enabled | default(true) %}
     traces:
       receivers: [otlp]
-      processors: [batch, resource]
+      processors: [{% if otel_memory_limit_mib | int > 0 %}memory_limiter, {% endif %}batch, resource]
       exporters: [otlphttp]
 {% endif %}
