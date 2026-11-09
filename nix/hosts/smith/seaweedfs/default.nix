@@ -131,6 +131,11 @@ in
     after = [ "network-online.target" "seaweedfs-master.service" ];
     wants = [ "network-online.target" "seaweedfs-master.service" ];
 
+    # Automatic sizing reached 296 slots while 25% of the backing disk was
+    # still free, leaving aether-db-dumps with no writable volume. Allow
+    # additional partly-filled collection volumes; retain the 10% free-space
+    # guard below. This is headroom, not a substitute for backup retention.
+
     serviceConfig = {
       Type = "simple";
       User = "seaweed";
@@ -147,7 +152,7 @@ in
           -dir=${volumeDir} \
           -disk=hdd \
           -dir.idx=${indexDir} \
-          -max=0 \
+          -max=360 \
           -minFreeSpace=10
       '';
       Restart = "always";

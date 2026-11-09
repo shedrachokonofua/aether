@@ -63,6 +63,46 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 Unified OpenAI-compatible API: local models via **llama-swap**, embeddings +
 reranker on the same credential, cloud providers, and MCP tools.
 
+LiteLLM's CNPG database volume is 200 GiB on `ceph-rbd`, declared in
+`kubectl_manifest.litellm_cnpg_cluster` in `cnpg_adopted.tf`. The 2026-11-08
+expansion from 80 GiB was applied through OpenTofu and completed with an
+operator-approved resize of the operator-owned PVC after CNPG left it at
+80 GiB. PostgreSQL recovered and LiteLLM readiness returned HTTP 200 with
+`db: connected`.
+
+At 2026-11-09 02:44 UTC, `LiteLLM_SpendLogs` allocated approximately 67 GiB
+(65 GiB in TOAST storage), with another 11 GiB of WAL. A read-only query
+found 888,382 rows dating back to October 9, including 618,371 older than
+the configured seven-day retention period. Central logs for November 5–7
+show the daily cleanup running but aborting after three failed 1,000-row
+batches, deleting zero spend-log rows; PostgreSQL records DELETE statement
+timeouts. The smaller tool-index cleanup succeeded. There was no persisted
+`general_settings` override, and the proxy had not restarted since
+November 3. Database unavailability also caused failures on November 8.
+The shared SeaweedFS backup collection had no writable volumes, causing
+WAL uploads to fail with S3 `PutObject InternalError`; that write path
+recovered after the capacity change documented in [backups.md](backups.md).
+
+An approved bounded probe committed deletion of the oldest 100 expired
+spend-log rows using the composite `(request_id, "startTime")` key, a
+15-second statement timeout and a 5-second lock timeout. The DELETE took
+1.69 seconds and COMMIT another 1.13 seconds. The configured cleanup now
+keeps seven-day retention, runs hourly, and uses 100-row batches, a
+100-batch cap, a five-minute run budget and a 15-second batch timeout.
+`litellm_config.yaml.tftpl` is deployed through `litellm.tf`; its config
+hash rolls the proxy. Each batch commits separately. Daily aggregates and
+keys are outside this policy; no `VACUUM FULL` is used. Deleted space
+becomes reusable through vacuum rather than immediately shrinking files.
+
+The 2026-11-09 OpenTofu rollout completed; the running container's config
+confirmed these retention bounds and readiness returned HTTP 200 with
+`db: connected`. The first hourly scheduled cleanup has not yet been observed.
+
+The expired backlog is not drained by the probe. Confirm scheduled runs
+report positive spend-log deletion counts without aborting, keep readiness
+at `db: connected`, and monitor the expired-row count over subsequent
+hours. Catch-up duration depends on live delete and ingestion rates.
+
 Cursor/Composer is gone: it was dropped from LiteLLM first, and the standalone
 Composer deployment (`composer.home.shdr.ch`, a Grok bridge over Cursor) was
 removed on 2026-10-15. The `composer-api` GitLab project stays because its
