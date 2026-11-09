@@ -258,12 +258,9 @@ locals {
       # with the namespace - cadence is the only cheap mitigation until
       # off-cluster backup exists.
       backup                  = "critical",
-      exposure                = "internal",
+      exposure                = "none",
       create_s3_backup_secret = false,
-      description             = "Colony sibling repo workloads"
-      hostnames = [
-        "colony.home.shdr.ch",
-      ]
+      description             = "Retired Colony; SQLite data and daily snapshots retained"
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "colony"
@@ -434,9 +431,7 @@ locals {
         "colony.shdr.ch/purpose"       = "agent-sandboxes"
       }
     }
-    # Leftover names from the previous five-service stack. Keep the Namespace
-    # objects so the next apply does not delete leftover PVCs; strip hostnames
-    # so Gateway probes and routes live on `colony` instead.
+    # Retain legacy namespaces and their PVCs after Colony retirement.
     "colony-dev" = {
       tier                    = "guest",
       owner                   = "colony",
@@ -1444,7 +1439,6 @@ locals {
     # GET / is not a route; /ui/config.json is the public sign-in config.
     "cicada.home.shdr.ch"      = "/ui/config.json"
     "antigravity.home.shdr.ch" = "/health"
-    "colony.home.shdr.ch"      = "/health"
     "docling.home.shdr.ch"     = "/health"
     "muse.home.shdr.ch"        = "/health"
     "grok.home.shdr.ch"        = "/health"

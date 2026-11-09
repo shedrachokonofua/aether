@@ -9,6 +9,12 @@ tungsten agents were retired; their namespaces are gone. References to them
 in the 2026-07-02 census and coupling ledger are historical, not move tasks.
 The separate `vc-seven30` tenant Hermes workload is not part of that retirement.
 
+**2026-11-09 retirement delta:** Colony's active runtime was undeployed after
+Cicada replaced it. `colony`, `colony-sandboxes`, `colony-dev`, and
+`colony-sandboxes-dev` remain to retain data and snapshot policy. The
+`colony` contract now has `exposure=none`, no hostname, and unchanged
+`backup=critical`; Colony census entries below are historical.
+
 ---
 
 ## 1. TL;DR

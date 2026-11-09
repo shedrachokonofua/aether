@@ -4,6 +4,10 @@ Talos-based Kubernetes cluster is the application platform. Legacy
 Dokku and Dokploy offerings have both been decommissioned; their
 workloads were migrated onto Talos k8s.
 
+Colony was undeployed on 2026-11-09 after Cicada replaced it, releasing
+100m CPU and 2 GiB memory requests. Its SQLite volumes and backups remain;
+Cicada's deployment is unchanged. See [AI/ML](ai-ml.md) for retained state.
+
 ## Kubernetes (Talos)
 
 Talos-based Kubernetes cluster with Cilium networking, Gateway API ingress, and a growing platform layer.
