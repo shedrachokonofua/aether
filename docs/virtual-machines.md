@@ -18,15 +18,15 @@ services may have additional passthrough devices, datasets, or mount points.
 | `home_gateway_stack` | `home-gateway-stack` | Oracle | VM | 4 | 4 GiB | 128 GB | `tofu/home/gateway_stack.tf` |
 | `monitoring_stack` | `monitoring-stack` | Niobe | VM | 8 | 16 GiB | 256 GB | `tofu/home/monitoring_stack.tf` |
 | `nfs` | `network-file-server` | Smith | LXC | 2 | 1 GiB | 10 GB | Ansible network-file-server playbooks |
-| `gitlab` | `gitlab` | Trinity | VM | 8 | 8 GiB | 256 GB | `tofu/home/gitlab.tf` |
+| `gitlab` | `gitlab` | Trinity | VM | 8 | 8 GiB | 512 GB | `tofu/home/gitlab.tf` |
 | `backup_stack` | `backup-stack` | Smith | LXC | 4 | 8 GiB | 20 GB | `tofu/home/backup_stack.tf` |
 | `iot_management_stack` | `iot-management-stack` | Niobe | VM | 4 | 2 GiB | 32 GB | `tofu/home/iot_management_stack.tf` |
 | `notifications_stack` | `notifications-stack` | Niobe | VM | 2 | 2 GiB | 64 GB | `tofu/home/notifications_stack.tf` |
 | `seaweedfs` | `seaweedfs` | Smith | LXC | 4 | 4 GiB | 32 GB | Ansible SeaweedFS provisioning |
 | `keycloak` | `keycloak` | Oracle | LXC | 2 | 2 GiB | 32 GB | Ansible Keycloak provisioning |
 | `step_ca` | `step-ca` | Oracle | LXC | 2 | 512 MiB | 16 GB | Ansible step-ca provisioning |
-| `openbao` | `openbao` | Oracle | LXC | 2 | 512 MiB | 32 GB | Ansible OpenBao provisioning |
-| `adguard` | `adguard` | Oracle | LXC | 1 | 1 GiB | 20 GB | Ansible provision, NixOS configure |
+| `openbao` | `openbao` | Oracle | LXC | 2 | 1 GiB | 32 GB | Ansible OpenBao provisioning |
+| `adguard` | `adguard` | Oracle | LXC | 1 | 2 GiB | 20 GB | Ansible provision, NixOS configure |
 | `adguard_secondary` | `adguard-secondary` | Trinity | LXC | 1 | 2 GiB | 20 GB | Ansible provision, NixOS configure |
 | `bastion` | `bastion` | Oracle | LXC | 2 | 2 GiB | 32 GB | Ansible provision, NixOS configure |
 | `ids_stack` | `intrusion-detection-stack` | Oracle | VM | 4 | 4 GiB | 128 GB | OpenTofu provision, NixOS configure |
@@ -48,10 +48,10 @@ Four x86 Talos guests join the four bare-metal ARM workers documented in
 
 | Config key | Guest | Proxmox node | Role | vCPU | Memory | Root disk | GPU |
 | --- | --- | --- | --- | ---: | ---: | ---: | --- |
-| `talos_trinity` | `talos-trinity` | Trinity | control plane | 8 | 32 GiB | 128 GB | - |
-| `talos_neo` | `talos-neo` | Neo | control plane | 32 | 64 GiB | 256 GB | RTX Pro 6000 Blackwell |
+| `talos_trinity` | `talos-trinity` | Trinity | control plane | 16 | 32 GiB | 128 GB | - |
+| `talos_neo` | `talos-neo` | Neo | control plane | 32 | 96 GiB | 256 GB | RTX Pro 6000 Blackwell |
 | `talos_niobe` | `talos-niobe` | Niobe | control plane | 8 | 24 GiB | 128 GB | - |
-| `talos_smith` | `talos-smith` | Smith | worker | 12 | 32 GiB | 128 GB | GTX 1660 Super |
+| `talos_smith` | `talos-smith` | Smith | worker | 16 | 64 GiB | 128 GB | GTX 1660 Super |
 
 These guests are declared by `tofu/home/talos_cluster.tf`; Kubernetes workloads
 are declared under `tofu/home/kubernetes/`.
@@ -76,7 +76,7 @@ declarations. Current application replacements are primarily under
 
 ## Declared Totals
 
-Across the 25 service, Talos, and builder entries summarized above,
-`config/vm.yml` declares 143 vCPU, 249,856 MiB of memory, and 2,336 GB of root
+Across the 24 service, Talos, and builder entries summarized above,
+`config/vm.yml` declares 152 vCPU, 303,616 MiB of memory, and 2,336 GB of root
 disk. These are allocation declarations, not measurements of live usage or
 physical headroom.

@@ -317,7 +317,7 @@ talos_trinity:
   name: "talos-trinity"
   role: "controlplane"
   node: "trinity"
-  cores: 8
+  cores: 16
   memory: 32768
   disk_gb: 128
   disk_datastore: "local-lvm"
