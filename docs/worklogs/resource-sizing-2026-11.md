@@ -137,7 +137,7 @@ uses the original `container_cpu_usage_seconds_total` counter, filtered to the
 `cpu=total` series, rather than pooling native instantaneous CPU gauges with
 historical counters.
 
-| Workload | Three-month-window p99 (cores) | Largest observed five-minute rate (cores) | Five-minute bins covered |
+| Workload | Three-month-window p99 (cores) | Largest observed-span rate (cores) | Five-minute bins covered |
 | --- | ---: | ---: | ---: |
 | Jellyfin | 1.096 | 10.264 | 99.20% |
 | ComfyUI | 0.017 | 3.656 | 92.31% |
@@ -156,10 +156,12 @@ exactly match their extraction manifest.
 Compute reset-corrected positive counter increases per exact container series
 within each five-minute UTC evaluation window, divided by the elapsed time
 between its first and last observed samples. Require at least two samples and
-skip windows containing an interior sample gap over 120 seconds. Then compute
-the upper-order-statistic p99 over active windows across pod generations.
-This does not extrapolate to window edges as Prometheus `rate()` does, and is
-not directly equivalent to the former instantaneous native CPU gauge p99.
+skip windows containing an interior sample gap over 120 seconds. Sample spans
+can be shorter than five minutes, including a single scrape interval; the rates
+are not guaranteed full-five-minute averages. Compute the upper-order-statistic
+p99 over those observed-span rates across pod generations. This does not
+extrapolate to window edges as Prometheus `rate()` does, and is not directly
+equivalent to the former instantaneous native CPU gauge p99.
 The calculation yields 26,294 Jellyfin and 24,460 ComfyUI series/windows;
 coverage counts distinct workload/time bins, not overlapping replicas.
 
