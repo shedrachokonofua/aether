@@ -41,6 +41,19 @@ Secrets management platform running as an LXC on Oracle.
 | TLS         | step-ca certificate with auto-renewal              |
 | Auto-unseal | AWS KMS via IAM Roles Anywhere (certificate-based) |
 
+The LXC has 1 GiB RAM (`config/vm.yml`). Its monitoring collector is bounded
+separately: `GOMEMLIMIT=256MiB`, memory-limiter hard limit 320 MiB with a
+64 MiB spike allowance, and systemd `MemoryMax=384M`. These inventory overrides
+apply only to OpenBao, leaving memory for the secrets service. A collector
+restart or telemetry backpressure is preferable to starving OpenBao.
+
+Redeploy inside the Nix dev shell with
+`ANSIBLE_CONFIG=./ansible/ansible.cfg ansible-playbook ansible/playbooks/openbao/site.yml --tags monitoring-agent --limit openbao`.
+This preserves the common secret loaders and certificate-exporter scrapes.
+After deployment, validate the collector config and inspect its memory,
+restart count, and OpenBao `/v1/sys/health`; a healthy collector alone does not
+prove the secrets service is responsive.
+
 ### Secrets Engines
 
 | Engine  | Path      | Purpose                        |
