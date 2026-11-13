@@ -172,7 +172,12 @@ locals {
   # LiteLLM user to the new cap and keeps its spend (2026-11-05: orion moved
   # to $200 and its older sessions could not upgrade). No migrations. Sidecar
   # unchanged. Before that c4b32a0 above.
-  daimyo_server_tag = "sha256:c12bf445969f53b968089c91dfe429fd357832fdd4f6401113f37fa34d434fa0"
+  # 82ef13c (MR !24 pipeline 13658 green; release pipeline 13659 server and
+  # sidecar builds green): CAS-fenced grant delivery over sidecar exec stdin,
+  # avoiding stale Kata Secret mounts and renewal 401s. Includes ff87d21's
+  # bounded provider waits. No migrations; recycle old session pods after
+  # active turns finish to acquire the new sidecar and memory-only live volume.
+  daimyo_server_tag = "sha256:cbe2f0d103dba16925a1b116283ada26101bd2f06d5c309079f11f80d6363041"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -188,7 +193,10 @@ locals {
   # pods lost every gateway server to 429s. omp 18.14.1 treats the 405 as "no
   # stream" and keeps the server. Only change since a2a43f4. Applies to task
   # pods started after the release. Before that a2a43f4 above.
-  daimyo_sidecar_tag = "sha256:a95adc1afcf67e5e61e217dea72a1090781c18d686e7acf352d0e8fb2c7a4d54"
+  # 82ef13c: read-grants / install-grants use a locked compare-and-swap on
+  # /grants-live; uncertain installation keeps candidate keys valid until
+  # reconciliation. Deploy with the matching server above.
+  daimyo_sidecar_tag = "sha256:4d01660936257a2399f32a5e6ceece96a5a2ead2c0432e3ea68ebf0eb7012687"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
