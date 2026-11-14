@@ -15,15 +15,6 @@ locals {
   db_backup_aws_image   = "amazon/aws-cli:2.22.35"
 
   db_backup_postgres_targets = {
-    affine = {
-      namespace = "affine"
-      name      = "affine-postgres"
-      service   = "${local.affine_cnpg_cluster}-rw"
-      user      = "affine"
-      database  = "affine"
-      port      = 5432
-      schedule  = "03 1 * * *"
-    }
     coder = {
       namespace = "coder"
       name      = "coder-postgres"
@@ -112,7 +103,6 @@ locals {
   }
 
   db_backup_postgres_passwords = {
-    affine    = random_password.affine_db_password.result
     coder     = random_password.coder_postgres_password.result
     dawarich  = random_password.dawarich_postgres_password.result
     immich    = random_password.immich_postgres_password.result

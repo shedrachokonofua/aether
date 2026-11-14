@@ -3,11 +3,6 @@
 # =============================================================================
 
 moved {
-  from = kubernetes_namespace_v1.affine
-  to   = module.namespace["affine"].kubernetes_namespace_v1.this
-}
-
-moved {
   from = kubernetes_namespace_v1.ceph_csi_fs
   to   = module.namespace["ceph-csi-cephfs"].kubernetes_namespace_v1.this
 }

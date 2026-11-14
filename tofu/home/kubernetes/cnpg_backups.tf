@@ -1,11 +1,5 @@
 locals {
   cnpg_backup_targets = {
-    affine = {
-      namespace = local.affine_ns
-      cluster   = local.affine_cnpg_cluster
-      retention = "14d"
-      schedule  = "0 5 2 * * *"
-    }
     assay = {
       namespace = local.assay_namespace
       cluster   = local.assay_cnpg
@@ -211,7 +205,6 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
   depends_on = [
     helm_release.cnpg_barman_cloud,
     kubectl_manifest.cnpg_barman_object_store,
-    kubectl_manifest.affine_cnpg_cluster,
     kubectl_manifest.assay_cnpg_cluster,
     kubectl_manifest.buzz_cnpg_cluster,
     kubectl_manifest.coder_cnpg_cluster,

@@ -169,47 +169,6 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 min_p: 0.0
                 presence_penalty: 0.0
 
-        "qwen3.6-35b-a3b":
-          # MTP speculative decoding — see qwen3.8-27b above.
-          cmd: >
-            llama-server
-            --port $${PORT}
-            -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:Q8_0
-            -ngl 99
-            --load-mode none
-            --cache-type-k q8_0
-            --cache-type-v q8_0
-            --ctx-size 262144
-            --spec-type draft-mtp
-            --spec-draft-n-max 2
-          ttl: 900
-          filters:
-            setParamsByID:
-              "qwen3.6-35b-a3b":
-                chat_template_kwargs:
-                  enable_thinking: false
-                temperature: 0.7
-                top_p: 0.8
-                top_k: 20
-                min_p: 0.0
-                presence_penalty: 1.5
-              "qwen3.6-35b-a3b:code":
-                chat_template_kwargs:
-                  enable_thinking: true
-                temperature: 0.6
-                top_p: 0.95
-                top_k: 20
-                min_p: 0.0
-                presence_penalty: 0.0
-              "qwen3.6-35b-a3b:think":
-                chat_template_kwargs:
-                  enable_thinking: true
-                temperature: 1.0
-                top_p: 0.95
-                top_k: 20
-                min_p: 0.0
-                presence_penalty: 1.5
-
         "qwen3.5-9b":
           cmd: >
             llama-server
@@ -239,15 +198,6 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 top_k: 20
                 min_p: 0.0
                 presence_penalty: 1.5
-
-        "bge-reranker-v2-m3":
-          cmd: >
-            llama-server
-            --port $${PORT}
-            -hf pyarn/bge-reranker-v2-m3-Q8_0-GGUF
-            -ngl 99
-            --reranking
-          ttl: 120
 
         # Qwen3-Reranker: unlike bge-v2-m3 it handles inferential relevance
         # (a passage that answers a question without sharing its words) instead of
@@ -383,7 +333,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
             --embedding
             --pooling last
           # Pinned alongside the chat model (~1GB): kills the measured 3.4s
-          # cold-swap on AFFiNE/mnemo/Vane embedding calls.
+          # cold-swap on mnemo/Vane embedding calls.
           ttl: 0
 
         # Speech via audio.cpp, bundled in the unified image.
@@ -440,16 +390,14 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
         vars:
           q3827: "qwen3.8-27b"
           qfn: "qwen3.8-flash-next"
-          q36: "qwen3.6-35b-a3b"
           g31: "gemma-4-31b"
           g26: "gemma-4-26b-a4b"
           mg30: "muse-glimmer-30b"
           q35: "qwen3.5-9b"
-          # AFFiNE + LiteLLM route embed calls to 0.6b; must be in-matrix or llama-swap
+          # LiteLLM routes embed calls to 0.6b; must be in-matrix or llama-swap
           # evicts the chat model when embedding starts (exclusive default).
           emb: "qwen3-embedding-0.6b"
-          rr: "bge-reranker-v2-m3"
-          # mnemo's reranker; bge stays for AFFiNE (routed by name via LiteLLM).
+          # mnemo calls it directly; OpenWebUI through LiteLLM.
           qrr: "qwen3-reranker-4b"
           # Speech: subset semantics make these optional co-residents; without
           # set membership their first request would evict the pinned chat model.
@@ -461,13 +409,11 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
         evict_costs:
           q3827: 25
           qfn: 25
-          q36: 25
           g31: 25
           g26: 20
           mg30: 25
           q35: 10
           emb: 2
-          rr: 3
           qrr: 4
           asr: 2
           tts: 2
@@ -475,13 +421,13 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           qie: 10
           pony: 10
         sets:
-          # One chat model + embedding + a reranker — either reranker may be
-          # co-resident so mnemo RAG / AFFiNE calls never evict the chat model.
+          # One chat model + embedding + the reranker, co-resident so RAG calls
+          # never evict the chat model.
           # muse-glimmer-30b stays outside the group (exclusive swap-in).
-          llm: "(q3827 | qfn | q36 | g31 | g26 | q35) & emb & (rr | qrr) & asr & tts"
+          llm: "(q3827 | qfn | g31 | g26 | q35) & emb & qrr & asr & tts"
           # One image model instead of a chat model, keeping embedding, reranker
           # and speech resident.
-          img: "(zit | qie | pony) & emb & (rr | qrr) & asr & tts"
+          img: "(zit | qie | pony) & emb & qrr & asr & tts"
     YAML
 
     "audiocpp-asr.json" = jsonencode({
