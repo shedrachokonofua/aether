@@ -27,6 +27,7 @@
   register: aws_dir
   delegate_to: localhost
   become: false
+  tags: [always]
 
 - name: Find AWS stack output files
   ansible.builtin.find:
@@ -36,6 +37,7 @@
   delegate_to: localhost
   become: false
   when: aws_dir.stat.exists and aws_dir.stat.isdir
+  tags: [always]
 
 - name: Load AWS stack outputs
   ansible.builtin.include_vars:
@@ -43,6 +45,7 @@
     name: "aws_{{ item.path | basename | replace('.yml', '') | replace('-', '_') }}"
   loop: "{{ aws_files.files | default([]) }}"
   when: aws_files.files is defined
+  tags: [always]
 
 - name: Load base authorized_keys
   set_fact:

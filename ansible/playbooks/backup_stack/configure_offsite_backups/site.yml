@@ -269,6 +269,7 @@
         owner: root
         group: root
         mode: "0750"
+      tags: [cert]
 
     - name: Ensure certs directory exists
       ansible.builtin.file:
@@ -277,6 +278,7 @@
         owner: root
         group: root
         mode: "0750"
+      tags: [cert]
 
     - name: Write provisioner password file
       ansible.builtin.copy:
@@ -286,6 +288,7 @@
         group: root
         mode: "0600"
       no_log: true
+      tags: [cert]
 
     - name: Check if step-ca is reachable
       ansible.builtin.uri:
@@ -297,6 +300,7 @@
         validate_certs: false
       register: step_ca_check
       failed_when: false
+      tags: [cert]
 
     - name: Download step-ca root certificate
       when: (step_ca_check.status | default(0)) == 200
@@ -305,6 +309,7 @@
         dest: /tmp/step_root_ca.pem
         validate_certs: false
         mode: "0644"
+      tags: [cert]
 
     - name: Get step-ca root certificate fingerprint
       when: (step_ca_check.status | default(0)) == 200
@@ -312,6 +317,7 @@
         cmd: "step certificate fingerprint /tmp/step_root_ca.pem"
       register: ca_fingerprint
       changed_when: false
+      tags: [cert]
 
     - name: Bootstrap step-ca trust
       when: (step_ca_check.status | default(0)) == 200
@@ -325,6 +331,7 @@
         STEPPATH: "{{ step_config_dir }}"
       args:
         creates: "{{ step_config_dir }}/certs/root_ca.crt"
+      tags: [cert]
 
     - name: Request TLS certificate from step-ca
       when: (step_ca_check.status | default(0)) == 200
@@ -345,6 +352,7 @@
       environment:
         STEPPATH: "{{ step_config_dir }}"
       notify: Restart backrest
+      tags: [cert]
 
     - name: Split certificate bundle into leaf and chain (for IAM Roles Anywhere)
       when: (step_ca_check.status | default(0)) == 200
@@ -354,11 +362,13 @@
         mv {{ certs_dir }}/cert-part-01 {{ certs_dir }}/cert-chain.pem
         chown root:root {{ certs_dir }}/cert-leaf.pem {{ certs_dir }}/cert-chain.pem
         chmod 0640 {{ certs_dir }}/cert-leaf.pem {{ certs_dir }}/cert-chain.pem
+      tags: [cert]
 
     - name: Warn if step-ca not reachable
       when: (step_ca_check.status | default(0)) != 200
       ansible.builtin.debug:
         msg: "TLS certificate setup skipped — step-ca not reachable. Run deploy again after step-ca is available."
+      tags: [cert]
 
     # =========================================================================
     # Install Restic

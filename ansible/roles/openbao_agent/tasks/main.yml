@@ -135,6 +135,18 @@
   become: true
   no_log: true
 
+# `step ca renew` cannot recover an expired certificate, so the renewal daemon
+# stays stuck after a step-ca outage longer than the certificate lifetime.
+# rc 0 = expired, 1 = still valid, 2 = missing.
+- name: Check whether the machine certificate is missing or expired
+  ansible.builtin.command:
+    cmd: step certificate needs-renewal {{ openbao_agent_client_cert }} --expires-in 0s
+  register: openbao_agent_cert_expiry
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: true
+
 - name: Request machine certificate from step-ca
   ansible.builtin.command:
     cmd: >
@@ -148,11 +160,12 @@
       --force
   environment:
     STEPPATH: "{{ openbao_agent_step_dir }}"
-  args:
-    creates: "{{ openbao_agent_client_cert }}"
+  when: openbao_agent_cert_expiry.rc != 1
   become: true
   no_log: true
-  notify: restart vault-agent
+  notify:
+    - restart vault-agent
+    - restart machine cert renewal
 
 - name: Enforce machine key permissions
   ansible.builtin.file:

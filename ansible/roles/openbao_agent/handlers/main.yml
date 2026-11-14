@@ -11,3 +11,12 @@
     state: restarted
   become: true
   listen: restart vault-agent
+
+# The renewal daemon keeps the certificate it started with in memory.
+- name: Restart machine certificate renewal
+  ansible.builtin.systemd:
+    name: "{{ openbao_agent_renew_service }}.service"
+    state: restarted
+    daemon_reload: true
+  become: true
+  listen: restart machine cert renewal

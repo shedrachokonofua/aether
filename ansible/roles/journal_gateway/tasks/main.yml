@@ -146,6 +146,17 @@
         mode: "0600"
       no_log: true
 
+    # `step ca renew` cannot recover an expired certificate, so the renewal
+    # daemon stays stuck after a step-ca outage longer than the certificate
+    # lifetime. rc 0 = expired, 1 = still valid, 2 = missing.
+    - name: Check whether the gatewayd certificate is missing or expired
+      ansible.builtin.command:
+        cmd: step certificate needs-renewal {{ journal_gateway_cert_path }} --expires-in 0s
+      register: journal_gateway_cert_expiry
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
     - name: Request gatewayd server certificate from step-ca
       ansible.builtin.command:
         cmd: >
@@ -159,10 +170,11 @@
           --force
       environment:
         STEPPATH: "{{ journal_gateway_step_dir }}"
-      args:
-        creates: "{{ journal_gateway_cert_path }}"
+      when: journal_gateway_cert_expiry.rc != 1
       no_log: true
-      notify: restart journal-gatewayd ghostunnel
+      notify:
+        - restart journal-gatewayd ghostunnel
+        - restart journal-gatewayd cert renewal
 
     - name: Enforce gatewayd key permissions
       ansible.builtin.file:
