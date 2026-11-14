@@ -412,6 +412,14 @@ tokens (13–21 minutes) on small coding tasks on 2026-09-30, while `medium`
 passed the same tasks in 2–5k tokens. Thinking variants use Unsloth's
 thinking sampling (temperature 1.0, top_p 0.95, top_k 20, presence_penalty 0).
 
+Flash-Next is loaded by snapshot path (`-m`/`--mmproj`), not `-hf`. `-hf`
+resolves the repo's latest commit and writes `refs/main` on every start;
+after unsloth's 2026-11-05 re-upload it began a ~90 GB re-download, filled the
+500Gi `gpu-model-storage` volume, and the failed `refs/main` write kept the
+model from loading from 2026-11-05 on, failing every feed agent on
+`aether/qwen3.8-flash-next`. To adopt a newer revision, free space first, drop
+the pins for one `-hf` start, then re-pin the new snapshot.
+
 The declared retirement removes Kimi K2.x, pre-5.3 GLM, DeepSeek V4 Flash,
 MiMo V2.5 Pro, pre-3.8 Gemini chat models, direct OpenAI API-key models, and
 all OpenRouter model routes and their retired aliases. DeepSeek V4 Pro
