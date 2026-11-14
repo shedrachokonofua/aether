@@ -202,6 +202,13 @@ tool names were read from ha-mcp 9.0.0's `tools/list`; re-diff the grant when
 the sidecar image changes. Home Assistant is deliberately absent from
 OpenWebUI's shared key scope.
 
+Room scenes (`scene.office_on`, `scene.office_off`, `scene.living_room_tv_on`,
+`scene.living_room_tv_off`, `scene.bedroom_tv_off`,
+`scene.living_room_evening_mood`, `scene.everything_off`) are declared in
+`ansible/playbooks/iot_management_stack/scenes_aether.yml` and deployed with
+`task configure:iot`. Activating one is `ha_bulk_control` with the scene
+entity and action `on`, so it needs no approval.
+
 ## Karakeep MCP Access
 
 `litellm_config.yaml.tftpl` registers `karakeep`, the loopback
