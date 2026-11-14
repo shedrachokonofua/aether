@@ -186,4 +186,12 @@ in
   aether.otel-agent.prometheusScrapeConfigs = [
     { job_name = "oauth2-proxy"; targets = [ "127.0.0.1:${toString oauth2ProxyPort}" ]; }
   ];
+
+  # The collector's heap grows without bound on this LXC (806 MiB after 42
+  # days, 2026-11-14). Bound it so it gets restarted instead of starving the
+  # break-glass host.
+  systemd.services.opentelemetry-collector = {
+    environment.GOMEMLIMIT = "256MiB";
+    serviceConfig.MemoryMax = "384M";
+  };
 }
