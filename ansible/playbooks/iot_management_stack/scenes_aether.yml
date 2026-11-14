@@ -1,0 +1,86 @@
+# Room scenes managed by Ansible and loaded via `scene aether:` in
+# configuration.yaml. UI-created scenes stay in scenes.yaml, which this repo
+# never overwrites. Orion's agent activates these with ha_bulk_control
+# (action "on" on the scene entity). Every entity id below was observed in the
+# agent's own Home Assistant tool calls.
+
+- id: aether_office_on
+  name: Office On
+  entities:
+    light.office_lights:
+      state: "on"
+    fan.tower_fan:
+      state: "on"
+    media_player.office_tv_2:
+      state: "on"
+    remote.office_tv:
+      state: "on"
+
+- id: aether_office_off
+  name: Office Off
+  entities:
+    light.office_lights:
+      state: "off"
+    fan.tower_fan:
+      state: "off"
+    media_player.office_tv_2:
+      state: "off"
+
+- id: aether_living_room_tv_on
+  name: Living Room TV On
+  entities:
+    media_player.living_room_tv_2:
+      state: "on"
+    media_player.living_room_google_tv:
+      state: "on"
+
+- id: aether_living_room_tv_off
+  name: Living Room TV Off
+  entities:
+    media_player.living_room_tv_2:
+      state: "off"
+    media_player.living_room_google_tv:
+      state: "off"
+
+- id: aether_bedroom_tv_off
+  name: Bedroom TV Off
+  entities:
+    media_player.bedroom_tv:
+      state: "off"
+    media_player.bedroom_tv_2:
+      state: "off"
+
+# Two-tone evening mood the agent applied for "Creative evening mood":
+# light 1 violet (hs 285,85) at 35%, light 2 cyan (hs 190,90) at 30%.
+# brightness is 0-255: 35% = 89, 30% = 77.
+- id: aether_living_room_evening_mood
+  name: Living Room Evening Mood
+  entities:
+    light.living_room_light_1:
+      state: "on"
+      brightness: 89
+      hs_color: [285, 85]
+    light.living_room_light_2:
+      state: "on"
+      brightness: 77
+      hs_color: [190, 90]
+
+- id: aether_everything_off
+  name: Everything Off
+  entities:
+    light.office_lights:
+      state: "off"
+    fan.tower_fan:
+      state: "off"
+    media_player.office_tv_2:
+      state: "off"
+    light.living_room_lights:
+      state: "off"
+    media_player.living_room_tv_2:
+      state: "off"
+    media_player.living_room_google_tv:
+      state: "off"
+    media_player.bedroom_tv:
+      state: "off"
+    media_player.bedroom_tv_2:
+      state: "off"

@@ -108,6 +108,14 @@
         - "{{ ha_config_dir }}/scripts.yaml"
         - "{{ ha_config_dir }}/scenes.yaml"
 
+    - name: Write Ansible-managed Home Assistant scenes
+      become: true
+      ansible.builtin.copy:
+        src: "./scenes_aether.yml"
+        dest: "{{ ha_config_dir }}/scenes_aether.yaml"
+        mode: "0644"
+      notify: restart only homeassistant
+
     - name: Write Z-Wave settings file
       become: true
       ansible.builtin.template:
