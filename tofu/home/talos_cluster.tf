@@ -724,7 +724,6 @@ module "kubernetes" {
   deskplane_oauth_client_secret      = keycloak_openid_client.deskplane.client_secret
   deskplane_mcp_auth_token           = random_password.deskplane_mcp_auth.result
   orion_ntfy_topic                   = random_password.orion_ntfy_topic.result
-  affine_oauth_client_secret         = keycloak_openid_client.affine.client_secret
   karakeep_oauth_client_secret       = keycloak_openid_client.karakeep.client_secret
   memos_oauth_client_secret          = keycloak_openid_client.memos.client_secret
   snapotter_oauth_client_secret      = keycloak_openid_client.snapotter.client_secret

@@ -63,21 +63,6 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
-    "affine" = {
-      tier                    = "app",
-      owner                   = "aether",
-      backup                  = "critical",
-      exposure                = "internal",
-      create_s3_backup_secret = false,
-      source_file             = "tofu/home/kubernetes/affine.tf",
-      registry_access         = "dockerhub",
-      hostnames = [
-        "affine.home.shdr.ch",
-      ],
-      extra_labels = {
-        "goldilocks.fairwinds.com/enabled" = "true"
-      }
-    }
     "assay" = {
       tier                    = "app"
       owner                   = "aether"

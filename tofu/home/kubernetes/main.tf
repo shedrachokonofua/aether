@@ -216,12 +216,6 @@ variable "deskplane_oauth_client_secret" {
   description = "Deskplane Keycloak OIDC client secret"
 }
 
-variable "affine_oauth_client_secret" {
-  type        = string
-  sensitive   = true
-  description = "AFFiNE Keycloak OIDC client secret"
-}
-
 variable "karakeep_oauth_client_secret" {
   type        = string
   sensitive   = true

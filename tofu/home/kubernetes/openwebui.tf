@@ -20,8 +20,7 @@ locals {
 
   # Native MCP (Streamable HTTP) straight to LiteLLM's gateway. Replaced the
   # MCPO sidecar on 2026-09-25: MCPO converted MCP schemas to OpenAPI, asserted
-  # on valid internal $refs (affine-mcp-server's mindmap/table/collection
-  # tools, "#/properties/docId"), and did one-shot discovery, so one bad schema
+  # on valid internal $refs ("#/properties/docId"), and did one-shot discovery, so one bad schema
   # silently broke every tool. The native client forwards schemas as-is and
   # connects per chat. Tool IDs are server:mcp:<info.id>.
   # system_oauth adds the signed-in user's Keycloak token as `Authorization`
@@ -452,7 +451,7 @@ resource "kubernetes_deployment_v1" "openwebui" {
           }
           env {
             name  = "RAG_RERANKING_MODEL"
-            value = "aether/bge-reranker-v2-m3"
+            value = "aether/qwen3-reranker-4b"
           }
           env {
             name  = "RAG_RERANKING_ENGINE"

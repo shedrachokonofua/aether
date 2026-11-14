@@ -130,7 +130,7 @@ resource "helm_release" "holmesgpt" {
       (local.holmes_model_local) = {
         api_key     = "{{ env.OPENAI_API_KEY }}"
         api_base    = "{{ env.OPENAI_API_BASE }}"
-        model       = "openai/aether/qwen3.6-35b-a3b:think"
+        model       = "openai/aether/qwen3.8-flash-next:think"
         temperature = 1
       }
       (local.holmes_model_trial) = {

@@ -453,8 +453,22 @@ provider rule, so Moira never ranks it.
 All 19 `aether/*` routes matched llama-swap's advertised catalog in the
 pre-maintenance inventory on 2026-09-24, so none was removed. Unloaded
 on-demand models were retained; their cached weight files were not all
-verified. `gemini-embedding-001` and `text-embedding-3-large` remain local Qwen
-embedding compatibility IDs, not Gemini/OpenAI cloud integrations.
+verified. `text-embedding-3-large` remains a local Qwen embedding
+compatibility ID (mnemo), not an OpenAI cloud integration.
+
+On 2026-11-14 `qwen3.6-35b-a3b` and `bge-reranker-v2-m3` were removed from
+llama-swap and LiteLLM and their weights deleted from `gpu-model-storage`,
+which had filled up and crash-looped ComfyUI. Holmes's `qwen-local` model is
+now `aether/qwen3.8-flash-next:think`. `qwen3-reranker-4b` is the only
+reranker: mnemo calls it on llama-swap directly and OpenWebUI through
+LiteLLM as `aether/qwen3-reranker-4b`.
+
+AFFiNE was decommissioned the same day: its namespace, CNPG cluster, backup
+jobs, HTTPRoute, Keycloak client, LiteLLM virtual key, and the LiteLLM
+`affine` MCP server and sidecar are removed, along with the
+`gemini-embedding-001` alias that only AFFiNE used. Its four Ceph volumes
+are retained as Released PVs, and its existing dumps and CNPG backups remain
+under `postgres/affine/` and `cnpg/affine/` in `aether-db-dumps`.
 
 Colony was undeployed on 2026-11-09 after Cicada replaced it. Its daemon,
 service, HTTPRoute, runtime secret, service account, sandbox-launcher RBAC,
