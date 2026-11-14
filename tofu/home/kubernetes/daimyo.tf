@@ -177,7 +177,17 @@ locals {
   # avoiding stale Kata Secret mounts and renewal 401s. Includes ff87d21's
   # bounded provider waits. No migrations; recycle old session pods after
   # active turns finish to acquire the new sidecar and memory-only live volume.
-  daimyo_server_tag = "sha256:cbe2f0d103dba16925a1b116283ada26101bd2f06d5c309079f11f80d6363041"
+  # 9bc8d29 (main pipeline 13664: fmt, clippy, rust-test, rust-test-engine,
+  # ts-test and the server and sidecar builds green): memory sync works for
+  # pods without an `s3` grant. The engine hands the sidecar the server-held
+  # storage credential in the grants file's memory section; before this the
+  # sync uploaded to a port nothing listened on and no memory document was
+  # ever recorded (memory_documents was empty after a month). A sync that
+  # fails is now logged and metered as failed, and a search on a store with
+  # search off says so. No migrations. Deploy with the matching sidecar;
+  # recycle old session pods after their active turns finish. Before that
+  # 82ef13c above.
+  daimyo_server_tag = "sha256:2ad2b5b8ef636104bf5788e593ae0c5e280ccaf5da868c8361a4c0d7ba4b7ee7"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -196,7 +206,10 @@ locals {
   # 82ef13c: read-grants / install-grants use a locked compare-and-swap on
   # /grants-live; uncertain installation keeps candidate keys valid until
   # reconciliation. Deploy with the matching server above.
-  daimyo_sidecar_tag = "sha256:4d01660936257a2399f32a5e6ceece96a5a2ead2c0432e3ea68ebf0eb7012687"
+  # 9bc8d29: serves the S3 endpoint on 15007 from the memory section's
+  # storage credential when the pod has no `s3` grant, and reports failed
+  # mounts in the sync result. Deploy with the matching server above.
+  daimyo_sidecar_tag = "sha256:e99e3549bf60cc3b0c6a316ff341a0f84639a2a89c38a77b58bb5f78a864aec5"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
