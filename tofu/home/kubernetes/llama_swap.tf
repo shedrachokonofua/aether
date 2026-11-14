@@ -108,10 +108,22 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # Effort is pinned per ID: the model defaults to reasoning_effort
           # xhigh, which spent 57-84k tokens (13-21 min) per small coding task.
           # Thinking sampling per unsloth.ai/docs/models/qwen3.8-next.
+          # Pinned to the cached snapshot by path, not `-hf`: `-hf` re-resolves
+          # the repo's latest commit on every start and writes refs/main, and
+          # unsloth's 2026-11-05 re-upload (new split blobs, ~90 GB) made that
+          # start a re-download that filled the 500Gi gpu-model-storage volume
+          # (28K free, inodes 100%) so refs/main could no longer be written
+          # and the model never loaded again ("failed to write file ...
+          # refs/main"; 2026-11-05..14). A path load only reads, so a full or
+          # read-only cache cannot take the default local model down.
+          # Moving to a newer revision is a deliberate step: free space, drop
+          # the `-m`/`--mmproj` pins for one `-hf` start, then re-pin the new
+          # snapshot.
           cmd: >
             llama-server
             --port $${PORT}
-            -hf unsloth/Qwen3.8-Flash-Next-GGUF:UD-Q3_K_XL
+            -m /models/models--unsloth--Qwen3.8-Flash-Next-GGUF/snapshots/766911a6b7369840a91dbcd95f9f997acaab6cd6/UD-Q3_K_XL/Qwen3.8-Flash-Next-UD-Q3_K_XL-00001-of-00003.gguf
+            --mmproj /models/models--unsloth--Qwen3.8-Flash-Next-GGUF/snapshots/766911a6b7369840a91dbcd95f9f997acaab6cd6/mmproj-BF16.gguf
             -ngl 99
             --load-mode mmap
             --lazy-mode on
