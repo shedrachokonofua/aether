@@ -95,3 +95,33 @@ Age Key → decrypts → Recovery Keys → unseals → OpenBao → unlocks → E
 | OpenBao sealed, AWS unavailable | Manual unseal with recovery keys     |
 | OpenBao down, AWS available     | SOPS falls back to KMS               |
 | Everything down                 | Age key to `config/age-key.txt`      |
+
+### Expired step-ca machine certificates
+
+Machine certificates are valid for 24 hours and renewed in place by
+`step ca renew`. step-ca refuses to renew a certificate that has already
+expired, so a step-ca outage longer than that leaves every renewal unit failing
+until the certificate is reissued (2026-11-14: OpenBao, backup-stack, bastion,
+ids-stack, monitoring-stack, and all five Proxmox journal gateways).
+
+For OpenBao the same certificate signs the IAM Roles Anywhere request for KMS.
+With it expired the running server logs `seal backend may be unreachable` and
+cannot auto-unseal after a restart, so reissue before anything restarts it.
+
+Each command reissues only a missing or expired certificate, except
+backup-stack, which always reissues:
+
+```bash
+# OpenBao; checks IAM Roles Anywhere before restarting the server
+ansible-playbook ansible/playbooks/openbao/deploy_openbao.yml --tags cert
+# backup-stack; restarts Backrest
+ansible-playbook ansible/playbooks/backup_stack/configure_offsite_backups/site.yml --tags cert
+# Proxmox journal gateways
+ansible-playbook ansible/playbooks/setup_journal_gateways.yml
+# monitoring-stack vault-agent client certificate
+task configure:journal-forwarder
+```
+
+NixOS hosts use the per-host targets in [NixOS](nixos.md#machine-certificates).
+`step certificate needs-renewal <cert> --expires-in 0s` exits 0 for an expired
+certificate and 1 for a valid one.

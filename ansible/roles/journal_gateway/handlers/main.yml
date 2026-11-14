@@ -27,3 +27,12 @@
     daemon_reload: true
   become: true
   listen: restart journal-gatewayd ghostunnel
+
+# The renewal daemon keeps the certificate it started with in memory.
+- name: Restart journal-gatewayd certificate renewal
+  ansible.builtin.systemd:
+    name: "{{ journal_gateway_cert_renew_service }}.service"
+    state: restarted
+    daemon_reload: true
+  become: true
+  listen: restart journal-gatewayd cert renewal
