@@ -278,7 +278,17 @@ locals {
   # engine fails it with `schema` (Cicada G25: 13 lens tasks in 14 h ended in
   # prose, broken JSON or wrong keys). Before that d561c04 (c1a99586…).
   # claude-code stays at d561c04: it enforces the schema natively.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:2a55db1ae34645f11e039e185162e65786bc8eef99024dc3304cd404597376a4"
+  # omp 50094d4 (main pipeline 13665 build:harness-omp and ts-test green):
+  # omp waits up to 20 s for the granted MCP servers before its first prompt
+  # instead of its 250 ms default, and stops as soon as all have settled. The
+  # gateway needs about 20 s for orion's roster, so first turns listed a
+  # partial `xd://` set (131 of 350+ tools in one session) and called tools
+  # that had not mounted. The cap stays under the engine's 30 s job-control
+  # timeout, which spans the CLI's startup. A prewarmed pod spends the wait
+  # idle; a turn that arrives sooner waits for the rest. Only harness change
+  # since b78f555. Applies to pods started after the release. omp-dev is not
+  # moved: its image needs an attestation in org personal.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:964a65e02b439dc36756010b6c76d923328fe6989c8b9379c523b13e6ce79559"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
