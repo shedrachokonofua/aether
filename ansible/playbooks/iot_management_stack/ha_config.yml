@@ -25,7 +25,6 @@ zeroconf:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
-scene aether: !include scenes_aether.yaml
 
 http:
   base_url: https://ha.home.shdr.ch
