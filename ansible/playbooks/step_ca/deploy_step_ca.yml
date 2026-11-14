@@ -27,39 +27,44 @@
     # =========================================================================
     # Network Configuration (route to VyOS networks via router)
     # =========================================================================
+    # eth0 is owned by systemd-networkd (PVE rewrites eth0.network on every
+    # container start) and NetworkManager is not running, so the route lives in
+    # a networkd drop-in. Without it the CA boots unable to reach the OIDC
+    # issuers and disables SSH-cert login (2026-11-14 incident).
 
-    - name: Add route to VyOS networks (runtime)
-      ansible.builtin.command:
-        cmd: ip route add 10.0.0.0/8 via 192.168.2.231
-      register: route_result
-      changed_when: route_result.rc == 0
-      failed_when: false
-
-    - name: Ensure NetworkManager dispatcher directory exists
+    - name: Ensure eth0 networkd drop-in directory exists
       ansible.builtin.file:
-        path: /etc/NetworkManager/dispatcher.d
+        path: /etc/systemd/network/eth0.network.d
         state: directory
         owner: root
         group: root
         mode: "0755"
+      tags: [network]
 
-    - name: Make route to VyOS networks persistent (NetworkManager dispatcher)
+    - name: Persist route to VyOS networks (systemd-networkd drop-in)
       ansible.builtin.copy:
         content: |
-          #!/bin/bash
-          # Route to VyOS-managed networks via router
-          # This script runs when NetworkManager brings up an interface
-
-          INTERFACE="$1"
-          ACTION="$2"
-
-          if [ "$ACTION" = "up" ]; then
-              ip route add 10.0.0.0/8 via 192.168.2.231 2>/dev/null || true
-          fi
-        dest: /etc/NetworkManager/dispatcher.d/99-vyos-route
+          [Route]
+          Destination=10.0.0.0/8
+          Gateway={{ vm.router.ip.gigahub }}
+        dest: /etc/systemd/network/eth0.network.d/10-vyos-route.conf
         owner: root
         group: root
-        mode: "0755"
+        mode: "0644"
+      register: vyos_route_dropin
+      tags: [network]
+
+    - name: Apply route to VyOS networks
+      ansible.builtin.command:
+        cmd: networkctl reload
+      when: vyos_route_dropin is changed
+      tags: [network]
+
+    - name: Remove unused NetworkManager dispatcher route script
+      ansible.builtin.file:
+        path: /etc/NetworkManager/dispatcher.d/99-vyos-route
+        state: absent
+      tags: [network]
 
     # =========================================================================
     # Installation
