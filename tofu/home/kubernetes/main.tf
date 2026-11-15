@@ -252,6 +252,12 @@ variable "matrix_oauth_client_secret" {
   description = "Matrix Synapse Keycloak OIDC client secret"
 }
 
+variable "sourcegull_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Sourcegull Keycloak OIDC client secret"
+}
+
 # =============================================================================
 # NFS Storage
 # =============================================================================

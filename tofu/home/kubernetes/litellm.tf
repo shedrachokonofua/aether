@@ -1,3 +1,9 @@
+# Sourcegull MCP access token (litellm-mcp service account, kubernetes/sourcegull.tf).
+data "vault_kv_secret_v2" "sourcegull_mcp" {
+  mount = "kv"
+  name  = "sourcegull/mcp"
+}
+
 # =============================================================================
 # LiteLLM — LLM Gateway + MCP
 # =============================================================================
@@ -80,6 +86,7 @@ locals {
     hyperdx_mcp_token          = var.secrets["hyperdx.api_key"]
     google_maps_enabled        = var.litellm_google_maps_enabled
     qbittorrent_mcp_token      = random_password.litellm_qbit_mcp.result
+    sourcegull_mcp_token       = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
   })
   litellm_database_url  = "postgres://${var.secrets["litellm.database_user"]}:${var.secrets["litellm.database_password"]}@${local.litellm_db_host}/litellm?sslmode=disable"
   litellm_registry_host = "registry.gitlab.home.shdr.ch"
