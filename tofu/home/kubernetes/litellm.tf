@@ -39,6 +39,12 @@ locals {
   # the commit tarball (sha256 checked) and served by supergateway like Karakeep.
   litellm_yourspotify_mcp_source = "https://codeload.github.com/pentafive/your-spotify-mcp/tar.gz/9e0e6068d2eebf7a0df697dee0df78667881c727"
   litellm_yourspotify_mcp_sha256 = "ff924bfcc3b61561ec79147fb0777b97608331e601e549151cdd7299319cc6fa"
+  # iosifache/annas-mcp v0.1: stdio-only, bridged by mcp-proxy. Verify the
+  # release archive before extracting the binary; downloads live on NFS HDD.
+  litellm_annas_mcp_sha256 = {
+    amd64 = "f457e204a4e6215e19b98910b7e30baff61f1f815c9fe2e8e344984cf55f68f2"
+    arm64 = "789a27b12ae3105c7d1b4c4e31fb23fe57c7bba774417b23218a7cb9c88c1c50"
+  }
   # cyanheads/pubmed-mcp-server 2.12.2: NCBI E-utilities PubMed/PMC server,
   # native streamable HTTP (multi-arch index digest). Read-only, keyless.
   litellm_pubmed_mcp_image = "ghcr.io/cyanheads/pubmed-mcp-server:2.12.2@sha256:18a156d2c0f6fa16332943dfb3fe89a09ba64cdd5757530d4015187d914a7721"
@@ -80,6 +86,7 @@ locals {
   litellm_openfda_mcp_port      = 8013
   litellm_openalex_mcp_port     = 8014
   litellm_yourspotify_mcp_port  = 8015
+  litellm_annas_mcp_port        = 8016
   litellm_qbit_mcp_port         = 3000
   litellm_espn_mcp_port         = 8080
   litellm_postgres_port         = 5432
@@ -141,6 +148,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       TICKETMASTER_API_KEY = var.secrets["ticketmaster.api_key"]
       OPENALEX_API_KEY     = var.secrets["openalex.api_key"]
       YOUR_SPOTIFY_TOKEN   = var.secrets["yourspotify.mcp_public_token"]
+      ANNAS_SECRET_KEY     = var.secrets["annas_archive.secret_key"]
       QBIT_MCP_USERNAME    = var.secrets["qbittorrent.username"]
       QBIT_MCP_PASSWORD    = var.secrets["qbittorrent.password"]
       QBIT_MCP_HTTP_TOKEN  = random_password.litellm_qbit_mcp.result
@@ -195,6 +203,27 @@ resource "kubernetes_secret_v1" "litellm_gitlab_registry" {
         }
       }
     })
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "litellm_annas_downloads" {
+  depends_on = [module.namespace["litellm"], kubernetes_storage_class_v1.nfs_hdd]
+
+  metadata {
+    name      = "annas-downloads"
+    namespace = local.litellm_ns
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+    resources {
+      requests = { storage = "50Gi" }
+    }
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -1489,6 +1518,85 @@ resource "kubernetes_deployment_v1" "litellm" {
           }
         }
         container {
+          name  = "annas-mcp"
+          image = local.litellm_ticketmaster_mcp_image
+          # Loopback bridge, like Ticketmaster. Pin the mirror: automatic
+          # discovery sends membership requests to third-party-selected hosts.
+          command = ["sh", "-c", <<-EOT
+            set -e
+            python - <<'PY'
+            import hashlib, io, os, platform, tarfile, urllib.request
+            arch = {"x86_64": "amd64", "aarch64": "arm64"}[platform.machine()]
+            expected = ${jsonencode(local.litellm_annas_mcp_sha256)}
+            name = "annas-mcp_0.1_linux_" + arch
+            url = "https://github.com/iosifache/annas-mcp/releases/download/v0.1/" + name + ".tar.xz"
+            with urllib.request.urlopen(url, timeout=60) as response:
+                data = response.read()
+            if hashlib.sha256(data).hexdigest() != expected[arch]:
+                raise RuntimeError("Anna's MCP release checksum mismatch")
+            with tarfile.open(fileobj=io.BytesIO(data), mode="r:xz") as archive:
+                with archive.extractfile(name + "/annas-mcp") as source, open("/opt/annas-mcp", "wb") as target:
+                    target.write(source.read())
+            os.chmod("/opt/annas-mcp", 0o755)
+            PY
+            python -m venv /opt/proxy && /opt/proxy/bin/pip install --no-cache-dir --quiet ${local.litellm_mcp_proxy_package}
+            exec /opt/proxy/bin/mcp-proxy --host 127.0.0.1 --port ${local.litellm_annas_mcp_port} --pass-environment -- /opt/annas-mcp --timeout 60s mcp
+          EOT
+          ]
+
+          env {
+            name  = "ANNAS_BASE_URL"
+            value = "annas-archive.gl"
+          }
+          env {
+            name  = "ANNAS_DOWNLOAD_PATH"
+            value = "/downloads"
+          }
+          env {
+            name = "ANNAS_SECRET_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "ANNAS_SECRET_KEY"
+              }
+            }
+          }
+
+          volume_mount {
+            name       = "annas-downloads"
+            mount_path = "/downloads"
+          }
+
+          readiness_probe {
+            exec {
+              command = ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${local.litellm_annas_mcp_port}/status', timeout=4)"]
+            }
+            initial_delay_seconds = 20
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 30
+          }
+          liveness_probe {
+            exec {
+              command = ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${local.litellm_annas_mcp_port}/status', timeout=4)"]
+            }
+            initial_delay_seconds = 300
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
+          }
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+        }
+        container {
           name  = "qbittorrent-mcp"
           image = local.litellm_qbit_mcp_image
           # SSE MCP on 0.0.0.0:3000 (hardcoded), bearer-token gated; logs in to
@@ -1744,6 +1852,12 @@ resource "kubernetes_deployment_v1" "litellm" {
           name = "chatgpt-auth"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim_v1.litellm_chatgpt_auth.metadata[0].name
+          }
+        }
+        volume {
+          name = "annas-downloads"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.litellm_annas_downloads.metadata[0].name
           }
         }
         volume {
