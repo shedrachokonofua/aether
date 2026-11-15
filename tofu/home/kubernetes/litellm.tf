@@ -34,6 +34,11 @@ locals {
   # it as stateless streamable HTTP, one karakeep-mcp process per request.
   litellm_karakeep_mcp_image    = "docker.io/node:22-slim"
   litellm_karakeep_mcp_packages = "@karakeep/mcp@0.34.0 supergateway@4.2.1"
+  # pentafive/your-spotify-mcp v0.2.3 (commit 9e0e606, Apache-2.0, not on npm):
+  # Your Spotify listening-history analytics, stdio-only. Built at start from
+  # the commit tarball (sha256 checked) and served by supergateway like Karakeep.
+  litellm_yourspotify_mcp_source = "https://codeload.github.com/pentafive/your-spotify-mcp/tar.gz/9e0e6068d2eebf7a0df697dee0df78667881c727"
+  litellm_yourspotify_mcp_sha256 = "ff924bfcc3b61561ec79147fb0777b97608331e601e549151cdd7299319cc6fa"
   # cyanheads/pubmed-mcp-server 2.12.2: NCBI E-utilities PubMed/PMC server,
   # native streamable HTTP (multi-arch index digest). Read-only, keyless.
   litellm_pubmed_mcp_image = "ghcr.io/cyanheads/pubmed-mcp-server:2.12.2@sha256:18a156d2c0f6fa16332943dfb3fe89a09ba64cdd5757530d4015187d914a7721"
@@ -74,6 +79,7 @@ locals {
   litellm_ticketmaster_mcp_port = 8012
   litellm_openfda_mcp_port      = 8013
   litellm_openalex_mcp_port     = 8014
+  litellm_yourspotify_mcp_port  = 8015
   litellm_qbit_mcp_port         = 3000
   litellm_espn_mcp_port         = 8080
   litellm_postgres_port         = 5432
@@ -134,6 +140,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       KARAKEEP_API_KEY     = var.secrets["karakeep.mcp_api_key"]
       TICKETMASTER_API_KEY = var.secrets["ticketmaster.api_key"]
       OPENALEX_API_KEY     = var.secrets["openalex.api_key"]
+      YOUR_SPOTIFY_TOKEN   = var.secrets["yourspotify.mcp_public_token"]
       QBIT_MCP_USERNAME    = var.secrets["qbittorrent.username"]
       QBIT_MCP_PASSWORD    = var.secrets["qbittorrent.password"]
       QBIT_MCP_HTTP_TOKEN  = random_password.litellm_qbit_mcp.result
@@ -1410,6 +1417,74 @@ resource "kubernetes_deployment_v1" "litellm" {
             limits = {
               cpu    = "500m"
               memory = "512Mi"
+            }
+          }
+        }
+        container {
+          name  = "yourspotify-mcp"
+          image = local.litellm_karakeep_mcp_image
+          # Loopback only: supergateway has no auth here. YOUR_SPOTIFY_TOKEN is
+          # Your Spotify's public (share) token: it reads Shedrach's stats and
+          # is sent as ?token=, so the server logs no requests. No Spotify Web
+          # API credentials, so the playback/playlist tools never register.
+          command = ["sh", "-c", <<-EOT
+            set -e
+            cd /tmp
+            node -e "fetch('${local.litellm_yourspotify_mcp_source}').then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(b => require('fs').writeFileSync('src.tgz', Buffer.from(b)))"
+            echo "${local.litellm_yourspotify_mcp_sha256}  src.tgz" | sha256sum -c -
+            rm -rf app && mkdir app && tar xzf src.tgz -C app --strip-components=1
+            cd app
+            npm ci --no-fund --no-audit --loglevel=error
+            npm run build --silent
+            npm install -g --no-fund --no-audit --loglevel=error supergateway@4.2.1
+            exec supergateway --stdio "node /tmp/app/build/index.js" --outputTransport streamableHttp --host 127.0.0.1 --port ${local.litellm_yourspotify_mcp_port} --healthEndpoint /healthz
+          EOT
+          ]
+
+          env {
+            name  = "YOUR_SPOTIFY_API_URL"
+            value = "http://yourspotify-api.${local.yourspotify_ns}.svc.cluster.local:${local.yourspotify_api_port}"
+          }
+
+          env {
+            name = "YOUR_SPOTIFY_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "YOUR_SPOTIFY_TOKEN"
+              }
+            }
+          }
+
+          # Loopback bind: httpGet probes dial the pod IP, so probe from inside.
+          readiness_probe {
+            exec {
+              command = ["node", "-e", "fetch('http://127.0.0.1:${local.litellm_yourspotify_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 30
+          }
+
+          liveness_probe {
+            exec {
+              command = ["node", "-e", "fetch('http://127.0.0.1:${local.litellm_yourspotify_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 300
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "1"
+              memory = "1Gi"
             }
           }
         }
