@@ -53,6 +53,9 @@
     backrest_backup_cron: "0 8 * * *"
     seaweed_db_dump_bucket: "aether-db-dumps"
     seaweed_db_dump_endpoint: "http://{{ vm.seaweedfs.ip }}:{{ vm.seaweedfs.ports.s3 }}"
+    # Mountpoint of the dedicated smith dataset hdd/db-dumps (no snapshots), nested
+    # inside the hdd/data tree so the Backrest /mnt/hdd/data plan keeps the same
+    # restic paths. See network_file_server/configure_zfs.yml and sanoid.conf.j2.
     seaweed_db_dump_sync_dir: "/mnt/hdd/data/backups/seaweed-db-dumps"
     internal_route_dest: "10.0.0.0/8"
     internal_route_via: "{{ vm.router.ip.gigahub }}"
@@ -903,6 +906,30 @@
         daemon_reload: true
       when: not ansible_check_mode
 
+    - name: Resolve SeaweedFS DB dump sync filesystem
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - --noheadings
+          - --output
+          - TARGET
+          - --target
+          - "{{ seaweed_db_dump_sync_dir }}"
+      register: seaweed_db_dump_mount
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Require the DB dump mirror to be its own mounted dataset
+      ansible.builtin.assert:
+        that:
+          - seaweed_db_dump_mount.stdout | trim == seaweed_db_dump_sync_dir
+        fail_msg: >-
+          Refusing to mirror DB dumps into {{ seaweed_db_dump_sync_dir }}: it resolves to
+          {{ seaweed_db_dump_mount.stdout | default('nothing') | trim }}, not a dedicated mount.
+          Create/mount smith dataset hdd/db-dumps first (network_file_server/configure_zfs.yml);
+          otherwise the mirror would land in the snapshotted hdd/data dataset.
+
     - name: Create SeaweedFS DB dump sync directory
       ansible.builtin.file:
         path: "{{ seaweed_db_dump_sync_dir }}"
@@ -1049,6 +1076,11 @@
               tmp.replace(target)
 
           def main():
+              # The mirror must live on the dedicated hdd/db-dumps dataset (no
+              # snapshots). Writing it to the parent hdd/data dataset would pin
+              # expired dumps in its long-lived snapshots.
+              if not os.path.ismount("{{ seaweed_db_dump_sync_dir }}"):
+                  sys.exit("{{ seaweed_db_dump_sync_dir }} is not a mountpoint; refusing to sync")
               DEST.mkdir(parents=True, exist_ok=True)
               expected = {}
 

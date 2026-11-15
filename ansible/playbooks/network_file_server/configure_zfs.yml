@@ -28,6 +28,15 @@
         compress: "lz4"
         recordsize: "default"
         atime: "off"
+      - name: "hdd/db-dumps" # Mirror of the SeaweedFS aether-db-dumps bucket (no snapshots, see sanoid.conf.j2)
+        # Mounted inside the hdd/data tree at the path the backup-stack guest
+        # and the Backrest /mnt/hdd/data plan already use, so the restic path
+        # (and offsite deduplication) does not change. Large sequential dump
+        # files: 1M records.
+        mountpoint: "/mnt/hdd/data/backups/seaweed-db-dumps"
+        compress: "lz4"
+        recordsize: "1M"
+        atime: "off"
       - name: "hdd/blockchain" # Bitcoin/Monero blockchain data
         mountpoint: "/mnt/hdd/blockchain"
         compress: "lz4"
@@ -121,3 +130,15 @@
     - name: Add zfs-hdd-vm-dataset storage to proxmox if not exists
       command: pvesm add zfspool zfs-hdd-vm-dataset --pool hdd/vm --sparse 1 --content images,rootdir --nodes smith
       when: hdd_pool_status.rc != 0
+
+    # --- Sanoid snapshot policy ---
+    # The sanoid package is installed on smith outside this playbook; this task
+    # only owns the policy file (template lives with the backup stack docs).
+    - name: Deploy sanoid policy
+      template:
+        src: "{{ playbook_dir }}/../backup_stack/sanoid.conf.j2"
+        dest: /etc/sanoid/sanoid.conf
+        owner: root
+        group: root
+        mode: "0644"
+      tags: [sanoid]
