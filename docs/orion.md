@@ -288,6 +288,17 @@ with its full structured abstract, MeSH terms and NCT04184622.
 35658024 itself has no PMC copy, so its full-text lookup returned a typed
 `no-epmc-fulltext` miss.
 
+Rollout evidence (2026-11-15): Orion release `d6ca627efb46f1cffca39df51b8588f432cb0c7f` (Orion `main` and
+`dev/revamp`; Coder gate `GATE_OK`, pipeline `13674` with image-build,
+chart-check and chart-publish green) carries the `pubmed`, `ticketmaster` and
+`shop` grants. The targeted plan for `helm_release.orion` changed only that
+release in place; Helm revision 41 is deployed, the `orion` Deployment is ready
+on `main:d6ca627e`, and Agents `orion` and `orion-molecule` are `Compiled`
+with all three grants.
+After the rollout, `daimyo-orion` against `/mcp/pubmed` called
+`pubmed_fetch_articles` for PMID 35658024 and got the SURMOUNT-1 record with
+NCT04184622 (`isError: false`).
+
 ## Ticketmaster MCP Access
 
 `litellm_config.yaml.tftpl` registers `ticketmaster`, the loopback
@@ -331,6 +342,14 @@ music` search returned 135 matches. `get_event_details` for
 `rZ7HnEZ1AfGKxf` returned the same fields plus `info`, `pleaseNote` and
 `images`. `search_venues` (`Scotiabank Arena`, id `KovZpZAFFE1A`) and
 `search_attractions` (`Raptors`, `K8vZ9171KC0` Toronto Raptors) also answered.
+
+After the rollout (Helm revision 41, `d6ca627e`), `daimyo-orion` against
+`/mcp/ticketmaster` ran `search_events` for Toronto (`city: Toronto`,
+`country_code: CA`, `start_datetime`/`end_datetime` over the next 7 days,
+`max_results: 3`): `total: 154`, three events with venue objects
+(`isError: false`). The first attempt with the argument names
+`start_date_time`/`size` returned zero events because the tool's real
+parameters are `start_datetime`, `end_datetime` and `max_results`.
 
 ## Shop MCP Access
 
@@ -376,9 +395,17 @@ may need Shopify approval) and its client ID and secret go into SOPS and the
 makes signed-out reads answer 401 until that consent, so it is one step.
 Until then Orion's prompt tells it to say the account tools are not connected.
 
-Shop's published skill (`https://mcp.shop.com/skill.md`) is not vendored: it
-has no license text, is served unversioned, and the chart's skills bundle is
-pinned by version and digest with a test that lists the skills.
+Shop's skill is loaded at runtime, not vendored. Orion's prompt tells the agent
+to scrape `https://mcp.shop.com/skill.md` (and `references/catalog.md` or
+`transactions.md` when the skill points to them) before using the shop tools,
+and says its owner's instructions and the approval policy win over the skill,
+that Shop is signed out for now and that it must not offer to connect an
+account. Deskplane's `scrape` returned HTTP 200 markdown for all three URLs
+(2026-11-15). The skill is also reachable over MCP through the gateway
+(`resources/read` of `skill://shop/SKILL.md` and `skill://shop/references/catalog.md`
+via `/mcp/shop` with the `daimyo-orion` key), but the gateway's
+`resources/list` is empty and `skills/list` answers `Method not found`, so
+that path is not used.
 
 Gateway verification (2026-11-15, `daimyo-orion` key against `/mcp/shop`):
 `tools/list` returned 21 tools (`tool_count: 21`). `search_catalog` for
@@ -392,6 +419,13 @@ with 1 variant (option `Size`; price CAD 4000 minor units, `available: true`,
 seller Cove USA, `url`, `checkout_url`). `get_account` returned the
 documented `401 Unauthorized` from `https://mcp.shop.com/`. No cart,
 checkout or spend call was made.
+
+Rollout evidence (2026-11-15): release `d6ca627efb46f1cffca39df51b8588f432cb0c7f` (Helm revision 41; see
+the PubMed section for the gate, pipeline and Agent status). After it,
+`daimyo-orion` against `/mcp/shop` ran `search_catalog` for `heavyweight cotton
+t-shirt` (Canada context): "(New) Heavyweight Tee - Jet Black", CAD 40.00;
+`get_account` answered Shop's 401, as documented. No cart, checkout or
+spend-request call was made.
 
 ## Rogue Agent Access
 
