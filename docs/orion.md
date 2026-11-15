@@ -77,6 +77,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `ticketmaster` | `sourabhmadur/ticketmaster-mcp` `bc3367d` via mcp-proxy, `:8012` | `ticketmaster.api_key` | none |
 | `openfda` | `cyanheads/openfda-mcp-server` 0.10.0, `:8013` | none (1,000 requests/day) | 12 tools, no `openfda_dataframe_*` |
 | `openalex` | `cyanheads/openalex-mcp-server` 0.11.1, `:8014` | `openalex.api_key` ($1/day budget) | none |
+| `annas` | `iosifache/annas-mcp` v0.1 via mcp-proxy, `:8016` | `annas_archive.secret_key` | 4 search/download tools; downloads ask in Orion |
 | `yourspotify` | `pentafive/your-spotify-mcp` `9e0e606` via supergateway, `:8015` | `yourspotify.mcp_public_token` | 13 read tools |
 | `shop` | hosted `mcp.shop.com` | none (signed out) | none |
 
@@ -116,6 +117,25 @@ allowlist.
 ### OpenAlex
 
 `OPENALEX_API_KEY` comes from `litellm-env`; `OPENALEX_MAILTO` is unset.
+
+### Anna's Archive
+
+The stdio server runs behind the same loopback mcp-proxy bridge as Ticketmaster.
+Release archives are SHA-256 checked for amd64 and arm64. The membership key
+comes from `litellm-env`, never a tool argument. The mirror is pinned to
+`annas-archive.gl`; automatic third-party mirror discovery is off.
+
+Downloads go to `/downloads` on PVC `litellm/annas-downloads`: `ReadWriteMany`,
+`nfs-hdd`, provisioned under the HDD export `/mnt/hdd/data`. Its 50 GiB request
+is not an NFS quota. The StorageClass retains the data and the claim has
+`prevent_destroy`; pod replacement does not remove downloads.
+
+Downloads consume the membership's daily allowance, so both download tools
+ask for approval. Upstream returns only the destination directory, not the
+file contents; it does not make files available in Orion's workspace. Public
+search and DOI lookup depend on the website and can hit DDoS-Guard even when
+the membership download API works. Upstream can misreport a blocked search as
+no results; it is not evidence that the archive lacks the requested work.
 
 ### Your Spotify
 
