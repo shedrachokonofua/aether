@@ -1230,6 +1230,30 @@ mcp_servers:
   # so no allowlist. Only the daimyo-orion key's scope includes it.
   pubmed:
     url: "http://localhost:8011/mcp"
+  # Ticketmaster Discovery API v2 (litellm.tf ticketmaster-mcp sidecar,
+  # sourabhmadur/ticketmaster-mcp bc3367d behind mcp-proxy, loopback). All 6
+  # tools are read-only GETs (event/attraction/venue search and details), so
+  # no allowlist. The consumer key comes from SOPS ticketmaster.api_key via the
+  # sidecar env, never a tool argument. Only the daimyo-orion key's scope
+  # includes it.
+  ticketmaster:
+    url: "http://localhost:8012/mcp"
+  # Shop (hosted, https://mcp.shop.com/, root path: /mcp 404s). It speaks MCP
+  # 2026-07-28 and opens with server/discover; LiteLLM's default `initialize`
+  # handshake is refused, so the version is pinned. Each call is one stateless
+  # POST. Signed out: search_catalog, lookup_catalog, get_product,
+  # search_locations, lookup_locations, ask_business and the cart/checkout
+  # tools work; get_account, search_orders and the spend-request tools return
+  # Shop's 401 until a Shop login exists. No allowlist: Orion's grant gates the
+  # state-changing tools (cart, checkout, spend requests) with `ask`. Shop's
+  # OAuth (accounts.shop.app, scope personal_agent) is not held here yet: it
+  # has no dynamic client registration and rejected LiteLLM's client ID
+  # metadata document, so auth_type: oauth2 needs a registered Shop app
+  # client_id (docs/orion.md, Shop MCP Access).
+  shop:
+    url: "https://mcp.shop.com/"
+    transport: http
+    protocol_version: "2026-07-28"
   # Withings (hosted, OAuth 2.1 authorization code + PKCE, dynamic client
   # registration). LiteLLM stores and refreshes the login per LiteLLM user;
   # only the daimyo-orion key (machine user `orion`) is granted it.

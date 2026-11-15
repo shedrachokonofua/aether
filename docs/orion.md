@@ -288,6 +288,111 @@ with its full structured abstract, MeSH terms and NCT04184622.
 35658024 itself has no PMC copy, so its full-text lookup returned a typed
 `no-epmc-fulltext` miss.
 
+## Ticketmaster MCP Access
+
+`litellm_config.yaml.tftpl` registers `ticketmaster`, the loopback
+`ticketmaster-mcp` sidecar in the LiteLLM pod:
+[sourabhmadur/ticketmaster-mcp](https://github.com/sourabhmadur/ticketmaster-mcp)
+at commit `bc3367d251e5d1877f7222d23826a2bbe2be383e`, installed from its commit
+tarball (pip verifies `#sha256=4825ec19...`) with `mcp==1.30.0`,
+`httpx==0.28.1` and `python-dotenv==1.2.4` pinned, on
+`python:3.13-slim` by index digest. The server is stdio-only, so `mcp-proxy`
+0.13.0 (its own venv, as for `comfy-mcp`) serves it as streamable HTTP on
+`127.0.0.1:8012/mcp`. The repository has no license file (private use only).
+The Discovery API consumer key is SOPS `ticketmaster.api_key`, injected as
+`TICKETMASTER_API_KEY` from the `litellm-env` secret (5,000 requests per day,
+5 per second); the consumer secret is not stored because Discovery does not use
+it. The key is never a tool argument. It travels in the Discovery query string,
+so the sidecar raises the `httpx` logger to WARNING; the container logs hold no
+key. All 6 tools are read-only GETs, so the registry has no `allowed_tools`
+list. The `daimyo-orion` key's scope includes `ticketmaster` (same
+`--tags orion-mcp` command as Instacart above); no other key does. Nothing
+touches Ticketmaster's OAuth, Partner or Commerce APIs, and there is no
+purchase flow.
+
+The gateway exposes `ticketmaster-search_events`,
+`ticketmaster-get_event_details`, `ticketmaster-search_attractions`,
+`ticketmaster-get_attraction_details`, `ticketmaster-search_venues` and
+`ticketmaster-get_venue_details`, read from `tools/list`. The Orion grant
+allows all six; re-diff it when the pin changes.
+
+Gateway verification (2026-11-15, `daimyo-orion` key against
+`/mcp/ticketmaster`): `tools/list` returned 6 tools (`tool_count: 6`).
+`search_events` with `city: Toronto`, `country_code: CA`, a 14-day
+`start_datetime`/`end_datetime` window and `sort: date,asc` returned `total:
+267` with events carrying `id`, `name`, `url`, `start_local`,
+`start_local_time`, `start_datetime`, `timezone`, `status`, `sales_public_*`,
+`venue` (`id`, `name`, `city`, `state`, `country`, `address`, `postal_code`,
+`lat`, `lng`), `attractions`, `classifications` and `price_ranges`. Season-pass
+listings dated before the window (such as `rZ7HnEZ1AfGKxf`, TMU Bold Women's
+Hockey) lead the date-sorted results; they are on sale through the window, and
+concerts and games on 2026-11-15 to 2026-11-17 follow. A `classification:
+music` search returned 135 matches. `get_event_details` for
+`rZ7HnEZ1AfGKxf` returned the same fields plus `info`, `pleaseNote` and
+`images`. `search_venues` (`Scotiabank Arena`, id `KovZpZAFFE1A`) and
+`search_attractions` (`Raptors`, `K8vZ9171KC0` Toronto Raptors) also answered.
+
+## Shop MCP Access
+
+`litellm_config.yaml.tftpl` registers `shop`, the hosted Shop MCP at exactly
+`https://mcp.shop.com/` (the root path; `/mcp` returns 404). It speaks MCP
+protocol `2026-07-28` and opens with `server/discover`; LiteLLM v1.106.0-rc.1
+defaults to the `initialize` handshake and Shop refuses it (`tools/list` came
+back empty), so the entry sets `transport: http` and
+`protocol_version: "2026-07-28"`. Each tool call is one stateless HTTP POST.
+The registry has no `allowed_tools` list; the Orion grant carries the policy.
+The `daimyo-orion` key's scope includes `shop` (same `--tags orion-mcp`
+command as Instacart above).
+
+The gateway exposes 21 tools as `shop-<tool>`: `search_catalog`,
+`lookup_catalog`, `get_product`, `search_locations`, `lookup_locations`,
+`ask_business`, `get_account`, `search_orders`, `get_order`, `get_cart`,
+`create_cart`, `update_cart`, `get_checkout`, `create_checkout`,
+`update_checkout`, `complete_checkout`, `create_spend_request`,
+`get_spend_request`, `update_spend_request`, `cancel_spend_request` and
+`complete_spend_request`. The Orion grant allows the catalog, product,
+location, `ask_business`, `get_account`, `search_orders` and `get_order` reads
+directly; every cart, checkout (including `complete_checkout`) and
+spend-request tool, `get_spend_request` included, asks.
+
+**Signed out only.** The gateway holds no Shop login yet: `get_account`,
+`search_orders` and the spend-request tools answer Shop's own 401. The
+blocker is the client identity. Shop's authorization server
+(`https://accounts.shop.app`, scope `personal_agent`, resource
+`https://mcp.shop.com`) has no dynamic client registration and documents
+client ID metadata documents; against it, LiteLLM's metadata URL, claude.ai's
+and vscode.dev's published ones all return `Unexpected server error
+(invalid_client)` (checked twice on 2026-11-15, signed out), a non-URL id
+returns `Unknown client`, and the CLI's public device-flow client
+(`5c733ab2-...`) rejects LiteLLM's callback (`invalid_request`). LiteLLM has no
+device-code flow. Shop documents refresh tokens only for a registered
+application client with a secret; device-flow tokens expire and need the
+shopper again. To finish the sign-in, the owner registers a Shop app in the Dev
+Dashboard (callback = LiteLLM's `shop` callback, `personal_agent` scope, which
+may need Shopify approval) and its client ID and secret go into SOPS and the
+`shop` entry (`auth_type: oauth2`, `oauth2_flow: authorization_code`,
+`upstream_resource: https://mcp.shop.com`); then the owner consents once at
+`https://litellm.home.shdr.ch/shop/authorize`, as for Withings. Adding oauth2
+makes signed-out reads answer 401 until that consent, so it is one step.
+Until then Orion's prompt tells it to say the account tools are not connected.
+
+Shop's published skill (`https://mcp.shop.com/skill.md`) is not vendored: it
+has no license text, is served unversioned, and the chart's skills bundle is
+pinned by version and digest with a test that lists the skills.
+
+Gateway verification (2026-11-15, `daimyo-orion` key against `/mcp/shop`):
+`tools/list` returned 21 tools (`tool_count: 21`). `search_catalog` for
+`heavyweight cotton t-shirt` (`catalog.query`, `context.address_country: CA`,
+`pagination.limit: 3`) returned `ucp`, `products`, `messages`, `pagination`
+and `next`, with products such as `gid://shopify/p/5e7L1QFrJGJEY0IPRDJJP`
+("(New) Heavyweight Tee - Jet Black", CAD 40.00, rating 3.8) carrying `id`,
+`title`, `description`, `handle`, `rating`, `media`, `options`, `metadata`,
+`variants` and `price_range`. `get_product` on that id returned the product
+with 1 variant (option `Size`; price CAD 4000 minor units, `available: true`,
+seller Cove USA, `url`, `checkout_url`). `get_account` returned the
+documented `401 Unauthorized` from `https://mcp.shop.com/`. No cart,
+checkout or spend call was made.
+
 ## Rogue Agent Access
 
 Rogue retains `trust: external` and its Routeway model. It holds two network
