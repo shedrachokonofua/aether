@@ -1026,14 +1026,25 @@ resource "kubernetes_manifest" "db_backup_prune_cronjob" {
                   image   = local.db_backup_aws_image
                   command = ["/bin/sh", "-ec"]
                   args = [<<-EOT
-                    export HOME=/tmp/aws
+                    export HOME=/tmp/aws AWS_MAX_ATTEMPTS=8 AWS_RETRY_MODE=standard
                     work=/tmp/prune
                     mkdir -p "$HOME/.aws" "$work"
                     printf '%s\n' '[default]' 's3 =' '  addressing_style = path' > "$HOME/.aws/config"
                     cutoff="$(date -u -d "$KEEP_DAYS days ago" +%Y%m%dT%H%M%SZ)"
                     query='[(Versions||`[]`)[?IsLatest==`false`].[`"N"`,VersionId,Key],(DeleteMarkers||`[]`)[].[`"M"`,VersionId,Key],(Versions||`[]`)[?IsLatest==`true`].[`"C"`,VersionId,Key]][]'
                     failed=0
-                    for prefix in $PRUNE_PREFIXES; do
+                    # One version listing per <top>/<namespace>/, not per top-level
+                    # prefix: the S3 gateway shares a 4 GiB LXC and was OOM-killed on
+                    # 2026-11-15 while a single listing of all of cnpg/ ran alongside
+                    # the offsite mirror sync.
+                    prefixes=""
+                    for top in $PRUNE_PREFIXES; do
+                      prefixes="$prefixes $(aws --endpoint-url "$S3_ENDPOINT" s3api list-objects-v2 \
+                        --bucket "$S3_BUCKET" --prefix "$top" --delimiter / \
+                        --output text --query '(CommonPrefixes||`[]`)[].Prefix')"
+                    done
+                    for prefix in $prefixes; do
+                      [ "$prefix" != "None" ] || continue
                       aws --endpoint-url "$S3_ENDPOINT" s3api list-object-versions \
                         --bucket "$S3_BUCKET" --prefix "$prefix" \
                         --output text --query "$query" > "$work/versions.tsv"
