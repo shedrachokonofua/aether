@@ -3,91 +3,91 @@ locals {
     assay = {
       namespace = local.assay_namespace
       cluster   = local.assay_cnpg
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 7 2 * * *"
     }
     buzz = {
       namespace = local.buzz_namespace
       cluster   = local.buzz_cnpg
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 12 2 * * *"
     }
     coder = {
       namespace = local.coder_namespace
       cluster   = local.coder_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 10 2 * * *"
     }
     grafana = {
       namespace = local.grafana_namespace
       cluster   = local.grafana_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 17 2 * * *"
     }
     kestra = {
       namespace = local.kestra_ns
       cluster   = local.kestra_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 22 2 * * *"
     }
     immich = {
       namespace = local.immich_namespace
       cluster   = local.immich_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 25 2 * * *"
     }
     litellm = {
       namespace = local.litellm_ns
       cluster   = local.litellm_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 30 2 * * *"
     }
     matrix = {
       namespace = local.matrix_ns
       cluster   = local.matrix_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 35 2 * * *"
     }
     miniflux = {
       namespace = local.miniflux_ns
       cluster   = local.miniflux_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 40 2 * * *"
     }
     mnemo = {
       namespace = local.mnemo_namespace
       cluster   = local.mnemo_cnpg
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 0 2 * * *"
     }
     nextcloud = {
       namespace = local.nextcloud_namespace
       cluster   = local.nextcloud_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 45 2 * * *"
     }
     openwebui = {
       namespace = local.openwebui_namespace
       cluster   = local.openwebui_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 50 2 * * *"
     }
     orion = {
       namespace = local.orion_ns
       cluster   = local.orion_cnpg
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 32 2 * * *"
     }
     temporal = {
       namespace = local.temporal_namespace
       cluster   = local.temporal_cnpg_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 55 2 * * *"
     }
     pop = {
       namespace = local.pop_namespace
       cluster   = local.pop_database_cluster
-      retention = "14d"
+      retention = "7d"
       schedule  = "0 57 2 * * *"
     }
   }
