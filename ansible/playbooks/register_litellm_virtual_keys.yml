@@ -206,6 +206,8 @@
       - homeassistant
       - karakeep
       - pubmed
+      - openfda
+      - openalex
       - ticketmaster
       - shop
       - withings

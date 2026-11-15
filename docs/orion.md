@@ -299,6 +299,72 @@ After the rollout, `daimyo-orion` against `/mcp/pubmed` called
 `pubmed_fetch_articles` for PMID 35658024 and got the SURMOUNT-1 record with
 NCT04184622 (`isError: false`).
 
+## OpenFDA MCP Access
+
+`litellm_config.yaml.tftpl` registers `openfda`, the loopback `openfda-mcp`
+sidecar in the LiteLLM pod: [cyanheads/openfda-mcp-server](https://github.com/cyanheads/openfda-mcp-server)
+0.10.0 (`ghcr.io/cyanheads/openfda-mcp-server:0.10.0@sha256:6bade603...`, the
+multi-arch index digest), native streamable HTTP on `127.0.0.1:8013/mcp`,
+stateless, no auth and no secrets. It calls the keyless openFDA API (1,000
+requests per day; `OPENFDA_API_KEY` unset, which would raise the limit to
+120,000). DataCanvas staging is off (`CANVAS_PROVIDER_TYPE=none`), but this
+version still lists the `openfda_dataframe_*` tools (they answer
+`canvas_disabled`), so the registry carries an `allowed_tools` list of the 12
+real tools. The `daimyo-orion` key's scope includes `openfda` (same
+`--tags orion-mcp` command as Instacart above); no other key does.
+
+The gateway exposes `openfda-openfda_drug_profile`,
+`openfda-openfda_search_adverse_events`, `openfda-openfda_search_animal_events`,
+`openfda-openfda_search_drug_shortages`,
+`openfda-openfda_search_tobacco_reports`, `openfda-openfda_search_recalls`,
+`openfda-openfda_count_values`, `openfda-openfda_describe_fields`,
+`openfda-openfda_get_drug_label`, `openfda-openfda_search_drug_approvals`,
+`openfda-openfda_search_device_clearances` and `openfda-openfda_lookup_ndc`;
+re-diff the Orion grant when the image pin changes.
+
+Gateway verification: pending. The config is prepared but not applied; there
+is no `tools/list` or tool-call evidence from the gateway yet. After the apply,
+confirm that `tools/list` for the `daimyo-orion` key against `/mcp/openfda`
+returns exactly the 12 tools and that no `openfda_dataframe_*` tool appears.
+
+## OpenAlex MCP Access
+
+`litellm_config.yaml.tftpl` registers `openalex`, the loopback `openalex-mcp`
+sidecar in the LiteLLM pod: [cyanheads/openalex-mcp-server](https://github.com/cyanheads/openalex-mcp-server)
+0.11.1 (`ghcr.io/cyanheads/openalex-mcp-server:0.11.1@sha256:7404b67e...`, the
+multi-arch index digest), native streamable HTTP on `127.0.0.1:8014/mcp`,
+stateless, no auth. It calls `api.openalex.org` with Shedrach's free OpenAlex
+account key: sops `openalex.api_key`, passed as `OPENALEX_API_KEY` through the
+`litellm-env` Secret (a direct call with it on 2026-11-15 answered 200 with a
+$1/day budget and 10,000 credits). `OPENALEX_MAILTO` is unset (the repo holds no
+owner contact address for polite-pool settings). All 5 tools are read-only, so
+the registry has no `allowed_tools` list. The `daimyo-orion` key's scope
+includes `openalex`; no other key does.
+
+The gateway exposes `openalex-openalex_search_entities`,
+`openalex-openalex_analyze_trends`, `openalex-openalex_resolve_name`,
+`openalex-openalex_get_citation_graph` and
+`openalex-openalex_describe_fields`, per the upstream README; re-diff the
+Orion grant when the image pin changes.
+
+Gateway verification: pending. The config is prepared but not applied; there
+is no `tools/list` or tool-call evidence from the gateway yet. After the apply,
+confirm that `tools/list` for the `daimyo-orion` key against `/mcp/openalex`
+returns the 5 tools.
+
+Both sidecars are applied the way PubMed was: a targeted plan (litellm and
+openwebui deployments, `litellm-config` and `litellm-env` secrets), then the
+`--tags orion-mcp` key-scope play. The apply restarts the LiteLLM pod.
+
+## Polymarket Task Egress
+
+Org `personal` task pods may resolve and reach `gamma-api.polymarket.com` and
+`clob.polymarket.com` over HTTPS (`daimyo_personal_polymarket_fqdns` in
+`daimyo.tf`, added to both the DNS allowlist and the `daimyo_tasks_egress`
+`toFQDNs` rules). The Orion `polymarket` skill calls those public, read-only
+market-data APIs directly with HTTPS GET; no other org gets them. Verification:
+pending until the `daimyo_tasks_egress` change is applied.
+
 ## Ticketmaster MCP Access
 
 `litellm_config.yaml.tftpl` registers `ticketmaster`, the loopback
