@@ -120,6 +120,20 @@ resource "kubernetes_deployment_v1" "aiostreams" {
             value = "http://${kubernetes_service_v1.stremthru.metadata[0].name}.${local.aiostreams_ns}.svc.cluster.local:${local.stremthru_port}"
           }
 
+          # AIOMetadata's manifest takes ~25s to build when its cache is cold
+          # and Jikan (MyAnimeList) is unreachable. At the 3s default AIOStreams
+          # drops it and serves a manifest with no search catalogs, which
+          # Gelato then caches, breaking Jellyfin search (2026-11-11..14).
+          env {
+            name  = "MANIFEST_TIMEOUT"
+            value = "45000"
+          }
+
+          env {
+            name  = "MANIFEST_INCREASED_TIMEOUT"
+            value = "45000"
+          }
+
           env {
             name = "SECRET_KEY"
             value_from {
