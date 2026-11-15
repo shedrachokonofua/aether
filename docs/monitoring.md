@@ -434,6 +434,16 @@ reconciliation, removed the superseded copy, and loaded 0.26.29.0. An authentica
 loaded assembly and `Gelato.Filters.SearchActionFilter` logs, not just the plugin
 directories or an HTTP 200 response, when verifying search recovery.
 
+The same symptom recurred on 2026-11-11 through 2026-11-14 with a different
+cause. `api.jikan.moe` was unreachable, so AIOMetadata took about 25 s to build
+a cold manifest. AIOStreams gave upstream manifests 3 s (`MANIFEST_TIMEOUT`
+default), dropped AIOMetadata, and served a manifest without search catalogs;
+Gelato re-read it during its 01:17 UTC tasks and kept that copy until Jellyfin
+restarted. `aiostreams.tf` now pins `MANIFEST_TIMEOUT` and
+`MANIFEST_INCREASED_TIMEOUT` to 45 s. After a Jellyfin restart, searches
+logged `addon=3` and `addon=19` instead of `addon=0`. AIOStreams logging
+`failed to fetch manifest, skipping` for AIOMetadata is the signal to look for.
+
 
 
 ## Alert routing contract
