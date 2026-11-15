@@ -370,6 +370,13 @@ locals {
     "codeload.github.com",
     "objects.githubusercontent.com",
   ]
+  # Polymarket's public read-only market-data APIs (gamma-api: events and
+  # markets; clob: price history), called by the Orion `polymarket` skill from
+  # personal task pods. Named once so the DNS and HTTPS rules agree.
+  daimyo_personal_polymarket_fqdns = [
+    "gamma-api.polymarket.com",
+    "clob.polymarket.com",
+  ]
   daimyo_tasks_fqdns = {
     for org in local.daimyo_orgs : org => concat(
       local.daimyo_tasks_fqdns_common,
@@ -378,6 +385,7 @@ locals {
       contains(local.trip_planner_orgs, org) ? local.trip_planner_public_mcp_hosts : [],
       org == "cicada" ? local.daimyo_cicada_build_fqdns : [],
       org == "personal" ? local.daimyo_personal_build_fqdns : [],
+      org == "personal" ? local.daimyo_personal_polymarket_fqdns : [],
     )
   }
   daimyo_s3_region = "us-east-1"
@@ -1066,6 +1074,13 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
         # allowlist above; the common rule only covers the common list.
         for org in [each.key] : {
           toFQDNs = [for host in local.daimyo_personal_build_fqdns : { matchName = host }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
+        } if org == "personal"
+        ], [
+        # Polymarket's public read-only market data for the Orion `polymarket`
+        # skill (local.daimyo_personal_polymarket_fqdns); HTTPS GET only.
+        for org in [each.key] : {
+          toFQDNs = [for host in local.daimyo_personal_polymarket_fqdns : { matchName = host }]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if org == "personal"
         ], [

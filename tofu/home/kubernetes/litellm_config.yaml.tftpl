@@ -1230,6 +1230,34 @@ mcp_servers:
   # so no allowlist. Only the daimyo-orion key's scope includes it.
   pubmed:
     url: "http://localhost:8011/mcp"
+  # openFDA (litellm.tf openfda-mcp sidecar: cyanheads/openfda-mcp-server
+  # 0.10.0, loopback). Keyless openFDA (1K requests/day); all tools are
+  # read-only lookups. DataCanvas is off (CANVAS_PROVIDER_TYPE=none), but the
+  # server still lists the openfda_dataframe_* tools (they only answer
+  # canvas_disabled), so the allowlist keeps them out of the gateway. Only the
+  # daimyo-orion key's scope includes it.
+  openfda:
+    url: "http://localhost:8013/mcp"
+    allowed_tools:
+      - openfda_drug_profile
+      - openfda_search_adverse_events
+      - openfda_search_animal_events
+      - openfda_search_drug_shortages
+      - openfda_search_tobacco_reports
+      - openfda_search_recalls
+      - openfda_count_values
+      - openfda_describe_fields
+      - openfda_get_drug_label
+      - openfda_search_drug_approvals
+      - openfda_search_device_clearances
+      - openfda_lookup_ndc
+  # OpenAlex scholarly literature (litellm.tf openalex-mcp sidecar:
+  # cyanheads/openalex-mcp-server 0.11.1, loopback). api.openalex.org with the
+  # openalex.api_key account key;
+  # all 5 tools are read-only, so no allowlist. Only the daimyo-orion key's
+  # scope includes it.
+  openalex:
+    url: "http://localhost:8014/mcp"
   # Ticketmaster Discovery API v2 (litellm.tf ticketmaster-mcp sidecar,
   # sourabhmadur/ticketmaster-mcp bc3367d behind mcp-proxy, loopback). All 6
   # tools are read-only GETs (event/attraction/venue search and details), so

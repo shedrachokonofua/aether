@@ -31,6 +31,13 @@ locals {
   # cyanheads/pubmed-mcp-server 2.12.2: NCBI E-utilities PubMed/PMC server,
   # native streamable HTTP (multi-arch index digest). Read-only, keyless.
   litellm_pubmed_mcp_image = "ghcr.io/cyanheads/pubmed-mcp-server:2.12.2@sha256:18a156d2c0f6fa16332943dfb3fe89a09ba64cdd5757530d4015187d914a7721"
+  # cyanheads/openfda-mcp-server 0.10.0: openFDA drug/device/food/tobacco
+  # server, native streamable HTTP (multi-arch index digest). Read-only, keyless.
+  litellm_openfda_mcp_image = "ghcr.io/cyanheads/openfda-mcp-server:0.10.0@sha256:6bade603ec477979f10c2d73289276c30dfd7958a84bbb29a232ab778970577a"
+  # cyanheads/openalex-mcp-server 0.11.1: OpenAlex scholarly-works server,
+  # native streamable HTTP (multi-arch index digest). Read-only; account key
+  # (openalex.api_key) for the larger daily budget.
+  litellm_openalex_mcp_image = "ghcr.io/cyanheads/openalex-mcp-server:0.11.1@sha256:7404b67e2203607ecb616b75f805d25f037b58f01859ca50b5f6281a4b23a780"
   # sourabhmadur/ticketmaster-mcp (commit bc3367d, tarball sha256 4825ec19...):
   # Ticketmaster Discovery API v2 events/attractions/venues, stdio only, so it
   # runs behind the same mcp-proxy bridge as comfy-mcp. Dependencies are pinned
@@ -59,6 +66,8 @@ locals {
   litellm_karakeep_mcp_port     = 8010
   litellm_pubmed_mcp_port       = 8011
   litellm_ticketmaster_mcp_port = 8012
+  litellm_openfda_mcp_port      = 8013
+  litellm_openalex_mcp_port     = 8014
   litellm_qbit_mcp_port         = 3000
   litellm_espn_mcp_port         = 8080
   litellm_postgres_port         = 5432
@@ -117,6 +126,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       HOMEASSISTANT_TOKEN  = var.secrets["homeassistant.telemetry_token"]
       KARAKEEP_API_KEY     = var.secrets["karakeep.mcp_api_key"]
       TICKETMASTER_API_KEY = var.secrets["ticketmaster.api_key"]
+      OPENALEX_API_KEY     = var.secrets["openalex.api_key"]
       QBIT_MCP_USERNAME    = var.secrets["qbittorrent.username"]
       QBIT_MCP_PASSWORD    = var.secrets["qbittorrent.password"]
       QBIT_MCP_HTTP_TOKEN  = random_password.litellm_qbit_mcp.result
@@ -902,6 +912,162 @@ resource "kubernetes_deployment_v1" "litellm" {
           liveness_probe {
             exec {
               command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_pubmed_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 45
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+        }
+        container {
+          name  = "openfda-mcp"
+          image = local.litellm_openfda_mcp_image
+          # Native Streamable HTTP, stateless. Loopback only: no auth here and
+          # only LiteLLM calls it. Keyless openFDA (1K requests/day per IP;
+          # OPENFDA_API_KEY unset); no secrets. DataCanvas staging is off, but
+          # the server still lists the openfda_dataframe_* tools (they answer
+          # canvas_disabled), so the gateway allowlists the 12 real tools.
+
+          env {
+            name  = "MCP_TRANSPORT_TYPE"
+            value = "http"
+          }
+
+          env {
+            name  = "MCP_HTTP_HOST"
+            value = "127.0.0.1"
+          }
+
+          env {
+            name  = "MCP_HTTP_PORT"
+            value = tostring(local.litellm_openfda_mcp_port)
+          }
+
+          env {
+            name  = "MCP_SESSION_MODE"
+            value = "stateless"
+          }
+
+          env {
+            name  = "MCP_AUTH_MODE"
+            value = "none"
+          }
+
+          env {
+            name  = "MCP_LOG_LEVEL"
+            value = "info"
+          }
+
+          env {
+            name  = "CANVAS_PROVIDER_TYPE"
+            value = "none"
+          }
+
+          # Loopback bind: httpGet probes dial the pod IP, so probe from inside.
+          readiness_probe {
+            exec {
+              command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_openfda_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 12
+          }
+
+          liveness_probe {
+            exec {
+              command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_openfda_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 45
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+        }
+        container {
+          name  = "openalex-mcp"
+          image = local.litellm_openalex_mcp_image
+          # Native Streamable HTTP, stateless. Loopback only: no auth here and
+          # only LiteLLM calls it. OPENALEX_API_KEY is Shedrach's free OpenAlex
+          # account key (sops openalex.api_key: $1/day budget, 10K credits on
+          # 2026-11-15, against the anonymous tier); OPENALEX_MAILTO unset.
+
+          env {
+            name  = "MCP_TRANSPORT_TYPE"
+            value = "http"
+          }
+
+          env {
+            name  = "MCP_HTTP_HOST"
+            value = "127.0.0.1"
+          }
+
+          env {
+            name  = "MCP_HTTP_PORT"
+            value = tostring(local.litellm_openalex_mcp_port)
+          }
+
+          env {
+            name  = "MCP_SESSION_MODE"
+            value = "stateless"
+          }
+
+          env {
+            name  = "MCP_AUTH_MODE"
+            value = "none"
+          }
+
+          env {
+            name  = "MCP_LOG_LEVEL"
+            value = "info"
+          }
+
+          env {
+            name = "OPENALEX_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "OPENALEX_API_KEY"
+              }
+            }
+          }
+
+          # Loopback bind: httpGet probes dial the pod IP, so probe from inside.
+          readiness_probe {
+            exec {
+              command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_openalex_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 12
+          }
+
+          liveness_probe {
+            exec {
+              command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_openalex_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
             }
             initial_delay_seconds = 45
             period_seconds        = 30
