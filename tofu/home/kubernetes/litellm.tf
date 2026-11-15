@@ -31,31 +31,39 @@ locals {
   # cyanheads/pubmed-mcp-server 2.12.2: NCBI E-utilities PubMed/PMC server,
   # native streamable HTTP (multi-arch index digest). Read-only, keyless.
   litellm_pubmed_mcp_image = "ghcr.io/cyanheads/pubmed-mcp-server:2.12.2@sha256:18a156d2c0f6fa16332943dfb3fe89a09ba64cdd5757530d4015187d914a7721"
+  # sourabhmadur/ticketmaster-mcp (commit bc3367d, tarball sha256 4825ec19...):
+  # Ticketmaster Discovery API v2 events/attractions/venues, stdio only, so it
+  # runs behind the same mcp-proxy bridge as comfy-mcp. Dependencies are pinned
+  # explicitly (its own pins are open ranges); the base image by index digest.
+  litellm_ticketmaster_mcp_image   = "docker.io/python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90"
+  litellm_ticketmaster_mcp_package = "https://github.com/sourabhmadur/ticketmaster-mcp/archive/bc3367d251e5d1877f7222d23826a2bbe2be383e.tar.gz#sha256=4825ec19ecd764b6c76e1a977fe875c62fe0f27741c912129ae80881e0a99603"
+  litellm_ticketmaster_mcp_deps    = "mcp==1.30.0 httpx==0.28.1 python-dotenv==1.2.4"
   # Official Comfy-Org comfy-mcp is stdio-only and needs mcp>=2; mcp-proxy
   # (mcp<2) bridges it to streamable HTTP, so each gets its own venv.
-  litellm_comfy_mcp_image    = "docker.io/python:3.13-slim"
-  litellm_comfy_mcp_packages = "comfy-mcp==0.10.0 comfy-cli==1.22.0"
-  litellm_mcp_proxy_package  = "mcp-proxy==0.13.0"
-  litellm_host               = "litellm.home.shdr.ch"
-  litellm_espn_mcp_host      = "espn-mcp.home.shdr.ch"
-  litellm_ns                 = module.namespace["litellm"].name
-  litellm_labels             = { app = "litellm" }
-  litellm_port               = 4000
-  litellm_finviz_port        = 8000
-  litellm_coingecko_port     = 8002
-  litellm_time_mcp_port      = 8003
-  litellm_google_maps_port   = 8004
-  litellm_tmdb_port          = 8006
-  litellm_jellyfin_mcp_port  = 8007
-  litellm_comfy_mcp_port     = 8008
-  litellm_ha_mcp_port        = 8009
-  litellm_karakeep_mcp_port  = 8010
-  litellm_pubmed_mcp_port    = 8011
-  litellm_qbit_mcp_port      = 3000
-  litellm_espn_mcp_port      = 8080
-  litellm_postgres_port      = 5432
-  litellm_cnpg_cluster       = "litellm-cnpg"
-  litellm_db_host            = "${local.litellm_cnpg_cluster}-rw.${local.litellm_ns}.svc.cluster.local"
+  litellm_comfy_mcp_image       = "docker.io/python:3.13-slim"
+  litellm_comfy_mcp_packages    = "comfy-mcp==0.10.0 comfy-cli==1.22.0"
+  litellm_mcp_proxy_package     = "mcp-proxy==0.13.0"
+  litellm_host                  = "litellm.home.shdr.ch"
+  litellm_espn_mcp_host         = "espn-mcp.home.shdr.ch"
+  litellm_ns                    = module.namespace["litellm"].name
+  litellm_labels                = { app = "litellm" }
+  litellm_port                  = 4000
+  litellm_finviz_port           = 8000
+  litellm_coingecko_port        = 8002
+  litellm_time_mcp_port         = 8003
+  litellm_google_maps_port      = 8004
+  litellm_tmdb_port             = 8006
+  litellm_jellyfin_mcp_port     = 8007
+  litellm_comfy_mcp_port        = 8008
+  litellm_ha_mcp_port           = 8009
+  litellm_karakeep_mcp_port     = 8010
+  litellm_pubmed_mcp_port       = 8011
+  litellm_ticketmaster_mcp_port = 8012
+  litellm_qbit_mcp_port         = 3000
+  litellm_espn_mcp_port         = 8080
+  litellm_postgres_port         = 5432
+  litellm_cnpg_cluster          = "litellm-cnpg"
+  litellm_db_host               = "${local.litellm_cnpg_cluster}-rw.${local.litellm_ns}.svc.cluster.local"
   litellm_config_yaml = templatefile("${path.module}/litellm_config.yaml.tftpl", {
     deskplane_mcp_auth_token   = var.deskplane_mcp_auth_token
     daimyo_mcp_exchange_secret = var.litellm_mcp_exchange_client_secret
@@ -106,12 +114,13 @@ resource "kubernetes_secret_v1" "litellm_env" {
       JELLYFIN_API_KEY      = var.secrets["jellyfin.beryl_api_key"]
       # Reuses the Prometheus scrape token (owner account): ha-mcp's edits
       # log under that user, and rotating it breaks both consumers.
-      HOMEASSISTANT_TOKEN = var.secrets["homeassistant.telemetry_token"]
-      KARAKEEP_API_KEY    = var.secrets["karakeep.mcp_api_key"]
-      QBIT_MCP_USERNAME   = var.secrets["qbittorrent.username"]
-      QBIT_MCP_PASSWORD   = var.secrets["qbittorrent.password"]
-      QBIT_MCP_HTTP_TOKEN = random_password.litellm_qbit_mcp.result
-      LITELLM_CONFIG_SHA  = sha256(local.litellm_config_yaml)
+      HOMEASSISTANT_TOKEN  = var.secrets["homeassistant.telemetry_token"]
+      KARAKEEP_API_KEY     = var.secrets["karakeep.mcp_api_key"]
+      TICKETMASTER_API_KEY = var.secrets["ticketmaster.api_key"]
+      QBIT_MCP_USERNAME    = var.secrets["qbittorrent.username"]
+      QBIT_MCP_PASSWORD    = var.secrets["qbittorrent.password"]
+      QBIT_MCP_HTTP_TOKEN  = random_password.litellm_qbit_mcp.result
+      LITELLM_CONFIG_SHA   = sha256(local.litellm_config_yaml)
     },
     var.litellm_google_maps_enabled ? {
       GOOGLE_MAPS_API_KEY = var.litellm_google_maps_api_key
@@ -895,6 +904,67 @@ resource "kubernetes_deployment_v1" "litellm" {
               command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_pubmed_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
             }
             initial_delay_seconds = 45
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
+          }
+        }
+        container {
+          name  = "ticketmaster-mcp"
+          image = local.litellm_ticketmaster_mcp_image
+          # Loopback only: mcp-proxy has no auth here and only LiteLLM calls
+          # it. The server is stdio-only; mcp-proxy serves it as streamable
+          # HTTP (one stdio child per session). Read-only Discovery API v2 (6
+          # tools, no purchase flow). The consumer key reaches the child as
+          # TICKETMASTER_API_KEY via --pass-environment and is never a tool
+          # argument. It travels in the Discovery request query string, so the
+          # child's httpx request logger is raised to WARNING to keep the key
+          # out of container logs.
+          command = ["sh", "-c", <<-EOT
+            set -e
+            python -m venv /opt/tm && /opt/tm/bin/pip install --no-cache-dir --quiet ${local.litellm_ticketmaster_mcp_deps} "${local.litellm_ticketmaster_mcp_package}"
+            python -m venv /opt/proxy && /opt/proxy/bin/pip install --no-cache-dir --quiet ${local.litellm_mcp_proxy_package}
+            exec /opt/proxy/bin/mcp-proxy --host 127.0.0.1 --port ${local.litellm_ticketmaster_mcp_port} --pass-environment -- /opt/tm/bin/python -c 'import logging; logging.getLogger("httpx").setLevel(logging.WARNING); from ticketmaster_mcp.server import main; main()'
+          EOT
+          ]
+
+          env {
+            name = "TICKETMASTER_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "TICKETMASTER_API_KEY"
+              }
+            }
+          }
+
+          # Loopback bind: httpGet probes dial the pod IP, so probe from inside.
+          readiness_probe {
+            exec {
+              command = ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${local.litellm_ticketmaster_mcp_port}/status', timeout=4)"]
+            }
+            initial_delay_seconds = 20
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 18
+          }
+
+          liveness_probe {
+            exec {
+              command = ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${local.litellm_ticketmaster_mcp_port}/status', timeout=4)"]
+            }
+            initial_delay_seconds = 120
             period_seconds        = 30
             timeout_seconds       = 5
             failure_threshold     = 5
