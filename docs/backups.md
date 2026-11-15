@@ -298,11 +298,16 @@ Retention and pruning (since 2026-11-15):
   volumes (`volume.vacuum` in `weed shell`)
 
 Mingus was decommissioned on 2026-11-15 (namespace, Helm release and CNPG
-cluster removed). Its 11 CNPG base backups (2026-08-12 to 2026-08-22, 51.6 GB
-with WAL) stay under `cnpg/mingus/`, its database volume
-`pvc-b8e5211b-8d68-44a3-a066-e09c535d004c` is retained as a Released Ceph PV,
-and its files under `/mnt/hdd/data/ml/mingus` and
-`/mnt/hdd/data/downloads/mingus` were not touched.
+cluster removed). Retained: its 11 CNPG base backups (2026-08-12 to
+2026-08-22, 51.6 GB with WAL) under `cnpg/mingus/`, its database volume
+`pvc-b8e5211b-8d68-44a3-a066-e09c535d004c` as a Released Ceph PV, and
+`/mnt/hdd/data/ml/mingus` (916 albums in `audio/`, the raw datasets in
+`raw/`). The download staging directory `/mnt/hdd/data/downloads/mingus` was
+deleted after the best attempt of each of the 106 albums that looked complete
+but had not reached the library (74.8 GB) was moved to
+`/mnt/hdd/data/ml/mingus/audio-unverified/`. Its 125 unfinished torrents and
+the `mingus` category were removed from qBittorrent; the `mingus` category
+is still present in SABnzbd's own configuration.
 
 Backrest does **not** mount or snapshot `/mnt/hdd/seaweedfs/current`; that directory is Seaweed's
 live internal storage and is not a stable backup interface.
