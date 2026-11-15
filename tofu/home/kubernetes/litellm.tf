@@ -28,6 +28,9 @@ locals {
   # it as stateless streamable HTTP, one karakeep-mcp process per request.
   litellm_karakeep_mcp_image    = "docker.io/node:22-slim"
   litellm_karakeep_mcp_packages = "@karakeep/mcp@0.34.0 supergateway@4.2.1"
+  # cyanheads/pubmed-mcp-server 2.12.2: NCBI E-utilities PubMed/PMC server,
+  # native streamable HTTP (multi-arch index digest). Read-only, keyless.
+  litellm_pubmed_mcp_image = "ghcr.io/cyanheads/pubmed-mcp-server:2.12.2@sha256:18a156d2c0f6fa16332943dfb3fe89a09ba64cdd5757530d4015187d914a7721"
   # Official Comfy-Org comfy-mcp is stdio-only and needs mcp>=2; mcp-proxy
   # (mcp<2) bridges it to streamable HTTP, so each gets its own venv.
   litellm_comfy_mcp_image    = "docker.io/python:3.13-slim"
@@ -47,6 +50,7 @@ locals {
   litellm_comfy_mcp_port     = 8008
   litellm_ha_mcp_port        = 8009
   litellm_karakeep_mcp_port  = 8010
+  litellm_pubmed_mcp_port    = 8011
   litellm_qbit_mcp_port      = 3000
   litellm_espn_mcp_port      = 8080
   litellm_postgres_port      = 5432
@@ -834,6 +838,76 @@ resource "kubernetes_deployment_v1" "litellm" {
             limits = {
               cpu    = "500m"
               memory = "1Gi"
+            }
+          }
+        }
+        container {
+          name  = "pubmed-mcp"
+          image = local.litellm_pubmed_mcp_image
+          # Native Streamable HTTP, stateless. Loopback only: no auth here and
+          # only LiteLLM calls it. Keyless NCBI E-utilities (3 req/s, paced by
+          # the server's own request queue); no secrets. Unpaywall stays off
+          # because UNPAYWALL_EMAIL is unset.
+
+          env {
+            name  = "MCP_TRANSPORT_TYPE"
+            value = "http"
+          }
+
+          env {
+            name  = "MCP_HTTP_HOST"
+            value = "127.0.0.1"
+          }
+
+          env {
+            name  = "MCP_HTTP_PORT"
+            value = tostring(local.litellm_pubmed_mcp_port)
+          }
+
+          env {
+            name  = "MCP_SESSION_MODE"
+            value = "stateless"
+          }
+
+          env {
+            name  = "MCP_AUTH_MODE"
+            value = "none"
+          }
+
+          env {
+            name  = "MCP_LOG_LEVEL"
+            value = "info"
+          }
+
+          # Loopback bind: httpGet probes dial the pod IP, so probe from inside.
+          readiness_probe {
+            exec {
+              command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_pubmed_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 12
+          }
+
+          liveness_probe {
+            exec {
+              command = ["bun", "-e", "fetch('http://127.0.0.1:${local.litellm_pubmed_mcp_port}/healthz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            }
+            initial_delay_seconds = 45
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
             }
           }
         }

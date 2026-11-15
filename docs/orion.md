@@ -251,6 +251,43 @@ turn ran before background MCP discovery finished and could not see any
 LiteLLM-backed tools; the following turn discovered and successfully used
 Withings. No symptoms, measurements or Health Memory were written.
 
+## PubMed MCP Access
+
+`litellm_config.yaml.tftpl` registers `pubmed`, the loopback `pubmed-mcp`
+sidecar in the LiteLLM pod: [cyanheads/pubmed-mcp-server](https://github.com/cyanheads/pubmed-mcp-server)
+2.12.2 (`ghcr.io/cyanheads/pubmed-mcp-server:2.12.2@sha256:18a156d2...`, the
+multi-arch index digest), native streamable HTTP on `127.0.0.1:8011/mcp`,
+stateless, no auth and no secrets. It calls the NCBI E-utilities keyless (3
+requests per second, paced by the server's own queue) so Orion reads PubMed
+through the API instead of scraping `pubmed.ncbi.nlm.nih.gov`, which
+reCAPTCHA-blocks Deskplane. Europe PMC and OpenAlex are fallbacks for full text
+and related articles outside PMC; Unpaywall is off (`UNPAYWALL_EMAIL` unset).
+All 12 tools are read-only (`readOnlyHint: true`), so the registry has no
+`allowed_tools` list. The `daimyo-orion` key's scope includes `pubmed`
+(same `--tags orion-mcp` command as Instacart above); no other key does.
+
+The gateway exposes `pubmed-pubmed_search_articles`,
+`pubmed-pubmed_fetch_articles`, `pubmed-pubmed_fetch_fulltext`,
+`pubmed-pubmed_find_related`, `pubmed-pubmed_fetch_citation_metrics`,
+`pubmed-pubmed_format_citations`, `pubmed-pubmed_spell_check`,
+`pubmed-pubmed_lookup_mesh`, `pubmed-pubmed_lookup_citation`,
+`pubmed-pubmed_convert_ids`, `pubmed-pubmed_europepmc_search` and
+`pubmed-pubmed_europepmc_fetch`, read from `tools/list`; re-diff the Orion
+grant when the image pin changes.
+
+Gateway verification (2026-11-15, `daimyo-orion` key against
+`/mcp/pubmed`): `tools/list` returned all 12 tools (`tool_count: 12`).
+`pubmed_search_articles` for `tirzepatide obesity randomized controlled trial`
+returned 209 matches (first page: PMIDs 38912654, 39536238, 40353578,
+38078870, 39555826). `pubmed_fetch_articles` for PMID 35658024 (which direct
+scrapes of `pubmed.ncbi.nlm.nih.gov` could not read) returned the
+SURMOUNT-1 record, "Tirzepatide Once Weekly for the Treatment of Obesity",
+with its full structured abstract, MeSH terms and NCT04184622.
+`pubmed_find_related` (`cited_by`) returned 1,941 citing articles, and
+`pubmed_fetch_fulltext` for PMC11598664 returned PMC body text. PMID
+35658024 itself has no PMC copy, so its full-text lookup returned a typed
+`no-epmc-fulltext` miss.
+
 ## Rogue Agent Access
 
 Rogue retains `trust: external` and its Routeway model. It holds two network

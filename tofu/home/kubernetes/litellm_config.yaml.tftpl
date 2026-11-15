@@ -1224,6 +1224,12 @@ mcp_servers:
   # deletes and list updates (which can publish a list).
   karakeep:
     url: "http://localhost:8010/mcp"
+  # PubMed/PMC literature (litellm.tf pubmed-mcp sidecar:
+  # cyanheads/pubmed-mcp-server 2.12.2, loopback). Keyless NCBI E-utilities
+  # (plus Europe PMC/OpenAlex fallbacks); all 12 tools are read-only lookups,
+  # so no allowlist. Only the daimyo-orion key's scope includes it.
+  pubmed:
+    url: "http://localhost:8011/mcp"
   # Withings (hosted, OAuth 2.1 authorization code + PKCE, dynamic client
   # registration). LiteLLM stores and refreshes the login per LiteLLM user;
   # only the daimyo-orion key (machine user `orion`) is granted it.
