@@ -214,10 +214,9 @@ Current DB dump flow:
   LiteLLM are CNPG-backed and their dump jobs target the matching `*-cnpg-rw` writer services
 - Other Postgres jobs still target their current app Postgres services until they are migrated
 - Jobs run between 01:03 and 02:07, before the offsite Backrest window
-- The logical dump upload scripts do not prune old objects. CNPG's 14-day
-  policy below does not apply to these dumps; LiteLLM dump payloads dating
-  back to July were still present in November. Any pruning policy and
-  deletion of existing backups require explicit operator approval.
+- The dump upload scripts do not delete anything. Dumps older than 7 days are
+  removed by the `db-backup-prune` CronJob (see "Retention and pruning" below),
+  which always keeps the newest dump of each database
 - `backup-stack` runs `seaweed-db-dumps-sync.timer` daily at 02:35
 - The sync mirrors `aether-db-dumps` to `/mnt/hdd/data/backups/seaweed-db-dumps/aether-db-dumps`
 - Backrest carries that mirror offsite through its existing `/mnt/hdd/data` plan
@@ -225,7 +224,7 @@ Current DB dump flow:
 Current native CNPG flow:
 
 - Tofu declares CNPG-I Barman Cloud ObjectStore + ScheduledBackup for CNPG clusters (including
-  Kestra as of 2026-07-09), destination `s3://aether-db-dumps/cnpg/<ns>/<cluster>`, 14-day retention
+  Kestra as of 2026-07-09), destination `s3://aether-db-dumps/cnpg/<ns>/<cluster>`, 7-day retention
 - After adding a namespace to `db_backup_namespaces`, regenerate + deploy Seaweed S3 identities
   before expecting WAL archive / base backups to succeed (`task
   seaweedfs:s3-identities:deploy` activates the generated config)
@@ -241,6 +240,27 @@ Current native CNPG flow:
   replacement for the scheduled CNPG/offsite backups. Rollback to 1.x
   requires restoring the database; the 2.0 password rehash is irreversible.
 
+Retention and pruning (since 2026-11-15):
+
+- Bucket `aether-db-dumps` has S3 versioning enabled, so a delete only adds a
+  delete marker and the data stays as a noncurrent version. Until 2026-11-15
+  nothing removed those versions: every CNPG base backup since 2026-07-04 and
+  every logical dump since 2026-07-05 was still stored, and the `hdd` pool on
+  Smith reached 0 bytes free
+- CNPG retention is 7 days for every cluster in `cnpg_backup_targets`
+  (Mingus declares its own 30 days). The Barman Cloud plugin applies the
+  policy every five minutes, not only after a backup
+- CronJob `litellm/db-backup-prune` (`db_backups.tf`) runs daily at 05:30.
+  Under `cnpg/`, `postgres/` and `mongo/` it deletes every noncurrent version
+  and delete marker, and deletes timestamped dumps older than 7 days while
+  keeping the newest dump in each directory. It never deletes a current
+  object under `cnpg/` and does not touch `capacity-prometheus/`
+- The `db-backup-*` alert rules cover it. Each run logs one line per prefix
+  with `current`, `noncurrent`, `markers` and `old_dumps` counts
+  (`kubectl -n litellm logs job/<job-name>`)
+- Deleted versions return space to the pool only after SeaweedFS vacuums the
+  volumes (`volume.vacuum` in `weed shell`)
+
 Backrest does **not** mount or snapshot `/mnt/hdd/seaweedfs/current`; that directory is Seaweed's
 live internal storage and is not a stable backup interface.
 
@@ -249,7 +269,7 @@ therefore does not replace the planned off-smith copy on Neo or a dedicated back
 
 Grafana's Kubernetes UI state is also CNPG-backed (`grafana-cnpg`, declared in
 `tofu/home/kubernetes/grafana.tf`). Its native object-store backup configuration
-in `tofu/home/kubernetes/cnpg_backups.tf` retains 14 days and schedules backups
+in `tofu/home/kubernetes/cnpg_backups.tf` retains 7 days and schedules backups
 at 02:17 daily; telemetry itself lives in ClickHouse, not Grafana's database.
 
 ## Kubernetes Control-Plane Backups

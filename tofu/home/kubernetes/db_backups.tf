@@ -144,6 +144,15 @@ locals {
       for _, target in local.cnpg_backup_targets : target.namespace
     ]),
   )
+
+  # Daily prune of the dump bucket (db_backup_prune_cronjob below). The bucket
+  # has S3 versioning enabled, so a delete (barman retention, or the dump
+  # expiry here) only adds a delete marker; the prune removes the versions.
+  # It runs in the litellm namespace with that namespace's db-backup-s3
+  # identity: every "<namespace>-backup" identity holds Read/Write/List on the
+  # whole bucket, and LiteLLM's backups are most of what the bucket stores.
+  db_backup_prune_namespace = "litellm"
+  db_backup_retention_days  = 7
 }
 
 resource "random_password" "db_backup_s3_access_key" {
@@ -944,6 +953,163 @@ resource "kubernetes_manifest" "db_backup_mongo_cronjob" {
                       mountPath = "/backup"
                     }
                   ]
+                  securityContext = {
+                    allowPrivilegeEscalation = false
+                    capabilities = {
+                      drop = ["ALL"]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Frees what retention deletes. On 2026-11-15 the hdd pool filled because
+# nothing did: the bucket is versioned, so barman's retention left every
+# expired backup behind as a noncurrent version, and the dump jobs never
+# deleted anything. Runs after the nightly dumps and CNPG backups. Named
+# db-backup-* so the db-backup-job-failed and db-backup-stale alerts cover it.
+#
+# Only the listed prefixes are touched (capacity-prometheus/ is a one-off
+# archive). A current object under cnpg/ is never deleted: barman owns those.
+# Dumps are aged by the UTC timestamp in the file name, and the newest dump
+# in each directory is kept even when it is older than the retention.
+resource "kubernetes_manifest" "db_backup_prune_cronjob" {
+  manifest = {
+    apiVersion = "batch/v1"
+    kind       = "CronJob"
+    metadata = {
+      name      = "db-backup-prune"
+      namespace = local.db_backup_prune_namespace
+      labels = {
+        "aether.shdr.ch/component" = "db-backup"
+      }
+    }
+    spec = {
+      schedule                   = "30 5 * * *"
+      concurrencyPolicy          = "Forbid"
+      successfulJobsHistoryLimit = 3
+      failedJobsHistoryLimit     = 2
+      jobTemplate = {
+        spec = {
+          backoffLimit            = 1
+          ttlSecondsAfterFinished = 259200
+          template = {
+            metadata = {
+              labels = {
+                "aether.shdr.ch/component" = "db-backup"
+              }
+            }
+            spec = {
+              restartPolicy      = "Never"
+              enableServiceLinks = false
+              securityContext = {
+                runAsNonRoot = true
+                runAsUser    = 65532
+                runAsGroup   = 65532
+                fsGroup      = 65532
+
+                fsGroupChangePolicy = "OnRootMismatch"
+
+                seccompProfile = {
+                  type = "RuntimeDefault"
+                }
+              }
+              containers = [
+                {
+                  name    = "prune"
+                  image   = local.db_backup_aws_image
+                  command = ["/bin/sh", "-ec"]
+                  args = [<<-EOT
+                    export HOME=/tmp/aws
+                    work=/tmp/prune
+                    mkdir -p "$HOME/.aws" "$work"
+                    printf '%s\n' '[default]' 's3 =' '  addressing_style = path' > "$HOME/.aws/config"
+                    cutoff="$(date -u -d "$KEEP_DAYS days ago" +%Y%m%dT%H%M%SZ)"
+                    query='[(Versions||`[]`)[?IsLatest==`false`].[`"N"`,VersionId,Key],(DeleteMarkers||`[]`)[].[`"M"`,VersionId,Key],(Versions||`[]`)[?IsLatest==`true`].[`"C"`,VersionId,Key]][]'
+                    failed=0
+                    for prefix in $PRUNE_PREFIXES; do
+                      aws --endpoint-url "$S3_ENDPOINT" s3api list-object-versions \
+                        --bucket "$S3_BUCKET" --prefix "$prefix" \
+                        --output text --query "$query" > "$work/versions.tsv"
+                      # N = noncurrent version, M = delete marker, C = current object.
+                      awk -v cutoff="$cutoff" -v prefix="$prefix" '
+                        BEGIN { FS = "\t"; ts_re = "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z" }
+                        NF != 3 { next }
+                        $3 ~ /["\\]/ { unsafe++; next }
+                        $1 == "N" { del[++n] = $2 FS $3; noncurrent++; next }
+                        $1 == "M" { del[++n] = $2 FS $3; markers++; next }
+                        $1 == "C" {
+                          current++
+                          if ($3 ~ /^cnpg\//) next
+                          file = $3; sub(/.*\//, "", file)
+                          if (!match(file, ts_re)) next
+                          ts = substr(file, RSTART, RLENGTH)
+                          dir = $3; sub(/\/[^\/]*$/, "", dir)
+                          dump_ts[++m] = ts; dump_dir[m] = dir; dump_row[m] = $2 FS $3
+                          if (ts > newest[dir]) newest[dir] = ts
+                        }
+                        END {
+                          for (i = 1; i <= m; i++)
+                            if (dump_ts[i] < cutoff && dump_ts[i] != newest[dump_dir[i]]) { del[++n] = dump_row[i]; old_dumps++ }
+                          for (i = 1; i <= n; i++) print del[i]
+                          printf "%s current=%d noncurrent=%d markers=%d old_dumps=%d unsafe_keys=%d\n", prefix, current, noncurrent, markers, old_dumps, unsafe > "/dev/stderr"
+                          if (unsafe > 0) exit 3
+                        }
+                      ' "$work/versions.tsv" > "$work/delete.tsv" || failed=1
+                      rm -f "$work"/batch.*
+                      split -l 500 "$work/delete.tsv" "$work/batch."
+                      for batch in "$work"/batch.*; do
+                        [ -f "$batch" ] || continue
+                        awk 'BEGIN { FS = "\t"; printf "{\"Quiet\":true,\"Objects\":[" }
+                          { printf "%s{\"Key\":\"%s\",\"VersionId\":\"%s\"}", (NR > 1 ? "," : ""), $2, $1 }
+                          END { printf "]}" }' "$batch" > "$work/delete.json"
+                        errors="$(aws --endpoint-url "$S3_ENDPOINT" s3api delete-objects \
+                          --bucket "$S3_BUCKET" --delete "file://$work/delete.json" \
+                          --output text --query 'length(Errors||`[]`)')"
+                        if [ "$errors" != "0" ]; then
+                          echo "$prefix: $errors deletions failed in one batch" >&2
+                          failed=1
+                        fi
+                      done
+                    done
+                    exit "$failed"
+                  EOT
+                  ]
+                  envFrom = [
+                    {
+                      secretRef = {
+                        name = "db-backup-s3"
+                      }
+                    }
+                  ]
+                  env = [
+                    {
+                      name  = "S3_ENDPOINT"
+                      value = local.db_backup_s3_endpoint
+                    },
+                    {
+                      name  = "S3_BUCKET"
+                      value = local.db_backup_bucket
+                    },
+                    {
+                      name  = "PRUNE_PREFIXES"
+                      value = "cnpg/ postgres/ mongo/"
+                    },
+                    {
+                      name  = "KEEP_DAYS"
+                      value = tostring(local.db_backup_retention_days)
+                    }
+                  ]
+                  resources = {
+                    requests = { cpu = "50m", memory = "256Mi" }
+                    limits   = { cpu = "1", memory = "2Gi" }
+                  }
                   securityContext = {
                     allowPrivilegeEscalation = false
                     capabilities = {
