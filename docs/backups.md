@@ -12,7 +12,7 @@ flowchart LR
         PBS[Proxmox Backup]
         HDD[Smith HDD Pool]
     Seaweed[SeaweedFS S3]
-    DumpMirror[DB dump mirror<br/>/mnt/hdd/data/backups]
+    DumpMirror[DB dump mirror<br/>hdd/db-dumps, no snapshots]
     end
 
     subgraph Copy3["③ Offsite"]
@@ -218,8 +218,44 @@ Current DB dump flow:
   removed by the `db-backup-prune` CronJob (see "Retention and pruning" below),
   which always keeps the newest dump of each database
 - `backup-stack` runs `seaweed-db-dumps-sync.timer` daily at 02:35
-- The sync mirrors `aether-db-dumps` to `/mnt/hdd/data/backups/seaweed-db-dumps/aether-db-dumps`
-- Backrest carries that mirror offsite through its existing `/mnt/hdd/data` plan
+- The sync mirrors `aether-db-dumps` to `/mnt/hdd/data/backups/seaweed-db-dumps/aether-db-dumps`.
+  That path is the mountpoint of its own ZFS dataset `hdd/db-dumps` (see below), not part of `hdd/data`;
+  the sync script and playbook refuse to run if it is not a dedicated mount
+- Backrest carries that mirror offsite through its existing `/mnt/hdd/data` plan. Restic descends into
+  nested mounts unless `--one-file-system` is passed, and the plans do not pass it (only
+  `backup-backups-vm` has extra flags), so the nested dataset stays in the plan
+
+#### DB dump mirror dataset
+
+The mirror used to be a plain directory inside `hdd/data`, whose sanoid policy keeps 14 daily, 8 weekly
+and 6 monthly snapshots. The mirror churns by tens of GB per day (LiteLLM base backups), so those
+snapshots pinned every deleted dump for up to six months: on 2026-11-15 `hdd` hit 0 bytes free with
+5.36T of `hdd/data` held by snapshots, over 99% of it deleted files under `backups/seaweed-db-dumps`.
+The mirror is a rebuildable copy of a bucket that has its own retention and an offsite copy, so it
+now lives in a dedicated dataset with snapshots disabled:
+
+| Item | Value |
+| ---- | ----- |
+| Dataset | `hdd/db-dumps` (top-level, sibling of `hdd/data`; does not inherit `hdd/data`'s recursive sanoid policy) |
+| Mountpoint | `/mnt/hdd/data/backups/seaweed-db-dumps` (nested under the `hdd/data` mount) |
+| Properties | `compression=lz4`, `recordsize=1M`, `atime=off` |
+| Snapshots | none; `[hdd/db-dumps]` in `ansible/playbooks/backup_stack/sanoid.conf.j2` sets `autosnap = no`, `autoprune = no` |
+| Declared in | `ansible/playbooks/network_file_server/configure_zfs.yml` (dataset, tag `sanoid` for the policy file) |
+
+Created on smith with (equivalent to the playbook):
+
+```bash
+zfs create -o compression=lz4 -o recordsize=1M -o atime=off \
+  -o mountpoint=/mnt/hdd/data/backups/seaweed-db-dumps hdd/db-dumps
+```
+
+The dataset is mounted at the same path inside `backup-stack` as before. The LXC bind-mounts
+`/mnt/hdd/data` with shared propagation, so a nested ZFS mount on smith appears in the guest without a
+container restart or a Tofu change. Keeping the path identical means the restic source path
+(`/mnt/hdd/data`) and the file paths inside the snapshots are unchanged, so the offsite repository
+keeps its snapshot history and parent-snapshot lineage and deduplicates against what it already holds;
+only changed content is uploaded. (A different path would have made restic treat the mirror as new
+paths under new snapshots and lose the parent-tree shortcut, forcing a full re-read.)
 
 Current native CNPG flow:
 

@@ -108,6 +108,7 @@ graph LR
 | hdd/personal     | /mnt/hdd/personal     | lz4         | Personal files (migrated from NVMe) |
 | hdd/backups-vm   | /mnt/hdd/backups-vm   | lz4         | PBS VM backups                      |
 | hdd/backups-data | /mnt/hdd/backups-data | lz4         | Data backups                        |
+| hdd/db-dumps     | /mnt/hdd/data/backups/seaweed-db-dumps | lz4 | SeaweedFS DB dump mirror, no snapshots |
 
 ## Node-Local Storage
 

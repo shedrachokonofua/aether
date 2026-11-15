@@ -4,6 +4,10 @@
 # - HDD/Data: Daily with long retention. Media is write-once, minimal snapshot overhead.
 # - HDD/Backups-Data: Minimal retention. It's a backup of backups.
 # - HDD/Backups-VM: Disabled. PBS handles its own versioning.
+# - HDD/DB-Dumps: Disabled. Rebuildable mirror of the SeaweedFS aether-db-dumps
+#   bucket (own retention there, offsite copy via Backrest). Snapshots of a
+#   churning mirror only pin expired dumps; hdd/data's 6-month snapshots did
+#   exactly that before the mirror moved into its own dataset.
 
 # NVME datasets: hourly-only, PBS covers longer retention
 [nvme/personal]
@@ -66,3 +70,14 @@
 	autosnap = yes
 	autoprune = yes
 	recursive = yes
+
+# DB dump mirror: no snapshots. hdd/db-dumps is a top-level dataset, so it does
+# not inherit hdd/data's recursive policy; this section makes the intent explicit.
+[hdd/db-dumps]
+	hourly = 0
+	daily = 0
+	weekly = 0
+	monthly = 0
+	yearly = 0
+	autosnap = no
+	autoprune = no

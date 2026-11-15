@@ -49,7 +49,7 @@ The lab *intends* 3-2-1 but currently isn't there:
 | Proxmox VM/LXC disks | Ceph vm-disks | ✅ PBS (daily 2AM, smith) | ✅ restic-v2 smoke verified; bulk scheduled daily |
 | Bulk files (Immich 2Ti, Nextcloud 2Ti, media 1Ti) | smith NFS | ❌ sanoid *configured, not deployed* | ✅ restic-v2 smoke verified; bulk scheduled daily |
 | CephFS shares | CephFS | ❌ | ✅ restic-v2 smoke verified; bulk scheduled daily |
-| **~12 Postgres + 1 Mongo** | `ceph-rbd` | ✅ interim logical dumps → SeaweedFS | ✅ backup-stack mirrors dumps into `/mnt/hdd/data`, Backrest sweeps offsite |
+| **~12 Postgres + 1 Mongo** | `ceph-rbd` | ✅ interim logical dumps → SeaweedFS | ✅ backup-stack mirrors dumps into the snapshot-free `hdd/db-dumps` dataset (mounted under `/mnt/hdd/data`), Backrest sweeps offsite |
 | **~52 non-DB RBD PVCs** (Vaultwarden, matrix-synapse, memos, karakeep, app configs) | `ceph-rbd` | ❌ **none** | ❌ **none** |
 | etcd / cluster state | Talos etcd | ✅ scheduled Talos snapshot → `/mnt/hdd/data/backups/talos-etcd` | ✅ included in the scheduled Backrest `/mnt/hdd/data` offsite snapshot |
 | tofu state | S3+DynamoDB | ✅ (encrypted) | ✅ |
@@ -70,8 +70,10 @@ The lab *intends* 3-2-1 but currently isn't there:
   `master.seaweed.home.shdr.ch`. Direct and HTTPS S3 smoke tests passed. This is an interim
   on-prem target and is not yet the planned off-smith copy. DB dump CronJobs write to bucket
   `aether-db-dumps`; backup-stack syncs that bucket at 02:35 into
-  `/mnt/hdd/data/backups/seaweed-db-dumps/aether-db-dumps`, which is covered by the existing
-  Backrest `/mnt/hdd/data` plan. Backrest does **not** mount or snapshot Seaweed's live internal
+  `/mnt/hdd/data/backups/seaweed-db-dumps/aether-db-dumps`, the mountpoint of the dedicated
+  snapshot-free ZFS dataset `hdd/db-dumps` (moved out of `hdd/data` on 2026-11-15 because its
+  6-month snapshots were holding expired dumps), covered by the existing Backrest `/mnt/hdd/data`
+  plan. Backrest does **not** mount or snapshot Seaweed's live internal
   volume path.
 - **Database protection** — interim dump jobs are live. CloudNativePG is installed with a
   `ceph-rbd` storage guardrail; Miniflux, Hoppscotch, Coder, Temporal, Affine, OpenWebUI,
@@ -155,7 +157,8 @@ HL15) remains the "proper" long-term home if neo's coupling becomes painful.
    Jan 1) with tiered NVMe-hot/HDD-cold + S3 API + IAM. It is now restored on **Smith** as an
    interim NixOS LXC using the historical hostnames; final copy ② should still move to **neo** or
    a dedicated backup box so it survives a Smith loss. The current bucket is `aether-db-dumps`;
-   backup-stack mirrors objects into `/mnt/hdd/data/backups/seaweed-db-dumps` for Backrest. Scope
+   backup-stack mirrors objects into the snapshot-free dataset `hdd/db-dumps` (mounted at
+   `/mnt/hdd/data/backups/seaweed-db-dumps`) for Backrest. Scope
    backup-only keys before CNPG/k8up production use.
 5. **k8up for non-DB RBD PVCs** — restic of PVC data → SeaweedFS, with pre-backup hooks. (Alt
    considered: Ceph `rbd export-diff` → PBS; k8up chosen for file-level restore + k8s-native fit.)
