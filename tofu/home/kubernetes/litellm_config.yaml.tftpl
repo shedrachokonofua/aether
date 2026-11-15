@@ -1258,6 +1258,29 @@ mcp_servers:
   # scope includes it.
   openalex:
     url: "http://localhost:8014/mcp"
+  # Your Spotify listening history (litellm.tf yourspotify-mcp sidecar:
+  # pentafive/your-spotify-mcp 9e0e606 behind supergateway, loopback), with
+  # Your Spotify's public token. The allowlist keeps the 13 read tools; it
+  # drops the account writes (update_user_settings, rename_account,
+  # generate_public_share_link, revoke_public_access) and analyze_affinity,
+  # which needs a logged-in web session. Only the daimyo-orion key's scope
+  # includes it.
+  yourspotify:
+    url: "http://localhost:8015/mcp"
+    allowed_tools:
+      - get_track_stats
+      - get_top_tracks
+      - get_artist_stats
+      - get_top_artists
+      - search_listening_history
+      - create_custom_wrapped
+      - get_listening_timeline
+      - get_artist_rank
+      - get_track_rank
+      - analyze_listening_patterns
+      - get_discovery_insights
+      - compare_listening_periods
+      - export_listening_data
   # Ticketmaster Discovery API v2 (litellm.tf ticketmaster-mcp sidecar,
   # sourabhmadur/ticketmaster-mcp bc3367d behind mcp-proxy, loopback). All 6
   # tools are read-only GETs (event/attraction/venue search and details), so

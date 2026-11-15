@@ -77,6 +77,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `ticketmaster` | `sourabhmadur/ticketmaster-mcp` `bc3367d` via mcp-proxy, `:8012` | `ticketmaster.api_key` | none |
 | `openfda` | `cyanheads/openfda-mcp-server` 0.10.0, `:8013` | none (1,000 requests/day) | 12 tools, no `openfda_dataframe_*` |
 | `openalex` | `cyanheads/openalex-mcp-server` 0.11.1, `:8014` | `openalex.api_key` ($1/day budget) | none |
+| `yourspotify` | `pentafive/your-spotify-mcp` `9e0e606` via supergateway, `:8015` | `yourspotify.mcp_public_token` | 13 read tools |
 | `shop` | hosted `mcp.shop.com` | none (signed out) | none |
 
 Approval policy lives in the Orion grants, not the gateway. Server notes:
@@ -115,6 +116,15 @@ allowlist.
 ### OpenAlex
 
 `OPENALEX_API_KEY` comes from `litellm-env`; `OPENALEX_MAILTO` is unset.
+
+### Your Spotify
+
+The server is not on npm: the sidecar downloads the commit tarball, checks its
+sha256, builds it and serves it with supergateway, so a cold start needs
+GitHub and npm. It reads the in-cluster Your Spotify API with the dashboard's
+public token (sent as `?token=`). Without Spotify Web API credentials its
+playback and playlist tools never load; the allowlist also drops the account
+writes and `analyze_affinity`, which needs a logged-in web session.
 
 ### Shop
 
