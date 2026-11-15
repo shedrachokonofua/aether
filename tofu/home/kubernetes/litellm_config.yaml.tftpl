@@ -1386,6 +1386,13 @@ mcp_servers:
       - clickstack_sql
       - clickstack_trace_waterfall
       - clickstack_trace_top_time_consuming_operations
+  # Sourcegull code search (kubernetes/sourcegull.tf): the GitLab so/ group,
+  # indexed. Acts as the litellm-mcp builtin account; every Sourcegull user
+  # reads every mirrored repo (no authorization block on the connection).
+  sourcegull:
+    url: "http://sourcegull-web.sourcegull.svc.cluster.local:7080/.api/mcp"
+    auth_type: bearer_token
+    auth_value: "${sourcegull_mcp_token}"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"

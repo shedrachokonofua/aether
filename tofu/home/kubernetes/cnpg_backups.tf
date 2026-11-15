@@ -90,6 +90,12 @@ locals {
       retention = "7d"
       schedule  = "0 57 2 * * *"
     }
+    sourcegull = {
+      namespace = local.sourcegull_namespace
+      cluster   = local.sourcegull_cnpg
+      retention = "7d"
+      schedule  = "0 3 2 * * *"
+    }
   }
 
   cnpg_scheduled_backup_targets = {

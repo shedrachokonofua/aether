@@ -185,6 +185,23 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "sourcegull" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Sourcegull self-hosted code search, indexing the so/ GitLab group",
+      source_file             = "tofu/home/kubernetes/sourcegull.tf",
+      egress                  = "internet",
+      registry_access         = "github",
+      hostnames = [
+        "sourcegull.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "buzz" = {
       tier                    = "app",
       owner                   = "aether",

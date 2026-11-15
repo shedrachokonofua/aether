@@ -1240,6 +1240,45 @@ resource "keycloak_openid_user_realm_role_protocol_mapper" "coder_roles" {
 }
 
 # =============================================================================
+# Sourcegull OIDC Client
+# =============================================================================
+
+resource "keycloak_openid_client" "sourcegull" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "sourcegull"
+  name      = "Sourcegull"
+  enabled   = true
+
+  access_type                  = "CONFIDENTIAL"
+  standard_flow_enabled        = true
+  implicit_flow_enabled        = false
+  direct_access_grants_enabled = false
+
+  root_url  = "https://sourcegull.home.shdr.ch"
+  base_url  = "https://sourcegull.home.shdr.ch"
+  admin_url = "https://sourcegull.home.shdr.ch"
+
+  valid_redirect_uris = [
+    "https://sourcegull.home.shdr.ch/.auth/openidconnect/callback",
+  ]
+
+  web_origins = [
+    "https://sourcegull.home.shdr.ch",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "sourcegull_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.sourcegull.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# =============================================================================
 # Orion OIDC Client
 # =============================================================================
 
