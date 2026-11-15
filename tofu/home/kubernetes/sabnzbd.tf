@@ -124,7 +124,6 @@ from configobj import ConfigObj
 
 config_path = Path("/config/sabnzbd.ini")
 secret_dir = Path("/run/secrets/sabnzbd-auth")
-staging_root = Path("/downloads/mingus")
 desired = {
     "username": (secret_dir / "username").read_text(encoding="utf-8").strip(),
     "password": (secret_dir / "password").read_text(encoding="utf-8").strip(),
@@ -132,38 +131,20 @@ desired = {
     "html_login": "1",
     "inet_exposure": "0",
 }
-desired_category = {
-    "name": "mingus",
-    "order": "5",
-    "pp": "3",
-    "script": "None",
-    "dir": "mingus",
-    "newzbin": "",
-    "priority": "0",
-}
 
 if not config_path.is_file():
     raise SystemExit(f"{config_path} is missing; refusing to replace the restored configuration")
 if not all(desired.values()):
     raise SystemExit("SABnzbd native-auth inputs must be non-empty")
-staging_root.mkdir(parents=True, exist_ok=True)
-if not os.access(staging_root, os.W_OK):
-    raise SystemExit(f"{staging_root} is not writable by SABnzbd uid {os.geteuid()}")
 
 original_stat = config_path.stat()
 config = ConfigObj(str(config_path), encoding="utf-8", interpolation=False)
 misc = config.setdefault("misc", {})
-category = config.setdefault("categories", {}).setdefault("mingus", {})
-changed = (
-    any(str(misc.get(key, "")) != value for key, value in desired.items())
-    or any(str(category.get(key, "")) != value for key, value in desired_category.items())
-)
+changed = any(str(misc.get(key, "")) != value for key, value in desired.items())
 
 if changed:
     for key, value in desired.items():
         misc[key] = value
-    for key, value in desired_category.items():
-        category[key] = value
     fd, temporary_name = tempfile.mkstemp(prefix=".sabnzbd.ini.", dir=config_path.parent)
     os.close(fd)
     try:
@@ -178,7 +159,7 @@ if changed:
 else:
     os.chmod(config_path, 0o600)
 
-print("SABnzbd native authentication and Mingus category reconciled")
+print("SABnzbd native authentication reconciled")
 PY
           ]
 

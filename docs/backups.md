@@ -283,9 +283,9 @@ Retention and pruning (since 2026-11-15):
   nothing removed those versions: every CNPG base backup since 2026-07-04 and
   every logical dump since 2026-07-05 was still stored, and the `hdd` pool on
   Smith reached 0 bytes free
-- CNPG retention is 7 days for every cluster in `cnpg_backup_targets`
-  (Mingus declares its own 30 days). The Barman Cloud plugin applies the
-  policy every five minutes, not only after a backup
+- CNPG retention is 7 days for every cluster in `cnpg_backup_targets`. The
+  Barman Cloud plugin applies the policy every five minutes, not only after a
+  backup
 - CronJob `litellm/db-backup-prune` (`db_backups.tf`) runs daily at 05:30.
   Under `cnpg/`, `postgres/` and `mongo/` it deletes every noncurrent version
   and delete marker, and deletes timestamped dumps older than 7 days while
@@ -296,6 +296,13 @@ Retention and pruning (since 2026-11-15):
   (`kubectl -n litellm logs job/<job-name>`)
 - Deleted versions return space to the pool only after SeaweedFS vacuums the
   volumes (`volume.vacuum` in `weed shell`)
+
+Mingus was decommissioned on 2026-11-15 (namespace, Helm release and CNPG
+cluster removed). Its 11 CNPG base backups (2026-08-12 to 2026-08-22, 51.6 GB
+with WAL) stay under `cnpg/mingus/`, its database volume
+`pvc-b8e5211b-8d68-44a3-a066-e09c535d004c` is retained as a Released Ceph PV,
+and its files under `/mnt/hdd/data/ml/mingus` and
+`/mnt/hdd/data/downloads/mingus` were not touched.
 
 Backrest does **not** mount or snapshot `/mnt/hdd/seaweedfs/current`; that directory is Seaweed's
 live internal storage and is not a stable backup interface.
