@@ -96,6 +96,12 @@ locals {
       retention = "7d"
       schedule  = "0 3 2 * * *"
     }
+    pharos = {
+      namespace = local.pharos_namespace
+      cluster   = local.pharos_cnpg
+      retention = "7d"
+      schedule  = "0 15 2 * * *"
+    }
   }
 
   cnpg_scheduled_backup_targets = {
@@ -222,6 +228,7 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     kubectl_manifest.nextcloud_cnpg_cluster,
     kubectl_manifest.openwebui_cnpg_cluster,
     kubectl_manifest.orion_cnpg_cluster,
+    kubectl_manifest.pharos_cnpg_cluster,
     kubectl_manifest.temporal_cnpg_cluster,
   ]
 

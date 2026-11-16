@@ -5,13 +5,15 @@
 # (ssh://git@ssh.gitlab.home.shdr.ch:2222/so/pharos.git) owns the code, Nix
 # image, Helm chart (deploy/helm/pharos) and CI; this file owns every cluster
 # object around it — namespace contract (namespace_contracts.tf), data volume,
-# secrets, registry pull identity, chart pin and private route. The Keycloak
-# client lives in tofu/home/keycloak_pharos.tf.
+# CNPG database, secrets, registry pull identity, chart pin and private route.
+# The Keycloak client lives in tofu/home/keycloak_pharos.tf.
 #
-# Single instance by design (SQLite/WAL + one book-processing worker on one
-# RBD volume). Model access is local-only through LiteLLM (no cloud fallback):
-# aether/qwen3.8-flash-next, aether/qwen3.8-flash-next:think and
-# aether/qwen3-embedding:0.6b, on a scoped virtual key.
+# Single instance by design (one book-processing worker). Original EPUBs live
+# on one RBD volume; everything derived from them (source blocks, passages,
+# full-text and pgvector indexes, ideas, readings, checkpoints) lives in the
+# pharos-cnpg Postgres cluster. Model access is local-only through LiteLLM (no
+# cloud fallback): aether/qwen3.8-flash-next, aether/qwen3.8-flash-next:think
+# and aether/qwen3-embedding:0.6b, on a scoped virtual key.
 #
 # DEPLOYMENT PIN: CI (so/pharos .gitlab-ci.yml chart-publish) publishes chart
 # `pharos` at version 0.1.0-<8-char commit sha> to
@@ -36,14 +38,18 @@ locals {
     "app.kubernetes.io/part-of" = "pharos"
   }
 
-  # Published by so/pharos CI from main (98439b44): image and chart pinned to the same commit.
-  pharos_chart_version = "0.1.0-98439b44"
+  # Published by so/pharos CI from main (fad6f2ce): image and chart pinned to the same commit.
+  pharos_chart_version = "0.1.0-fad6f2ce"
 
   # In-cluster LiteLLM service (same endpoint deskplane and nextcloud use);
   # keeps model traffic off the gateway hairpin.
   pharos_litellm_api_base = "http://litellm.litellm.svc.cluster.local:4000/v1"
   pharos_oidc_issuer      = "https://auth.shdr.ch/realms/aether"
   pharos_allowed_users    = "shdrch"
+
+  pharos_cnpg          = "pharos-cnpg"
+  pharos_database      = "pharos"
+  pharos_database_user = "pharos"
 }
 
 # --- Generated application secrets -------------------------------------------
@@ -58,6 +64,28 @@ resource "random_password" "pharos_session_secret" {
 resource "random_password" "pharos_mcp_token" {
   length  = 64
   special = false
+}
+
+resource "random_password" "pharos_database_password" {
+  length  = 32
+  special = false
+}
+
+# basic-auth: CNPG bootstrap reads username/password for the database owner.
+resource "kubernetes_secret_v1" "pharos_cnpg_app" {
+  depends_on = [module.namespace["pharos"]]
+
+  metadata {
+    name      = "pharos-cnpg-app"
+    namespace = local.pharos_namespace
+    labels    = local.pharos_labels
+  }
+
+  type = "kubernetes.io/basic-auth"
+  data = {
+    username = local.pharos_database_user
+    password = random_password.pharos_database_password.result
+  }
 }
 
 # The MCP client credential must be retrievable by the operator without
@@ -82,6 +110,7 @@ resource "kubernetes_secret_v1" "pharos_env" {
 
   type = "Opaque"
   data = {
+    DATABASE_URL          = "postgresql://${local.pharos_database_user}:${random_password.pharos_database_password.result}@${local.pharos_cnpg}-rw.${local.pharos_namespace}.svc.cluster.local:5432/${local.pharos_database}"
     LITELLM_API_KEY       = var.secrets["litellm.virtual_keys.pharos"]
     OIDC_CLIENT_SECRET    = var.pharos_oauth_client_secret
     PHAROS_SESSION_SECRET = random_password.pharos_session_secret.result
@@ -116,8 +145,8 @@ resource "kubernetes_secret_v1" "pharos_registry" {
 }
 
 # --- Persistent data ---------------------------------------------------------
-# Original EPUBs, SQLite database, search/vector data and stage artifacts. The
-# namespace is backup=critical, so the volume snapshot scheduler
+# Original EPUB bytes only (the database holds everything derived from them).
+# The namespace is backup=critical, so the volume snapshot scheduler
 # (external_snapshotter.tf) takes daily crash-consistent RBD snapshots (7 kept).
 
 resource "kubernetes_persistent_volume_claim_v1" "pharos_data" {
@@ -144,6 +173,63 @@ resource "kubernetes_persistent_volume_claim_v1" "pharos_data" {
   }
 }
 
+# --- Postgres (CNPG) ---------------------------------------------------------
+# pgvector ships in the CNPG PostgreSQL image; the extension is created at
+# bootstrap by the superuser so the application owner never needs it. WAL
+# archiving and daily base backups go to SeaweedFS (cnpg_backups.tf).
+
+resource "kubectl_manifest" "pharos_cnpg_cluster" {
+  depends_on = [
+    helm_release.cnpg,
+    helm_release.cnpg_barman_cloud,
+    kubectl_manifest.cnpg_require_ceph_rbd_storage,
+    kubectl_manifest.cnpg_barman_object_store["pharos"],
+    kubernetes_secret_v1.pharos_cnpg_app,
+  ]
+
+  yaml_body = yamlencode({
+    apiVersion = "postgresql.cnpg.io/v1"
+    kind       = "Cluster"
+    metadata = {
+      name      = local.pharos_cnpg
+      namespace = local.pharos_namespace
+      labels    = merge(local.pharos_labels, { "aether.sh/arm-ok" = "true" })
+    }
+    spec = {
+      instances            = 1
+      smartShutdownTimeout = local.cnpg_smart_shutdown_timeout
+      enablePDB            = !local.cnpg_node_maintenance
+      imageName            = "ghcr.io/cloudnative-pg/postgresql:16.14"
+      # No arch pin: ghcr.io/cloudnative-pg/postgresql:16.14 and the CNPG
+      # sidecars publish linux/arm64. Placement is decided by
+      # aether-k8s-arch-labeler + Kyverno arm-pool-guardrails.
+      resources = {
+        requests = { cpu = "100m", memory = "256Mi" }
+        limits   = { cpu = "1000m", memory = "1Gi" }
+      }
+      storage = {
+        size         = "10Gi"
+        storageClass = local.cnpg_storage_class
+      }
+      plugins = local.cnpg_plugin_specs["pharos"]
+      bootstrap = {
+        initdb = {
+          database = local.pharos_database
+          owner    = local.pharos_database_user
+          secret   = { name = kubernetes_secret_v1.pharos_cnpg_app.metadata[0].name }
+          postInitApplicationSQL = [
+            "CREATE EXTENSION IF NOT EXISTS vector",
+          ]
+        }
+      }
+    }
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 # --- Helm release ------------------------------------------------------------
 
 resource "helm_release" "pharos" {
@@ -151,6 +237,7 @@ resource "helm_release" "pharos" {
     kubernetes_secret_v1.pharos_env,
     kubernetes_secret_v1.pharos_registry,
     kubernetes_persistent_volume_claim_v1.pharos_data,
+    kubectl_manifest.pharos_cnpg_cluster,
     helm_release.reloader,
   ]
 

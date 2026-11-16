@@ -861,6 +861,10 @@ through the LiteLLM virtual key alias `pharos`, whose allowlist (`register_litel
 `task configure:litellm-keys -- --tags pharos-models`) is exactly `aether/qwen3.8-flash-next`,
 `aether/qwen3.8-flash-next:think` and `aether/qwen3-embedding:0.6b`. One replica and one book-processing
 worker by design; its model calls are serialized so book processing shares the GPU with other consumers in turn.
+Original EPUBs live on the `pharos-data` RBD volume (daily snapshots); everything derived from them (source
+blocks, passages with full-text and pgvector indexes, ideas, readings, checkpoints) lives in the `pharos-cnpg`
+CNPG cluster (PostgreSQL 16 + pgvector), with WAL archiving and daily base backups to SeaweedFS
+(`cnpg_backups.tf`).
 
 ### OpenWebUI
 
