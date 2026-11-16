@@ -150,6 +150,10 @@
         # Local default model for diverse art direction and concrete composition.
         - aether/qwen3.8-flash-next
         - aether/qwen3.8-27b
+      pharos:
+        - aether/qwen3.8-flash-next
+        - aether/qwen3.8-flash-next:think
+        - aether/qwen3-embedding:0.6b
 
       deskplane_mcp:
         # Moira group (tiers.yaml): terra -> gemini-3.8-flash -> qwen3.8-flash-next.
@@ -225,13 +229,13 @@
 
   tasks:
     - name: Load secrets
-      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models]
+      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
       community.sops.load_vars:
         file: "{{ aether_root }}/secrets/secrets.yml"
         name: secrets
 
     - name: Check LiteLLM key inputs
-      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models]
+      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
       ansible.builtin.assert:
         that:
           - secrets.litellm.master_key is defined
@@ -240,7 +244,7 @@
         fail_msg: "secrets.litellm.master_key and secrets.litellm.virtual_keys are required"
 
     - name: Wait for LiteLLM API
-      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models]
+      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/health/liveliness"
         method: GET
@@ -385,6 +389,51 @@
         body:
           key: "{{ secrets.litellm.virtual_keys.frame_gallery }}"
           models: "{{ litellm_key_models_by_alias.frame_gallery }}"
+        status_code: [200]
+      no_log: true
+
+    - name: Look up the Pharos virtual-key alias
+      tags: [pharos-models]
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/list?key_alias=pharos"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+        status_code: [200]
+        return_content: true
+      register: litellm_pharos_key
+      no_log: true
+
+    - name: Create the scoped Pharos virtual key when missing
+      tags: [pharos-models]
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/generate"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ secrets.litellm.virtual_keys.pharos }}"
+          key_alias: pharos
+          models: "{{ litellm_key_models_by_alias.pharos }}"
+          user_id: "{{ litellm_key_user_id }}"
+        status_code: [200]
+      when: litellm_pharos_key.json.total_count | default(0) | int == 0
+      no_log: true
+
+    - name: Synchronize Pharos virtual-key model allowlist
+      tags: [pharos-models]
+      ansible.builtin.uri:
+        url: "{{ litellm_url }}/key/update"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ secrets.litellm.master_key }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          key: "{{ secrets.litellm.virtual_keys.pharos }}"
+          models: "{{ litellm_key_models_by_alias.pharos }}"
         status_code: [200]
       no_log: true
 
