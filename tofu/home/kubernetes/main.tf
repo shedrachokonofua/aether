@@ -258,6 +258,12 @@ variable "sourcegull_oauth_client_secret" {
   description = "Sourcegull Keycloak OIDC client secret"
 }
 
+variable "pharos_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Pharos Keycloak OIDC client secret"
+}
+
 # =============================================================================
 # NFS Storage
 # =============================================================================

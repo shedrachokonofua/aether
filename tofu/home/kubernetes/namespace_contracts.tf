@@ -96,6 +96,25 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "pharos" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "critical"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Pharos personal EPUB library (source-grounded local-model reading, read-only MCP)"
+      source_file             = "tofu/home/kubernetes/pharos.tf"
+      # Cluster LiteLLM and the LAN-resolved Keycloak issuer; no internet egress.
+      egress          = "internal"
+      registry_access = "gitlab"
+      hostnames = [
+        "pharos.home.shdr.ch",
+      ]
+      extra_labels = {
+        "aether.shdr.ch/arch"              = "amd64"
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "agent-sandbox-system" = {
       tier                    = "platform",
       owner                   = "aether",

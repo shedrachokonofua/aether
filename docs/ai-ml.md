@@ -402,7 +402,7 @@ never think and `:code`/`:think` IDs always do. On 2026-09-27, neither
 `qwen3.8-27b`. Base variants therefore report `supports_reasoning: false`.
 
 Since 2026-09-30, `qwen3.8-flash-next` (Qwen3.8-Flash-Next UD-Q3_K_XL) is the
-pinned local default (`ttl: 0`, preloaded). orion, frame-gallery, assay,
+pinned local default (`ttl: 0`, preloaded). orion, frame-gallery, assay, pharos,
 openwebui task generation, docling VLM, Inquest/Holmes, and the shdrch image
 generator use it. `qwen3.8-27b` loads on demand (`ttl: 900`) and evicts it,
 because both cannot stay resident in 96 GB. Flash-Next pins `reasoning_effort`
@@ -850,6 +850,17 @@ Moira's state lives in the `moira` database on `litellm-cnpg` (managed role
 logs each routed or refused request for 7 days (chosen model, fallbacks, pin,
 ranked candidates, exclusions), keyed by LiteLLM's call id, which spend logs
 carry as `metadata->>'litellm_call_id'`.
+
+### Pharos
+
+Personal EPUB library declared in [`tofu/home/kubernetes/pharos.tf`](../tofu/home/kubernetes/pharos.tf)
+(Keycloak client in [`tofu/home/keycloak_pharos.tf`](../tofu/home/keycloak_pharos.tf)); code, chart and
+CI live in `so/pharos`. It turns books into source-linked chapter readings and serves a read-only MCP at
+`https://pharos.home.shdr.ch/mcp/` (bearer token in OpenBao `kv/pharos/mcp`). Model access is local only,
+through the LiteLLM virtual key alias `pharos`, whose allowlist (`register_litellm_virtual_keys.yml`,
+`task configure:litellm-keys -- --tags pharos-models`) is exactly `aether/qwen3.8-flash-next`,
+`aether/qwen3.8-flash-next:think` and `aether/qwen3-embedding:0.6b`. One replica and one book-processing
+worker by design; its model calls are serialized so book processing shares the GPU with other consumers in turn.
 
 ### OpenWebUI
 
