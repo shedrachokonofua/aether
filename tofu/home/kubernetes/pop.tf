@@ -28,12 +28,11 @@ locals {
     } }))}&orgId=1",
   "PROJECT", "{project}"), "DEPLOY", "{deploy}")
   # Immutable digests emitted by the pop CI images job (image-digests.env).
-  # pop-api: so/pop main f8c79e0 (OpenAPI at /v1/openapi.json, Scalar at
-  # /v1/docs; includes 8b70d2b's single wasi:http hostInterface).
+  # pop-api: so/pop main cae896e (pop:create for agent issuers, decision 27).
   # pop-origin: 81640ae (agent issuers:
   # Daimyo task tokens, decision 26; migration 09). The precondition on
   # helm_release.pop keeps refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:aac0beb8765396a81bed42126c9003b4bbaf98677535d20dea8165baf6cd38a3"
+  pop_api_image_tag    = "sha256:a6d4c6c4a93dcde062b573ff69057b64aa683254ab7bd72cdd2ef0bc0eeccd68"
   pop_origin_image_tag = "sha256:f3a6fccf5d0e7bf423026a4bfcf3362c4d46d17714ab52977550bc8d388f383e"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
@@ -63,10 +62,11 @@ locals {
       # Caddyfile cutover is a separate change).
       ci_project_paths = []
       # Daimyo task tokens from org `personal` (daimyo.tf `pop` grant,
-      # auth.taskToken audience pop): exactly pop:deploy, never admin; pop's
-      # audit records the task as actor and the delegating person from `act`.
+      # auth.taskToken audience pop): pop:deploy and pop:create, never admin;
+      # pop's audit records the task as actor and the delegating person from
+      # `act`.
       agent_issuers = [
-        { issuer = "https://daimyo.home.shdr.ch/orgs/personal", audience = "pop", roles = ["pop:deploy"] },
+        { issuer = "https://daimyo.home.shdr.ch/orgs/personal", audience = "pop", roles = ["pop:deploy", "pop:create"] },
       ]
     }
     seven30 = {
