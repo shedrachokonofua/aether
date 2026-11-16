@@ -1913,8 +1913,8 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
         },
         {
           # pop (sites + functions). A Daimyo task token with aud `pop`: pop's
-          # aether org trusts this org's issuer as an agent issuer with exactly
-          # pop:deploy (pop.tf `agent_issuers`), and its audit records the
+          # aether org trusts this org's issuer as an agent issuer with pop:deploy
+          # and pop:create (pop.tf `agent_issuers`), and its audit records the
           # task as actor and the person who started it from `act`. Reading and
           # uploading a deploy run freely; anything that changes what is live,
           # deletes, or exports form data asks the task's creator (§9.4).
