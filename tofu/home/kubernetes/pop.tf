@@ -155,7 +155,7 @@ resource "kubernetes_config_map_v1" "pop_cnpg_init_sql" {
 }
 
 resource "kubectl_manifest" "pop_cnpg_cluster" {
-  depends_on = [helm_release.cnpg, kubectl_manifest.cnpg_require_ceph_rbd_storage, kubernetes_secret_v1.pop_cnpg_app, kubernetes_secret_v1.pop_cnpg_origin, kubernetes_config_map_v1.pop_cnpg_init_sql]
+  depends_on = [helm_release.cnpg, kubectl_manifest.cnpg_require_ceph_rbd_storage, kubernetes_secret_v1.pop_cnpg_app, kubernetes_secret_v1.pop_cnpg_origin, kubernetes_config_map_v1.pop_cnpg_init_sql, kubernetes_secret_v1.pop_apps_cnpg]
   yaml_body = yamlencode({
     apiVersion = "postgresql.cnpg.io/v1"
     kind       = "Cluster"
@@ -174,7 +174,16 @@ resource "kubectl_manifest" "pop_cnpg_cluster" {
           configMapRefs = [{ name = kubernetes_config_map_v1.pop_cnpg_init_sql.metadata[0].name, key = "init.sql" }]
         }
       } }
-      managed = { roles = [{ name = "pop_origin", login = true, passwordSecret = { name = kubernetes_secret_v1.pop_cnpg_origin.metadata[0].name } }] }
+      # pop_apps_* serve pop `[db]` (pop_apps.tf). Memberships are declared
+      # here because CNPG revokes any it does not list: the authenticator is
+      # a member of pop_apps_web and of nothing else.
+      managed = { roles = [
+        { name = "pop_origin", login = true, passwordSecret = { name = kubernetes_secret_v1.pop_cnpg_origin.metadata[0].name } },
+        { name = local.pop_apps_roles.admin, login = true, passwordSecret = { name = kubernetes_secret_v1.pop_apps_cnpg["admin"].metadata[0].name } },
+        { name = "pop_apps_web", login = false },
+        { name = local.pop_apps_roles.authenticator, login = true, inherit = false, inRoles = ["pop_apps_web"], passwordSecret = { name = kubernetes_secret_v1.pop_apps_cnpg["authenticator"].metadata[0].name } },
+        { name = local.pop_apps_roles.listener, login = true, passwordSecret = { name = kubernetes_secret_v1.pop_apps_cnpg["listener"].metadata[0].name } },
+      ] }
       plugins = local.cnpg_plugin_specs["pop"]
     }
   })
@@ -199,7 +208,7 @@ resource "kubernetes_config_map_v1" "pop_orgs" {
 }
 
 resource "helm_release" "pop" {
-  depends_on = [terraform_data.pop_chart, kubectl_manifest.pop_cnpg_cluster, kubernetes_config_map_v1.pop_orgs, kubectl_manifest.pop_visitor_secrets, kubectl_manifest.pop_session_key, kubectl_manifest.pop_webhook_key, kubectl_manifest.pop_registry_token, kubernetes_secret_v1.pop_gitlab_registry]
+  depends_on = [terraform_data.pop_chart, kubectl_manifest.pop_cnpg_cluster, kubernetes_config_map_v1.pop_orgs, kubectl_manifest.pop_visitor_secrets, kubectl_manifest.pop_session_key, kubectl_manifest.pop_webhook_key, kubectl_manifest.pop_registry_token, kubernetes_secret_v1.pop_gitlab_registry, kubectl_manifest.pop_apps_database, kubernetes_secret_v1.pop_apps_uri, kubectl_manifest.pop_apps_jwt_key]
   name       = "pop"
   chart      = "${path.module}/../../../../pop/deploy/helm/pop"
   namespace  = local.pop_namespace
@@ -269,6 +278,16 @@ resource "helm_release" "pop" {
     # public and pull anonymously. pop-api alone holds the so/pop-functions
     # token (pop-registry-token below) to push components and delete tags.
     podDisruptionBudget = { minAvailable = 1 }
+    # pop `[db]` (pop_apps.tf): PostgREST + pop-api provisioning + origin
+    # gateway. Secret names match pop_apps.tf.
+    apps = {
+      enabled       = true
+      admin         = { secretName = kubernetes_secret_v1.pop_apps_uri["admin"].metadata[0].name, key = "uri" }
+      authenticator = { secretName = kubernetes_secret_v1.pop_apps_uri["authenticator"].metadata[0].name, key = "uri" }
+      listener      = { secretName = kubernetes_secret_v1.pop_apps_uri["listener"].metadata[0].name, key = "uri" }
+      jwt           = { secretName = "pop-apps-jwt", key = "key", mountPath = "/var/run/pop/apps-jwt.key" }
+      postgrest     = { image = { repository = "postgrest/postgrest", tag = "v13.0.6" }, replicas = 2 }
+    }
   })]
 }
 
