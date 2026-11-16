@@ -28,12 +28,11 @@ locals {
     } }))}&orgId=1",
   "PROJECT", "{project}"), "DEPLOY", "{deploy}")
   # Immutable digests emitted by the pop CI images job (image-digests.env).
-  # pop-api: so/pop main cae896e (pop:create for agent issuers, decision 27).
-  # pop-origin: 81640ae (agent issuers:
-  # Daimyo task tokens, decision 26; migration 09). The precondition on
+  # pop-api and pop-origin: so/pop main efe1b72 ([db] per-project document
+  # storage, decisions 28-36; pop_apps.tf). The precondition on
   # helm_release.pop keeps refusing to apply if either tag is ever reset to null.
-  pop_api_image_tag    = "sha256:a6d4c6c4a93dcde062b573ff69057b64aa683254ab7bd72cdd2ef0bc0eeccd68"
-  pop_origin_image_tag = "sha256:f3a6fccf5d0e7bf423026a4bfcf3362c4d46d17714ab52977550bc8d388f383e"
+  pop_api_image_tag    = "sha256:d832e706d71db0094e86c0b14c99b28efbc3d96398f0b838b0a5757a3896a5b4"
+  pop_origin_image_tag = "sha256:549f92312fe353f890d5c4ca697d3ddfd1b7fac6b8f914acfe9ad67b1514fe46"
 
   # Review CF-VisitorE F4: directory mount — kubelet refreshes directory
   # ConfigMap mounts on update but NEVER subPath mounts.
