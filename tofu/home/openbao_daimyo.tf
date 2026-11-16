@@ -123,6 +123,24 @@ resource "vault_kv_secret_v2" "daimyo_orion_litellm_mcp" {
   })
 }
 
+# SnapOtter API key for the `orion` agent's `snapotter` http grant (Orion
+# chart values; egress in kubernetes/daimyo.tf). SnapOtter mints keys itself,
+# so this declares the path and a later `bao kv put` writes the real key:
+# an `si_` key named "orion-agent (Daimyo http grant)", scoped to tools:use,
+# created through SnapOtter's /api/v1/api-keys as admin. Rotate the same way.
+resource "vault_kv_secret_v2" "daimyo_orion_snapotter" {
+  mount = local.daimyo_kv_mount
+  name  = "orgs/personal/snapotter"
+
+  data_json = jsonencode({
+    token = ""
+  })
+
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+}
+
 # ntfy has no auth: the topic name is the only access control, so it is a
 # random secret. Orion publishes needsYou feed cards to it (NTFY_TOPIC in
 # kubernetes/orion.tf); the Daimyo server policy above already reads
