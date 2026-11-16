@@ -187,7 +187,15 @@ locals {
   # search off says so. No migrations. Deploy with the matching sidecar;
   # recycle old session pods after their active turns finish. Before that
   # 82ef13c above.
-  daimyo_server_tag = "sha256:2ad2b5b8ef636104bf5788e593ae0c5e280ccaf5da868c8361a4c0d7ba4b7ee7"
+  # a44614a (main pipeline 13704: fmt, clippy, rust-test, rust-test-engine,
+  # ts-test and the server build green): Agent.spec.harness.agents names omp
+  # task-agent definitions, files agents/<name>.md of the pinned ConfigBundle,
+  # compiled into the revision (AgentDefinitionInvalid for a missing file,
+  # HarnessUnsupported for other kinds). Needs the matching Agent CRD
+  # (daimyo_agent_crd, from the sibling checkout) applied first, or the
+  # apiserver prunes the field. No migrations; sidecar unchanged. Before that
+  # 9bc8d29 above.
+  daimyo_server_tag = "sha256:5e236a2313d1c2c3eb99cdaa6ae08574666772f787bef8549d785b945de2251b"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -288,7 +296,13 @@ locals {
   # idle; a turn that arrives sooner waits for the rest. Only harness change
   # since b78f555. Applies to pods started after the release. omp-dev is not
   # moved: its image needs an attestation in org personal.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:964a65e02b439dc36756010b6c76d923328fe6989c8b9379c523b13e6ce79559"
+  # omp a44614a (main pipeline 13704 build:harness-omp, whose verify stage
+  # runs harness-agents.test.ts): prepare writes the revision's agent
+  # definitions to $HOME/.omp/agent/agents/<name>.md, where omp 18.14.1 reads
+  # user task agents (a user agent overrides the bundled one of that name).
+  # Orion uses it to give `scout` a shell. Only harness change since 50094d4.
+  # Applies to pods started after the release; omp-dev is not moved.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:e459fab7d6cec27d5b9952c9e6fc2b195c157b1b1536de8186cb781834ba364a"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
