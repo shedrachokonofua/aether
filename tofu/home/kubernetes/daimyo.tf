@@ -1125,6 +1125,19 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toPorts = [{ ports = [{ port = tostring(local.orion_port), protocol = "TCP" }] }]
         } if org == "personal"
         ], [
+        # SnapOtter's API: the `orion` agent's `snapotter` http grant. The
+        # sidecar adds a tools:use-scoped key (OpenBao orgs/personal/snapotter);
+        # without it a task reaches only SnapOtter's login and job downloads.
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app"                         = "snapotter"
+              "io.kubernetes.pod.namespace" = "snapotter"
+            }
+          }]
+          toPorts = [{ ports = [{ port = tostring(local.snapotter_port), protocol = "TCP" }] }]
+        } if org == "personal"
+        ], [
         # trip-planner's `flights` grant: fli, in-cluster without client auth
         # (trip_planner.tf), so this rule is its access boundary.
         for org in [each.key] : {
@@ -1193,6 +1206,14 @@ resource "kubernetes_manifest" "daimyo_sandbox_egress_deny" {
               "app.kubernetes.io/name"      = "daimyo"
               "app.kubernetes.io/component" = "server"
               "io.kubernetes.pod.namespace" = local.daimyo_ns
+            }
+          }]
+        },
+        {
+          toEndpoints = [{
+            matchLabels = {
+              "app"                         = "snapotter"
+              "io.kubernetes.pod.namespace" = "snapotter"
             }
           }]
         },
