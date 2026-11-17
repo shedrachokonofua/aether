@@ -704,10 +704,12 @@ module "kubernetes" {
   oidc_client_id            = local.oidc_client_id
   gateway_api_version       = local.gateway_api_version
   kubeconfig_raw            = talos_cluster_kubeconfig.this.kubeconfig_raw
-  kubernetes_host           = talos_cluster_kubeconfig.this.kubernetes_client_configuration.host
+  kubernetes_host           = local.talos_cluster_endpoint
   kubernetes_ca_certificate = talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate
   openbao_kv_mount_path     = vault_mount.kv.path
   secrets                   = var.secrets
+
+  kubernetes_service_account_issuer = local.k8s_serviceaccount_issuer
 
   # The operator's OIDC subject (= Keycloak user id), for grants that name a
   # person rather than a service -- e.g. deskplane's watch-any-session list.

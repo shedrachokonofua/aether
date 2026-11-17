@@ -24,8 +24,12 @@ resource "vault_auth_backend" "kubernetes_aether" {
 resource "vault_kubernetes_auth_backend_config" "aether" {
   backend = vault_auth_backend.kubernetes_aether.path
 
-  kubernetes_host    = var.kubernetes_host
-  kubernetes_ca_cert = base64decode(var.kubernetes_ca_certificate)
+  # Use the API VIP and the cluster's actual projected-token issuer; a
+  # bootstrap node URL or the legacy default issuer breaks workload login.
+  kubernetes_host        = var.kubernetes_host
+  kubernetes_ca_cert     = base64decode(var.kubernetes_ca_certificate)
+  issuer                 = var.kubernetes_service_account_issuer
+  disable_iss_validation = false
 
   token_reviewer_jwt = kubernetes_secret_v1.openbao_kubernetes_token_reviewer.data["token"]
 }
