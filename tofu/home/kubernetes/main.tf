@@ -117,6 +117,11 @@ variable "kubernetes_ca_certificate" {
   description = "Base64-encoded Kubernetes API CA certificate for OpenBao Kubernetes auth"
 }
 
+variable "kubernetes_service_account_issuer" {
+  type        = string
+  description = "Issuer of projected Kubernetes service-account JWTs for OpenBao validation"
+}
+
 variable "openbao_kv_mount_path" {
   type        = string
   description = "OpenBao KV v2 mount path used by External Secrets"

@@ -63,6 +63,23 @@ graph TB
 | 6    | IoT            | UNTRUSTED | ✅       | ❌ (Can receive from trusted)  | ❌ (Can receive from trusted) | ❌ (Can receive from trusted) | ❌                    | ✅ (Full)                | ❌         | ✅ (DNS, DHCP only)        | ❌      |
 | 7    | Guest          | UNTRUSTED | ✅       | ❌ (Can receive from trusted)  | ❌ (Can receive from trusted) | ❌ (Can receive from trusted) | ❌                    | ❌                       | ✅ (Full)  | ✅ (DNS, DHCP only)        | ❌      |
 
+### Kubernetes workload authentication
+
+OpenBao's `kubernetes-aether` auth backend uses the Talos API VIP
+`https://10.0.3.20:6443`, not the bootstrap node's kubeconfig endpoint.
+Its explicit issuer is the cluster's `https://oidc.k8s.home.shdr.ch`;
+issuer validation stays enabled. Both values come from the cluster locals
+through the Kubernetes module, so a node outage or projected-token issuer
+change cannot silently restore the legacy defaults on the next apply.
+
+On 2026-11-17, the backend still named `10.0.3.16:6443` and an empty issuer,
+blocking daimyo's grant minting with 403. The existing reviewer service
+account successfully performed TokenReview through the VIP; after aligning
+the backend, the same workload identity logged in with its unchanged
+`daimyo-server` policy. No role, audience, CA or policy widening was needed.
+The OpenBao 2.4.4 config endpoint replaces the whole config: an operator repair
+must retain the CA, reviewer JWT and validation flags, not post only a host.
+
 ## DNS
 
 DNS resolution and ad blocking run on **Technitium DNS Server** as a single
