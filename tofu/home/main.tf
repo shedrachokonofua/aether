@@ -219,8 +219,16 @@ provider "grafana" {
   auth = "admin:${var.secrets["grafana_password"]}"
 }
 
+locals {
+  # The Kubernetes providers reach the API through the Talos VIP, not through the single control-plane
+  # node the generated kubeconfig names (talos-trinity). When that node's API server is down, a plan
+  # cannot read the cluster and proposes creating releases that already exist; the VIP moves to a
+  # healthy node. Null until a kubeconfig exists, exactly as before.
+  kubernetes_provider_host = can(talos_cluster_kubeconfig.this.kubernetes_client_configuration.host) ? local.talos_cluster_endpoint : null
+}
+
 provider "kubernetes" {
-  host                   = try(talos_cluster_kubeconfig.this.kubernetes_client_configuration.host, null)
+  host                   = local.kubernetes_provider_host
   client_certificate     = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_certificate), null)
   client_key             = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_key), null)
   cluster_ca_certificate = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate), null)
@@ -228,7 +236,7 @@ provider "kubernetes" {
 
 provider "helm" {
   kubernetes = {
-    host                   = try(talos_cluster_kubeconfig.this.kubernetes_client_configuration.host, null)
+    host                   = local.kubernetes_provider_host
     client_certificate     = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_certificate), null)
     client_key             = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_key), null)
     cluster_ca_certificate = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate), null)
@@ -236,7 +244,7 @@ provider "helm" {
 }
 
 provider "kubectl" {
-  host                   = try(talos_cluster_kubeconfig.this.kubernetes_client_configuration.host, null)
+  host                   = local.kubernetes_provider_host
   client_certificate     = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_certificate), null)
   client_key             = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.client_key), null)
   cluster_ca_certificate = try(base64decode(talos_cluster_kubeconfig.this.kubernetes_client_configuration.ca_certificate), null)
