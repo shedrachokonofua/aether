@@ -80,6 +80,19 @@ the backend, the same workload identity logged in with its unchanged
 The OpenBao 2.4.4 config endpoint replaces the whole config: an operator repair
 must retain the CA, reviewer JWT and validation flags, not post only a host.
 
+### OpenTofu's Kubernetes endpoint
+
+The `kubernetes`, `helm` and `kubectl` providers reach the API through the same
+VIP (`local.kubernetes_provider_host` in `tofu/home/main.tf`). Until 2026-11-17
+they took their host from the generated kubeconfig, which names
+`10.0.3.16:6443` (talos-trinity). That day `kube-apiserver-talos-trinity` was
+crash-looping while the other two API servers and the VIP stayed up, and a plan
+run during an outage could not read the cluster: it proposed creating the
+Cilium, cert-manager and Kyverno releases, which exist. `task k8s:auth` still
+writes a kubeconfig that names the node, so `kubectl` and `helm` on a
+workstation keep that dependency (pass `--server=https://10.0.3.20:6443` when
+the node is down).
+
 ## DNS
 
 DNS resolution and ad blocking run on **Technitium DNS Server** as a single
