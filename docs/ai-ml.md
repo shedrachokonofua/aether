@@ -864,7 +864,12 @@ worker by design; its model calls are serialized so book processing shares the G
 Original EPUBs live on the `pharos-data` RBD volume (daily snapshots); everything derived from them (source
 blocks, passages with full-text and pgvector indexes, ideas, readings, checkpoints) lives in the `pharos-cnpg`
 CNPG cluster (PostgreSQL 16 + pgvector), with WAL archiving and daily base backups to SeaweedFS
-(`cnpg_backups.tf`).
+(`cnpg_backups.tf`). Book covers are stored there too: taken from the EPUB, and when a file has none,
+looked up at Open Library (`openlibrary.org`, `covers.openlibrary.org`, and the `archive.org` hosts those
+redirect to), sending only an ISBN, or the title and the author's surname. That lookup is the app's
+only internet traffic; `config.coverLookup = "off"` in the release values disables it. The namespace is
+labelled `egress = "allowlist"` for it, but no network policy enforces the list. The reader is an
+installable web app that keeps opened books readable offline on the device.
 
 ### OpenWebUI
 
