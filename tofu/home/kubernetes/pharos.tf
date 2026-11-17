@@ -38,8 +38,8 @@ locals {
     "app.kubernetes.io/part-of" = "pharos"
   }
 
-  # Published by so/pharos CI from main (fad6f2ce): image and chart pinned to the same commit.
-  pharos_chart_version = "0.1.0-fad6f2ce"
+  # Published by so/pharos CI from main (2d40aa6b): image and chart pinned to the same commit.
+  pharos_chart_version = "0.1.0-2d40aa6b"
 
   # In-cluster LiteLLM service (same endpoint deskplane and nextcloud use);
   # keeps model traffic off the gateway hairpin.
