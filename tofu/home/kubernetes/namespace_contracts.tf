@@ -104,8 +104,10 @@ locals {
       create_s3_backup_secret = false
       description             = "Pharos personal EPUB library (source-grounded local-model reading, read-only MCP)"
       source_file             = "tofu/home/kubernetes/pharos.tf"
-      # Cluster LiteLLM and the LAN-resolved Keycloak issuer; no internet egress.
-      egress          = "internal"
+      # Cluster LiteLLM, the LAN-resolved Keycloak issuer, and Open Library for book covers
+      # (openlibrary.org, covers.openlibrary.org and the *.archive.org hosts they redirect to).
+      # Declared intent only: no CiliumNetworkPolicy in pharos.tf enforces this list yet.
+      egress          = "allowlist"
       registry_access = "gitlab"
       hostnames = [
         "pharos.home.shdr.ch",
