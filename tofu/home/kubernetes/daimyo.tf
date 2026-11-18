@@ -757,6 +757,14 @@ resource "helm_release" "daimyo" {
   timeout   = 900
 
   values = [yamlencode({
+    # The chart is a local path at a fixed version, so a change to its files
+    # alone plans as "No changes" and never reaches the cluster: on 2026-11-18
+    # a new template section was applied as a no-op. This digest of the chart's
+    # files is a value the chart ignores; it only makes such a change a diff.
+    chartFilesSha1 = sha1(join("", [
+      for f in sort(fileset(local.daimyo_chart_path, "{Chart.yaml,values.yaml,templates/**,crds/**}")) :
+      filesha1("${local.daimyo_chart_path}/${f}")
+    ]))
     fullnameOverride = "daimyo"
     replicaCount     = 2
     imagePullSecrets = [{ name = kubernetes_secret_v1.daimyo_registry.metadata[0].name }]
