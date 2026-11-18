@@ -195,7 +195,15 @@ locals {
   # (daimyo_agent_crd, from the sibling checkout) applied first, or the
   # apiserver prunes the field. No migrations; sidecar unchanged. Before that
   # 9bc8d29 above.
-  daimyo_server_tag = "sha256:5e236a2313d1c2c3eb99cdaa6ae08574666772f787bef8549d785b945de2251b"
+  # ae99644 (main pipeline 14343: fmt, clippy, rust-test, rust-test-engine and
+  # the server build green): the audit chain reads an org's newest hash by one
+  # descent of audit_org_id_idx, whatever plan Postgres caches. Before it the
+  # cached generic plan walked audit_pkey backwards, so an org idle for days
+  # (qa after four, about a million rows behind) took about a minute per
+  # audited request and every other request of that org answered 503 `lock
+  # timeout`. The only Rust change since a44614a. No migrations; sidecar
+  # unchanged (its build in that pipeline hit a full runner disk).
+  daimyo_server_tag = "sha256:6be01defbf42c5647a522bdb98a2698f6da9e6343b8c388fa5e032bcdd953cd3"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
