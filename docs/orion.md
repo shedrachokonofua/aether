@@ -72,6 +72,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `instacart` | `instacart-mcp` Service (holds its own login) | none at the gateway | none |
 | `homeassistant` | `ha-mcp` sidecar | `homeassistant.telemetry_token` | none |
 | `karakeep` | `@karakeep/mcp` via supergateway | `karakeep.mcp_api_key` | none |
+| `nextcloud` | `cbcoutinho/nextcloud-mcp-server` 0.213.2, `:8017` | `random_password.nextcloud_orion_password` (local `orion` account) | none (55 tools: Files, Sharing, Calendar, Contacts) |
 | `withings` | hosted `mcp.withings.com` | OAuth login of LiteLLM user `orion` | none |
 | `pubmed` | `cyanheads/pubmed-mcp-server` 2.12.2, `:8011` | none (keyless E-utilities) | none |
 | `ticketmaster` | `sourabhmadur/ticketmaster-mcp` `bc3367d` via mcp-proxy, `:8012` | `ticketmaster.api_key` | none |
@@ -89,6 +90,69 @@ Approval policy lives in the Orion grants, not the gateway. Server notes:
 ha-mcp's `ha_call_service` can send any WebSocket command, so it and every
 configuration tool ask; `ha_bulk_control`, reads, todos and calendar events
 run directly.
+
+### Nextcloud
+
+`litellm_config.yaml.tftpl` registers `nextcloud`, the loopback `nextcloud-mcp`
+sidecar in the LiteLLM pod: [cbcoutinho/nextcloud-mcp-server](https://github.com/cbcoutinho/nextcloud-mcp-server)
+0.213.2 (`ghcr.io/cbcoutinho/nextcloud-mcp-server:0.213.2@sha256:655c2864...`,
+the multi-arch index digest), native streamable HTTP on `127.0.0.1:8017/mcp`
+with no auth on the listener, started with one `--enable-app` flag each for
+`webdav`, `sharing`, `calendar` and `contacts`. It reaches Nextcloud at
+`http://nextcloud-server.nextcloud.svc.cluster.local` and signs in as the local
+account `orion` (display name Orion; not a Keycloak user). The `daimyo-orion`
+key's scope includes `nextcloud` (same `--tags orion-mcp` command as Instacart
+above); no other key does.
+
+`orion` sees only its own, initially empty, files, calendar, task list and
+address book plus whatever is shared with it. To let Orion read or edit a
+folder, calendar, task list or address book, share it with user `orion` in the
+Nextcloud UI. The `nextcloud_orion_bootstrap` Job installs the Calendar,
+Contacts and Tasks apps, creates the account or resets its password from
+`random_password.nextcloud_orion_password` (tofu state; Secret
+`nextcloud-orion` key `OC_PASS` and `NEXTCLOUD_MCP_PASSWORD` in `litellm-env`),
+and creates a `tasks` calendar for it with `occ dav:create-calendar`, because
+the default Personal calendar accepts events only and `nc_calendar_create_todo`
+answers 403 there. There is no SOPS secret and no app-password step.
+
+The gateway exposes the server's 55 tools as `nextcloud-<tool>`: 24 Files
+(`nc_webdav_*`), 6 Sharing (`nc_share_*`), 17 Calendar including todos
+(`nc_calendar_*`) and 8 Contacts (`nc_contacts_*`). The sidecar registers only
+those four groups, so the registry has no `allowed_tools` list. The Orion chart's `nextcloud` grant
+runs 42 directly: every read, plus the additive or reversible writes
+`nc_webdav_write_file`, `nc_webdav_edit_file`, `nc_webdav_create_directory`,
+`nc_webdav_copy_resource`, `nc_webdav_create_comment`, `nc_webdav_tag_file`,
+`nc_webdav_untag_file`, `nc_webdav_restore_from_trash`,
+`nc_webdav_restore_version`, `nc_calendar_create_event`,
+`nc_calendar_update_event`, `nc_calendar_create_todo`,
+`nc_calendar_update_todo`, `nc_calendar_complete_todo`,
+`nc_contacts_create_addressbook`, `nc_contacts_create_contact` and
+`nc_contacts_update_contact`. `nc_webdav_write_file` fails closed: it creates
+new files and overwrites only with the etag from a prior read or an explicit
+`if_match="*"`. Thirteen ask first: deletes (`nc_webdav_delete_resource`,
+`nc_calendar_delete_event`, `nc_calendar_delete_todo`,
+`nc_contacts_delete_contact`, `nc_contacts_delete_addressbook`), moves
+(`nc_webdav_move_resource`), share changes including public links
+(`nc_share_create`, `nc_share_create_public_link`, `nc_share_update`,
+`nc_share_delete`), `nc_calendar_bulk_operations`, `nc_calendar_manage_calendar`
+and `nc_calendar_create_meeting`, which takes attendee email addresses: they
+destroy data, change who can read it, or message other people. The
+tool names come from 0.213.2's `tools/list` with those four apps; re-diff the
+grant when the image pin changes. The grant is in the Orion repo's
+`deploy/helm/orion/values.yaml` on branch `feat/nextcloud-mcp`, not yet
+released.
+
+Local verification (2026-11-17): the sidecar image, against a throwaway
+`nextcloud:34.0.5-apache` container with `overwritehost` and `overwriteprotocol`
+set as in production and a local `orion` account, returned 55 tools from
+`tools/list`. `nc_webdav_list_directory`, `nc_webdav_write_file` (201, and a
+second write to the same path was refused), `nc_webdav_read_file`,
+`nc_calendar_list_calendars`, `nc_calendar_create_event`,
+`nc_calendar_get_upcoming_events`, `nc_contacts_list_addressbooks` and
+`nc_share_list` succeeded. `nc_calendar_create_todo` returned 403 on `personal`
+and succeeded on a `tasks` list created with `occ dav:create-calendar`. Idle
+memory was about 180-216 MiB. The live rollout has not happened: there is no
+gateway `tools/list` and no Orion thread evidence yet.
 
 ### Withings
 

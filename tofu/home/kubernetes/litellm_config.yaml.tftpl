@@ -1224,6 +1224,15 @@ mcp_servers:
   # deletes and list updates (which can publish a list).
   karakeep:
     url: "http://localhost:8010/mcp"
+  # Nextcloud (litellm.tf nextcloud-mcp sidecar: cbcoutinho/nextcloud-mcp-server
+  # 0.213.2, loopback). Acts as Nextcloud's local `orion` account, which sees
+  # only the folders, calendars and address books shared with it. The sidecar
+  # registers the Files, Sharing, Calendar and Contacts tools only, so there
+  # is no allowlist. Only the daimyo-orion key's scope includes it, and
+  # Orion's grant asks before deletes, moves, share changes, bulk calendar
+  # edits, calendar management and meeting invitations.
+  nextcloud:
+    url: "http://localhost:8017/mcp"
   # PubMed/PMC literature (litellm.tf pubmed-mcp sidecar:
   # cyanheads/pubmed-mcp-server 2.12.2, loopback). Keyless NCBI E-utilities
   # (plus Europe PMC/OpenAlex fallbacks); all 12 tools are read-only lookups,

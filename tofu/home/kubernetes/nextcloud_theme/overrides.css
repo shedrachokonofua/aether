@@ -1,0 +1,7 @@
+/* Aether overrides. Loaded after lionfish2-v2.min.css (see nextcloud.tf). */
+
+/* Calendar: the "no appointment schedules" note wraps to three lines, and the
+   upstream fixed 32px navigation row clips it. */
+.appointment-config-list .app-navigation-entry:not(#ap):not(#ap2) .app-navigation-entry-link:not(#ap3):not(#ap4) {
+	height: auto !important;
+}

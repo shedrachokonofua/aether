@@ -72,9 +72,10 @@ locals {
     instanceid   = var.secrets["nextcloud.instanceid"]
     dbname       = local.nextcloud_db_name
     dbhost       = local.nextcloud_db_host
-    dbuser       = local.nextcloud_cnpg_user
-    dbpassword   = random_password.nextcloud_postgres_password.result
-    version      = local.nextcloud_installed_version
+    dbhost     = "${local.nextcloud_db_host}."
+    dbuser     = local.nextcloud_cnpg_user
+    dbpassword = random_password.nextcloud_postgres_password.result
+    version    = local.nextcloud_installed_version
   })
   nextcloud_install_state_hash = substr(sha256(local.nextcloud_install_state_config), 0, 12)
 
@@ -112,6 +113,36 @@ locals {
     "context_chat=2",
   ])), 0, 12))
 
+  # Orion's Nextcloud identity: a local account, not a Keycloak user, so it
+  # sees only what is shared with it. The nextcloud-mcp sidecar in the LiteLLM
+  # pod (litellm.tf) signs in as this account with HTTP Basic auth.
+  nextcloud_orion_user = "orion"
+  # Calendar and Contacts give the DAV data a web UI; Tasks shows the todos
+  # the MCP calendar tools write.
+  nextcloud_orion_apps = ["calendar", "contacts", "tasks"]
+  nextcloud_orion_bootstrap_hash = nonsensitive(substr(sha256(join("|", [
+    local.nextcloud_orion_user,
+    random_password.nextcloud_orion_password.result,
+    join(",", local.nextcloud_orion_apps),
+    "tasks-list",
+  ])), 0, 12))
+
+  # Custom CSS (theming_customcss app). The upstream stylesheet is vendored
+  # verbatim; local changes go in overrides.css, which loads after it.
+  # lionfish2/Nextcloud-CSS-Redesign @ 2125fdc1 (MIT, unmaintained upstream).
+  nextcloud_theme_css = join("\n", [
+    file("${path.module}/nextcloud_theme/lionfish2-v2.min.css"),
+    file("${path.module}/nextcloud_theme/overrides.css"),
+  ])
+  # The stylesheet is drawn for these two theming colours and no background image.
+  nextcloud_theme_primary_color    = "#0071E3"
+  nextcloud_theme_background_color = "#000000"
+  nextcloud_theme_hash = substr(sha256(join("|", [
+    local.nextcloud_theme_css,
+    local.nextcloud_theme_primary_color,
+    local.nextcloud_theme_background_color,
+  ])), 0, 12)
+
   nextcloud_server_labels = { app = "nextcloud-server" }
   nextcloud_cron_labels   = { app = "nextcloud-cron" }
   nextcloud_task_worker_labels = {
@@ -137,6 +168,11 @@ resource "random_password" "nextcloud_postgres_password" {
 
 resource "random_password" "nextcloud_admin_password" {
   length  = 24
+  special = false
+}
+
+resource "random_password" "nextcloud_orion_password" {
+  length  = 40
   special = false
 }
 
@@ -259,6 +295,34 @@ resource "kubernetes_secret_v1" "nextcloud_ai" {
   }
 
   type = "Opaque"
+}
+
+resource "kubernetes_secret_v1" "nextcloud_orion" {
+  depends_on = [module.namespace["nextcloud"]]
+
+  metadata {
+    name      = "nextcloud-orion"
+    namespace = module.namespace["nextcloud"].name
+  }
+
+  data = {
+    OC_PASS = random_password.nextcloud_orion_password.result
+  }
+
+  type = "Opaque"
+}
+
+resource "kubernetes_config_map_v1" "nextcloud_theme" {
+  depends_on = [module.namespace["nextcloud"]]
+
+  metadata {
+    name      = "nextcloud-theme"
+    namespace = module.namespace["nextcloud"].name
+  }
+
+  data = {
+    "custom.css" = local.nextcloud_theme_css
+  }
 }
 
 # =============================================================================
@@ -1553,6 +1617,419 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
 
   # Re-running tofu shouldn't try to mutate a completed Job in place.
   # Assistant config changes force a new Job via the hashed name above.
+  lifecycle {
+    ignore_changes = [spec[0].template]
+  }
+}
+
+# =============================================================================
+# Post-install Orion account bootstrap
+# =============================================================================
+# Idempotent Job: installs Calendar, Contacts and Tasks, then creates the local
+# `orion` account (or resets its password) from the tofu-generated secret.
+
+resource "kubernetes_job_v1" "nextcloud_orion_bootstrap" {
+  timeouts {
+    create = "15m"
+  }
+
+  depends_on = [
+    kubernetes_deployment_v1.nextcloud_server,
+    kubernetes_service_v1.nextcloud_server,
+  ]
+
+  metadata {
+    name      = "nextcloud-orion-bootstrap-${local.nextcloud_orion_bootstrap_hash}"
+    namespace = module.namespace["nextcloud"].name
+  }
+
+  spec {
+    backoff_limit = 6
+
+    template {
+      metadata {
+        labels = { app = "nextcloud-orion-bootstrap" }
+      }
+
+      spec {
+        restart_policy = "OnFailure"
+
+        # Co-locate with the server pod for RWO custom-apps PVC sharing.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
+        container {
+          name  = "occ"
+          image = local.nextcloud_server_image
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "1"
+              memory = "1Gi"
+            }
+          }
+
+          command = ["/bin/sh", "-c", <<-EOT
+            set -eu
+            # Excludes match the mount points; /config is NOT excluded because
+            # the image-stock config dir (CAN_INSTALL, .htaccess, .sample.php)
+            # ensures /var/www/html/config is www-data-writable. Our secret
+            # subPath mount of nextcloud-k8s.config.php overlays cleanly.
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
+            install -d -o www-data -g www-data /var/www/html/themes
+            echo "Waiting for Nextcloud server to be installed..."
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /tmp/status.json -w '%%{http_code}' \
+                -H "Host: $${HOST}" \
+                http://nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local/status.php || true)
+              if [ "$code" = "200" ] && grep -q '"installed":true' /tmp/status.json; then
+                break
+              fi
+              sleep 5
+            done
+            cd /var/www/html
+            runuser -u www-data -- php occ status
+
+            for app in $${ORION_APPS}; do
+              runuser -u www-data -- php occ app:install "$app" || runuser -u www-data -- php occ app:enable "$app"
+            done
+
+            # occ reads the password from OC_PASS, so it never reaches argv.
+            if runuser -u www-data -- php occ user:info "$${ORION_USER}" >/dev/null 2>&1; then
+              runuser -u www-data -- php occ user:resetpassword --password-from-env "$${ORION_USER}"
+            else
+              runuser -u www-data -- php occ user:add --password-from-env --display-name="Orion" "$${ORION_USER}"
+            fi
+
+            # The default Personal calendar takes events only; todos need
+            # their own list. dav:create-calendar is not idempotent.
+            runuser -u www-data -- php occ dav:list-calendars "$${ORION_USER}" | grep -q '^| tasks ' || \
+              runuser -u www-data -- php occ dav:create-calendar "$${ORION_USER}" tasks
+          EOT
+          ]
+
+          env {
+            name  = "HOST"
+            value = local.nextcloud_host
+          }
+
+          env {
+            name  = "ORION_USER"
+            value = local.nextcloud_orion_user
+          }
+
+          env {
+            name  = "ORION_APPS"
+            value = join(" ", local.nextcloud_orion_apps)
+          }
+
+          env {
+            name = "OC_PASS"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nextcloud_orion.metadata[0].name
+                key  = "OC_PASS"
+              }
+            }
+          }
+
+          volume_mount {
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/var/www/html/data"
+          }
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
+            sub_path   = "nextcloud-k8s.config.php"
+          }
+
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
+          }
+        }
+
+        volume {
+          name = "custom-apps"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_data.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "config"
+          secret {
+            secret_name = kubernetes_secret_v1.nextcloud_config.metadata[0].name
+            items {
+              key  = "nextcloud-k8s.config.php"
+              path = "nextcloud-k8s.config.php"
+            }
+          }
+        }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  # Re-running tofu shouldn't try to mutate a completed Job in place.
+  # Account or app-list changes force a new Job via the hashed name above.
+  lifecycle {
+    ignore_changes = [spec[0].template]
+  }
+}
+
+# =============================================================================
+# Post-install theme bootstrap
+# =============================================================================
+# Idempotent Job: installs the Custom CSS app, sets the theming colours the
+# stylesheet is drawn for, and loads nextcloud_theme/*.css into the app.
+
+resource "kubernetes_job_v1" "nextcloud_theme_bootstrap" {
+  timeouts {
+    create = "15m"
+  }
+
+  depends_on = [
+    kubernetes_deployment_v1.nextcloud_server,
+    kubernetes_service_v1.nextcloud_server,
+  ]
+
+  metadata {
+    name      = "nextcloud-theme-bootstrap-${local.nextcloud_theme_hash}"
+    namespace = module.namespace["nextcloud"].name
+  }
+
+  spec {
+    backoff_limit = 6
+
+    template {
+      metadata {
+        labels = { app = "nextcloud-theme-bootstrap" }
+      }
+
+      spec {
+        restart_policy = "OnFailure"
+
+        # Co-locate with the server pod for RWO custom-apps PVC sharing.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector {
+                match_expressions {
+                  key      = "app"
+                  operator = "In"
+                  values   = [local.nextcloud_server_labels.app]
+                }
+              }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
+
+        container {
+          name  = "occ"
+          image = local.nextcloud_server_image
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "1"
+              memory = "1Gi"
+            }
+          }
+
+          command = ["/bin/sh", "-c", <<-EOT
+            set -eu
+            # Excludes match the mount points; /config is NOT excluded because
+            # the image-stock config dir (CAN_INSTALL, .htaccess, .sample.php)
+            # ensures /var/www/html/config is www-data-writable. Our secret
+            # subPath mount of nextcloud-k8s.config.php overlays cleanly.
+            rsync -rlDog --chown=www-data:www-data \
+              --exclude=/data/ \
+              --exclude=/custom_apps/ --exclude=/themes/ \
+              /usr/src/nextcloud/ /var/www/html/
+            install -d -o www-data -g www-data /var/www/html/themes
+            echo "Waiting for Nextcloud server to be installed..."
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /tmp/status.json -w '%%{http_code}' \
+                -H "Host: $${HOST}" \
+                http://nextcloud-server.${local.nextcloud_namespace}.svc.cluster.local/status.php || true)
+              if [ "$code" = "200" ] && grep -q '"installed":true' /tmp/status.json; then
+                break
+              fi
+              sleep 5
+            done
+            cd /var/www/html
+            runuser -u www-data -- php occ status
+
+            runuser -u www-data -- php occ app:install theming_customcss || runuser -u www-data -- php occ app:enable theming_customcss
+            # The stylesheet sets its own radius scale; unroundedcorners zeroes it.
+            runuser -u www-data -- php occ app:disable unroundedcorners
+
+            runuser -u www-data -- php occ theming:config primary_color "$${PRIMARY_COLOR}"
+            runuser -u www-data -- php occ theming:config background_color "$${BACKGROUND_COLOR}"
+            # "Remove background image" in the Theming settings.
+            runuser -u www-data -- php occ config:app:set theming backgroundMime --value=backgroundColor
+
+            # The stylesheet is larger than one argv entry may be (128 KiB),
+            # so it is written through the config API, not `occ config:app:set`.
+            # The app serves it at /apps/theming_customcss/styles?v=<cachebuster>.
+            runuser -u www-data -- php -r '
+              define("OC_CONSOLE", true);
+              require "lib/base.php";
+              $css = file_get_contents("/theme/custom.css");
+              if ($css === false || $css === "") {
+                fwrite(STDERR, "empty stylesheet\n");
+                exit(1);
+              }
+              $config = \OCP\Server::get(\OCP\IConfig::class);
+              $config->setAppValue("theming_customcss", "customcss", $css);
+              $config->setAppValue("theming_customcss", "cachebuster", substr(sha1($css), 0, 12));
+              echo "custom css: ", strlen($css), " bytes\n";
+            '
+          EOT
+          ]
+
+          env {
+            name  = "HOST"
+            value = local.nextcloud_host
+          }
+
+          env {
+            name  = "PRIMARY_COLOR"
+            value = local.nextcloud_theme_primary_color
+          }
+
+          env {
+            name  = "BACKGROUND_COLOR"
+            value = local.nextcloud_theme_background_color
+          }
+
+          volume_mount {
+            name       = "theme"
+            mount_path = "/theme"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "custom-apps"
+            mount_path = "/var/www/html/custom_apps"
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/var/www/html/data"
+          }
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/var/www/html/config/nextcloud-k8s.config.php"
+            sub_path   = "nextcloud-k8s.config.php"
+          }
+
+          volume_mount {
+            name       = "install-state"
+            mount_path = "/var/www/html/config/install-state.config.php"
+            sub_path   = "install-state.config.php"
+            read_only  = true
+          }
+        }
+
+        volume {
+          name = "theme"
+          config_map {
+            name = kubernetes_config_map_v1.nextcloud_theme.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "custom-apps"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_custom_apps.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.nextcloud_data.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "config"
+          secret {
+            secret_name = kubernetes_secret_v1.nextcloud_config.metadata[0].name
+            items {
+              key  = "nextcloud-k8s.config.php"
+              path = "nextcloud-k8s.config.php"
+            }
+          }
+        }
+
+        volume {
+          name = "install-state"
+          secret {
+            secret_name = kubernetes_secret_v1.nextcloud_install_state.metadata[0].name
+            items {
+              key  = "install-state.config.php"
+              path = "install-state.config.php"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  # Re-running tofu shouldn't try to mutate a completed Job in place.
+  # Stylesheet or colour changes force a new Job via the hashed name above.
   lifecycle {
     ignore_changes = [spec[0].template]
   }

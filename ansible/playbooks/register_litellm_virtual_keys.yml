@@ -209,6 +209,7 @@
       - jellyfin
       - homeassistant
       - karakeep
+      - nextcloud
       - pubmed
       - openfda
       - openalex

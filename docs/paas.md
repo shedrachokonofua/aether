@@ -284,3 +284,38 @@ is not a rollback**. Restore the pre-upgrade database and matching storage
 before returning to 1.x. See the
 [upstream migration guide](https://kestra.io/docs/migration-guide/v2.0.0).
 
+## Nextcloud
+
+`tofu/home/kubernetes/nextcloud.tf` owns the Nextcloud stack; SSO is in
+[Trust Model](trust-model.md#nextcloud-sso-authorization). Two post-install
+Jobs configure it on top of the server: `nextcloud_orion_bootstrap` and
+`nextcloud_theme_bootstrap`.
+
+`nextcloud_orion_bootstrap` installs the Calendar, Contacts and Tasks apps and
+creates the local (non-Keycloak) account `orion` for the Orion MCP server, or
+resets its password from `random_password.nextcloud_orion_password` when the
+account exists. `orion` sees only
+what is shared with it; the sharing model and tool policy are in
+[Orion](orion.md#nextcloud).
+
+The theme is the third-party stylesheet from
+[lionfish2/Nextcloud-CSS-Redesign](https://github.com/lionfish2/Nextcloud-CSS-Redesign)
+(MIT, commit `2125fdc17fdbe4aeec128d548ff31993a385c017`), vendored verbatim as
+`tofu/home/kubernetes/nextcloud_theme/lionfish2-v2.min.css` with its
+`LICENSE.lionfish2`; never edit that file. Local changes go in
+`nextcloud_theme/overrides.css`, which `local.nextcloud_theme_css` concatenates
+after it. The `nextcloud_theme_bootstrap` Job installs the `theming_customcss`
+app (1.22.0 supports Nextcloud 34), disables the `unroundedcorners` app (the
+stylesheet sets its own radius scale), sets the theming `primary_color`
+`#0071E3` and `background_color` `#000000`, sets `backgroundMime=backgroundColor`
+(no background image), and writes the stylesheet to the app config key
+`theming_customcss/customcss` with a `cachebuster`. It does that through a
+`php -r` snippet because the 182 KB stylesheet exceeds the 128 KiB single-argument
+limit that `occ config:app:set` is subject to. The Job name carries a hash of
+the CSS and the two colours, so an edit to either CSS file or colour reruns it
+on the next `tofu apply`.
+
+Light and dark follow the device's `prefers-color-scheme`, not Nextcloud's
+appearance setting. Upstream is unmaintained and targets Nextcloud 35, while
+the cluster runs 34.0.5: re-check the pages after every Nextcloud upgrade and
+put fixes in `overrides.css`.
