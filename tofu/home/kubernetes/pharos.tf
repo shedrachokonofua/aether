@@ -16,7 +16,7 @@
 # and aether/qwen3-embedding:0.6b, on a scoped virtual key.
 #
 # DEPLOYMENT PIN: CI (so/pharos .gitlab-ci.yml chart-publish) publishes chart
-# `pharos` at version 0.1.0-<8-char commit sha> to
+# `pharos` at version 0.1.0-g<8-char commit sha> to
 # oci://registry.gitlab.home.shdr.ch/so/pharos, and the published chart's
 # values pin the image to the same sha. Set pharos_chart_version below to that
 # version after the sibling repo publishes; the placeholder is rejected by the
@@ -38,8 +38,8 @@ locals {
     "app.kubernetes.io/part-of" = "pharos"
   }
 
-  # Published by so/pharos CI from main (ca795501): image and chart pinned to the same commit.
-  pharos_chart_version = "0.1.0-ca795501"
+  # Published by so/pharos CI from main (f1daf84f): image and chart pinned to the same commit.
+  pharos_chart_version = "0.1.0-gf1daf84f"
 
   # In-cluster LiteLLM service (same endpoint deskplane and nextcloud use);
   # keeps model traffic off the gateway hairpin.
@@ -252,8 +252,8 @@ resource "helm_release" "pharos" {
 
   lifecycle {
     precondition {
-      condition     = can(regex("^0\\.1\\.0-[0-9a-f]{8}$", local.pharos_chart_version))
-      error_message = "pharos_chart_version must be the published chart version 0.1.0-<8-char commit sha> from so/pharos CI."
+      condition     = can(regex("^0\\.1\\.0-g[0-9a-f]{8}$", local.pharos_chart_version))
+      error_message = "pharos_chart_version must be the published chart version 0.1.0-g<8-char commit sha> from so/pharos CI."
     }
   }
 
