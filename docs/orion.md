@@ -81,7 +81,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `annas` | `iosifache/annas-mcp` v0.1 via mcp-proxy, `:8016` | `annas_archive.secret_key` | 4 search/download tools; downloads ask in Orion |
 | `yourspotify` | `pentafive/your-spotify-mcp` `9e0e606` via supergateway, `:8015` | `yourspotify.mcp_public_token` | 13 read tools |
 | `shop` | hosted `mcp.shop.com` | none (signed out) | none |
-| `pharos` | Service `pharos` in namespace `pharos`, over cluster DNS | the Pharos MCP token (`random_password.pharos_mcp_token`, also OpenBao `kv/pharos/mcp`) | none (8 read-only tools) |
+| `pharos` | Service `pharos` in namespace `pharos`, over cluster DNS | the Pharos MCP token (`random_password.pharos_mcp_token`, also OpenBao `kv/pharos/mcp`) | none (9 read-only tools) |
 
 Approval policy lives in the Orion grants, not the gateway. Server notes:
 
@@ -254,12 +254,14 @@ The registry entry is `http://pharos.pharos.svc.cluster.local:8080/mcp/` with
 `transport: http`; the trailing slash is the MCP mount. The gateway acts as
 the single Pharos MCP identity, which reads every book in the library.
 `pharos_find_skills` and `pharos_load_skill` serve each finished book as an
-Agent Skill (a `SKILL.md` and one file per chapter); the other six tools read
-chapters, ideas and the books' exact text, and `pharos_ask` runs the local
-model. From Orion release `d12bd301` the `orion` and `orion-molecule` Agents
-hold a `pharos` grant for all eight, and the built-in skill `pharos-library`
-(Orion chart, `orion-skills` version 7) tells the agent when to find a book
-and how to load it. See [AI/ML](ai-ml.md#pharos).
+Agent Skill (a `SKILL.md` and one file per chapter); `pharos_search_ideas`
+searches the ideas of every book at once; the other six tools read chapters,
+single ideas and the books' exact text, and `pharos_ask` runs the local
+model. The `orion` and `orion-molecule` Agents hold a `pharos` grant for the
+tools (eight from Orion release `d12bd301`, with `pharos_search_ideas` from
+`fb051169`), and the built-in skill `pharos-library` (Orion chart,
+`orion-skills` version 8) tells the agent to search ideas for a topic, or to
+find a book and load it. See [AI/ML](ai-ml.md#pharos).
 
 ## Polymarket Task Egress
 
