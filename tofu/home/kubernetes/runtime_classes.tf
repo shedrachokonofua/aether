@@ -25,9 +25,10 @@ resource "kubernetes_manifest" "kata_runtime_class" {
 }
 
 # Kata with guest memory reclaim (tofu/home/kata/configuration-reclaim.toml):
-# a trial of whether Kata VMs can give memory back to the node, after they
-# filled talos-trinity on 2026-11-18. Nothing uses it unless a pod names it.
-# aether.sh/kata-reclaim is set by kubernetes_labels.talos_node_kata_reclaim.
+# the same Kata, but a VM returns memory to the node. Daimyo's task pods and
+# sandboxes run on it (daimyo.tf launcher.runtimeClass) since Kata VMs filled
+# talos-trinity on 2026-11-18. aether.sh/kata-reclaim is set by
+# kubernetes_labels.talos_node_kata_reclaim on every node carrying the handler.
 resource "kubernetes_manifest" "kata_reclaim_runtime_class" {
   manifest = {
     apiVersion = "node.k8s.io/v1"

@@ -65,7 +65,7 @@ Over three days, 0 of 51 sandboxes ended below 80% of their peak. One held 5.53 
 | gVisor (`runsc`, systrap) | 1535 Mi, reclaimable file cache | 2540 Mi | **34 Mi** |
 
 - **Stock Kata** kept all 2.5 GiB although the guest reported 5.9 GiB free. The guest sees 6 GiB of RAM for a 4 Gi limit.
-- **`kata-reclaim`** is the same Kata and hypervisor with two settings changed (`tofu/home/kata/configuration-reclaim.toml`). `reclaim_guest_freed_memory = true` returns freed guest pages to the node. The second is the virtio-fs cache mode, compared below.
+- **`kata-reclaim`** is the same Kata and hypervisor with its settings changed (`tofu/home/kata/configuration-reclaim.toml`). `reclaim_guest_freed_memory = true` returns freed guest pages to the node. The others are the virtio-fs cache mode, compared below, and two found by the canary after it.
 - **gVisor** keeps file data in the node's page cache, which the node can reclaim, and returned everything.
 
 **Which virtio-fs cache mode?** All with reclaim on, except the stock row. Node memory here is the VM process's resident shared memory, which also counts what is charged outside the pod cgroup (a VM starts at about 210 Mi).
@@ -79,24 +79,45 @@ Over three days, 0 of 51 sandboxes ended below 80% of their peak. One held 5.53 
 
 - `auto` with reclaim gives memory back only when files are deleted; a build tree that stays keeps holding it.
 - `never` holds nothing but doubles the time of small-file work, which is what builds do.
-- `metadata` holds nothing and costs 15-30% on small files. It is what the handler now uses. Kata 3.32.0's own comment lists only `never`, `auto` and `always`; virtiofsd accepts `metadata` and the pod ran.
+- `metadata` holds nothing and costs 15-30% on small files. It is what the handler uses. Kata 3.32.0's own comment lists only `never`, `auto` and `always`; virtiofsd accepts `metadata` and the pod ran.
 - Re-reading one 300 MiB file five times took 1.2 s in every mode.
+
+**Canary with real toolchains (14:25-15:05).** Python (shared `mmap`, SQLite in WAL mode), git (5,000 files, commit, gc, fsck), cargo, Bun (SQLite, files) and Postgres (initdb, pgbench), each on the pod's disk volume and on its root filesystem. It found two faults in the configuration above, both fixed before any real pod used the handler:
+
+- **Shared `mmap` failed.** With the data cache off, a shared writable `mmap` of a file returned `ENODEV`: Python's `mmap` raised and SQLite reported "disk I/O error" under Python and Bun. virtiofsd's `--allow-mmap` fixes it.
+- **Real work left nothing to return.** After a 40-crate cargo build the guest had 290 Mi in use and 7.7 GiB free, but the VM still held 914 Mi, the same as stock Kata (906 Mi). The guest reports only free blocks of 2 MiB, and after a build its free memory is in smaller pieces (17,000 single free pages). The guest kernel parameter `page_reporting.page_reporting_order=0` reports every free page: the VM fell from 844 Mi to 510 Mi in 30 s and 439 Mi in 90 s. Order 4 did not help (812 Mi).
+
+On the final configuration (reclaim, `metadata`, `--allow-mmap`, reporting order 0) everything passed, at about stock speed:
+
+| | `kata` (stock) | `kata-reclaim` (final) |
+|---|---|---|
+| cargo build, 40 crates, cold / again | 30 s / 22 s | 29 s / 25 s |
+| VM memory 90 s after the build | 906 Mi | 439 Mi |
+| git, 5,000 files (volume / root) | 37 s / 42 s | 41 s / 25 s |
+| Python `mmap` + SQLite WAL, 50,000 rows | 2.5 s | 3.9 s |
+| Bun SQLite + 20 MB file | 2.0 s / 1.1 s | 1.3 s / 1.2 s |
+| Postgres pgbench, scale 5 | 47 tps | 107 tps |
 
 ## What changed
 
 - **Eviction floor on trinity** (`0ec55cc`): `kubelet_eviction_memory_available: "5Gi"` in `config/vm.yml` becomes kubelet `evictionHard`. Applied 13:20 with a kubelet restart, no reboot; allocatable memory went from 30.7 to 25.8 GiB. The kubelet now evicts the pod furthest over its request while the node can still act. It would have fired at about 12:00 on 11-18. A sandbox lost this way fails its job; the node, the API server and etcd stay up.
-- **`kata-reclaim` handler and RuntimeClass on smith** (`bc7c0d2`, `3401ee4`, cache mode set to `metadata` afterwards): for the trials above. Nothing uses it unless a pod names it. Talos writes `/var/lib/kata-reclaim/configuration.toml` only at boot, so it was copied into place by a pod; the content is the repo file.
+- **`kata-reclaim` handler and RuntimeClass** (`bc7c0d2` to `0d509cd`): on smith for the trials, then on niobe and trinity (15:00, a CRI restart each, no pod restarts). Talos writes `/var/lib/kata-reclaim/configuration.toml` only at boot, so on each running node it was copied into place by a pod; the content is the repo file, and a reboot rewrites the same file.
+- **Daimyo task pods and sandboxes run on `kata-reclaim`** (`67f88bc`, applied 15:20): `launcher.runtimeClass`, which sandboxes inherit. Checked with real turns: `qa/e2e-omp` (bash, `eval`) and `orion` (a Pharos MCP call, bash with a file write, a scout subagent) both succeeded on it. Pods already running stay on `kata` until they end: sessions idle out after 4 h and sandboxes live up to 24 h, so the eviction floor still matters until then.
+- **The Daimyo chart renders `config.sandbox.runtimeClass`** (so/daimyo `764cd3b`) and **a chart edit is now a release diff** (`c271c14`, `chartFilesSha1`). The first attempt to switch sandboxes alone was applied as a no-op: the chart did not render the section, and a local-path chart at a fixed version plans as "No changes" when only its files change.
 
-Not changed: sandbox requests, the `kata` handler, the other Kata nodes.
+- **Eviction floor on smith**, 4 Gi (applied 15:30): with eleven pods still on the stock `kata` handler, the kubelet's available memory there fell from 23 to 8 GiB between 13:40 and 15:20.
 
-## Options from here
+Not changed: sandbox requests, the `kata` handler (the `daimyo-molecule` runner still uses it), and niobe's eviction floor (92% of its memory is requested, so a lower allocatable could reject pods when its kubelet restarts).
 
-1. **Move Kata pods to `kata-reclaim`.** Needs the handler on niobe and trinity (a CRI restart each, and the config file, which appears at the next boot or can be copied as on smith), then Daimyo's `runtimeClass`. Canary first on `qa/e2e-omp` and one Cicada sandbox build: the trials used synthetic file work, not a real cargo or bun build, and did not exercise shared writable `mmap` on virtio-fs files (SQLite, some build tools), which a changed cache mode can affect.
+## Still open
+
+1. **Watch it under real load.** No Cicada sandbox had started on `kata-reclaim` when this was written. The check is whether sandboxes still end at their peak: `k8s.pod.memory.working_set` for `cicada-tasks/sandbox-%`, last value against maximum (51 of 51 were at 100% before).
 2. **Charge the whole VM to its pod**: `sandbox_cgroup_only = true` plus a RuntimeClass `overhead.podFixed`, so the 10% outside the pod cgroup is limited and scheduled for.
-3. **Raise sandbox requests to what they use** (5 Gi for the 6 Gi classes is the 90th percentile). `cicada-tasks` allows 40 Gi of memory requests, which seven such sandboxes and ten tasks exceed, so the quota moves with it. Less urgent if option 1 holds.
+3. **Sandbox requests** (2-3 Gi against a 5 Gi 90th percentile under `kata`) should be re-measured once sandboxes have run on `kata-reclaim`; they may now be right.
 4. **Give the OOM controller a better victim than Cilium.** The Cilium agent has a request and no limit, so it has no `memory.max` and ranks first. Open since August.
-5. **gVisor for task pods.** It returned memory fully and needs no nested KVM (the reason neo left the Kata pool), but it is a userspace kernel, not a VM: weaker isolation, no `io_uring`, and Postgres, ClickHouse and Chromium under it are unproven here. A candidate for the agent task pods, not yet for CI sandboxes.
-6. **Swap or zswap on the Kata nodes** would let idle VM memory be paged out. Untested, and it needs a swap disk per VM.
+5. **The Kata config is a copy.** It is the 3.32.0 extension's file with four changes; a Talos or extension upgrade needs it re-copied. Talos 1.14 can write it as an `EtcFileConfig` document, which the talos provider 0.11.0 does not know.
+6. **gVisor for task pods** returned memory fully and needs no nested KVM (the reason neo left the Kata pool), but it is a userspace kernel, not a VM. Not needed if this holds.
+7. **`cicada-tasks` is at its CPU-limit quota** (31.5 of 32): Daimyo logged session pods refused for it during the rollout. Unrelated to memory.
 
 ## Reproduce
 

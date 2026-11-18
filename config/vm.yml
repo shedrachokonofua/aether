@@ -425,6 +425,10 @@ talos_smith:
   # aether.sh/kata-reclaim label; the kata handler is unchanged. Every Kata
   # node carries it: Daimyo's pods name the kata-reclaim RuntimeClass.
   kata_reclaim: true
+  # Same eviction floor as talos_trinity, for the same reason: on 2026-11-18,
+  # with eleven pods still on the stock kata handler, the kubelet's available
+  # memory here fell from 23 to 8 GiB in two hours.
+  kubelet_eviction_memory_available: "4Gi"
   gpu: true
   gpu_input: true # uinput extension + module for the Sunshine game-server (kept as a fallback; primary host is now neo)
   gpu_pool: "turing"
