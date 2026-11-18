@@ -333,6 +333,8 @@ talos_trinity:
   # nothing was evicted and the API server and etcd here stalled
   # (docs/worklogs/trinity-kata-memory-2026-11.md).
   kubelet_eviction_memory_available: "5Gi"
+  # Carries the kata-reclaim handler (see talos_smith).
+  kata_reclaim: true
   ip: "10.0.3.16"
   gateway: "10.0.3.1"
 
@@ -394,6 +396,8 @@ talos_niobe:
   ci_disk_gb: 128
   # Same host io_uring leak as talos_trinity (niobe hit it on 2026-08-16).
   local_disk_aio: "native"
+  # Carries the kata-reclaim handler (see talos_smith).
+  kata_reclaim: true
   ip: "10.0.3.18"
   gateway: "10.0.3.1"
 
@@ -415,10 +419,11 @@ talos_smith:
   ci_disk_datastore: "local-lvm"
   # Same host io_uring leak as talos_trinity; applies to the host-local CI disk.
   local_disk_aio: "native"
-  # Carries the kata-reclaim handler: Kata with guest memory reclaim on, on
-  # trial here to see whether Kata VMs can return memory to the node
+  # Carries the kata-reclaim handler: Kata with guest memory reclaim on, so a
+  # Kata VM returns memory to the node
   # (docs/worklogs/trinity-kata-memory-2026-11.md). Adds a CRI handler and the
-  # aether.sh/kata-reclaim label; the kata handler is unchanged.
+  # aether.sh/kata-reclaim label; the kata handler is unchanged. Every Kata
+  # node carries it: Daimyo's pods name the kata-reclaim RuntimeClass.
   kata_reclaim: true
   gpu: true
   gpu_input: true # uinput extension + module for the Sunshine game-server (kept as a fallback; primary host is now neo)
