@@ -120,9 +120,6 @@ first, so rotating the `random_password` replaces the app password on the next
 apply. There is no SOPS secret. To cut Orion's access, revoke `orion-mcp
 (litellm nextcloud-mcp)` under Settings > Security > Devices & sessions. The
 Job creates no `tasks` list: his account already has `personal` and `tasks`.
-An earlier dedicated local account `orion` (created 2026-11-17) still exists in
-Nextcloud; it is unused, its password is no longer stored anywhere, and it is
-not the MCP identity.
 
 The gateway exposes the server's 55 tools as `nextcloud-<tool>`: 24 Files
 (`nc_webdav_*`), 6 Sharing (`nc_share_*`), 17 Calendar including todos
