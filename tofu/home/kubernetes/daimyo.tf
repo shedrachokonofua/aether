@@ -885,6 +885,15 @@ resource "helm_release" "daimyo" {
         sidecarImage     = ""
         imagePullSecrets = [kubernetes_secret_v1.daimyo_tasks_registry["personal"].metadata[0].name]
       }
+      # Sandboxes run on the kata-reclaim RuntimeClass (runtime_classes.tf):
+      # the same Kata, with guest memory returned to the node. Under `kata` a
+      # sandbox's memory only climbed toward its 6-8Gi limit and four of them
+      # filled talos-trinity on 2026-11-18
+      # (docs/worklogs/trinity-kata-memory-2026-11.md). Task pods follow once
+      # sandboxes have run real builds on it.
+      sandbox = {
+        runtimeClass = "kata-reclaim"
+      }
     }
     orgs = [
       { name = "personal" },
