@@ -545,6 +545,37 @@ resource "talos_machine_configuration_apply" "this" {
       }
     })] : [],
 
+    # Second Kata handler, `kata-reclaim` (data-driven via kata_reclaim in
+    # config/vm.yml): the extension's cloud-hypervisor configuration with guest
+    # memory reclaim on (tofu/home/kata/configuration-reclaim.toml). The
+    # extension's own file is read-only, so the copy lives under /var and a CRI
+    # fragment registers a handler that points at it. Talos regenerates the CRI
+    # configuration and restarts CRI; no reboot.
+    try(each.value.kata_reclaim, false) ? [yamlencode({
+      machine = {
+        files = [
+          {
+            path        = "/var/lib/kata-reclaim/configuration.toml"
+            op          = "create"
+            permissions = 420 # 0644
+            content     = file("${path.module}/kata/configuration-reclaim.toml")
+          },
+          {
+            path    = "/etc/cri/conf.d/20-customization.part"
+            op      = "create"
+            content = <<-EOT
+              [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-reclaim]
+                runtime_type = "io.containerd.kata.v2"
+                privileged_without_host_devices = true
+                pod_annotations = ["io.katacontainers.*"]
+              [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.kata-reclaim.options]
+                ConfigPath = "/var/lib/kata-reclaim/configuration.toml"
+            EOT
+          },
+        ]
+      }
+    })] : [],
+
     # GPU-storage disk: partition and mount at /var/mnt/gpu-storage. virtio2 is
     # /dev/vdc while the legacy virtio1 etcd disk exists, otherwise /dev/vdb.
     try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({
@@ -708,6 +739,30 @@ resource "kubernetes_labels" "talos_node_kata" {
   }
 
   field_manager = "opentofu-aether-node-labels"
+}
+
+# Nodes that carry the kata-reclaim handler (kata_reclaim: true in
+# config/vm.yml); the kata-reclaim RuntimeClass selects on this label.
+resource "kubernetes_labels" "talos_node_kata_reclaim" {
+  for_each = {
+    for k, v in local.talos_vm_nodes : k => v
+    if try(v.kata_reclaim, false)
+  }
+
+  depends_on = [talos_cluster_kubeconfig.this, talos_machine_configuration_apply.this]
+
+  api_version = "v1"
+  kind        = "Node"
+
+  metadata {
+    name = each.value.name
+  }
+
+  labels = {
+    "aether.sh/kata-reclaim" = "true"
+  }
+
+  field_manager = "opentofu-aether-node-labels-kata-reclaim"
 }
 
 # =============================================================================
