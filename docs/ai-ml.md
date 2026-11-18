@@ -858,8 +858,9 @@ Personal EPUB library declared in [`tofu/home/kubernetes/pharos.tf`](../tofu/hom
 CI live in `so/pharos`. It turns books into source-linked chapter readings and serves a read-only MCP at
 `https://pharos.home.shdr.ch/mcp/` (bearer token in OpenBao `kv/pharos/mcp`). Over that MCP every finished
 book is also an Agent Skill, found with `pharos_find_skills` and loaded with `pharos_load_skill` (the same
-files are `skill://<name>/...` resources); nothing is registered with the LiteLLM MCP gateway, clients
-connect to Pharos directly. Model access is local only,
+files are `skill://<name>/...` resources). The LiteLLM MCP gateway registers it as `pharos`, in the
+`daimyo-orion` key's scope only ([Orion](orion.md#gateway-mcps)); other clients connect to Pharos
+directly. Model access is local only,
 through the LiteLLM virtual key alias `pharos`, whose allowlist (`register_litellm_virtual_keys.yml`,
 `task configure:litellm-keys -- --tags pharos-models`) is exactly `aether/qwen3.8-flash-next`,
 `aether/qwen3.8-flash-next:think` and `aether/qwen3-embedding:0.6b`. One replica and one book-processing

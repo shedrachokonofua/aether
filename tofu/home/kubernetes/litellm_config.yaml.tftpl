@@ -1427,6 +1427,17 @@ mcp_servers:
     url: "http://sourcegull-web.sourcegull.svc.cluster.local:7080/.api/mcp"
     auth_type: bearer_token
     auth_value: "${sourcegull_mcp_token}"
+  # Pharos book library (kubernetes/pharos.tf): every finished book as an Agent
+  # Skill (pharos_find_skills, pharos_load_skill), plus passage search, ideas
+  # and the books' exact text. Cluster DNS skips Caddy; the trailing slash is
+  # the MCP mount itself. All eight tools are read-only (pharos_ask runs the
+  # local model), so no allowlist. Acts as the one Pharos MCP identity, which
+  # reads every book; only the daimyo-orion key's scope includes it.
+  pharos:
+    url: "http://pharos.pharos.svc.cluster.local:8080/mcp/"
+    transport: http
+    auth_type: bearer_token
+    auth_value: "${pharos_mcp_token}"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"
