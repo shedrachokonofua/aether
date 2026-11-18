@@ -887,20 +887,17 @@ resource "helm_release" "daimyo" {
       }
       # OTLP/HTTP traces to the in-cluster collector (-> Tempo), spec §15.4.
       otel = { endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces" }
+      # Task pods and sandboxes run on the kata-reclaim RuntimeClass
+      # (runtime_classes.tf): the same Kata, with guest memory returned to the
+      # node. Under `kata` a pod's memory only climbed toward its limit, and
+      # four 6-8Gi sandboxes filled talos-trinity on 2026-11-18
+      # (docs/worklogs/trinity-kata-memory-2026-11.md). Sandboxes take the
+      # launcher's class; the daimyo-molecule runner stays on `kata`.
       launcher = {
         kind             = "kata"
-        runtimeClass     = "kata"
+        runtimeClass     = "kata-reclaim"
         sidecarImage     = ""
         imagePullSecrets = [kubernetes_secret_v1.daimyo_tasks_registry["personal"].metadata[0].name]
-      }
-      # Sandboxes run on the kata-reclaim RuntimeClass (runtime_classes.tf):
-      # the same Kata, with guest memory returned to the node. Under `kata` a
-      # sandbox's memory only climbed toward its 6-8Gi limit and four of them
-      # filled talos-trinity on 2026-11-18
-      # (docs/worklogs/trinity-kata-memory-2026-11.md). Task pods follow once
-      # sandboxes have run real builds on it.
-      sandbox = {
-        runtimeClass = "kata-reclaim"
       }
     }
     orgs = [
