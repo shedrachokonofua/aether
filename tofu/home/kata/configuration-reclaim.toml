@@ -4,8 +4,12 @@
 #
 #   reclaim_guest_freed_memory = true   the guest reports freed pages and the hypervisor
 #                                       returns them to the node (default: never returned)
-#   virtio_fs_cache = "never"           file data read over virtio-fs is not kept in the
-#                                       guest page cache (default "auto": it fills guest RAM)
+#   virtio_fs_cache = "metadata"        file data on virtio-fs does not hold node memory
+#                                       (default "auto": it stays in guest RAM while the file
+#                                       exists). "never" also works but made a job of 20,000
+#                                       small files twice as slow; "metadata" did not. The
+#                                       file's own comment below lists never/auto/always only;
+#                                       virtiofsd accepts metadata and it was measured on smith.
 #
 # Why: docs/worklogs/trinity-kata-memory-2026-11.md. Re-copy from a node and re-apply the two
 # changes when the extension's Kata version changes.
@@ -176,7 +180,7 @@ virtio_fs_extra_args = ["--thread-pool-size=1", "--announce-submounts"]
 #
 #  - always
 #    Metadata, data, and pathname lookup are cached in guest and never expire.
-virtio_fs_cache = "never"
+virtio_fs_cache = "metadata"
 
 # Block storage driver to be used for the hypervisor in case the container
 # rootfs is backed by a block device. This is virtio-blk.

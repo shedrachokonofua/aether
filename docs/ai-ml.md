@@ -861,7 +861,7 @@ CI live in `so/pharos`. It turns books into source-linked chapter readings and s
 `https://pharos.home.shdr.ch/mcp/` (bearer token in OpenBao `kv/pharos/mcp`). Over that MCP every finished
 book is also an Agent Skill, found with `pharos_find_skills` and loaded with `pharos_load_skill` (the same
 files are `skill://<name>/...` resources), and `pharos_search_ideas` searches the ideas of every book at
-once (from chart `0.1.0-ca795501`). The LiteLLM MCP gateway registers it as `pharos`, in the
+once (from chart `0.1.0-ca795501`; chart versions are `0.1.0-g<sha>` from `f1daf84f`). The LiteLLM MCP gateway registers it as `pharos`, in the
 `daimyo-orion` key's scope only ([Orion](orion.md#gateway-mcps)); other clients connect to Pharos
 directly. Model access is local only,
 through the LiteLLM virtual key alias `pharos`, whose allowlist (`register_litellm_virtual_keys.yml`,

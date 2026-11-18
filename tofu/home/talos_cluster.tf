@@ -550,7 +550,10 @@ resource "talos_machine_configuration_apply" "this" {
     # memory reclaim on (tofu/home/kata/configuration-reclaim.toml). The
     # extension's own file is read-only, so the copy lives under /var and a CRI
     # fragment registers a handler that points at it. Talos regenerates the CRI
-    # configuration and restarts CRI; no reboot.
+    # configuration and restarts CRI without a reboot, but writes a /var file
+    # only at boot: on a running node the file appears after its next reboot.
+    # (An EtcFileConfig document would be written at once; talos provider
+    # 0.11.0 does not know that kind.)
     try(each.value.kata_reclaim, false) ? [yamlencode({
       machine = {
         files = [
