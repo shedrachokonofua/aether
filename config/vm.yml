@@ -415,6 +415,11 @@ talos_smith:
   ci_disk_datastore: "local-lvm"
   # Same host io_uring leak as talos_trinity; applies to the host-local CI disk.
   local_disk_aio: "native"
+  # Carries the kata-reclaim handler: Kata with guest memory reclaim on, on
+  # trial here to see whether Kata VMs can return memory to the node
+  # (docs/worklogs/trinity-kata-memory-2026-11.md). Adds a CRI handler and the
+  # aether.sh/kata-reclaim label; the kata handler is unchanged.
+  kata_reclaim: true
   gpu: true
   gpu_input: true # uinput extension + module for the Sunshine game-server (kept as a fallback; primary host is now neo)
   gpu_pool: "turing"
