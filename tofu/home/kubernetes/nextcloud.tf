@@ -45,6 +45,21 @@ locals {
   INI
   nextcloud_opcache_hash   = substr(sha256(local.nextcloud_opcache_config), 0, 12)
 
+  # Envoy keeps its upstream connections open, and each idle keep-alive
+  # connection pins one prefork worker for KeepAliveTimeout (5 s). A page load
+  # opens about 60 at once, so with the stock 5 spare workers requests queued
+  # behind the one-step-per-second spawn ramp for up to 6 s. 60 parallel
+  # keep-alive requests against this image: p50 4.8 s stock, 29 ms with this.
+  nextcloud_apache_config = <<-CONF
+    KeepAlive Off
+    <IfModule mpm_prefork_module>
+        StartServers 16
+        MinSpareServers 16
+        MaxSpareServers 32
+    </IfModule>
+  CONF
+  nextcloud_apache_hash   = substr(sha256(local.nextcloud_apache_config), 0, 12)
+
   # 34.0.5 ships PHP 8.5.12: fixes PHP2Shell RCE (CVE-2026-109618, CVE-2026-109619).
   nextcloud_server_image   = "nextcloud:34.0.5-apache@sha256:9dbdc711cef21e1767a6e45a97e318e654d9e2ab2c1f1c570bb9cafc94529a18"
   nextcloud_postgres_image = "postgres:16-alpine"
@@ -71,7 +86,8 @@ locals {
     secret       = var.secrets["nextcloud.secret"]
     instanceid   = var.secrets["nextcloud.instanceid"]
     dbname       = local.nextcloud_db_name
-    dbhost       = local.nextcloud_db_host
+    # Trailing dot: an absolute name skips the ndots:5 search-list lookups
+    # that precede every connection (connect + select 1: 13.7 ms -> 10.0 ms).
     dbhost     = "${local.nextcloud_db_host}."
     dbuser     = local.nextcloud_cnpg_user
     dbpassword = random_password.nextcloud_postgres_password.result
@@ -588,6 +604,7 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
           "aether.shdr.ch/config-hash"        = local.nextcloud_config_hash
           "aether.shdr.ch/install-state-hash" = local.nextcloud_install_state_hash
           "aether.shdr.ch/opcache-hash"       = local.nextcloud_opcache_hash
+          "aether.shdr.ch/apache-hash"        = local.nextcloud_apache_hash
         }
       }
 
@@ -733,6 +750,12 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             sub_path   = "zz-nextcloud-opcache.ini"
           }
 
+          volume_mount {
+            name       = "apache"
+            mount_path = "/etc/apache2/conf-enabled/zz-aether-tuning.conf"
+            sub_path   = "zz-aether-tuning.conf"
+          }
+
           resources {
             requests = {
               cpu    = "50m"
@@ -787,6 +810,13 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             name = kubernetes_config_map_v1.nextcloud_opcache.metadata[0].name
           }
         }
+
+        volume {
+          name = "apache"
+          config_map {
+            name = kubernetes_config_map_v1.nextcloud_apache.metadata[0].name
+          }
+        }
       }
     }
   }
@@ -808,6 +838,19 @@ resource "kubernetes_config_map_v1" "nextcloud_opcache" {
 
   data = {
     "zz-nextcloud-opcache.ini" = local.nextcloud_opcache_config
+  }
+}
+
+resource "kubernetes_config_map_v1" "nextcloud_apache" {
+  depends_on = [module.namespace["nextcloud"]]
+
+  metadata {
+    name      = "nextcloud-apache"
+    namespace = module.namespace["nextcloud"].name
+  }
+
+  data = {
+    "zz-aether-tuning.conf" = local.nextcloud_apache_config
   }
 }
 
