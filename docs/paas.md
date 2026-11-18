@@ -288,15 +288,16 @@ before returning to 1.x. See the
 
 `tofu/home/kubernetes/nextcloud.tf` owns the Nextcloud stack; SSO is in
 [Trust Model](trust-model.md#nextcloud-sso-authorization). Two post-install
-Jobs configure it on top of the server: `nextcloud_orion_bootstrap` and
+Jobs configure it on top of the server: `nextcloud_mcp_bootstrap` and
 `nextcloud_theme_bootstrap`.
 
-`nextcloud_orion_bootstrap` installs the Calendar, Contacts and Tasks apps and
-creates the local (non-Keycloak) account `orion` for the Orion MCP server, or
-resets its password from `random_password.nextcloud_orion_password` when the
-account exists. `orion` sees only
-what is shared with it; the sharing model and tool policy are in
-[Orion](orion.md#nextcloud).
+`nextcloud_mcp_bootstrap` installs the Calendar, Contacts and Tasks apps and
+creates an app password named `orion-mcp (litellm nextcloud-mcp)` on Shedrach's
+own Nextcloud account from `random_password.nextcloud_mcp_app_password`, for
+the Orion MCP server; Orion therefore reaches everything that account can, with
+nothing shared. Revoke that app password under Settings > Security > Devices &
+sessions to cut Orion's access. The tool policy and the unused earlier `orion`
+account are described in [Orion](orion.md#nextcloud).
 
 The theme is the third-party stylesheet from
 [lionfish2/Nextcloud-CSS-Redesign](https://github.com/lionfish2/Nextcloud-CSS-Redesign)
