@@ -332,14 +332,20 @@ grows one spawn step per second: home-gateway Caddy logged 1.8 to 5.7 s
 responses in one-second steps after a login (2026-11-17). Against the same
 image in a local container, 60 parallel keep-alive requests for a static file
 took p50 4.8 s stock and 29 ms with this file; a larger spare pool with
-keep-alive left on still took 3.1 s. The change has not been measured on the
-cluster yet.
+keep-alive left on still took 3.1 s. On the cluster, 60 parallel requests
+through `nextcloud.home.shdr.ch` went from p90 2.5 s / max 3.5 s to p90
+63-105 ms / max 91-109 ms for a static file, and from p90 3.8 s / max 4.7 s to
+p90 376-698 ms / max 486-852 ms for `status.php` (2026-11-17).
 
-The Redis host in `nextcloud_config.php.tftpl` and `dbhost` in the
-install-state config end in a dot. Pods resolve with `ndots:5`, so a name
-without it walks the three search domains before every connection. Measured
-in the server pod: Redis connect and ping 3.5 ms to 1.3 ms, Postgres connect
-and `select 1` 13.7 ms to 10.0 ms.
+`REDIS_HOST` on the server and cron Deployments, the Redis host in
+`nextcloud_config.php.tftpl` and `dbhost` in the install-state config end in a
+dot. Pods resolve with `ndots:5`, so a name without it walks the three search
+domains before every connection. Measured in the server pod: Redis connect
+and ping 4.0 ms to 1.9 ms, Postgres connect and `select 1` 13.7 ms to 10.0 ms.
+The image's `redis.config.php` sets `redis.host` from `REDIS_HOST` and loads
+after `nextcloud-k8s.config.php`, so where that variable is set it overrides
+the template's host (the template's timeouts still apply); only the task
+worker, which does not set it, takes its host from the template.
 
 Per-request PHP time is otherwise 30 to 70 ms in the pod; CPU, memory,
 OPcache, APCu, the 61 MB database and NFS were checked and are not the

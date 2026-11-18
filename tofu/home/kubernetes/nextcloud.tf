@@ -663,9 +663,12 @@ resource "kubernetes_deployment_v1" "nextcloud_server" {
             value = local.nextcloud_db_host
           }
 
+          # The image's redis.config.php sets redis.host from this variable
+          # and loads after nextcloud-k8s.config.php, so this value is the
+          # host PHP uses. Trailing dot: see nextcloud_config.php.tftpl.
           env {
             name  = "REDIS_HOST"
-            value = "nextcloud-redis.${local.nextcloud_namespace}.svc.cluster.local"
+            value = "nextcloud-redis.${local.nextcloud_namespace}.svc.cluster.local."
           }
 
           env {
@@ -971,7 +974,7 @@ resource "kubernetes_deployment_v1" "nextcloud_cron" {
 
           env {
             name  = "REDIS_HOST"
-            value = "nextcloud-redis.${local.nextcloud_namespace}.svc.cluster.local"
+            value = "nextcloud-redis.${local.nextcloud_namespace}.svc.cluster.local."
           }
 
           volume_mount {

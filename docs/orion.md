@@ -151,8 +151,15 @@ second write to the same path was refused), `nc_webdav_read_file`,
 `nc_calendar_get_upcoming_events`, `nc_contacts_list_addressbooks` and
 `nc_share_list` succeeded. `nc_calendar_create_todo` returned 403 on `personal`
 and succeeded on a `tasks` list created with `occ dav:create-calendar`. Idle
-memory was about 180-216 MiB. The live rollout has not happened: there is no
-gateway `tools/list` and no Orion thread evidence yet.
+memory was about 180-216 MiB.
+
+Gateway verification (2026-11-17, `daimyo-orion` key against
+`/mcp/nextcloud`, after the sidecar and bootstrap Job were applied):
+`tools/list` returned all 55 tools. `nc_webdav_list_directory` on `/`,
+`nc_calendar_list_calendars` (the `tasks` list), `nc_calendar_list_todos` on
+`tasks`, `nc_contacts_list_addressbooks` and `nc_share_list` succeeded as
+`orion`. The Orion grant is not released, so there is no Orion thread evidence
+yet.
 
 ### Withings
 
