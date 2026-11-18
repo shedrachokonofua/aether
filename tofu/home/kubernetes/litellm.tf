@@ -35,7 +35,7 @@ locals {
   litellm_karakeep_mcp_image    = "docker.io/node:22-slim"
   litellm_karakeep_mcp_packages = "@karakeep/mcp@0.34.0 supergateway@4.2.1"
   # cbcoutinho/nextcloud-mcp-server 0.213.2 (multi-arch index digest): native
-  # streamable HTTP, single-user BasicAuth as Nextcloud's `orion` account.
+  # streamable HTTP, single-user BasicAuth as Shedrach's Nextcloud account.
   litellm_nextcloud_mcp_image = "ghcr.io/cbcoutinho/nextcloud-mcp-server:0.213.2@sha256:655c2864b48fd3f0696480ebe19a165ff114a582b30b9cec1d6ab4923586d325"
   # pentafive/your-spotify-mcp v0.2.3 (commit 9e0e606, Apache-2.0, not on npm):
   # Your Spotify listening-history analytics, stdio-only. Built at start from
@@ -150,7 +150,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       # log under that user, and rotating it breaks both consumers.
       HOMEASSISTANT_TOKEN    = var.secrets["homeassistant.telemetry_token"]
       KARAKEEP_API_KEY       = var.secrets["karakeep.mcp_api_key"]
-      NEXTCLOUD_MCP_PASSWORD = random_password.nextcloud_orion_password.result
+      NEXTCLOUD_MCP_PASSWORD = random_password.nextcloud_mcp_app_password.result
       TICKETMASTER_API_KEY   = var.secrets["ticketmaster.api_key"]
       OPENALEX_API_KEY       = var.secrets["openalex.api_key"]
       YOUR_SPOTIFY_TOKEN     = var.secrets["yourspotify.mcp_public_token"]
@@ -1459,9 +1459,10 @@ resource "kubernetes_deployment_v1" "litellm" {
           name  = "nextcloud-mcp"
           image = local.litellm_nextcloud_mcp_image
           # Loopback only: no auth here and only LiteLLM calls it. Signs in to
-          # Nextcloud as the local `orion` account (nextcloud.tf), which sees
-          # only what is shared with it. Only the Files, Sharing, Calendar and
-          # Contacts tools register; semantic search stays off (the default).
+          # Nextcloud as Shedrach's account with a dedicated app password
+          # (nextcloud.tf), so it reaches everything he can. Only the Files,
+          # Sharing, Calendar and Contacts tools register; semantic search
+          # stays off (the default).
           command = [
             "/opt/venv/bin/nextcloud-mcp-server", "run",
             "--host", "127.0.0.1",
@@ -1486,7 +1487,7 @@ resource "kubernetes_deployment_v1" "litellm" {
 
           env {
             name  = "NEXTCLOUD_USERNAME"
-            value = local.nextcloud_orion_user
+            value = local.nextcloud_mcp_uid
           }
 
           env {

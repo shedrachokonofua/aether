@@ -72,7 +72,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `instacart` | `instacart-mcp` Service (holds its own login) | none at the gateway | none |
 | `homeassistant` | `ha-mcp` sidecar | `homeassistant.telemetry_token` | none |
 | `karakeep` | `@karakeep/mcp` via supergateway | `karakeep.mcp_api_key` | none |
-| `nextcloud` | `cbcoutinho/nextcloud-mcp-server` 0.213.2, `:8017` | `random_password.nextcloud_orion_password` (local `orion` account) | none (55 tools: Files, Sharing, Calendar, Contacts) |
+| `nextcloud` | `cbcoutinho/nextcloud-mcp-server` 0.213.2, `:8017` | `random_password.nextcloud_mcp_app_password` (app password on Shedrach's account) | none (55 tools: Files, Sharing, Calendar, Contacts) |
 | `withings` | hosted `mcp.withings.com` | OAuth login of LiteLLM user `orion` | none |
 | `pubmed` | `cyanheads/pubmed-mcp-server` 2.12.2, `:8011` | none (keyless E-utilities) | none |
 | `ticketmaster` | `sourabhmadur/ticketmaster-mcp` `bc3367d` via mcp-proxy, `:8012` | `ticketmaster.api_key` | none |
@@ -99,21 +99,30 @@ sidecar in the LiteLLM pod: [cbcoutinho/nextcloud-mcp-server](https://github.com
 the multi-arch index digest), native streamable HTTP on `127.0.0.1:8017/mcp`
 with no auth on the listener, started with one `--enable-app` flag each for
 `webdav`, `sharing`, `calendar` and `contacts`. It reaches Nextcloud at
-`http://nextcloud-server.nextcloud.svc.cluster.local` and signs in as the local
-account `orion` (display name Orion; not a Keycloak user). The `daimyo-orion`
+`http://nextcloud-server.nextcloud.svc.cluster.local` and signs in as Shedrach's
+own Nextcloud account (uid `f843d136dcb36f7fbf3699c26ae9dfaa12d8d0637ca9ee4335f1da1c1264b02a`,
+`local.nextcloud_mcp_uid`; the hashed id predates `--unique-uid=0`) with a
+dedicated app password named `orion-mcp (litellm nextcloud-mcp)`. The `daimyo-orion`
 key's scope includes `nextcloud` (same `--tags orion-mcp` command as Instacart
 above); no other key does.
 
-`orion` sees only its own, initially empty, files, calendar, task list and
-address book plus whatever is shared with it. To let Orion read or edit a
-folder, calendar, task list or address book, share it with user `orion` in the
-Nextcloud UI. The `nextcloud_orion_bootstrap` Job installs the Calendar,
-Contacts and Tasks apps, creates the account or resets its password from
-`random_password.nextcloud_orion_password` (tofu state; Secret
-`nextcloud-orion` key `OC_PASS` and `NEXTCLOUD_MCP_PASSWORD` in `litellm-env`),
-and creates a `tasks` calendar for it with `occ dav:create-calendar`, because
-the default Personal calendar accepts events only and `nc_calendar_create_todo`
-answers 403 there. There is no SOPS secret and no app-password step.
+Orion therefore reaches all of his files, shares, calendars, task lists and
+address books, and nothing needs sharing. The account is in Nextcloud's `admin`
+group, but the sidecar registers only the Files, Sharing, Calendar and Contacts
+tools. The `nextcloud_mcp_bootstrap` Job installs the Calendar, Contacts and
+Tasks apps and creates the app password from
+`random_password.nextcloud_mcp_app_password` (40 characters, tofu state; Secret
+`nextcloud-mcp` key `MCP_APP_PASSWORD` in namespace `nextcloud`, and
+`NEXTCLOUD_MCP_PASSWORD` in `litellm-env`). It writes the token through
+Nextcloud's token provider in a `php -r` snippet, so the value never reaches
+argv; if a token of that name with a different value exists it is revoked
+first, so rotating the `random_password` replaces the app password on the next
+apply. There is no SOPS secret. To cut Orion's access, revoke `orion-mcp
+(litellm nextcloud-mcp)` under Settings > Security > Devices & sessions. The
+Job creates no `tasks` list: his account already has `personal` and `tasks`.
+An earlier dedicated local account `orion` (created 2026-11-17) still exists in
+Nextcloud; it is unused, its password is no longer stored anywhere, and it is
+not the MCP identity.
 
 The gateway exposes the server's 55 tools as `nextcloud-<tool>`: 24 Files
 (`nc_webdav_*`), 6 Sharing (`nc_share_*`), 17 Calendar including todos
@@ -154,12 +163,12 @@ and succeeded on a `tasks` list created with `occ dav:create-calendar`. Idle
 memory was about 180-216 MiB.
 
 Gateway verification (2026-11-17, `daimyo-orion` key against
-`/mcp/nextcloud`, after the sidecar and bootstrap Job were applied):
-`tools/list` returned all 55 tools. `nc_webdav_list_directory` on `/`,
-`nc_calendar_list_calendars` (the `tasks` list), `nc_calendar_list_todos` on
-`tasks`, `nc_contacts_list_addressbooks` and `nc_share_list` succeeded as
-`orion`. The Orion grant is not released, so there is no Orion thread evidence
-yet.
+`/mcp/nextcloud`, signed in as Shedrach's account): `tools/list` returned all
+55 tools. `nc_webdav_list_directory` on `/` returned his 7 entries,
+`nc_calendar_list_calendars` returned `personal`, `contact_birthdays` and
+`tasks`, `nc_contacts_list_addressbooks` returned 3 address books, and
+`nc_calendar_list_todos` on `tasks` and `nc_share_list` succeeded. No write
+tool was called.
 
 ### Withings
 

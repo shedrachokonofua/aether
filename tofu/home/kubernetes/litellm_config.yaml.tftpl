@@ -1225,12 +1225,12 @@ mcp_servers:
   karakeep:
     url: "http://localhost:8010/mcp"
   # Nextcloud (litellm.tf nextcloud-mcp sidecar: cbcoutinho/nextcloud-mcp-server
-  # 0.213.2, loopback). Acts as Nextcloud's local `orion` account, which sees
-  # only the folders, calendars and address books shared with it. The sidecar
-  # registers the Files, Sharing, Calendar and Contacts tools only, so there
-  # is no allowlist. Only the daimyo-orion key's scope includes it, and
-  # Orion's grant asks before deletes, moves, share changes, bulk calendar
-  # edits, calendar management and meeting invitations.
+  # 0.213.2, loopback). Acts as Shedrach's Nextcloud account through a
+  # dedicated app password, so it reaches all his files, calendars, task lists
+  # and address books. The sidecar registers the Files, Sharing, Calendar and
+  # Contacts tools only, so there is no allowlist. Only the daimyo-orion key's
+  # scope includes it, and Orion's grant asks before deletes, moves, share
+  # changes, bulk calendar edits, calendar management and meeting invitations.
   nextcloud:
     url: "http://localhost:8017/mcp"
   # PubMed/PMC literature (litellm.tf pubmed-mcp sidecar:

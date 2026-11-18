@@ -129,18 +129,19 @@ locals {
     "context_chat=2",
   ])), 0, 12))
 
-  # Orion's Nextcloud identity: a local account, not a Keycloak user, so it
-  # sees only what is shared with it. The nextcloud-mcp sidecar in the LiteLLM
-  # pod (litellm.tf) signs in as this account with HTTP Basic auth.
-  nextcloud_orion_user = "orion"
+  # The nextcloud-mcp sidecar in the LiteLLM pod (litellm.tf) signs in as
+  # Shedrach's own account with an app password, so Orion sees everything he
+  # does. The account predates `--unique-uid=0`, so its id is the hashed one.
+  nextcloud_mcp_uid        = "f843d136dcb36f7fbf3699c26ae9dfaa12d8d0637ca9ee4335f1da1c1264b02a"
+  nextcloud_mcp_token_name = "orion-mcp (litellm nextcloud-mcp)"
   # Calendar and Contacts give the DAV data a web UI; Tasks shows the todos
   # the MCP calendar tools write.
-  nextcloud_orion_apps = ["calendar", "contacts", "tasks"]
-  nextcloud_orion_bootstrap_hash = nonsensitive(substr(sha256(join("|", [
-    local.nextcloud_orion_user,
-    random_password.nextcloud_orion_password.result,
-    join(",", local.nextcloud_orion_apps),
-    "tasks-list",
+  nextcloud_mcp_apps = ["calendar", "contacts", "tasks"]
+  nextcloud_mcp_bootstrap_hash = nonsensitive(substr(sha256(join("|", [
+    local.nextcloud_mcp_uid,
+    local.nextcloud_mcp_token_name,
+    random_password.nextcloud_mcp_app_password.result,
+    join(",", local.nextcloud_mcp_apps),
   ])), 0, 12))
 
   # Custom CSS (theming_customcss app). The upstream stylesheet is vendored
@@ -187,7 +188,8 @@ resource "random_password" "nextcloud_admin_password" {
   special = false
 }
 
-resource "random_password" "nextcloud_orion_password" {
+# Nextcloud rejects app passwords shorter than 22 characters.
+resource "random_password" "nextcloud_mcp_app_password" {
   length  = 40
   special = false
 }
@@ -313,16 +315,16 @@ resource "kubernetes_secret_v1" "nextcloud_ai" {
   type = "Opaque"
 }
 
-resource "kubernetes_secret_v1" "nextcloud_orion" {
+resource "kubernetes_secret_v1" "nextcloud_mcp" {
   depends_on = [module.namespace["nextcloud"]]
 
   metadata {
-    name      = "nextcloud-orion"
+    name      = "nextcloud-mcp"
     namespace = module.namespace["nextcloud"].name
   }
 
   data = {
-    OC_PASS = random_password.nextcloud_orion_password.result
+    MCP_APP_PASSWORD = random_password.nextcloud_mcp_app_password.result
   }
 
   type = "Opaque"
@@ -1669,12 +1671,12 @@ resource "kubernetes_job_v1" "nextcloud_ai_bootstrap" {
 }
 
 # =============================================================================
-# Post-install Orion account bootstrap
+# Post-install MCP access bootstrap
 # =============================================================================
-# Idempotent Job: installs Calendar, Contacts and Tasks, then creates the local
-# `orion` account (or resets its password) from the tofu-generated secret.
+# Idempotent Job: installs Calendar, Contacts and Tasks, then creates the app
+# password the nextcloud-mcp sidecar uses, from the tofu-generated secret.
 
-resource "kubernetes_job_v1" "nextcloud_orion_bootstrap" {
+resource "kubernetes_job_v1" "nextcloud_mcp_bootstrap" {
   timeouts {
     create = "15m"
   }
@@ -1685,7 +1687,7 @@ resource "kubernetes_job_v1" "nextcloud_orion_bootstrap" {
   ]
 
   metadata {
-    name      = "nextcloud-orion-bootstrap-${local.nextcloud_orion_bootstrap_hash}"
+    name      = "nextcloud-mcp-bootstrap-${local.nextcloud_mcp_bootstrap_hash}"
     namespace = module.namespace["nextcloud"].name
   }
 
@@ -1694,7 +1696,7 @@ resource "kubernetes_job_v1" "nextcloud_orion_bootstrap" {
 
     template {
       metadata {
-        labels = { app = "nextcloud-orion-bootstrap" }
+        labels = { app = "nextcloud-mcp-bootstrap" }
       }
 
       spec {
@@ -1755,21 +1757,38 @@ resource "kubernetes_job_v1" "nextcloud_orion_bootstrap" {
             cd /var/www/html
             runuser -u www-data -- php occ status
 
-            for app in $${ORION_APPS}; do
+            for app in $${MCP_APPS}; do
               runuser -u www-data -- php occ app:install "$app" || runuser -u www-data -- php occ app:enable "$app"
             done
 
-            # occ reads the password from OC_PASS, so it never reaches argv.
-            if runuser -u www-data -- php occ user:info "$${ORION_USER}" >/dev/null 2>&1; then
-              runuser -u www-data -- php occ user:resetpassword --password-from-env "$${ORION_USER}"
-            else
-              runuser -u www-data -- php occ user:add --password-from-env --display-name="Orion" "$${ORION_USER}"
-            fi
-
-            # The default Personal calendar takes events only; todos need
-            # their own list. dav:create-calendar is not idempotent.
-            runuser -u www-data -- php occ dav:list-calendars "$${ORION_USER}" | grep -q '^| tasks ' || \
-              runuser -u www-data -- php occ dav:create-calendar "$${ORION_USER}" tasks
+            # The app password comes from MCP_APP_PASSWORD, so it never
+            # reaches argv. An earlier one of the same name is revoked first,
+            # so a rotated value replaces it.
+            runuser -u www-data -- php -r '
+              define("OC_CONSOLE", true);
+              require "lib/base.php";
+              $uid = getenv("MCP_UID");
+              $token = getenv("MCP_APP_PASSWORD");
+              $name = getenv("MCP_TOKEN_NAME");
+              if (!\OCP\Server::get(\OCP\IUserManager::class)->userExists($uid)) {
+                fwrite(STDERR, "account $uid does not exist\n");
+                exit(1);
+              }
+              $provider = \OCP\Server::get(\OC\Authentication\Token\IProvider::class);
+              try {
+                $provider->getToken($token);
+                echo "app password already present\n";
+                exit(0);
+              } catch (\OCP\Authentication\Exceptions\InvalidTokenException $e) {
+              }
+              foreach ($provider->getTokenByUser($uid) as $old) {
+                if ($old->getName() === $name) {
+                  $provider->invalidateTokenById($uid, $old->getId());
+                }
+              }
+              $provider->generateToken($token, $uid, $uid, null, $name, \OCP\Authentication\Token\IToken::PERMANENT_TOKEN, \OCP\Authentication\Token\IToken::DO_NOT_REMEMBER);
+              echo "app password created\n";
+            '
           EOT
           ]
 
@@ -1779,21 +1798,26 @@ resource "kubernetes_job_v1" "nextcloud_orion_bootstrap" {
           }
 
           env {
-            name  = "ORION_USER"
-            value = local.nextcloud_orion_user
+            name  = "MCP_UID"
+            value = local.nextcloud_mcp_uid
           }
 
           env {
-            name  = "ORION_APPS"
-            value = join(" ", local.nextcloud_orion_apps)
+            name  = "MCP_TOKEN_NAME"
+            value = local.nextcloud_mcp_token_name
           }
 
           env {
-            name = "OC_PASS"
+            name  = "MCP_APPS"
+            value = join(" ", local.nextcloud_mcp_apps)
+          }
+
+          env {
+            name = "MCP_APP_PASSWORD"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret_v1.nextcloud_orion.metadata[0].name
-                key  = "OC_PASS"
+                name = kubernetes_secret_v1.nextcloud_mcp.metadata[0].name
+                key  = "MCP_APP_PASSWORD"
               }
             }
           }
