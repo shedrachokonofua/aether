@@ -302,7 +302,20 @@ locals {
   # user task agents (a user agent overrides the bundled one of that name).
   # Orion uses it to give `scout` a shell. Only harness change since 50094d4.
   # Applies to pods started after the release; omp-dev is not moved.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:e459fab7d6cec27d5b9952c9e6fc2b195c157b1b1536de8186cb781834ba364a"
+  # omp 2849969 (main pipeline 14169 build:harness-omp; its verify stage ran
+  # 106 tests plus the job and origin smokes on omp/18.22.2): omp 18.14.1 ->
+  # 18.22.2 with the background-jobs patch re-ported, and `eval` (JavaScript
+  # cells that can call the agent's tools) offered to every omp agent whose
+  # `bash` group is on, decided by the permission hook as a bash call. The
+  # driver also declares `reasoning: false` on its models (18.22 otherwise
+  # probes them with real chat requests at session start), writes agent
+  # definitions to $PI_CODING_AGENT_DIR/agents (where omp reads them since
+  # 18.18.8) and keeps subagents on the main thread. A subagent without an
+  # output schema now returns its final message instead of calling `yield`.
+  # Applies to pods started after the release. omp-dev is not moved: the
+  # matching build (sha256:5a92e1e757ea45c0b3ab506e10c357f14788b8e4815b0955b100f040e8ca317b)
+  # is not attested in org personal, so `dev` stays on omp 18.14.1.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:efdd2cb5b092d4ac3b389d8e6be462caa99ab14ca1e9ef1663c2d47f3708caff"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
   # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
