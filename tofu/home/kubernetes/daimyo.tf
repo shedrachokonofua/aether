@@ -312,20 +312,21 @@ locals {
   # definitions to $PI_CODING_AGENT_DIR/agents (where omp reads them since
   # 18.18.8) and keeps subagents on the main thread. A subagent without an
   # output schema now returns its final message instead of calling `yield`.
-  # Applies to pods started after the release. omp-dev is not moved: the
-  # matching build (sha256:5a92e1e757ea45c0b3ab506e10c357f14788b8e4815b0955b100f040e8ca317b)
-  # is not attested in org personal, so `dev` stays on omp 18.14.1.
+  # Applies to pods started after the release. omp-dev moved separately
+  # (below) once its build was attested.
   daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:efdd2cb5b092d4ac3b389d8e6be462caa99ab14ca1e9ef1663c2d47f3708caff"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
-  # omp-dev stays at 177e319 for now: a harness-1031-ask build exists
-  # (sha256:4521c7d51a8a4b89031b0a0419266a5bc60de88a07758a9de4a1c247199d96c0)
-  # but is not attested in org personal; dev sees ask_user but cannot block.
-  # omp-dev 177e319 (tag harness-1031b): the dev toolchains layered on the
-  # omp harness above (built amd64 locally). Attested v1 in org personal by
-  # hand (01M68NEQWDYYD1YNFBX9M71P5G): the in-cluster kit cannot reach the
-  # API servers from personal-tasks, the laptop kit cannot exec into
-  # sandboxed pods. Before that pipeline 8342 (omp 18.8.7).
-  daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:456de8df4337bec724b667908ac751a08704aded9f03be02f18268dfd270803a"
+  # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
+  # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
+  # `eval` and the harness changes main has made since 177e319 (the omp notes
+  # above). Attested v1 in org personal by the kit itself, run on a laptop
+  # with the docker runtime: `daimyoctl conformance <image> --agent <dev CR>
+  # --runtime docker --sample-input 'chat={"prompt":"…"}' --attest --org
+  # personal`, with TMPDIR under $HOME so colima can mount the kit's files.
+  # 7 checks passed; `events` and `cancel` were skipped (the kit's fake model
+  # cannot hold a harness turn open). Before that 177e319 (tag harness-1031b,
+  # stock omp 18.14.1), attested by hand (01M68NEQWDYYD1YNFBX9M71P5G).
+  daimyo_harness_omp_dev_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp-dev@sha256:5a92e1e757ea45c0b3ab506e10c357f14788b8e4815b0955b100f040e8ca317b"
   # d7e6ec1 echo (pipeline 6422): org personal's echo, attested there.
   daimyo_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:fcc3058613f355cefa107d20b1df31f1198fe266d121ebc342190cb47b4a4ca3"
   # 7eaeb9c echo (pipeline 6741, current Python SDK: prompt cancel, no null
