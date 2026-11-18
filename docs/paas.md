@@ -319,3 +319,30 @@ Light and dark follow the device's `prefers-color-scheme`, not Nextcloud's
 appearance setting. Upstream is unmaintained and targets Nextcloud 35, while
 the cluster runs 34.0.5: re-check the pages after every Nextcloud upgrade and
 put fixes in `overrides.css`.
+
+### Request latency
+
+The server image runs Apache prefork with mod_php behind Caddy and the Envoy
+gateway. `nextcloud_apache_config` in `nextcloud.tf` mounts
+`/etc/apache2/conf-enabled/zz-aether-tuning.conf` with `KeepAlive Off` and a
+16/16/32 start/min-spare/max-spare worker pool. With the stock settings every
+idle upstream keep-alive connection pinned one worker for 5 s, and a page
+load's roughly 60 parallel requests queued behind a pool that starts at 5 and
+grows one spawn step per second: home-gateway Caddy logged 1.8 to 5.7 s
+responses in one-second steps after a login (2026-11-17). Against the same
+image in a local container, 60 parallel keep-alive requests for a static file
+took p50 4.8 s stock and 29 ms with this file; a larger spare pool with
+keep-alive left on still took 3.1 s. The change has not been measured on the
+cluster yet.
+
+The Redis host in `nextcloud_config.php.tftpl` and `dbhost` in the
+install-state config end in a dot. Pods resolve with `ndots:5`, so a name
+without it walks the three search domains before every connection. Measured
+in the server pod: Redis connect and ping 3.5 ms to 1.3 ms, Postgres connect
+and `select 1` 13.7 ms to 10.0 ms.
+
+Per-request PHP time is otherwise 30 to 70 ms in the pod; CPU, memory,
+OPcache, APCu, the 61 MB database and NFS were checked and are not the
+bottleneck. `nextcloud.home.shdr.ch` redirects to `nextcloud.shdr.ch`
+(`overwritehost`), so LAN browsers take the AWS public-gateway path, which
+adds about 75 to 80 ms per round trip.
