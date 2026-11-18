@@ -170,7 +170,10 @@ the single Pharos MCP identity, which reads every book in the library.
 `pharos_find_skills` and `pharos_load_skill` serve each finished book as an
 Agent Skill (a `SKILL.md` and one file per chapter); the other six tools read
 chapters, ideas and the books' exact text, and `pharos_ask` runs the local
-model. See [AI/ML](ai-ml.md#pharos).
+model. From Orion release `d12bd301` the `orion` and `orion-molecule` Agents
+hold a `pharos` grant for all eight, and the built-in skill `pharos-library`
+(Orion chart, `orion-skills` version 7) tells the agent when to find a book
+and how to load it. See [AI/ML](ai-ml.md#pharos).
 
 ## Polymarket Task Egress
 
