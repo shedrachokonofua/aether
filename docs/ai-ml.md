@@ -860,7 +860,8 @@ Personal EPUB library declared in [`tofu/home/kubernetes/pharos.tf`](../tofu/hom
 CI live in `so/pharos`. It turns books into source-linked chapter readings and serves a read-only MCP at
 `https://pharos.home.shdr.ch/mcp/` (bearer token in OpenBao `kv/pharos/mcp`). Over that MCP every finished
 book is also an Agent Skill, found with `pharos_find_skills` and loaded with `pharos_load_skill` (the same
-files are `skill://<name>/...` resources). The LiteLLM MCP gateway registers it as `pharos`, in the
+files are `skill://<name>/...` resources), and `pharos_search_ideas` searches the ideas of every book at
+once (from chart `0.1.0-ca795501`). The LiteLLM MCP gateway registers it as `pharos`, in the
 `daimyo-orion` key's scope only ([Orion](orion.md#gateway-mcps)); other clients connect to Pharos
 directly. Model access is local only,
 through the LiteLLM virtual key alias `pharos`, whose allowlist (`register_litellm_virtual_keys.yml`,
@@ -868,7 +869,7 @@ through the LiteLLM virtual key alias `pharos`, whose allowlist (`register_litel
 `aether/qwen3.8-flash-next:think` and `aether/qwen3-embedding:0.6b`. One replica and one book-processing
 worker by design; its model calls are serialized so book processing shares the GPU with other consumers in turn.
 Original EPUBs live on the `pharos-data` RBD volume (daily snapshots); everything derived from them (source
-blocks, passages with full-text and pgvector indexes, ideas, readings, checkpoints) lives in the `pharos-cnpg`
+blocks, passages and ideas with full-text and pgvector indexes, readings, checkpoints) lives in the `pharos-cnpg`
 CNPG cluster (PostgreSQL 16 + pgvector), with WAL archiving and daily base backups to SeaweedFS
 (`cnpg_backups.tf`). Book covers are stored there too: taken from the EPUB, and when a file has none,
 looked up at Open Library (`openlibrary.org`, `covers.openlibrary.org`, and the `archive.org` hosts those
