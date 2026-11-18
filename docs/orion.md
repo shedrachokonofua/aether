@@ -80,6 +80,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `annas` | `iosifache/annas-mcp` v0.1 via mcp-proxy, `:8016` | `annas_archive.secret_key` | 4 search/download tools; downloads ask in Orion |
 | `yourspotify` | `pentafive/your-spotify-mcp` `9e0e606` via supergateway, `:8015` | `yourspotify.mcp_public_token` | 13 read tools |
 | `shop` | hosted `mcp.shop.com` | none (signed out) | none |
+| `pharos` | Service `pharos` in namespace `pharos`, over cluster DNS | the Pharos MCP token (`random_password.pharos_mcp_token`, also OpenBao `kv/pharos/mcp`) | none (8 read-only tools) |
 
 Approval policy lives in the Orion grants, not the gateway. Server notes:
 
@@ -160,6 +161,16 @@ callback, `personal_agent` scope), its ID and secret in SOPS and the entry
 `upstream_resource: https://mcp.shop.com`), then one consent at
 `https://litellm.home.shdr.ch/shop/authorize`. Orion fetches Shop's skill from
 `https://mcp.shop.com/skill.md` at runtime.
+
+### Pharos
+
+The registry entry is `http://pharos.pharos.svc.cluster.local:8080/mcp/` with
+`transport: http`; the trailing slash is the MCP mount. The gateway acts as
+the single Pharos MCP identity, which reads every book in the library.
+`pharos_find_skills` and `pharos_load_skill` serve each finished book as an
+Agent Skill (a `SKILL.md` and one file per chapter); the other six tools read
+chapters, ideas and the books' exact text, and `pharos_ask` runs the local
+model. See [AI/ML](ai-ml.md#pharos).
 
 ## Polymarket Task Egress
 

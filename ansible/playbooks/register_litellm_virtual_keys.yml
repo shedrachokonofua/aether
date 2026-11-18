@@ -226,6 +226,7 @@
       - tmdb
       - instacart
       - qbittorrent
+      - pharos
 
   tasks:
     - name: Load secrets
