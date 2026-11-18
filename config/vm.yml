@@ -325,6 +325,14 @@ talos_trinity:
   # QEMU io_uring leaks host kernel memory on vectored reads (2026-09-21 host
   # OOM); native AIO does not. Applies to host-local (non-Ceph) disks only.
   local_disk_aio: "native"
+  # Evict pods while this much memory is still available. Kata pods hold their
+  # VM's RAM as shared memory that cannot be reclaimed or swapped, and a VM
+  # never returns it, so their use climbs from the request toward the limit.
+  # On 2026-11-18 that filled this node: it thrashed with the kubelet still
+  # reporting 3.3-3.6 GiB available, far above the 100Mi default floor, so
+  # nothing was evicted and the API server and etcd here stalled
+  # (docs/worklogs/trinity-kata-memory-2026-11.md).
+  kubelet_eviction_memory_available: "5Gi"
   ip: "10.0.3.16"
   gateway: "10.0.3.1"
 

@@ -525,6 +525,26 @@ resource "talos_machine_configuration_apply" "this" {
       }
     })] : [],
 
+    # Memory eviction floor override (data-driven via config/vm.yml). Setting
+    # evictionHard replaces the kubelet's defaults, so the other signals are
+    # restated at their default values. kubelet extraConfig; Talos applies it
+    # with a kubelet restart, no reboot.
+    try(each.value.kubelet_eviction_memory_available, null) != null ? [yamlencode({
+      machine = {
+        kubelet = {
+          extraConfig = {
+            evictionHard = {
+              "memory.available"   = each.value.kubelet_eviction_memory_available
+              "nodefs.available"   = "10%"
+              "nodefs.inodesFree"  = "5%"
+              "imagefs.available"  = "15%"
+              "imagefs.inodesFree" = "5%"
+            }
+          }
+        }
+      }
+    })] : [],
+
     # GPU-storage disk: partition and mount at /var/mnt/gpu-storage. virtio2 is
     # /dev/vdc while the legacy virtio1 etcd disk exists, otherwise /dev/vdb.
     try(each.value.gpu_storage_disk_gb, null) != null ? [yamlencode({
