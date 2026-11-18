@@ -5,3 +5,96 @@
 .appointment-config-list .app-navigation-entry:not(#ap):not(#ap2) .app-navigation-entry-link:not(#ap3):not(#ap4) {
 	height: auto !important;
 }
+
+/* Files settings modal: the upstream form-box reset (transparent !important on
+   [class*="FormBox"]) also clears the selected "Default view" segment, leaving
+   white text on a white modal. */
+[class*="radioGroupButton_active"]:not(#ap) {
+	background-color: var(--color-primary-element, #0071e3) !important;
+}
+
+/* App menu popover: the app icon circle is filled with the remapped primary
+   colour (= text colour), so the glyph is invisible on it. Use the neutral
+   control tint upstream applies to other icon wells. */
+.app-item__circle:not(#ap):not(#ap2) {
+	background-color: var(--ap-control) !important;
+	background-image: none !important;
+}
+
+/* Contacts: the contact name in the detail header is clipped to 0px by the
+   upstream 300px right padding on .app-content-details h2. */
+.contact-header__infos-title:not(#ap):not(#ap2) {
+	padding-right: 0 !important;
+}
+
+/* Contacts: on the selected row the hover-only favourite star is forced visible
+   and overlaps the avatar dot. */
+.contacts-list__item-icon:not(:hover) .favorite-star:not(.favorite):not(#ap):not(#ap2):not(#ap3) {
+	opacity: 0 !important;
+}
+
+/* Files sidebar (Sharing tab and others): upstream label rules (position:static,
+   56px min-height) un-hide .hidden-visually accessibility labels, so text like
+   "Search for internal recipients" shows in the layout. Restore the stock clip. */
+label.hidden-visually:not(#ap):not(#ap2):not(#ap3) {
+	position: absolute !important;
+	inset-inline-start: -10000px !important;
+	top: -10000px !important;
+	width: 1px !important;
+	height: 1px !important;
+	min-height: 0 !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	display: block !important;
+	overflow: hidden !important;
+}
+
+/* Files sidebar: tab labels (Sharing/Activity/Versions) overlap the active
+   underline because the 66px tab content sits in a fixed 59px tab. */
+.app-sidebar-tabs__nav .app-sidebar-tabs__tab .checkbox-content:not(#ap):not(#ap2):not(#ap3) {
+	min-height: 0 !important;
+	padding: 0 !important;
+}
+
+/* Navigation drawer (all apps, phone width and desktop toggle): the upstream
+   margin:0 !important on .app-navigation cancels the negative margin Nextcloud
+   uses to slide the closed drawer off screen, so it stays open over the content. */
+.app-navigation.app-navigation--close:not(#ap):not(#ap2):not(#ap3):not(#ap4),
+.app-navigation.app-navigation--closed:not(#ap):not(#ap2):not(#ap3):not(#ap4) {
+	margin-inline-start: calc(-1 * min(300px, var(--app-navigation-max-width, 300px))) !important;
+}
+
+/* Contacts list: rows reuse Mail's .envelope class, so the Mail rules hide the
+   avatar (also the select-checkbox target) and add an "unread" dot to every name. */
+li.list-item__wrapper.envelope:has(.contacts-list__item-icon) .avatardiv:not(#ap):not(#ap2):not(#ap3):not(#ap4) {
+	display: inline-block !important;
+}
+li.list-item__wrapper.envelope:has(.contacts-list__item-icon) .list-item__anchor>.contacts-list__item-icon:not(#ap):not(#ap2):not(#ap3) {
+	flex: 0 0 40px !important;
+	width: 40px !important;
+	min-width: 40px !important;
+	margin-inline-end: 10px !important;
+}
+li.list-item__wrapper.envelope:has(.contacts-list__item-icon):not(.seen):not(#ap):not(#ap2) .list-item-content__name::before {
+	display: none !important;
+}
+
+/* Unified search modal (phone width): the upstream display:inline-flex !important
+   on icon-only buttons beats Vue's inline display:none, so the hidden Previous/Next
+   arrows show over the results. Honour inline-hidden buttons again. */
+.button-vue[style*="display: none"]:not(#ap):not(#ap2):not(#ap3) {
+	display: none !important;
+}
+
+/* Files: the "Recommended files" list is capped to one row in stock; the upstream
+   max-height/overflow reset shows all entries and pushes the file list off screen on phones. */
+ul#recommendations:not(#ap):not(#ap2):not(#ap3):not(#ap4):not(#ap5):not(#ap6):not(#ap7) {
+	height: 86px !important;
+	overflow: hidden !important;
+}
+@media only screen and (max-width: 1200px) {
+	ul#recommendations:not(#ap):not(#ap2):not(#ap3):not(#ap4):not(#ap5):not(#ap6):not(#ap7) {
+		height: auto !important;
+		max-height: 189px !important;
+	}
+}

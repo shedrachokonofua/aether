@@ -296,8 +296,8 @@ creates an app password named `orion-mcp (litellm nextcloud-mcp)` on Shedrach's
 own Nextcloud account from `random_password.nextcloud_mcp_app_password`, for
 the Orion MCP server; Orion therefore reaches everything that account can, with
 nothing shared. Revoke that app password under Settings > Security > Devices &
-sessions to cut Orion's access. The tool policy and the unused earlier `orion`
-account are described in [Orion](orion.md#nextcloud).
+sessions to cut Orion's access. The tool policy is described in
+[Orion](orion.md#nextcloud).
 
 The theme is the third-party stylesheet from
 [lionfish2/Nextcloud-CSS-Redesign](https://github.com/lionfish2/Nextcloud-CSS-Redesign)
