@@ -144,9 +144,7 @@ new files and overwrites only with the etag from a prior read or an explicit
 and `nc_calendar_create_meeting`, which takes attendee email addresses: they
 destroy data, change who can read it, or message other people. The
 tool names come from 0.213.2's `tools/list` with those four apps; re-diff the
-grant when the image pin changes. The grant is in the Orion repo's
-`deploy/helm/orion/values.yaml` on branch `feat/nextcloud-mcp`, not yet
-released.
+grant when the image pin changes.
 
 Local verification (2026-11-17): the sidecar image, against a throwaway
 `nextcloud:34.0.5-apache` container with `overwritehost` and `overwriteprotocol`
@@ -166,6 +164,17 @@ Gateway verification (2026-11-17, `daimyo-orion` key against
 `tasks`, `nc_contacts_list_addressbooks` returned 3 address books, and
 `nc_calendar_list_todos` on `tasks` and `nc_share_list` succeeded. No write
 tool was called.
+
+Rollout evidence (2026-11-18): release
+`fc3dc284c8361587e89530d7cb9de238a26b125c` carries the `nextcloud` grant.
+Gate `GATE_OK`; image-build, chart-check and chart-publish succeeded in
+pipeline `14176`. The approved amd64 pre-pull DaemonSet reached readiness and
+was deleted. The targeted release plan (run with `-refresh=false`, because
+the Google WIF login had expired) changed only `helm_release.orion`: chart
+version and image tag. Orion rolled out ready on that image (Helm revision
+52), and Agents `orion` and `orion-molecule` are Compiled and Ready with the
+55-tool grant, 13 of them `ask`. No Orion thread has called a Nextcloud tool
+yet.
 
 ### Withings
 
