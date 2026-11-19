@@ -322,7 +322,14 @@ locals {
   # output schema now returns its final message instead of calling `yield`.
   # Applies to pods started after the release. omp-dev moved separately
   # (below) once its build was attested.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:efdd2cb5b092d4ac3b389d8e6be462caa99ab14ca1e9ef1663c2d47f3708caff"
+  # omp 6158622 (main pipeline 14834 build:harness-omp; its smoke checks the
+  # change): MCP tools a server marks readOnlyHint: false run one at a time in
+  # the order the model wrote them (Orion's parallel click/type batches reached
+  # Deskplane reordered), and unknown arguments reach the server instead of
+  # being dropped (a `session` typo silently drove the default headless
+  # browser). Only harness change since 2849969. Applies to pods started after
+  # the release; omp-dev is not moved.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:0e1fb1402035276aa5bfe4edf5867ca22141f6e7d88c35c596455abfff5d9595"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
