@@ -366,6 +366,74 @@ def scenario_parallel_done_only_arguments():
         f"parallel args: done-only calls get their arguments, the delta-streamed one exactly once, got {calls}")
 
 
+def scenario_org_exclusion():
+    print("org exclusion: one org's keys never reach an excluded prefix; every other key is unchanged")
+    import asyncio
+    import os
+
+    import httpx
+    import litellm
+    from fastapi import HTTPException
+    from litellm.proxy import proxy_server
+    from litellm.proxy._types import UserAPIKeyAuth
+
+    os.environ["MOIRA_ORG_EXCLUDED_PREFIXES"] = "other=test/x-;cicada=test/claude-"
+    sys.path.insert(0, "/tmp/hooks")
+    import aether_hooks
+
+    proxy_server.llm_router = litellm.Router(model_list=[
+        {"model_name": name, "litellm_params": {"model": "openai/x", "api_base": FAKE + "/v1", "api_key": "k"}}
+        for name in ("moira/frontier", "router/pool", "test/claude-opus", "test/gpt", "test/kimi")
+    ])
+
+    class Moira:
+        def __init__(self, answer=None):
+            self.answer, self.payloads = answer, []
+
+        async def post(self, url, json=None, headers=None):
+            self.payloads.append(json)
+            if self.answer is None:
+                raise RuntimeError("moira down")
+            return httpx.Response(200, json=self.answer)
+
+    def call(org, answer):
+        aether_hooks._LAST_ROUTE.clear()
+        moira = Moira(answer)
+        aether_hooks._moira_client = moira
+        key = UserAPIKeyAuth(models=["moira/frontier"], metadata={"org": org, "agent": "planner-1"})
+        data = {"model": "moira/frontier", "messages": [{"role": "user", "content": "hi"}]}
+        try:
+            asyncio.run(aether_hooks.moira_router.async_pre_call_hook(key, None, data, "acompletion"))
+            outcome = "ok"
+        except HTTPException as error:
+            outcome = error.status_code
+        return outcome, moira.payloads, data
+
+    route = {"action": "route", "model": "test/gpt", "fallbacks": ["test/claude-opus", "test/kimi"]}
+    outcome, payloads, data = call("cicada", route)
+    check(payloads and payloads[0]["allowed_models"] == ["test/gpt", "test/kimi"],
+          f"org exclusion: cicada's allowlist is every concrete model except the prefix, got {payloads}")
+    check(outcome == "ok" and data["model"] == "test/gpt" and data.get("fallbacks") == ["test/kimi"],
+          f"org exclusion: cicada routes and keeps only allowed fallbacks, got {outcome} {data}")
+
+    outcome, payloads, data = call("personal", route)
+    check(payloads and payloads[0]["allowed_models"] == ["moira/frontier"],
+          f"org exclusion: another org's decide payload is unchanged, got {payloads}")
+    check(data.get("fallbacks") == ["test/claude-opus", "test/kimi"],
+          f"org exclusion: another org keeps Moira's fallbacks, got {data}")
+
+    outcome, _, data = call("cicada", None)
+    check(outcome == 503 and data["model"] == "moira/frontier",
+          f"org exclusion: cicada never fails open to the static alias, got {outcome} {data}")
+    outcome, _, data = call("personal", None)
+    check(outcome == "ok" and data["model"] == "moira/frontier",
+          f"org exclusion: another org still fails open, got {outcome} {data}")
+
+    outcome, _, _ = call("cicada", {"action": "route", "model": "test/claude-opus", "fallbacks": []})
+    check(outcome == 503, f"org exclusion: an excluded route is refused, got {outcome}")
+    del os.environ["MOIRA_ORG_EXCLUDED_PREFIXES"]
+
+
 def main():
     scenario_chat()
     scenario_stream()
@@ -378,6 +446,7 @@ def main():
     scenario_filter_late()
     scenario_filter_nonstream()
     scenario_filter_unrouted()
+    scenario_org_exclusion()
     scenario_parallel_done_only_arguments()
     if failures:
         print(f"\n{len(failures)} assertion(s) FAILED", file=sys.stderr)
