@@ -11,13 +11,15 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 6acbf1f (pipeline 13718, build-image 53516):
-  # replace confirmed closed writers under a guarded generation reset;
-  # preserve work and replay answers without charging a stall (104).
-  # Includes d73cfbd (100-103), 48392d0 and fa6c7f1 (94-99).
-  # No migrations. Earlier: f434af1 (93), f7eeb65 (74), a70b47c (73),
-  # 9ab5ae6 (gardener default, 72), back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:c077ae91d15613a8099169ff2bbe6fc8e0add19fde3df17669520b7561fff366"
+  # so/cicada main 14d3d11 (MR !62, pipeline 14830, build-image 56513):
+  # planner-first engineering resolution (107). Typed planner/operator/
+  # condition cases, native readiness waits, operator-only Inbox, lazy
+  # legacy-writer retirement. Forward-only migration 0004: an older image is
+  # not a rollback target; recover with a planned restore of the pre-cutover
+  # dump. Earlier: 6acbf1f (104), d73cfbd (100-103), 48392d0 and fa6c7f1
+  # (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73), 9ab5ae6 (72),
+  # back to 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:c8abfcf6216d6736b0b0b57ba69364a095ec9ea6a5829eabc2e3cfad9608dd94"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
