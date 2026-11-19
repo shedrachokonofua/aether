@@ -584,6 +584,14 @@ resource "kubernetes_deployment_v1" "litellm" {
             value = join(",", keys(local.moira_tiers.groups))
           }
 
+          # Per-org routing exclusions, matched on the daimyo-minted key's
+          # metadata.org (litellm_hooks.py). Cicada's agents must not draw the
+          # operator's Claude subscription; every other caller is unaffected.
+          env {
+            name  = "MOIRA_ORG_EXCLUDED_PREFIXES"
+            value = "cicada=claude/"
+          }
+
           # Prisma migrations run before the server listens. Liveness killing a
           # migration mid-flight leaves a half-recorded migration that blocks
           # every later start (P3009, 2026-10-13: a lock wait outlasted the
