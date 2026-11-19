@@ -270,6 +270,15 @@ Org `personal` task pods reach `gamma-api.polymarket.com` and
 `daimyo.tf`, in both the DNS allowlist and `daimyo_tasks_egress`) for Orion's
 `polymarket` skill.
 
+## YouTube Task Egress
+
+Org `personal` task pods reach `www.youtube.com` over HTTPS
+(`daimyo_personal_youtube_fqdns` in `daimyo.tf`, in both the DNS allowlist and
+`daimyo_tasks_egress`) for Orion's `youtube-content` skill, which reads video
+transcripts from the watch page, the Innertube player API and the timedtext
+captions, all on that host. YouTube did not block the cluster's home IP when
+tested from a pod on 2026-11-18.
+
 ## Rogue Agent Access
 
 Rogue keeps `trust: external` and its Routeway model. It has Deskplane's
