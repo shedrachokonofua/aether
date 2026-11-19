@@ -279,6 +279,21 @@ transcripts from the watch page, the Innertube player API and the timedtext
 captions, all on that host. YouTube did not block the cluster's home IP when
 tested from a pod on 2026-11-18.
 
+Rollout evidence (2026-11-19): release
+`c9268ac59e5b156b67683452c93ea68eccbf4684` (`orion-skills` version 9, with
+`bee58910`'s prompt change) passed `GATE_OK` and pipeline `14942`. Targeted
+tofu plans for both `daimyo_tasks_egress["personal"]` and `helm_release.orion`
+also pulled in `talos_machine_configuration_apply` on all eight nodes and the
+LiteLLM Deployment and Secrets: live carries aether work not yet on `main`, and
+applying from `main` would undo it. Neither plan was applied. The CiliumNetworkPolicy
+got the two rendered additions by server-side apply (field manager `Terraform`,
+as tofu applies it). Orion was upgraded with `helm upgrade` from the published
+OCI chart `0.1.0-gc9268ac5…` and the live values, with only `image.tag` changed
+(Helm revision 54), after the amd64 pre-pull. Both match this commit's
+`orion_release` and `daimyo.tf`, so the next tofu plan sees no spec change for
+either. A live `orion` session read `skill://youtube-content`, fetched the
+TED transcript from its task pod and cited the 7:22 timestamp.
+
 ## Rogue Agent Access
 
 Rogue keeps `trust: external` and its Routeway model. It has Deskplane's
