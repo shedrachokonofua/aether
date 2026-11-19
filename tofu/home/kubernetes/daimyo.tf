@@ -413,6 +413,12 @@ locals {
     "gamma-api.polymarket.com",
     "clob.polymarket.com",
   ]
+  # YouTube's watch page, Innertube player API and timedtext captions, all on
+  # www.youtube.com, called by the Orion `youtube-content` skill from personal
+  # task pods to read video transcripts.
+  daimyo_personal_youtube_fqdns = [
+    "www.youtube.com",
+  ]
   daimyo_tasks_fqdns = {
     for org in local.daimyo_orgs : org => concat(
       local.daimyo_tasks_fqdns_common,
@@ -422,6 +428,7 @@ locals {
       org == "cicada" ? local.daimyo_cicada_build_fqdns : [],
       org == "personal" ? local.daimyo_personal_build_fqdns : [],
       org == "personal" ? local.daimyo_personal_polymarket_fqdns : [],
+      org == "personal" ? local.daimyo_personal_youtube_fqdns : [],
     )
   }
   daimyo_s3_region = "us-east-1"
@@ -1131,6 +1138,13 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
         # skill (local.daimyo_personal_polymarket_fqdns); HTTPS GET only.
         for org in [each.key] : {
           toFQDNs = [for host in local.daimyo_personal_polymarket_fqdns : { matchName = host }]
+          toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
+        } if org == "personal"
+        ], [
+        # YouTube transcripts for the Orion `youtube-content` skill
+        # (local.daimyo_personal_youtube_fqdns); HTTPS only.
+        for org in [each.key] : {
+          toFQDNs = [for host in local.daimyo_personal_youtube_fqdns : { matchName = host }]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if org == "personal"
         ], [
