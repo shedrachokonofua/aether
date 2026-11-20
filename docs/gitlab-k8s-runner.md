@@ -41,7 +41,10 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
   smith's host-local thin LVM)
 - Every job's `pre_build_script` deletes `/ci/tmp` entries untouched for 24h,
   because canceled or killed jobs leave Buildah/container-storage scratch
-  behind on the shared hostPath; `/ci/cache` is not pruned
+  behind on the shared hostPath. It also deletes `/ci/cache` archives
+  (`cache.zip`) not read for 7 days (the CI disk is mounted `relatime`, so
+  a cache restore refreshes atime); before that `/ci/cache` was never
+  pruned and filled neo's disk on 2026-11-19
 
 ## Manual GitLab Step
 
