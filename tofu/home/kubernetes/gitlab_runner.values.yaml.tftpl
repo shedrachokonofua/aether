@@ -65,9 +65,16 @@ runners:
       # CI disk to 96% and failed image builds with ENOSPC. Every job prunes
       # entries untouched for 24h; no job runs that long. Missing `find`
       # or a concurrent prune must not fail the job.
+      # /ci/cache had no pruning at all: every lockfile-hash cache key ever
+      # pushed stayed, and on 2026-11-19 neo's disk hit 100% (125 of 128 GiB
+      # in /ci/cache, 108 GiB of it unchanged for over a week), failing image
+      # builds with ENOSPC. Drop cache archives nobody has read for 7 days;
+      # the mount is relatime, so a restore refreshes atime at least daily,
+      # and a pruned key costs one cold build.
       pre_build_script = """
       mkdir -p /ci/tmp
       find /ci/tmp -mindepth 1 -maxdepth 1 -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+      find /ci/cache -type f -name cache.zip -atime +7 -exec rm -f {} + 2>/dev/null || true
       """
 
       [runners.kubernetes]
