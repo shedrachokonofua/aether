@@ -40,6 +40,18 @@ nix develop --command bash -c 'export VAULT_ADDR=https://bao.home.shdr.ch VAULT_
   Helm adoption; never uninstall/reinstall to fix a failed release. The
   `removed` blocks in `orion.tf` are adoption history.
 
+Rollout evidence (2026-11-21): release
+`5f6b20c17e39feec0455ada833569504d37ff5f3` (browser guidance in the `orion`
+prompt and eleven more Deskplane tools in its `web` grant: `browser_click`,
+`browser_fill`, `browser_type`, `browser_press`, `browser_select`,
+`browser_check`, `browser_scroll`, `browser_wait`, `browser_is`,
+`browser_dialog`, `browser_tabs`) passed `GATE_OK` and pipeline `15578`
+(image-build, chart-check, chart-publish; its three `visual-qa` shards were
+cancelled, since that job is allowed to fail and had failed on every `main`
+pipeline since 2026-11-18). After the amd64 pre-pull on 4 of 4 nodes, the
+targeted plan changed only `helm_release.orion` (Helm revision 59). The live
+`orion` Agent lists all eleven tools and `/login` answers 200.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL
