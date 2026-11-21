@@ -60,25 +60,23 @@ locals {
     skills = { bundle = "cicada-skills", version = 1, names = ["security-audit"] }
 
     [review]
-    # Every repository's default review lenses (Cicada decision 66). A repo's
-    # own [[lenses]] entry with the same name replaces one; new names add to them.
-    # spec and diff judge one change against its item and surroundings:
-    # strong. On balanced they kept failing review (Grok answering in prose
-    # instead of the verdict schema, DeepSeek running out the 1 h deadline).
+    # Every repository's default review lens. A repo's own [[lenses]] entry
+    # with the same name replaces it; new names add to it.
+    # One reviewer, on strong (2026-11-21): with five lenses that all had to
+    # pass, a landed item took ~22 lens runs, review held 45% of item time,
+    # and the frontier integration lens took 82% of frontier calls
+    # (so/cicada docs/research/2026-11-21-verification-over-review.md).
+    # On balanced, diff kept failing review (Grok answering in prose instead
+    # of the verdict schema, DeepSeek running out the 1 h deadline).
     lenses = [
-      { name = "spec", model = "moira/strong" },
       { name = "diff", model = "moira/strong" },
-      { name = "security", model = "moira/cyber" },
-      { name = "performance", model = "moira/strong" },
-      { name = "integration", model = "moira/frontier" },
     ]
 
     [gardener]
-    # Every repository gets a gardening goal after 20 landings (Cicada decision
-    # 72): the lens notes since the last one, turned into cleanup, lints, tests
-    # and field-guide entries. A repo's own [gardener] every_landed replaces it;
-    # 0 turns it off.
-    every_landed = 20
+    # Off (2026-11-21): half of the landings since 2026-11-01 were gardening
+    # or Cicada's own UI, not product work. A repo's own [gardener]
+    # every_landed turns it back on for that repo.
+    every_landed = 0
 
     [otel]
     endpoint = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318/v1/traces"

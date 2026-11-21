@@ -492,13 +492,14 @@ gates and planning on stronger tiers:
 | Orion coordinator, standing-work runner, briefing/news/markets feeds | `moira/balanced` |
 | Researcher, trip planner, frontend agent, memory dreamer | `moira/balanced` |
 | Cicada writers | `moira/balanced` |
-| Cicada general review lenses | `moira/strong` |
+| Cicada review lens (`diff`) | `moira/strong` |
 | Cicada planners | `moira/frontier` |
-| Cicada defensive-security lens | `moira/cyber` |
 | Narrow echo and QA smoke agents | `moira/flash` |
 
 Cicada reads writer/planner models from each repository's
-`.cicada/workflow.toml`; its server-level default lenses are in `cicada.tf`.
+`.cicada/workflow.toml`; its one server-level default lens is in `cicada.tf`
+(the spec, security, performance and integration lenses were removed as
+defaults on 2026-11-21, and gardening goals are off).
 Writer Agent projections refresh immediately before a new writer session is
 created. Idle projections can show the previous model until the next dispatch.
 Orion owns its main/coordinator/runner/feed Agent declarations in its chart.
