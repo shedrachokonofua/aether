@@ -11,15 +11,17 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 14d3d11 (MR !62, pipeline 14830, build-image 56513):
-  # planner-first engineering resolution (107). Typed planner/operator/
-  # condition cases, native readiness waits, operator-only Inbox, lazy
-  # legacy-writer retirement. Forward-only migration 0004: an older image is
-  # not a rollback target; recover with a planned restore of the pre-cutover
-  # dump. Earlier: 6acbf1f (104), d73cfbd (100-103), 48392d0 and fa6c7f1
-  # (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73), 9ab5ae6 (72),
-  # back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:c8abfcf6216d6736b0b0b57ba69364a095ec9ea6a5829eabc2e3cfad9608dd94"
+  # so/cicada main d6478bc (pipeline 15692, build-image 58378): review is
+  # advice given once per item and never a gate (108). One lens pass at the
+  # first green head, findings to the writer as one turn, the next green
+  # head lands; a lens without a verdict after three attempts never parks
+  # the item; writers lose the `challenge` tool. No migration. Earlier:
+  # 14d3d11 (107; forward-only migration 0004, so an older image than that
+  # is not a rollback target: recover with a planned restore of the
+  # pre-cutover dump), 6acbf1f (104), d73cfbd (100-103), 48392d0 and
+  # fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73), 9ab5ae6
+  # (72), back to 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:b775b7b3e6bec16830a5ba1ffbb55695329e3aefcdd140f42b91feb7f5e53885"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
