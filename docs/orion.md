@@ -52,6 +52,14 @@ pipeline since 2026-11-18). After the amd64 pre-pull on 4 of 4 nodes, the
 targeted plan changed only `helm_release.orion` (Helm revision 59). The live
 `orion` Agent lists all eleven tools and `/login` answers 200.
 
+Later the same day release `b3562c04c49a3f05c75f79927be9003362673577` followed
+(`home_post` and `home_cards` on the threads MCP and in the `orion` grant,
+`orion-skills` version 10 with the Pharos "Thinking with his books" section,
+and the Workers-panel fix): `GATE_OK` with 2,954 tests, pipeline `15685`, the
+same pre-pull, Helm revision 60, only `helm_release.orion` changed. The live
+`orion` Agent lists both tools and pins bundle version 10. Neither tool had
+been called from a real thread when this was written.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL
