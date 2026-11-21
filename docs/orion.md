@@ -60,6 +60,17 @@ same pre-pull, Helm revision 60, only `helm_release.orion` changed. The live
 `orion` Agent lists both tools and pins bundle version 10. Neither tool had
 been called from a real thread when this was written.
 
+Release `1b6416943c48cfc587bd6eebd5a641e57401601f` (also 2026-11-21) added
+follow-ups: `followup_create` (policy `ask`), `followups` and `followup_stop`
+in the `orion` threads grant, and a fourteenth Agent, `orion-feed-mail`, which
+runs `mail-` follow-up topics with the mnemo search tools and no web tools.
+`GATE_OK` with 2,957 tests, pipeline `15713`, Helm revision 61. The same plan
+changed `orion_agent_egress` so that `orion` and `orion-feed-mail` task pods
+may reach `mnemo.home.shdr.ch`; no other resource changed. The live Agents
+show those grants and the policy selects both. No follow-up had been created
+or run when this was written, so the mail runner's access to mnemo is
+configured, not yet observed.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL

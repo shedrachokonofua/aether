@@ -736,12 +736,13 @@ removed {
   lifecycle { destroy = false }
 }
 
-# Mnemo for the `orion` agent's mnemo grant only: its MCP has no auth, so the
-# name is the boundary. orion's task pods may resolve and reach
-# mnemo.home.shdr.ch (the gateway, which mnemo-ingress admits); other personal
-# agents (orion-feed-*, researcher, trip-planner) cannot resolve it. Additive
-# to daimyo_tasks_egress (daimyo.tf), which keeps default-deny and the rest of
-# the DNS allowlist.
+# Mnemo for the `orion` agent's mnemo grant and for `orion-feed-mail`, the
+# follow-up runner that reads his mail archive and has no web tools: its MCP
+# has no auth, so the name is the boundary. Their task pods may resolve and
+# reach mnemo.home.shdr.ch (the gateway, which mnemo-ingress admits); other
+# personal agents (the other orion-feed-* runners, researcher, trip-planner)
+# cannot resolve it. Additive to daimyo_tasks_egress (daimyo.tf), which keeps
+# default-deny and the rest of the DNS allowlist.
 resource "kubernetes_manifest" "orion_agent_egress" {
   field_manager {
     force_conflicts = true
@@ -756,7 +757,13 @@ resource "kubernetes_manifest" "orion_agent_egress" {
       labels    = local.daimyo_labels
     }
     spec = {
-      endpointSelector = { matchLabels = { "daimyo.shdr.ch/agent" = "orion" } }
+      endpointSelector = {
+        matchExpressions = [{
+          key      = "daimyo.shdr.ch/agent"
+          operator = "In"
+          values   = ["orion", "orion-feed-mail"]
+        }]
+      }
       egress = [
         {
           toEndpoints = [{
