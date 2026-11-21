@@ -329,7 +329,17 @@ locals {
   # being dropped (a `session` typo silently drove the default headless
   # browser). Only harness change since 2849969. Applies to pods started after
   # the release; omp-dev is not moved.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:0e1fb1402035276aa5bfe4edf5867ca22141f6e7d88c35c596455abfff5d9595"
+  # omp 419777c (main pipeline 15504 build:harness-omp; its verify stage ran 106
+  # tests and the smokes, one of which checks the change): the omp driver
+  # declares imageCountBudget 10 on every granted alias and the patched omp
+  # evicts images in chunks of 5. omp has no catalog rule for the `daimyo`
+  # provider, so it kept 5 images per request and dropped the oldest on every
+  # new screenshot: each browser step rewrote the transcript about 20 messages
+  # back and the gateway's prompt cache fell back to the system prompt (Orion
+  # thread 01M7XZSM, 2026-11-21: 68 of 203 calls cached only 37,888 tokens and
+  # re-sent up to 86,000). Only harness change since 6158622. Applies to pods
+  # started after the release; omp-dev is not moved.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:eafdd702d3d6c0f6108a95dc022af5fc4a2198b0576b96a8f817e0453bac086a"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
