@@ -71,6 +71,15 @@ show those grants and the policy selects both. No follow-up had been created
 or run when this was written, so the mail runner's access to mnemo is
 configured, not yet observed.
 
+Release `8612f1866d374dca1a50a4692baeb986cc0ff4a8` (2026-11-22) lets an
+`orion-table` block have a blank column header; before it a table whose first
+column was `""` showed the error callout instead of the table (thread
+`01M81BE221RAC55NTEAR09HCVG`). It also adds `docs/generative-ui-prior-art.md`
+to the Orion repository. `GATE_OK` with 2,958 tests on the second run (the
+first failed one unrelated migration test), pipeline `15995`, Helm revision
+62; only `helm_release.orion` changed. The fix is covered by a test with the
+failing shape; the live thread was not opened to see it.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL
