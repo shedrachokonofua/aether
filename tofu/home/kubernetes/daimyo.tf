@@ -1897,6 +1897,14 @@ locals {
       repo      = "seven30/buyerfact"
       resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
     }
+    # seven30/beacon (goal 44, created by the Seven30 co-founder
+    # 2026-11-22): bun. Sized like buyerfact until it is measured. The
+    # project is shared with group `so` as Maintainer and has the Cicada
+    # project hook (14), as cicada.tf describes.
+    beacon = {
+      repo      = "seven30/beacon"
+      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
+    }
   }
   # so/cicada itself: cargo, bun, Postgres 17 and NATS JetStream in one pod;
   # its goal acceptance runs `task lint`, `task test` and `bun test ui` here.
