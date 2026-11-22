@@ -1401,15 +1401,17 @@ resource "kubectl_manifest" "daimyo_org" {
         # personal: 20 hot sessions (default 5). Orion threads, coordinators,
         # dev, trip-planner, rogue and Orion's spare session share the cap; at
         # 5 the LRU eviction put threads idle 1-4 min cold.
-        # cicada: 8. Two writers on each product repository, one on so/cicada
-        # and their planners need more than 5; at 5 the reconciler was refused
-        # 2-15 writer sessions an hour (2026-11-21/22) and released items
-        # waited hours for a slot. Each writer also holds a 3-CPU-limit CI
-        # sandbox, so cicada-tasks' limits.cpu quota (32) caps writers near 6.
+        # cicada: 10 sessions, 16 tasks (2026-11-22). seven30/buyerfact runs
+        # five writers and seven30/beacon two, with a planner each; reviewer
+        # runs are tasks on top of the writers' and planners' turns. It was 8
+        # sessions from earlier the same day and 5 before that, when the
+        # reconciler was refused 2-15 writer sessions an hour. Each writer also
+        # holds a 3-CPU-limit CI sandbox, so cicada-tasks' limits.cpu quota
+        # (32) fits seven writers.
         quotas = merge(
           { concurrentTasks = 10 },
           each.key == "personal" ? { concurrentSessions = 20 } : {},
-          each.key == "cicada" ? { concurrentSessions = 8 } : {},
+          each.key == "cicada" ? { concurrentSessions = 10, concurrentTasks = 16 } : {},
         )
         budget  = { monthlyUsd = 500 }
         storage = { bucket = "daimyo-${each.key}" }
