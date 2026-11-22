@@ -11,7 +11,10 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main c4287ea (pipeline 16151): a sandbox falls back to the
+  # so/cicada main b8099b0 (pipeline 16256): no challenge rulings, operators
+  # can close a finished goal (119), a planner whose repository instructions
+  # changed is replaced between turns (120), plus console work. No migration.
+  # Before it c4287ea (pipeline 16151): a sandbox falls back to the
   # default branch's `latest` CI image (116); a failed sandbox call does not
   # hold the item and a pushed branch gets its merge request at once (117).
   # No migration. Before it d709f34 (pipeline 16118): infrastructure retries
@@ -37,7 +40,7 @@ locals {
   # restore of the pre-cutover dump), 6acbf1f (104), d73cfbd (100-103),
   # 48392d0 and fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73),
   # 9ab5ae6 (72), back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:147d5139c94c1ab781bb37cd500ff61653d8fe07e06bc7d4b6114781b6abb5cd"
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:74f6187c839256a7880e872d2c3a0771ecfd1ffe20cacc109d85eb2cf57baf9c"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
