@@ -125,6 +125,20 @@ and a cold session's first turn may run before MCP discovery finishes.
 
 Approval policy lives in the Orion grants, not the gateway. Server notes:
 
+### Instacart
+
+`instacart_mcp.tf` runs `so/instacart-mcp:latest` with a persistent browser
+profile; a pod-template change (or a new pod) pulls the current `latest`.
+`TOOL_TIMEOUT_SECONDS=50` stops any tool call that has not answered, below the
+gateway's 60 s; a stopped call answers `ToolTimeout`, and `/healthz` fails when
+the session lock is held past every deadline, so the liveness probe restarts
+the pod. On 2026-11-22 the pod, up 21 days, accepted every call and answered
+none (all tools wait on one lock and had no deadline); the `orion` agent's
+calls timed out at the gateway. Rolled out that day with instacart-mcp
+`3809bd1`: `instacart_status` then answered in 11 s (logged in) and a product
+search in 9 s, called directly at `instacart-mcp.home.shdr.ch/mcp`. Which call
+hung first was not established.
+
 ### Home Assistant
 
 ha-mcp's `ha_call_service` can send any WebSocket command, so it and every

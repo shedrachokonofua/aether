@@ -883,7 +883,10 @@ Chart `0.1.0-g0ee8f4ac` (released 2026-11-22) stops reading front and back matte
 Author and the like keep their text but get no ideas or reading), matches support-check answers that do not
 echo a bare label, and records the methods a book teaches in its skill file. On its first start the worker
 retired the matter sections of 16 books (166 ideas) and queued all 18 books for one re-read from saved model
-answers. Chart `0.1.0-g220982d1` (same day) adds a Methods section to a book's page in the web app.
+answers. Chart `0.1.0-g220982d1` (same day) adds a Methods section to a book's page in the web app. Chart
+`0.1.0-g54130d5c` (same day) re-extracts every omission the audit marks major, where the limit had been three a
+chapter: on 14 re-read books 132 of 257 chapters were flagged `needs_review` for unrecovered omissions and 122
+of them had hit that limit. Finished books with such omissions are queued once more when the worker is idle.
 
 ### OpenWebUI
 

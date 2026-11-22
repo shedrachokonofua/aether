@@ -162,6 +162,14 @@ resource "kubernetes_deployment_v1" "instacart_mcp" {
             name  = "CHROME_NO_SANDBOX"
             value = "1"
           }
+          # Every tool call is stopped after this long and answers ToolTimeout,
+          # below the 60 s after which the LiteLLM MCP gateway gives up. From
+          # instacart-mcp 3809bd1; before it one hung call held the session
+          # lock and every later call timed out at the gateway (2026-11-22).
+          env {
+            name  = "TOOL_TIMEOUT_SECONDS"
+            value = "50"
+          }
 
           lifecycle {
             post_start {
