@@ -11,7 +11,9 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 70e4961 (pipeline 16102): a lost or starting ci_exec
+  # so/cicada main d709f34 (pipeline 16118): infrastructure retries wait 5
+  # minutes, then 10, never an hour (115). Before it 70e4961 (pipeline
+  # 16102): a lost or starting ci_exec
   # sandbox no longer holds an item (114; the recovery probe's sandbox was
   # parked and filed as the next loss, so BuyerFact item 748 never got a
   # writer), item history is read in bounded pages (113), and console work
@@ -31,7 +33,7 @@ locals {
   # restore of the pre-cutover dump), 6acbf1f (104), d73cfbd (100-103),
   # 48392d0 and fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73),
   # 9ab5ae6 (72), back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:bbf46173fdb0fa7197717d2c3303761dd393675e1c5777b732e791ddc20400a2"
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:332cd1d51d6dd468f53fd2f6fdd34a5d2894af81fad8a2d13edbe83205775add"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
