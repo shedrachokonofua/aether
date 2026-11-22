@@ -11,10 +11,11 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 1e41063 (pipeline 15983, build-image 59135): a repository
-  # is paused with `[repo] paused = true` in its workflow file (112): no
-  # planner turn, claim or writer turn, and its claimed items give back
-  # their sandbox. No migration. Before it e06e04d (pipeline 15963): an agent a
+  # so/cicada main 791a613 (pipeline 16023): a repository is paused with
+  # `[repo] paused = true` in its workflow file (112): no planner turn,
+  # claim, writer turn, case recovery, review or landing, and its items give
+  # back their sandbox (1e41063 still ran recovery probes for paused
+  # items). No migration. Before it e06e04d (pipeline 15963): an agent a
   # pass replaced gets no session or task until the next pass (111), so a
   # spec change can no longer pin a fresh session to the old revision; also
   # items 718, 314, 704, 720 and 315 (109, 110: review evidence in `show`,
@@ -25,7 +26,7 @@ locals {
   # restore of the pre-cutover dump), 6acbf1f (104), d73cfbd (100-103),
   # 48392d0 and fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73),
   # 9ab5ae6 (72), back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:0e3e5a63c45924abdf2777515043937a576e5994ac73314964e6defef6580cf9"
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:c9dda44352a7ec230c593bf84e4146e919463edef11864c2934c0c5c131b08e6"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
