@@ -2,7 +2,7 @@ gitlabUrl: ${gitlab_url}
 # Eight concurrent jobs (one per manager). Raised from four on 2026-11-22: a
 # job at the 95th percentile waited 24 minutes for a slot and ran for 21
 # (docs/worklogs/ci-performance-2026-11.md).
-replicas: ${replicas}
+replicas: 8
 concurrent: 1
 checkInterval: 3
 priorityClassName: ${priority_class_name}
@@ -86,8 +86,8 @@ runners:
         privileged = true
         # neo ran at 95% CPU requested but 27% used (2026-10-31): a 2 CPU
         # request reserved cores jobs left idle. Request 1, keep the 2 CPU limit.
-        cpu_request = "${job_cpu_request}"
-        memory_request = "${job_memory_request}"
+        cpu_request = "1"
+        memory_request = "2Gi"
         ephemeral_storage_request = "8Gi"
         cpu_limit = "2"
         memory_limit = "4Gi"

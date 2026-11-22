@@ -1385,26 +1385,22 @@ locals {
   }
 
   namespace_resourcequota_gitlab_runner = {
-    # 8 main managers plus 8 job pods, and 6 express managers plus 6 job pods.
-    # The main lane is sized for the worst mix seen: three Orion visual-QA
-    # pods (4 CPU / 6Gi requested, 8 CPU / 12Gi limit, plus helper and one
-    # service) and five jobs with two service containers each (1.1 CPU / 2.1Gi
-    # requested, 8 CPU / 8.5Gi of limits). Limits are not binding on the nodes
-    # (they run overcommitted), but the quota counts them and rejects the pod
-    # that crosses it. Ephemeral storage is 33-35Gi of limits per job pod, and
-    # a finishing pod overlaps its successor for a few seconds: 320Gi rejected
-    # the ninth pod within an hour of going to eight slots (2026-11-22), so the
-    # main lane's share allows eleven. The express lane adds six managers
-    # (0.1 CPU / 128Mi requested, 0.5 CPU / 512Mi limit) and six job pods with
-    # one service each (0.7 CPU / 1.3Gi / 9.5Gi requested and 6 CPU / 6.5Gi /
-    # 35Gi of limits per pod), counted as seven for the overlap.
-    "requests.cpu"               = "38"
-    "requests.memory"            = "59Gi"
-    "requests.ephemeral-storage" = "195Gi"
-    "limits.cpu"                 = "142"
-    "limits.memory"              = "146Gi"
-    "limits.ephemeral-storage"   = "645Gi"
-    "pods"                       = "44"
+    # 8 managers plus 8 job pods. Sized for the worst mix seen: three Orion
+    # visual-QA pods (four QA stacks each: 4 CPU / 6Gi requested, 8 CPU / 12Gi
+    # limit, plus helper and one service) and five jobs with two service
+    # containers each (1.1 CPU / 2.1Gi requested, 8 CPU / 8.5Gi of limits).
+    # Limits are not binding on the nodes (they run overcommitted), but the
+    # quota counts them and rejects the pod that crosses it. Ephemeral storage
+    # is 33-35Gi of limits per job pod, and a finishing pod overlaps its
+    # successor for a few seconds: 320Gi rejected the ninth pod within an hour
+    # of going to eight slots (2026-11-22), so this allows eleven.
+    "requests.cpu"               = "32"
+    "requests.memory"            = "48Gi"
+    "requests.ephemeral-storage" = "128Gi"
+    "limits.cpu"                 = "96"
+    "limits.memory"              = "96Gi"
+    "limits.ephemeral-storage"   = "400Gi"
+    "pods"                       = "28"
   }
 }
 
