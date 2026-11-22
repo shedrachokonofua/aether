@@ -306,8 +306,17 @@ resource "kubernetes_deployment_v1" "litellm" {
   spec {
     replicas = 1
 
+    # The new pod comes up beside the old one and takes traffic only once
+    # ready, so a config or image rollout is not a gateway outage (a turn
+    # admitted during the old Recreate gap failed reading its spend). The
+    # ChatGPT auth volume is RWO: the pod affinity below keeps the new pod on
+    # the old one's node, where both can mount it.
     strategy {
-      type = "Recreate"
+      type = "RollingUpdate"
+      rolling_update {
+        max_unavailable = 0
+        max_surge       = 1
+      }
     }
 
     selector {
@@ -327,6 +336,18 @@ resource "kubernetes_deployment_v1" "litellm" {
 
       spec {
         enable_service_links = false
+
+        # Co-locate with the running pod so the RWO litellm-chatgpt-auth
+        # volume attaches to both during a rollout; a first pod with no peer
+        # schedules anywhere.
+        affinity {
+          pod_affinity {
+            required_during_scheduling_ignored_during_execution {
+              label_selector { match_labels = local.litellm_labels }
+              topology_key = "kubernetes.io/hostname"
+            }
+          }
+        }
 
         image_pull_secrets {
           name = kubernetes_secret_v1.litellm_gitlab_registry.metadata[0].name

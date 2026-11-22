@@ -63,6 +63,16 @@ LiteLLM, chat, search, crawl, and GPU services are reached via the cluster Gatew
 Unified OpenAI-compatible API: local models via **llama-swap**, embeddings +
 reranker on the same credential, cloud providers, and MCP tools.
 
+The `litellm` Deployment (one replica) rolls out with `RollingUpdate`
+(`maxSurge` 1, `maxUnavailable` 0): the new pod starts beside the old one,
+which keeps serving until the new pod is ready. A required pod affinity to
+`app=litellm` on `kubernetes.io/hostname` keeps the new pod on the old pod's
+node, so both can mount the RWO `litellm-chatgpt-auth` volume. The first
+rollout under it (2026-11-22) placed the new pod on `talos-neo` beside the old
+one, and the old pod terminated only once the new one was 20/20 ready.
+Before this the strategy was `Recreate`, and each rollout left the gateway
+down for about two minutes.
+
 LiteLLM's CNPG database volume is 200 GiB on `ceph-rbd`, declared in
 `kubectl_manifest.litellm_cnpg_cluster` in `cnpg_adopted.tf`. The 2026-11-08
 expansion from 80 GiB was applied through OpenTofu and completed with an
