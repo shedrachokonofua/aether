@@ -28,7 +28,7 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
   `kubernetes_resource_quota_v1.gitlab_runner_namespace_quota`; the Kyverno
   generating policy no longer matches this namespace): `requests.cpu=32`,
   `limits.cpu=96`, `requests.memory=48Gi`, `limits.memory=96Gi`,
-  `requests.ephemeral-storage=96Gi`, `limits.ephemeral-storage=320Gi`, and
+  `requests.ephemeral-storage=128Gi`, `limits.ephemeral-storage=400Gi`, and
   `pods=28`
 - Default build storage driver: `STORAGE_DRIVER=overlay`
 - Runner cache defaults: `CACHE_COMPRESSION_FORMAT=tarzstd` and

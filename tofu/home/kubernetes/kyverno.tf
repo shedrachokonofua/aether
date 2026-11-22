@@ -1390,13 +1390,16 @@ locals {
     # limit, plus helper and one service) and five jobs with two service
     # containers each (1.1 CPU / 2.1Gi requested, 8 CPU / 8.5Gi of limits).
     # Limits are not binding on the nodes (they run overcommitted), but the
-    # quota counts them and rejects the pod that crosses it.
+    # quota counts them and rejects the pod that crosses it. Ephemeral storage
+    # is 33-35Gi of limits per job pod, and a finishing pod overlaps its
+    # successor for a few seconds: 320Gi rejected the ninth pod within an hour
+    # of going to eight slots (2026-11-22), so this allows eleven.
     "requests.cpu"               = "32"
     "requests.memory"            = "48Gi"
-    "requests.ephemeral-storage" = "96Gi"
+    "requests.ephemeral-storage" = "128Gi"
     "limits.cpu"                 = "96"
     "limits.memory"              = "96Gi"
-    "limits.ephemeral-storage"   = "320Gi"
+    "limits.ephemeral-storage"   = "400Gi"
     "pods"                       = "28"
   }
 }
