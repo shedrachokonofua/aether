@@ -1,5 +1,118 @@
 # CI performance review (2026-11-21)
 
+## Update, 2026-11-22: the main cause was a node, not the pipelines
+
+The review below (2026-11-21) treated each job's duration as a property of the
+job. It was not. The same job took far longer on `talos-neo` than elsewhere,
+and 56% of jobs ran there. Everything in this section was found and done on
+2026-11-22 and supersedes the "Result" and "Runner recommendation" sections
+where they disagree.
+
+### `talos-neo` ran on the `acpi_pm` clocksource for 16 days
+
+- Kernel log: neo booted at 2026-11-06 12:11:29 UTC, switched to `tsc` at
+  12:11:37, and at 12:12:05 the clocksource watchdog marked the TSC unstable
+  ("skew is too large") and switched to `acpi_pm`. `tsc` was then gone from
+  `available_clocksource`, so it could not be switched back without a reboot.
+  On `acpi_pm` every clock read leaves the guest. This is the failure fixed on
+  `talos-smith` in July (commit `b0350ba`); the `tsc=reliable` pin and the
+  smith-only tripwire alert were both retired in August.
+- Measured in throwaway CI jobs on neo: a clock read (`Date.now()`,
+  `performance.now()`, `process.hrtime`) cost 9,200 to 10,900 ns before the
+  reboot and 31 to 38 ns after it. The whole diagnostic job took 80 to 88 s
+  before and 12 to 15 s after.
+- Node CPU: neo's kernel CPU exceeded its user CPU in 378 of 381 hours after
+  the demotion and in none of the 329 hours before it. No other node did so
+  for more than an isolated hour in 30 days.
+- Same commit, same tests (Orion 022ceef9, visual-QA shard 1): 46 min and 6
+  failures on `talos-trinity`, 107 min and 52 failures on neo. 49 of the 52
+  passed on trinity. 145 of the 169 failures in the neo run were the 50 ms
+  long-task check, which measures elapsed time.
+- Same jobs, the week before and the week after the demotion: on neo they
+  took 0.63 times as long as on the other nodes before, and 1.20 times as
+  long after. Turmeric's `caddy-build`, an unchanged workload, went from
+  109 s to 298 s on neo.
+
+neo was rebooted on 2026-11-22 at 09:53 UTC with Shedrach's approval
+(`talosctl -n 10.0.3.17 reboot`): down 73 s, back on `tsc`, etcd in sync.
+The durable `tsc=reliable` kernel argument was not re-added: `config/vm.yml`
+records it as the suspect in three failed installer runs on smith. A new alert
+covers every node instead (`talos-clocksource-regression`: kernel CPU above
+user CPU for two hours; applied).
+
+What the reboot cost, so the next one is cheaper:
+
+- Five CI jobs died and were retried.
+- Nextcloud stayed down until two pods were deleted: the server and
+  task-worker were rescheduled to `talos-niobe` while `nextcloud-cron` held
+  their shared ReadWriteOnce volume on neo.
+- `deskplane-serve` could not pull its image anywhere: Aether pinned tag
+  `666c1c2e`, and the registry had dropped it the day before, when a
+  validation pipeline from this review pushed a sixth tag and the keep-5
+  cleanup ran. The pod had been running from neo's image cache. Fixed by
+  pinning `7ed9ae05` (the same control plane; the one commit between them
+  touches only `mcp/`) and raising the registry's retention to 25 tags.
+- Kata task pods stayed Pending for a while: neo's displaced pods filled
+  trinity and smith, the only Kata nodes.
+
+### Runner: eight concurrent jobs (applied)
+
+Raised from four to eight on 2026-11-22 with Shedrach's approval, not the six
+recommended below. Replaying the previous week's 4,230 jobs with neo's jobs
+at half their duration gave a 95th-percentile wait of 13 minutes at four
+slots, 83 s at six and 19 s at eight (a model: read the ratios). The first
+quota chosen was too small: `limits.ephemeral-storage=320Gi` rejected pods
+for about an hour (each job pod carries 33 to 35Gi, and a finishing pod
+overlaps its successor). It is 400Gi now; seven jobs failed on it and were
+retried.
+
+### What the tests themselves waste, independent of the node
+
+Comparing each Turmeric `rust-test` binary on trinity and on (slow) neo
+separated the job into two parts. Ten binaries took the same time on both
+machines, 877 of 1,404 s on trinity, so they are waiting on timers or doing
+fixed duplicated work, not computing:
+
+- `batch_quota.rs` is included as a module by `batch_quota_services.rs` and
+  `quota_adapters_services.rs`, so its 29 tests run three times, about 130 s
+  each.
+- `runtime.rs` waits out four 30-second connection timeouts in a row.
+- `symbolicate_services.rs`, `query_jobs.rs`, `retention.rs` and others sleep
+  on real cache and expiry intervals.
+
+The rest (`dedup.rs`, `isolation.rs`, `usage.rs`, `replay_services.rs`) scaled
+three to four times with the node and is what neo's clock was costing.
+Removing the fixed part and running isolated service stacks in parallel
+inside one job is in progress on Turmeric branch `ci/fast-tests` (draft MR
+!153); no result yet.
+
+### Orion visual QA: several isolated stacks per job
+
+`e2e/run.mjs` already isolates a run by port and database, so one job can run
+several. Branch `p0/fast-qa` adds `e2e/ci-stacks.mjs`: every Playwright
+project is split into three stacks balanced by measured spec time, 18 stacks
+dealt to four jobs. No test or harness change.
+
+| Shape | Node | One job | Failures in that job |
+| --- | --- | ---: | --- |
+| One stack per job, three jobs (before) | trinity | 46 min | 6 of 334 |
+| One stack per job, three jobs (before) | neo on `acpi_pm` | 107 min | 52 of 334 |
+| Four contiguous shards per job, three jobs | neo, healthy | 14.9 min (job 59188) | 9 of 349: 8 screenshot diffs, 1 failed request, no long tasks |
+| Five balanced stacks per job, four jobs | neo, healthy | 10.2 min (first job of pipeline 16014) | 8 of 288: 6 screenshot diffs, 2 long tasks |
+
+The four-job run had not finished when this was written, so there is no
+full-suite figure. Under load the runner gives one project about two slots,
+so four jobs do not all start together.
+
+### Not done
+
+- Capturing light and dark in one journey (halving the executions) cannot be
+  proven against today's baselines for the Notes specs: their test data puts
+  the Playwright project name in visible text. It needs those dark baselines
+  re-recorded once.
+- Testing visual states at component level instead of through full journeys.
+- Reusing a result when the same inputs already passed.
+
 ## Result
 
 CI used 18,900 runner slot-minutes last week on four slots. All four were busy
