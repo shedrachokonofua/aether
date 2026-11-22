@@ -132,6 +132,7 @@ resource "kubernetes_secret_v1" "litellm_env" {
       QWEN_CLOUD_API_KEY    = var.secrets["litellm.qwen_cloud_api_key"]
       STEP_API_KEY          = var.secrets["litellm.step_api_key"]
       ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
+      ZAI_SEVEN30_API_KEY   = var.secrets["litellm.zai_seven30_api_key"]
       COMMANDCODE_API_KEY   = var.secrets["litellm.commandcode_api_key"]
       OPENCODE_GO_API_KEY   = var.secrets["litellm.opencode_go_api_key"]
       OPENROUTER_API_KEY    = var.secrets["litellm.openrouter_api_key"]
@@ -435,6 +436,16 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "ZAI_API_KEY"
+              }
+            }
+          }
+
+          env {
+            name = "ZAI_SEVEN30_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "ZAI_SEVEN30_API_KEY"
               }
             }
           }

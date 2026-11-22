@@ -263,6 +263,23 @@ model_list:
       model: "zai/glm-5.3-flash"
       litellm_credential_name: zai_credential
 
+  # Seven30's own Z.AI coding plan (the co-founder's key, the one Seven30's
+  # Hermes uses; added 2026-11-22). Only for Seven30's agents: this name is in
+  # no router/ pool and no Moira tier, so a caller gets it only by naming it.
+  # That is a convention, not a lock: daimyo mints per-task keys with no org
+  # on them, and keys set to all models can name any model.
+  # One request at a time on the key. LiteLLM caps concurrency per model
+  # entry (max_parallel_requests), not per provider key, so the key has
+  # exactly one entry; add no second model on this credential without a cap
+  # that spans both. Measured 2026-11-22 with four calls started together:
+  # one ran (3.7 s), one waited and then ran (8.3 s), two waited about 9 s
+  # and were answered 429, which callers retry.
+  - model_name: "seven30/glm-5.3"
+    litellm_params:
+      model: "zai/glm-5.3"
+      litellm_credential_name: zai_seven30_credential
+      max_parallel_requests: 1
+
   # Command Code Muse Contributor models (Standard Muse is not routed anywhere).
   # Context from the endpoint's /models (1048576 for every model here); output
   # limits and modalities are each model's published values. reasoning_effort
@@ -985,6 +1002,12 @@ credential_list:
       api_key: os.environ/ZAI_API_KEY
     credential_info:
       description: "Z.AI"
+  - credential_name: zai_seven30_credential
+    credential_values:
+      api_base: https://api.z.ai/api/coding/paas/v4
+      api_key: os.environ/ZAI_SEVEN30_API_KEY
+    credential_info:
+      description: "Z.AI (Seven30's coding plan)"
   - credential_name: commandcode_credential
     credential_values:
       api_base: https://api.commandcode.ai/provider/v1
