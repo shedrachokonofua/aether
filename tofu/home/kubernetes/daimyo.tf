@@ -210,7 +210,18 @@ locals {
   # (users/<person>) from their documents and their own sessions and tasks;
   # approval writes that namespace only. Without `user` a dream is unchanged.
   # The only Rust change since ae99644. No migrations; sidecar unchanged.
-  daimyo_server_tag = "sha256:12476d30144409d0c12225e1300510fd2d95bb7ff54489fbaad3dbecef33428f"
+  # 0143d79 (merge request !28 pipeline 16385 and main pipeline 16400: fmt,
+  # clippy, rust-test, rust-test-engine, ts-test and the image builds
+  # green), with the sidecar and omp harness below: a memory sync names the
+  # version each change started from, and the engine line-merges an edit of
+  # a document the store changed meanwhile instead of replacing it (a
+  # session's stale copy no longer undoes a correction); the answer lists the
+  # store's current documents so the sidecar brings newer versions into the
+  # mount. Dreams read documents' write times and now; GET
+  # .../memory-stores/{store}/dreams and MCP memory_dream_get. A turn whose
+  # session spend cannot be read is retried for 5 minutes instead of failing
+  # as "the session background budget is spent". No migrations.
+  daimyo_server_tag = "sha256:360343afb5a763e682e8bb6c727b3523ce2ff6a3ef8adc8089c30508de4a87c2"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -232,7 +243,12 @@ locals {
   # 9bc8d29: serves the S3 endpoint on 15007 from the memory section's
   # storage credential when the pod has no `s3` grant, and reports failed
   # mounts in the sync result. Deploy with the matching server above.
-  daimyo_sidecar_tag = "sha256:e99e3549bf60cc3b0c6a316ff341a0f84639a2a89c38a77b58bb5f78a864aec5"
+  # 0143d79: merge-aware memory sync (base versions, the store's current
+  # documents fetched into the mount with their write times as mtime, every
+  # tick reports), `memory-sync` asks the running syncer over
+  # POST /memory/sync, and the sidecar mounts write stores read-write.
+  # Deploy with the matching server above; applies to pods started after.
+  daimyo_sidecar_tag = "sha256:733c8441d6210fe3d3233e1ec81154b6b192333909479e459887bc0a6eb91f64"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
@@ -346,7 +362,11 @@ locals {
   # thread 01M7XZSM, 2026-11-21: 68 of 203 calls cached only 37,888 tokens and
   # re-sent up to 86,000). Only harness change since 6158622. Applies to pods
   # started after the release; omp-dev is not moved.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:eafdd702d3d6c0f6108a95dc022af5fc4a2198b0576b96a8f817e0453bac086a"
+  # omp 0143d79 (main pipeline 16400 build:harness-omp): every turn starts
+  # with a [Your memory: ...] block listing each mounted store's files and
+  # when each was last written. The only harness change since 419777c.
+  # claude-code, workflow-runner and omp-dev are not moved.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:dc33e1f498e317a04d5557628ea9f858c25120ed3e99eaedd941b912de5c9a75"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
