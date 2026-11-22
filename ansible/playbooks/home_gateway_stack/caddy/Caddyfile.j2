@@ -711,6 +711,10 @@ fleet.home.shdr.ch {
 s3.home.shdr.ch {
   import home_acme_dns
   import access_logs
+  # LAN + Tailscale: Seven30 co-founders read studio buckets with `s30 s3`
+  # (STS roles from their Keycloak login). On the LAN-only bind the shared
+  # tailnet listener answered them 403 before RGW saw the request.
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
   # Handle CORS preflight at the edge — RGW rejects OPTIONS on presigned
   # URLs that contain X-Amz-Security-Token query params (STS temp creds).
   @preflight method OPTIONS
