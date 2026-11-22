@@ -883,7 +883,7 @@ Chart `0.1.0-g0ee8f4ac` (released 2026-11-22) stops reading front and back matte
 Author and the like keep their text but get no ideas or reading), matches support-check answers that do not
 echo a bare label, and records the methods a book teaches in its skill file. On its first start the worker
 retired the matter sections of 16 books (166 ideas) and queued all 18 books for one re-read from saved model
-answers.
+answers. Chart `0.1.0-g220982d1` (same day) adds a Methods section to a book's page in the web app.
 
 ### OpenWebUI
 
