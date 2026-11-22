@@ -139,7 +139,9 @@ For the first rollout, verify all of the following in one low-risk repo:
 - Express lane (2026-11-22): a second instance runner, `k8s-express`, Helm
   release `gitlab-runner-express` in the same namespace with the same
   executor configuration. Six managers, so six concurrent jobs; build
-  container requests `500m` CPU and `1Gi`. In GitLab it is set to tag list
+  container requests `100m` CPU and `256Mi` (small on purpose: with `500m`
+  and `1Gi` its first jobs sat Unschedulable for four minutes because the CI
+  nodes were full by requests). In GitLab it is set to tag list
   `express`, run untagged off, maximum job timeout 600 seconds. A job opts in
   with `tags: [express]`. Half of all jobs run for under a minute and they are
   5% of the slot time, but each stage of a pipeline rejoins the queue: in two

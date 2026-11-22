@@ -86,11 +86,18 @@ resource "kubernetes_secret_v1" "gitlab_runner_express_auth" {
 }
 
 # Same executor configuration as the main lane (same nodes, cache, limits and
-# overwrite ceilings, so a job behaves the same on either), with smaller
+# overwrite ceilings, so a job behaves the same on either), with small
 # requests: these jobs are seconds of work. The values template's comments
 # describe the main lane; this lane's replica count and requests are the
 # three arguments below. Changing a comment inside the template's TOML block
 # changes the rendered config and restarts both lanes' managers.
+#
+# The requests are small so that the pod always finds a node. With 500m / 1Gi
+# the lane's first three jobs sat Unschedulable for four minutes
+# (2026-11-22): neo's CPU was fully requested by main-lane jobs, and trinity,
+# smith and niobe were at 96-99% of memory requested, though neo used 38% of
+# its memory and smith 57%. A Pending pod also counts against the lane's
+# 10-minute cap.
 resource "helm_release" "gitlab_runner_express" {
   depends_on = [
     kubernetes_secret_v1.gitlab_runner_express_auth,
@@ -115,7 +122,7 @@ resource "helm_release" "gitlab_runner_express" {
     runner_app_label     = local.gitlab_runner_express_release_name
     priority_class_name  = local.aether_priority_classes.batch
     replicas             = 6
-    job_cpu_request      = "500m"
-    job_memory_request   = "1Gi"
+    job_cpu_request      = "100m"
+    job_memory_request   = "256Mi"
   })]
 }
