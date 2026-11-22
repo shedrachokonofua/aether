@@ -887,6 +887,10 @@ answers. Chart `0.1.0-g220982d1` (same day) adds a Methods section to a book's p
 `0.1.0-g54130d5c` (same day) re-extracts every omission the audit marks major, where the limit had been three a
 chapter: on 14 re-read books 132 of 257 chapters were flagged `needs_review` for unrecovered omissions and 122
 of them had hit that limit. Finished books with such omissions are queued once more when the worker is idle.
+Chart `0.1.0-gf808ae54` (same day) flags a book `needs_review` only without an overview or with more than a
+quarter of its read chapters flagged, no longer flags a chapter for an image-only page when the chapter has its
+text, and records on each book the version of the rules it was read under (`books.rules`), re-reading books
+read under older rules once from saved answers.
 
 ### OpenWebUI
 
