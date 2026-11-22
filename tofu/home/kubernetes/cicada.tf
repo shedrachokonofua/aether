@@ -11,7 +11,12 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 791a613 (pipeline 16023): a repository is paused with
+  # so/cicada main 70e4961 (pipeline 16102): a lost or starting ci_exec
+  # sandbox no longer holds an item (114; the recovery probe's sandbox was
+  # parked and filed as the next loss, so BuyerFact item 748 never got a
+  # writer), item history is read in bounded pages (113), and console work
+  # from the sketch. No migration. Before it 791a613 (pipeline 16023): a
+  # repository is paused with
   # `[repo] paused = true` in its workflow file (112): no planner turn,
   # claim, writer turn, case recovery, review or landing, and its items give
   # back their sandbox (1e41063 still ran recovery probes for paused
@@ -26,7 +31,7 @@ locals {
   # restore of the pre-cutover dump), 6acbf1f (104), d73cfbd (100-103),
   # 48392d0 and fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73),
   # 9ab5ae6 (72), back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:c9dda44352a7ec230c593bf84e4146e919463edef11864c2934c0c5c131b08e6"
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:bbf46173fdb0fa7197717d2c3303761dd393675e1c5777b732e791ddc20400a2"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
