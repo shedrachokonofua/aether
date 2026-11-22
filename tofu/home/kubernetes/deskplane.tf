@@ -10,8 +10,13 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  deskplane_chart_version = "0.1.0-666c1c2e"
-  deskplane_image_tag     = "666c1c2e"
+  # 7ed9ae05 is 666c1c2e plus one commit that touches only mcp/ (the MCP
+  # server has its own image and tag below), so the control plane and chart
+  # are unchanged. The registry keeps a limited number of tags and dropped
+  # 666c1c2e on 2026-11-21; the pod only kept running from talos-neo's image
+  # cache until that node rebooted. Pin a tag the registry still has.
+  deskplane_chart_version = "0.1.0-7ed9ae05"
+  deskplane_image_tag     = "7ed9ae05"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
