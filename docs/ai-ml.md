@@ -879,6 +879,12 @@ only internet traffic; `config.coverLookup = "off"` in the release values disabl
 labelled `egress = "allowlist"` for it, but no network policy enforces the list. The reader is an
 installable web app that keeps opened books readable offline on the device.
 
+Chart `0.1.0-g0ee8f4ac` (released 2026-11-22) stops reading front and back matter (Notes, Index, About the
+Author and the like keep their text but get no ideas or reading), matches support-check answers that do not
+echo a bare label, and records the methods a book teaches in its skill file. On its first start the worker
+retired the matter sections of 16 books (166 ideas) and queued all 18 books for one re-read from saved model
+answers.
+
 ### OpenWebUI
 
 Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (Docling + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
