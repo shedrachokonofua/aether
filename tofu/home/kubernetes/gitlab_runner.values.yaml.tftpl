@@ -1,5 +1,8 @@
 gitlabUrl: ${gitlab_url}
-replicas: 4
+# Eight concurrent jobs (one per manager). Raised from four on 2026-11-22: a
+# job at the 95th percentile waited 24 minutes for a slot and ran for 21
+# (docs/worklogs/ci-performance-2026-11.md).
+replicas: 8
 concurrent: 1
 checkInterval: 3
 priorityClassName: ${priority_class_name}

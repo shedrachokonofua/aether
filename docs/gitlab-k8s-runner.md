@@ -10,8 +10,8 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
 - `runUntagged`: `true`
 - Executor: Kubernetes
 - Job pod mode: privileged
-- Manager replicas: `4`
-- Max concurrent jobs: `1` per manager, `4` total
+- Manager replicas: `8`
+- Max concurrent jobs: `1` per manager, `8` total
 - Manager pod requests/limits: `100m`/`500m` CPU, `128Mi`/`512Mi` memory
 - Build container requests/limits: `1`/`2` CPU, `2Gi`/`4Gi` memory,
   `8Gi`/`32Gi` ephemeral storage
@@ -26,10 +26,10 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
 - Namespace ResourceQuota (`namespace_resourcequota_gitlab_runner` in
   `tofu/home/kubernetes/kyverno.tf`, applied directly by tofu as
   `kubernetes_resource_quota_v1.gitlab_runner_namespace_quota`; the Kyverno
-  generating policy no longer matches this namespace): `requests.cpu=26`,
-  `limits.cpu=56`, `requests.memory=40Gi`, `limits.memory=56Gi`,
-  `requests.ephemeral-storage=96Gi`, `limits.ephemeral-storage=264Gi`, and
-  `pods=20`
+  generating policy no longer matches this namespace): `requests.cpu=32`,
+  `limits.cpu=96`, `requests.memory=48Gi`, `limits.memory=96Gi`,
+  `requests.ephemeral-storage=96Gi`, `limits.ephemeral-storage=320Gi`, and
+  `pods=28`
 - Default build storage driver: `STORAGE_DRIVER=overlay`
 - Runner cache defaults: `CACHE_COMPRESSION_FORMAT=tarzstd` and
   `CACHE_COMPRESSION_LEVEL=fastest`
@@ -130,9 +130,11 @@ For the first rollout, verify all of the following in one low-risk repo:
 - Existing jobs that explicitly set `STORAGE_DRIVER=vfs` must remove that
   override or change it to `overlay`; job-level variables can override the
   runner default.
-- The runner is intentionally capped below the observed cluster pain point of
-  6-7 concurrent jobs. With four manager replicas and a per-runner limit of
-  one job, this release should run at most four builds at a time.
+- The runner was capped at four concurrent jobs while 6-7 hurt the cluster.
+  Raised to eight on 2026-11-22 after `talos-neo`'s clocksource fault was
+  fixed (it had doubled the CPU cost of every job there for 16 days) and
+  measurement showed queueing, not running, was the larger part of CI time.
+  If eight hurts again, look at node CPU pressure before lowering it.
 - Build jobs can request more resources with Kubernetes executor variables, but
   the runner caps overrides at `8` CPU, `16Gi` memory, and `64Gi` ephemeral
   storage (`16Gi` ephemeral request).

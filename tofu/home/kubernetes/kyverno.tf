@@ -1385,19 +1385,19 @@ locals {
   }
 
   namespace_resourcequota_gitlab_runner = {
-    # 4 managers plus 4 job pods, each job requesting 1.1 CPU (build +
-    # helper). Limits are not binding on the nodes (they run overcommitted),
-    # but the quota counts them and a service container limits at 2 CPU.
-    # Measured 2026-10-14: limits.cpu reached 38 and the next pod, which asked
-    # for 4, was rejected against the cap of 40. 56 covers that peak plus one
-    # more job.
-    "requests.cpu"               = "26"
-    "requests.memory"            = "40Gi"
+    # 8 managers plus 8 job pods. Sized for the worst mix seen: three Orion
+    # visual-QA pods (four QA stacks each: 4 CPU / 6Gi requested, 8 CPU / 12Gi
+    # limit, plus helper and one service) and five jobs with two service
+    # containers each (1.1 CPU / 2.1Gi requested, 8 CPU / 8.5Gi of limits).
+    # Limits are not binding on the nodes (they run overcommitted), but the
+    # quota counts them and rejects the pod that crosses it.
+    "requests.cpu"               = "32"
+    "requests.memory"            = "48Gi"
     "requests.ephemeral-storage" = "96Gi"
-    "limits.cpu"                 = "56"
-    "limits.memory"              = "56Gi"
-    "limits.ephemeral-storage"   = "264Gi"
-    "pods"                       = "20"
+    "limits.cpu"                 = "96"
+    "limits.memory"              = "96Gi"
+    "limits.ephemeral-storage"   = "320Gi"
+    "pods"                       = "28"
   }
 }
 
