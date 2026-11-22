@@ -93,7 +93,10 @@ locals {
     audience = "cicada"
     # shdrch signs in through cicada-operator; the automation client
     # (keycloak.tf cicada_automation) acts for the operator from scripts.
-    operators = ["shdrch", "service-account-cicada-automation"]
+    # gh057 is the Seven30 co-founder (aether realm role seven30-developer).
+    # Cicada has one role: an operator controls every goal, not only
+    # seven30's.
+    operators = ["shdrch", "service-account-cicada-automation", "gh057"]
     ui_client_id = "cicada-operator"
   TOML
 }
