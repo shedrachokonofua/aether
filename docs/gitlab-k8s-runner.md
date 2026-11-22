@@ -6,7 +6,8 @@ image builds in `tofu/home/kubernetes/gitlab_runner.tf`.
 ## Target State
 
 - Runner scope: instance runner
-- Runner tag: `buildah` (optional selector only)
+- Runner tags: `buildah` (optional selector only) and `express` (overflow and
+  fallback for the express lane, below)
 - `runUntagged`: `true`
 - Executor: Kubernetes
 - Job pod mode: privileged
@@ -135,6 +136,20 @@ For the first rollout, verify all of the following in one low-risk repo:
   fixed (it had doubled the CPU cost of every job there for 16 days) and
   measurement showed queueing, not running, was the larger part of CI time.
   If eight hurts again, look at node CPU pressure before lowering it.
+- Express lane (2026-11-22): a second instance runner, `k8s-express`, Helm
+  release `gitlab-runner-express` in the same namespace with the same
+  executor configuration. Six managers, so six concurrent jobs; build
+  container requests `500m` CPU and `1Gi`. In GitLab it is set to tag list
+  `express`, run untagged off, maximum job timeout 600 seconds. A job opts in
+  with `tags: [express]`. Half of all jobs run for under a minute and they are
+  5% of the slot time, but each stage of a pipeline rejoins the queue: in two
+  busy hours 144 such jobs did 54 minutes of work and waited 826. Tag a job
+  only if it has never come near 5 minutes, because the lane kills at 10. The
+  main runner carries the `express` tag as well, so tagged jobs overflow to
+  it and still run if the lane is down. A job that needs the `buildah` tag
+  and the express lane must use `express` alone: the lane runs the same
+  privileged executor but does not carry `buildah`, so that long image builds
+  cannot land on it.
 - Build jobs can request more resources with Kubernetes executor variables, but
   the runner caps overrides at `8` CPU, `16Gi` memory, and `64Gi` ephemeral
   storage (`16Gi` ephemeral request).
