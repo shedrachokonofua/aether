@@ -202,8 +202,15 @@ locals {
   # (qa after four, about a million rows behind) took about a minute per
   # audited request and every other request of that org answered 503 `lock
   # timeout`. The only Rust change since a44614a. No migrations; sidecar
-  # unchanged (its build in that pipeline hit a full runner disk).
-  daimyo_server_tag = "sha256:6be01defbf42c5647a522bdb98a2698f6da9e6343b8c388fa5e032bcdd953cd3"
+  # unchanged (its build in that pipeline hit a full runner disk). Before that
+  # a44614a above.
+  # 0304c77 (merge request !26 pipeline 15956 and main pipeline 15970: fmt,
+  # clippy, rust-test, rust-test-engine and the server build green): a memory
+  # dream takes a `user` and consolidates that person's namespace
+  # (users/<person>) from their documents and their own sessions and tasks;
+  # approval writes that namespace only. Without `user` a dream is unchanged.
+  # The only Rust change since ae99644. No migrations; sidecar unchanged.
+  daimyo_server_tag = "sha256:12476d30144409d0c12225e1300510fd2d95bb7ff54489fbaad3dbecef33428f"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
