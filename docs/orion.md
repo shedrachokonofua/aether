@@ -80,6 +80,22 @@ first failed one unrelated migration test), pipeline `15995`, Helm revision
 62; only `helm_release.orion` changed. The fix is covered by a test with the
 failing shape; the live thread was not opened to see it.
 
+Release `fb80a7b32d97dd1d06c229fe6b734c35c0127da3` (2026-11-22) makes memory
+a dated record. A new `orion` thread's first turn carries a list of the
+user's memory files with the day each was last written (Orion asks Daimyo
+which principal the user's sessions run as, then lists that directory of the
+`personal` store; at most 2 s, and a thread starts without the list when it is
+slow or fails). The prompt tells the agent to open the listed files before
+answering about him, to write memory as dated lines with a state in the turn
+something happens, and to read every line, note and checkbox as true on its
+date, not today. Seen that day in thread `01M81PY58HM56W8705DV2FDF21`: a
+checklist from Nov 1 was reported as current and memory was searched for one
+word and skipped. `GATE_OK` with 2,965 tests, pipeline `16188`, Helm revision
+63; only `helm_release.orion` changed. The live Agent carries the new prompt
+and the two Daimyo calls return the 42 files for the operator. No new thread
+had been started on it when this was written, so the agent's use of the list
+is not yet observed.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL
