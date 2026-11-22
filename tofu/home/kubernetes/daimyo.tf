@@ -986,8 +986,21 @@ resource "helm_release" "daimyo" {
         # IO:WalSync waits up to 0.85 s, engine pool timeouts). Timing feeds
         # cnpg_collector_wal_{write,sync}_time before deciding on walStorage.
         # Reloadable: no instance restart.
+        #
+        # TCP keepalives (2026-11-22): a daimyo-server pod that died left 24
+        # connections Postgres still showed as idle four hours later, from an
+        # address no pod owned. They held the server's advisory leader locks
+        # (config controller, outbox, adoption), so no live replica reconciled
+        # anything new, and with them a rollout's surge replica passed
+        # max_connections (100). The defaults probe after 2 h idle; these drop
+        # a dead client in about 90 s. Reloadable; new connections only.
         postgresql = {
-          parameters = { track_wal_io_timing = "on" }
+          parameters = {
+            track_wal_io_timing     = "on"
+            tcp_keepalives_idle     = "60"
+            tcp_keepalives_interval = "10"
+            tcp_keepalives_count    = "3"
+          }
         }
       }
     }
