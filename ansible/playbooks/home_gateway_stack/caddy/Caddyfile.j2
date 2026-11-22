@@ -213,6 +213,22 @@ grafana.home.shdr.ch {
   }
 }
 
+# Cicada (k8s, HTTPRoute on main-gateway): LAN + Tailscale so the Seven30
+# co-founder, an operator in Cicada's [auth] operators, can reach the console.
+# Cicada itself requires a Keycloak sign-in.
+cicada.home.shdr.ch {
+  import home_acme_dns
+  import access_logs
+  bind 10.0.2.2 {{ tf_outputs.home_gateway_tailscale_ip.value }}
+  reverse_proxy 10.0.3.19 {
+    header_up Host {host}
+    header_up X-Forwarded-Proto https
+    # Same as the *.home.shdr.ch wildcard this host used until now: envoy's
+    # Server header beside Caddy's is a duplicate strict clients reject.
+    header_down -Server
+  }
+}
+
 # CORS-stripping feed proxy for the Grafana home dashboard.
 # Lets the news panel fetch feeds whose origins don't send CORS headers.
 feeds.home.shdr.ch {
