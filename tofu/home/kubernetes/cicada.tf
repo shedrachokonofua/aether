@@ -11,19 +11,18 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 3f3ae45 (pipeline 15738, build-image 58425): a lens wait
-  # never holds a landing (an item sat in `landing` behind waits for lenses
-  # dropped from the configuration). Before it d6478bc: review is advice
-  # given once per item and never a gate (108): one lens pass at the first
-  # green head, findings to the writer as one turn, the next green head
-  # lands; a lens without a verdict after three attempts never parks the
-  # item; writers lose the `challenge` tool. No migration. Earlier: 14d3d11
-  # (107; forward-only migration 0004, so an older image than that is not a
-  # rollback target: recover with a planned restore of the pre-cutover
-  # dump), 6acbf1f (104), d73cfbd (100-103), 48392d0 and fa6c7f1 (94-99),
-  # f434af1 (93), f7eeb65 (74), a70b47c (73), 9ab5ae6 (72), back to
-  # 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:d2dc3f6be886d669d66417b667cdbe877a0b58532118dcadc4f149e70bdccb40"
+  # so/cicada main e06e04d (pipeline 15963, build-image 59055): an agent a
+  # pass replaced gets no session or task until the next pass (111), so a
+  # spec change can no longer pin a fresh session to the old revision; also
+  # items 718, 314, 704, 720 and 315 (109, 110: review evidence in `show`,
+  # bounded notes reads). No migration. Before it 3f3ae45: a lens wait never
+  # holds a landing; d6478bc: review is advice given once per item and never
+  # a gate (108). Earlier: 14d3d11 (107; forward-only migration 0004, so an
+  # older image than that is not a rollback target: recover with a planned
+  # restore of the pre-cutover dump), 6acbf1f (104), d73cfbd (100-103),
+  # 48392d0 and fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73),
+  # 9ab5ae6 (72), back to 2ee3cee (60).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:35fa3ea9dfca701f671f5b82dc2f7e1fa804b5b6104527b0b9e3bff8837ba2d6"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
