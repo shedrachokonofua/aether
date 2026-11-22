@@ -402,7 +402,7 @@ always-firing Uptime Kuma heartbeat; it is not an incident source.
 | Kubernetes ReplicaSet Not Ready | warning  | Desired replicas exceed ready replicas for 15m |
 | GPU High Temperature   | warning  | >85°C for 2m                     |
 | GPU High Memory        | warning  | >95% VRAM for 5m                 |
-| Smith Clocksource Regression | warning | talos-smith host system-CPU >30% for 15m — acpi_pm PIO-exit-storm tripwire (temporary; remove at next Talos bump) |
+| Talos Node Clocksource Regression | warning | Any Talos node with kernel CPU above user CPU over the last hour, for 2h. A node on `acpi_pm` (TSC demoted by the watchdog) pays a VM exit per clock read; `talos-neo` ran that way from 2026-11-06 to 2026-11-22. Replaces the smith-only tripwire deleted in August |
 
 ### App-level alert rules
 

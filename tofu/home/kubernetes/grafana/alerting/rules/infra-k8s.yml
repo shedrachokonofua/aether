@@ -355,6 +355,61 @@ groups:
           summary: Memory PSI high on {{ $labels.node }} ({{ $values.B.Value | printf "%.1f" }}% full-stall)
           description: 'Sustained memory full-stall approaching the Talos OOM controller trigger (12% on 1.12.x). Reclaim churn, not necessarily low free RAM. Find the churn source before the controller starts killing: talosctl -n <node> get oomactions.'
 
+      # A node whose TSC is demoted by the kernel's clocksource watchdog falls
+      # back to acpi_pm, where every clock read is a VM exit (10 microseconds
+      # instead of tens of nanoseconds). The node then spends more CPU in the
+      # kernel than in user code. talos-neo ran that way from 2026-11-06 to
+      # 2026-11-22 unnoticed: the earlier tripwire covered talos-smith only and
+      # was deleted in August. Backtest over 30 days and eight nodes: the ratio
+      # exceeded 1 in 378 of neo's 381 hours after the demotion, in none of its
+      # 329 hours before, and in 4 isolated hours on all other nodes together.
+      - uid: talos-clocksource-regression
+        title: Talos Node Clocksource Regression
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              format: 1
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: sql
+              editorType: sql
+              rawSql: |
+                SELECT node, toFloat64(sys / usr) AS value FROM (SELECT Attributes['node'] AS node, sumIf(delta, Attributes['mode']='system') AS sys, sumIf(delta, Attributes['mode']='user') AS usr FROM (SELECT Attributes, StartTimeUnix, deltaSumTimestamp(Value, toUnixTimestamp64Nano(TimeUnix)) AS delta FROM otel.otel_metrics_sum WHERE MetricName='node_cpu_seconds_total' AND Attributes['exported_job']='node-exporter' AND Attributes['mode'] IN ('system','user') AND TimeUnix > now() - INTERVAL 1 HOUR GROUP BY Attributes, StartTimeUnix) GROUP BY node) WHERE node != '' AND usr > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1]
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.node }} spends more CPU in the kernel than in user code ({{ $values.B.Value | printf "%.2f" }}x)'
+          description: 'Kernel CPU above user CPU for two hours. Check the clocksource: talosctl -n <node> read /sys/devices/system/clocksource/clocksource0/current_clocksource. If it is acpi_pm and tsc is missing from available_clocksource, the TSC watchdog demoted it and only a reboot brings it back (docs/worklogs/ci-performance-2026-11.md).'
+
       - uid: talos-oom-sweep-detected
         title: Talos OOM Sweep Detected
         condition: C
