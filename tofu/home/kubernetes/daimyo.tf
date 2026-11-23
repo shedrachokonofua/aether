@@ -1469,7 +1469,12 @@ resource "kubectl_manifest" "daimyo_org" {
           ] : [], each.key == "qa" ? [{
             issuer    = local.memory_eval_issuer_url
             audiences = ["daimyo"]
-            principal = { claim = "sub", prefix = "user:eval-" }
+            # Only the exact prefix `user:` yields a user; `user:eval-` made
+            # each eval person a service, whose memory namespace is not
+            # users/eval-…, so every memory call was policy-denied. The
+            # required claim keeps the key to `eval-…` persons.
+            principal      = { claim = "sub", prefix = "user:" }
+            requiredClaims = { sub = "eval-*" }
         }] : [])
         namespaces = { config = "org-${each.key}", tasks = "${each.key}-tasks" }
         # personal: 20 hot sessions (default 5). Orion threads, coordinators,

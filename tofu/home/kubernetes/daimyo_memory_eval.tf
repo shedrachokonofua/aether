@@ -6,9 +6,9 @@
 # Three parts:
 #   - an issuer the `qa` Org trusts for throwaway persons. The harness signs a
 #     token per test history with one P-256 key; the Deployment here only
-#     serves that key's discovery document and JWKS. The Org maps the token's
-#     `sub` with the prefix `user:eval-`, so the key can name `eval-…`
-#     persons of org qa and nobody else.
+#     serves that key's discovery document and JWKS. The Org takes the token's
+#     `sub` as the user (prefix `user:`) and requires it to match `eval-*`, so
+#     the key can name `eval-…` persons of org qa and nobody else.
 #   - `memory-keeper`, the test agent: an omp harness agent with a per-user
 #     memory mount and nothing else to reach.
 #   - a CronJob that runs the private and canary suites and ships the scores
