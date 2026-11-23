@@ -11,11 +11,11 @@
 # the LiteLLM model_list).
 
 locals {
-  # f673e24: a tier member written { effort, force: true } routes in that
-  # tier whatever its AA score (Gemini 3.8 Flash forced into flash). On top
-  # of 9c120aa (content_filter reports). CI pipeline 9792 passed before this
-  # immutable image was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:c6fc7729be40ed8797121dfe091b483c85eb1e26037d0c0223940154e600a3ea"
+  # d4d2e65 (tag deploy-gemini4-d4d2e65): AA scores for Gemini 4 Neon and
+  # Hydrogen (and Argon medium) on top of f673e24 (forced tier members, on
+  # 9c120aa content_filter reports). Built off f673e24, not moira main, because
+  # main's 321eb62 drops the GPT-6.1 Sol score this tiers.yaml still uses.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:5e07251779ada2e17a8aed34f00317aaffe39e441c28990911ba1875d21269d2"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }

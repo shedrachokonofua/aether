@@ -257,6 +257,16 @@ model_list:
     litellm_params:
       model: "zai/glm-5.3-flash"
       litellm_credential_name: zai_credential
+  # GLM 5.4 (2026-11-23) is on the Z.AI coding plan only: Ollama Cloud,
+  # Command Code, OpenCode Go and Cline Pass did not list it that day. LiteLLM's
+  # bundled map has no entry yet, so model_info is set here: 131072 output is
+  # the endpoint's max_tokens bound (probe 2026-11-23); 1M context per Z.AI's
+  # launch notice (glm-5.4[1m]); vision and tool calls verified by direct call.
+  - model_name: "zai/glm-5.4"
+    litellm_params:
+      model: "zai/glm-5.4"
+      litellm_credential_name: zai_credential
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   - model_name: "router/glm-5.3-flash"
     litellm_params:
       cooldown_time: 300
@@ -717,19 +727,28 @@ model_list:
     model_info: {mode: embedding}
 
 
-  # Gemini models through the single-tenant Antigravity bridge. Clients own the
+  # Gemini 4 models through the single-tenant Antigravity bridge. Clients own the
   # tool loop and may select none/minimal/low/medium/high/xhigh via
-  # reasoning_effort. "none" selects Flash's thinking-off route; Argon has no
-  # such route, so the bridge runs it at low. Limits and image input come from
-  # live fetchAvailableModels (2026-10-15). Argon draws a separate weekly-only
-  # quota that the bridge's /usage (and so Moira) does not report.
-  - model_name: "antigravity/gemini-3.8-flash"
+  # reasoning_effort. None of them has a thinking-off route, so the bridge runs
+  # none at low; Argon has no xhigh route and runs it at high. Limits and image
+  # input come from live fetchAvailableModels (Argon 2026-10-15, Neon and
+  # Hydrogen 2026-11-23). Neon and Hydrogen draw the shared Gemini 5h/weekly
+  # quota the bridge's /usage reports; Argon draws a separate weekly-only quota
+  # that /usage (and so Moira) does not see.
+  - model_name: "antigravity/gemini-4-neon"
     litellm_params:
-      model: "openai/antigravity/gemini-3.8-flash"
+      model: "openai/antigravity/gemini-4-neon"
       litellm_credential_name: antigravity_credential
       use_chat_completions_api: true
       allowed_openai_params: ["reasoning_effort"]
-    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 65536, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  - model_name: "antigravity/gemini-4-hydrogen"
+    litellm_params:
+      model: "openai/antigravity/gemini-4-hydrogen"
+      litellm_credential_name: antigravity_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   - model_name: "antigravity/gemini-4-argon"
     litellm_params:
       model: "openai/antigravity/gemini-4-argon"

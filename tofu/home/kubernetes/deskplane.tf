@@ -529,9 +529,10 @@ resource "helm_release" "deskplane" {
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # The web engine's LLM calls (json/summary/extract) use it too.
-        # moira/computer-use (moira/tiers.yaml): terra, then gemini-3.8-flash,
+        # moira/computer-use (moira/tiers.yaml): terra, then gemini-4-hydrogen,
         # then self-hosted qwen3.8-flash-next, skipping any member out of quota.
-        # Terra is operator-selected; the benchmarked fallbacks are unchanged.
+        # Terra is operator-selected; Hydrogen replaced the benchmarked Gemini
+        # 3.8 Flash without its own computer-use benchmark.
         DESKPLANE_MCP_MODEL           = "moira/computer-use"
         DESKPLANE_MCP_OPENAI_BASE_URL = "http://litellm.litellm.svc.cluster.local:4000/v1"
         DESKPLANE_MCP_PORT            = "8100"

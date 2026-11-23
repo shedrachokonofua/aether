@@ -19,6 +19,7 @@ tiers:
       claude/opus-5-5: max
       chatgpt/gpt-6.1-sol: max
       meta/muse-wonder-full-1.0-contributor: max
+      antigravity/gemini-4-neon: xhigh
       # Gemini 4 Argon high scores 50, but stays gated until its distinct
       # subscription quota is covered by the Antigravity usage bridge.
   strong:
@@ -29,6 +30,8 @@ tiers:
       chatgpt/gpt-6.1-terra: xhigh
       meta/muse-wonder-1.0-contributor: max
       claude/sonnet-5-5: high
+      # Neon low (44) outscores Hydrogen medium (41) in the same Gemini pool.
+      antigravity/gemini-4-neon: low
   balanced:
     min: 30
     max: 39
@@ -51,11 +54,7 @@ tiers:
       xiaomi/mimo-v2.6-flash: default
       commandcode/mimo-v2.6-flash: default
       opencode-go/mimo-v2.6-flash: default
-      # AA scores it 31 (high), but as a coding agent it kept ending turns
-      # after one sentence of intent: 17% of turmeric's writer turns produced
-      # a push or a note, against 83-100% for the other balanced members
-      # (Cicada ledger + LiteLLM logs, 2026-10-30..11-02). Forced into flash.
-      antigravity/gemini-3.8-flash: { effort: high, force: true }
+      antigravity/gemini-4-hydrogen: low
   # AA Cyber Index v1, checked 2026-10-30: one representative per quota pool.
   # Zero safety blocks across all three evaluations; Step's failed route stays out.
   cyber:
@@ -136,9 +135,10 @@ groups:
   router/deepseek-v4-pro: [ollama-cloud/deepseek-v4-pro]
   router/ling-3.1-flash: [openrouter/ling-3.1-flash, commandcode-free/ling-3.1-flash]
   # Deskplane's browser/desktop agent (DESKPLANE_MCP_MODEL). Members need tool
-  # calling and vision. Terra is the operator-selected primary; the benchmarked
-  # fallbacks remain Gemini Flash, then self-hosted Qwen with no cloud quota.
-  moira/computer-use: [chatgpt/gpt-6.1-terra, antigravity/gemini-3.8-flash, aether/qwen3.8-flash-next]
+  # calling and vision. Terra is the operator-selected primary, then Gemini 4
+  # Hydrogen (replaced the benchmarked Gemini 3.8 Flash on 2026-11-23 without its
+  # own computer-use benchmark), then self-hosted Qwen with no cloud quota.
+  moira/computer-use: [chatgpt/gpt-6.1-terra, antigravity/gemini-4-hydrogen, aether/qwen3.8-flash-next]
 
 # Groups ranked by member order instead of quota urgency. Exhausted members are
 # still skipped; the next ones become the LiteLLM fallbacks.

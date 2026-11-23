@@ -154,7 +154,7 @@ configured in LiteLLM.
 The subscription catalog exposes `chatgpt/gpt-6-astra`, `chatgpt/gpt-6.1-sol`,
 `chatgpt/gpt-6.1-terra`, and `chatgpt/gpt-6-luna`. Deskplane's MCP uses
 `moira/computer-use`, which prefers
-`chatgpt/gpt-6.1-terra`, then `antigravity/gemini-3.8-flash`, then local
+`chatgpt/gpt-6.1-terra`, then `antigravity/gemini-4-hydrogen`, then local
 `aether/qwen3.8-flash-next`, skipping exhausted providers. Its fail-open
 deployment also uses Terra. The ChatGPT routes declare Responses mode, native
 streaming and a conservative 272000-token input cap; LiteLLM 1.106's bundled
@@ -192,12 +192,16 @@ Clinepass also exposes `clinepass/qwen3.8-max` and
 `clinepass/muse-spark-1.3-contributor` as standalone provider pins.
 
 Google Antigravity is exposed through the single-tenant bridge as
-`antigravity/gemini-3.8-flash` and `antigravity/gemini-4-argon`. The bridge
-translates OpenAI chat-completions requests to the subscription API; clients
-retain ownership of tool execution and follow-up results. Gemini Flash is
-the balanced tier's Antigravity representative and a computer-use fallback.
-Argon remains available only on the OMP keys, outside automatic tier routing.
-It draws a separate weekly-only Argon quota on the Pro plan. The bridge's `/usage` does
+`antigravity/gemini-4-neon`, `antigravity/gemini-4-hydrogen`, and
+`antigravity/gemini-4-argon`. The bridge translates OpenAI chat-completions
+requests to the subscription API; clients retain ownership of tool execution
+and follow-up results. Neon and Hydrogen were added and Gemini 3.8 Flash was
+dropped on 2026-11-23. Neon and Hydrogen draw the shared Gemini 5h/weekly quota
+that the bridge's `/usage` reports, so Moira ranks them: Neon xhigh represents
+the pool in `moira/frontier` and Neon low in `moira/strong`, Hydrogen low in
+`moira/flash`, and Hydrogen is the computer-use fallback. Argon remains
+available only on the OMP keys, outside automatic tier routing. It draws a
+separate weekly-only Argon quota on the Pro plan. The bridge's `/usage` does
 not report that quota, so Moira does not rank Argon.
 
 SuperGrok is exposed only as the subscription-backed
@@ -314,6 +318,9 @@ all succeeded. The account snapshot reported 0% rolling and weekly usage.
 
 `router/glm-5.3` uses weighted shuffle across Z.AI and Ollama Cloud with
 weights 4:1. Holmes primary uses this canonical group.
+GLM-5.4 (released 2026-11-23) is the standalone pin `zai/glm-5.4`: on release
+day only the Z.AI coding plan served it, so it has no `router/*` pool. AA has
+not scored it yet, so it is not a Moira tier member.
 `router/glm-5.3-flash` is a separate pool across Z.AI, Command Code,
 OpenCode Go, and Ollama Cloud. Provider-prefixed Flash pins remain standalone,
 including the Clinepass pin; Clinepass is not a pool member.
@@ -399,8 +406,8 @@ declare `supported_openai_params` including `reasoning_effort`, and OMP sends
 an effort level only when that list names it.
 Command Code was never tested with it: its weekly limit (reset 2026-10-01)
 prevented testing. Ollama legs map it to `think` natively. Z.AI's provider drops it, and
-GLM reasons by default. For `reasoning_effort: "none"`, the Antigravity bridge
-selects Gemini Flash's thinking-off route; Argon has none and runs at `low`.
+GLM reasons by default. Gemini 4 has no thinking-off route, so for
+`reasoning_effort: "none"` the Antigravity bridge runs every model at `low`.
 The Muse bridge raises it to `minimal`,
 because Meta rejects `none`. ChatGPT returns reasoning text only when a summary
 is requested, for example `reasoning_effort: {effort: high, summary: auto}`.
@@ -763,17 +770,19 @@ membership in [`moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
 
 | Tier | AA v5 band | Distinct configured quota pools | Representatives |
 | --- | --- | --- | --- |
-| `moira/frontier` | 50 and up | 3 | Opus 5.5 max; GPT-6.1 Sol max; Muse Wonder Full max |
-| `moira/strong` | 40–49 | 4 | Kimi K3.1 Pro max; GPT-6.1 Terra xhigh; Muse Wonder max; Sonnet 5.5 high |
-| `moira/balanced` | 30–39 | 9 | Grok 4.7 high; Haiku 5.5 xhigh; Qwen3.8 Max xhigh; DeepSeek V4.1 Flash 1017 max; GLM-5.3 max; Gemini 3.8 Flash high; MiMo V2.6 Pro on Xiaomi, Command Code and OpenCode Go |
-| `moira/flash` | 25–29 | 6 | GLM-5.3 Flash max on Z.AI and Ollama Cloud; GPT-6 Luna max; MiMo V2.6 Flash on Xiaomi, Command Code and OpenCode Go |
+| `moira/frontier` | 50 and up | 4 | Opus 5.5 max; GPT-6.1 Sol max; Muse Wonder Full max; Gemini 4 Neon xhigh |
+| `moira/strong` | 40–49 | 5 | Kimi K3.1 Pro max; GPT-6.1 Terra xhigh; Muse Wonder max; Sonnet 5.5 high; Gemini 4 Neon low |
+| `moira/balanced` | 30–39 | 8 | Grok 4.7 high; Haiku 5.5 xhigh; Qwen3.8 Max xhigh; DeepSeek V4.1 Flash 1017 max; GLM-5.3 max; MiMo V2.6 Pro on Xiaomi, Command Code and OpenCode Go |
+| `moira/flash` | 25–29 | 7 | GLM-5.3 Flash max on Z.AI and Ollama Cloud; GPT-6 Luna max; MiMo V2.6 Flash on Xiaomi, Command Code and OpenCode Go; Gemini 4 Hydrogen low |
 
 Each general tier has one concrete model/effort representative per shared
 provider quota. ChatGPT, Claude and Muse each remain one globally shared pool
 across tiers, not new allowance per alias. Xiaomi, Command Code and OpenCode
 Go are separate purchased pools. Gemini 4 Argon high scores 50 but remains
 gated until its distinct quota is reported. GLM-5.3 Flash now has a measured
-v5 score of 28, replacing the provisional estimate.
+v5 score of 28, replacing the provisional estimate. Gemini 4 scores (Neon low
+44 / medium 55 / high 60 / xhigh 61; Hydrogen 27 / 41 / 51 / 54) were fetched
+2026-11-23.
 
 `moira/cyber` uses the separate AA [Cyber Index v1](https://artificialanalysis.ai/evaluations/artificial-analysis-cyber-index):
 score at least 40 and zero safety blocks in all three evaluations. Its

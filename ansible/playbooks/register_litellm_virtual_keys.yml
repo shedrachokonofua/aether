@@ -20,7 +20,8 @@
         - aether/qwen3.8-27b:think
         - qwen-cloud/qwen3.8-max
       omp: &omp_models
-        - antigravity/gemini-3.8-flash
+        - antigravity/gemini-4-neon
+        - antigravity/gemini-4-hydrogen
         - antigravity/gemini-4-argon
         - supergrok/grok-4.7
         - step/step-5-preview
@@ -30,6 +31,7 @@
         - chatgpt/gpt-6-luna
         - router/glm-5.3
         - zai/glm-5.3
+        - zai/glm-5.4
         - ollama-cloud/glm-5.3
         - commandcode/glm-5.3-flash
         - ollama-cloud/glm-5.3-flash
@@ -92,7 +94,8 @@
       # own key so its traffic is attributable (it ran on the master key).
       omp_coder: *omp_models
       colony:
-        - antigravity/gemini-3.8-flash
+        - antigravity/gemini-4-neon
+        - antigravity/gemini-4-hydrogen
         - supergrok/grok-4.7
         - step/step-5-preview
         - chatgpt/gpt-6-astra
@@ -101,6 +104,7 @@
         - chatgpt/gpt-6-luna
         - router/glm-5.3
         - zai/glm-5.3
+        - zai/glm-5.4
         - ollama-cloud/glm-5.3
         - commandcode/glm-5.3-flash
         - ollama-cloud/glm-5.3-flash
@@ -156,10 +160,10 @@
         - aether/qwen3-embedding:0.6b
 
       deskplane_mcp:
-        # Moira group (tiers.yaml): terra -> gemini-3.8-flash -> qwen3.8-flash-next.
+        # Moira group (tiers.yaml): terra -> gemini-4-hydrogen -> qwen3.8-flash-next.
         - moira/computer-use
         - chatgpt/gpt-6.1-terra
-        - antigravity/gemini-3.8-flash
+        - antigravity/gemini-4-hydrogen
         - aether/qwen3.8-flash-next
         - aether/qwen3.8-27b
         - aether/gemma-4-31b
