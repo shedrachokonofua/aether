@@ -296,6 +296,7 @@ resource "kubectl_manifest" "daimyo_trip_planner_agent" {
           }
         },
       ]
+      memory    = local.daimyo_personal_memory_read
       sessions  = { enabled = true }
       endpoints = { stable = { revision = "latest" } }
     }

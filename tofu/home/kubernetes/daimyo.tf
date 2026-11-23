@@ -2097,6 +2097,23 @@ resource "kubectl_manifest" "daimyo_orion_service_policy" {
   })
 }
 
+# The person's own memory, read-only, for the personal agents besides Orion
+# (which mounts it read-write in its chart): store `personal`, the caller's
+# `users/<person>` namespace, which for a task Orion delegates is the person
+# Orion acts for. An agent that mounts it starts every turn with the list of
+# its files and their dates, and its conversations with the person are among
+# those the nightly upkeep dream reads (a dream reads the agents that mount
+# the store). `rogue` does not mount it: its model is a third-party
+# uncensored route, and a personal store is not sent to one.
+locals {
+  daimyo_personal_memory_read = [{
+    store       = "personal"
+    scope       = "perUser"
+    access      = "read"
+    description = "What is known about the person you are working for: who they are, their people, plans, preferences and decisions. Open the file that fits before you ask them for a personal fact or assume one."
+  }]
+}
+
 # `researcher`: a declarative claude-code harness agent (no image of its own;
 # compiles onto config.harness.images["claude-code"], and harness revisions
 # skip attestation). Models through the sidecar's LiteLLM grant on
@@ -2179,6 +2196,7 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
           }
         },
       ]
+      memory    = local.daimyo_personal_memory_read
       sessions  = { enabled = true }
       endpoints = { stable = { revision = "latest" } }
     }
@@ -2260,6 +2278,7 @@ resource "kubectl_manifest" "daimyo_frontend_agent" {
           }
         },
       ]
+      memory    = local.daimyo_personal_memory_read
       sessions  = { enabled = true }
       endpoints = { stable = { revision = "latest" } }
     }
