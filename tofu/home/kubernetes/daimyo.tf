@@ -265,7 +265,18 @@ locals {
   # says to lose nothing; and a service is never given a person's sub
   # (4abb690). The first consolidation of the operator's memory dropped over
   # 100 facts from the 32 files it deleted and was denied.
-  daimyo_server_tag = "sha256:453f4179e5e28040e341ed21b2e59f59578b679253728dde16c4041c5c203e2e"
+  # be1a00c (main pipeline 17045: fmt, clippy, ts-test, rust-test-engine and
+  # the builds green): the dreamer names the files it wrote in its answer
+  # ({"$file": path}) and the harness reads them in, since a rewrite of ten
+  # documents did not fit the one answer a model gives (two dreams submitted
+  # five and one of ten); `[memory] dreamerImage` (below).
+  daimyo_server_tag = "sha256:c9a116d22db1325e57ba714779928b3bbd5596e6ef2a21d34e74188037335bd3"
+  # The claude-code harness the memory agents (dreamer, checker) run, be1a00c
+  # (pipeline 17045 build:harness-claude-code): the first build that reads
+  # file values into a structured answer. Pinned apart from
+  # daimyo_harness_claude_code_image, which is a month older (9747dcd), so
+  # the other claude-code agents do not move with it.
+  daimyo_memory_harness_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:5d2c8c6273b2cb412b713ca61f9ef24409663dff916126ff76ed79c195707fe3"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -950,6 +961,7 @@ resource "helm_release" "daimyo" {
         embeddingModel   = "aether/qwen3-embedding:0.6b"
         dreamerModel     = "moira/frontier"
         dreamerBudgetUsd = 50
+        dreamerImage     = local.daimyo_memory_harness_image
         upkeep = {
           dreamAt  = "04:00"
           timezone = "America/Toronto"
