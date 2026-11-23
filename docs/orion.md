@@ -96,6 +96,25 @@ and the two Daimyo calls return the 42 files for the operator. No new thread
 had been started on it when this was written, so the agent's use of the list
 is not yet observed.
 
+Releases `048169c9fdf8d3d89fdf80f590b0cbfca96a9695` and
+`7869e33506fc603019ce807385d1b627020b4e7a` (2026-11-23) move memory upkeep
+off the operator. The first removed Orion's own first-turn memory list
+(Daimyo release `0143d79` gives every turn the list with times) and added a
+nightly dream of the operator's `personal` memory, started on the first
+15-minute pass after 04:00 Toronto, reading conversations back to the last
+dream (at least 24 h, at most 168 h). The second starts that dream with
+`autoApply`, so Daimyo writes the result as new versions without an approval,
+and Home gets one low-priority post per applied dream listing what changed.
+The Agent lost `memory_dream` and `memory_dream_resolve` and kept
+`memory_dream_get`. `GATE_OK` on both (2,963 tests on the second), pipelines
+`16452` and `16680`, Helm revisions 64 and 65; only `helm_release.orion` changed each
+time. The live Agent's `control` tools list `memory_dream_get` and neither
+of the other two. Not observed when this was written: no dream had been
+started by Orion (the first was due after 04:00 on the 23rd), and an Orion
+session reading a dream was refused by Daimyo (`memory::dream on memory
+store personal is not permitted`) until Daimyo merge request !29 is
+released.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL
