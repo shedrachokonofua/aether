@@ -218,7 +218,7 @@ resource "kubectl_manifest" "memory_eval_cron" {
       jobTemplate = {
         spec = {
           backoffLimit            = 0
-          activeDeadlineSeconds   = 4 * 60 * 60
+          activeDeadlineSeconds   = 8 * 60 * 60
           ttlSecondsAfterFinished = 7 * 24 * 60 * 60
           template = {
             metadata = { labels = merge(local.memory_eval_labels, { component = "run" }) }
@@ -233,14 +233,17 @@ resource "kubectl_manifest" "memory_eval_cron" {
                 command = ["sh", "-c"]
                 # Each suite runs whatever the one before it did; a canary
                 # leak (exit 1) fails the Job after the scores are shipped.
+                # Sixty private cases is ten per kind of probe and six canary
+                # cases is the whole suite; the first run, at 12 and 2, took
+                # 11 minutes and could not rank the arms (2026-11-23).
                 args = [<<-EOT
                   run=$(date -u +%Y%m%d%H%M)
                   python3 -m memory_eval run --suite private --arms full-context,raw-search,memory \
-                    --n 12 --seed 1 --run "$run" --out /out/private --concurrency 2 \
+                    --n 60 --seed 1 --run "$run" --out /out/private --concurrency 3 \
                     --answer-model ${local.memory_eval_answer_model} --judge-model ${local.memory_eval_judge_model}
                   private=$?
                   python3 -m memory_eval run --suite canary --arms memory \
-                    --n 2 --seed 1 --run "$run" --out /out/canary --concurrency 2 \
+                    --n 6 --seed 1 --run "$run" --out /out/canary --concurrency 3 \
                     --answer-model ${local.memory_eval_answer_model} --judge-model ${local.memory_eval_judge_model}
                   canary=$?
                   echo "private=$private canary=$canary"
