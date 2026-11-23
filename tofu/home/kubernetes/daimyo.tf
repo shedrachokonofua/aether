@@ -246,7 +246,15 @@ locals {
   # recorded as applied with 0 changes. Also in this image: sessions:import
   # (21e8754) and dream revert (14e390a, migration 0059, applied at start).
   # Sidecar and harnesses unchanged.
-  daimyo_server_tag = "sha256:2f2f07cf89cbf43dd6b11bb51a0646cece3f8e28dfeac77756fded449a95cc8c"
+  # 68f0507 (main pipeline 16838: fmt, clippy, rust-test, rust-test-engine and
+  # both builds green): the engine's upkeep loop dreams every store's
+  # namespaces daily (migration 0060, `[memory.upkeep]` below); a dream's tool
+  # calls are one file per conversation; and a fetch list over 96 KiB is
+  # mounted from the grants Secret instead of riding in the init container's
+  # argument, which Linux refuses over 128 KiB (the ad11b91 dream of
+  # 2026-11-23 had about 320 input files and its pod failed at start). Needs
+  # the sidecar below for `inputs --list-file`.
+  daimyo_server_tag = "sha256:0ad9259eb911e78859a808aefe9ca12b8d83883b14a6283a4ad0c2ddefea78dd"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -273,7 +281,9 @@ locals {
   # tick reports), `memory-sync` asks the running syncer over
   # POST /memory/sync, and the sidecar mounts write stores read-write.
   # Deploy with the matching server above; applies to pods started after.
-  daimyo_sidecar_tag = "sha256:733c8441d6210fe3d3233e1ec81154b6b192333909479e459887bc0a6eb91f64"
+  # 68f0507: `inputs --list-file <path>` reads a mounted fetch list (zstd when
+  # the name ends .zst). Nothing else changed since 0143d79.
+  daimyo_sidecar_tag = "sha256:20dc4f8a5aaccb4f96e63027768efb453807b3f45914b4ecc8e588ed38c40dc6"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
@@ -921,10 +931,18 @@ resource "helm_release" "daimyo" {
       # turn, and rewrites a person's memory, so it gets the strongest model
       # Moira can route to and a budget that does not stop it mid-read (was
       # moira/balanced at $0.25 until 2026-11-23).
+      # Upkeep (§11c.3): the engine dreams each namespace of every store that
+      # had a conversation since its last applied dream, once a day at 04:00
+      # Toronto time, applied as it finishes and revertible as one. A store
+      # can set its own with PATCH /v1/memory-stores/{store}.
       memory = {
         embeddingModel   = "aether/qwen3-embedding:0.6b"
         dreamerModel     = "moira/frontier"
         dreamerBudgetUsd = 50
+        upkeep = {
+          dreamAt  = "04:00"
+          timezone = "America/Toronto"
+        }
       }
       database = {
         ownerUrl  = "postgres://daimyo:__DB_PASSWORD_owner__@daimyo-pg-rw:5432/daimyo"
