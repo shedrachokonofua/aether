@@ -522,7 +522,8 @@ gates and planning on stronger tiers:
 | --- | --- |
 | Household/OpenWebUI, Orion main, dev specialist | `moira/strong` |
 | Orion coordinator, standing-work runner, briefing/news/markets feeds | `moira/balanced` |
-| Researcher, trip planner, frontend agent, memory dreamer | `moira/balanced` |
+| Researcher, trip planner, frontend agent | `moira/balanced` |
+| Memory dreamer and checker | `moira/frontier` |
 | Cicada writers | `moira/balanced` |
 | Cicada review lens (`diff`) | `moira/strong` |
 | Cicada planners | `moira/frontier` |
@@ -926,6 +927,32 @@ quarter of its read chapters flagged, no longer flags a chapter for an image-onl
 text, and records on each book the version of the rules it was read under (`books.rules`), re-reading books
 read under older rules once from saved answers.
 
+### Daimyo memory upkeep
+
+Configured under `memory` in the Daimyo Helm values in
+[`tofu/home/kubernetes/daimyo.tf`](../tofu/home/kubernetes/daimyo.tf). Design: the daimyo repo's SPEC-0001 §11c.3
+and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 140 (2026-11-23):
+
+- **Nightly dream.** The engine dreams each namespace of every store that had a conversation since its last
+  applied dream, at 04:00 `America/Toronto`, with nobody starting it. The built-in dreamer (`moira/frontier`,
+  $50 budget) reads the namespace's documents and conversations from files and answers with the documents it
+  rewrote; a second platform agent, `memory-checker`, then reads every rewritten or deleted document for facts
+  the new set no longer holds, and the lines it names are kept in `kept.md`. Only then is the set applied. An
+  applied dream is undone as one with `POST /v1/memory-dreams/{id}:revert`.
+- **Memory agents' harness.** `memory.dreamerImage` pins the claude-code harness the dreamer and checker run
+  (`local.daimyo_memory_harness_image`, daimyo `be1a00c`), apart from `harness.images.claude-code`, which stays
+  at `9747dcd` for the other claude-code agents.
+- **Mounts.** Store `personal`, the caller's `users/<person>` namespace: `orion` read-write (its chart), and
+  `dev`, `local`, `researcher`, `frontend` and `trip-planner` read-only (`local.daimyo_personal_memory_read`).
+  `rogue` does not mount it: its model is a third-party route. A dream reads the conversations of the agents
+  that mount the store. Checked on 2026-11-23: a `researcher` task started as the operator listed the files of
+  `/memory/personal`.
+- **First consolidation.** The operator's namespace was dreamed and applied by hand on 2026-11-23 at 17:37 UTC
+  (dream `01M84MJH690T904NJJ7R356CSD`): 42 documents and 81 KB became 11 and 92 KB. How it was checked, and the
+  three earlier attempts that were denied, are in the daimyo repo's `docs/ops/upgrades.md`. Not observed when
+  this was written: a dream the engine started on its own for this namespace (the first is due at 09:00 UTC on
+  2026-11-24).
+
 ### Daimyo memory eval
 
 Configured in [`tofu/home/kubernetes/daimyo_memory_eval.tf`](../tofu/home/kubernetes/daimyo_memory_eval.tf), namespace
@@ -951,6 +978,12 @@ best. The harness and its suites are the daimyo repo's `scripts/memory_eval` (RE
   labelled `suite`, `arm`, `kind`. A canary leak exits 1, which the "Kubernetes CronJob Failing" rule reports.
   Each memory case starts one dream, which the server caps at `[memory] dreamerBudgetUsd`. The run creates store
   `memory-eval` if it is not there and turns its daily upkeep dream off, since it dreams each person itself.
+- **Weekly run.** CronJob `memory-eval-longmemeval`, Sunday 10:10 UTC: 30 questions of LongMemEval-S through the
+  same three arms, a new draw each ISO week (the seed). The 277 MB dataset is fetched from Hugging Face into the
+  Job's scratch volume (checked from the issuer pod on 2026-11-23: the URL answers 200) and parsed in memory, so
+  the container's limit is 4 Gi. Each question brings about fifty sessions of its own, so a run takes hours;
+  the deadline is 12 h. Not observed when this was written: a finished run. The first, Job `lme-before-1`, was
+  started by hand on 2026-11-23 at 17:38 UTC.
 
 First baseline, run from a workstation on the private suite (24 cases, seed 1): full context 24/24, BM25 over raw
 turns 21/24. First run with the memory arm, Job `memory-eval-manual-1` on 2026-11-23 (the nightly configuration,
