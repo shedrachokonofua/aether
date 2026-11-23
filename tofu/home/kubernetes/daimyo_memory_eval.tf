@@ -21,9 +21,12 @@
 
 locals {
   memory_eval_ns = module.namespace["daimyo-memory-eval"].name
-  # 5706fcc (main pipeline 16753, build:memory-eval; the image's verify stage
-  # runs the harness's unit tests).
-  memory_eval_image      = "registry.gitlab.home.shdr.ch/so/daimyo/memory-eval@sha256:e66b0ec8310c701297401cc2c46fb70bd34b799465b27cffe7e7e66b7eb0302b"
+  # dadcc3b (main pipeline 16889, build:memory-eval; the image's verify stage
+  # runs the harness's unit tests): tokens are signed for the whole person
+  # name (`eval-…`), the run creates the store if it is not there and turns
+  # the store's daily upkeep dream off, since the eval dreams each person
+  # itself.
+  memory_eval_image      = "registry.gitlab.home.shdr.ch/so/daimyo/memory-eval@sha256:3dca3f87f0f9466bf6470815a39c2081d21ad1b72f7d59bd7aed1f0cded01178"
   memory_eval_issuer_url = "http://memory-eval-issuer.daimyo-memory-eval.svc:8080"
   memory_eval_labels     = { app = "daimyo-memory-eval" }
   memory_eval_agent      = "memory-keeper"
