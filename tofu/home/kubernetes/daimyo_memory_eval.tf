@@ -198,6 +198,34 @@ resource "kubectl_manifest" "memory_eval_agent" {
   })
 }
 
+# What every eval run is given: the model key, the venue in org qa and the
+# key its throwaway persons' tokens are signed with.
+locals {
+  memory_eval_run_env = [
+    { name = "LITELLM_BASE_URL", value = "${local.daimyo_litellm_upstream}/v1" },
+    { name = "LITELLM_API_KEY", valueFrom = { secretKeyRef = { name = kubernetes_secret_v1.memory_eval.metadata[0].name, key = "litellm-key" } } },
+    { name = "DAIMYO_SERVER", value = "http://daimyo-api.${local.daimyo_ns}.svc:80" },
+    { name = "MEMORY_EVAL_ORG", value = "qa" },
+    { name = "MEMORY_EVAL_PROJECT", value = "qa" },
+    { name = "MEMORY_EVAL_AGENT", value = local.memory_eval_agent },
+    { name = "MEMORY_EVAL_STORE", value = local.memory_eval_store },
+    { name = "MEMORY_EVAL_ISSUER_KEY", value = "/keys/issuer-key.pem" },
+    { name = "MEMORY_EVAL_ISSUER_URL", value = local.memory_eval_issuer_url },
+    { name = "MEMORY_EVAL_CACHE", value = "/out/cache" },
+    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318" },
+  ]
+  memory_eval_run_volumes = [
+    {
+      name = "keys"
+      secret = {
+        secretName = kubernetes_secret_v1.memory_eval.metadata[0].name
+        items      = [{ key = "issuer-key.pem", path = "issuer-key.pem" }]
+      }
+    },
+    { name = "out", emptyDir = { sizeLimit = "1Gi" } },
+  ]
+}
+
 # 07:10 UTC, after the day's conversations and before the 09:00 UTC dreams.
 resource "kubectl_manifest" "memory_eval_cron" {
   depends_on = [kubectl_manifest.memory_eval_agent, kubectl_manifest.memory_eval_issuer]
@@ -250,19 +278,7 @@ resource "kubectl_manifest" "memory_eval_cron" {
                   [ "$private" = 0 ] && [ "$canary" = 0 ]
                 EOT
                 ]
-                env = [
-                  { name = "LITELLM_BASE_URL", value = "${local.daimyo_litellm_upstream}/v1" },
-                  { name = "LITELLM_API_KEY", valueFrom = { secretKeyRef = { name = kubernetes_secret_v1.memory_eval.metadata[0].name, key = "litellm-key" } } },
-                  { name = "DAIMYO_SERVER", value = "http://daimyo-api.${local.daimyo_ns}.svc:80" },
-                  { name = "MEMORY_EVAL_ORG", value = "qa" },
-                  { name = "MEMORY_EVAL_PROJECT", value = "qa" },
-                  { name = "MEMORY_EVAL_AGENT", value = local.memory_eval_agent },
-                  { name = "MEMORY_EVAL_STORE", value = local.memory_eval_store },
-                  { name = "MEMORY_EVAL_ISSUER_KEY", value = "/keys/issuer-key.pem" },
-                  { name = "MEMORY_EVAL_ISSUER_URL", value = local.memory_eval_issuer_url },
-                  { name = "MEMORY_EVAL_CACHE", value = "/out/cache" },
-                  { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://otel-daemonset-opentelemetry-collector.observability.svc.cluster.local:4318" },
-                ]
+                env             = local.memory_eval_run_env
                 securityContext = local.memory_eval_container_security
                 resources = {
                   requests = { cpu = "50m", memory = "128Mi" }
@@ -273,16 +289,75 @@ resource "kubectl_manifest" "memory_eval_cron" {
                   { name = "out", mountPath = "/out" },
                 ]
               }]
-              volumes = [
-                {
-                  name = "keys"
-                  secret = {
-                    secretName = kubernetes_secret_v1.memory_eval.metadata[0].name
-                    items      = [{ key = "issuer-key.pem", path = "issuer-key.pem" }]
-                  }
-                },
-                { name = "out", emptyDir = { sizeLimit = "1Gi" } },
-              ]
+              volumes = local.memory_eval_run_volumes
+            }
+          }
+        }
+      }
+    }
+  })
+}
+
+# LongMemEval-S, the public benchmark, weekly (Sunday 10:10 UTC, after the
+# nightly run and the 09:00 UTC dreams): thirty questions drawn evenly from
+# its six kinds, a new draw each week. Each question brings about fifty
+# sessions (some 115k tokens) of its own, so the memory arm's dream reads far
+# more than a private case's and a run takes hours. The 277 MB dataset is
+# fetched from Hugging Face into the Job's scratch volume and parsed in
+# memory, hence the larger limit.
+resource "kubectl_manifest" "memory_eval_longmemeval_cron" {
+  depends_on = [kubectl_manifest.memory_eval_agent, kubectl_manifest.memory_eval_issuer]
+
+  yaml_body = yamlencode({
+    apiVersion = "batch/v1"
+    kind       = "CronJob"
+    metadata = {
+      name      = "memory-eval-longmemeval"
+      namespace = local.memory_eval_ns
+      labels    = merge(local.memory_eval_labels, { component = "run" })
+    }
+    spec = {
+      schedule                   = "10 10 * * 0"
+      concurrencyPolicy          = "Forbid"
+      successfulJobsHistoryLimit = 3
+      failedJobsHistoryLimit     = 3
+      jobTemplate = {
+        spec = {
+          backoffLimit            = 0
+          activeDeadlineSeconds   = 12 * 60 * 60
+          ttlSecondsAfterFinished = 14 * 24 * 60 * 60
+          template = {
+            metadata = { labels = merge(local.memory_eval_labels, { component = "run" }) }
+            spec = {
+              restartPolicy                = "Never"
+              automountServiceAccountToken = false
+              imagePullSecrets             = [{ name = kubernetes_secret_v1.memory_eval_registry.metadata[0].name }]
+              securityContext              = local.memory_eval_pod_security
+              containers = [{
+                name    = "run"
+                image   = local.memory_eval_image
+                command = ["sh", "-c"]
+                # The seed is the ISO year and week, so each week draws
+                # other questions and a rerun in the same week repeats them.
+                args = [<<-EOT
+                  run=$(date -u +%Y%m%d%H%M)
+                  exec python3 -m memory_eval run --suite longmemeval-s --arms full-context,raw-search,memory \
+                    --n 30 --seed "$(date -u +%G%V)" --run "$run" --out /out/longmemeval --concurrency 3 \
+                    --answer-model ${local.memory_eval_answer_model} --judge-model ${local.memory_eval_judge_model}
+                EOT
+                ]
+                env             = local.memory_eval_run_env
+                securityContext = local.memory_eval_container_security
+                resources = {
+                  requests = { cpu = "50m", memory = "512Mi" }
+                  limits   = { memory = "4Gi" }
+                }
+                volumeMounts = [
+                  { name = "keys", mountPath = "/keys", readOnly = true },
+                  { name = "out", mountPath = "/out" },
+                ]
+              }]
+              volumes = local.memory_eval_run_volumes
             }
           }
         }
