@@ -494,7 +494,7 @@ under `postgres/affine/` and `cnpg/affine/` in `aether-db-dumps`.
 Inkling 2 Mini, a looped MoE with 26B total and 3B active parameters, from
 ggml-org's Q8_0 GGUF. It is an on-demand `llm` matrix alternative, so loading it
 evicts `qwen3.8-flash-next`; the default comes back on its next request (cold
-load ~20 s). With the 262144-token context it holds ~65 GB of VRAM alongside
+load 20-45 s measured). With the 262144-token context it holds ~65 GB of VRAM alongside
 the embedding and ASR models, as much as the Flash-Next set. Both IDs reason:
 effort 0.0 only shortens the thinking block. AA v5 scores it 20 against 29 for
 Qwen3.8-Flash-Next. An eight-task smoke set (2026-11-23, both IDs each) passed
