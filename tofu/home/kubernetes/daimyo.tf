@@ -258,7 +258,14 @@ locals {
   # since 68f0507): the built-in dreamer asks the scheduler for 100m CPU and
   # 512Mi and keeps its limits. Asking for 1 CPU and 2Gi left its pod Pending
   # on the full kata-reclaim nodes until the dream failed to start.
-  daimyo_server_tag = "sha256:db8b0f8df78755cdcc4d6ec46a44ba68054558cb9fbc5faa0a509f402ba65960"
+  # a8e6cb4 (main pipeline 17027: fmt, clippy, scripts-test and the server
+  # build green): a dream's candidate set is checked for lost facts by a
+  # second platform agent, memory-checker, before it can be applied, and the
+  # lines it names are kept in kept.md (migration 0061); the dreamer's prompt
+  # says to lose nothing; and a service is never given a person's sub
+  # (4abb690). The first consolidation of the operator's memory dropped over
+  # 100 facts from the 32 files it deleted and was denied.
+  daimyo_server_tag = "sha256:453f4179e5e28040e341ed21b2e59f59578b679253728dde16c4041c5c203e2e"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
