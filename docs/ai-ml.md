@@ -118,9 +118,12 @@ Composer deployment (`composer.home.shdr.ch`, a Grok bridge over Cursor) was
 removed on 2026-10-15. The `composer-api` GitLab project stays because its
 container registry hosts the open-design image.
 
-Qwen Cloud provides the standalone `qwen-cloud/qwen3.8-max` and
-`qwen-cloud/qwen3.8-flash` models through Alibaba MaaS. Inquest is configured
-to send Holmes investigations to the local `aether/qwen3.8-flash-next:think`.
+Qwen Cloud provides the standalone `qwen-cloud/qwen4-max`,
+`qwen-cloud/qwen3.8-max` and `qwen-cloud/qwen3.8-flash` models through Alibaba
+MaaS. Qwen4-Max (added 2026-11-23) scores AA v5 43 and represents the Qwen
+Cloud pool in `moira/strong` at xhigh; its plan rates are derived from PAYG
+list prices, not measured. Inquest is configured to send Holmes investigations
+to the local `aether/qwen3.8-flash-next:think`.
 
 Holmes is paused (`replicas = 0` in `tofu/home/kubernetes/holmesgpt.tf`) since
 2026-09-29. From 05:30Z that day, Inquest investigations sent 20–45
@@ -151,7 +154,7 @@ refresh. The login task restricts the directory to `0700` and the file to
 token with desktop Codex or OMP. Direct OpenAI API-key access is no longer
 configured in LiteLLM.
 
-The subscription catalog exposes `chatgpt/gpt-6-astra`, `chatgpt/gpt-6.1-sol`,
+The subscription catalog exposes `chatgpt/gpt-6-astra`, `chatgpt/gpt-6.2-sol`,
 `chatgpt/gpt-6.1-terra`, and `chatgpt/gpt-6-luna`. Deskplane's MCP uses
 `moira/computer-use`, which prefers
 `chatgpt/gpt-6.1-terra`, then `antigravity/gemini-4-hydrogen`, then local
@@ -160,8 +163,8 @@ deployment also uses Terra. The ChatGPT routes declare Responses mode, native
 streaming and a conservative 272000-token input cap; LiteLLM 1.106's bundled
 catalog lists GPT-6 with a larger limit than the Codex backend accepts.
 Terra's subscription vision and function calling were verified 2026-10-29.
-GPT-6.1 Sol replaced GPT-6 Sol on 2026-09-29 and rejects `reasoning_effort`
-`none`/`minimal`.
+GPT-6.2 Sol replaced GPT-6.1 Sol on 2026-11-23 (GPT-6.1 Sol had replaced GPT-6
+Sol on 2026-09-29); both reject `reasoning_effort` `none`/`minimal`.
 
 The Deskplane virtual key permits the computer-use alias and each concrete
 group member. Synchronize only that key's model grants with:
@@ -487,6 +490,18 @@ jobs, HTTPRoute, Keycloak client, LiteLLM virtual key, and the LiteLLM
 are retained as Released PVs, and its existing dumps and CNPG backups remain
 under `postgres/affine/` and `cnpg/affine/` in `aether-db-dumps`.
 
+`aether/inkling-2-mini` and `:think` (added 2026-11-23) run Thinking Machines'
+Inkling 2 Mini, a looped MoE with 26B total and 3B active parameters, from
+ggml-org's Q8_0 GGUF. It is an on-demand `llm` matrix alternative, so loading it
+evicts `qwen3.8-flash-next`; the default comes back on its next request (cold
+load ~20 s). With the 262144-token context it holds ~65 GB of VRAM alongside
+the embedding and ASR models, as much as the Flash-Next set. Both IDs reason:
+effort 0.0 only shortens the thinking block. AA v5 scores it 20 against 29 for
+Qwen3.8-Flash-Next. An eight-task smoke set (2026-11-23, both IDs each) passed
+16/16 on Inkling and 15/16 on Flash-Next (non-thinking arithmetic), with
+Inkling at ~70 and Flash-Next at ~90 output tokens/s. Flash-Next stays the
+default.
+
 Colony was undeployed on 2026-11-09 after Cicada replaced it. Its daemon,
 service, HTTPRoute, runtime secret, service account, sandbox-launcher RBAC,
 LiteLLM MCP registration and client grants, uptime probe, and six Grafana
@@ -770,8 +785,8 @@ membership in [`moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
 
 | Tier | AA v5 band | Distinct configured quota pools | Representatives |
 | --- | --- | --- | --- |
-| `moira/frontier` | 50 and up | 4 | Opus 5.5 max; GPT-6.1 Sol max; Muse Wonder Full max; Gemini 4 Neon xhigh |
-| `moira/strong` | 40–49 | 5 | Kimi K3.1 Pro max; GPT-6.1 Terra xhigh; Muse Wonder max; Sonnet 5.5 high; Gemini 4 Neon low |
+| `moira/frontier` | 50 and up | 4 | Opus 5.5 max; GPT-6.2 Sol max; Muse Wonder Full max; Gemini 4 Neon xhigh |
+| `moira/strong` | 40–49 | 6 | Kimi K3.1 Pro max; GPT-6.1 Terra xhigh; Muse Wonder max; Sonnet 5.5 high; Gemini 4 Neon low; Qwen4 Max xhigh |
 | `moira/balanced` | 30–39 | 8 | Grok 4.7 high; Haiku 5.5 xhigh; Qwen3.8 Max xhigh; DeepSeek V4.1 Flash 1017 max; GLM-5.3 max; MiMo V2.6 Pro on Xiaomi, Command Code and OpenCode Go |
 | `moira/flash` | 25–29 | 7 | GLM-5.3 Flash max on Z.AI and Ollama Cloud; GPT-6 Luna max; MiMo V2.6 Flash on Xiaomi, Command Code and OpenCode Go; Gemini 4 Hydrogen low |
 

@@ -8,11 +8,12 @@
 # per model request, with TTL-based unloading to free VRAM.
 
 locals {
-  # unified-cuda13 (2026-10-15) bundles llama-server, sd-server (sd.cpp image
-  # models below) and audiocpp_server (/usr/local/share/audiocpp). Pinned by
-  # digest: the tag is a rolling date build. Codified from the live sd.cpp
-  # spike (docs/exploration/image-generation-engines.md) on 2026-11-01.
-  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:unified-cuda13-2026-10-15@sha256:8195bebf265ba6e6dd280859a7afe9a8251d992cb7fc78550f5d3e58ed26b88f"
+  # unified-cuda13 bundles llama-server, sd-server (sd.cpp image models below)
+  # and audiocpp_server (/usr/local/share/audiocpp). Pinned by digest: the tag
+  # is a rolling date build. 2026-11-22 (built 07:57Z) carries llama.cpp's
+  # Inkling 2 support (#32217, #32694, #32704); the later ignore_merges
+  # tokenizer fix (#32799, merged 18:52Z) is not in it yet.
+  llama_swap_image   = "ghcr.io/mostlygeek/llama-swap:unified-cuda13-2026-11-22@sha256:217af78ad98fd6240e066987e9808d9ad7ffdeaf680b94405d2f0b4c95d9a869"
   llama_swap_host    = "llama-swap.home.shdr.ch"
   llama_swap_port    = 8080
   llama_swap_ns      = module.namespace["ai-serving"].name
@@ -314,6 +315,33 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
                 top_p: 0.95
                 top_k: 64
 
+        "inkling-2-mini":
+          # Thinking Machines' looped MoE (2026-11-20): 26B total / 3B active,
+          # 1M context, text + image. ggml-org's Q8_0 (27.8 GB; KL 0.003 vs BF16)
+          # plus its mmproj, which -hf fetches alongside. Thinking is a numeric
+          # reasoning_effort in the chat template (none 0.0 ... high 0.9, the
+          # default); IDs pin it like the Qwen models. Sampling per the model's
+          # generation_config (temperature 1.0).
+          cmd: >
+            llama-server
+            --port $${PORT}
+            -hf ggml-org/Inkling-2-Mini-GGUF:Q8_0
+            -ngl 99
+            --cache-type-k q8_0
+            --cache-type-v q8_0
+            --ctx-size 262144
+          ttl: 900
+          filters:
+            setParamsByID:
+              "inkling-2-mini":
+                chat_template_kwargs:
+                  reasoning_effort: none
+                temperature: 1.0
+              "inkling-2-mini:think":
+                chat_template_kwargs:
+                  reasoning_effort: medium
+                temperature: 1.0
+
         "qwen3-embedding-4b":
           cmd: >
             llama-server
@@ -394,6 +422,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           g26: "gemma-4-26b-a4b"
           mg30: "muse-glimmer-30b"
           q35: "qwen3.5-9b"
+          ink: "inkling-2-mini"
           # LiteLLM routes embed calls to 0.6b; must be in-matrix or llama-swap
           # evicts the chat model when embedding starts (exclusive default).
           emb: "qwen3-embedding-0.6b"
@@ -413,6 +442,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           g26: 20
           mg30: 25
           q35: 10
+          ink: 20
           emb: 2
           qrr: 4
           asr: 2
@@ -424,7 +454,7 @@ resource "kubernetes_config_map_v1" "llama_swap_config" {
           # One chat model + embedding + the reranker, co-resident so RAG calls
           # never evict the chat model.
           # muse-glimmer-30b stays outside the group (exclusive swap-in).
-          llm: "(q3827 | qfn | g31 | g26 | q35) & emb & qrr & asr & tts"
+          llm: "(q3827 | qfn | g31 | g26 | q35 | ink) & emb & qrr & asr & tts"
           # One image model instead of a chat model, keeping embedding, reranker
           # and speech resident.
           img: "(zit | qie | pony) & emb & qrr & asr & tts"

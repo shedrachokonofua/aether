@@ -26,7 +26,7 @@
         - supergrok/grok-4.7
         - step/step-5-preview
         - chatgpt/gpt-6-astra
-        - chatgpt/gpt-6.1-sol
+        - chatgpt/gpt-6.2-sol
         - chatgpt/gpt-6.1-terra
         - chatgpt/gpt-6-luna
         - router/glm-5.3
@@ -68,8 +68,11 @@
         - aether/qwen3.8-27b:think
         - aether/muse-glimmer-30b
         - aether/muse-glimmer-30b:think
+        - aether/inkling-2-mini
+        - aether/inkling-2-mini:think
         - clinepass/qwen3.8-max
         - qwen-cloud/qwen3.8-max
+        - qwen-cloud/qwen4-max
         - qwen-cloud/qwen3.8-flash
         - kimi/k3
         - kimi/k3.1-pro
@@ -99,7 +102,7 @@
         - supergrok/grok-4.7
         - step/step-5-preview
         - chatgpt/gpt-6-astra
-        - chatgpt/gpt-6.1-sol
+        - chatgpt/gpt-6.2-sol
         - chatgpt/gpt-6.1-terra
         - chatgpt/gpt-6-luna
         - router/glm-5.3
@@ -137,6 +140,7 @@
         - ollama-cloud/deepseek-v4-pro
         - ollama-cloud/deepseek-v4.1-flash
         - qwen-cloud/qwen3.8-max
+        - qwen-cloud/qwen4-max
         - qwen-cloud/qwen3.8-flash
         - clinepass/qwen3.8-max
         - aether/qwen3.8-flash-next

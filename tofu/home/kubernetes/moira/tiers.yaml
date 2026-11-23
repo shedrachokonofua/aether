@@ -17,7 +17,7 @@ tiers:
     min: 50
     members:
       claude/opus-5-5: max
-      chatgpt/gpt-6.1-sol: max
+      chatgpt/gpt-6.2-sol: max
       meta/muse-wonder-full-1.0-contributor: max
       antigravity/gemini-4-neon: xhigh
       # Gemini 4 Argon high scores 50, but stays gated until its distinct
@@ -32,6 +32,8 @@ tiers:
       claude/sonnet-5-5: high
       # Neon low (44) outscores Hydrogen medium (41) in the same Gemini pool.
       antigravity/gemini-4-neon: low
+      # Qwen4 Max has one native AA row (43); xhigh is its top effort.
+      qwen-cloud/qwen4-max: xhigh
   balanced:
     min: 30
     max: 39
@@ -177,6 +179,10 @@ plans:                      # local-count providers
     offpeak: { utc_from: 14, utc_to: 24, factor: 0.4 }
     rates:
       qwen3.8-max: { cached: 0.0001493, input: 0.0012055, output: 0.0036156 }
+      # Qwen4-Max: 0.75x qwen3.8-max from PAYG list prices ($1.5 / $4.5 vs
+      # $2 / $6). Its cache-read price is unpublished; the cached rate keeps
+      # qwen3.8-max's cached:input ratio until a batch measures it.
+      qwen4-max: { cached: 0.0001120, input: 0.0009041, output: 0.0027117 }
     # Qwen answered "token-plan 1-month quota has been exhausted ... reset at
     # 10-30 16:00:00 UTC" at 2026-10-11T00:08Z while the meter read 91.7%: the
     # estimated rates undercount, so the calibration takes the provider's word.

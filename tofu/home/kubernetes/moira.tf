@@ -11,11 +11,10 @@
 # the LiteLLM model_list).
 
 locals {
-  # d4d2e65 (tag deploy-gemini4-d4d2e65): AA scores for Gemini 4 Neon and
-  # Hydrogen (and Argon medium) on top of f673e24 (forced tier members, on
-  # 9c120aa content_filter reports). Built off f673e24, not moira main, because
-  # main's 321eb62 drops the GPT-6.1 Sol score this tiers.yaml still uses.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:5e07251779ada2e17a8aed34f00317aaffe39e441c28990911ba1875d21269d2"
+  # d0db114 (moira main): Qwen4 Max (43) on 3f9fd79 (Gemini 4 Neon/Hydrogen)
+  # and 321eb62 (GPT-6.2 Sol replaces the GPT-6.1 Sol score). CI pipeline 16706
+  # passed before this digest was selected.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:0f7877e20d627cdc9a54de85bf1492a3f658a303a7a68df8454f49a698d078df"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }

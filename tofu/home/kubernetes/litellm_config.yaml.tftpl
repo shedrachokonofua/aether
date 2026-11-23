@@ -127,6 +127,24 @@ model_list:
       use_chat_completions_api: true
       additional_drop_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+  # Inkling 2 Mini (Thinking Machines, 2026-11-20): looped MoE, 26B total / 3B
+  # active, text + image. Effort is pinned per ID (base 0.0, :think 0.7), but
+  # the model always writes a reasoning block: effort 0.0 only shortens it
+  # (46 tokens for "reply ok", 2026-11-23), so both IDs report reasoning.
+  - model_name: "aether/inkling-2-mini"
+    litellm_params:
+      model: "openai/inkling-2-mini"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
+  - model_name: "aether/inkling-2-mini:think"
+    litellm_params:
+      model: "openai/inkling-2-mini:think"
+      litellm_credential_name: llama_swap_credential
+      use_chat_completions_api: true
+      additional_drop_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
   # Glimmer thinks via chat_template_kwargs.reasoning_effort, which only the
   # :think ID sets; b10423 does not map the top-level field onto it.
   - model_name: "aether/muse-glimmer-30b"
@@ -227,6 +245,19 @@ model_list:
       litellm_credential_name: qwen_cloud_credential
       allowed_openai_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # Qwen4-Max on the token plan (2026-11-23). Limits from Model Studio's
+  # qwen4-max page: 983,616 input and 262,144 output in thinking mode (the
+  # default); vision and tool calls verified by direct call. reasoning_effort
+  # takes low/high/xhigh and the endpoint maps minimal/medium/max onto them.
+  - model_name: "qwen-cloud/qwen4-max"
+    litellm_params:
+      model: "openai/qwen4-max"
+      litellm_credential_name: qwen_cloud_credential
+      allowed_openai_params: ["reasoning_effort"]
+      # Same long agent turns as qwen3.8-max above.
+      timeout: 900
+      stream_timeout: 900
+    model_info: {mode: chat, max_input_tokens: 983616, max_output_tokens: 262144, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
 
   # Step Plan subscription — no PAYG fallback.
   # Input limit, vision and reasoning from the endpoint's /models.
@@ -662,11 +693,11 @@ model_list:
       model: "chatgpt/gpt-6-astra"
       allowed_openai_params: ["reasoning_effort"]
     model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: &chatgpt_reasoning_params [frequency_penalty, logit_bias, logprobs, top_logprobs, max_tokens, max_completion_tokens, modalities, prediction, n, presence_penalty, seed, stop, stream, stream_options, temperature, top_p, tools, tool_choice, function_call, functions, max_retries, extra_headers, parallel_tool_calls, audio, web_search_options, service_tier, safety_identifier, prompt_cache_key, prompt_cache_retention, store, response_format, reasoning_effort, user]}
-  # GPT-6.1 Sol replaced GPT-6 Sol (2026-09-29). It rejects reasoning_effort
-  # none/minimal, unlike the GPT-6 slugs.
-  - model_name: "chatgpt/gpt-6.1-sol"
+  # GPT-6.2 Sol replaced GPT-6.1 Sol (2026-11-23). Like 6.1 it rejects
+  # reasoning_effort none/minimal, unlike the GPT-6 slugs.
+  - model_name: "chatgpt/gpt-6.2-sol"
     litellm_params:
-      model: "chatgpt/gpt-6.1-sol"
+      model: "chatgpt/gpt-6.2-sol"
       allowed_openai_params: ["reasoning_effort"]
     model_info: {system_as_string: true, mode: responses, supports_native_streaming: true, max_input_tokens: 272000, max_output_tokens: 128000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *chatgpt_reasoning_params}
   # Terra is the computer-use primary. Keep the existing conservative gateway
