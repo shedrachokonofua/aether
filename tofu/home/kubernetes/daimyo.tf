@@ -227,7 +227,16 @@ locals {
   # resolves for its caller, and may not start one. Before it every dream
   # request from an agent was policy-denied. The only Rust change since
   # 0143d79. No migrations; sidecar and harnesses unchanged.
-  daimyo_server_tag = "sha256:749124b8d3be91a6108dc11677e16e2c43ebdd165ca8023dd88784ca70fba76e"
+  # ff23dc1 (pushed to main; pipeline 16725: clippy, rust-test-engine and
+  # the server build green, fmt red on line wrapping fixed in the next
+  # commit, rust-test still running when this was pinned): the dreamer is
+  # given conversations, not event logs. Each archived turn is rendered as
+  # what the person said (the task input, which the event log never held),
+  # the tools called and the agent's text; a session's turns are one entry,
+  # windowed by when they ended; tool results are left out. Before it the
+  # dreamer never saw the person's own messages. No migrations; sidecar and
+  # harnesses unchanged.
+  daimyo_server_tag = "sha256:3ad7f9b9d9631c42386af2a004de1b08c5f74568e5abeeb53b5d40c3334ec703"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
