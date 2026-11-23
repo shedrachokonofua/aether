@@ -236,7 +236,17 @@ locals {
   # windowed by when they ended; tool results are left out. Before it the
   # dreamer never saw the person's own messages. No migrations; sidecar and
   # harnesses unchanged.
-  daimyo_server_tag = "sha256:3ad7f9b9d9631c42386af2a004de1b08c5f74568e5abeeb53b5d40c3334ec703"
+  # ad11b91 (pushed to main; pipeline 16798: fmt, clippy, scripts-test and the
+  # server build green): a dream's input is files, not one prompt. The engine
+  # writes every document, every conversation and every tool call in full
+  # under users/<person>/dreams/<dream>/ and hands that to the dreamer as a
+  # file input; the dreamer has file tools, keeps notes on disk, and may
+  # answer `error`, which fails the dream. Before it the 2026-11-23 dream had
+  # 635 KB in one prompt, lost the documents to context summarizing and was
+  # recorded as applied with 0 changes. Also in this image: sessions:import
+  # (21e8754) and dream revert (14e390a, migration 0059, applied at start).
+  # Sidecar and harnesses unchanged.
+  daimyo_server_tag = "sha256:2f2f07cf89cbf43dd6b11bb51a0646cece3f8e28dfeac77756fded449a95cc8c"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -906,11 +916,15 @@ resource "helm_release" "daimyo" {
       }
       # Memory search embeds through LiteLLM; the server default alias
       # (text-embedding-3-small) is not served here (litellm_config.yaml.tftpl).
-      # The built-in dreamer (§11c.3) consolidates memory on the balanced tier.
+      # The built-in dreamer (§11c.3) consolidates memory on the frontier
+      # tier: it reads every conversation of the window from files, turn by
+      # turn, and rewrites a person's memory, so it gets the strongest model
+      # Moira can route to and a budget that does not stop it mid-read (was
+      # moira/balanced at $0.25 until 2026-11-23).
       memory = {
         embeddingModel   = "aether/qwen3-embedding:0.6b"
-        dreamerModel     = "moira/balanced"
-        dreamerBudgetUsd = 0.25
+        dreamerModel     = "moira/frontier"
+        dreamerBudgetUsd = 50
       }
       database = {
         ownerUrl  = "postgres://daimyo:__DB_PASSWORD_owner__@daimyo-pg-rw:5432/daimyo"
