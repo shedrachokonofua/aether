@@ -996,7 +996,7 @@ Results that stand:
 
 - Private suite from a workstation (24 cases, seed 1): full context 24/24, BM25 over raw turns 21/24. Job
   `memory-eval-manual-1` (12 cases): full context 12/12, BM25 10/12.
-- LongMemEval-S, Job `lme-before-1`, 2026-11-23, 30 questions of seed 202648, on Daimyo Helm 140 (86 minutes):
+- LongMemEval-S, Job `lme-before-1`, 2026-11-23, 30 questions of seed 202648, on Daimyo Helm 140 (101 minutes):
   full context 27/30, BM25 27/30. The Job printed 13/28 for memory. The answers each case's own session gave
   were read from Daimyo's task rows and graded again with the same judge and prompts: 26/28, the same verdict on
   a second grading of each. Two cases did not run: their dreamer pod failed to start (`kubernetes api:
