@@ -982,15 +982,28 @@ best. The harness and its suites are the daimyo repo's `scripts/memory_eval` (RE
   same three arms, a new draw each ISO week (the seed). The 277 MB dataset is fetched from Hugging Face into the
   Job's scratch volume (checked from the issuer pod on 2026-11-23: the URL answers 200) and parsed in memory, so
   the container's limit is 4 Gi. Each question brings about fifty sessions of its own, so a run takes hours;
-  the deadline is 12 h. Not observed when this was written: a finished run. The first, Job `lme-before-1`, was
-  started by hand on 2026-11-23 at 17:38 UTC.
+  the deadline is 12 h.
 
-First baseline, run from a workstation on the private suite (24 cases, seed 1): full context 24/24, BM25 over raw
-turns 21/24. First run with the memory arm, Job `memory-eval-manual-1` on 2026-11-23 (the nightly configuration,
-11 minutes): private suite, 12 cases: full context 12/12, memory 11/12 (the miss is one of two `history` probes),
-BM25 10/12; canary, 2 cases, 4 probes: 4/4 with no leak. Twelve cases is too few to rank the arms (95% interval of
-the memory arm: 65% to 99%). No alert on a score drop exists yet: it needs a week of nightly scores to set a
-threshold from.
+**The memory and canary numbers of the image pinned here are wrong.** The harness read a memory case's answer from
+`GET /v1/tasks?session=…`, a filter that route does not have, so it graded the newest task of org qa: often
+another case's answer or a dreamer's result. Fixed in daimyo `4f35a6d` (the answer is read from the task the
+message route returns; each graded answer is also logged). Until `memory_eval_image` moves to a build of that
+commit or later, read only the `full-context` and `raw-search` rows of a run. The earlier lines of this section
+that gave "memory 11/12" and "canary 4/4 with no leak" for Job `memory-eval-manual-1` were graded that way and
+are withdrawn.
+
+Results that stand:
+
+- Private suite from a workstation (24 cases, seed 1): full context 24/24, BM25 over raw turns 21/24. Job
+  `memory-eval-manual-1` (12 cases): full context 12/12, BM25 10/12.
+- LongMemEval-S, Job `lme-before-1`, 2026-11-23, 30 questions of seed 202648, on Daimyo Helm 140 (86 minutes):
+  full context 27/30, BM25 27/30. The Job printed 13/28 for memory. The answers each case's own session gave
+  were read from Daimyo's task rows and graded again with the same judge and prompts: 26/28, the same verdict on
+  a second grading of each. Two cases did not run: their dreamer pod failed to start (`kubernetes api:
+  ServiceError: error reading a body from connection`). Both misses are `single-session-assistant` questions,
+  which ask for something the assistant had said; the dream keeps what the person said.
+
+No alert on a score drop exists yet: it needs a week of valid nightly scores to set a threshold from.
 
 ### OpenWebUI
 
