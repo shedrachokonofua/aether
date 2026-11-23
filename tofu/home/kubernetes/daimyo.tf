@@ -254,7 +254,11 @@ locals {
   # argument, which Linux refuses over 128 KiB (the ad11b91 dream of
   # 2026-11-23 had about 320 input files and its pod failed at start). Needs
   # the sidecar below for `inputs --list-file`.
-  daimyo_server_tag = "sha256:0ad9259eb911e78859a808aefe9ca12b8d83883b14a6283a4ad0c2ddefea78dd"
+  # f08e576 (main pipeline 16882, server build green; the only Rust change
+  # since 68f0507): the built-in dreamer asks the scheduler for 100m CPU and
+  # 512Mi and keeps its limits. Asking for 1 CPU and 2Gi left its pod Pending
+  # on the full kata-reclaim nodes until the dream failed to start.
+  daimyo_server_tag = "sha256:db8b0f8df78755cdcc4d6ec46a44ba68054558cb9fbc5faa0a509f402ba65960"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
