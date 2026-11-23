@@ -221,7 +221,13 @@ locals {
   # .../memory-stores/{store}/dreams and MCP memory_dream_get. A turn whose
   # session spend cannot be read is retried for 5 minutes instead of failing
   # as "the session background budget is spent". No migrations.
-  daimyo_server_tag = "sha256:360343afb5a763e682e8bb6c727b3523ce2ff6a3ef8adc8089c30508de4a87c2"
+  # 313e4cd (merge request !29 pipeline 16667 green; main pipeline 16700
+  # server build green): a task or session may list, read, approve and deny
+  # the dreams of a store it mounts write, in the namespace that mount
+  # resolves for its caller, and may not start one. Before it every dream
+  # request from an agent was policy-denied. The only Rust change since
+  # 0143d79. No migrations; sidecar and harnesses unchanged.
+  daimyo_server_tag = "sha256:749124b8d3be91a6108dc11677e16e2c43ebdd165ca8023dd88784ca70fba76e"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
