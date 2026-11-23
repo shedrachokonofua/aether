@@ -1421,7 +1421,10 @@ resource "kubectl_manifest" "daimyo_org" {
       {
         # personal: only shdrch. qa: any aether-realm principal (the
         # daimyo-smoke client drives the e2e campaign there).
-        issuers = contains(["personal", "qa", "cicada"], each.key) ? [
+        # qa also trusts the memory eval's issuer (daimyo_memory_eval.tf): its
+        # `sub` maps with the prefix `user:eval-`, so that key names only
+        # `eval-…` persons.
+        issuers = concat(contains(["personal", "qa", "cicada"], each.key) ? [
           merge(
             {
               issuer    = "https://auth.shdr.ch/realms/aether"
@@ -1431,7 +1434,11 @@ resource "kubectl_manifest" "daimyo_org" {
             },
             contains(["personal", "cicada"], each.key) ? { requiredClaims = { preferred_username = "shdrch" } } : {},
           ),
-        ] : []
+          ] : [], each.key == "qa" ? [{
+            issuer    = local.memory_eval_issuer_url
+            audiences = ["daimyo"]
+            principal = { claim = "sub", prefix = "user:eval-" }
+        }] : [])
         namespaces = { config = "org-${each.key}", tasks = "${each.key}-tasks" }
         # personal: 20 hot sessions (default 5). Orion threads, coordinators,
         # dev, trip-planner, rogue and Orion's spare session share the cap; at

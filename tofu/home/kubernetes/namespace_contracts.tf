@@ -363,6 +363,20 @@ locals {
         "app.kubernetes.io/part-of"    = "daimyo"
       }
     }
+    "daimyo-memory-eval" = {
+      tier                    = "app",
+      owner                   = "daimyo",
+      backup                  = "none",
+      exposure                = "none",
+      create_s3_backup_secret = false,
+      description             = "Daimyo memory eval: nightly run and the issuer org qa trusts for its throwaway persons"
+      source_file             = "tofu/home/kubernetes/daimyo_memory_eval.tf"
+      registry_access         = "gitlab"
+      extra_labels = {
+        "app.kubernetes.io/managed-by" = "opentofu"
+        "app.kubernetes.io/part-of"    = "daimyo"
+      }
+    }
     "org-cicada" = {
       tier                    = "guest",
       owner                   = "daimyo",

@@ -926,6 +926,33 @@ quarter of its read chapters flagged, no longer flags a chapter for an image-onl
 text, and records on each book the version of the rules it was read under (`books.rules`), re-reading books
 read under older rules once from saved answers.
 
+### Daimyo memory eval
+
+Configured in [`tofu/home/kubernetes/daimyo_memory_eval.tf`](../tofu/home/kubernetes/daimyo_memory_eval.tf), namespace
+`daimyo-memory-eval` (2026-11-23). It scores Daimyo's agent memory on test histories beside two baselines that use
+no memory system: the answering model given the whole history, and the same model given the 20 turns BM25 ranks
+best. The harness and its suites are the daimyo repo's `scripts/memory_eval` (README there).
+
+- **Issuer.** Deployment `memory-eval-issuer` serves a discovery document and JWKS for one P-256 key (SOPS
+  `daimyo.memory_eval_issuer_key_b64`). Org `qa` lists it in `issuers` with `principal: {claim: sub, prefix:
+  "user:eval-"}`, so a token signed with that key is an `eval-…` person of org qa. Checked after the apply: such a
+  token lists sessions in org qa and is refused in org personal (`issuer is not trusted for this org`). Tokens are
+  signed by the harness itself; the Deployment mints none.
+- **Test agent.** `org-qa/memory-keeper`: an omp harness agent on `moira/flash` with a per-user mount of store
+  `memory-eval`, the files tool, and nothing else.
+- **Nightly run.** CronJob `memory-eval`, 07:10 UTC: 12 private cases through all three arms and 2 canary cases
+  through the memory arm, each case as its own person `eval-<run>-<case>`. Answers on `moira/flash`, judged by
+  `moira/balanced`, through LiteLLM key alias `memory_eval` (allowlist in
+  `ansible/playbooks/register_litellm_virtual_keys.yml`; `task configure:litellm-keys -- --tags create-keys` creates
+  a missing key and changes no other). Scores go to the node OTel collector as `daimyo_memory_eval_*` gauges
+  labelled `suite`, `arm`, `kind`. A canary leak exits 1, which the "Kubernetes CronJob Failing" rule reports.
+  Each memory case starts one dream, which the server caps at `[memory] dreamerBudgetUsd`.
+
+First baseline, run from a workstation on the private suite (24 cases, seed 1): full context 24/24, BM25 over raw
+turns 21/24. The memory arm needs the session import route (daimyo `21e8754`), which was not released when this
+was written, so the CronJob had not run and no memory score exists yet. No alert on a score drop exists yet either:
+it needs a week of nightly scores to set a threshold from.
+
 ### OpenWebUI
 
 Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (Docling + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
