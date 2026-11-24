@@ -1466,6 +1466,13 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
               "io.kubernetes.pod.namespace" = local.pharos_namespace
             }
           }]
+          # Explicitly empty. kubernetes_manifest keeps, per list index, a
+          # field the config leaves out when the prior object had one there:
+          # this rule took the index the toFQDNs rule below used to hold and
+          # inherited its hosts, and Cilium marked the whole policy invalid
+          # ("combining ToFQDNs and ToEndpoints is not supported yet",
+          # 2026-11-24). Check `kubectl get cnp` VALID after inserting a rule.
+          toFQDNs = []
           toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
         } if org == "personal"
         ], [
