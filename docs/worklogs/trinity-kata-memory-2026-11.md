@@ -17,8 +17,8 @@ The cause is how a Kata VM uses memory, and it is not specific to this day: trin
 
 | When | What |
 |---|---|
-| 2026-10-29 | `f513ca5` lowers sandbox memory requests to 2-3 Gi, from a `kubectl top` reading of ~0.5 Gi taken before the VM had filled |
-| 2026-11-06 | `cb9f9e6` takes `talos-neo` out of the Kata pool. Kata pods now fit only `talos-smith`, `talos-niobe` and `talos-trinity` |
+| 2026-10-29 | `5348a75` lowers sandbox memory requests to 2-3 Gi, from a `kubectl top` reading of ~0.5 Gi taken before the VM had filled |
+| 2026-11-06 | `a5863d1` takes `talos-neo` out of the Kata pool. Kata pods now fit only `talos-smith`, `talos-niobe` and `talos-trinity` |
 | 11-09 onward | Sandboxes run on trinity for the first time; its shared memory goes from ≤7.5 GiB to 24 GiB and available memory hits 0 that day and on five later days |
 | 11-17 11:06 | trinity's last boot. Shared memory is back at 26 GiB within the hour |
 | 11-18 00:25 | Talos OOM controller starts firing on trinity; victim is the Cilium agent's cgroup |
@@ -100,10 +100,10 @@ On the final configuration (reclaim, `metadata`, `--allow-mmap`, reporting order
 
 ## What changed
 
-- **Eviction floor on trinity** (`0ec55cc`): `kubelet_eviction_memory_available: "5Gi"` in `config/vm.yml` becomes kubelet `evictionHard`. Applied 13:20 with a kubelet restart, no reboot; allocatable memory went from 30.7 to 25.8 GiB. The kubelet now evicts the pod furthest over its request while the node can still act. It would have fired at about 12:00 on 11-18. A sandbox lost this way fails its job; the node, the API server and etcd stay up.
-- **`kata-reclaim` handler and RuntimeClass** (`bc7c0d2` to `0d509cd`): on smith for the trials, then on niobe and trinity (15:00, a CRI restart each, no pod restarts). Talos writes `/var/lib/kata-reclaim/configuration.toml` only at boot, so on each running node it was copied into place by a pod; the content is the repo file, and a reboot rewrites the same file.
-- **Daimyo task pods and sandboxes run on `kata-reclaim`** (`67f88bc`, applied 15:20): `launcher.runtimeClass`, which sandboxes inherit. Checked with real turns: `qa/e2e-omp` (bash, `eval`) and `orion` (a Pharos MCP call, bash with a file write, a scout subagent) both succeeded on it. Pods already running stay on `kata` until they end: sessions idle out after 4 h and sandboxes live up to 24 h, so the eviction floor still matters until then.
-- **The Daimyo chart renders `config.sandbox.runtimeClass`** (so/daimyo `764cd3b`) and **a chart edit is now a release diff** (`c271c14`, `chartFilesSha1`). The first attempt to switch sandboxes alone was applied as a no-op: the chart did not render the section, and a local-path chart at a fixed version plans as "No changes" when only its files change.
+- **Eviction floor on trinity** (`dec3256`): `kubelet_eviction_memory_available: "5Gi"` in `config/vm.yml` becomes kubelet `evictionHard`. Applied 13:20 with a kubelet restart, no reboot; allocatable memory went from 30.7 to 25.8 GiB. The kubelet now evicts the pod furthest over its request while the node can still act. It would have fired at about 12:00 on 11-18. A sandbox lost this way fails its job; the node, the API server and etcd stay up.
+- **`kata-reclaim` handler and RuntimeClass** (`f15d535` to `f54ea0a`): on smith for the trials, then on niobe and trinity (15:00, a CRI restart each, no pod restarts). Talos writes `/var/lib/kata-reclaim/configuration.toml` only at boot, so on each running node it was copied into place by a pod; the content is the repo file, and a reboot rewrites the same file.
+- **Daimyo task pods and sandboxes run on `kata-reclaim`** (`fd4dbc7`, applied 15:20): `launcher.runtimeClass`, which sandboxes inherit. Checked with real turns: `qa/e2e-omp` (bash, `eval`) and `orion` (a Pharos MCP call, bash with a file write, a scout subagent) both succeeded on it. Pods already running stay on `kata` until they end: sessions idle out after 4 h and sandboxes live up to 24 h, so the eviction floor still matters until then.
+- **The Daimyo chart renders `config.sandbox.runtimeClass`** (so/daimyo `764cd3b`) and **a chart edit is now a release diff** (`868535d`, `chartFilesSha1`). The first attempt to switch sandboxes alone was applied as a no-op: the chart did not render the section, and a local-path chart at a fixed version plans as "No changes" when only its files change.
 
 - **Eviction floor on smith**, 4 Gi (applied 15:30): with eleven pods still on the stock `kata` handler, the kubelet's available memory there fell from 23 to 8 GiB between 13:40 and 15:20.
 

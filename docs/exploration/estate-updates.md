@@ -2,7 +2,7 @@
 
 Status: **design, awaiting review** (2026-10-30). Supersedes
 [patch-management.md](patch-management.md) and v1 of this document (Cadence,
-commits `ec76c86`, `1fd87cf`).
+commits `01efce4`, `258e911`).
 
 Custos (Latin *custos*, "keeper") keeps every host and workload in the estate
 current and keeps vulnerabilities fixed. It works the GitOps way:
@@ -15,7 +15,7 @@ current and keeps vulnerabilities fixed. It works the GitOps way:
 
 | Finding | Failure class | Caught by |
 | --- | --- | --- |
-| VyOS running `2025.08.02-rolling`; pin bumped to `2026.07.28` on 2026-08-15 (cf3e381) and never applied | pin in git, never applied | Observer `DECLARED_NOT_APPLIED` |
+| VyOS running `2025.08.02-rolling`; pin bumped to `2026.07.28` on 2026-08-15 (1c39ad2) and never applied | pin in git, never applied | Observer `DECLARED_NOT_APPLIED` |
 | NixOS hosts built from `nixos-25.11` locked 2026-01-03; the release is past support | nobody bumps pins | Supply (Renovate, EOL dossiers) + `EOL` |
 | AWS gateway on AL2023 `2023.11.20260413`, 26 weeks uptime, no update mechanism, SSH open to the internet | unmanaged host | Policy in IaC + `BEHIND` |
 | OCI box: security updates installed, kernel six versions behind for 15 weeks | installed ≠ running | `PENDING_ACTIVATION` |
