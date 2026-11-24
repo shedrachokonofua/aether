@@ -284,6 +284,30 @@ is not a rollback**. Restore the pre-upgrade database and matching storage
 before returning to 1.x. See the
 [upstream migration guide](https://kestra.io/docs/migration-guide/v2.0.0).
 
+### x-bridge
+
+x-bridge is a read-only X/Twitter bridge declared in
+`tofu/home/kubernetes/x_bridge.tf`; code, image and CI live in the sibling
+repo `../x-bridge` (GitLab `so/x-bridge`). It drives the Deskplane session
+`x-bridge` (`chrome-cdp` image) and serves the archive through an
+OIDC-protected API at `https://x-bridge.home.shdr.ch`.
+
+- **Runtime:** namespace `x-bridge` (tier `app`, backup `standard`, GitLab
+  registry access), one replica with `Recreate`, UID 10001, read-only root
+  filesystem, `/tmp` emptyDir. The image is `:latest` and opts into Keel.
+- **Database:** single-instance CNPG cluster `x-bridge-pg` (5Gi on `ceph-rbd`,
+  database `app`), with Barman backups through `cnpg_backups.tf`. The app reads
+  the CNPG-generated `x-bridge-pg-app` Secret (key `uri`).
+- **Auth in:** Keycloak public client `x-bridge` (device grant,
+  `tofu/home/keycloak.tf`); its access tokens carry `aud: x-bridge`. Only the
+  operator subject (`XB_OPERATOR_SUBJECTS`) is accepted.
+- **Auth out:** a Deskplane static API token for `svc:x-bridge`, limited to
+  `/api/sessions`, generated in `deskplane.tf` and copied to the
+  `x-bridge-deskplane-token` Secret.
+- **Network:** a CiliumNetworkPolicy on the app pod admits the gateway on 8080
+  and allows egress to kube-dns, deskplane-serve (8080), `auth.shdr.ch:443`,
+  the CNPG cluster (5432) and the OTel daemonset collector (4318).
+
 ## Nextcloud
 
 `tofu/home/kubernetes/nextcloud.tf` owns the Nextcloud stack; SSO is in

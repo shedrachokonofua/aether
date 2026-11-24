@@ -102,6 +102,12 @@ locals {
       retention = "7d"
       schedule  = "0 15 2 * * *"
     }
+    x-bridge = {
+      namespace = local.x_bridge_ns
+      cluster   = local.x_bridge_cnpg
+      retention = "7d"
+      schedule  = "0 7 3 * * *"
+    }
   }
 
   cnpg_scheduled_backup_targets = {
@@ -230,6 +236,7 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     kubectl_manifest.orion_cnpg_cluster,
     kubectl_manifest.pharos_cnpg_cluster,
     kubectl_manifest.temporal_cnpg_cluster,
+    kubectl_manifest.x_bridge_cnpg_cluster,
   ]
 
   yaml_body = yamlencode({

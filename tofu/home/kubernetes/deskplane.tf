@@ -152,6 +152,29 @@ resource "kubernetes_secret_v1" "deskplane_orion_token" {
   type = "Opaque"
 }
 
+# Dedicated API token for x-bridge (read-only X/Twitter bridge). Path-scoped to
+# /api/sessions so it can create and drive its own browser session (including
+# the CDP proxy) but not reach the web engine or the admin API. The same value
+# is copied into the x-bridge namespace by x_bridge.tf.
+resource "random_password" "deskplane_x_bridge_token" {
+  length  = 48
+  special = false
+}
+
+resource "kubernetes_secret_v1" "deskplane_x_bridge_token" {
+  depends_on = [module.namespace["deskplane"]]
+  metadata {
+    name      = "deskplane-x-bridge-token"
+    namespace = local.deskplane_namespace
+  }
+  # Key name doubles as the file name in serve's shared api-tokens projected
+  # volume, so it must be unique across the token Secrets.
+  data = {
+    x-bridge-token = random_password.deskplane_x_bridge_token.result
+  }
+  type = "Opaque"
+}
+
 # Bearer token /mcp requires (mcp.authTokenSecretRef below), so a caller's
 # tool allowlist is enforced: an agent that skips its Daimyo sidecar and
 # dials :8100 directly is refused. LiteLLM's gateway and Daimyo's mcp grants
@@ -515,6 +538,13 @@ resource "helm_release" "deskplane" {
         subject             = "svc:orion"
         username            = "orion"
         allowedPathPrefixes = ["/api/web"]
+      },
+      {
+        name                = kubernetes_secret_v1.deskplane_x_bridge_token.metadata[0].name
+        key                 = "x-bridge-token"
+        subject             = "svc:x-bridge"
+        username            = "x-bridge"
+        allowedPathPrefixes = ["/api/sessions"]
       }
     ]
 

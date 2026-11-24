@@ -987,6 +987,51 @@ resource "keycloak_openid_audience_protocol_mapper" "toolbox_orion_audience" {
 }
 
 # =============================================================================
+# x-bridge OIDC client (read-only X/Twitter bridge API, device grant for CLI)
+# =============================================================================
+# Same shape as toolbox: PUBLIC, device authorization grant only. x-bridge
+# validates the access token's issuer, `aud: x-bridge` and `sub` (checked
+# against XB_OPERATOR_SUBJECTS) -- see tofu/home/kubernetes/x_bridge.tf.
+
+resource "keycloak_openid_client" "x_bridge" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "x-bridge"
+  name      = "x-bridge"
+  enabled   = true
+
+  # PUBLIC client - device auth doesn't support client secrets
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = false
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  consent_required             = false
+
+  oauth2_device_authorization_grant_enabled = true
+}
+
+resource "keycloak_openid_client_default_scopes" "x_bridge_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.x_bridge.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+  ]
+}
+
+# Access tokens issued to this client carry `aud: x-bridge`.
+resource "keycloak_openid_audience_protocol_mapper" "x_bridge_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.x_bridge.id
+  name      = "x-bridge-audience"
+
+  included_client_audience = keycloak_openid_client.x_bridge.client_id
+  add_to_id_token          = false
+  add_to_access_token      = true
+}
+
+# =============================================================================
 # oauth2-proxy OIDC Client (forward_auth for apps without built-in auth)
 # =============================================================================
 # Used by Caddy forward_auth to protect: BentoPDF, and future apps

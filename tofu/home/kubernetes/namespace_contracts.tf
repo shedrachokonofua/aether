@@ -1422,6 +1422,22 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "x-bridge" = {
+      tier                    = "app",
+      owner                   = "aether",
+      backup                  = "standard",
+      exposure                = "internal",
+      create_s3_backup_secret = false,
+      description             = "Read-only X/Twitter bridge driving a Deskplane chrome-cdp session",
+      source_file             = "tofu/home/kubernetes/x_bridge.tf",
+      registry_access         = "gitlab",
+      hostnames = [
+        "x-bridge.home.shdr.ch",
+      ],
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
   }
 }
 
