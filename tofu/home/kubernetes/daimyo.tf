@@ -318,7 +318,16 @@ locals {
   # at 92677e7 with the server still 687283e) had CloudNativePG create it
   # through the chart's `Database` object daimyo-pg-daimyo. Chart first, then
   # this pin: the other way round the migrate hook fails.
-  daimyo_server_tag = "sha256:f445d74db04a4de3471b8efbb92595a530f6ab297dbb2621ad38ff43a6973a95"
+  # 59074db (main pipeline 17549 green). Server only:
+  # - the text pass of recall and of memory search keeps one plan. The plan
+  #   a prepared statement gets after five uses on a connection took 8.7 s
+  #   here where the first five took 0.12 s, so in steady state every
+  #   search was slow;
+  # - a dream or observation still `pending` after 15 minutes is recorded
+  #   failed. A start whose request was dropped before its task was admitted
+  #   held its namespace from upkeep for two days (d11f0e3, not released on
+  #   its own).
+  daimyo_server_tag = "sha256:82111accd316509c7ffa52fe3340cb5a28d0541e06fe972862df37a3306931e5"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
