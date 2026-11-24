@@ -270,13 +270,22 @@ locals {
   # ({"$file": path}) and the harness reads them in, since a rewrite of ten
   # documents did not fit the one answer a model gives (two dreams submitted
   # five and one of ten); `[memory] dreamerImage` (below).
-  daimyo_server_tag = "sha256:c9a116d22db1325e57ba714779928b3bbd5596e6ef2a21d34e74188037335bd3"
-  # The claude-code harness the memory agents (dreamer, checker) run, be1a00c
-  # (pipeline 17045 build:harness-claude-code): the first build that reads
-  # file values into a structured answer. Pinned apart from
-  # daimyo_harness_claude_code_image, which is a month older (9747dcd), so
-  # the other claude-code agents do not move with it.
-  daimyo_memory_harness_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:5d2c8c6273b2cb412b713ca61f9ef24409663dff916126ff76ed79c195707fe3"
+  # f655f23 (the Rust tree main pipeline 17263 tested green: fmt, clippy,
+  # rust-test, rust-test-engine; images built by 17261). Since be1a00c:
+  # - observer: the platform agent memory-observer notes what a conversation
+  #   added into journal/<day>.md once it has been quiet 10 minutes
+  #   (migration 0062), so another agent knows it the same day;
+  # - the dreamer keeps MEMORY.md, the index every agent is given, and files
+  #   the journal; the checker answers with a ledger and every line it does
+  #   not vouch for is kept;
+  # - a memory agent's task is read only by whoever it runs as (in qa one
+  #   eval person could read another's dreamer task and its documents);
+  # - recall: finished turns of agents that mount a store are indexed
+  #   (migrations 0063, 0064) and searched with POST /v1/recall:search under
+  #   the store's memory::read; POST /v1/recall:forget takes passages out;
+  # - a launch the API server dropped the connection under is retried three
+  #   times (8 of 799 tasks failed `start` that way on 2026-11-23).
+  daimyo_server_tag = "sha256:a64a078172a2b2b34caa6b710a9d89a1a1fb4980f228828353ddfb8147a145b9"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -305,7 +314,10 @@ locals {
   # Deploy with the matching server above; applies to pods started after.
   # 68f0507: `inputs --list-file <path>` reads a mounted fetch list (zstd when
   # the name ends .zst). Nothing else changed since 0143d79.
-  daimyo_sidecar_tag = "sha256:20dc4f8a5aaccb4f96e63027768efb453807b3f45914b4ecc8e588ed38c40dc6"
+  # f655f23 (pipeline 17261 build:daimyo-sidecar): the built-in `daimyo` MCP
+  # server serves recall_search beside memory_search when the pod mounts a
+  # store. Applies to pods started after the release.
+  daimyo_sidecar_tag = "sha256:4fb7793139f7bd32c779d999efcf49d63ab7029d9a9e578d415a798a9ddd0146"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
@@ -368,7 +380,17 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:cc0abbcd25db92652c73a1f7c75409947b0e83ffe94fd6b6ddaf8176fc5abe6f"
+  # claude-code 68db0d2 (main pipeline 17263 build:harness-claude-code and
+  # ts-test green): every turn starts with the memory block (the files of each
+  # mounted store, MEMORY.md in full when it is new to the conversation, the
+  # three newest journal files), a structured answer may name files for its
+  # long values, and an answer Claude Code's schema check sends back may be
+  # corrected twice before the task fails `schema`. The memory agents run
+  # this image too, so `[memory] dreamerImage` is gone. Moves researcher,
+  # frontend, trip-planner (personal), d-r2-cc-int (qa) and ivy,
+  # ivy-model-allowlist (seven30) from a build of 2026-10-22. Applies to pods
+  # started after the release.
+  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:4ca95c735bdd4a888fa8dbcdbd5c7863989b6ab3437746048884e3fa26b51686"
   # omp b78f555 (MR !22, main pipeline 11821 build:harness-omp): a structured
   # answer that misses its output schema gets one repair turn before the
   # engine fails it with `schema` (Cicada G25: 13 lens tasks in 14 h ended in
@@ -423,7 +445,10 @@ locals {
   # with a [Your memory: ...] block listing each mounted store's files and
   # when each was last written. The only harness change since 419777c.
   # claude-code, workflow-runner and omp-dev are not moved.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:dc33e1f498e317a04d5557628ea9f858c25120ed3e99eaedd941b912de5c9a75"
+  # omp 68db0d2 (main pipeline 17263 build:harness-omp): the memory block
+  # gains MEMORY.md and the journal as above, and file values. Applies to
+  # pods started after the release; omp-dev is not moved.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:94b7d417395d917668721eba039cf99fbb70a57ab6d8e9328788336c682fa84a"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
@@ -957,11 +982,15 @@ resource "helm_release" "daimyo" {
       # had a conversation since its last applied dream, once a day at 04:00
       # Toronto time, applied as it finishes and revertible as one. A store
       # can set its own with PATCH /v1/memory-stores/{store}.
+      # Between dreams the observer notes what a conversation added once it
+      # has been quiet for 10 minutes (the default), on the balanced tier: it
+      # reads one or a few conversations and adds lines, it rewrites nothing.
       memory = {
-        embeddingModel   = "aether/qwen3-embedding:0.6b"
-        dreamerModel     = "moira/frontier"
-        dreamerBudgetUsd = 50
-        dreamerImage     = local.daimyo_memory_harness_image
+        embeddingModel    = "aether/qwen3-embedding:0.6b"
+        dreamerModel      = "moira/frontier"
+        dreamerBudgetUsd  = 50
+        observerModel     = "moira/balanced"
+        observerBudgetUsd = 2
         upkeep = {
           dreamAt  = "04:00"
           timezone = "America/Toronto"
