@@ -115,6 +115,26 @@ session reading a dream was refused by Daimyo (`memory::dream on memory
 store personal is not permitted`) until Daimyo merge request !29 is
 released.
 
+Release `58e4722115a4ad20a1051d4ca96d118c24797a64` (2026-11-23) stops Orion
+starting the nightly dream. Daimyo's upkeep loop (Daimyo release `68f0507`,
+`[memory.upkeep]` in `daimyo.tf`) dreams each namespace of every store that
+had a conversation since its last applied dream, at 04:00 Toronto, applied as
+it finishes; two starters could have doubled a night's dream. Orion's review
+job now only posts what an applied dream changed. `GATE_OK` (one run failed
+on `markdown-preview.test.ts`, which passed alone three times and in the
+rerun), pipeline `16892`, Helm revision 66; only `helm_release.orion`
+changed. Not observed when this was written: the first dream Daimyo starts
+for the operator is due after 04:00 on the 24th.
+
+Release `810ebc35da1c53110d1d2bfb7e29ecc82ac0fdb1` (2026-11-24) gives the
+`coordinator` Agent a read-only per-user mount of store `personal`, so it
+starts with the person's memory as `orion` does and its conversations are
+read by the nightly dream, the observer and recall (Daimyo Helm 141, see
+[ai-ml.md](ai-ml.md)). The mount's description no longer names the
+operator. Pipeline `17075`, Helm revision 67; only `helm_release.orion`
+changed (chart version and image tag). The live Agent is `Ready` with the
+mount. Not observed when this was written: a coordinator task run with it.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL

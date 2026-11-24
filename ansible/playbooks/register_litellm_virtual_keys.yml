@@ -162,6 +162,11 @@
         - aether/qwen3.8-flash-next
         - aether/qwen3.8-flash-next:think
         - aether/qwen3-embedding:0.6b
+      # Daimyo memory eval (tofu/home/kubernetes/daimyo_memory_eval.tf): the
+      # answering model of its baseline arms and the judge.
+      memory_eval:
+        - moira/flash
+        - moira/balanced
 
       deskplane_mcp:
         # Moira group (tiers.yaml): terra -> gemini-4-hydrogen -> qwen3.8-flash-next.
@@ -237,15 +242,17 @@
       - qbittorrent
       - pharos
 
+  # `--tags create-keys` only creates the virtual keys SOPS names that LiteLLM
+  # does not have yet; it changes no existing key.
   tasks:
     - name: Load secrets
-      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
+      tags: [create-keys, openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
       community.sops.load_vars:
         file: "{{ aether_root }}/secrets/secrets.yml"
         name: secrets
 
     - name: Check LiteLLM key inputs
-      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
+      tags: [create-keys, openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
       ansible.builtin.assert:
         that:
           - secrets.litellm.master_key is defined
@@ -254,7 +261,7 @@
         fail_msg: "secrets.litellm.master_key and secrets.litellm.virtual_keys are required"
 
     - name: Wait for LiteLLM API
-      tags: [openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
+      tags: [create-keys, openwebui-mcp, orion-mcp, deskplane-models, moira-models, pharos-models]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/health/liveliness"
         method: GET
@@ -265,6 +272,7 @@
       until: litellm_health.status == 200
 
     - name: Check if virtual keys exist by alias
+      tags: [create-keys]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/list?key_alias={{ item.key }}"
         method: GET
@@ -279,6 +287,7 @@
       no_log: true
 
     - name: Build existing alias list
+      tags: [create-keys]
       ansible.builtin.set_fact:
         litellm_existing_aliases: "{{ (litellm_existing_aliases | default([])) + [item.item.key] }}"
       loop: "{{ litellm_key_check.results }}"
@@ -287,6 +296,7 @@
       when: item.json.total_count | default(0) | int > 0
 
     - name: Build missing alias list
+      tags: [create-keys]
       ansible.builtin.set_fact:
         litellm_missing_aliases: "{{ (litellm_missing_aliases | default([])) + [item.item.key] }}"
       loop: "{{ litellm_key_check.results }}"
@@ -295,6 +305,7 @@
       when: item.json.total_count | default(0) | int == 0
 
     - name: Create missing virtual keys
+      tags: [create-keys]
       ansible.builtin.uri:
         url: "{{ litellm_url }}/key/generate"
         method: POST

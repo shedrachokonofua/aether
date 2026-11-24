@@ -610,6 +610,7 @@ resource "kubectl_manifest" "daimyo_dev_agent" {
           }
         },
       ]
+      memory    = local.daimyo_personal_memory_read
       sessions  = { enabled = true, idleTtl = "24h", maxLifetime = "30d" }
       endpoints = { stable = { revision = "latest" } }
     }
@@ -655,6 +656,7 @@ resource "kubectl_manifest" "daimyo_local_agent" {
           }
         },
       ]
+      memory    = local.daimyo_personal_memory_read
       sessions  = { enabled = true, idleTtl = "24h", maxLifetime = "30d" }
       endpoints = { stable = { revision = "latest" } }
     }

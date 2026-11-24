@@ -522,7 +522,8 @@ gates and planning on stronger tiers:
 | --- | --- |
 | Household/OpenWebUI, Orion main, dev specialist | `moira/strong` |
 | Orion coordinator, standing-work runner, briefing/news/markets feeds | `moira/balanced` |
-| Researcher, trip planner, frontend agent, memory dreamer | `moira/balanced` |
+| Researcher, trip planner, frontend agent | `moira/balanced` |
+| Memory dreamer and checker | `moira/frontier` |
 | Cicada writers | `moira/balanced` |
 | Cicada review lens (`diff`) | `moira/strong` |
 | Cicada planners | `moira/frontier` |
@@ -947,6 +948,105 @@ Chart `0.1.0-gf808ae54` (same day) flags a book `needs_review` only without an o
 quarter of its read chapters flagged, no longer flags a chapter for an image-only page when the chapter has its
 text, and records on each book the version of the rules it was read under (`books.rules`), re-reading books
 read under older rules once from saved answers.
+
+### Daimyo memory upkeep
+
+Configured under `memory` in the Daimyo Helm values in
+[`tofu/home/kubernetes/daimyo.tf`](../tofu/home/kubernetes/daimyo.tf). Design: the daimyo repo's SPEC-0001 §11c.3
+and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 141 (2026-11-24 00:15 UTC); what
+was seen on the cluster after each release is in the daimyo repo's `docs/ops/upgrades.md`.
+
+- **Nightly dream.** The engine dreams each namespace of every store that had a conversation since its last
+  applied dream, at 04:00 `America/Toronto`, with nobody starting it. The built-in dreamer (`moira/frontier`,
+  $50 budget) reads the namespace's documents and conversations from files and answers with the documents it
+  rewrote, among them `MEMORY.md`, the index every agent is given at the start of a conversation. A second
+  platform agent, `memory-checker`, then answers with a ledger of the old lines it vouches for; every other line
+  of a rewritten or deleted document is kept in `kept.md`. Only then is the set applied. An applied dream is
+  undone as one with `POST /v1/memory-dreams/{id}:revert`.
+- **Observer.** Between dreams, a namespace whose conversations have been quiet for 10 minutes is observed by the
+  platform agent `memory-observer` (`moira/balanced`, $2 budget): it appends what they added to
+  `journal/<day>.md`, one dated line a fact with the session it comes from, and the next dream files those lines.
+  Agents are given the three newest journal files after the index. Checked on 2026-11-24: 32 seconds after the
+  upgrade began the engine started an observation of the operator's namespace, and `journal/2026-11-23.md` held
+  eight lines from two sessions of the day.
+- **Recall.** Finished turns of the agents that mount a store are indexed (what was asked and what was answered,
+  not tool output) and searched by the `recall_search` tool, for the person the agent is working for. `POST
+  /v1/recall:forget` takes passages out. The history was indexed after the upgrade, oldest first.
+- **Harness.** The claude-code and omp pins (`68db0d2`) give every turn the memory block: the files of each mounted
+  store, `MEMORY.md` when it is new to the conversation, and the journal. The memory agents run the claude-code
+  pin, so `memory.dreamerImage` is no longer set. Checked on 2026-11-24: a `researcher` task (claude-code) said
+  its prompt began with the block and listed `recall_search` among its tools.
+- **Mounts.** Store `personal`, the caller's `users/<person>` namespace: `orion` read-write and `coordinator`
+  read-only (Orion's chart, release `810ebc35`), and `dev`, `local`, `researcher`, `frontend` and `trip-planner`
+  read-only (`local.daimyo_personal_memory_read`). `rogue` does not mount it: its model is a third-party route.
+  `orion-molecule` cannot: the Molecule runtime has no memory mounts. A dream, an observation and recall read
+  the conversations of the agents that mount the store and no others.
+- **Who reads a memory agent's task.** Only whoever it runs as. Checked on 2026-11-24 in org `qa`: the owner of a
+  dreamer task reads it, another person gets 403 from `baseline-memory-agent-task`. Before Helm 141 any user of
+  an org could read it, and with it the documents in its result.
+- **First consolidation.** The operator's namespace was dreamed and applied by hand on 2026-11-23 at 17:37 UTC
+  (dream `01M84MJH690T904NJJ7R356CSD`): 42 documents and 81 KB became 11 and 92 KB. How it was checked, and the
+  three earlier attempts that were denied, are in the daimyo repo's `docs/ops/upgrades.md`. Not observed when
+  this was written: a dream the engine started on its own for this namespace (the first is due at 09:00 UTC on
+  2026-11-24).
+
+### Daimyo memory eval
+
+Configured in [`tofu/home/kubernetes/daimyo_memory_eval.tf`](../tofu/home/kubernetes/daimyo_memory_eval.tf), namespace
+`daimyo-memory-eval` (2026-11-23). It scores Daimyo's agent memory on test histories beside two baselines that use
+no memory system: the answering model given the whole history, and the same model given the 20 turns BM25 ranks
+best. The harness and its suites are the daimyo repo's `scripts/memory_eval` (README there).
+
+- **Issuer.** Deployment `memory-eval-issuer` serves a discovery document and JWKS for one P-256 key (SOPS
+  `daimyo.memory_eval_issuer_key_b64`). Org `qa` lists it in `issuers` with `principal: {claim: sub, prefix:
+  "user:"}` and `requiredClaims: {sub: "eval-*"}`, so a token signed with that key is the user `eval-…` of org qa
+  and nobody else. The prefix was `user:eval-` until 2026-11-23; that made each eval person a service, whose memory
+  namespace is not `users/eval-…`, and every memory call was `policy-denied`. Checked after the change: an
+  `eval-upkeepcheck` token reads its own namespace and lists its dreams, and a token for `shdrch` from the same key
+  is refused (`issuer is not trusted for this org`). Tokens are signed by the harness itself; the Deployment mints
+  none.
+- **Test agent.** `org-qa/memory-keeper`: an omp harness agent on `moira/flash` with a per-user mount of store
+  `memory-eval`, the files tool, and nothing else.
+- **Nightly run.** CronJob `memory-eval`, 07:10 UTC: 60 private cases through four arms (full context, raw search,
+  `memory`, which asks after a dream, and `observed`, which asks after an observation) and 6 canary cases through
+  the last two, each case as its own person `eval-<run>-<case>`. Answers on `moira/flash`, judged by
+  `moira/balanced`, through LiteLLM key alias `memory_eval` (allowlist in
+  `ansible/playbooks/register_litellm_virtual_keys.yml`; `task configure:litellm-keys -- --tags create-keys` creates
+  a missing key and changes no other). Scores go to the node OTel collector as `daimyo_memory_eval_*` gauges
+  labelled `suite`, `arm`, `kind`. A canary leak exits 1, which the "Kubernetes CronJob Failing" rule reports.
+  Each memory case starts one dream, which the server caps at `[memory] dreamerBudgetUsd`. The run creates store
+  `memory-eval` if it is not there and turns its daily upkeep dream off, since it dreams each person itself.
+- **Weekly run.** CronJob `memory-eval-longmemeval`, Sunday 10:10 UTC: 30 questions of LongMemEval-S through the
+  same four arms, a new draw each ISO week (the seed). The 277 MB dataset is fetched from Hugging Face into the
+  Job's scratch volume (checked from the issuer pod on 2026-11-23: the URL answers 200) and parsed in memory, so
+  the container's limit is 4 Gi. Each question brings about fifty sessions of its own, so a run takes hours;
+  the deadline is 12 h.
+
+**Memory and canary numbers from before 2026-11-24 00:12 UTC are void** unless listed below. Until then the pinned
+image read a memory case's answer from `GET /v1/tasks?session=…`, a filter that route does not have, so it graded
+the newest task of org qa: often another case's answer or a dreamer's result. The image pinned since (`f655f23`)
+reads the answer from the task the message route returns and logs each graded answer. The earlier lines of this
+section that gave "memory 11/12" and "canary 4/4 with no leak" for Job `memory-eval-manual-1` were graded the old
+way and are withdrawn.
+
+Results that stand:
+
+- Private suite from a workstation (24 cases, seed 1): full context 24/24, BM25 over raw turns 21/24. Job
+  `memory-eval-manual-1` (12 cases): full context 12/12, BM25 10/12.
+- LongMemEval-S, Job `lme-before-1`, 2026-11-23, 30 questions of seed 202648, on Daimyo Helm 140 (101 minutes):
+  full context 27/30, BM25 27/30. The Job printed 13/28 for memory. The answers each case's own session gave
+  were read from Daimyo's task rows and graded again with the same judge and prompts: 26/28, the same verdict on
+  a second grading of each. Two cases did not run: their dreamer pod failed to start (`kubernetes api:
+  ServiceError: error reading a body from connection`). Both misses are `single-session-assistant` questions,
+  which ask for something the assistant had said; the dream keeps what the person said.
+- Private and canary, run `before-11232042` from a workstation with the corrected harness, 2026-11-23, seed 1, on
+  Daimyo Helm 140: full context 60/60, BM25 55/60, memory 56/56 with no stale assertion and no false memory;
+  canary 12/12 probes (9 leak, 3 deletion). Four memory cases never reached a question: two dreams lost their
+  checker to the same `kubernetes api: ServiceError` at start, one dreamer answer failed its schema, and one new
+  session's first turn failed to restore a workspace. Daimyo Helm 141 retries the first and lets the model
+  correct the second.
+
+No alert on a score drop exists yet: it needs a week of valid nightly scores to set a threshold from.
 
 ### OpenWebUI
 

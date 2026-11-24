@@ -236,7 +236,56 @@ locals {
   # windowed by when they ended; tool results are left out. Before it the
   # dreamer never saw the person's own messages. No migrations; sidecar and
   # harnesses unchanged.
-  daimyo_server_tag = "sha256:3ad7f9b9d9631c42386af2a004de1b08c5f74568e5abeeb53b5d40c3334ec703"
+  # ad11b91 (pushed to main; pipeline 16798: fmt, clippy, scripts-test and the
+  # server build green): a dream's input is files, not one prompt. The engine
+  # writes every document, every conversation and every tool call in full
+  # under users/<person>/dreams/<dream>/ and hands that to the dreamer as a
+  # file input; the dreamer has file tools, keeps notes on disk, and may
+  # answer `error`, which fails the dream. Before it the 2026-11-23 dream had
+  # 635 KB in one prompt, lost the documents to context summarizing and was
+  # recorded as applied with 0 changes. Also in this image: sessions:import
+  # (21e8754) and dream revert (14e390a, migration 0059, applied at start).
+  # Sidecar and harnesses unchanged.
+  # 68f0507 (main pipeline 16838: fmt, clippy, rust-test, rust-test-engine and
+  # both builds green): the engine's upkeep loop dreams every store's
+  # namespaces daily (migration 0060, `[memory.upkeep]` below); a dream's tool
+  # calls are one file per conversation; and a fetch list over 96 KiB is
+  # mounted from the grants Secret instead of riding in the init container's
+  # argument, which Linux refuses over 128 KiB (the ad11b91 dream of
+  # 2026-11-23 had about 320 input files and its pod failed at start). Needs
+  # the sidecar below for `inputs --list-file`.
+  # f08e576 (main pipeline 16882, server build green; the only Rust change
+  # since 68f0507): the built-in dreamer asks the scheduler for 100m CPU and
+  # 512Mi and keeps its limits. Asking for 1 CPU and 2Gi left its pod Pending
+  # on the full kata-reclaim nodes until the dream failed to start.
+  # a8e6cb4 (main pipeline 17027: fmt, clippy, scripts-test and the server
+  # build green): a dream's candidate set is checked for lost facts by a
+  # second platform agent, memory-checker, before it can be applied, and the
+  # lines it names are kept in kept.md (migration 0061); the dreamer's prompt
+  # says to lose nothing; and a service is never given a person's sub
+  # (4abb690). The first consolidation of the operator's memory dropped over
+  # 100 facts from the 32 files it deleted and was denied.
+  # be1a00c (main pipeline 17045: fmt, clippy, ts-test, rust-test-engine and
+  # the builds green): the dreamer names the files it wrote in its answer
+  # ({"$file": path}) and the harness reads them in, since a rewrite of ten
+  # documents did not fit the one answer a model gives (two dreams submitted
+  # five and one of ten); `[memory] dreamerImage` (below).
+  # f655f23 (the Rust tree main pipeline 17263 tested green: fmt, clippy,
+  # rust-test, rust-test-engine; images built by 17261). Since be1a00c:
+  # - observer: the platform agent memory-observer notes what a conversation
+  #   added into journal/<day>.md once it has been quiet 10 minutes
+  #   (migration 0062), so another agent knows it the same day;
+  # - the dreamer keeps MEMORY.md, the index every agent is given, and files
+  #   the journal; the checker answers with a ledger and every line it does
+  #   not vouch for is kept;
+  # - a memory agent's task is read only by whoever it runs as (in qa one
+  #   eval person could read another's dreamer task and its documents);
+  # - recall: finished turns of agents that mount a store are indexed
+  #   (migrations 0063, 0064) and searched with POST /v1/recall:search under
+  #   the store's memory::read; POST /v1/recall:forget takes passages out;
+  # - a launch the API server dropped the connection under is retried three
+  #   times (8 of 799 tasks failed `start` that way on 2026-11-23).
+  daimyo_server_tag = "sha256:a64a078172a2b2b34caa6b710a9d89a1a1fb4980f228828353ddfb8147a145b9"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -263,7 +312,12 @@ locals {
   # tick reports), `memory-sync` asks the running syncer over
   # POST /memory/sync, and the sidecar mounts write stores read-write.
   # Deploy with the matching server above; applies to pods started after.
-  daimyo_sidecar_tag = "sha256:733c8441d6210fe3d3233e1ec81154b6b192333909479e459887bc0a6eb91f64"
+  # 68f0507: `inputs --list-file <path>` reads a mounted fetch list (zstd when
+  # the name ends .zst). Nothing else changed since 0143d79.
+  # f655f23 (pipeline 17261 build:daimyo-sidecar): the built-in `daimyo` MCP
+  # server serves recall_search beside memory_search when the pod mounts a
+  # store. Applies to pods started after the release.
+  daimyo_sidecar_tag = "sha256:4fb7793139f7bd32c779d999efcf49d63ab7029d9a9e578d415a798a9ddd0146"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
@@ -326,7 +380,17 @@ locals {
   # from a file (an agent's `pkill -f <word>` cannot kill its own harness).
   # workflow-runner before that at 82d82a5; it runs script workflows (§11.5) with no
   # per-project Agent CR.
-  daimyo_harness_claude_code_image     = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:cc0abbcd25db92652c73a1f7c75409947b0e83ffe94fd6b6ddaf8176fc5abe6f"
+  # claude-code 68db0d2 (main pipeline 17263 build:harness-claude-code and
+  # ts-test green): every turn starts with the memory block (the files of each
+  # mounted store, MEMORY.md in full when it is new to the conversation, the
+  # three newest journal files), a structured answer may name files for its
+  # long values, and an answer Claude Code's schema check sends back may be
+  # corrected twice before the task fails `schema`. The memory agents run
+  # this image too, so `[memory] dreamerImage` is gone. Moves researcher,
+  # frontend, trip-planner (personal), d-r2-cc-int (qa) and ivy,
+  # ivy-model-allowlist (seven30) from a build of 2026-10-22. Applies to pods
+  # started after the release.
+  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:4ca95c735bdd4a888fa8dbcdbd5c7863989b6ab3437746048884e3fa26b51686"
   # omp b78f555 (MR !22, main pipeline 11821 build:harness-omp): a structured
   # answer that misses its output schema gets one repair turn before the
   # engine fails it with `schema` (Cicada G25: 13 lens tasks in 14 h ended in
@@ -381,7 +445,10 @@ locals {
   # with a [Your memory: ...] block listing each mounted store's files and
   # when each was last written. The only harness change since 419777c.
   # claude-code, workflow-runner and omp-dev are not moved.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:dc33e1f498e317a04d5557628ea9f858c25120ed3e99eaedd941b912de5c9a75"
+  # omp 68db0d2 (main pipeline 17263 build:harness-omp): the memory block
+  # gains MEMORY.md and the journal as above, and file values. Applies to
+  # pods started after the release; omp-dev is not moved.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:94b7d417395d917668721eba039cf99fbb70a57ab6d8e9328788336c682fa84a"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
@@ -906,11 +973,28 @@ resource "helm_release" "daimyo" {
       }
       # Memory search embeds through LiteLLM; the server default alias
       # (text-embedding-3-small) is not served here (litellm_config.yaml.tftpl).
-      # The built-in dreamer (§11c.3) consolidates memory on the balanced tier.
+      # The built-in dreamer (§11c.3) consolidates memory on the frontier
+      # tier: it reads every conversation of the window from files, turn by
+      # turn, and rewrites a person's memory, so it gets the strongest model
+      # Moira can route to and a budget that does not stop it mid-read (was
+      # moira/balanced at $0.25 until 2026-11-23).
+      # Upkeep (§11c.3): the engine dreams each namespace of every store that
+      # had a conversation since its last applied dream, once a day at 04:00
+      # Toronto time, applied as it finishes and revertible as one. A store
+      # can set its own with PATCH /v1/memory-stores/{store}.
+      # Between dreams the observer notes what a conversation added once it
+      # has been quiet for 10 minutes (the default), on the balanced tier: it
+      # reads one or a few conversations and adds lines, it rewrites nothing.
       memory = {
-        embeddingModel   = "aether/qwen3-embedding:0.6b"
-        dreamerModel     = "moira/balanced"
-        dreamerBudgetUsd = 0.25
+        embeddingModel    = "aether/qwen3-embedding:0.6b"
+        dreamerModel      = "moira/frontier"
+        dreamerBudgetUsd  = 50
+        observerModel     = "moira/balanced"
+        observerBudgetUsd = 2
+        upkeep = {
+          dreamAt  = "04:00"
+          timezone = "America/Toronto"
+        }
       }
       database = {
         ownerUrl  = "postgres://daimyo:__DB_PASSWORD_owner__@daimyo-pg-rw:5432/daimyo"
@@ -1421,7 +1505,10 @@ resource "kubectl_manifest" "daimyo_org" {
       {
         # personal: only shdrch. qa: any aether-realm principal (the
         # daimyo-smoke client drives the e2e campaign there).
-        issuers = contains(["personal", "qa", "cicada"], each.key) ? [
+        # qa also trusts the memory eval's issuer (daimyo_memory_eval.tf): its
+        # `sub` maps with the prefix `user:eval-`, so that key names only
+        # `eval-…` persons.
+        issuers = concat(contains(["personal", "qa", "cicada"], each.key) ? [
           merge(
             {
               issuer    = "https://auth.shdr.ch/realms/aether"
@@ -1431,7 +1518,16 @@ resource "kubectl_manifest" "daimyo_org" {
             },
             contains(["personal", "cicada"], each.key) ? { requiredClaims = { preferred_username = "shdrch" } } : {},
           ),
-        ] : []
+          ] : [], each.key == "qa" ? [{
+            issuer    = local.memory_eval_issuer_url
+            audiences = ["daimyo"]
+            # Only the exact prefix `user:` yields a user; `user:eval-` made
+            # each eval person a service, whose memory namespace is not
+            # users/eval-…, so every memory call was policy-denied. The
+            # required claim keeps the key to `eval-…` persons.
+            principal      = { claim = "sub", prefix = "user:" }
+            requiredClaims = { sub = "eval-*" }
+        }] : [])
         namespaces = { config = "org-${each.key}", tasks = "${each.key}-tasks" }
         # personal: 20 hot sessions (default 5). Orion threads, coordinators,
         # dev, trip-planner, rogue and Orion's spare session share the cap; at
@@ -2030,6 +2126,23 @@ resource "kubectl_manifest" "daimyo_orion_service_policy" {
   })
 }
 
+# The person's own memory, read-only, for the personal agents besides Orion
+# (which mounts it read-write in its chart): store `personal`, the caller's
+# `users/<person>` namespace, which for a task Orion delegates is the person
+# Orion acts for. An agent that mounts it starts every turn with the list of
+# its files and their dates, and its conversations with the person are among
+# those the nightly upkeep dream reads (a dream reads the agents that mount
+# the store). `rogue` does not mount it: its model is a third-party
+# uncensored route, and a personal store is not sent to one.
+locals {
+  daimyo_personal_memory_read = [{
+    store       = "personal"
+    scope       = "perUser"
+    access      = "read"
+    description = "What is known about the person you are working for: who they are, their people, plans, preferences and decisions. Open the file that fits before you ask them for a personal fact or assume one."
+  }]
+}
+
 # `researcher`: a declarative claude-code harness agent (no image of its own;
 # compiles onto config.harness.images["claude-code"], and harness revisions
 # skip attestation). Models through the sidecar's LiteLLM grant on
@@ -2112,6 +2225,7 @@ resource "kubectl_manifest" "daimyo_researcher_agent" {
           }
         },
       ]
+      memory    = local.daimyo_personal_memory_read
       sessions  = { enabled = true }
       endpoints = { stable = { revision = "latest" } }
     }
@@ -2193,6 +2307,7 @@ resource "kubectl_manifest" "daimyo_frontend_agent" {
           }
         },
       ]
+      memory    = local.daimyo_personal_memory_read
       sessions  = { enabled = true }
       endpoints = { stable = { revision = "latest" } }
     }
