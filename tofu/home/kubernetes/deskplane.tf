@@ -10,6 +10,8 @@ locals {
   deskplane_namespace  = "deskplane"
   deskplane_host       = "desktop.home.shdr.ch"
   deskplane_public_url = "https://${local.deskplane_host}"
+  # af2d4e1f: a Stopped session deletes any Pod it still has (a stale
+  # reconcile had recreated Pods of sessions parked by 133c4527), on top of
   # 68b26a6c: the viewer no longer refuses a persistent session past its
   # creation-time status.expiresAt, and every MCP browser action result lists
   # the page's failed requests as http_errors (browser_upload waits up to 2 s
@@ -23,8 +25,8 @@ locals {
   # alone, no desktop, Android's first boot baked in at build time). The
   # registry keeps a limited number of tags (666c1c2e was dropped on
   # 2026-11-21); pin a tag the registry still has.
-  deskplane_chart_version = "0.1.0-68b26a6c"
-  deskplane_image_tag     = "68b26a6c"
+  deskplane_chart_version = "0.1.0-af2d4e1f"
+  deskplane_image_tag     = "af2d4e1f"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
