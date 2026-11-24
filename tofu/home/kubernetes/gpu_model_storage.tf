@@ -8,7 +8,7 @@
 #
 # Layout under the PV root:
 #   /comfyui/root/        ComfyUI state
-#   /docling/models/      Docling artifacts cache (layout/OCR/VLM weights)
+#   /docling/models/      Docling weights; Docling was removed 2026-11-24, safe to delete
 #   /llama-swap/models/   GGUF cache (migration TBD)
 
 locals {

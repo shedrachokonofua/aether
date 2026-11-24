@@ -89,9 +89,6 @@ resource "kubernetes_manifest" "seven30_egress_external" {
               "s3.home.shdr.ch",
               "otel.home.shdr.ch",
               "grafana.home.shdr.ch",
-              # Product import consumers (resurf-import-parser, brink-extract)
-              # convert documents through Docling.
-              "docling.home.shdr.ch",
               "**.seven30.xyz",
             ]
             ports = [

@@ -8,14 +8,13 @@ GPU-accelerated inference runs on **Talos Kubernetes**. Most shared AI workloads
 | ----------- | ----------------------------------------- | ----------------- |
 | llama-swap  | Local GGUF inference (`aether/*` models)  | `tofu/home/kubernetes/llama_swap.tf` |
 | ComfyUI     | Stable Diffusion workflows                | `tofu/home/kubernetes/comfyui.tf` |
-| Docling     | Document parsing for RAG                  | `tofu/home/kubernetes/docling.tf` |
 | JupyterLab  | Notebooks (OpenWebUI code execution)      | `tofu/home/kubernetes/jupyter.tf` |
 | Speech      | STT/TTS (Qwen3-ASR + Qwen3-TTS via audio.cpp under llama-swap) | `tofu/home/kubernetes/llama_swap.tf` |
 | OpenWebUI   | Chat UI                                   | `tofu/home/kubernetes/openwebui.tf` |
 | SnapOtter   | File-processing AI tools                  | `tofu/home/kubernetes/snapotter.tf` |
 
 Model weights and ComfyUI state live on the **local NVMe** PV mounted on `talos-neo` (`gpu_model_storage.tf`).
-`llama-swap`, ComfyUI, Docling, and JupyterLab are explicitly pinned to `talos-neo`
+`llama-swap`, ComfyUI, and JupyterLab are explicitly pinned to `talos-neo`
 with `local.gpu_neo_node_selector`; they still require the NVIDIA Talos
 extension selector in addition to the hostname.
 
@@ -1108,7 +1107,7 @@ on the corrected image had not happened when they were set.
 
 ### OpenWebUI
 
-Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (Docling + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
+Configured in [`tofu/home/kubernetes/openwebui.tf`](../tofu/home/kubernetes/openwebui.tf): LiteLLM backend, RAG (built-in content extraction + reranker URLs), SearXNG, Jupyter, OAuth via Keycloak.
 
 Pinned to `v0.12.3` (2026-10-19). `v0.12.0` fixed earlier tool calls being
 re-sent after an `ask_user` answer, which strict providers such as Muse reject
@@ -1123,7 +1122,6 @@ imperative restart.
 - OpenWebUI: `https://openwebui.home.shdr.ch`
 - llama-swap (OpenAI-compatible): `https://llama-swap.apps.home.shdr.ch`
 - ComfyUI: `https://comfyui.home.shdr.ch`
-- Docling: `https://docling.home.shdr.ch`
 - Jupyter: `https://jupyter.home.shdr.ch`
 
 ## Reranker and embeddings

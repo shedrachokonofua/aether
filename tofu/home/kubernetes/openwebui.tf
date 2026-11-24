@@ -385,41 +385,9 @@ resource "kubernetes_deployment_v1" "openwebui" {
             name  = "SEARXNG_QUERY_URL"
             value = "https://searxng.home.shdr.ch/search?format=json&q=<query>"
           }
-          env {
-            name  = "CONTENT_EXTRACTION_ENGINE"
-            value = "docling"
-          }
-          env {
-            name  = "DOCLING_SERVER_URL"
-            value = "http://docling.${local.docling_ns}.svc.cluster.local:${local.docling_port}"
-          }
-          # VLM pipeline via the always-on qwen3.8-flash-next on llama-swap
-          # (remote OpenAI-compatible engine) — freed docling's resident 15.5GB VRAM.
-          # Prompt/format/scale mirror docling's built-in qwen preset.
-          # History: 2026-07 bench across {standard+{RapidOCR,EasyOCR,Tesseract},
-          # vlm:{default(granite-docling-258M), smoldocling, dolphin,
-          # granite_vision-3.3-2b, nanonets_ocr2-3B, qwen2.5-vl-3B,
-          # lightonocr-1B}} on a CamScanner scan: qwen2.5-vl was the only model
-          # that captured printed text AND handwritten margin notes; the switch
-          # to the remote local default (qwen3.8-27b, then qwen3.8-flash-next on
-          # 2026-09-30) supersedes it (rollback: vlm_pipeline_preset = "qwen" —
-          # weights still seeded on the docling models PV).
-          env {
-            name = "DOCLING_PARAMS"
-            value = jsonencode({
-              pipeline = "vlm"
-              vlm_pipeline_model_api = {
-                url             = "http://${kubernetes_service_v1.llama_swap.metadata[0].name}.${local.llama_swap_ns}.svc.cluster.local:${local.llama_swap_port}/v1/chat/completions"
-                params          = { model = "qwen3.8-flash-next" }
-                prompt          = "Convert this page to markdown. Do not miss any text and only output the bare markdown!"
-                response_format = "markdown"
-                scale           = 2.0
-                temperature     = 0.0
-                timeout         = 120
-                concurrency     = 2
-              }
-            })
-          }
+          # Built-in content extraction. Docling was removed on 2026-11-24: in
+          # 30 days it served 5 conversions, all from here and all HTTP 500,
+          # while reserving 3.25Gi on talos-neo.
           env {
             name  = "RAG_EMBEDDING_ENGINE"
             value = "openai"

@@ -48,12 +48,11 @@ locals {
       backup                  = "none"
       exposure                = "internal"
       create_s3_backup_secret = false
-      description             = "GPU-backed AI serving: ComfyUI, Docling, and llama-swap"
+      description             = "GPU-backed AI serving: ComfyUI and llama-swap"
       egress                  = "internet"
       registry_access         = "github"
       hostnames = [
         "comfyui.home.shdr.ch",
-        "docling.home.shdr.ch",
         "llama-swap.home.shdr.ch",
       ]
       extra_labels = {
@@ -1457,7 +1456,6 @@ locals {
     # GET / is not a route; /ui/config.json is the public sign-in config.
     "cicada.home.shdr.ch"      = "/ui/config.json"
     "antigravity.home.shdr.ch" = "/health"
-    "docling.home.shdr.ch"     = "/health"
     "muse.home.shdr.ch"        = "/health"
     "grok.home.shdr.ch"        = "/health"
     "claude.home.shdr.ch"      = "/health"
