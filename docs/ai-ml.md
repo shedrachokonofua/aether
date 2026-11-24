@@ -1005,9 +1005,12 @@ was seen on the cluster after each release is in the daimyo repo's `docs/ops/upg
   an org could read it, and with it the documents in its result.
 - **First consolidation.** The operator's namespace was dreamed and applied by hand on 2026-11-23 at 17:37 UTC
   (dream `01M84MJH690T904NJJ7R356CSD`): 42 documents and 81 KB became 11 and 92 KB. How it was checked, and the
-  three earlier attempts that were denied, are in the daimyo repo's `docs/ops/upgrades.md`. Not observed when
-  this was written: a dream the engine started on its own for this namespace (the first is due at 09:00 UTC on
-  2026-11-24).
+  three earlier attempts that were denied, are in the daimyo repo's `docs/ops/upgrades.md`.
+- **First dream the engine started itself.** 2026-11-24 at 09:00:54 UTC, 04:00 in Toronto, as the operator (dream
+  `01M86CJS498E22GKHRJVDKRFH1`, Helm 143). The dreamer answered after 10 min 51 s for $2.56 with twelve
+  candidates: `MEMORY.md`, new; nine documents rewritten; `journal/2026-11-23.md` deleted once its lines were
+  filed; and `kept.md`. The checker took 3 min for $0.85 and vouched for every old line but one, which went to
+  `kept.md`. The set was applied at 09:14:52 with nobody involved.
 
 ### Daimyo memory eval
 
@@ -1072,6 +1075,13 @@ Results that stand:
   observed 6. Five were a dream or an observation whose model stream the gateway cut (`claude: API Error …
   TransferEncodingError`), two an observation whose list of entries outran one answer, one a session whose
   workspace could not be restored.
+- First nightly run on the corrected image, Job `memory-eval-29925070`, 2026-11-24 07:10 to 08:55 UTC, on Daimyo
+  Helm 143: private suite full context 59/60, BM25 54/60, memory 57/58, observed 58/58, with no stale assertion
+  in 20 and no false memory in either memory arm; canary 12/12 probes in both arms, no leak. The one memory miss
+  and the one full-context miss are both `unprompted` cases. Four cases never reached a question. Two dream
+  starts timed out at the harness's 120 s: Daimyo then found a dream's conversations by listing the agent's whole
+  archive, 35 to 45 s a start for an agent with 25,000 tasks, and at 07:43 the object store timed out on top of
+  it. Two observers ended by asking a question nobody answers. None of the five alerts fired on it.
 
 Alerts (2026-11-24, [`grafana/alerting/rules/daimyo-memory.yml`](../tofu/home/kubernetes/grafana/alerting/rules/daimyo-memory.yml),
 listed in [monitoring.md](monitoring.md)): a canary leak; no nightly result in 30 h; the memory arm more than 0.1
