@@ -294,7 +294,17 @@ locals {
   #   for good, and since the consolidation of 2026-11-23 deleted 32
   #   documents (one batch) nothing was indexed: the journal of 00:17 UTC on
   #   the 24th was never searchable on f655f23.
-  daimyo_server_tag = "sha256:08a098322961e5121f707545f9b3bc1db51274fbed99b7149f2db150cf616874"
+  # e86e3c3 (main pipeline 17364 green, migration 0065). Server only:
+  # - memory_search by a task that names no user reads the namespace its own
+  #   mount maps to. On a per-user mount it read the shared namespace, so
+  #   every agent of the personal store found nothing;
+  # - recall's indexer reads a queue a trigger on `tasks` fills. Its query
+  #   over every finished task took 4.7 s every 30 s here with nothing owed;
+  # - the observer keeps its entries in a file (2 of 30 observations of 500
+  #   turns failed `schema` on a list too long for one answer);
+  # - the reranker reads fifteen passages a pass, not thirty, and is waited
+  #   for 8 s: a search took 6.2 s at the median on 7cbc526.
+  daimyo_server_tag = "sha256:4129b6cf5c7993b9db76a6dd0d7e790e2c4715d1ebf9d19c3dd1b1111df18d01"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
