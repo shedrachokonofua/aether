@@ -109,12 +109,12 @@ groups:
           domain: ai
         annotations:
           summary: "The memory eval's canary found {{ $values.B.Value }} leak(s) between people or of a deleted fact"
-          description: "Read the run: kubectl -n daimyo-memory-eval logs job/<memory-eval-nightly job> ; results.json names the probe, the person and where the string was found."
+          description: "Read the run: kubectl -n daimyo-memory-eval logs job/<memory-eval job> ; results.json names the probe, the person and where the string was found."
 
-      # The nightly run ships its numbers at about 07:10 UTC. None in 30h
-      # means the CronJob did not run or could not finish.
+      # The run ships its numbers on Sundays at about 09:00 UTC. None in
+      # eight days means the CronJob did not run or could not finish.
       - uid: daimyo-memory-eval-stale
-        title: Daimyo memory eval — no nightly result
+        title: Daimyo memory eval — no weekly result
         condition: C
         data:
           - refId: A
@@ -130,7 +130,7 @@ groups:
               format: 1
               queryType: sql
               rawSql: |
-                SELECT toFloat64(now() - toDateTime(max(TimeUnix))) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'daimyo_memory_eval_cases' AND Attributes['suite'] = 'private' AND TimeUnix > now() - INTERVAL 14 DAY HAVING count() > 0
+                SELECT toFloat64(now() - toDateTime(max(TimeUnix))) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'daimyo_memory_eval_cases' AND Attributes['suite'] = 'private' AND TimeUnix > now() - INTERVAL 30 DAY HAVING count() > 0
               refId: A
           - refId: B
             datasourceUid: __expr__
@@ -147,7 +147,7 @@ groups:
               conditions:
                 - evaluator:
                     type: gt
-                    params: [108000]
+                    params: [691200]
               refId: C
         noDataState: OK
         execErrState: OK
@@ -157,13 +157,14 @@ groups:
           domain: ai
           channel: digest
         annotations:
-          summary: "The nightly memory eval has shipped no result in 30h"
+          summary: "The weekly memory eval has shipped no result in eight days"
           description: "kubectl -n daimyo-memory-eval get cronjob,jobs ; a Job that failed names why in its log."
 
       # The memory arm answers the same questions as the arm that is given
       # the whole history. On the first valid runs the two were level (60/60
-      # and 56/56 nightly, 26/30 and 24/28 weekly), and arms nothing had
-      # changed for moved by one answer in thirty between runs.
+      # and 56/56 on the private suite, 26/30 and 24/28 on LongMemEval-S),
+      # and arms nothing had changed for moved by one answer in thirty
+      # between runs.
       - uid: daimyo-memory-eval-accuracy
         title: Daimyo memory eval — memory answers worse than full context
         condition: C
@@ -213,8 +214,9 @@ groups:
 
       # A case errors when its dream, observation or session never ran, so
       # this is the platform failing to keep memory, not memory being wrong.
-      # Nightly suites only: the weekly one files 500-turn histories and has
-      # lost cases to the model gateway cutting a long answer.
+      # The private and canary suites only: LongMemEval-S files 500-turn
+      # histories and has lost cases to the model gateway cutting a long
+      # answer.
       - uid: daimyo-memory-eval-errored
         title: Daimyo memory eval — cases that never ran
         condition: C

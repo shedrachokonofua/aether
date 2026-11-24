@@ -1,4 +1,4 @@
-# Daimyo memory eval: a nightly run that scores agent memory in org `qa`
+# Daimyo memory eval: a weekly run that scores agent memory in org `qa`
 # against two baselines that use no memory system (daimyo repo
 # scripts/memory_eval/README.md and
 # docs/specs/2026-11-23-automatic-memory-design.md §3.1).
@@ -228,7 +228,10 @@ locals {
   ]
 }
 
-# 07:10 UTC, after the day's conversations and before the 09:00 UTC dreams.
+# Sundays at 07:10 UTC, before the 09:00 UTC dreams. Nightly until 2026-11-24:
+# a run took 13.4M Opus input tokens (12.8M of them cache reads), 6.9M Haiku
+# and 4.7M Gemini Neon out of the operator's subscriptions, and once a week is
+# what the operator chose.
 resource "kubectl_manifest" "memory_eval_cron" {
   depends_on = [kubectl_manifest.memory_eval_agent, kubectl_manifest.memory_eval_issuer]
 
@@ -241,7 +244,7 @@ resource "kubectl_manifest" "memory_eval_cron" {
       labels    = merge(local.memory_eval_labels, { component = "run" })
     }
     spec = {
-      schedule                   = "10 7 * * *"
+      schedule                   = "10 7 * * 0"
       concurrencyPolicy          = "Forbid"
       successfulJobsHistoryLimit = 3
       failedJobsHistoryLimit     = 3
@@ -303,8 +306,8 @@ resource "kubectl_manifest" "memory_eval_cron" {
   })
 }
 
-# LongMemEval-S, the public benchmark, weekly (Sunday 10:10 UTC, after the
-# nightly run and the 09:00 UTC dreams): thirty questions drawn evenly from
+# LongMemEval-S, the public benchmark (Sunday 10:10 UTC, after the private
+# suite's run and the 09:00 UTC dreams): thirty questions drawn evenly from
 # its six kinds, a new draw each week. Each question brings about fifty
 # sessions (some 115k tokens) of its own, so the memory arm's dream reads far
 # more than a private case's and a run takes hours. The 277 MB dataset is

@@ -1057,7 +1057,8 @@ best. The harness and its suites are the daimyo repo's `scripts/memory_eval` (RE
   none.
 - **Test agent.** `org-qa/memory-keeper`: an omp harness agent on `moira/flash` with a per-user mount of store
   `memory-eval`, the files tool, and nothing else.
-- **Nightly run.** CronJob `memory-eval`, 07:10 UTC: 60 private cases through four arms (full context, raw search,
+- **Private and canary run.** CronJob `memory-eval`, Sundays at 07:10 UTC (nightly until 2026-11-24, when the
+  operator chose weekly for what a run draws from the subscriptions): 60 private cases through four arms (full context, raw search,
   `memory`, which asks after a dream, and `observed`, which asks after an observation) and 6 canary cases through
   the last two, each case as its own person `eval-<run>-<case>`. Answers on `moira/flash`, judged by
   `moira/balanced`, through LiteLLM key alias `memory_eval` (allowlist in
@@ -1116,11 +1117,11 @@ Results that stand:
   it. Two observers ended by asking a question nobody answers. None of the five alerts fired on it.
 
 Alerts (2026-11-24, [`grafana/alerting/rules/daimyo-memory.yml`](../tofu/home/kubernetes/grafana/alerting/rules/daimyo-memory.yml),
-listed in [monitoring.md](monitoring.md)): a canary leak; no nightly result in 30 h; the memory arm more than 0.1
-below full context in a suite's last run; more than 15% of a nightly suite's memory or observed cases never
-running; and, from the server's own counter, three or more failed dreams or observations of an org other than
-`qa` in 24 h. The thresholds come from the runs above, not from a week of nightly scores: the first nightly run
-on the corrected image had not happened when they were set.
+listed in [monitoring.md](monitoring.md)): a canary leak; no result in eight days; the memory arm more than 0.1
+below full context in a suite's last run; more than 15% of the private or canary suite's memory or observed cases
+never running; and, from the server's own counter, three or more failed dreams or observations of an org other
+than `qa` in 24 h. The thresholds come from the runs above, not from a series of scores: one run on the corrected
+image had happened when they were set.
 
 ### OpenWebUI
 
