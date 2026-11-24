@@ -297,6 +297,25 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
       ],
       [
         {
+          name = "helios"
+          credentials = [{
+            accessKey = random_password.helios_s3_access_key.result
+            secretKey = random_password.helios_s3_secret_key.result
+          }]
+          actions = [
+            "Read:${local.helios_photo_bucket}",
+            "Write:${local.helios_photo_bucket}",
+            "List:${local.helios_photo_bucket}",
+            "Tagging:${local.helios_photo_bucket}",
+            "Read:${local.helios_photo_bucket}/*",
+            "Write:${local.helios_photo_bucket}/*",
+            "List:${local.helios_photo_bucket}/*",
+            "Tagging:${local.helios_photo_bucket}/*",
+          ]
+        }
+      ],
+      [
+        {
           name = "thanos-metrics"
           credentials = [{
             accessKey = random_password.thanos_s3_access_key.result

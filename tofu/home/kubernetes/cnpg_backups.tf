@@ -96,6 +96,12 @@ locals {
       retention = "7d"
       schedule  = "0 15 2 * * *"
     }
+    helios = {
+      namespace = local.helios_namespace
+      cluster   = local.helios_cnpg
+      retention = "7d"
+      schedule  = "0 12 2 * * *"
+    }
     x-bridge = {
       namespace = local.x_bridge_ns
       cluster   = local.x_bridge_cnpg
@@ -221,6 +227,7 @@ resource "kubectl_manifest" "cnpg_scheduled_backup" {
     kubectl_manifest.coder_cnpg_cluster,
     kubectl_manifest.kestra_cnpg_cluster,
     kubectl_manifest.immich_cnpg_cluster,
+    kubectl_manifest.helios_cnpg_cluster,
     kubectl_manifest.litellm_cnpg_cluster,
     kubectl_manifest.matrix_cnpg_cluster,
     kubectl_manifest.miniflux_cnpg_cluster,

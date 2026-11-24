@@ -116,6 +116,28 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "helios" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "standard"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Helios car-sales storefront and admin panel (so/helios, built by Cicada)"
+      source_file             = "tofu/home/kubernetes/helios.tf"
+      # The helios-cnpg cluster and SeaweedFS (s3.seaweed.home.shdr.ch) for
+      # photos. Declared intent only: no CiliumNetworkPolicy enforces it yet.
+      egress          = "allowlist"
+      registry_access = "gitlab"
+      # Reached publicly as helios.shdr.ch: the home gateway's :9443 handler
+      # authenticates through oauth2-proxy and forwards with this Host.
+      hostnames = [
+        "helios.home.shdr.ch",
+      ]
+      extra_labels = {
+        "aether.shdr.ch/arch"              = "amd64"
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
     "agent-sandbox-system" = {
       tier                    = "platform",
       owner                   = "aether",

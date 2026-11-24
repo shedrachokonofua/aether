@@ -2153,6 +2153,12 @@ locals {
       repo      = "seven30/beacon"
       resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
     }
+    # so/helios (2026-11-24): bun, Postgres 17 and Playwright Chromium in one
+    # pod. Sized like buyerfact until it is measured; Cicada project hook 15.
+    helios = {
+      repo      = "so/helios"
+      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
+    }
   }
   # so/cicada itself: cargo, bun, Postgres 17 and NATS JetStream in one pod;
   # its goal acceptance runs `task lint`, `task test` and `bun test ui` here.

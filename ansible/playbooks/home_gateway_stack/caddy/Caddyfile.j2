@@ -1056,6 +1056,39 @@ api.siren.home.shdr.ch {
     }
   }
 
+  # Helios (so/helios, tofu/home/kubernetes/helios.tf): the whole site sits
+  # behind Keycloak (realm aether) through oauth2-proxy, and the app trusts
+  # only the X-Auth-Request-* headers copied here (so/helios decisions D-2).
+  # copy_headers replaces any client-sent value of those headers.
+  @helios host helios.shdr.ch
+  handle @helios {
+    @helios_oauth2 path /oauth2/*
+    handle @helios_oauth2 {
+      reverse_proxy localhost:{{ vm.home_gateway_stack.ports.oauth2_proxy }}
+    }
+
+    handle {
+      forward_auth localhost:{{ vm.home_gateway_stack.ports.oauth2_proxy }} {
+        uri /oauth2/auth
+        header_up X-Real-IP {http.request.header.X-Real-IP}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Uri {uri}
+        copy_headers X-Auth-Request-User X-Auth-Request-Email
+        # Not signed in: start the Keycloak login, then come back here.
+        @signin status 401
+        handle_response @signin {
+          redir * /oauth2/start?rd={http.request.uri.path}
+        }
+      }
+      reverse_proxy 10.0.3.19 {
+        header_up Host "helios.home.shdr.ch"
+        header_up X-Real-IP {http.request.header.X-Real-IP}
+        header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+        header_up X-Forwarded-Proto https
+      }
+    }
+  }
+
   handle {
     respond "Not Found" 404
   }

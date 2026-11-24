@@ -1036,7 +1036,7 @@ resource "keycloak_openid_audience_protocol_mapper" "x_bridge_audience" {
 # =============================================================================
 # oauth2-proxy OIDC Client (forward_auth for apps without built-in auth)
 # =============================================================================
-# Used by Caddy forward_auth to protect: BentoPDF, and future apps
+# Used by Caddy forward_auth to protect: BentoPDF, Helios, and future apps
 
 resource "keycloak_openid_client" "oauth2_proxy" {
   realm_id  = keycloak_realm.aether.id
@@ -1052,6 +1052,7 @@ resource "keycloak_openid_client" "oauth2_proxy" {
   # Callback URLs for each protected domain
   valid_redirect_uris = [
     "https://pdf.shdr.ch/oauth2/callback",
+    "https://helios.shdr.ch/oauth2/callback",
   ]
 
   web_origins = [
