@@ -7,9 +7,9 @@
 # Public URL: https://desk.home.shdr.ch
 
 locals {
-  deskplane_namespace     = "deskplane"
-  deskplane_host          = "desktop.home.shdr.ch"
-  deskplane_public_url    = "https://${local.deskplane_host}"
+  deskplane_namespace  = "deskplane"
+  deskplane_host       = "desktop.home.shdr.ch"
+  deskplane_public_url = "https://${local.deskplane_host}"
   # 4b722ee4: Android emulator sessions and the catalog image profileRef
   # (deskplane MR !3). The MCP image carries the same tag; the android image
   # is 82291859, which adds image-only fixes on top. The registry
@@ -460,7 +460,7 @@ resource "helm_release" "deskplane" {
             scheme      = "http"
             controlPort = 9222
           }
-          network = { egress = "restricted" }
+          network   = { egress = "restricted" }
           resources = { requests = { memory = "1Gi" } }
         },
         {
@@ -472,7 +472,7 @@ resource "helm_release" "deskplane" {
             scheme      = "http"
             controlPort = 9222
           }
-          network = { egress = "tunnel" }
+          network   = { egress = "tunnel" }
           resources = { requests = { memory = "1Gi" } }
         },
         {
