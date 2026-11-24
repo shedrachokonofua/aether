@@ -10,7 +10,10 @@ locals {
   deskplane_namespace  = "deskplane"
   deskplane_host       = "desktop.home.shdr.ch"
   deskplane_public_url = "https://${local.deskplane_host}"
-  # 133c4527: session lifecycle -- non-persistent sessions are deleted an
+  # 68b26a6c: the viewer no longer refuses a persistent session past its
+  # creation-time status.expiresAt, and every MCP browser action result lists
+  # the page's failed requests as http_errors (browser_upload waits up to 2 s
+  # for its own). Before that, 133c4527: session lifecycle -- non-persistent sessions are deleted an
   # hour after they stop (sessions.terminalRetentionSeconds), exited Pods of
   # persistent sessions park Stopped instead of Failed, and persistent
   # sessions with a home PVC stop after 4 idle hours
@@ -20,8 +23,8 @@ locals {
   # alone, no desktop, Android's first boot baked in at build time). The
   # registry keeps a limited number of tags (666c1c2e was dropped on
   # 2026-11-21); pin a tag the registry still has.
-  deskplane_chart_version = "0.1.0-133c4527"
-  deskplane_image_tag     = "133c4527"
+  deskplane_chart_version = "0.1.0-68b26a6c"
+  deskplane_image_tag     = "68b26a6c"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
