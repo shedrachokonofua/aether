@@ -327,7 +327,12 @@ locals {
   #   failed. A start whose request was dropped before its task was admitted
   #   held its namespace from upkeep for two days (d11f0e3, not released on
   #   its own).
-  daimyo_server_tag = "sha256:82111accd316509c7ffa52fe3340cb5a28d0541e06fe972862df37a3306931e5"
+  # d4a9c73 (main pipeline 17571 green). Server and sidecar together, CRD
+  # first: Agent gains `mounts` (claims under /mnt/<name>), `mcp.files`
+  # (a tool argument names a file by path and the sidecar moves the bytes)
+  # and `http.internal` (a grant only the sidecar may use). See daimyo
+  # docs/ops/upgrades.md "Tool files and mounts".
+  daimyo_server_tag = "sha256:c28cf221295c7a092a2ed61a486655f5746e256cd2f864ccb44bb34395daf60b"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -359,7 +364,10 @@ locals {
   # f655f23 (pipeline 17261 build:daimyo-sidecar): the built-in `daimyo` MCP
   # server serves recall_search beside memory_search when the pod mounts a
   # store. Applies to pods started after the release.
-  daimyo_sidecar_tag = "sha256:4fb7793139f7bd32c779d999efcf49d63ab7029d9a9e578d415a798a9ddd0146"
+  # d4a9c73 (pipeline 17571 build:daimyo-sidecar): tool files, `$file` and
+  # `$out` arguments, internal http grants and /mnt mounts. Pinned with the
+  # server above, before any agent declares an internal grant.
+  daimyo_sidecar_tag = "sha256:5138499e5a18b8f05c00f287df3ba55b8bf81dc1a247215036d89f488ce7dcd0"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
@@ -498,7 +506,10 @@ locals {
   # (eval, bash, read, edit, ...) carry their output, bounded to 16 KiB, as
   # for claude-code above. Applies to pods started after the release; omp-dev
   # is not moved.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:1c4a6788874a505186087d04539950ede7ec86a6d62f0bd47b66fc14c2fdd8ee"
+  # omp d4a9c73 (pipeline 17571 build:harness-omp): `tool` on PATH, the
+  # task's MCP tools from the shell (`tool list|describe|call`, key=@path,
+  # --to PATH). omp-dev is not moved: its image needs an attestation.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:298d179a27d1ee8b63c6b58d8dd0fb78dcc489c3ce50326c01e30106513781c9"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
