@@ -38,8 +38,8 @@ locals {
     "app.kubernetes.io/part-of" = "pharos"
   }
 
-  # Published by so/pharos CI from main (f808ae54): image and chart pinned to the same commit.
-  pharos_chart_version = "0.1.0-gf808ae54"
+  # Published by so/pharos CI from main (80d47a9b): image and chart pinned to the same commit.
+  pharos_chart_version = "0.1.0-g80d47a9b"
 
   # In-cluster LiteLLM service (same endpoint deskplane and nextcloud use);
   # keeps model traffic off the gateway hairpin.
@@ -96,6 +96,18 @@ resource "vault_kv_secret_v2" "pharos_mcp" {
   data_json = jsonencode({
     token = random_password.pharos_mcp_token.result
     url   = "${local.pharos_base_url}/mcp"
+  })
+}
+
+# The same bearer under the Daimyo org tree, for the `orion` agent's
+# internal `pharos_books` http grant (Orion chart values; egress in
+# daimyo.tf): the sidecar adds it when it sends pharos_import_book's file
+# argument to PUT /mcp/books/<name>.
+resource "vault_kv_secret_v2" "daimyo_orion_pharos_mcp" {
+  mount = "kv"
+  name  = "orgs/personal/pharos-mcp"
+  data_json = jsonencode({
+    token = random_password.pharos_mcp_token.result
   })
 }
 

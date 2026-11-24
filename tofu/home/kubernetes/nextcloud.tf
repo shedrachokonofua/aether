@@ -194,6 +194,21 @@ resource "random_password" "nextcloud_mcp_app_password" {
   special = false
 }
 
+# The same app password as an HTTP Basic value, for the `orion` agent's
+# internal `nextcloud_files` http grant (Orion chart values; egress in
+# daimyo.tf): the Daimyo sidecar sends it to Nextcloud's WebDAV when a
+# nextcloud tool call carries a workspace file, so whole files move as bytes.
+# No new credential: it is the account and app password the nextcloud-mcp
+# sidecar already signs in with, so rotating that password rotates this too.
+resource "vault_kv_secret_v2" "daimyo_orion_nextcloud_files" {
+  mount = "kv"
+  name  = "orgs/personal/nextcloud-files"
+
+  data_json = jsonencode({
+    basic = base64encode("${local.nextcloud_mcp_uid}:${random_password.nextcloud_mcp_app_password.result}")
+  })
+}
+
 resource "kubernetes_secret_v1" "nextcloud_postgres" {
   depends_on = [module.namespace["nextcloud"]]
 

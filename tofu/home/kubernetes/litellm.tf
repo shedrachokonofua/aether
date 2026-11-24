@@ -234,6 +234,62 @@ resource "kubernetes_persistent_volume_claim_v1" "litellm_annas_downloads" {
   }
 }
 
+# The same folder for the `orion` agent, read-only: its Agent mounts claim
+# `annas-downloads` at /mnt/annas (Orion chart values, `mounts`), so it can
+# open what the annas tools downloaded and hand an EPUB to Pharos as a tool
+# file argument. A claim cannot be shared across namespaces, so this is a
+# second, static volume over the dynamic volume's own NFS subdirectory (named
+# after that volume, under the nfs-hdd share). The downloader writes its
+# files world-readable; task pods run as uid 65534.
+resource "kubernetes_persistent_volume_v1" "daimyo_personal_annas_downloads" {
+  depends_on = [helm_release.csi_driver_nfs]
+
+  metadata {
+    name = "personal-tasks-annas-downloads"
+  }
+
+  spec {
+    capacity = { storage = "50Gi" }
+
+    access_modes                     = ["ReadOnlyMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+
+    persistent_volume_source {
+      csi {
+        driver        = "nfs.csi.k8s.io"
+        volume_handle = "personal-tasks-annas-downloads"
+        read_only     = true
+        volume_attributes = {
+          server = var.nfs_server_ip
+          share  = "/mnt/hdd/data/${kubernetes_persistent_volume_claim_v1.litellm_annas_downloads.spec[0].volume_name}"
+        }
+      }
+    }
+
+    mount_options = ["nfsvers=4.1", "hard", "nointr", "ro"]
+  }
+}
+
+resource "kubernetes_persistent_volume_claim_v1" "daimyo_personal_annas_downloads" {
+  depends_on = [module.namespace["personal-tasks"]]
+
+  metadata {
+    name      = "annas-downloads"
+    namespace = "personal-tasks"
+  }
+
+  spec {
+    access_modes       = ["ReadOnlyMany"]
+    storage_class_name = kubernetes_storage_class_v1.nfs_hdd.metadata[0].name
+    volume_name        = kubernetes_persistent_volume_v1.daimyo_personal_annas_downloads.metadata[0].name
+
+    resources {
+      requests = { storage = "50Gi" }
+    }
+  }
+}
+
 resource "kubernetes_persistent_volume_claim_v1" "litellm_postgres_data" {
   depends_on = [module.namespace["litellm"], kubernetes_storage_class_v1.ceph_rbd]
   metadata {

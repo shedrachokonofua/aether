@@ -925,7 +925,8 @@ carry as `metadata->>'litellm_call_id'`.
 
 Personal EPUB library declared in [`tofu/home/kubernetes/pharos.tf`](../tofu/home/kubernetes/pharos.tf)
 (Keycloak client in [`tofu/home/keycloak_pharos.tf`](../tofu/home/keycloak_pharos.tf)); code, chart and
-CI live in `so/pharos`. It turns books into source-linked chapter readings and serves a read-only MCP at
+CI live in `so/pharos`. It turns books into source-linked chapter readings and serves an MCP (reading tools, plus
+`pharos_import_book`, which adds an EPUB an agent sends as a file argument) at
 `https://pharos.home.shdr.ch/mcp/` (bearer token in OpenBao `kv/pharos/mcp`). Over that MCP every finished
 book is also an Agent Skill, found with `pharos_find_skills` and loaded with `pharos_load_skill` (the same
 files are `skill://<name>/...` resources), and `pharos_search_ideas` searches the ideas of every book at

@@ -1399,6 +1399,35 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toPorts = [{ ports = [{ port = tostring(local.snapotter_port), protocol = "TCP" }] }]
         } if org == "personal"
         ], [
+        # Nextcloud over WebDAV: the `orion` agent's internal `nextcloud_files`
+        # http grant (Orion chart values). The task's sidecar streams a
+        # workspace file to or from it when a nextcloud tool call carries one,
+        # with the same account's app password (OpenBao
+        # orgs/personal/nextcloud-files); without it Nextcloud answers 401.
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = merge(local.nextcloud_server_labels, {
+              "io.kubernetes.pod.namespace" = local.nextcloud_namespace
+            })
+          }]
+          toPorts = [{ ports = [{ port = "80", protocol = "TCP" }] }]
+        } if org == "personal"
+        ], [
+        # Pharos book upload (PUT /mcp/books/<name>): the `orion` agent's
+        # internal `pharos_books` http grant, where the sidecar sends
+        # pharos_import_book's file. It adds the Pharos MCP bearer (OpenBao
+        # orgs/personal/pharos-mcp); Pharos refuses /mcp without it and
+        # everything else without a browser session.
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "pharos"
+              "io.kubernetes.pod.namespace" = local.pharos_namespace
+            }
+          }]
+          toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
+        } if org == "personal"
+        ], [
         # trip-planner's `flights` grant: fli, in-cluster without client auth
         # (trip_planner.tf), so this rule is its access boundary.
         for org in [each.key] : {

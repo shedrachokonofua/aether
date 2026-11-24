@@ -328,7 +328,10 @@ is not an NFS quota. The StorageClass retains the data and the claim has
 
 Downloads consume the membership's daily allowance, so both download tools
 ask for approval. Upstream returns only the destination directory, not the
-file contents; it does not make files available in Orion's workspace. Public
+file contents. The `orion` Agent mounts the same NFS directory read-only at
+`/mnt/annas` (static volume `personal-tasks-annas-downloads`, claim
+`personal-tasks/annas-downloads` in `litellm.tf`), so it can open a download
+and pass an EPUB to `pharos_import_book` as a file argument. Public
 search and DOI lookup depend on the website and can hit DDoS-Guard even when
 the membership download API works. Upstream can misreport a blocked search as
 no results; it is not evidence that the archive lacks the requested work.
@@ -414,3 +417,22 @@ delegation are off, and destructive qBittorrent tools ask. The grant and
 prompt are in `orion.tf`, tool lists in `orion_agent_tools.tf`, the host
 allowlist in `daimyo.tf`, and the key scope in
 `register_litellm_virtual_keys.yml`.
+
+## Files between the workspace and Nextcloud or Pharos
+
+A tool call can carry a workspace file as `{"$file": "<path>"}` or ask for one
+back with `"$out"`; the task's Daimyo sidecar then moves the bytes over plain
+HTTP after the tool's own policy check, instead of base64 inside the MCP call,
+which the gateway caps at a few megabytes. The rules live on the `orion`
+Agent's `nextcloud` and `pharos` grants (Orion chart values, `fileRules`) and
+travel through two internal http grants, which the agent's shell cannot reach.
+Each is an egress rule for `personal` tasks in `daimyo.tf` and a secret the
+sidecar adds:
+
+| Grant | Used by | Upstream | Secret (OpenBao `kv`) |
+| --- | --- | --- | --- |
+| `nextcloud_files` | `nc_webdav_write_file`, `nc_webdav_read_file` | `nextcloud-server.nextcloud.svc:80`, WebDAV under `/remote.php/dav/files/<uid>/` | `orgs/personal/nextcloud-files`, key `basic`: the nextcloud-mcp account and app password as an HTTP Basic value (`nextcloud.tf`) |
+| `pharos_books` | `pharos_import_book` | `pharos.pharos.svc:8080`, `PUT /mcp/books/<name>` | `orgs/personal/pharos-mcp`, key `token`: the Pharos MCP bearer (`pharos.tf`) |
+
+The egress rules apply to every pod in `personal-tasks`, so a sandbox there
+can open a connection to both services, but holds neither credential.

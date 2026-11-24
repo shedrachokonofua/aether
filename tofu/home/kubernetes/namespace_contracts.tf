@@ -101,7 +101,7 @@ locals {
       backup                  = "critical"
       exposure                = "internal"
       create_s3_backup_secret = false
-      description             = "Pharos personal EPUB library (source-grounded local-model reading, read-only MCP)"
+      description             = "Pharos personal EPUB library (source-grounded local-model reading, MCP)"
       source_file             = "tofu/home/kubernetes/pharos.tf"
       # Cluster LiteLLM, the LAN-resolved Keycloak issuer, and Open Library for book covers
       # (openlibrary.org, covers.openlibrary.org and the *.archive.org hosts they redirect to).
