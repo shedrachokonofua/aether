@@ -591,8 +591,12 @@ resource "kubernetes_deployment_v1" "game_server" {
               # 30d to 2026-10-15 (Prometheus, 5m rate): avg 0.49, p95 2.9,
               # p99 3.0, max 4.5 cores -- FM26 running nonstop sat at
               # 2.3-2.8. 8 cores reserved a quarter of neo for that.
-              cpu              = "3"
-              memory           = "8Gi"
+              cpu = "3"
+              # 30d to 2026-11-24: 7-9.5Gi only while FM26 ran nonstop (Oct 25 -
+              # Nov 3), 1.3-1.6Gi idle since Nov 9. 8Gi reserved a twelfth of neo
+              # for an idle desktop. A session bursts to the 16Gi limit; neo's
+              # 30-day peak real use was 67%, so that headroom is there.
+              memory           = "2Gi"
               "nvidia.com/gpu" = "1"
             }
             limits = {
