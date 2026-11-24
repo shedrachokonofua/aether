@@ -10,13 +10,13 @@ locals {
   deskplane_namespace     = "deskplane"
   deskplane_host          = "desktop.home.shdr.ch"
   deskplane_public_url    = "https://${local.deskplane_host}"
-  # 7ed9ae05 is 666c1c2e plus one commit that touches only mcp/ (the MCP
-  # server has its own image and tag below), so the control plane and chart
-  # are unchanged. The registry keeps a limited number of tags and dropped
-  # 666c1c2e on 2026-11-21; the pod only kept running from talos-neo's image
-  # cache until that node rebooted. Pin a tag the registry still has.
-  deskplane_chart_version = "0.1.0-7ed9ae05"
-  deskplane_image_tag     = "7ed9ae05"
+  # 4b722ee4: Android emulator sessions and the catalog image profileRef
+  # (deskplane MR !3). The MCP image carries the same tag; the android image
+  # is 82291859, which adds image-only fixes on top. The registry
+  # keeps a limited number of tags (666c1c2e was dropped on 2026-11-21); pin
+  # a tag the registry still has.
+  deskplane_chart_version = "0.1.0-4b722ee4"
+  deskplane_image_tag     = "4b722ee4"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
@@ -38,6 +38,7 @@ locals {
   # that touched the image) -- check the registry before bumping.
   deskplane_headless_chromium_tag = "2d2c9e13"
   deskplane_chrome_cdp_tag        = "c0796ff2"
+  deskplane_android_tag           = "82291859"
   deskplane_registry_host         = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user         = var.secrets["gitlab.root_email"]
   deskplane_registry_pass         = var.secrets["gitlab.root_password"]
@@ -362,6 +363,30 @@ resource "helm_release" "deskplane" {
             effect   = "NoSchedule"
           }
         ]
+      },
+      {
+        # Android emulator sessions (the "android" image pins this profile).
+        # devic.es/kvm comes from the device plugin at the end of this file.
+        # QEMU alone held 4.1 GiB resident and ~4.5 CPUs while booting the
+        # 3 GiB guest on talos-neo (2026-11-23). amd64 memory requests run at
+        # 92-98%, and 5Gi fit no node, so the request is 4Gi and the 8Gi
+        # limit absorbs the rest. The CPU limit keeps an emulator on a
+        # control-plane node from starving etcd.
+        name              = "kvm"
+        priorityClassName = local.deskplane_session_priority_class
+        resources = {
+          requests = {
+            cpu            = "2"
+            memory         = "4Gi"
+            "devic.es/kvm" = "1"
+          }
+          limits = {
+            cpu            = "6"
+            memory         = "8Gi"
+            "devic.es/kvm" = "1"
+          }
+        }
+        nodeSelector = local.deskplane_node_selector
       }
     ]
 
@@ -462,6 +487,17 @@ resource "helm_release" "deskplane" {
           environment = { KASM_SVC_AUDIO = "1", KASM_SVC_UPLOADS = "1" }
           resources   = { requests = { memory = "1536Mi" } }
         },
+        {
+          # Android emulator (x86_64 Google Play image under KVM) on KasmVNC:
+          # humans watch/take over at /s/<session>, agents drive it over adb
+          # (controlPort 5038, published once Android has booted).
+          name        = "android", displayName = "Android"
+          image       = "${local.deskplane_registry_image}/android-emulator-kasm:${local.deskplane_android_tag}"
+          profileRef  = "kvm"
+          runtime     = { type = "kasmvnc", port = 6901, scheme = "https", passwordEnv = "VNC_PW", skipTLSVerify = true, controlPort = 5038 }
+          persistence = { defaultMountPath = "/home/kasm-user" }
+          network     = { egress = "restricted" }
+        },
       ]
     }
 
@@ -507,7 +543,7 @@ resource "helm_release" "deskplane" {
       # pull, never goes Ready, and the atomic release rolls back on timeout.
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "59382570"
+        tag        = "4b722ee4"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
@@ -526,6 +562,8 @@ resource "helm_release" "deskplane" {
         # run/start_browser_task watch=true) and delegated callers' human
         # handoff pages: headful Chrome on KasmVNC.
         DESKPLANE_MCP_WATCH_BROWSER_IMAGE_REF = "chrome-cdp"
+        # open_session kind=phone: the Android emulator image.
+        DESKPLANE_MCP_PHONE_IMAGE_REF = "android"
         # A model id exactly as the LiteLLM proxy exposes it: deskplane-mcp
         # drives the chat API directly, so no "openai/" litellm-SDK prefix.
         # The web engine's LLM calls (json/summary/extract) use it too.
@@ -571,8 +609,9 @@ resource "helm_release" "deskplane" {
         key  = "api-key"
       }
       # 8000 = computer-server (cua-ubuntu), 9222 = CDP (headless-chromium,
-      # chrome-cdp); the chart's policies admit the MCP to exactly these.
-      controlPorts = [8000, 9222]
+      # chrome-cdp), 5038 = adb (android); the chart's policies admit the MCP
+      # to exactly these.
+      controlPorts = [8000, 9222, 5038]
 
       # Web data engine: scrape/crawl/map/search/extract/interact/monitors.
       # Jobs, monitors and profiles persist in the trace bucket (prefix
@@ -712,14 +751,16 @@ resource "kubernetes_annotations" "deskplane_keel" {
 }
 
 # =============================================================================
-# KVM device plugin — foundation for KVM-backed sessions (e.g. Windows XP+)
+# KVM device plugin — /dev/kvm for VM-backed sessions (the Android emulator)
 # =============================================================================
 # generic-device-plugin advertises /dev/kvm and /dev/net/tun as schedulable
 # extended resources (devic.es/kvm, devic.es/net-tun) so VM-backed session pods
 # can request hardware virtualization WITHOUT privileged or hostPath /dev in the
 # session pod. The plugin itself must run privileged to register with the kubelet
 # device-plugin socket, so it lives in kube-system (no PSA enforce) rather than
-# the baseline-enforced deskplane namespace. Scoped to the amd64 session node.
+# the baseline-enforced deskplane namespace. Every amd64 Talos node is a
+# Proxmox VM with CPU type host, so each exposes nested KVM; /dev/kvm is
+# shared, and count caps the KVM sessions one node accepts.
 resource "kubectl_manifest" "deskplane_kvm_device_plugin" {
   yaml_body = <<-YAML
     apiVersion: apps/v1
@@ -743,13 +784,13 @@ resource "kubectl_manifest" "deskplane_kvm_device_plugin" {
         spec:
           priorityClassName: system-node-critical
           nodeSelector:
-            kubernetes.io/hostname: talos-smith
+            kubernetes.io/arch: amd64
           containers:
             - name: generic-device-plugin
               image: ghcr.io/squat/generic-device-plugin@sha256:dc192e164c69b03f156765793a1be62ca437709ae477b27ca7d8f3dcf5021576
               args:
                 - --device
-                - '{"name":"kvm","groups":[{"paths":[{"path":"/dev/kvm"}]}]}'
+                - '{"name":"kvm","groups":[{"count":4,"paths":[{"path":"/dev/kvm"}]}]}'
                 - --device
                 - '{"name":"net-tun","groups":[{"paths":[{"path":"/dev/net/tun"}]}]}'
               resources:

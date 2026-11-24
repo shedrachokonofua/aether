@@ -647,6 +647,28 @@ requests through the workload's tunnel. `deskplane.tf` trusts Daimyo task
 tokens for `personal`, `qa` and `seven30`; the Ivy project, CI deployment
 permission and model ceiling are declared in `daimyo.tf`.
 
+The `android` catalog image runs the Android emulator (x86_64 Google Play
+system image, API 35) on a KasmVNC desktop, so `/s/<session>` shows the phone.
+The image pins the `kvm` profile, which requests `devic.es/kvm`: the
+`generic-device-plugin` DaemonSet in `deskplane.tf` advertises `/dev/kvm` four
+times on every amd64 Talos node (each is a Proxmox VM with CPU type `host`, so
+nested KVM works), and the pod is neither privileged nor mounts host paths.
+The image publishes its adb server on control port 5038 once Android has
+booted, and deskplane-mcp drives it over adb: `open_session(kind="phone")`
+(`DESKPLANE_MCP_PHONE_IMAGE_REF`), the generic `screenshot`/`click`/`type_text`/
+`key`/`scroll`/`navigate` tools, and the opt-in `phone` tool profile
+(`phone_swipe`, `phone_long_press`, `phone_elements`, `phone_apps`,
+`phone_launch_app`, `phone_foreground_app`). The image is 5.7 GB compressed:
+the first session on a node took 405 s to turn Ready, most of it pulling the
+image, inside the MCP's 600 s phone ready wait. Each emulator's QEMU held about
+4 GiB resident, and amd64 memory requests ran at 92-98% on 2026-11-23, so in
+practice memory, not KVM slots, limits how many phones run at once.
+This was first rolled out on 2026-11-23 without a tofu apply: the device-plugin
+DaemonSet and the `deskplane` Helm release (revision 128) were set by hand to
+exactly what `deskplane.tf` renders, because every targeted plan also pulled in
+`talos_machine_configuration_apply` for all eight nodes with a sensitive-only
+diff. Tofu state lags the cluster for those two resources until the next apply.
+
 Deskplane's transient browser lifecycle uses a 15-minute controller idle lease,
 independent of its maximum TTL. Real API/proxy/MCP activity renews persisted
 `status.lastSeenAt`, so MCP rollout or caller-registry loss cannot reset idle age.
