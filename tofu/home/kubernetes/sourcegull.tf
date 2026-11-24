@@ -306,7 +306,9 @@ resource "helm_release" "sourcegull" {
 
     web = {
       nodeSelector = local.sourcegull_arch_amd64
-      autoscaling  = { hpa = { enabled = true, minReplicas = 2, maxReplicas = 3 } }
+      # 2026-11-24: one web pod is plenty for a single-user search; the HPA
+      # still adds pods under load. Each sat near 100Mi.
+      autoscaling = { hpa = { enabled = true, minReplicas = 1, maxReplicas = 3 } }
       resources = {
         requests = { cpu = "500m", memory = "512Mi" }
         limits   = { memory = "1Gi" }
@@ -326,8 +328,10 @@ resource "helm_release" "sourcegull" {
       nodeSelector = local.sourcegull_arch_amd64
       replicaCount = 1
       persistence  = { size = "50Gi" }
+      # 2026-11-24: peak working set 718Mi in the first 10 days, indexing both
+      # GitLab groups (~50 repos); the chart's "small" preset reserved 3Gi.
       resources = {
-        requests = { cpu = "1", memory = "3Gi" }
+        requests = { cpu = "1", memory = "1Gi" }
         limits   = { memory = "4Gi" }
       }
     }
