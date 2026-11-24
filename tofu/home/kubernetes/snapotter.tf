@@ -351,10 +351,12 @@ resource "kubernetes_deployment_v1" "snapotter" {
             mount_path = "/tmp/workspace"
           }
 
+          # 2026-11-24: 30-day peak working set 1,032Mi (Goldilocks upper bound
+          # 1,018Mi); the request was 3.5Gi. The 12Gi limit covers spikes.
           resources {
             requests = {
               cpu                 = "50m"
-              memory              = "3.5Gi"
+              memory              = "1280Mi"
               "ephemeral-storage" = "2Gi"
               "nvidia.com/gpu"    = "1"
             }

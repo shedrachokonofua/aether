@@ -722,10 +722,11 @@ resource "kubernetes_deployment_v1" "openwebui" {
             period_seconds        = 20
           }
 
+          # 2026-11-24: 30-day peak working set 1,049Mi; the request was 2Gi.
           resources {
             requests = {
               cpu    = "25m"
-              memory = "2Gi"
+              memory = "1280Mi"
             }
             limits = {
               cpu    = "4000m"

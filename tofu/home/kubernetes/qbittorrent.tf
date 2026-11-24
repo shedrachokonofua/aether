@@ -312,10 +312,11 @@ resource "kubernetes_deployment_v1" "qbittorrent" {
             sub_path   = "downloads"
           }
 
+          # 2026-11-24: 30-day peak working set 109Mi; the request was 2Gi.
           resources {
             requests = {
               cpu    = "75m"
-              memory = "2Gi"
+              memory = "256Mi"
             }
             limits = {
               cpu    = "4"

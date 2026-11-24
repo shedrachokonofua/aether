@@ -167,8 +167,9 @@ resource "kubernetes_stateful_set_v1" "celld" {
             initial_delay_seconds = 15
             period_seconds        = 20
           }
+          # 2026-11-24: 30-day peak working set 65Mi; the request was 512Mi.
           resources {
-            requests = { cpu = "50m", memory = "512Mi" }
+            requests = { cpu = "50m", memory = "128Mi" }
             limits   = { cpu = "2", memory = "2Gi" }
           }
         }

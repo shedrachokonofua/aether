@@ -167,10 +167,11 @@ resource "kubernetes_deployment_v1" "docling" {
             value = "1800"
           }
 
+          # 2026-11-24: 30-day peak working set 2,878Mi; the request was 4Gi.
           resources {
             requests = {
               cpu    = "250m"
-              memory = "4Gi"
+              memory = "3328Mi"
             }
             # Explicit limits (no nvidia.com/gpu): an omitted limits block is
             # left unmanaged by the provider, which kept the old GPU limit live.
