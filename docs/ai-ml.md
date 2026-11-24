@@ -661,14 +661,19 @@ booted, and deskplane-mcp drives it over adb: `open_session(kind="phone")`
 (`phone_swipe`, `phone_long_press`, `phone_elements`, `phone_apps`,
 `phone_launch_app`, `phone_foreground_app`). The image is 5.7 GB compressed:
 the first session on a node took 405 s to turn Ready, most of it pulling the
-image, inside the MCP's 600 s phone ready wait. Each emulator's QEMU held about
-4 GiB resident, and amd64 memory requests ran at 92-98% on 2026-11-23, so in
+image, inside the MCP's 600 s phone ready wait. The
+`deskplane-android-prepull` DaemonSet keeps the image on talos-neo and
+talos-smith (a session there turned Ready in 124 s); it takes 17 GB of
+imagefs, more than niobe and trinity can spare above the 15% eviction
+threshold. Each emulator's QEMU held about 4 GiB
+resident, and amd64 memory requests ran at 92-98% on 2026-11-23, so in
 practice memory, not KVM slots, limits how many phones run at once.
 This was first rolled out on 2026-11-23 without a tofu apply: the device-plugin
-DaemonSet and the `deskplane` Helm release (revision 128) were set by hand to
-exactly what `deskplane.tf` renders, because every targeted plan also pulled in
-`talos_machine_configuration_apply` for all eight nodes with a sensitive-only
-diff. Tofu state lags the cluster for those two resources until the next apply.
+and pre-pull DaemonSets and the `deskplane` Helm release (revision 128) were
+set by hand to exactly what `deskplane.tf` renders, because every targeted
+plan also pulled in `talos_machine_configuration_apply` for all eight nodes
+with a sensitive-only diff. Tofu state lags the cluster for those three
+resources until the next apply.
 
 Deskplane's transient browser lifecycle uses a 15-minute controller idle lease,
 independent of its maximum TTL. Real API/proxy/MCP activity renews persisted

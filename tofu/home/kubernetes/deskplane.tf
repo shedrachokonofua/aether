@@ -819,3 +819,69 @@ resource "kubectl_manifest" "deskplane_kvm_device_plugin" {
                 path: /dev
   YAML
 }
+
+# Pre-pull the android session image. The first session on a node took 405 s
+# to turn Ready, most of it pulling (2026-11-23). The pod sleeps in that image
+# so kubelet image GC keeps it; a new tag rolls the DaemonSet and pulls again.
+# Only talos-neo and talos-smith: they are the only amd64 nodes with memory
+# headroom for the kvm profile's 4Gi request. The image took 17 GB of
+# smith's imagefs (68 -> 51 GB free), and niobe and trinity had 24-27 GB of
+# 135 GB free, so it would push them under the 15% imagefs eviction threshold
+# (talos_cluster.tf).
+resource "kubectl_manifest" "deskplane_android_prepull" {
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: deskplane-android-prepull
+      namespace: ${local.deskplane_namespace}
+      labels:
+        app.kubernetes.io/name: deskplane-android-prepull
+        app.kubernetes.io/managed-by: OpenTofu
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: deskplane-android-prepull
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: deskplane-android-prepull
+        spec:
+          priorityClassName: ${local.aether_priority_classes.batch}
+          automountServiceAccountToken: false
+          terminationGracePeriodSeconds: 1
+          imagePullSecrets:
+            - name: ${kubernetes_secret_v1.deskplane_gitlab_registry.metadata[0].name}
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: In
+                        values: [talos-neo, talos-smith]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: android
+              image: ${local.deskplane_registry_image}/android-emulator-kasm:${local.deskplane_android_tag}
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sleep", "infinity"]
+              resources:
+                requests:
+                  cpu: 1m
+                  memory: 4Mi
+                limits:
+                  cpu: 50m
+                  memory: 16Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+  YAML
+}
