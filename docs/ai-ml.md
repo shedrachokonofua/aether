@@ -663,16 +663,20 @@ booted, and deskplane-mcp drives it over adb: `open_session(kind="phone")`
 `key`/`scroll`/`navigate` tools, and the opt-in `phone` tool profile
 (`phone_swipe`, `phone_long_press`, `phone_elements`, `phone_apps`,
 `phone_launch_app`, `phone_foreground_app`). Orion's `web` grant has all of
-them (release `8d54e7d4`). The image is 3.7 GB compressed, and the
-`deskplane-android-prepull` DaemonSet keeps it on talos-neo, where a session
-turned Ready in 70-116 s on 2026-11-24. Only neo: on smith the cached image
+them (release `8d54e7d4`). Android's first boot of a fresh data partition
+took 70-100 s, so the image build runs it once (`start-android --bake`, with
+the CI job's `/dev/kvm`) and every session boots a copy of that phone: 25-38 s
+of Android boot, and 44 s from pod creation to Ready on talos-neo
+(2026-11-24). A quickboot RAM snapshot restored no faster (20 s to load its
+2.5 GB), so the image has none. The image is 5.2 GB compressed, and the
+`deskplane-android-prepull` DaemonSet keeps it on talos-neo. Only neo: on smith the cached image
 plus the nightly `siren/lute-backup` job's 51 GB of ephemeral storage put the
 node into DiskPressure. A phone pod held 3.6 GiB of anonymous memory after
 boot, and amd64 memory requests ran at 92-98%, so in practice memory, not KVM
 slots, limits how many phones run at once.
 This was rolled out on 2026-11-23 and 24 without a tofu apply: the
 device-plugin and pre-pull DaemonSets and the `deskplane` Helm release
-(revision 130) were set by hand to exactly what `deskplane.tf` renders,
+(revision 131) were set by hand to exactly what `deskplane.tf` renders,
 because every targeted plan also pulled in `talos_machine_configuration_apply`
 for all eight nodes with a sensitive-only diff. Tofu state lags the cluster
 for those three resources until the next apply.

@@ -12,8 +12,8 @@ locals {
   deskplane_public_url = "https://${local.deskplane_host}"
   # 4b722ee4: Android emulator sessions and the catalog image profileRef
   # (deskplane MR !3). The MCP image carries the same tag; the android image
-  # is 1560979f (image-only changes on top: the phone's screen alone, no
-  # desktop). The registry
+  # is 0112576e (image-only changes on top: the phone's screen alone, no
+  # desktop, Android's first boot baked in at build time). The registry
   # keeps a limited number of tags (666c1c2e was dropped on 2026-11-21); pin
   # a tag the registry still has.
   deskplane_chart_version = "0.1.0-4b722ee4"
@@ -39,7 +39,7 @@ locals {
   # that touched the image) -- check the registry before bumping.
   deskplane_headless_chromium_tag = "2d2c9e13"
   deskplane_chrome_cdp_tag        = "c0796ff2"
-  deskplane_android_tag           = "1560979f"
+  deskplane_android_tag           = "0112576e"
   deskplane_registry_host         = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user         = var.secrets["gitlab.root_email"]
   deskplane_registry_pass         = var.secrets["gitlab.root_password"]
@@ -821,8 +821,9 @@ resource "kubectl_manifest" "deskplane_kvm_device_plugin" {
   YAML
 }
 
-# Pre-pull the android session image (3.7 GB compressed). With it cached on
-# talos-neo a session turned Ready in 70-116 s (2026-11-24); an uncached node
+# Pre-pull the android session image (5.2 GB compressed, Android's first boot
+# included). With it cached on talos-neo a session's pod went from created to
+# Ready in 44 s (2026-11-24); an uncached node
 # pulls first. The pod sleeps in that image so kubelet image GC keeps it; a
 # new tag rolls the DaemonSet and pulls again. Only talos-neo: its imagefs is
 # 272 GB, the other amd64 nodes' 135 GB. On smith, with the earlier 5.7 GB
