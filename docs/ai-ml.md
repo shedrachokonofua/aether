@@ -964,7 +964,7 @@ read under older rules once from saved answers.
 
 Configured under `memory` in the Daimyo Helm values in
 [`tofu/home/kubernetes/daimyo.tf`](../tofu/home/kubernetes/daimyo.tf). Design: the daimyo repo's SPEC-0001 §11c.3
-and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 146 (2026-11-24 11:22 UTC); what
+and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 147 (2026-11-24 13:11 UTC); what
 was seen on the cluster after each release is in the daimyo repo's `docs/ops/upgrades.md`.
 
 - **Nightly dream.** The engine dreams each namespace of every store that had a conversation since its last
@@ -1004,6 +1004,18 @@ was seen on the cluster after each release is in the daimyo repo's `docs/ops/upg
   vector pass over the operator's 4,800 recall chunks took 0.6 s before and 20 to 31 ms after; twelve searches
   through the API took 2.9 s at the median before and 1.6 s after for recall, 1.95 s and 1.55 s for
   `memory_search`, the rest being the reranker.
+- **A search's time.** Until Helm 147 the text pass of a search took 8.7 s once a pooled database connection
+  had run it five times (0.12 s before that): PostgreSQL's kept plan for the prepared statement counted the
+  whole scope once per matched chunk. A replay of 213 questions on Helm 146 took 4.6 s a search at the median
+  and 16 s at the 95th percentile because of it. On Helm 147, 120 recall searches in a row took 2.2 s at the
+  median and 3.2 s at the 95th percentile, the last forty no slower than the first; 60 `memory_search` calls 1.9 s
+  and 2.4 s.
+- **How good recall is,** measured 2026-11-24 with 213 questions a local model wrote from 213 of the operator's
+  turns, each result judged by a local model for whether it holds the answer: a passage with the answer was the
+  first result for 80% of them, among the first three for 93% and among the first eight for 95%; the very turn a
+  question came from, 66%, 82% and 88%. A larger local embedder (`qwen3-embedding-4b`) and a deeper shortlist
+  for the reranker were tried against the same questions and moved the answer figures by one or two questions,
+  so neither was adopted.
 - **Starts.** Since Helm 144 a dream or an observation finds its conversations in the task rows (0.4 to 1.8 s a
   start in org `qa`; it listed the agent's whole archive before, 35 to 45 s there), and the three memory agents
   are not offered `ask_user`.
@@ -1054,11 +1066,15 @@ best. The harness and its suites are the daimyo repo's `scripts/memory_eval` (RE
   labelled `suite`, `arm`, `kind`. A canary leak exits 1, which the "Kubernetes CronJob Failing" rule reports.
   Each memory case starts one dream, which the server caps at `[memory] dreamerBudgetUsd`. The run creates store
   `memory-eval` if it is not there and turns its daily upkeep dream off, since it dreams each person itself.
-- **Weekly run.** CronJob `memory-eval-longmemeval`, Sunday 10:10 UTC: 30 questions of LongMemEval-S through the
-  same four arms, a new draw each ISO week (the seed). The 277 MB dataset is fetched from Hugging Face into the
+- **Weekly run.** CronJob `memory-eval-longmemeval`, Sunday 10:10 UTC, **suspended since 2026-11-24**: 30
+  questions of LongMemEval-S through the same four arms, a new draw each ISO week (the seed). One run used 165M
+  Opus input tokens (mostly cache reads) and 1.8M output, about $77 at list price, and at 30 questions it cannot
+  tell two releases apart (see the results below). Start one by hand with `kubectl -n daimyo-memory-eval create
+  job --from=cronjob/memory-eval-longmemeval <name>`. The 277 MB dataset is fetched from Hugging Face into the
   Job's scratch volume (checked from the issuer pod on 2026-11-23: the URL answers 200) and parsed in memory, so
   the container's limit is 4 Gi. Each question brings about fifty sessions of its own, so a run takes hours;
-  the deadline is 12 h.
+  the deadline is 12 h. The nightly run used 13.4M Opus input tokens (12.8M of them cache reads), 6.9M Haiku
+  and 4.7M Gemini Neon on 2026-11-24, about $5.60 at list price.
 
 **Memory and canary numbers from before 2026-11-24 00:12 UTC are void** unless listed below. Until then the pinned
 image read a memory case's answer from `GET /v1/tasks?session=…`, a filter that route does not have, so it graded

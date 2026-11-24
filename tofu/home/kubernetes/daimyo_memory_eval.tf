@@ -322,7 +322,15 @@ resource "kubectl_manifest" "memory_eval_longmemeval_cron" {
       labels    = merge(local.memory_eval_labels, { component = "run" })
     }
     spec = {
-      schedule                   = "10 10 * * 0"
+      schedule = "10 10 * * 0"
+      # Suspended 2026-11-24. One run dreams 30 histories of 500 turns on the
+      # frontier tier: 165M Opus input tokens (mostly cache reads) and 1.8M
+      # output on 2026-11-24, about $77 at list price, out of the operator's
+      # subscription quota every Sunday, and at 30 questions its score moved
+      # by one answer in thirty between two runs of arms nothing had changed
+      # for. Run one by hand when a comparable number is wanted:
+      # kubectl -n daimyo-memory-eval create job --from=cronjob/memory-eval-longmemeval <name>
+      suspend                    = true
       concurrencyPolicy          = "Forbid"
       successfulJobsHistoryLimit = 3
       failedJobsHistoryLimit     = 3
