@@ -276,25 +276,6 @@ resource "local_sensitive_file" "seaweedfs_s3_config" {
       ],
       [
         {
-          name = "buzz-media"
-          credentials = [{
-            accessKey = random_password.buzz_media_s3_access_key.result
-            secretKey = random_password.buzz_media_s3_secret_key.result
-          }]
-          actions = [
-            "Read:${local.buzz_media_bucket}",
-            "Write:${local.buzz_media_bucket}",
-            "List:${local.buzz_media_bucket}",
-            "Tagging:${local.buzz_media_bucket}",
-            "Read:${local.buzz_media_bucket}/*",
-            "Write:${local.buzz_media_bucket}/*",
-            "List:${local.buzz_media_bucket}/*",
-            "Tagging:${local.buzz_media_bucket}/*",
-          ]
-        }
-      ],
-      [
-        {
           name = "siren"
           credentials = [{
             accessKey = random_password.siren_s3_access_key.result

@@ -164,9 +164,6 @@ Current deployment:
 - Assay has a separate generated `assay-artifacts` identity restricted to the
   `assay-artifacts/assay/td` application-artifact surface. It does not reuse the
   Seaweed admin identity or the per-namespace database-backup identity.
-- Buzz has a separate generated `buzz-media` identity restricted to the
-  `buzz-media` bucket (relay media blobs + git object storage). Same pattern:
-  no admin identity, no database-backup identity reuse.
 
 The declared volume-server configuration in
 `nix/hosts/smith/seaweedfs/default.nix` allows 360 volume slots and retains
