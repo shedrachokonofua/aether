@@ -332,7 +332,14 @@ locals {
   # (a tool argument names a file by path and the sidecar moves the bytes)
   # and `http.internal` (a grant only the sidecar may use). See daimyo
   # docs/ops/upgrades.md "Tool files and mounts".
-  daimyo_server_tag = "sha256:c28cf221295c7a092a2ed61a486655f5746e256cd2f864ccb44bb34395daf60b"
+  # a4ecc32 (main pipeline 17600: every check and both builds green). One
+  # change since d4a9c73, in the sidecar and in the note the server compiles
+  # into a harness agent's system prompt: `memory_search` also answers the
+  # four best passages of the person's past conversations, as
+  # `conversations` beside the documents. Agents searched the documents and
+  # those held under half of what the person had told them, where what was
+  # said held most of it.
+  daimyo_server_tag = "sha256:f3cfbaf0c46986746394014549d75672a1aa3d4257ce2811ee81219c93ff9391"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -367,7 +374,9 @@ locals {
   # d4a9c73 (pipeline 17571 build:daimyo-sidecar): tool files, `$file` and
   # `$out` arguments, internal http grants and /mnt mounts. Pinned with the
   # server above, before any agent declares an internal grant.
-  daimyo_sidecar_tag = "sha256:5138499e5a18b8f05c00f287df3ba55b8bf81dc1a247215036d89f488ce7dcd0"
+  # a4ecc32 (pipeline 17600 build:daimyo-sidecar): memory_search asks the
+  # recall route too. Applies to pods started after the release.
+  daimyo_sidecar_tag = "sha256:ee274213a6ef95c25eb509f55a774a13329ed25ecd28d8cfb2cccafd8154fa28"
   # omp and claude-code d561c04 (main pipeline 9647, harness builds green;
   # MR !21 CI green): a reply whose last model call failed with nothing
   # after it (omp gives up on a revoked key's 401) fails the turn with that
