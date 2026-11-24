@@ -1053,7 +1053,20 @@ Results that stand:
   session's first turn failed to restore a workspace. Daimyo Helm 141 retries the first and lets the model
   correct the second.
 
-No alert on a score drop exists yet: it needs a week of valid nightly scores to set a threshold from.
+- LongMemEval-S again, Job `lme-after-1`, 2026-11-24, the same 30 questions on Daimyo Helm 141: full context
+  26/30, BM25 26/30, memory 24/28, observed 22/24. The two arms that use no memory each lost one answer with
+  nothing about them changed, so at 30 questions a difference of two is noise and the run cannot rank the two
+  releases. `single-session-assistant` went from 2/4 to 4/4. Cases that never reached a question: memory 2,
+  observed 6. Five were a dream or an observation whose model stream the gateway cut (`claude: API Error …
+  TransferEncodingError`), two an observation whose list of entries outran one answer, one a session whose
+  workspace could not be restored.
+
+Alerts (2026-11-24, [`grafana/alerting/rules/daimyo-memory.yml`](../tofu/home/kubernetes/grafana/alerting/rules/daimyo-memory.yml),
+listed in [monitoring.md](monitoring.md)): a canary leak; no nightly result in 30 h; the memory arm more than 0.1
+below full context in a suite's last run; more than 15% of a nightly suite's memory or observed cases never
+running; and, from the server's own counter, three or more failed dreams or observations of an org other than
+`qa` in 24 h. The thresholds come from the runs above, not from a week of nightly scores: the first nightly run
+on the corrected image had not happened when they were set.
 
 ### OpenWebUI
 

@@ -419,6 +419,11 @@ overrides. Current app rules:
 | Jellyfin Click-Play-No-Streams | warning | `SyncStreams finished … streams=0` [1h] > 0 | ClickHouse logs |
 | Jellyfin strm Link Resolution Rot | warning | `Unable to find linked item` [1h] > 200 | ClickHouse logs |
 | Jellyfin Server Down | critical | `jellyfin_up == 0` for 5m | ClickHouse metrics (rebelcore/jellyfin_exporter) |
+| Daimyo memory — dreams failing | warning | `daimyo_memory_dreams_total{state="failed"}` of an org other than `qa` rose by 3 or more in 24h | ClickHouse metrics (daimyo-server) |
+| Daimyo memory eval — canary leak | warning | `daimyo_memory_eval_leaks` of the last run > 0 | ClickHouse metrics (memory-eval CronJobs) |
+| Daimyo memory eval — no nightly result | warning, digest | no `private` suite result in 30h | ClickHouse metrics (memory-eval CronJobs) |
+| Daimyo memory eval — memory answers worse than full context | warning, digest | accuracy of the `full-context` arm minus the `memory` arm > 0.1, per suite, last run | ClickHouse metrics (memory-eval CronJobs) |
+| Daimyo memory eval — cases that never ran | warning, digest | errored share of the `memory` or `observed` arm > 15% in the nightly suites | ClickHouse metrics (memory-eval CronJobs) |
 
 Author rules against datasource UID `clickhouse` with SQL; PromQL/LogQL are no
 longer dashboard or alert query languages in this deployment. Provisioning is

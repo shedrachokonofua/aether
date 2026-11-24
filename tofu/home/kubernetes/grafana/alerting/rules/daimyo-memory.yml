@@ -1,0 +1,263 @@
+apiVersion: 1
+
+# Daimyo memory keeps itself: the engine observes and dreams with nobody
+# asking (docs/ai-ml.md, Daimyo memory). These rules are what says so when it
+# stops working. The first reads the server's own counter; the rest read the
+# gauges the memory-eval CronJobs ship after each run
+# (tofu/home/kubernetes/daimyo_memory_eval.tf), and are review-class.
+groups:
+  - orgId: 1
+    name: Daimyo Memory
+    folder: Alerts
+    interval: 5m
+    rules:
+      # Upkeep retries a failed dream or observation of a namespace at most
+      # three times a day, so three failures in a day is a namespace whose
+      # memory was not kept that day. Org `qa` is the eval's venue: its
+      # failures are counted by the eval rules below. A series born inside
+      # the window is counted from zero: the counter's first sample is
+      # already 1.
+      - uid: daimyo-memory-dreams-failing
+        title: Daimyo memory — dreams failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT org, sum(inc) AS value FROM (SELECT Attributes['org'] AS org, max(Value) - if(min(TimeUnix) > now() - INTERVAL 1 DAY + INTERVAL 5 MINUTE, 0, min(Value)) AS inc FROM otel.otel_metrics_sum WHERE MetricName = 'daimyo_memory_dreams_total' AND Attributes['state'] = 'failed' AND Attributes['org'] != 'qa' AND TimeUnix > now() - INTERVAL 1 DAY GROUP BY org, Attributes, ResourceAttributes, ServiceName) GROUP BY org
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [2]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: warning
+          domain: ai
+        annotations:
+          summary: "Three or more memory dreams or observations of org {{ $labels.org }} failed in 24h"
+          description: "Upkeep gives a namespace up for the day after three failures. List them: GET /v1/memory-stores/<store>/dreams?org={{ $labels.org }} (add kind=observation for observations, user=<person> for a person's namespace); the failed row's error names the cause (a task that failed, a check that found lost facts, an apply that stopped)."
+
+      # A string planted in one eval person's memory reached another's
+      # answers, tool calls or files, or a deleted fact was still found.
+      - uid: daimyo-memory-eval-leak
+        title: Daimyo memory eval — canary leak
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 93600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT sum(v) AS value FROM (SELECT argMax(Value, TimeUnix) AS v FROM otel.otel_metrics_gauge WHERE MetricName = 'daimyo_memory_eval_leaks' AND TimeUnix > now() - INTERVAL 26 HOUR GROUP BY Attributes) HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: warning
+          domain: ai
+        annotations:
+          summary: "The memory eval's canary found {{ $values.B.Value }} leak(s) between people or of a deleted fact"
+          description: "Read the run: kubectl -n daimyo-memory-eval logs job/<memory-eval-nightly job> ; results.json names the probe, the person and where the string was found."
+
+      # The nightly run ships its numbers at about 07:10 UTC. None in 30h
+      # means the CronJob did not run or could not finish.
+      - uid: daimyo-memory-eval-stale
+        title: Daimyo memory eval — no nightly result
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT toFloat64(now() - toDateTime(max(TimeUnix))) AS value FROM otel.otel_metrics_gauge WHERE MetricName = 'daimyo_memory_eval_cases' AND Attributes['suite'] = 'private' AND TimeUnix > now() - INTERVAL 14 DAY HAVING count() > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [108000]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: warning
+          domain: ai
+          channel: digest
+        annotations:
+          summary: "The nightly memory eval has shipped no result in 30h"
+          description: "kubectl -n daimyo-memory-eval get cronjob,jobs ; a Job that failed names why in its log."
+
+      # The memory arm answers the same questions as the arm that is given
+      # the whole history. On the first valid runs the two were level (60/60
+      # and 56/56 nightly, 26/30 and 24/28 weekly), and arms nothing had
+      # changed for moved by one answer in thirty between runs.
+      - uid: daimyo-memory-eval-accuracy
+        title: Daimyo memory eval — memory answers worse than full context
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 93600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT suite, fc - mem AS value FROM (SELECT Attributes['suite'] AS suite, argMaxIf(Value, TimeUnix, Attributes['arm'] = 'full-context') AS fc, argMaxIf(Value, TimeUnix, Attributes['arm'] = 'memory') AS mem, countIf(Attributes['arm'] = 'memory') AS m, countIf(Attributes['arm'] = 'full-context') AS f FROM otel.otel_metrics_gauge WHERE MetricName = 'daimyo_memory_eval_accuracy' AND Attributes['kind'] = 'overall' AND Attributes['suite'] IN ('private', 'longmemeval-s') AND TimeUnix > now() - INTERVAL 26 HOUR GROUP BY suite) WHERE m > 0 AND f > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.1]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: warning
+          domain: ai
+          channel: digest
+        annotations:
+          summary: "Suite {{ $labels.suite }}: memory answered {{ $values.B.Value | humanizePercentage }} fewer questions right than full context"
+          description: "summary.json of the run has the score per question type; results.json has every answer and verdict."
+
+      # A case errors when its dream, observation or session never ran, so
+      # this is the platform failing to keep memory, not memory being wrong.
+      # Nightly suites only: the weekly one files 500-turn histories and has
+      # lost cases to the model gateway cutting a long answer.
+      - uid: daimyo-memory-eval-errored
+        title: Daimyo memory eval — cases that never ran
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 93600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              datasource:
+                type: grafana-clickhouse-datasource
+                uid: clickhouse
+              editorType: sql
+              format: 1
+              queryType: sql
+              rawSql: |
+                SELECT suite, arm, e / nullIf(n + e, 0) AS value FROM (SELECT Attributes['suite'] AS suite, Attributes['arm'] AS arm, argMaxIf(Value, TimeUnix, MetricName = 'daimyo_memory_eval_errored') AS e, argMaxIf(Value, TimeUnix, MetricName = 'daimyo_memory_eval_cases') AS n FROM otel.otel_metrics_gauge WHERE MetricName IN ('daimyo_memory_eval_errored', 'daimyo_memory_eval_cases') AND Attributes['kind'] = 'overall' AND Attributes['arm'] IN ('memory', 'observed') AND Attributes['suite'] IN ('private', 'canary') AND TimeUnix > now() - INTERVAL 26 HOUR GROUP BY suite, arm) WHERE n + e > 0
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0.15]
+              refId: C
+        noDataState: OK
+        execErrState: OK
+        for: 0s
+        labels:
+          severity: warning
+          domain: ai
+          channel: digest
+        annotations:
+          summary: "Suite {{ $labels.suite }}, arm {{ $labels.arm }}: {{ $values.B.Value | humanizePercentage }} of the cases never reached a question"
+          description: "results.json names each errored case and its error (a dream or observation that failed, a session that could not start)."
