@@ -1013,7 +1013,9 @@ resource "keycloak_openid_client_default_scopes" "x_bridge_default_scopes" {
   realm_id  = keycloak_realm.aether.id
   client_id = keycloak_openid_client.x_bridge.id
 
+  # `basic` carries the `sub` claim; x-bridge authorizes on it.
   default_scopes = [
+    "basic",
     "profile",
     "email",
     "roles",
