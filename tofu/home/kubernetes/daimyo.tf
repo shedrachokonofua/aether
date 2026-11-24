@@ -285,7 +285,16 @@ locals {
   #   the store's memory::read; POST /v1/recall:forget takes passages out;
   # - a launch the API server dropped the connection under is retried three
   #   times (8 of 799 tasks failed `start` that way on 2026-11-23).
-  daimyo_server_tag = "sha256:a64a078172a2b2b34caa6b710a9d89a1a1fb4980f228828353ddfb8147a145b9"
+  # 7cbc526 (main pipeline 17317 green). Only the server changed since f655f23:
+  # - recall and memory_search rank the text pass by how rare the matched
+  #   words are, embed the question behind `embeddingQueryPrefix`, and have
+  #   `rerankModel` order what both passes found; memory_search places a
+  #   document by its best chunk;
+  # - a deleted document leaves the memory indexer's queue. It stayed owed
+  #   for good, and since the consolidation of 2026-11-23 deleted 32
+  #   documents (one batch) nothing was indexed: the journal of 00:17 UTC on
+  #   the 24th was never searchable on f655f23.
+  daimyo_server_tag = "sha256:08a098322961e5121f707545f9b3bc1db51274fbed99b7149f2db150cf616874"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -985,12 +994,20 @@ resource "helm_release" "daimyo" {
       # Between dreams the observer notes what a conversation added once it
       # has been quiet for 10 minutes (the default), on the balanced tier: it
       # reads one or a few conversations and adds lines, it rewrites nothing.
+      # Recall (§11c.3) asks Qwen3-Embedding the way it was trained to be
+      # asked, with an instruction before the question, and has the reranker
+      # that mnemo uses order the candidates. Measured on the operator's
+      # index with 85 questions written from its own turns (2026-11-24): the
+      # right turn among the first eight for 68% bare and fused, 84% with
+      # rare words weighted and the instruction, 93% reranked.
       memory = {
-        embeddingModel    = "aether/qwen3-embedding:0.6b"
-        dreamerModel      = "moira/frontier"
-        dreamerBudgetUsd  = 50
-        observerModel     = "moira/balanced"
-        observerBudgetUsd = 2
+        embeddingModel       = "aether/qwen3-embedding:0.6b"
+        embeddingQueryPrefix = "Instruct: Given a question a person asks their assistant, retrieve the passages of their past conversations that answer it\nQuery: "
+        rerankModel          = "aether/qwen3-reranker-4b"
+        dreamerModel         = "moira/frontier"
+        dreamerBudgetUsd     = 50
+        observerModel        = "moira/balanced"
+        observerBudgetUsd    = 2
         upkeep = {
           dreamAt  = "04:00"
           timezone = "America/Toronto"
