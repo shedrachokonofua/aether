@@ -432,7 +432,11 @@ locals {
   # frontend, trip-planner (personal), d-r2-cc-int (qa) and ivy,
   # ivy-model-allowlist (seven30) from a build of 2026-10-22. Applies to pods
   # started after the release.
-  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:4ca95c735bdd4a888fa8dbcdbd5c7863989b6ab3437746048884e3fa26b51686"
+  # claude-code 2b155b5 (main pipeline build:harness-claude-code): tool_result
+  # events of built-in tools (bash, read, edit, ...) carry their output,
+  # bounded to 16 KiB; before, only a 200-character summary. Applies to pods
+  # started after the release.
+  daimyo_harness_claude_code_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-claude-code@sha256:e8b5c8e7ec4581be7b2b14a92af8bb16b55f2509dfdd56b5626bf87ae67daa05"
   # omp b78f555 (MR !22, main pipeline 11821 build:harness-omp): a structured
   # answer that misses its output schema gets one repair turn before the
   # engine fails it with `schema` (Cicada G25: 13 lens tasks in 14 h ended in
@@ -490,7 +494,11 @@ locals {
   # omp 68db0d2 (main pipeline 17263 build:harness-omp): the memory block
   # gains MEMORY.md and the journal as above, and file values. Applies to
   # pods started after the release; omp-dev is not moved.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:94b7d417395d917668721eba039cf99fbb70a57ab6d8e9328788336c682fa84a"
+  # omp 2b155b5 (main pipeline build:harness-omp): built-in tool results
+  # (eval, bash, read, edit, ...) carry their output, bounded to 16 KiB, as
+  # for claude-code above. Applies to pods started after the release; omp-dev
+  # is not moved.
+  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:1c4a6788874a505186087d04539950ede7ec86a6d62f0bd47b66fc14c2fdd8ee"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
@@ -1002,6 +1010,10 @@ resource "helm_release" "daimyo" {
       listen              = "0.0.0.0:8080"
       apiUpstream         = "http://daimyo-api.daimyo-system.svc:80"
       deskplaneReleaseUrl = "${local.deskplane_public_url}/api/sessions/release"
+      # A parked tool call waits an hour for a decision, not the 600 s default:
+      # approvals raised while Shedrach was away expired unseen (visa thread,
+      # 2026-11-24). Still clamped to the task's own deadline.
+      toolPolicies = { approvalTimeoutSecs = 3600 }
       # The controller reconciles only CRs labelled with this instance
       # (local.daimyo_cr_labels); set explicitly rather than inheriting the
       # release fullname.
