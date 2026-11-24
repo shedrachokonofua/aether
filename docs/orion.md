@@ -126,6 +126,15 @@ rerun), pipeline `16892`, Helm revision 66; only `helm_release.orion`
 changed. Not observed when this was written: the first dream Daimyo starts
 for the operator is due after 04:00 on the 24th.
 
+Release `810ebc35da1c53110d1d2bfb7e29ecc82ac0fdb1` (2026-11-24) gives the
+`coordinator` Agent a read-only per-user mount of store `personal`, so it
+starts with the person's memory as `orion` does and its conversations are
+read by the nightly dream, the observer and recall (Daimyo Helm 141, see
+[ai-ml.md](ai-ml.md)). The mount's description no longer names the
+operator. Pipeline `17075`, Helm revision 67; only `helm_release.orion`
+changed (chart version and image tag). The live Agent is `Ready` with the
+mount. Not observed when this was written: a coordinator task run with it.
+
 ## Database Storage
 
 `orion-cnpg` uses a 50 GiB `ceph-rbd` volume for data and WAL
