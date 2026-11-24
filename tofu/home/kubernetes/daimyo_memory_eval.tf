@@ -266,13 +266,16 @@ resource "kubectl_manifest" "memory_eval_cron" {
                 # Sixty private cases is ten per kind of probe and six canary
                 # cases is the whole suite; the first run, at 12 and 2, took
                 # 11 minutes and could not rank the arms (2026-11-23).
+                # `observed` asks after an observation instead of a dream: what
+                # a person said reaches the agent as the journal lines noted
+                # when the conversation went quiet (Daimyo Helm 141).
                 args = [<<-EOT
                   run=$(date -u +%Y%m%d%H%M)
-                  python3 -m memory_eval run --suite private --arms full-context,raw-search,memory \
+                  python3 -m memory_eval run --suite private --arms full-context,raw-search,memory,observed \
                     --n 60 --seed 1 --run "$run" --out /out/private --concurrency 3 \
                     --answer-model ${local.memory_eval_answer_model} --judge-model ${local.memory_eval_judge_model}
                   private=$?
-                  python3 -m memory_eval run --suite canary --arms memory \
+                  python3 -m memory_eval run --suite canary --arms memory,observed \
                     --n 6 --seed 1 --run "$run" --out /out/canary --concurrency 3 \
                     --answer-model ${local.memory_eval_answer_model} --judge-model ${local.memory_eval_judge_model}
                   canary=$?
@@ -343,7 +346,7 @@ resource "kubectl_manifest" "memory_eval_longmemeval_cron" {
                 # other questions and a rerun in the same week repeats them.
                 args = [<<-EOT
                   run=$(date -u +%Y%m%d%H%M)
-                  exec python3 -m memory_eval run --suite longmemeval-s --arms full-context,raw-search,memory \
+                  exec python3 -m memory_eval run --suite longmemeval-s --arms full-context,raw-search,memory,observed \
                     --n 30 --seed "$(date -u +%G%V)" --run "$run" --out /out/longmemeval --concurrency 3 \
                     --answer-model ${local.memory_eval_answer_model} --judge-model ${local.memory_eval_judge_model}
                 EOT
