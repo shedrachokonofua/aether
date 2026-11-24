@@ -964,7 +964,7 @@ read under older rules once from saved answers.
 
 Configured under `memory` in the Daimyo Helm values in
 [`tofu/home/kubernetes/daimyo.tf`](../tofu/home/kubernetes/daimyo.tf). Design: the daimyo repo's SPEC-0001 §11c.3
-and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 147 (2026-11-24 13:11 UTC); what
+and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 151 (2026-11-24 16:03 UTC); what
 was seen on the cluster after each release is in the daimyo repo's `docs/ops/upgrades.md`.
 
 - **Nightly dream.** The engine dreams each namespace of every store that had a conversation since its last
@@ -1016,6 +1016,12 @@ was seen on the cluster after each release is in the daimyo repo's `docs/ops/upg
   question came from, 66%, 82% and 88%. A larger local embedder (`qwen3-embedding-4b`) and a deeper shortlist
   for the reranker were tried against the same questions and moved the answer figures by one or two questions,
   so neither was adopted.
+- **One search.** Since Helm 151 an agent's `memory_search` returns the store's documents and, beside them as
+  `conversations`, the four best passages of the person's past conversations for the same query. Measured first:
+  of 89 lasting, specific facts the operator had stated in conversations, the index and the two best documents
+  of a search held 40, the eight best recall passages 77, either 83, and the full text of the store's documents
+  54. Agents searched the documents; four in ten of those facts were only in the conversations. Checked after the
+  release: a `researcher` task's one `memory_search` call returned nine documents and four passages.
 - **Starts.** Since Helm 144 a dream or an observation finds its conversations in the task rows (0.4 to 1.8 s a
   start in org `qa`; it listed the agent's whole archive before, 35 to 45 s there), and the three memory agents
   are not offered `ask_user`.
