@@ -649,7 +649,10 @@ tokens for `personal`, `qa` and `seven30`; the Ivy project, CI deployment
 permission and model ceiling are declared in `daimyo.tf`.
 
 The `android` catalog image runs the Android emulator (x86_64 Google Play
-system image, API 35) on a KasmVNC desktop, so `/s/<session>` shows the phone.
+system image, API 35) headless. scrcpy draws the phone's screen as the only
+window on a 720x1600 KasmVNC display with no desktop or window manager, so
+`/s/<session>` (and Orion's Screen tab) shows just the phone, and taking over
+turns clicks into taps (right-click is Back).
 The image pins the `kvm` profile, which requests `devic.es/kvm`: the
 `generic-device-plugin` DaemonSet in `deskplane.tf` advertises `/dev/kvm` four
 times on every amd64 Talos node (each is a Proxmox VM with CPU type `host`, so
@@ -659,21 +662,20 @@ booted, and deskplane-mcp drives it over adb: `open_session(kind="phone")`
 (`DESKPLANE_MCP_PHONE_IMAGE_REF`), the generic `screenshot`/`click`/`type_text`/
 `key`/`scroll`/`navigate` tools, and the opt-in `phone` tool profile
 (`phone_swipe`, `phone_long_press`, `phone_elements`, `phone_apps`,
-`phone_launch_app`, `phone_foreground_app`). The image is 5.7 GB compressed:
-the first session on a node took 405 s to turn Ready, most of it pulling the
-image, inside the MCP's 600 s phone ready wait. The
-`deskplane-android-prepull` DaemonSet keeps the image on talos-neo and
-talos-smith (a session there turned Ready in 124 s); it takes 17 GB of
-imagefs, more than niobe and trinity can spare above the 15% eviction
-threshold. Each emulator's QEMU held about 4 GiB
-resident, and amd64 memory requests ran at 92-98% on 2026-11-23, so in
-practice memory, not KVM slots, limits how many phones run at once.
-This was first rolled out on 2026-11-23 without a tofu apply: the device-plugin
-and pre-pull DaemonSets and the `deskplane` Helm release (revision 128) were
-set by hand to exactly what `deskplane.tf` renders, because every targeted
-plan also pulled in `talos_machine_configuration_apply` for all eight nodes
-with a sensitive-only diff. Tofu state lags the cluster for those three
-resources until the next apply.
+`phone_launch_app`, `phone_foreground_app`). Orion's `web` grant has all of
+them (release `8d54e7d4`). The image is 3.7 GB compressed, and the
+`deskplane-android-prepull` DaemonSet keeps it on talos-neo, where a session
+turned Ready in 70-116 s on 2026-11-24. Only neo: on smith the cached image
+plus the nightly `siren/lute-backup` job's 51 GB of ephemeral storage put the
+node into DiskPressure. A phone pod held 3.6 GiB of anonymous memory after
+boot, and amd64 memory requests ran at 92-98%, so in practice memory, not KVM
+slots, limits how many phones run at once.
+This was rolled out on 2026-11-23 and 24 without a tofu apply: the
+device-plugin and pre-pull DaemonSets and the `deskplane` Helm release
+(revision 130) were set by hand to exactly what `deskplane.tf` renders,
+because every targeted plan also pulled in `talos_machine_configuration_apply`
+for all eight nodes with a sensitive-only diff. Tofu state lags the cluster
+for those three resources until the next apply.
 
 Deskplane's transient browser lifecycle uses a 15-minute controller idle lease,
 independent of its maximum TTL. Real API/proxy/MCP activity renews persisted

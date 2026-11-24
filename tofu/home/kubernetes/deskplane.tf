@@ -12,7 +12,8 @@ locals {
   deskplane_public_url = "https://${local.deskplane_host}"
   # 4b722ee4: Android emulator sessions and the catalog image profileRef
   # (deskplane MR !3). The MCP image carries the same tag; the android image
-  # is 82291859, which adds image-only fixes on top. The registry
+  # is 1560979f (image-only changes on top: the phone's screen alone, no
+  # desktop). The registry
   # keeps a limited number of tags (666c1c2e was dropped on 2026-11-21); pin
   # a tag the registry still has.
   deskplane_chart_version = "0.1.0-4b722ee4"
@@ -38,7 +39,7 @@ locals {
   # that touched the image) -- check the registry before bumping.
   deskplane_headless_chromium_tag = "2d2c9e13"
   deskplane_chrome_cdp_tag        = "c0796ff2"
-  deskplane_android_tag           = "82291859"
+  deskplane_android_tag           = "1560979f"
   deskplane_registry_host         = "registry.gitlab.home.shdr.ch"
   deskplane_registry_user         = var.secrets["gitlab.root_email"]
   deskplane_registry_pass         = var.secrets["gitlab.root_password"]
@@ -367,11 +368,11 @@ resource "helm_release" "deskplane" {
       {
         # Android emulator sessions (the "android" image pins this profile).
         # devic.es/kvm comes from the device plugin at the end of this file.
-        # QEMU alone held 4.1 GiB resident and ~4.5 CPUs while booting the
-        # 3 GiB guest on talos-neo (2026-11-23). amd64 memory requests run at
-        # 92-98%, and 5Gi fit no node, so the request is 4Gi and the 8Gi
-        # limit absorbs the rest. The CPU limit keeps an emulator on a
-        # control-plane node from starving etcd.
+        # With the 2 GiB guest and no desktop (android 1560979f), the pod held
+        # 3.6 GiB anonymous memory after boot on talos-neo, 3.6 GiB of it
+        # QEMU (2026-11-24). amd64 memory requests run at 92-98%, so the
+        # request is 4Gi and the 8Gi limit absorbs spikes. The CPU limit keeps
+        # an emulator on a control-plane node from starving etcd.
         name              = "kvm"
         priorityClassName = local.deskplane_session_priority_class
         resources = {
@@ -820,14 +821,14 @@ resource "kubectl_manifest" "deskplane_kvm_device_plugin" {
   YAML
 }
 
-# Pre-pull the android session image. The first session on a node took 405 s
-# to turn Ready, most of it pulling (2026-11-23). The pod sleeps in that image
-# so kubelet image GC keeps it; a new tag rolls the DaemonSet and pulls again.
-# Only talos-neo and talos-smith: they are the only amd64 nodes with memory
-# headroom for the kvm profile's 4Gi request. The image took 17 GB of
-# smith's imagefs (68 -> 51 GB free), and niobe and trinity had 24-27 GB of
-# 135 GB free, so it would push them under the 15% imagefs eviction threshold
-# (talos_cluster.tf).
+# Pre-pull the android session image (3.7 GB compressed). With it cached on
+# talos-neo a session turned Ready in 70-116 s (2026-11-24); an uncached node
+# pulls first. The pod sleeps in that image so kubelet image GC keeps it; a
+# new tag rolls the DaemonSet and pulls again. Only talos-neo: its imagefs is
+# 272 GB, the other amd64 nodes' 135 GB. On smith, with the earlier 5.7 GB
+# image cached, the nightly siren/lute-backup job (51 GB of ephemeral
+# storage) left 18.8 GB free and the node went into DiskPressure
+# (2026-11-24); niobe and trinity had 24-27 GB free.
 resource "kubectl_manifest" "deskplane_android_prepull" {
   yaml_body = <<-YAML
     apiVersion: apps/v1
@@ -859,7 +860,7 @@ resource "kubectl_manifest" "deskplane_android_prepull" {
                   - matchExpressions:
                       - key: kubernetes.io/hostname
                         operator: In
-                        values: [talos-neo, talos-smith]
+                        values: [talos-neo]
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
