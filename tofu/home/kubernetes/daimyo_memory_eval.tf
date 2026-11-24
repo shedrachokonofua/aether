@@ -21,12 +21,14 @@
 
 locals {
   memory_eval_ns = module.namespace["daimyo-memory-eval"].name
-  # dadcc3b (main pipeline 16889, build:memory-eval; the image's verify stage
-  # runs the harness's unit tests): tokens are signed for the whole person
-  # name (`eval-…`), the run creates the store if it is not there and turns
-  # the store's daily upkeep dream off, since the eval dreams each person
-  # itself.
-  memory_eval_image      = "registry.gitlab.home.shdr.ch/so/daimyo/memory-eval@sha256:3dca3f87f0f9466bf6470815a39c2081d21ad1b72f7d59bd7aed1f0cded01178"
+  # f655f23 (Daimyo main pipeline 17261, build:memory-eval; the same Python
+  # tree passed python-test and scripts-test in 17263). Before it the memory
+  # arms graded the newest task of the org instead of the turn's own answer
+  # (`GET /v1/tasks` has no session filter), so every memory and canary score
+  # of an earlier image is void. The deletion canary also takes the string
+  # out of recall, and a case empties its person's recall when it ends; a
+  # server without recall answers 404 and both are skipped.
+  memory_eval_image      = "registry.gitlab.home.shdr.ch/so/daimyo/memory-eval@sha256:156d9047f6c14b2ae2346d4b70ac641d3f7e93180e435bcdbf1b7f1c248c75ea"
   memory_eval_issuer_url = "http://memory-eval-issuer.daimyo-memory-eval.svc:8080"
   memory_eval_labels     = { app = "daimyo-memory-eval" }
   memory_eval_agent      = "memory-keeper"
