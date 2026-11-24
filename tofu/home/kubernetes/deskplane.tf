@@ -581,9 +581,11 @@ resource "helm_release" "deskplane" {
       # on commits that touch the MCP. Bumping it in lockstep with the
       # control-plane SHA pins a tag that was never built: the pod cannot
       # pull, never goes Ready, and the atomic release rolls back on timeout.
+      # 68b26a6c: the newest MCP build (failed page requests as http_errors,
+      # and 133c4527's hint to reopen a Stopped persistent session).
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "4b722ee4"
+        tag        = "68b26a6c"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
