@@ -232,7 +232,9 @@ resource "kubernetes_persistent_volume_claim_v1" "litellm_cnpg_data" {
     storage_class_name = local.cnpg_storage_class
 
     resources {
-      requests = { storage = "80Gi" }
+      # 233cb7b grew the volume to 200Gi through the CNPG cluster spec; keep
+      # this in step, or tofu plans a shrink, which forces a replace.
+      requests = { storage = "200Gi" }
     }
   }
 
