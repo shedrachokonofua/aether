@@ -548,6 +548,11 @@ Legend: `U` = untagged member, `T` = tagged member. Ports 5-8 remain available a
 | Indigo Tide          | 6    | 5       |
 | Indigo Tide - 2.4Ghz | 6    | 2.4     |
 | Moss Cove            | 7    | 5       |
+| Silver Plain         | 6    | 2.4     |
+
+`Silver Plain` is the Canon TS3420 compatibility WLAN: WPA2-only, PMF disabled,
+and wireless client isolation disabled. Verified live on 2026-11-07; the
+printer associated successfully before the WLAN was renamed from `Canon Setup`.
 
 Radio tuning (applied live in the controller 2026-08-13; UniFi WLAN/radio
 config is controller-owned — MongoDB on `home-gateway-stack` — not IaC):

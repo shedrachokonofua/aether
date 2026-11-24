@@ -43,10 +43,18 @@ resource "random_bytes" "sourcegull_encryption_key" {
   length = 32
 }
 
-# GitLab reader token (bao kv put kv/sourcegull/gitlab token=... — see header).
+# GitLab reader tokens (bao kv put kv/sourcegull/<key> token=... — see header).
+# `so` and `seven30` are separate GitLab groups/tenants (config/tenants.yml);
+# a group access token only reads its own group's private repos, so each
+# gets its own connection and token rather than widening one projectQuery.
 data "vault_kv_secret_v2" "sourcegull_gitlab" {
   mount = "kv"
   name  = "sourcegull/gitlab"
+}
+
+data "vault_kv_secret_v2" "sourcegull_seven30_gitlab" {
+  mount = "kv"
+  name  = "sourcegull/seven30-gitlab"
 }
 
 resource "kubernetes_secret_v1" "sourcegull_cnpg_app" {
@@ -95,6 +103,21 @@ resource "kubernetes_secret_v1" "sourcegull_gitlab" {
   type = "Opaque"
   data = {
     token = data.vault_kv_secret_v2.sourcegull_gitlab.data["token"]
+  }
+}
+
+resource "kubernetes_secret_v1" "sourcegull_seven30_gitlab" {
+  depends_on = [module.namespace["sourcegull"]]
+
+  metadata {
+    name      = "sourcegull-seven30-gitlab"
+    namespace = local.sourcegull_namespace
+    labels    = local.sourcegull_labels
+  }
+
+  type = "Opaque"
+  data = {
+    token = data.vault_kv_secret_v2.sourcegull_seven30_gitlab.data["token"]
   }
 }
 
@@ -175,6 +198,7 @@ resource "helm_release" "sourcegull" {
     kubectl_manifest.sourcegull_cnpg_cluster,
     kubernetes_secret_v1.sourcegull_secrets,
     kubernetes_secret_v1.sourcegull_gitlab,
+    kubernetes_secret_v1.sourcegull_seven30_gitlab,
     kubernetes_secret_v1.sourcegull_oidc,
     kubernetes_manifest.main_gateway,
   ]
@@ -203,6 +227,15 @@ resource "helm_release" "sourcegull" {
         valueFrom = {
           secretKeyRef = {
             name = kubernetes_secret_v1.sourcegull_gitlab.metadata[0].name
+            key  = "token"
+          }
+        }
+      },
+      {
+        name = "GITLAB_SEVEN30_TOKEN"
+        valueFrom = {
+          secretKeyRef = {
+            name = kubernetes_secret_v1.sourcegull_seven30_gitlab.metadata[0].name
             key  = "token"
           }
         }
@@ -242,16 +275,28 @@ resource "helm_release" "sourcegull" {
       }
       resources = {
         siteAdmins = [var.secrets["gitlab.root_email"]]
-        connections = [{
-          key         = "gitlab-home"
-          kind        = "gitlab"
-          displayName = "GitLab"
-          config = {
-            url          = "https://gitlab.home.shdr.ch"
-            token        = "$${env:GITLAB_TOKEN}"
-            projectQuery = ["groups/so/projects?include_subgroups=true"]
-          }
-        }]
+        connections = [
+          {
+            key         = "gitlab-home"
+            kind        = "gitlab"
+            displayName = "GitLab"
+            config = {
+              url          = "https://gitlab.home.shdr.ch"
+              token        = "$${env:GITLAB_TOKEN}"
+              projectQuery = ["groups/so/projects?include_subgroups=true"]
+            }
+          },
+          {
+            key         = "gitlab-seven30"
+            kind        = "gitlab"
+            displayName = "GitLab (seven30)"
+            config = {
+              url          = "https://gitlab.home.shdr.ch"
+              token        = "$${env:GITLAB_SEVEN30_TOKEN}"
+              projectQuery = ["groups/seven30/projects?include_subgroups=true"]
+            }
+          },
+        ]
       }
     }
 

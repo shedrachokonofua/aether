@@ -50,6 +50,49 @@ runtime policy.
 Trivy's node collector is configured with Talos-safe host paths and small scan
 job requests so per-node scans can run on the ARM pool without hard arch pins.
 
+### CPU request sizing
+
+These deployed reductions release 13.5 cores of CPU requests without changing
+CPU limits, memory or GPU allocations. Requests control scheduling and
+relative CPU shares under contention; they are not usage caps.
+
+| Workload | Previous CPU request | Deployed CPU request | CPU limit |
+| --- | ---: | ---: | ---: |
+| Coder 16-core workspace | 8 | 2 | 16 |
+| Game server main container | 8 | 3 | None |
+| Siren browser pool | 5 x 250m | 2 x 50m (2 replicas since 2026-11-24) | 2 per replica |
+| Orion QA browser | 1 | 100m | 12 |
+| SnapOtter effective pod request | 500m | 100m | 4 |
+
+Coder owns its request in `aether-coder-templates/templates/nix/main.tf`:
+an eighth of the selected CPU limit, with a one-core minimum. Siren owns its
+browser request in its application chart; the other three changes live in
+`tofu/home/kubernetes/{game_server,orion_qa_browser,snapotter}.tf`.
+SnapOtter's sequential GPU-package init container sets the 100m scheduling
+floor; its main container still requests 50m. The game's MCP sidecar adds
+an unchanged 10m, making the game pod's total request 3.01 cores.
+
+### Memory request sizing (2026-11-24)
+
+Each new request is at least 1.15x the workload's 30-day peak working set
+(ClickHouse `container_memory_working_set_bytes`); limits are unchanged.
+
+| Workload | Previous request | Request | 30-day peak |
+| --- | ---: | ---: | ---: |
+| SnapOtter | 3.5Gi | 1280Mi | 1,032Mi |
+| qBittorrent | 2Gi | 256Mi | 109Mi |
+| OpenWebUI | 2Gi | 1280Mi | 1,049Mi |
+| Karakeep Meilisearch | 1Gi | 256Mi | 82Mi |
+| celld (2 replicas) | 512Mi | 128Mi | 65Mi |
+| Game server main container | 8Gi | 2Gi | 9.5Gi while in use, 1.6Gi idle |
+
+The game server is the exception to the 1.15x rule: it is idle most of the
+time and bursts to its 16Gi limit only while a game runs, which talos-neo's
+real memory headroom (30-day peak 67% used) absorbs. Goldilocks' targets were
+not used directly: for the game server and Siren's browsers they were below
+the measured peaks. The Coder workspace autostops 4 hours after starting
+unless it is in use (`coder schedule stop`), and `coder ssh` restarts it.
+
 ### Kubernetes and Talos upgrades
 
 The cluster runs Kubernetes v1.36.5 on Talos v1.14.2 (Kubernetes upgraded from

@@ -37,6 +37,7 @@ resource "kubernetes_deployment_v1" "orion_qa_browser" {
         labels = local.orion_qa_browser_labels
       }
       spec {
+        priority_class_name = local.aether_priority_classes.batch
         container {
           name        = "playwright"
           image       = "mcr.microsoft.com/playwright:v${local.orion_qa_browser_version}-noble"
@@ -66,7 +67,7 @@ resource "kubernetes_deployment_v1" "orion_qa_browser" {
           # QA audits long tasks (> 50 ms), so CFS throttling distorts results: at
           # a 4-CPU limit three concurrent runs were throttled in 20% of periods.
           resources {
-            requests = { cpu = "1", memory = "2Gi" }
+            requests = { cpu = "100m", memory = "2Gi" }
             limits   = { cpu = "12", memory = "8Gi" }
           }
 
