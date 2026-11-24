@@ -960,7 +960,7 @@ read under older rules once from saved answers.
 
 Configured under `memory` in the Daimyo Helm values in
 [`tofu/home/kubernetes/daimyo.tf`](../tofu/home/kubernetes/daimyo.tf). Design: the daimyo repo's SPEC-0001 §11c.3
-and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 141 (2026-11-24 00:15 UTC); what
+and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 143 (2026-11-24 05:00 UTC); what
 was seen on the cluster after each release is in the daimyo repo's `docs/ops/upgrades.md`.
 
 - **Nightly dream.** The engine dreams each namespace of every store that had a conversation since its last
@@ -978,7 +978,19 @@ was seen on the cluster after each release is in the daimyo repo's `docs/ops/upg
   eight lines from two sessions of the day.
 - **Recall.** Finished turns of the agents that mount a store are indexed (what was asked and what was answered,
   not tool output) and searched by the `recall_search` tool, for the person the agent is working for. `POST
-  /v1/recall:forget` takes passages out. The history was indexed after the upgrade, oldest first.
+  /v1/recall:forget` takes passages out. The history was indexed after the upgrade, oldest first; a turn is
+  indexed within a round of ending (checked on Helm 143: 13 seconds).
+- **Search.** `recall_search` and `memory_search` rank by how rare the matched words are and by embedding
+  (`memory.embeddingQueryPrefix` is the instruction `aether/qwen3-embedding:0.6b` expects before a question), and
+  `memory.rerankModel = "aether/qwen3-reranker-4b"` orders what both found, fifteen passages from each; a rerank
+  that has not answered in 8 seconds is given up and the fused order stands. The reranker is llama-swap's, with
+  a `ttl` of 120 s, so a search after a quiet spell also pays its load (measured once: 5.8 s cold against 2.8 s
+  warm for 26 passages). Measured against the live server on Helm 143 with questions written from the
+  operator's own history and documents: recall put the turn that answers first for 75% of 85 questions and in
+  the first eight for 92% (39% and 68% on Helm 141), 2.4 s a search at the median; `memory_search` put the right
+  document first for 84% of 168 and in the first two for 97%, 1.9 s. Until Helm 143 an agent's `memory_search`
+  on this store returned nothing at all: it searched the shared namespace, and every agent mounts the store per
+  user. Until Helm 142 the memory indexer had been stopped since 2026-11-23 23:35 UTC by 32 deleted documents.
 - **Harness.** The claude-code and omp pins (`68db0d2`) give every turn the memory block: the files of each mounted
   store, `MEMORY.md` when it is new to the conversation, and the journal. The memory agents run the claude-code
   pin, so `memory.dreamerImage` is no longer set. Checked on 2026-11-24: a `researcher` task (claude-code) said
