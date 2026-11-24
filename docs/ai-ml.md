@@ -964,7 +964,7 @@ read under older rules once from saved answers.
 
 Configured under `memory` in the Daimyo Helm values in
 [`tofu/home/kubernetes/daimyo.tf`](../tofu/home/kubernetes/daimyo.tf). Design: the daimyo repo's SPEC-0001 §11c.3
-and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 143 (2026-11-24 05:00 UTC); what
+and `docs/specs/2026-11-23-automatic-memory-design.md`. Live as of Helm revision 146 (2026-11-24 11:22 UTC); what
 was seen on the cluster after each release is in the daimyo repo's `docs/ops/upgrades.md`.
 
 - **Nightly dream.** The engine dreams each namespace of every store that had a conversation since its last
@@ -995,6 +995,18 @@ was seen on the cluster after each release is in the daimyo repo's `docs/ops/upg
   document first for 84% of 168 and in the first two for 97%, 1.9 s. Until Helm 143 an agent's `memory_search`
   on this store returned nothing at all: it searched the shared namespace, and every agent mounts the store per
   user. Until Helm 142 the memory indexer had been stopped since 2026-11-23 23:35 UTC by 32 deleted documents.
+- **Embeddings.** Since Helm 146 an embedding is a pgvector `vector` and a search measures every chunk the
+  caller may read by pgvector's cosine distance: exact, with no index (migration 0067). The extension is not
+  one a database's owner may create, so the chart's CloudNativePG `Database` object `daimyo-pg-daimyo` has the
+  operator create it (`vector` 0.8.6); Helm 145 (10:25 UTC, the chart alone) put that in place first, because
+  the migrate hook of an upgrade runs before the release's objects are applied. **A Daimyo chart that adds an
+  extension is released on its own before the server that needs it.** Measured on the live database: the
+  vector pass over the operator's 4,800 recall chunks took 0.6 s before and 20 to 31 ms after; twelve searches
+  through the API took 2.9 s at the median before and 1.6 s after for recall, 1.95 s and 1.55 s for
+  `memory_search`, the rest being the reranker.
+- **Starts.** Since Helm 144 a dream or an observation finds its conversations in the task rows (0.4 to 1.8 s a
+  start in org `qa`; it listed the agent's whole archive before, 35 to 45 s there), and the three memory agents
+  are not offered `ask_user`.
 - **Harness.** The claude-code and omp pins (`68db0d2`) give every turn the memory block: the files of each mounted
   store, `MEMORY.md` when it is new to the conversation, and the journal. The memory agents run the claude-code
   pin, so `memory.dreamerImage` is no longer set. Checked on 2026-11-24: a `researcher` task (claude-code) said

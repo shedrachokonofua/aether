@@ -310,7 +310,15 @@ locals {
   #   org qa, and two starts of the first nightly eval timed out;
   # - the memory agents are not given ask_user. Two of that run's 120
   #   observers asked a question, which fails the observation.
-  daimyo_server_tag = "sha256:532c595f7b9ab7ce545330421d2c8b776b839ef1933cac24db93084834e1d0e0"
+  # a3355c6 (main pipelines 17498 and 17499 green, migration 0067). Server
+  # only: embeddings are pgvector `vector`s, searched exactly by its cosine
+  # distance. The cosine was SQL over real[]: 0.6 s of a recall search for
+  # the operator's 4,800 chunks. 0067 needs the `vector` extension, which the
+  # database's owner cannot create: Helm 145 (2026-11-24 10:25 UTC, the chart
+  # at 92677e7 with the server still 687283e) had CloudNativePG create it
+  # through the chart's `Database` object daimyo-pg-daimyo. Chart first, then
+  # this pin: the other way round the migrate hook fails.
+  daimyo_server_tag = "sha256:f445d74db04a4de3471b8efbb92595a530f6ab297dbb2621ad38ff43a6973a95"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
