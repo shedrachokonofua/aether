@@ -10,14 +10,18 @@ locals {
   deskplane_namespace  = "deskplane"
   deskplane_host       = "desktop.home.shdr.ch"
   deskplane_public_url = "https://${local.deskplane_host}"
-  # 4b722ee4: Android emulator sessions and the catalog image profileRef
-  # (deskplane MR !3). The MCP image carries the same tag; the android image
-  # is 0112576e (image-only changes on top: the phone's screen alone, no
-  # desktop, Android's first boot baked in at build time). The registry
-  # keeps a limited number of tags (666c1c2e was dropped on 2026-11-21); pin
-  # a tag the registry still has.
-  deskplane_chart_version = "0.1.0-4b722ee4"
-  deskplane_image_tag     = "4b722ee4"
+  # 133c4527: session lifecycle -- non-persistent sessions are deleted an
+  # hour after they stop (sessions.terminalRetentionSeconds), exited Pods of
+  # persistent sessions park Stopped instead of Failed, and persistent
+  # sessions with a home PVC stop after 4 idle hours
+  # (sessions.persistentIdleStopSeconds). Built on 4b722ee4 (Android emulator
+  # sessions, deskplane MR !3). The MCP image carries the same tag; the
+  # android image is 0112576e (image-only changes on top: the phone's screen
+  # alone, no desktop, Android's first boot baked in at build time). The
+  # registry keeps a limited number of tags (666c1c2e was dropped on
+  # 2026-11-21); pin a tag the registry still has.
+  deskplane_chart_version = "0.1.0-133c4527"
+  deskplane_image_tag     = "133c4527"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
