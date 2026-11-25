@@ -1442,6 +1442,24 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "meridian" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Meridian MCP and skills gateway: one address for many MCP servers and skill sources, with per-caller access"
+      source_file             = "tofu/home/kubernetes/meridian.tf"
+      # The sources it fronts (Pharos so far), Daimyo's issuer for token keys, and the OTLP
+      # collector. Declared intent only: no CiliumNetworkPolicy in meridian.tf enforces it yet.
+      egress          = "allowlist"
+      registry_access = "gitlab"
+      hostnames       = []
+      extra_labels = {
+        "aether.shdr.ch/arch"              = "amd64"
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
   }
 }
 

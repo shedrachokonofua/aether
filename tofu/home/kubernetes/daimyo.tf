@@ -1494,6 +1494,21 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           toFQDNs = [for host in local.trip_planner_public_mcp_hosts : { matchName = host }]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         } if contains(local.trip_planner_orgs, org)
+        ], [
+        # Meridian (meridian.tf): the MCP and skills gateway. An agent reaches
+        # it with a task token for audience `meridian`; what the agent may use
+        # there is Meridian's `access`. Last in the list on purpose: a rule
+        # added in the middle shifts the ones after it, and kubernetes_manifest
+        # then carries fields across (see the Pharos rule above).
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "meridian"
+              "io.kubernetes.pod.namespace" = local.meridian_namespace
+            }
+          }]
+          toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
+        } if org == "personal"
       ])
     }
   }
