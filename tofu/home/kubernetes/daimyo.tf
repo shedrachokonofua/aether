@@ -1783,9 +1783,10 @@ resource "kubectl_manifest" "daimyo_org" {
           # audience is exchanged.
           tokenExchange = [{ from = "meridian", to = ["deskplane", "pop"] }]
           # Rogue keeps external trust: public web tools through Deskplane and
-          # its qbittorrent grant through the LiteLLM gateway (orion.tf).
+          # its qbittorrent grant through Meridian (orion.tf). LiteLLM stays
+          # for its models.
           externalAgents = {
-            allowedHosts = ["deskplane-mcp.deskplane.svc", "litellm.litellm.svc.cluster.local"]
+            allowedHosts = ["deskplane-mcp.deskplane.svc", "litellm.litellm.svc.cluster.local", "meridian.${local.meridian_namespace}.svc.cluster.local"]
           }
         }
       } : name => extra if name == each.key })...

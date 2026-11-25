@@ -170,7 +170,11 @@ locals {
       },
     )
     access = {
-      "daimyo/orion"    = ["*"]
+      "daimyo/orion" = ["*"]
+      # orion.tf: dev reads the homelab's telemetry, rogue runs on an external
+      # model and gets the home qBittorrent and nothing else.
+      "daimyo/dev"      = ["clickstack"]
+      "daimyo/rogue"    = ["qbittorrent"]
       "keycloak/shdrch" = ["*"]
     }
   }

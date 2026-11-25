@@ -781,6 +781,11 @@ signed-in user's Keycloak token, which carries Meridian's audience
 connection described above is still configured, for Daimyo's own MCP, but is no
 longer on by default.
 
+The `dev` and `rogue` Daimyo agents' gateway grants (ClickStack, qBittorrent)
+also go through Meridian since 2026-11-25, with a task token for audience
+`meridian` (`tofu/home/kubernetes/orion.tf`); the `orion` agent's grants in the
+so/orion chart still go through LiteLLM.
+
 Meridian's `deskplane` and `pop` sources need to know who is calling:
 Deskplane keeps each caller's sessions apart and pop gives roles. Since
 2026-11-25 Meridian does not sign a token of its own for them. It exchanges

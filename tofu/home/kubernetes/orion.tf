@@ -491,16 +491,11 @@ resource "kubernetes_manifest" "orion_answer_egress" {
 }
 
 locals {
-  # Dev retains read-only ClickStack access through the existing Orion gateway
-  # key (openbao_daimyo.tf daimyo_orion_litellm_mcp), held by the sidecar.
-  orion_gateway_mcp = "${local.daimyo_litellm_upstream}/mcp"
-  orion_gateway_auth = {
-    secret = {
-      secret = { path = "orgs/personal/litellm-mcp", key = "token" }
-      header = { name = "x-litellm-api-key" }
-      prefix = "Bearer"
-    }
-  }
+  # Dev's ClickStack grant and rogue's qBittorrent grant go through Meridian
+  # (meridian.tf). The sidecar presents the task token, which names the agent,
+  # and Meridian's `access` decides what `daimyo/dev` and `daimyo/rogue` see.
+  orion_gateway_mcp  = "${local.meridian_url}/mcp"
+  orion_gateway_auth = { taskToken = { audience = "meridian" } }
   # Policy for tools that should ask Shedrach first (deleting, spending,
   # publishing, admin). The sidecar parks the call on a Daimyo tool approval
   # and Orion renders it in the thread. Session pods park under their session
@@ -600,11 +595,10 @@ resource "kubectl_manifest" "daimyo_dev_agent" {
         },
         {
           # Homelab logs/traces/metrics (ClickHouse via HyperDX's MCP), read-only.
-          # Reuses orion's gateway key: the grant allowlist limits dev to
-          # clickstack, and the key never leaves the sidecar.
+          # Meridian's `access` gives `daimyo/dev` the clickstack source only.
           name = "clickstack"
           mcp = {
-            url   = "${local.orion_gateway_mcp}/clickstack"
+            url   = local.orion_gateway_mcp
             auth  = local.orion_gateway_auth
             tools = local.orion_gateway_tools.clickstack.allow
           }
@@ -713,12 +707,12 @@ resource "kubectl_manifest" "daimyo_rogue_agent" {
           }
         },
         {
-          # The home qBittorrent through the LiteLLM gateway (Orion's gateway
-          # key, held by the sidecar; the allowlist limits rogue to it). The
-          # Org's externalAgents.allowedHosts admits the LiteLLM host.
+          # The home qBittorrent through Meridian, whose `access` gives
+          # `daimyo/rogue` the qbittorrent source only. The Org's
+          # externalAgents.allowedHosts admits the Meridian host.
           name = "qbittorrent"
           mcp = {
-            url  = "${local.orion_gateway_mcp}/qbittorrent"
+            url  = local.orion_gateway_mcp
             auth = local.orion_gateway_auth
             tools = concat(
               local.orion_gateway_tools.qbittorrent.allow,
