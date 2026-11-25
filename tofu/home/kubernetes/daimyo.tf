@@ -928,7 +928,9 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
 # Before that 0911756 (pipeline 9329; per-session tool cache), and 19ae53c
 # (pipeline 9215; serial MCP listing, ~10-47 s per turn).
 locals {
-  daimyo_molecule_tag             = "sha256:d743329c668aeea991cf3ea7c1886891ed19c6f8eba73bfcdc91acbed6cc6fd4"
+  # 3517217 (main pipeline 17865): an agent granted at most 24 MCP tools gets
+  # them directly, with their schemas (Orion's tutor). Same component pin.
+  daimyo_molecule_tag             = "sha256:e5c432871e670c44a9990d587543c44cf1c00814f94569fa653f0e30399caab4"
   daimyo_molecule_agent_component = "molecule-agent@sha256:0dc6c52744e5273c236e72a13e8abf0a96ad31d294158c05e2fb152612be756b"
 }
 
