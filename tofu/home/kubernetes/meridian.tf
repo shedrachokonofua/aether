@@ -150,6 +150,12 @@ locals {
           mcp      = "https://pop.home.shdr.ch/mcp/aether"
           exchange = "pop"
         }
+        # Hardcover has no MCP server or OpenAPI spec, only GraphQL: served as
+        # hardcover_search, _describe, _query and _mutate.
+        hardcover = {
+          graphql = "https://api.hardcover.app/v1/graphql"
+          headers = { Authorization = "Bearer $HARDCOVER_API_KEY" }
+        }
         orion-skills = {
           skills = "https://gitlab.home.shdr.ch/so/orion.git#${local.meridian_orion_skills_commit}"
         }
@@ -195,6 +201,7 @@ resource "kubernetes_secret_v1" "meridian_env" {
     FM_MCP_TOKEN             = random_password.fm_mcp_token.result
     HYPERDX_MCP_TOKEN        = var.secrets["hyperdx.api_key"]
     SOURCEGULL_MCP_TOKEN     = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
+    HARDCOVER_API_KEY        = var.secrets["hardcover.api_key"]
     MERIDIAN_EXCHANGE_SECRET = var.meridian_exchange_client_secret
     MERIDIAN_SEARCH_KEY      = var.secrets["litellm.virtual_keys.meridian"]
   }
