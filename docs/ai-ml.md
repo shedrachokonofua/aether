@@ -772,6 +772,33 @@ servers. Search covers only the servers listed in
 `mcp_servers`. In LiteLLM 1.99.1, search returns results over `/mcp/` but `[]`
 over `/mcp-rest`.
 
+Meridian's `deskplane` and `pop` sources need to know who is calling:
+Deskplane keeps each caller's sessions apart and pop gives roles. Since
+2026-11-25 Meridian does not sign a token of its own for them. It exchanges
+the caller's token at the caller's own issuer (RFC 8693, `exchange` in
+`tofu/home/kubernetes/meridian.tf`) for one addressed to the server:
+
+- A person's Keycloak token is exchanged at Keycloak by the confidential
+  client `meridian-exchange` (`tofu/home/keycloak.tf`). The result has audience
+  `deskplane` or `pop`, and of the person's realm roles only `pop:deploy` and
+  `pop:create`. Deskplane takes these tokens through a workload issuer entry
+  for the realm with `principalClaim: preferred_username` and
+  `clients: [meridian-exchange]` (`tofu/home/kubernetes/deskplane.tf`), so the
+  person holds `user:<username>` there and sees the sessions agents opened on
+  their behalf.
+- An agent's Daimyo task token (audience `meridian`) is exchanged at its org's
+  token endpoint, `POST https://daimyo.home.shdr.ch/orgs/personal/token`. Org
+  `personal` allows it from `meridian` to `deskplane` and `pop` only
+  (`tokenExchange` in `tofu/home/kubernetes/daimyo.tf`). Deskplane and pop
+  already trust that issuer for the agents' direct grants. On 2026-11-25 no
+  agent's grant reached Deskplane or pop through Meridian, so this path was
+  checked by Daimyo's and Meridian's tests and by the live endpoint's
+  refusals, not by a live agent call.
+
+Meridian has no signing key and neither server trusts it as an issuer. A call
+to either source reaches Keycloak or Daimyo first, unless an exchanged token
+for that caller is still fresh.
+
 pop (`https://pop.home.shdr.ch/mcp/aether`) is registered with
 `auth_type: oauth_delegate`: callers are admitted by their `x-litellm-api-key`,
 and their own `Authorization` bearer is forwarded to pop unchanged, so pop

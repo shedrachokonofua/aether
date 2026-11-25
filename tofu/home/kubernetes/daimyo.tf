@@ -346,7 +346,13 @@ locals {
   # containers, ready from the Kata backend; prepare and total from the task
   # supervisor). A one-shot launch here had a median near 6 s and one in
   # eight waited over a minute, with nothing to say which part that was.
-  daimyo_server_tag = "sha256:071ec34cb59ecc4f70f74754ad5aa0691d9f3b57a9c915c6cd77e9e9efed4057"
+  # 3517217 (main pipeline 17865: every check green). Server only, Org CRD
+  # first (daimyo_org_crd): the org's issuer exchanges a workload token for
+  # one addressed to another audience (RFC 8693, `POST /orgs/<org>/token`),
+  # between the audiences `Org.spec.tokenExchange` names and no others. See
+  # daimyo docs/ops/upgrades.md "Token exchange". The commit after it in this
+  # image changes the molecule runner only.
+  daimyo_server_tag = "sha256:813ad0be0d46c8aedc9a1aac1591d991ba3e6e3a292cf6b8621eabe43aad03da"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -907,6 +913,18 @@ resource "kubectl_manifest" "daimyo_schedule_crd" {
   force_conflicts   = true
 }
 
+# The Org schema: daimyo 88dc876 adds `tokenExchange` (the audiences a
+# workload token may be exchanged between at the org's token endpoint). The
+# chart installed it at release creation, so take ownership with server-side
+# apply.
+resource "kubectl_manifest" "daimyo_org_crd" {
+  depends_on = [terraform_data.daimyo_chart_present]
+
+  yaml_body         = file("${local.daimyo_chart_path}/crds/daimyo-orgs.yaml")
+  server_side_apply = true
+  force_conflicts   = true
+}
+
 # Molecule runner pool (daimyo docs/ops/molecule-runners.md): `harness.kind:
 # molecule` agents run as wasm components in daimyo-molecule runners, not Kata
 # pods, for Orion's orion-molecule test agent. The runner is 5edd331: Claude
@@ -939,6 +957,7 @@ resource "helm_release" "daimyo" {
     terraform_data.daimyo_chart_present,
     kubectl_manifest.daimyo_agent_crd,
     kubectl_manifest.daimyo_schedule_crd,
+    kubectl_manifest.daimyo_org_crd,
     module.namespace["daimyo-system"],
     module.namespace["org-personal"],
     module.namespace["org-seven30"],
@@ -1758,6 +1777,11 @@ resource "kubectl_manifest" "daimyo_org" {
             allowedRepos = ["so/*", "seven30/*"]
           }
           kubernetes = { serviceAccounts = ["dev"] }
+          # Meridian (meridian.tf) calls Deskplane and pop as the agent that
+          # called it: it exchanges the agent's `meridian` token here, at the
+          # org's token endpoint, for one addressed to the server. No other
+          # audience is exchanged.
+          tokenExchange = [{ from = "meridian", to = ["deskplane", "pop"] }]
           # Rogue keeps external trust: public web tools through Deskplane and
           # its qbittorrent grant through the LiteLLM gateway (orion.tf).
           externalAgents = {

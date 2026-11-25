@@ -16,9 +16,13 @@
 # LiteLLM adds is dropped here.
 #
 # pop gives roles to whoever calls it and Deskplane keeps each caller's
-# sessions apart, so Meridian signs each request to them with a token naming
-# the caller (`sign`). pop.tf and deskplane.tf trust Meridian as an issuer, at
-# its own address, with the key below.
+# sessions apart, so each is told the caller by the caller's own issuer.
+# Meridian exchanges the token it was given (RFC 8693) for one addressed to
+# the server: a person's at Keycloak, as client meridian-exchange
+# (keycloak.tf), and an agent's at the Daimyo org's token endpoint
+# (daimyo.tf `tokenExchange`). Meridian signs nothing and neither server
+# trusts it as an issuer; it reaches Keycloak or Daimyo on each such call,
+# with the result kept until the token nears expiry.
 #
 # The skills in so/orion's chart (deploy/helm/orion/skills) are served from the
 # pinned commit, under their own names.
@@ -35,7 +39,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "a06032dccb83b93756ee92e2b1b8737228c15b0a"
+  meridian_release   = "ceca2642293d3deadf5f36a7042ab34d00e87567"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -67,20 +71,32 @@ locals {
   meridian_orion_skills_commit = "39778d5bb16af53e11f3053e77efc026503db13b"
 
   meridian_config = {
-    # Its own address and key: the issuer of the tokens it signs for `sign`
-    # sources.
-    url = local.meridian_public_url
-    key = "$MERIDIAN_SIGNING_KEY"
+    # Finding a tool by what it is for: LiteLLM's embedding and reranking
+    # models, with a key that may use those two and nothing else.
+    search = {
+      models = "http://litellm.litellm.svc.cluster.local:4000/v1"
+      key    = "$MERIDIAN_SEARCH_KEY"
+      embed  = "aether/qwen3-embedding:0.6b"
+      rerank = "aether/qwen3-reranker-4b"
+    }
     issuers = {
       daimyo = {
         url      = "https://daimyo.home.shdr.ch/orgs/personal"
         audience = "meridian"
         caller   = "agent"
+        # The org's token endpoint exchanges a task token for one addressed
+        # to a source (daimyo.tf `tokenExchange`); the task token itself is
+        # the credential, so there is no client.
+        exchange = true
       }
       keycloak = {
         url      = "https://auth.shdr.ch/realms/aether"
         audience = "${local.meridian_public_url}/mcp"
         caller   = "preferred_username"
+        # Keycloak exchanges a person's token for one addressed to a source
+        # (`exchange` sources below), with Meridian as client
+        # meridian-exchange (keycloak.tf).
+        exchange = { client = "meridian-exchange", secret = "$MERIDIAN_EXCHANGE_SECRET" }
       }
     }
     sources = merge(
@@ -121,14 +137,18 @@ locals {
         shop = {
           mcp = "https://mcp.shop.com/"
         }
+        # Deskplane keeps each caller's sessions apart and pop gives roles to
+        # whoever calls it, so each is told the caller by the caller's own
+        # issuer: Meridian exchanges the token it was given for one addressed
+        # to the server (RFC 8693, `exchange` on the issuers above).
         deskplane = {
-          mcp     = "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
-          sign    = "deskplane"
-          timeout = "30m"
+          mcp      = "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
+          exchange = "deskplane"
+          timeout  = "30m"
         }
         pop = {
-          mcp  = "https://pop.home.shdr.ch/mcp/aether"
-          sign = "pop"
+          mcp      = "https://pop.home.shdr.ch/mcp/aether"
+          exchange = "pop"
         }
         orion-skills = {
           skills = "https://gitlab.home.shdr.ch/so/orion.git#${local.meridian_orion_skills_commit}"
@@ -158,13 +178,6 @@ data "vault_kv_secret_v2" "meridian_litellm_mcp" {
   name  = "orgs/personal/litellm-mcp"
 }
 
-# The key Meridian signs caller tokens with. Kept, so that Meridian is the same
-# issuer after a restart and the keys pop and Deskplane have cached stay good.
-resource "tls_private_key" "meridian_signing" {
-  algorithm   = "ECDSA"
-  ecdsa_curve = "P256"
-}
-
 # The credentials the configuration names as $NAME.
 resource "kubernetes_secret_v1" "meridian_env" {
   depends_on = [module.namespace["meridian"]]
@@ -176,13 +189,14 @@ resource "kubernetes_secret_v1" "meridian_env" {
   }
 
   data = {
-    PHAROS_MCP_TOKEN     = random_password.pharos_mcp_token.result
-    LITELLM_MCP_KEY      = data.vault_kv_secret_v2.meridian_litellm_mcp.data["token"]
-    X_BRIDGE_MCP_TOKEN   = random_password.x_bridge_mcp_token.result
-    FM_MCP_TOKEN         = random_password.fm_mcp_token.result
-    HYPERDX_MCP_TOKEN    = var.secrets["hyperdx.api_key"]
-    SOURCEGULL_MCP_TOKEN = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
-    MERIDIAN_SIGNING_KEY = tls_private_key.meridian_signing.private_key_pem_pkcs8
+    PHAROS_MCP_TOKEN         = random_password.pharos_mcp_token.result
+    LITELLM_MCP_KEY          = data.vault_kv_secret_v2.meridian_litellm_mcp.data["token"]
+    X_BRIDGE_MCP_TOKEN       = random_password.x_bridge_mcp_token.result
+    FM_MCP_TOKEN             = random_password.fm_mcp_token.result
+    HYPERDX_MCP_TOKEN        = var.secrets["hyperdx.api_key"]
+    SOURCEGULL_MCP_TOKEN     = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
+    MERIDIAN_EXCHANGE_SECRET = var.meridian_exchange_client_secret
+    MERIDIAN_SEARCH_KEY      = var.secrets["litellm.virtual_keys.meridian"]
   }
 }
 

@@ -50,7 +50,7 @@ locals {
       issuer             = "https://auth.shdr.ch/realms/aether"
       audience           = "pop"
       roles_claim        = "roles"
-      role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
+      role_map           = { "pop:deploy" = "pop:deploy", "pop:create" = "pop:create", "pop:admin" = "pop:admin" }
       clients            = { cli = "pop-cli", mcp = "pop-mcp", visitor = "pop-visitor", agent = "pop-agent" }
       visitor_secret_ref = { file = "/var/run/pop/visitor/aether" }
       # shdr.ch belongs to this org: keycloak.tf registers
@@ -64,13 +64,12 @@ locals {
       # auth.taskToken audience pop): pop:deploy and pop:create, never admin;
       # pop's audit records the task as actor and the delegating person from
       # `act`.
-      # Meridian (meridian.tf `pop` source, `sign: pop`) signs a token naming
-      # whoever calls pop through the gateway (`sub` is `daimyo/<agent>` or
-      # `keycloak/<username>`), with the same roles: who may reach pop there is
-      # Meridian's `access`.
+      # A call through Meridian (meridian.tf `pop` source) carries a token
+      # exchanged at the caller's own issuer: an agent's is this same Daimyo
+      # token, and a person's is a realm token whose roles Keycloak limits to
+      # pop:deploy and pop:create (keycloak.tf meridian_exchange).
       agent_issuers = [
         { issuer = "https://daimyo.home.shdr.ch/orgs/personal", audience = "pop", roles = ["pop:deploy", "pop:create"] },
-        { issuer = "https://meridian.home.shdr.ch", audience = "pop", roles = ["pop:deploy", "pop:create"] },
       ]
     }
     seven30 = {
@@ -79,7 +78,7 @@ locals {
       issuer             = "https://auth.shdr.ch/realms/seven30"
       audience           = "pop"
       roles_claim        = "roles"
-      role_map           = { "pop:deploy" = "pop:deploy", "pop:admin" = "pop:admin" }
+      role_map           = { "pop:deploy" = "pop:deploy", "pop:create" = "pop:create", "pop:admin" = "pop:admin" }
       clients            = { cli = "pop-cli", mcp = "pop-mcp", visitor = "pop-visitor", agent = "pop-agent" }
       visitor_secret_ref = { file = "/var/run/pop/visitor/seven30" }
       # attain.ing static site, published by that repo's CI

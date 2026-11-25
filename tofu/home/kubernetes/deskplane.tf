@@ -25,8 +25,8 @@ locals {
   # alone, no desktop, Android's first boot baked in at build time). The
   # registry keeps a limited number of tags (666c1c2e was dropped on
   # 2026-11-21); pin a tag the registry still has.
-  deskplane_chart_version = "0.1.0-af2d4e1f"
-  deskplane_image_tag     = "af2d4e1f"
+  deskplane_chart_version = "0.1.0-75d21d6d"
+  deskplane_image_tag     = "75d21d6d"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
@@ -38,10 +38,9 @@ locals {
   # user:<name>) opens sessions owned by agent:<org>/<project>/<agent> on that
   # user's behalf, so the user can watch them. Same orgs as daimyo.tf's
   # Deskplane MCP egress.
-  # Meridian (meridian.tf `deskplane` source, `sign: deskplane`) is one more:
-  # its token's subject is whoever called through the gateway
-  # (`daimyo/<agent>`, `keycloak/<username>`), and that subject owns the
-  # sessions it opens.
+  # A call through Meridian (meridian.tf `deskplane` source) arrives with a
+  # token of the caller's own issuer, exchanged for this audience: an agent's
+  # from its Daimyo org, as above, and a person's from Keycloak, below.
   deskplane_workload_issuers = concat(
     [for org in local.daimyo_deskplane_orgs : {
       issuer     = "https://daimyo.home.shdr.ch/orgs/${org}"
@@ -49,11 +48,16 @@ locals {
       delegation = org == "personal"
     }],
     [{
-      # Meridian re-signs the caller's own identity, so an agent's token keeps
-      # its Daimyo delegation claims and a person keeps their Keycloak subject.
-      issuer     = local.meridian_public_url
-      audience   = "deskplane"
-      delegation = true
+      # A person who comes through Meridian, which exchanged their token at
+      # Keycloak (keycloak.tf meridian_exchange, meridian.tf `exchange`): they
+      # hold the user:<preferred_username> principal they hold when signed in,
+      # so they see the sessions agents opened on their behalf. Only that
+      # client's tokens are taken here; Orion's exchanged tokens keep to the
+      # narrower accessTokens path below.
+      issuer         = var.oidc_issuer_url
+      audience       = "deskplane"
+      principalClaim = "preferred_username"
+      clients        = ["meridian-exchange"]
     }],
   )
   # CI rebuilds a session image only when images/<name>/** changes and tags
@@ -594,11 +598,10 @@ resource "helm_release" "deskplane" {
       # on commits that touch the MCP. Bumping it in lockstep with the
       # control-plane SHA pins a tag that was never built: the pod cannot
       # pull, never goes Ready, and the atomic release rolls back on timeout.
-      # 68b26a6c: the newest MCP build (failed page requests as http_errors,
-      # and 133c4527's hint to reopen a Stopped persistent session).
+      # 75d21d6d: the newest MCP build (a workload issuer's `clients`).
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "68b26a6c"
+        tag        = "75d21d6d"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.

@@ -324,6 +324,7 @@ resource "keycloak_user_roles" "shdrch_aether_roles" {
     data.keycloak_role.aether_offline_access.id,
     keycloak_role.pop_admin["aether"].id,
     keycloak_role.pop_deploy["aether"].id,
+    keycloak_role.pop_create["aether"].id,
   ]
 }
 
@@ -2341,6 +2342,119 @@ resource "keycloak_openid_client_default_scopes" "meridian_mcp_default_scopes" {
   ]
 }
 
+# Meridian tells a source that needs it who is calling by token exchange
+# (RFC 8693, kubernetes/meridian.tf `exchange`): it brings the person's token
+# here as this client and asks for one addressed to the source, so Deskplane and
+# pop trust this realm for people and nothing of Meridian's. The exchanged token
+# keeps the person's `sub` and `preferred_username`. The client's own token
+# (client credentials) is what Meridian reads a source's tool list with.
+resource "keycloak_openid_client" "meridian_exchange" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "meridian-exchange"
+  name      = "Meridian (token exchange)"
+  enabled   = true
+
+  access_type                     = "CONFIDENTIAL"
+  service_accounts_enabled        = true
+  standard_flow_enabled           = false
+  direct_access_grants_enabled    = false
+  implicit_flow_enabled           = false
+  standard_token_exchange_enabled = true
+  # Only the roles mapped below reach a token it is issued: a person is a pop
+  # deployer through Meridian, never a pop admin.
+  full_scope_allowed = false
+}
+
+resource "keycloak_openid_client_default_scopes" "meridian_exchange_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.meridian_exchange.id
+
+  default_scopes = [
+    "basic",
+    "profile",
+  ]
+}
+
+# pop as an audience Keycloak can name: an exchange asks for an audience by
+# client id. Nothing signs in with it.
+resource "keycloak_openid_client" "pop" {
+  realm_id    = keycloak_realm.aether.id
+  client_id   = "pop"
+  name        = "Pop (audience)"
+  enabled     = true
+  access_type = "BEARER-ONLY"
+}
+
+# The audiences Meridian may request in an exchange.
+resource "keycloak_openid_audience_protocol_mapper" "meridian_exchange_deskplane_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.meridian_exchange.id
+  name      = "deskplane-audience"
+
+  included_client_audience = keycloak_openid_client.deskplane.client_id
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "meridian_exchange_pop_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.meridian_exchange.id
+  name      = "pop-audience"
+
+  included_client_audience = keycloak_openid_client.pop.client_id
+  add_to_access_token      = true
+}
+
+# Realm roles as `roles`, the claim pop's org reads (kubernetes/pop.tf).
+resource "keycloak_openid_user_realm_role_protocol_mapper" "meridian_exchange_roles" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.meridian_exchange.id
+  name      = "realm-roles"
+
+  claim_name          = "roles"
+  multivalued         = true
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = false
+}
+
+resource "keycloak_generic_role_mapper" "meridian_exchange_pop_roles" {
+  for_each = {
+    deploy = keycloak_role.pop_deploy["aether"].id
+    create = keycloak_role.pop_create["aether"].id
+  }
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.meridian_exchange.id
+  role_id   = each.value
+}
+
+# Meridian reads pop's tool list and resources (its skill) with the client's
+# own token, which pop serves to a deployer.
+resource "keycloak_openid_client_service_account_realm_role" "meridian_exchange_pop_deploy" {
+  realm_id                = keycloak_realm.aether.id
+  service_account_user_id = keycloak_openid_client.meridian_exchange.service_account_user_id
+  role                    = keycloak_role.pop_deploy["aether"].name
+}
+
+# A subject token may only be exchanged by a client it is addressed to: the
+# tokens of a local MCP client (the `meridian` scope) and of Open WebUI.
+resource "keycloak_openid_audience_protocol_mapper" "meridian_mcp_exchange_audience" {
+  realm_id        = keycloak_realm.aether.id
+  client_scope_id = keycloak_openid_client_scope.meridian_mcp.id
+  name            = "meridian-exchange-audience"
+
+  included_client_audience = keycloak_openid_client.meridian_exchange.client_id
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "openwebui_meridian_exchange_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openwebui.id
+  name      = "meridian-exchange-audience"
+
+  included_client_audience = keycloak_openid_client.meridian_exchange.client_id
+  add_to_access_token      = true
+}
+
 # LiteLLM's MCP gateway (which OpenWebUI reads tools from) reaches Colony as
 # a machine client: LiteLLM mints, caches, and refreshes client-credentials
 # tokens itself (auth_type oauth2, oauth2_flow client_credentials). Colony
@@ -2392,6 +2506,14 @@ resource "keycloak_role" "pop_admin" {
   for_each = local.pop_keycloak_realms
   realm_id = each.value
   name     = "pop:admin"
+}
+
+# Creating a project without being a pop admin: what a person holds at pop
+# through Meridian (meridian_exchange, above).
+resource "keycloak_role" "pop_create" {
+  for_each = local.pop_keycloak_realms
+  realm_id = each.value
+  name     = "pop:create"
 }
 
 resource "keycloak_openid_client" "pop_cli" {
