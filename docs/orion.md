@@ -173,7 +173,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `ticketmaster` | `sourabhmadur/ticketmaster-mcp` `bc3367d` via mcp-proxy, `:8012` | `ticketmaster.api_key` | none |
 | `openfda` | `cyanheads/openfda-mcp-server` 0.10.0, `:8013` | none (1,000 requests/day) | 12 tools, no `openfda_dataframe_*` |
 | `openalex` | `cyanheads/openalex-mcp-server` 0.11.1, `:8014` | `openalex.api_key` ($1/day budget) | none |
-| `annas` | `iosifache/annas-mcp` v0.1 via mcp-proxy, `:8016` | `annas_archive.secret_key` | 4 search/download tools; downloads ask in Orion |
+| `annas` | `SokolskyNikita/annas-mcp` v0.8.2 (signs in with the membership key) via mcp-proxy, `:8016` | `annas_archive.secret_key` | 4 search/download tools; downloads ask in Orion |
 | `yourspotify` | `pentafive/your-spotify-mcp` `9e0e606` via supergateway, `:8015` | `yourspotify.mcp_public_token` | 13 read tools |
 | `shop` | hosted `mcp.shop.com` | none (signed out) | none |
 | `pharos` | Service `pharos` in namespace `pharos`, over cluster DNS | the Pharos MCP token (`random_password.pharos_mcp_token`, also OpenBao `kv/pharos/mcp`) | none (9 read-only tools) |

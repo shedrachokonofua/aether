@@ -42,11 +42,17 @@ locals {
   # the commit tarball (sha256 checked) and served by supergateway like Karakeep.
   litellm_yourspotify_mcp_source = "https://codeload.github.com/pentafive/your-spotify-mcp/tar.gz/9e0e6068d2eebf7a0df697dee0df78667881c727"
   litellm_yourspotify_mcp_sha256 = "ff924bfcc3b61561ec79147fb0777b97608331e601e549151cdd7299319cc6fa"
-  # iosifache/annas-mcp v0.1: stdio-only, bridged by mcp-proxy. Verify the
-  # release archive before extracting the binary; downloads live on NFS HDD.
+  # SokolskyNikita/annas-mcp v0.8.2 (MIT): stdio-only, bridged by mcp-proxy.
+  # It replaced iosifache/annas-mcp v0.1 on 2026-11-24: Anna's Archive put
+  # search behind a DDoS-Guard browser check, v0.1 scraped the page signed
+  # out and answered "No books found" to every query. This one signs in with
+  # the membership key (search needs Lucky Librarian or higher) and keeps the
+  # same tool names and ANNAS_* variables. Verify the release archive before
+  # extracting the binary; downloads live on NFS HDD.
+  litellm_annas_mcp_version = "0.8.2"
   litellm_annas_mcp_sha256 = {
-    amd64 = "f457e204a4e6215e19b98910b7e30baff61f1f815c9fe2e8e344984cf55f68f2"
-    arm64 = "789a27b12ae3105c7d1b4c4e31fb23fe57c7bba774417b23218a7cb9c88c1c50"
+    amd64 = "66a06de94026eeca63f1e9979451758f54acbfa91a0fa89027c59d1bc03fafe7"
+    arm64 = "a422b8d21911706b2c8084c9da7adeb2ea55230a0820240c6bbac8353922a301"
   }
   # cyanheads/pubmed-mcp-server 2.12.2: NCBI E-utilities PubMed/PMC server,
   # native streamable HTTP (multi-arch index digest). Read-only, keyless.
@@ -1709,8 +1715,8 @@ resource "kubernetes_deployment_v1" "litellm" {
             import hashlib, io, os, platform, tarfile, urllib.request
             arch = {"x86_64": "amd64", "aarch64": "arm64"}[platform.machine()]
             expected = ${jsonencode(local.litellm_annas_mcp_sha256)}
-            name = "annas-mcp_0.1_linux_" + arch
-            url = "https://github.com/iosifache/annas-mcp/releases/download/v0.1/" + name + ".tar.xz"
+            name = "annas-mcp_${local.litellm_annas_mcp_version}_linux_" + arch
+            url = "https://github.com/SokolskyNikita/annas-mcp/releases/download/v${local.litellm_annas_mcp_version}/" + name + ".tar.xz"
             with urllib.request.urlopen(url, timeout=60) as response:
                 data = response.read()
             if hashlib.sha256(data).hexdigest() != expected[arch]:
@@ -1721,13 +1727,18 @@ resource "kubernetes_deployment_v1" "litellm" {
             os.chmod("/opt/annas-mcp", 0o755)
             PY
             python -m venv /opt/proxy && /opt/proxy/bin/pip install --no-cache-dir --quiet ${local.litellm_mcp_proxy_package}
-            exec /opt/proxy/bin/mcp-proxy --host 127.0.0.1 --port ${local.litellm_annas_mcp_port} --pass-environment -- /opt/annas-mcp --timeout 60s mcp
+            exec /opt/proxy/bin/mcp-proxy --host 127.0.0.1 --port ${local.litellm_annas_mcp_port} --pass-environment -- /opt/annas-mcp mcp
           EOT
           ]
 
           env {
             name  = "ANNAS_BASE_URL"
             value = "annas-archive.gl"
+          }
+          # Only the mirror above gets the membership key: no automatic pick.
+          env {
+            name  = "ANNAS_AUTO_BASE_URL"
+            value = "false"
           }
           env {
             name  = "ANNAS_DOWNLOAD_PATH"
