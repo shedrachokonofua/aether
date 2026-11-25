@@ -17,8 +17,8 @@
 # (so/helios docs/decisions.md D-2).
 #
 # Rollout: so/helios main publishes :latest after its gate passes; Keel polls
-# the tag and force-updates the Deployment. helios_replicas stays 0 until the
-# first image exists (so no ImagePullBackOff alert), then 1.
+# the tag and force-updates the Deployment. One replica since the first image
+# was published (2026-11-25).
 #
 # After apply, push the new SeaweedFS identity:
 #   task seaweedfs:s3-identities:deploy
@@ -29,7 +29,7 @@ locals {
   helios_public_url    = "https://helios.shdr.ch"
   helios_image         = "${local.gitlab_registry_host}/so/helios:latest"
   helios_port          = 8080
-  helios_replicas      = 0
+  helios_replicas      = 1
   helios_labels = {
     "app.kubernetes.io/name"       = "helios"
     "app.kubernetes.io/part-of"    = "helios"
