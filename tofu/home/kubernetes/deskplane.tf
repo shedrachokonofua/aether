@@ -49,9 +49,11 @@ locals {
       delegation = org == "personal"
     }],
     [{
+      # Meridian re-signs the caller's own identity, so an agent's token keeps
+      # its Daimyo delegation claims and a person keeps their Keycloak subject.
       issuer     = local.meridian_public_url
       audience   = "deskplane"
-      delegation = false
+      delegation = true
     }],
   )
   # CI rebuilds a session image only when images/<name>/** changes and tags
