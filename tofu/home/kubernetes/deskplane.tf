@@ -684,11 +684,15 @@ resource "helm_release" "deskplane" {
         endpoint = "http://otel-daemonset-opentelemetry-collector.${module.namespace["observability"].name}.svc.cluster.local:4318"
       }
 
-      # MCP :8100 callers besides deskplane-serve: LiteLLM's MCP gateway and
-      # the cluster collector's /metrics scrape (otel_collector.tf).
+      # MCP :8100 callers besides deskplane-serve: LiteLLM's MCP gateway,
+      # Meridian (meridian.tf `deskplane` source) and the cluster collector's
+      # /metrics scrape (otel_collector.tf).
       ingressFrom = [
         {
           namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = local.litellm_ns } }
+        },
+        {
+          namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = local.meridian_namespace } }
         },
         {
           namespaceSelector = { matchLabels = { "kubernetes.io/metadata.name" = module.namespace["observability"].name } }

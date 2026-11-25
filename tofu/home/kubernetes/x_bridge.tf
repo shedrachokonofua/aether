@@ -423,14 +423,23 @@ resource "kubernetes_manifest" "x_bridge_network" {
           fromEntities = ["ingress"]
           toPorts      = [{ ports = [{ port = tostring(local.x_bridge_port), protocol = "TCP" }] }]
         },
-        # MCP from the LiteLLM gateway (litellm_config.yaml.tftpl `x_bridge`).
+        # MCP from the LiteLLM gateway (litellm_config.yaml.tftpl `x_bridge`)
+        # and from Meridian (meridian.tf `x-bridge` source).
         {
-          fromEndpoints = [{
-            matchLabels = {
-              "k8s:io.kubernetes.pod.namespace" = "litellm"
-              app                               = "litellm"
-            }
-          }]
+          fromEndpoints = [
+            {
+              matchLabels = {
+                "k8s:io.kubernetes.pod.namespace" = "litellm"
+                app                               = "litellm"
+              }
+            },
+            {
+              matchLabels = {
+                "k8s:io.kubernetes.pod.namespace" = "meridian"
+                "app.kubernetes.io/name"          = "meridian"
+              }
+            },
+          ]
           toPorts = [{ ports = [{ port = tostring(local.x_bridge_port), protocol = "TCP" }] }]
         },
       ]

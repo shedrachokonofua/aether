@@ -6,12 +6,18 @@
 # may use. Its whole configuration is the `config` value below: issuers,
 # sources, endpoints, access. Changing who may use what is a change to this file.
 #
-# It stands beside LiteLLM's MCP gateway and replaces nothing yet. Pharos is
-# reached directly. Every other server is reached through LiteLLM's per-server
-# routes for now, with the key the `orion` agent's grants use, so LiteLLM's tool
-# allowlists and its 1 MiB and 60 s limits still apply to those. A source moves
-# to a direct address one at a time; its tool names do not change when it does,
-# because the `<server>-` prefix LiteLLM adds is dropped here.
+# It is taking over from LiteLLM's MCP gateway, one server at a time. A server
+# with its own address is a direct source here, with the credential LiteLLM
+# used. The servers that are still sidecars in LiteLLM's pod
+# (meridian_litellm_servers) are reached through LiteLLM's per-server routes
+# until their containers move, with the key the `orion` agent's grants use, so
+# LiteLLM's tool allowlists and its 1 MiB and 60 s limits still apply to those.
+# A tool's name does not change when its server moves: the `<server>-` prefix
+# LiteLLM adds is dropped here.
+#
+# pop gives roles to whoever calls it, so Meridian signs each request to it
+# with a token naming the caller (`sign`), and pop.tf trusts Meridian as an
+# issuer. Deskplane takes the bearer token its MCP server requires.
 #
 # The skills in so/orion's chart (deploy/helm/orion/skills) are served from the
 # pinned commit, under their own names.
@@ -28,7 +34,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "b49da79cc0e4d6fb3f94b5e9a7e773815de76c9d"
+  meridian_release   = "9855b9e56c016c34b47c26c1f93d8af6346c447d"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -43,15 +49,25 @@ locals {
   # LiteLLM MCP servers the daimyo-orion key may reach
   # (register_litellm_virtual_keys.yml, litellm_daimyo_orion_mcp_servers).
   meridian_litellm_servers = [
-    "annas", "clickstack", "comfyui", "espn", "finviz", "fm", "google_maps",
-    "homeassistant", "instacart", "jellyfin", "karakeep", "nextcloud",
-    "openalex", "openfda", "pubmed", "qbittorrent", "shop", "siren",
-    "ticketmaster", "time", "tmdb", "withings", "x_bridge", "yourspotify",
+    "annas", "comfyui", "espn", "finviz", "google_maps", "homeassistant",
+    "jellyfin", "karakeep", "nextcloud", "openalex", "openfda", "pubmed",
+    "qbittorrent", "ticketmaster", "time", "tmdb", "withings", "yourspotify",
+  ]
+  # The read tools LiteLLM's allowlist served from ClickStack, without the
+  # `clickstack_` every one of them starts with.
+  meridian_clickstack_tools = [
+    "list_sources", "describe_source", "list_metrics", "describe_metric",
+    "get_alert", "get_dashboard", "get_dashboard_tile", "search_dashboards",
+    "query_tile", "query_tiles", "get_saved_search", "timeseries", "table",
+    "search", "event_patterns", "event_deltas", "emerging_signals", "sql",
+    "trace_waterfall", "trace_top_time_consuming_operations",
   ]
   # so/orion commit whose chart skills are served.
   meridian_orion_skills_commit = "39778d5bb16af53e11f3053e77efc026503db13b"
 
   meridian_config = {
+    # Its own address: the issuer of the tokens it signs for `sign` sources.
+    url = local.meridian_public_url
     issuers = {
       daimyo = {
         url      = "https://daimyo.home.shdr.ch/orgs/personal"
@@ -66,9 +82,50 @@ locals {
     }
     sources = merge(
       {
+        # A server whose tools all start with its own name is served without
+        # the repetition: pharos_list_books, not pharos_pharos_list_books.
         pharos = {
           mcp     = "http://pharos.${local.pharos_namespace}.svc.cluster.local:8080/mcp/"
           headers = { Authorization = "Bearer $PHAROS_MCP_TOKEN" }
+          tools   = { "pharos_*" = { name = "*" } }
+        }
+        x-bridge = {
+          mcp     = "http://x-bridge.x-bridge.svc.cluster.local/mcp"
+          headers = { Authorization = "Bearer $X_BRIDGE_MCP_TOKEN" }
+        }
+        fm = {
+          mcp     = "http://fm-mcp.games.svc.cluster.local:18766/mcp"
+          headers = { Authorization = "Bearer $FM_MCP_TOKEN" }
+          tools   = { "fm_*" = { name = "*" } }
+        }
+        clickstack = {
+          mcp     = "http://hyperdx.hyperdx.svc.cluster.local:3000/api/mcp"
+          headers = { Authorization = "Bearer $HYPERDX_MCP_TOKEN" }
+          tools   = { "clickstack_*" = { name = "*" } }
+          only    = local.meridian_clickstack_tools
+        }
+        sourcegull = {
+          mcp     = "http://sourcegull-web.sourcegull.svc.cluster.local:7080/.api/mcp"
+          headers = { Authorization = "Bearer $SOURCEGULL_MCP_TOKEN" }
+        }
+        instacart = {
+          mcp   = "http://instacart-mcp.instacart-mcp.svc.cluster.local:8080/mcp"
+          tools = { "instacart_*" = { name = "*" } }
+        }
+        siren = {
+          mcp = "http://siren-mcp.siren.svc.cluster.local:8082/mcp"
+        }
+        shop = {
+          mcp = "https://mcp.shop.com/"
+        }
+        deskplane = {
+          mcp     = "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
+          headers = { Authorization = "Bearer $DESKPLANE_MCP_TOKEN" }
+          timeout = "30m"
+        }
+        pop = {
+          mcp  = "https://pop.home.shdr.ch/mcp/aether"
+          sign = "pop"
         }
         orion-skills = {
           skills = "https://gitlab.home.shdr.ch/so/orion.git#${local.meridian_orion_skills_commit}"
@@ -109,8 +166,13 @@ resource "kubernetes_secret_v1" "meridian_env" {
   }
 
   data = {
-    PHAROS_MCP_TOKEN = random_password.pharos_mcp_token.result
-    LITELLM_MCP_KEY  = data.vault_kv_secret_v2.meridian_litellm_mcp.data["token"]
+    PHAROS_MCP_TOKEN     = random_password.pharos_mcp_token.result
+    LITELLM_MCP_KEY      = data.vault_kv_secret_v2.meridian_litellm_mcp.data["token"]
+    X_BRIDGE_MCP_TOKEN   = random_password.x_bridge_mcp_token.result
+    FM_MCP_TOKEN         = random_password.fm_mcp_token.result
+    HYPERDX_MCP_TOKEN    = var.secrets["hyperdx.api_key"]
+    SOURCEGULL_MCP_TOKEN = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
+    DESKPLANE_MCP_TOKEN  = var.deskplane_mcp_auth_token
   }
 }
 
