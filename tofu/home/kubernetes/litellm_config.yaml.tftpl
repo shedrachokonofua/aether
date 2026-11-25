@@ -1520,6 +1520,18 @@ mcp_servers:
     transport: http
     auth_type: bearer_token
     auth_value: "${pharos_mcp_token}"
+  # x-bridge (kubernetes/x_bridge.tf): the operator's X bookmarks, likes,
+  # timeline, searches and tweets, archived by a logged-in Deskplane browser.
+  # Serves its own agent skill (`skill` tool, x-bridge://skill) plus archive
+  # reads and start_job/get_job/list_jobs. start_job queues read-only scrolling
+  # jobs (one at a time, human-paced); nothing writes to X, and pausing and
+  # resuming the queue stay with the operator. Only the daimyo-orion key's scope
+  # includes it.
+  x_bridge:
+    url: "http://x-bridge.x-bridge.svc.cluster.local/mcp"
+    transport: http
+    auth_type: bearer_token
+    auth_value: "${x_bridge_mcp_token}"
 %{ if google_maps_enabled ~}
   google_maps:
     url: "http://localhost:8004/mcp"

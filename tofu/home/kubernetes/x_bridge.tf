@@ -83,6 +83,28 @@ resource "kubernetes_secret_v1" "x_bridge_deskplane_token" {
   }
 }
 
+# Bearer for x-bridge's /mcp endpoint. LiteLLM is its only client: the same
+# value is rendered into litellm_config.yaml.tftpl (`x_bridge` MCP server).
+resource "random_password" "x_bridge_mcp_token" {
+  length  = 64
+  special = false
+}
+
+resource "kubernetes_secret_v1" "x_bridge_mcp_token" {
+  depends_on = [module.namespace["x-bridge"]]
+
+  metadata {
+    name      = "x-bridge-mcp-token"
+    namespace = local.x_bridge_ns
+    labels    = local.x_bridge_labels
+  }
+
+  type = "Opaque"
+  data = {
+    token = random_password.x_bridge_mcp_token.result
+  }
+}
+
 # =============================================================================
 # Postgres (CNPG)
 # =============================================================================
@@ -218,6 +240,15 @@ resource "kubernetes_deployment_v1" "x_bridge" {
             value_from {
               secret_key_ref {
                 name = kubernetes_secret_v1.x_bridge_deskplane_token.metadata[0].name
+                key  = "token"
+              }
+            }
+          }
+          env {
+            name = "XB_MCP_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.x_bridge_mcp_token.metadata[0].name
                 key  = "token"
               }
             }
@@ -391,6 +422,16 @@ resource "kubernetes_manifest" "x_bridge_network" {
         {
           fromEntities = ["ingress"]
           toPorts      = [{ ports = [{ port = tostring(local.x_bridge_port), protocol = "TCP" }] }]
+        },
+        # MCP from the LiteLLM gateway (litellm_config.yaml.tftpl `x_bridge`).
+        {
+          fromEndpoints = [{
+            matchLabels = {
+              "k8s:io.kubernetes.pod.namespace" = "litellm"
+              app                               = "litellm"
+            }
+          }]
+          toPorts = [{ ports = [{ port = tostring(local.x_bridge_port), protocol = "TCP" }] }]
         },
       ]
       egress = [

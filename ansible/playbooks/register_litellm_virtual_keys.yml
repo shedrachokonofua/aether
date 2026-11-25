@@ -241,6 +241,7 @@
       - instacart
       - qbittorrent
       - pharos
+      - x_bridge
 
   # `--tags create-keys` only creates the virtual keys SOPS names that LiteLLM
   # does not have yet; it changes no existing key.

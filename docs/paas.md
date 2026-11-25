@@ -347,9 +347,15 @@ OIDC-protected API at `https://x-bridge.home.shdr.ch`.
 - **Auth out:** a Deskplane static API token for `svc:x-bridge`, limited to
   `/api/sessions`, generated in `deskplane.tf` and copied to the
   `x-bridge-deskplane-token` Secret.
-- **Network:** a CiliumNetworkPolicy on the app pod admits the gateway on 8080
-  and allows egress to kube-dns, deskplane-serve (8080), `auth.shdr.ch:443`,
-  the CNPG cluster (5432) and the OTel daemonset collector (4318).
+- **MCP:** `/mcp` behind the static bearer `random_password.x_bridge_mcp_token`
+  (Secret `x-bridge-mcp-token`). The LiteLLM gateway registers it as `x_bridge`,
+  scoped to the `daimyo-orion` key only. It serves its own agent skill (`skill`
+  tool, `x-bridge://skill`) plus archive reads and `start_job`, `get_job`,
+  `list_jobs`; resuming a paused queue is not exposed.
+- **Network:** a CiliumNetworkPolicy on the app pod admits the gateway and the
+  LiteLLM pods on 8080, and allows egress to kube-dns, deskplane-serve (8080),
+  `auth.shdr.ch:443`, the CNPG cluster (5432) and the OTel daemonset collector
+  (4318).
 
 ## Nextcloud
 
