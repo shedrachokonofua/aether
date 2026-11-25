@@ -11,7 +11,10 @@
 # /etc/cicada/secrets (config.rs reads files, never inline secrets).
 
 locals {
-  # so/cicada main 8569c70 (pipeline 16762): the console's item page offers
+  # so/cicada main 64feab3 (pipeline 17637): a writer refused for quota on a
+  # model its role no longer runs gets a fresh session, and a planner turn
+  # broken by infrastructure is retried after the backoff (122). No
+  # migration. Before it 8569c70 (pipeline 16762): the console's item page offers
   # Drop on a waiting item, which the ledger allows since 8087db9. No
   # migration. Before it 8087db9 (pipeline 16737; its ui job failed only on the
   # smoke's copy of the status edges, fixed in 585c17c): a role falls back to
@@ -46,7 +49,7 @@ locals {
   # restore of the pre-cutover dump), 6acbf1f (104), d73cfbd (100-103),
   # 48392d0 and fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73),
   # 9ab5ae6 (72), back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:63551ae891ed70311f70e7f07b8545db15ada45fee1e4dbdc2d22f697351061a"
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:441e0b67666b19b7a8507da6a1371e12378edddd0f9698f987245dd9404aeab5"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
