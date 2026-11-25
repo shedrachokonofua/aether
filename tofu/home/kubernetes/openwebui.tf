@@ -1,5 +1,5 @@
 # =============================================================================
-# OpenWebUI (LiteLLM tools via OpenWebUI's native MCP client)
+# OpenWebUI (Meridian tools via OpenWebUI's native MCP client)
 # =============================================================================
 # Migrated from the legacy Podman VM to Kubernetes.
 
@@ -28,7 +28,36 @@ locals {
   # to oauth_delegate servers (pop) and exchanges it for a daimyo-audience
   # token for Daimyo (oauth2_token_exchange, keycloak.tf
   # litellm_mcp_exchange), so pop and Daimyo tools both run as the user.
+  #
+  # Meridian (meridian.tf) is the connection new chats use. system_oauth sends
+  # the user's Keycloak token, which carries Meridian's audience
+  # (keycloak.tf openwebui_meridian_audience), so Meridian's `access` decides
+  # per user: a user it does not list sees no tools. `?tools=search` is the
+  # search form: the chat gets meridian_search_tools and meridian_call_tool
+  # (and the two skill tools) instead of every tool's schema. Meridian sends
+  # pop and Deskplane a token naming the user, so those still run as the user.
+  #
+  # The LiteLLM connection stays for Daimyo's own MCP, which Meridian does not
+  # serve yet (it needs LiteLLM's token exchange). It is no longer on by
+  # default; remove it once Daimyo is a Meridian source.
   openwebui_tool_server_connections = jsonencode([{
+    type      = "mcp"
+    url       = "${local.meridian_url}/mcp?tools=search"
+    spec_type = "url"
+    spec      = ""
+    path      = "openapi.json"
+    auth_type = "system_oauth"
+    key       = ""
+    config = {
+      enable        = true
+      access_grants = []
+    }
+    info = {
+      id          = "meridian"
+      name        = "Meridian"
+      description = "Home tools and skills"
+    }
+    }, {
     type      = "mcp"
     url       = var.litellm_mcp_url
     spec_type = "url"
@@ -569,12 +598,12 @@ resource "kubernetes_deployment_v1" "openwebui" {
             value = "true"
           }
 
-          # Pre-toggle chat features + LiteLLM MCP tools for new chats (users can still turn them off).
+          # Pre-toggle chat features + Meridian's tools for new chats (users can still turn them off).
           env {
             name = "DEFAULT_MODEL_METADATA"
             value = jsonencode({
               defaultFeatureIds = ["web_search", "code_interpreter"]
-              toolIds           = ["server:mcp:litellm"]
+              toolIds           = ["server:mcp:meridian"]
             })
           }
 

@@ -2192,6 +2192,21 @@ resource "keycloak_openid_audience_protocol_mapper" "openwebui_pop_audience" {
   add_to_access_token      = true
 }
 
+# Open WebUI sends the signed-in user's access token to Meridian
+# (kubernetes/openwebui.tf Meridian connection, system_oauth). Meridian's
+# `keycloak` issuer requires its own address as the audience
+# (kubernetes/meridian.tf) and names the caller by `preferred_username`, so the
+# user is the same `keycloak/<username>` there as from his own computers.
+# Picked up on the next token refresh.
+resource "keycloak_openid_audience_protocol_mapper" "openwebui_meridian_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.openwebui.id
+  name      = "meridian-audience"
+
+  included_custom_audience = "https://meridian.home.shdr.ch/mcp"
+  add_to_access_token      = true
+}
+
 # LiteLLM's MCP gateway reaches Daimyo as the signed-in Open WebUI user without
 # replaying that user's token: it exchanges it here (RFC 8693, standard token
 # exchange) for one whose only audience is `daimyo` (litellm_config.yaml.tftpl

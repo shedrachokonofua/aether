@@ -772,6 +772,15 @@ servers. Search covers only the servers listed in
 `mcp_servers`. In LiteLLM 1.99.1, search returns results over `/mcp/` but `[]`
 over `/mcp-rest`.
 
+Since 2026-11-25 new OpenWebUI chats use Meridian instead
+(`tofu/home/kubernetes/openwebui.tf`, connection `meridian`, tool id
+`server:mcp:meridian`): the search form `…/mcp?tools=search`, with the
+signed-in user's Keycloak token, which carries Meridian's audience
+(`keycloak.tf` `openwebui_meridian_audience`). Meridian's `access`
+(`tofu/home/kubernetes/meridian.tf`) decides what that user sees. The LiteLLM
+connection described above is still configured, for Daimyo's own MCP, but is no
+longer on by default.
+
 Meridian's `deskplane` and `pop` sources need to know who is calling:
 Deskplane keeps each caller's sessions apart and pop gives roles. Since
 2026-11-25 Meridian does not sign a token of its own for them. It exchanges
