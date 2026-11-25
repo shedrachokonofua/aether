@@ -15,9 +15,10 @@
 # A tool's name does not change when its server moves: the `<server>-` prefix
 # LiteLLM adds is dropped here.
 #
-# pop gives roles to whoever calls it, so Meridian signs each request to it
-# with a token naming the caller (`sign`), and pop.tf trusts Meridian as an
-# issuer. Deskplane takes the bearer token its MCP server requires.
+# pop gives roles to whoever calls it and Deskplane keeps each caller's
+# sessions apart, so Meridian signs each request to them with a token naming
+# the caller (`sign`). pop.tf and deskplane.tf trust Meridian as an issuer, at
+# its own address, with the key below.
 #
 # The skills in so/orion's chart (deploy/helm/orion/skills) are served from the
 # pinned commit, under their own names.
@@ -34,7 +35,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "bad97c27cfcdfed9e352c66202e498e6750a664e"
+  meridian_release   = "b603ad0bcf70358470e94fa2d717d5e22e4bf03a"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -66,8 +67,10 @@ locals {
   meridian_orion_skills_commit = "39778d5bb16af53e11f3053e77efc026503db13b"
 
   meridian_config = {
-    # Its own address: the issuer of the tokens it signs for `sign` sources.
+    # Its own address and key: the issuer of the tokens it signs for `sign`
+    # sources.
     url = local.meridian_public_url
+    key = "$MERIDIAN_SIGNING_KEY"
     issuers = {
       daimyo = {
         url      = "https://daimyo.home.shdr.ch/orgs/personal"
@@ -120,7 +123,7 @@ locals {
         }
         deskplane = {
           mcp     = "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
-          headers = { Authorization = "Bearer $DESKPLANE_MCP_TOKEN" }
+          sign    = "deskplane"
           timeout = "30m"
         }
         pop = {
@@ -155,6 +158,13 @@ data "vault_kv_secret_v2" "meridian_litellm_mcp" {
   name  = "orgs/personal/litellm-mcp"
 }
 
+# The key Meridian signs caller tokens with. Kept, so that Meridian is the same
+# issuer after a restart and the keys pop and Deskplane have cached stay good.
+resource "tls_private_key" "meridian_signing" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
 # The credentials the configuration names as $NAME.
 resource "kubernetes_secret_v1" "meridian_env" {
   depends_on = [module.namespace["meridian"]]
@@ -172,7 +182,7 @@ resource "kubernetes_secret_v1" "meridian_env" {
     FM_MCP_TOKEN         = random_password.fm_mcp_token.result
     HYPERDX_MCP_TOKEN    = var.secrets["hyperdx.api_key"]
     SOURCEGULL_MCP_TOKEN = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
-    DESKPLANE_MCP_TOKEN  = var.deskplane_mcp_auth_token
+    MERIDIAN_SIGNING_KEY = tls_private_key.meridian_signing.private_key_pem_pkcs8
   }
 }
 

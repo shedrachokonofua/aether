@@ -38,11 +38,22 @@ locals {
   # user:<name>) opens sessions owned by agent:<org>/<project>/<agent> on that
   # user's behalf, so the user can watch them. Same orgs as daimyo.tf's
   # Deskplane MCP egress.
-  deskplane_workload_issuers = [for org in local.daimyo_deskplane_orgs : {
-    issuer     = "https://daimyo.home.shdr.ch/orgs/${org}"
-    audience   = "deskplane"
-    delegation = org == "personal"
-  }]
+  # Meridian (meridian.tf `deskplane` source, `sign: deskplane`) is one more:
+  # its token's subject is whoever called through the gateway
+  # (`daimyo/<agent>`, `keycloak/<username>`), and that subject owns the
+  # sessions it opens.
+  deskplane_workload_issuers = concat(
+    [for org in local.daimyo_deskplane_orgs : {
+      issuer     = "https://daimyo.home.shdr.ch/orgs/${org}"
+      audience   = "deskplane"
+      delegation = org == "personal"
+    }],
+    [{
+      issuer     = local.meridian_public_url
+      audience   = "deskplane"
+      delegation = false
+    }],
+  )
   # CI rebuilds a session image only when images/<name>/** changes and tags
   # it with that pipeline's commit (the push head, not necessarily the commit
   # that touched the image) -- check the registry before bumping.
