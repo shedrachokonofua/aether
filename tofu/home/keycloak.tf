@@ -2331,6 +2331,9 @@ resource "keycloak_openid_client_default_scopes" "meridian_mcp_default_scopes" {
   client_id = keycloak_openid_client.meridian_mcp.id
 
   default_scopes = [
+    # `basic` is what puts `sub` in the access token. Meridian carries it on to
+    # sources, so a person is the same subject there as when they sign in directly.
+    "basic",
     "profile",
     "email",
     "roles",
