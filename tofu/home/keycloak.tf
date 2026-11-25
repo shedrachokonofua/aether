@@ -2286,6 +2286,58 @@ resource "keycloak_openid_client_default_scopes" "colony_mcp_default_scopes" {
   ]
 }
 
+# Meridian (kubernetes/meridian.tf), the MCP and skills gateway, for MCP clients
+# on his own computers (Claude Code: --client-id meridian-mcp --callback-port
+# 4402). Pre-registered like colony-mcp. A token carries the gateway's address
+# as its audience, which is what Meridian's `keycloak` issuer requires, and
+# `preferred_username` names the caller in Meridian's `access`.
+resource "keycloak_openid_client_scope" "meridian_mcp" {
+  realm_id               = keycloak_realm.aether.id
+  name                   = "meridian"
+  description            = "Access to the Meridian MCP and skills gateway"
+  include_in_token_scope = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "meridian_mcp_resource_audience" {
+  realm_id        = keycloak_realm.aether.id
+  client_scope_id = keycloak_openid_client_scope.meridian_mcp.id
+  name            = "meridian-mcp-resource-audience"
+
+  included_custom_audience = "https://meridian.home.shdr.ch/mcp"
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_client" "meridian_mcp" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = "meridian-mcp"
+  name      = "Meridian MCP (local apps)"
+  enabled   = true
+
+  access_type                  = "PUBLIC"
+  standard_flow_enabled        = true
+  direct_access_grants_enabled = false
+  implicit_flow_enabled        = false
+  consent_required             = false
+  pkce_code_challenge_method   = "S256"
+
+  valid_redirect_uris = [
+    "http://localhost:4402/callback",
+    "http://127.0.0.1:4402/callback",
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "meridian_mcp_default_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.meridian_mcp.id
+
+  default_scopes = [
+    "profile",
+    "email",
+    "roles",
+    keycloak_openid_client_scope.meridian_mcp.name,
+  ]
+}
+
 # LiteLLM's MCP gateway (which OpenWebUI reads tools from) reaches Colony as
 # a machine client: LiteLLM mints, caches, and refreshes client-credentials
 # tokens itself (auth_type oauth2, oauth2_flow client_credentials). Colony

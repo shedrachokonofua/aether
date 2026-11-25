@@ -16,9 +16,11 @@
 # The skills in so/orion's chart (deploy/helm/orion/skills) are served from the
 # pinned commit, under their own names.
 #
-# Callers are Daimyo agents: a task token minted for audience `meridian` by the
-# org's issuer names the agent, and `access` is keyed `daimyo/<agent>`. The
-# caller's token stops at Meridian; each source gets its own credential.
+# Callers are Daimyo agents and his own computers. An agent's task token, minted
+# for audience `meridian` by the org's issuer, names the agent: `daimyo/<agent>`.
+# An MCP client on a computer signs in through Keycloak (client meridian-mcp,
+# keycloak.tf) and is `keycloak/<username>`. The caller's token stops at
+# Meridian; each source gets its own credential.
 #
 # Release: so/meridian CI publishes the image `main:<sha>` and the chart
 # `0.1.0-g<sha>` from each main commit. Set meridian_release to a commit whose
@@ -31,6 +33,10 @@ locals {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
   }
+  # Address for his computers, on the internal listener. A Keycloak token's
+  # audience is `${local.meridian_public_url}/mcp` (keycloak.tf).
+  meridian_host       = "meridian.home.shdr.ch"
+  meridian_public_url = "https://${local.meridian_host}"
   # In-cluster address consumers use: `${local.meridian_url}/mcp`.
   meridian_url = "http://meridian.${local.meridian_namespace}.svc.cluster.local:8080"
 
@@ -51,6 +57,11 @@ locals {
         url      = "https://daimyo.home.shdr.ch/orgs/personal"
         audience = "meridian"
         caller   = "agent"
+      }
+      keycloak = {
+        url      = "https://auth.shdr.ch/realms/aether"
+        audience = "${local.meridian_public_url}/mcp"
+        caller   = "preferred_username"
       }
     }
     sources = merge(
@@ -73,7 +84,8 @@ locals {
       },
     )
     access = {
-      "daimyo/orion" = ["*"]
+      "daimyo/orion"    = ["*"]
+      "keycloak/shdrch" = ["*"]
     }
   }
 }
@@ -162,4 +174,41 @@ resource "helm_release" "meridian" {
     }
     config = local.meridian_config
   })]
+}
+
+# --- Private route -----------------------------------------------------------
+# *.home.shdr.ch internal listener; the namespace's exposure=internal gives it
+# gateway-access. Meridian refuses every request without a token it can verify.
+resource "kubernetes_manifest" "meridian_route" {
+  depends_on = [kubernetes_manifest.main_gateway, helm_release.meridian]
+
+  manifest = {
+    apiVersion = "gateway.networking.k8s.io/v1"
+    kind       = "HTTPRoute"
+    metadata = {
+      name      = "meridian"
+      namespace = local.meridian_namespace
+      labels    = local.meridian_labels
+    }
+    spec = {
+      parentRefs = [{
+        name      = "main-gateway"
+        namespace = "default"
+      }]
+      hostnames = [local.meridian_host]
+      rules = [{
+        matches = [{
+          path = {
+            type  = "PathPrefix"
+            value = "/"
+          }
+        }]
+        backendRefs = [{
+          kind = "Service"
+          name = "meridian"
+          port = 8080
+        }]
+      }]
+    }
+  }
 }

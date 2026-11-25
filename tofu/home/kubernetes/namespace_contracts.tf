@@ -1454,7 +1454,9 @@ locals {
       # collector. Declared intent only: no CiliumNetworkPolicy in meridian.tf enforces it yet.
       egress          = "allowlist"
       registry_access = "gitlab"
-      hostnames       = []
+      hostnames = [
+        "meridian.home.shdr.ch",
+      ]
       extra_labels = {
         "aether.shdr.ch/arch"              = "amd64"
         "goldilocks.fairwinds.com/enabled" = "true"
