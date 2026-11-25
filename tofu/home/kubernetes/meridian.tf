@@ -53,11 +53,27 @@ locals {
 
   # LiteLLM MCP servers the daimyo-orion key may reach
   # (register_litellm_virtual_keys.yml, litellm_daimyo_orion_mcp_servers).
-  meridian_litellm_servers = [
-    "annas", "comfyui", "espn", "finviz", "google_maps", "homeassistant",
-    "jellyfin", "karakeep", "nextcloud", "openalex", "openfda", "pubmed",
-    "qbittorrent", "ticketmaster", "time", "tmdb", "withings", "yourspotify",
-  ]
+  # Each with what it is for, which a caller is told when it connects.
+  meridian_litellm_servers = {
+    annas         = "Find and download books and scholarly articles."
+    comfyui       = "Generate and edit images."
+    espn          = "Sports scores, schedules, standings and news."
+    finviz        = "Stock screening, fundamentals and market news."
+    google_maps   = "Places, directions, travel times and weather."
+    homeassistant = "The house: lights, climate, devices, automations and their state."
+    jellyfin      = "The home media server: films, shows and music to find and play."
+    karakeep      = "Saved bookmarks and reading lists."
+    nextcloud     = "Personal files, notes, calendar, contacts and tasks."
+    openalex      = "Scholarly works, authors and citations."
+    openfda       = "Drug labels, adverse events and recalls."
+    pubmed        = "Biomedical literature."
+    qbittorrent   = "Torrents on the home server."
+    ticketmaster  = "Live events, venues and tickets."
+    time          = "The current time, and conversion between time zones."
+    tmdb          = "Films and shows: details, cast, trending."
+    withings      = "Health measurements: sleep, weight, activity, heart."
+    yourspotify   = "Spotify listening history and statistics."
+  }
   # The read tools LiteLLM's allowlist served from ClickStack, without the
   # `clickstack_` every one of them starts with.
   meridian_clickstack_tools = [
@@ -107,55 +123,66 @@ locals {
         # A server whose tools all start with its own name is served without
         # the repetition: pharos_list_books, not pharos_pharos_list_books.
         pharos = {
+          about   = "The personal library: search and read books, and the skills made from finished ones."
           mcp     = "http://pharos.${local.pharos_namespace}.svc.cluster.local:8080/mcp/"
           headers = { Authorization = "Bearer $PHAROS_MCP_TOKEN" }
           tools   = { "pharos_*" = { name = "*" } }
         }
         x-bridge = {
+          about   = "The archive of X (Twitter) bookmarks and other collections: search and read tweets."
           mcp     = "http://x-bridge.x-bridge.svc.cluster.local/mcp"
           headers = { Authorization = "Bearer $X_BRIDGE_MCP_TOKEN" }
         }
         fm = {
+          about   = "The running Football Manager save: read and change the game."
           mcp     = "http://fm-mcp.games.svc.cluster.local:18766/mcp"
           headers = { Authorization = "Bearer $FM_MCP_TOKEN" }
           tools   = { "fm_*" = { name = "*" } }
         }
         clickstack = {
+          about   = "The homelab's logs, traces and metrics. Read only."
           mcp     = "http://hyperdx.hyperdx.svc.cluster.local:3000/api/mcp"
           headers = { Authorization = "Bearer $HYPERDX_MCP_TOKEN" }
           tools   = { "clickstack_*" = { name = "*" } }
           only    = local.meridian_clickstack_tools
         }
         sourcegull = {
+          about   = "Code search across every repository: search, read files, find symbols."
           mcp     = "http://sourcegull-web.sourcegull.svc.cluster.local:7080/.api/mcp"
           headers = { Authorization = "Bearer $SOURCEGULL_MCP_TOKEN" }
         }
         instacart = {
+          about = "Grocery shopping: carts, items and orders."
           mcp   = "http://instacart-mcp.instacart-mcp.svc.cluster.local:8080/mcp"
           tools = { "instacart_*" = { name = "*" } }
         }
         siren = {
-          mcp = "http://siren-mcp.siren.svc.cluster.local:8082/mcp"
+          about = "The music library and its ratings: albums, artists, similar albums, recommendations."
+          mcp   = "http://siren-mcp.siren.svc.cluster.local:8082/mcp"
         }
         shop = {
-          mcp = "https://mcp.shop.com/"
+          about = "Shopping across online stores: find products, carts, checkout."
+          mcp   = "https://mcp.shop.com/"
         }
         # Deskplane keeps each caller's sessions apart and pop gives roles to
         # whoever calls it, so each is told the caller by the caller's own
         # issuer: Meridian exchanges the token it was given for one addressed
         # to the server (RFC 8693, `exchange` on the issuers above).
         deskplane = {
+          about    = "Remote desktops, browsers and phones to see and operate."
           mcp      = "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
           exchange = "deskplane"
           timeout  = "30m"
         }
         pop = {
+          about    = "The deploy platform: projects, deploys, aliases and rollbacks."
           mcp      = "https://pop.home.shdr.ch/mcp/aether"
           exchange = "pop"
         }
         # Hardcover has no MCP server or OpenAPI spec, only GraphQL: served as
         # hardcover_search, _describe, _query and _mutate.
         hardcover = {
+          about   = "Books read and to read, on Hardcover."
           graphql = "https://api.hardcover.app/v1/graphql"
           headers = { Authorization = "Bearer $HARDCOVER_API_KEY" }
         }
@@ -165,8 +192,9 @@ locals {
       },
       {
         # A source name has no underscore (a tool is <source>_<tool>).
-        for server in local.meridian_litellm_servers : replace(server, "_", "-") => {
+        for server, about in local.meridian_litellm_servers : replace(server, "_", "-") => {
           mcp     = "http://litellm.litellm.svc.cluster.local:4000/mcp/${server}"
+          about   = about
           headers = { "x-litellm-api-key" = "Bearer $LITELLM_MCP_KEY" }
           tools   = { "${server}-*" = { name = "*" } }
         }
