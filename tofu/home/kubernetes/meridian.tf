@@ -39,7 +39,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "fc0b941ec1ace113e67584b4a4a321cf059940c9"
+  meridian_release   = "0490ffb46471442022381d6365f7ed99d4bd286d"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -202,6 +202,8 @@ locals {
     )
     access = {
       "daimyo/orion" = ["*"]
+      # Orion's other main agent, the same assistant on the molecule runner.
+      "daimyo/orion-molecule" = ["*"]
       # orion.tf: dev reads the homelab's telemetry, rogue runs on an external
       # model and gets the home qBittorrent and nothing else.
       "daimyo/dev"      = ["clickstack"]
