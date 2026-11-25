@@ -339,7 +339,14 @@ locals {
   # `conversations` beside the documents. Agents searched the documents and
   # those held under half of what the person had told them, where what was
   # said held most of it.
-  daimyo_server_tag = "sha256:f3cfbaf0c46986746394014549d75672a1aa3d4257ce2811ee81219c93ff9391"
+  # 01abd3c (main pipeline 17624: every check green, the server build on its
+  # second run after the first hit the job's hour). Server only, no
+  # migration: `daimyo_launch_stage_seconds{org,stage}` says where each launch
+  # that reached readiness spent its time (create, schedule, sandbox, init,
+  # containers, ready from the Kata backend; prepare and total from the task
+  # supervisor). A one-shot launch here had a median near 6 s and one in
+  # eight waited over a minute, with nothing to say which part that was.
+  daimyo_server_tag = "sha256:071ec34cb59ecc4f70f74754ad5aa0691d9f3b57a9c915c6cd77e9e9efed4057"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
