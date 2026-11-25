@@ -898,26 +898,6 @@ model_list:
       supports_reasoning: true
       supports_vision: true
       supported_openai_params: *openai_reasoning_params
-  # Opus at a fixed low effort, for Orion's Learn tutor (the Daimyo agent
-  # orion-tutor). A Daimyo agent cannot set an effort, and Learn shows the
-  # learner the tutor's thinking, so the effort is fixed here.
-  - model_name: "claude/opus-5-5-low"
-    litellm_params:
-      model: "anthropic/claude-opus-5-5"
-      litellm_credential_name: claude_bridge_credential
-      reasoning_effort: low
-      timeout: 900
-      stream_timeout: 900
-    model_info:
-      input_cost_per_token: 0
-      output_cost_per_token: 0
-      mode: chat
-      max_input_tokens: 1000000
-      max_output_tokens: 128000
-      supports_function_calling: true
-      supports_reasoning: true
-      supports_vision: true
-      supported_openai_params: *openai_reasoning_params
   # Haiku 5.5 is the balanced tier's Claude-pool representative at xhigh.
   - model_name: "claude/haiku-5-5"
     litellm_params:
