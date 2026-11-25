@@ -776,8 +776,12 @@ Since 2026-11-25 new OpenWebUI chats use Meridian instead
 (`tofu/home/kubernetes/openwebui.tf`, connection `meridian`, tool id
 `server:mcp:meridian`): the search form `…/mcp?tools=search`, with the
 signed-in user's Keycloak token, which carries Meridian's audience
-(`keycloak.tf` `openwebui_meridian_audience`). Meridian's `access`
-(`tofu/home/kubernetes/meridian.tf`) decides what that user sees. The LiteLLM
+(`keycloak.tf` `openwebui_meridian_audience`). The connection is open to every
+OpenWebUI user, and Meridian (`tofu/home/kubernetes/meridian.tf`) decides what
+each sees: `access` names a person (`keycloak/shdrch` gets everything), and
+`roles` gives whoever holds the realm role `openwebui-user` the sources that
+only read public information (time, TMDB, ESPN, Finviz, Ticketmaster,
+OpenAlex, PubMed, openFDA, Google Maps). A user with neither sees no tools. The LiteLLM
 connection described above is still configured, for Daimyo's own MCP, but is no
 longer on by default.
 

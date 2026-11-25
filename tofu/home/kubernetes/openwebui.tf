@@ -49,8 +49,15 @@ locals {
     auth_type = "system_oauth"
     key       = ""
     config = {
-      enable        = true
-      access_grants = []
+      enable = true
+      # Every user: each reaches Meridian with their own Keycloak token, and
+      # Meridian decides what that person may use (meridian.tf `access` and
+      # `roles`). A user it gives nothing sees an empty tool list.
+      access_grants = [{
+        principal_type = "user"
+        principal_id   = "*"
+        permission     = "read"
+      }]
     }
     info = {
       id          = "meridian"

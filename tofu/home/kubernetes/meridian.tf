@@ -39,7 +39,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "ceca2642293d3deadf5f36a7042ab34d00e87567"
+  meridian_release   = "fc0b941ec1ace113e67584b4a4a321cf059940c9"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -93,6 +93,9 @@ locals {
         url      = "https://auth.shdr.ch/realms/aether"
         audience = "${local.meridian_public_url}/mcp"
         caller   = "preferred_username"
+        # The realm roles a person holds, for `roles` below. OpenWebUI's
+        # tokens carry them (keycloak.tf openwebui_roles).
+        roles = "roles"
         # Keycloak exchanges a person's token for one addressed to a source
         # (`exchange` sources below), with Meridian as client
         # meridian-exchange (keycloak.tf).
@@ -176,6 +179,15 @@ locals {
       "daimyo/dev"      = ["clickstack"]
       "daimyo/rogue"    = ["qbittorrent"]
       "keycloak/shdrch" = ["*"]
+    }
+    # Whoever may sign in to OpenWebUI (OAUTH_ALLOWED_ROLES, openwebui.tf)
+    # gets, as themselves, the sources that only read public information:
+    # nothing of the home, nothing that is one person's account.
+    roles = {
+      "keycloak/openwebui-user" = [
+        "time", "tmdb", "espn", "finviz", "ticketmaster",
+        "openalex", "pubmed", "openfda", "google-maps",
+      ]
     }
   }
 }
