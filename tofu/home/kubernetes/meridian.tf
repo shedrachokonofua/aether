@@ -6,8 +6,15 @@
 # may use. Its whole configuration is the `config` value below: issuers,
 # sources, endpoints, access. Changing who may use what is a change to this file.
 #
-# It stands beside LiteLLM's MCP gateway and replaces nothing yet: sources move
-# over one at a time. Pharos is the first.
+# It stands beside LiteLLM's MCP gateway and replaces nothing yet. Pharos is
+# reached directly. Every other server is reached through LiteLLM's per-server
+# routes for now, with the key the `orion` agent's grants use, so LiteLLM's tool
+# allowlists and its 1 MiB and 60 s limits still apply to those. A source moves
+# to a direct address one at a time; its tool names do not change when it does,
+# because the `<server>-` prefix LiteLLM adds is dropped here.
+#
+# The skills in so/orion's chart (deploy/helm/orion/skills) are served from the
+# pinned commit, under their own names.
 #
 # Callers are Daimyo agents: a task token minted for audience `meridian` by the
 # org's issuer names the agent, and `access` is keyed `daimyo/<agent>`. The
@@ -19,13 +26,24 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "1989b4cc78a9ebb8a4611ee44bbc063a43b58b07"
+  meridian_release   = "46539542ca07410072699eade63765024da10b0c"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
   }
   # In-cluster address consumers use: `${local.meridian_url}/mcp`.
   meridian_url = "http://meridian.${local.meridian_namespace}.svc.cluster.local:8080"
+
+  # LiteLLM MCP servers the daimyo-orion key may reach
+  # (register_litellm_virtual_keys.yml, litellm_daimyo_orion_mcp_servers).
+  meridian_litellm_servers = [
+    "annas", "clickstack", "comfyui", "espn", "finviz", "fm", "google_maps",
+    "homeassistant", "instacart", "jellyfin", "karakeep", "nextcloud",
+    "openalex", "openfda", "pubmed", "qbittorrent", "shop", "siren",
+    "ticketmaster", "time", "tmdb", "withings", "x_bridge", "yourspotify",
+  ]
+  # so/orion commit whose chart skills are served.
+  meridian_orion_skills_commit = "d6d624c9b7b370860da136e5720bef3226b55406"
 
   meridian_config = {
     issuers = {
@@ -35,19 +53,40 @@ locals {
         caller   = "agent"
       }
     }
-    sources = {
-      pharos = {
-        mcp     = "http://pharos.${local.pharos_namespace}.svc.cluster.local:8080/mcp/"
-        headers = { Authorization = "Bearer $PHAROS_MCP_TOKEN" }
-      }
-    }
+    sources = merge(
+      {
+        pharos = {
+          mcp     = "http://pharos.${local.pharos_namespace}.svc.cluster.local:8080/mcp/"
+          headers = { Authorization = "Bearer $PHAROS_MCP_TOKEN" }
+        }
+        orion-skills = {
+          skills = "https://gitlab.home.shdr.ch/so/orion.git#${local.meridian_orion_skills_commit}"
+        }
+      },
+      {
+        # A source name has no underscore (a tool is <source>_<tool>).
+        for server in local.meridian_litellm_servers : replace(server, "_", "-") => {
+          mcp     = "http://litellm.litellm.svc.cluster.local:4000/mcp/${server}"
+          headers = { "x-litellm-api-key" = "Bearer $LITELLM_MCP_KEY" }
+          tools   = { "${server}-*" = { name = "*" } }
+        }
+      },
+    )
     access = {
       "daimyo/orion" = ["*"]
     }
   }
 }
 
-# The credentials the configuration names as $NAME. One per source.
+# The `orion` agent's LiteLLM key for the MCP gateway's per-server routes
+# (openbao_daimyo.tf). Meridian reaches LiteLLM's servers with the same key
+# and scope until each is a direct source.
+data "vault_kv_secret_v2" "meridian_litellm_mcp" {
+  mount = "kv"
+  name  = "orgs/personal/litellm-mcp"
+}
+
+# The credentials the configuration names as $NAME.
 resource "kubernetes_secret_v1" "meridian_env" {
   depends_on = [module.namespace["meridian"]]
 
@@ -59,6 +98,7 @@ resource "kubernetes_secret_v1" "meridian_env" {
 
   data = {
     PHAROS_MCP_TOKEN = random_password.pharos_mcp_token.result
+    LITELLM_MCP_KEY  = data.vault_kv_secret_v2.meridian_litellm_mcp.data["token"]
   }
 }
 
